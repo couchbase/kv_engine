@@ -162,7 +162,10 @@ TEST_P(CheckpointTest, CheckFixture) {
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     // cs item
     EXPECT_EQ(1, manager->getNumOpenChkItems());
+    // empty, cs,
+    // ^
     EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor));
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -722,15 +725,17 @@ TEST_P(CheckpointTest, CursorMovement) {
     EXPECT_EQ(1002, result.ranges.front().getEnd());
 
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor));
 
     /* Get items for DCP replication cursor */
-    EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor))
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*dcpCursor.lock()))
             << "Expected to have no normal (only meta) items";
     items.clear();
     this->manager->getNextItemsForDcp(*dcpCursor.lock(), items);
     /* Expecting only 1 op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(0, manager->getNumItemsForCursor(*dcpCursor.lock()));
 }
 
 // MB-25056 - Regression test replicating situation where the seqno returned by
@@ -3718,6 +3723,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
         EXPECT_GT(manager->getOpenCheckpointId(), openId);
         EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor));
+        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     }
 }
 
@@ -3939,7 +3945,7 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
 
     // And we expect to be in the open checkpoint, so we don't hold the closed
     // one. Also, we don't need a backfill as we are simulating a DCP client
-    // that has already got 1002 and the next seqno 1003 is in checkpoint. 
+    // that has already got 1002 and the next seqno 1003 is in checkpoint.
     EXPECT_FALSE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.nextSeqno);
     EXPECT_EQ(3, (*cursor2.takeCursor().lock()->getCheckpoint())->getId());

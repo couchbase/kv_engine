@@ -77,7 +77,6 @@ void CheckpointCursor::repositionAtCheckpointBegin(
 void CheckpointCursor::repositionAtCheckpointStart(
         CheckpointList::iterator checkpointIt) {
     repositionAtCheckpointBegin(checkpointIt);
-
     // Move currentPos and distance, but do not move the itemLinePosition as
     // the usage of repositionAtCheckpointStart is not consuming items so we
     // do not expect ::getNumItems to change value (reduce)
@@ -113,6 +112,16 @@ void CheckpointCursor::incrPos() {
 
 size_t CheckpointCursor::getRemainingItemsInCurrentCheckpoint() const {
     return (*currentCheckpoint)->getNumItems() - distance;
+}
+
+size_t CheckpointCursor::getNumItems(size_t length) const {
+    // This is a paranoid check to ensure we don't return a negative number
+    // (large unsigned) value.
+    if (itemLinePosition > length) {
+        return 0;
+    }
+
+    return length - itemLinePosition;
 }
 
 bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {

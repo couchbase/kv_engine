@@ -189,7 +189,6 @@ void CheckpointManager::addNewCheckpoint(
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
     ++totalItems;
-
     oldOpenCkpt.close();
 
     // Inherit the HPS from the previous Checkpoint. Should we de-dupe in the
@@ -339,7 +338,6 @@ void CheckpointManager::addOpenCheckpoint(
     ckpt->queueDirty(qi);
     ++numItems;
     ++totalItems;
-
     checkpointList.push_back(std::move(ckpt));
     Ensures(!checkpointList.empty());
     Ensures(checkpointList.back()->getState() ==
