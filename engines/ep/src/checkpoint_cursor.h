@@ -162,9 +162,7 @@ public:
      * @return the number of items from the cursor. This is calculated as the
      *         difference between the Cursor position and the input length.
      */
-    size_t getNumItems(size_t length) const {
-        return length - itemLinePosition;
-    }
+    size_t getNumItems(size_t length) const;
 
     void resetPositionOnItemLine() {
         itemLinePosition = 0;

@@ -770,9 +770,11 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
        << " numItems:" << c.getNumItems()
-       << " type:" << to_string(c.getCheckpointType());
-    os << " hps:" << std::to_string(c.getHighPreparedSeqno());
-    os << " purgeSeqno:" << c.getPurgeSeqno();
+       << " type:" << to_string(c.getCheckpointType())
+       << " positionOnItemLine:" << c.getPositionOnItemLine()
+       << " hps:" << std::to_string(c.getHighPreparedSeqno())
+       << " purgeSeqno:" << c.getPurgeSeqno();
+
     const auto hcs = c.getHighCompletedSeqno();
     os << " hcs:" << (hcs ? std::to_string(hcs.value()) : "none ") << " items:["
        << std::endl;
