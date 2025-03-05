@@ -48,8 +48,6 @@ public:
             config.setContinousBackupInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_migration_rate_limit") {
             config.setFusionMigrationRateLimit(value);
-        } else if (key == "magma_fusion_sync_rate_limit") {
-            config.setFusionSyncRateLimit(value);
         }
     }
 
@@ -233,10 +231,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_fusion_migration_rate_limit",
             std::make_unique<ConfigChangeListener>(*this));
-    fusionSyncRateLimit = config.getMagmaFusionSyncRateLimit();
-    config.addValueChangedListener(
-            "magma_fusion_sync_rate_limit",
-            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
@@ -247,13 +241,6 @@ void MagmaKVStoreConfig::setFusionMigrationRateLimit(size_t value) {
     fusionMigrationRateLimit.store(value);
     if (store) {
         store->setMagmaFusionMigrationRateLimit(value);
-    }
-}
-
-void MagmaKVStoreConfig::setFusionSyncRateLimit(size_t value) {
-    fusionSyncRateLimit.store(value);
-    if (store) {
-        store->setMagmaFusionSyncRateLimit(value);
     }
 }
 

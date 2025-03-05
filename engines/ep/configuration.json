@@ -1675,17 +1675,6 @@
                 }
             }
         },
-        "magma_fusion_sync_rate_limit": {
-            "default": "(1024 * 1024 * 75)",
-            "descr": "The rate limit for Fusion sync uploads, in bytes per second.",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "min": 1
-                }
-            }
-        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",
