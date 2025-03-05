@@ -27,6 +27,7 @@
 
 #include <folly/Expected.h>
 #include <cstdlib>
+#include <variant>
 
 class CheckpointDestroyerTask;
 class CheckpointMemRecoveryTask;
@@ -1207,9 +1208,9 @@ public:
     }
 
     /// Get the encryption keys in use by the shards
-    virtual std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    virtual std::variant<cb::engine_errc, std::unordered_set<std::string>>
     getEncryptionKeyIds() {
-        return {cb::engine_errc::not_supported, {}};
+        return cb::engine_errc::not_supported;
     }
 
 protected:

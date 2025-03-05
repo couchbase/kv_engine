@@ -1694,20 +1694,21 @@ DBFileInfo EPBucket::getAggregatedFileInfo() {
     return totalInfo;
 }
 
-std::pair<cb::engine_errc, std::unordered_set<std::string>>
+std::variant<cb::engine_errc, std::unordered_set<std::string>>
 EPBucket::getEncryptionKeyIds() {
     const auto numShards = vbMap.getNumShards();
     std::unordered_set<std::string> keys;
     for (uint16_t shardId = 0; shardId < numShards; shardId++) {
         auto underlying = getRWUnderlyingByShard(shardId);
-        auto [status, inuse] = underlying->getEncryptionKeyIds();
-        if (status != cb::engine_errc::success) {
-            return {status, {}};
+        auto rv = underlying->getEncryptionKeyIds();
+        if (std::holds_alternative<cb::engine_errc>(rv)) {
+            return std::get<cb::engine_errc>(rv);
         }
+        auto& inuse = std::get<std::unordered_set<std::string>>(rv);
         keys.insert(inuse.begin(), inuse.end());
     }
 
-    return {cb::engine_errc::success, std::move(keys)};
+    return keys;
 }
 
 uint64_t EPBucket::getTotalDiskSize() {

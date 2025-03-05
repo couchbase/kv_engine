@@ -28,6 +28,7 @@
 #include <shared_mutex>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace magma {
@@ -118,7 +119,7 @@ public:
 
     void setMaxDataSize(size_t size) override;
 
-    std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    std::variant<cb::engine_errc, std::unordered_set<std::string>>
     getEncryptionKeyIds() const override;
 
     /**

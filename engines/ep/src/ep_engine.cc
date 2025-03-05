@@ -3917,16 +3917,19 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
 
 cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
-    auto [status, keys] = kvBucket->getEncryptionKeyIds();
-    if (status == cb::engine_errc::success) {
-        auto active = encryptionKeyProvider.lookup({});
-        if (active) {
-            std::string key(active->getId());
-            keys.insert(key);
-        }
-        add_stat("encryption-key-ids", nlohmann::json(keys).dump(), cookie);
+    auto rv = kvBucket->getEncryptionKeyIds();
+    if (std::holds_alternative<cb::engine_errc>(rv)) {
+        return std::get<cb::engine_errc>(rv);
     }
-    return status;
+
+    auto& keys = std::get<std::unordered_set<std::string>>(rv);
+    auto active = encryptionKeyProvider.lookup({});
+    if (active) {
+        std::string key(active->getId());
+        keys.insert(key);
+    }
+    add_stat("encryption-key-ids", nlohmann::json(keys).dump(), cookie);
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::doHashStats(

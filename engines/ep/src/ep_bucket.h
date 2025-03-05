@@ -19,6 +19,7 @@
 #include "snapshots/download_snapshot_controller.h"
 #include "utilities/synchronized_init_once_ptr.h"
 #include "utilities/testing_hook.h"
+#include <variant>
 
 class BgFetcher;
 namespace Collections::VB {
@@ -457,7 +458,7 @@ public:
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;
 
-    std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    std::variant<cb::engine_errc, std::unordered_set<std::string>>
     getEncryptionKeyIds() override;
 
 protected:

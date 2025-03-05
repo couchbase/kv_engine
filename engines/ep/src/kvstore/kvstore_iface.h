@@ -23,6 +23,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
 #include <snapshot/manifest.h>
+#include <variant>
 
 class ByIdScanContext;
 class BySeqnoScanContext;
@@ -176,9 +177,9 @@ public:
                           CookieIface& cookie) const = 0;
 
     /// Get the Encryption Key Identifiers in use by this kvstore
-    virtual std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    virtual std::variant<cb::engine_errc, std::unordered_set<std::string>>
     getEncryptionKeyIds() const {
-        return {cb::engine_errc::not_supported, {}};
+        return cb::engine_errc::not_supported;
     }
 
     /**

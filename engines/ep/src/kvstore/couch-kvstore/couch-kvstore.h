@@ -31,6 +31,7 @@
 #include <memory>
 #include <queue>
 #include <string>
+#include <variant>
 #include <vector>
 
 #define COUCHSTORE_NO_OPTIONS 0
@@ -301,7 +302,7 @@ public:
      */
     void pendingTasks() override;
 
-    std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    std::variant<cb::engine_errc, std::unordered_set<std::string>>
     getEncryptionKeyIds() const override;
 
     /// Create a snapshot in the provided directory for the provided vbucket
