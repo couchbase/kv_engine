@@ -236,8 +236,7 @@ UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
     : steadyTimeNow(std::move(steadyClock)),
       systemTimeNow(std::move(systemClock)),
       start(steadyTimeNow()),
-      lastKnownSystemTime(systemTimeNow()),
-      epoch(lastKnownSystemTime),
+      epoch(systemTimeNow()),
       systemCheckLastKnownSteadyTime(start),
       lastKnownSteadyTime(start) {
 }
@@ -307,7 +306,9 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
     ++systemClockChecks;
 
     auto systemTime = systemTimeNow();
-    auto systemDuration = systemTime - lastKnownSystemTime;
+    auto systemTimeEstimate = epoch.load() + newUptime;
+    auto difference = duration_cast<Duration>(
+            std::chrono::abs(systemTime - systemTimeEstimate));
 
     /* move our checksystem time marker to trigger the next check
        at the correct interval*/
@@ -319,30 +320,30 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
     // If the system clock has not progressed by the tickDuration
     // (accounting for the tolerance) consider this a warning and adjust
     // the epoch.
-    if (systemDuration > (tickDuration + systemClockTolerance) ||
-        systemDuration < (tickDuration - systemClockTolerance)) {
+    if (difference > systemClockTolerance) {
         ++systemClockCheckWarnings;
         auto newEpoch = systemTime - newUptime;
         if (cb::logger::get() != nullptr) {
             /* log all variables used in time calculations */
             LOG_WARNING(
-                    "system clock changed? uptime:{} tickDuration:{} "
-                    "differs from systemDuration:{} when accounting for "
-                    "the tolerance:{}. previous:{:%FT%T%z}, "
-                    "now:{:%FT%T%z}. Adjusting epoch from {:%FT%T%z} to "
+                    "system clock changed? uptimeClock:{:%FT%T%z} (uptime:{}, "
+                    "epoch:{}) differs from systemClock:{:%FT%T%z} when "
+                    "accounting for the tolerance:{} (difference:{}, "
+                    "tickDuration:{}). Adjusting epoch from {:%FT%T%z} to "
                     "{:%FT%T%z}. Next check when uptime reaches:{}. "
                     "warnings:{}",
+                    fmt::localtime(system_clock::to_time_t(systemTimeEstimate)),
                     newUptime,
-                    duration_cast<Duration>(tickDuration),
-                    duration_cast<Duration>(systemDuration),
+                    epoch.load(),
+                    fmt::localtime(system_clock::to_time_t(systemTime)),
                     systemClockTolerance,
-                    lastKnownSystemTime,
-                    systemTime,
+                    difference,
+                    duration_cast<Duration>(tickDuration),
                     fmt::localtime(system_clock::to_time_t(
                             time_point<system_clock>(epoch.load()))),
                     fmt::localtime(system_clock::to_time_t(
                             time_point<system_clock>(newEpoch))),
-                    duration_cast<duration<float>>(nextSystemTimeCheck),
+                    nextSystemTimeCheck,
                     systemClockCheckWarnings);
         }
         /* adjust memcached_epoch to ensure correct timeofday can
@@ -351,7 +352,6 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
     }
 
     systemCheckLastKnownSteadyTime = now;
-    lastKnownSystemTime = systemTime;
 }
 
 void UptimeClock::doSteadyClockCheck(steady_clock::time_point now,

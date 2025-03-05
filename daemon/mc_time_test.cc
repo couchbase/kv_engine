@@ -171,8 +171,8 @@ TEST_F(McTimeUptimeTest, expectedFlow) {
 }
 
 TEST_F(McTimeUptimeTest, systemTimeCheckTriggers) {
-    // Enable monitoring. Every 2 seconds check if the system clock has moved by
-    // 2 (+/- 1) seconds.
+    // Enable monitoring. Every 2 seconds check if the uptime clock has drifted
+    // by 2 (+/- 1) seconds.
     uptimeClock.configureSystemClockCheck(2s, 1s);
 
     // Test just demonstrates that ticking over the trigger sets off a warning
@@ -183,7 +183,7 @@ TEST_F(McTimeUptimeTest, systemTimeCheckTriggers) {
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerDragging) {
-    // Enable monitoring. Every 200ms check if the system clock has moved by
+    // Enable monitoring. Every 200ms check if the uptime clock has drifted by
     // 200 (+/- 100) milliseconds.
     uptimeClock.configureSystemClockCheck(200ms, 100ms);
 
@@ -201,7 +201,7 @@ TEST_F(McTimeUptimeTest, systemTimeNoTriggerDragging) {
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerRushing) {
-    // Enable monitoring. Every 200ms check if the system clock has moved by
+    // Enable monitoring. Every 200ms check if the uptime clock has drifted by
     // 200 (+/- 100) milliseconds.
     uptimeClock.configureSystemClockCheck(200ms, 100ms);
 
@@ -257,7 +257,7 @@ TEST_F(McTimeUptimeTest, tickReturnValue) {
 
 // Check that sub-second configuration works as expected.
 TEST_F(McTimeUptimeTest, millisecondTicking) {
-    uptimeClock.configureSystemClockCheck(10ms, 1ms);
+    uptimeClock.configureSystemClockCheck(10ms, 2ms);
 
     // The tick function will check each tick returns the steadyTick value
     EXPECT_EQ(20ms, tick(2, 10ms, 10ms));
@@ -266,18 +266,25 @@ TEST_F(McTimeUptimeTest, millisecondTicking) {
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 
     // within tolerance
+    // Steady time: t+40ms
+    // System time: t+42ms
     EXPECT_EQ(40ms, tick(2, 10ms, 11ms));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(4, uptimeClock.getSystemClockChecks());
 
     auto epoch = uptimeClock.getEpochSeconds();
 
-    // behind by 2ms (out of tolerance)
-    EXPECT_EQ(50ms, tick(1, 10ms, 8ms));
+    // behind by 3ms (out of tolerance)
+    // Steady time: t+50ms
+    // System time: t+47ms
+    EXPECT_EQ(50ms, tick(1, 10ms, 5ms));
     EXPECT_EQ(1, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(5, uptimeClock.getSystemClockChecks());
 
-    EXPECT_EQ(60ms, tick(1, 10ms, 12ms));
+    // ahead by 3ms
+    // Steady time: t+60ms
+    // System time: t+60ms
+    EXPECT_EQ(60ms, tick(1, 10ms, 13ms));
     EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(6, uptimeClock.getSystemClockChecks());
 
@@ -442,4 +449,56 @@ TEST_F(McTimeUptimeTest, MB_57249) {
     EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(4, uptimeClock.getSystemClockChecks());
+}
+
+/**
+ * We only update the mc_time epoch if:
+ * - 60s have elapsed on the monotonic clock.
+ * - *and* the system clock has moved by 60 (+/-) 1s.
+ * That leave opportunity for the following to occur:
+ * - for a 60s interval on the uptime clock, 59-61s have advanced on the system
+ * clock. In that case, the two clocks become desynced by 1 second. This is
+ * repeatable and the error accumulates.
+ * There is no automatic correction, since we don't compare the system and
+ * mc_time clocks directly, instead we just check >60s on the monotonic clock
+ * and ~60s on the system clock have elapsed.
+ */
+TEST_F(McTimeUptimeTest, ConsistentUptimeLag1s) {
+    uptimeClock.configureSystemClockCheck(std::chrono::seconds(60),
+                                          std::chrono::seconds(1));
+    uptimeClock.configureSteadyClockCheck(std::chrono::milliseconds(100));
+
+    for (int i = 0; i < 200; i++) {
+        // System time advances 61s.
+        tick(60, 1000ms, 1000ms * 61 / 60);
+    }
+    EXPECT_EQ(200, uptimeClock.getSystemClockChecks());
+    // Expect 1 epoch update every 2 system checks, since every 2 intervals we
+    // accumulate 2s of error (threshold is 1s).
+    EXPECT_EQ(100, uptimeClock.getSystemClockWarnings());
+
+    auto mcTime =
+            duration_cast<seconds>(uptimeClock.getEpoch().time_since_epoch() +
+                                   uptimeClock.now().time_since_epoch())
+                    .count();
+    EXPECT_NEAR(mcTime, duration_cast<seconds>(systemTime).count(), 1);
+}
+
+TEST_F(McTimeUptimeTest, ConsistentUptimeLagLargerThan1s) {
+    uptimeClock.configureSystemClockCheck(std::chrono::seconds(60),
+                                          std::chrono::seconds(1));
+    uptimeClock.configureSteadyClockCheck(std::chrono::milliseconds(100));
+
+    for (int i = 0; i < 200; i++) {
+        // System time advances 62s.
+        tick(60, 1000ms, 1000ms * 62 / 60);
+    }
+    EXPECT_EQ(200, uptimeClock.getSystemClockChecks());
+    EXPECT_EQ(200, uptimeClock.getSystemClockWarnings());
+
+    auto mcTime =
+            duration_cast<seconds>(uptimeClock.getEpoch().time_since_epoch() +
+                                   uptimeClock.now().time_since_epoch())
+                    .count();
+    EXPECT_NEAR(mcTime, duration_cast<seconds>(systemTime).count(), 1);
 }
