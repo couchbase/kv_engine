@@ -30,7 +30,14 @@ uint32_t crc32buf(const uint8_t* buf, size_t len);
 
 /// Set to true when all consumers should drain their spooled data and
 /// not expect new data to arrive
-std::atomic_bool done = false;
+static std::atomic_bool done = false;
+
+static std::atomic_uint64_t total_stored = 0;
+static std::atomic_uint64_t total_failed = 0;
+static std::atomic_uint64_t total_tmpfail = 0;
+
+/// The number of connections to use to each node in the cluster
+static std::size_t num_connections = 10;
 
 /// The document value to store
 std::string document_value;
@@ -62,7 +69,7 @@ public:
     }
 
     void start(const McProgramGetopt& getopt, std::string_view bucket) {
-        for (int ii = 0; ii < 10; ++ii) {
+        for (std::size_t ii = 0; ii < num_connections; ++ii) {
             using cb::mcbp::Feature;
             auto conn = getopt.createAuthenticatedConnection(
                     host, port, AF_INET, tls);
@@ -117,6 +124,7 @@ protected:
 
         if (response.getStatus() == cb::mcbp::Status::Etmpfail) {
             // Back off to let the server move ahead
+            ++total_tmpfail;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             sendCommand(iter->second.first,
                         iter->second.second,
@@ -124,7 +132,10 @@ protected:
             return;
         }
 
-        if (response.getStatus() != cb::mcbp::Status::Success) {
+        if (response.getStatus() == cb::mcbp::Status::Success) {
+            ++total_stored;
+        } else {
+            ++total_failed;
             fmt::println("{}Command returned error: {}{}",
                          TerminalColor::Red,
                          response.to_json(false).dump(),
@@ -305,6 +316,13 @@ int main(int argc, char** argv) {
              "num",
              "The offset for the first key"});
 
+    getopt.addOption(
+            {[](auto value) { num_connections = stoul(std::string{value}); },
+             "num-connections",
+             Argument::Required,
+             "num",
+             "The number of connections to each node (default: 10)"});
+
     getopt.addOption({[](auto value) {
                           if (value == "per-document") {
                               random_value = RandomValue::PerDocument;
@@ -342,8 +360,6 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    folly::MPMCQueue<std::unique_ptr<BinprotCommand>> command_queue(1000);
-
     try {
         getopt.assemble();
 
@@ -368,25 +384,59 @@ int main(int argc, char** argv) {
                                       document_value.size());
         }
 
-        for (size_t ii = 0; ii < documents; ++ii) {
-            auto key = fmt::format("key-{}", ii + offset);
-            auto [node, vb] = node_locator->lookup(key);
-            node.enque(std::move(key), vb);
-            if ((ii % 1000) == 0) {
-                fmt::print(stdout, "\rQueued: {}", ii);
-                fflush(stdout);
-            }
+        auto dispatcher =
+                [&node_locator, documents, offset](Node& destination) {
+                    for (size_t ii = 0; ii < documents; ++ii) {
+                        auto key = fmt::format("key-{}", ii + offset);
+                        auto [node, vb] = node_locator->lookup(key);
+                        if (&node == &destination) {
+                            node.enque(std::move(key), vb);
+                        }
+                    }
+                };
+
+        // The various servers may operate with a different speed, and we
+        // don't want to have one slow server stop populating the faster
+        // nodes
+        std::vector<std::thread> generator_threads;
+        node_locator->iterate([&generator_threads, &dispatcher](auto& node) {
+            generator_threads.emplace_back(
+                    [&node, &dispatcher] { dispatcher(node); });
+        });
+
+        // Loop and dump statistics until we've stored all documents
+        while (total_stored < documents) {
+            uint64_t then = total_stored + total_failed + total_tmpfail;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            uint64_t now = total_stored + total_failed + total_tmpfail;
+            fmt::print(
+                    stdout,
+                    "\r{:>10} stored {:>10} tmpfail {:>4} failed {:>6} ops/s",
+                    total_stored,
+                    total_tmpfail,
+                    total_failed,
+                    now - then);
+            fflush(stdout);
+        }
+
+        fmt::println(stdout, " - done");
+        fflush(stdout);
+
+        for (auto& t : generator_threads) {
+            t.join();
         }
 
         done = true;
 
-        // Now wait for all of them to complete its work,..
-        node_locator->iterate([](auto& node) {
+        // Now wait for all of them to complete its work...
+        node_locator->iterate([&documents](auto& node) {
             while (!node.isIdle()) {
                 std::this_thread::sleep_for(std::chrono::seconds{1});
             }
             node.stop();
         });
+        fmt::println(stdout, " - done");
+        fflush(stdout);
     } catch (const std::exception& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
                   << std::endl;
