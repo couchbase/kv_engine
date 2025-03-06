@@ -1248,19 +1248,15 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
         tasksConfig = config;
     }
 
-    EP_LOG_INFO(
-            "Compaction of {}, task:{}, purge_before_ts:{}, "
-            "purge_before_seq:{}, "
-            "drop_deletes:{}, internal:{} {} with delay:{}s (awaiting "
-            "completion).",
-            vbid,
-            task->getId(),
-            tasksConfig.purge_before_ts,
-            tasksConfig.purge_before_seq,
-            tasksConfig.drop_deletes,
-            tasksConfig.internally_requested,
-            !emplaced ? "rescheduled" : "created",
-            execDelay.count());
+    EP_LOG_INFO_CTX("Compaction scheduled",
+                    {"vb", vbid},
+                    {"task", task->getId()},
+                    {"purge_before_ts", tasksConfig.purge_before_ts},
+                    {"purge_before_seq", tasksConfig.purge_before_seq},
+                    {"drop_deletes", tasksConfig.drop_deletes},
+                    {"internal", tasksConfig.internally_requested},
+                    {"status", !emplaced ? "rescheduled" : "created"},
+                    {"delay", execDelay.count()});
 
     return cb::engine_errc::would_block;
 }
@@ -1574,29 +1570,27 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         epVb.clearFilter();
     }
 
-    EP_LOG_INFO(
-            "Compaction of {} done ({}). "
-            "purged tombstones:{}, prepares:{}, prepareBytes:{} "
-            "collection_items_erased:alive:{},deleted:{}, "
-            "collections_erased:{}, "
-            "size/items/tombstones/purge_seqno pre{{{}, {}, {}, {}}}, "
-            "post{{{}, {}, {}, {}}}",
-            vb->getId(),
-            result,
-            ctx->stats.tombstonesPurged,
-            ctx->stats.preparesPurged,
-            ctx->stats.prepareBytesPurged,
-            ctx->stats.collectionsItemsPurged,
-            ctx->stats.collectionsDeletedItemsPurged,
-            ctx->stats.collectionsPurged,
-            ctx->stats.pre.size,
-            ctx->stats.pre.items,
-            ctx->stats.pre.deletedItems,
-            ctx->stats.pre.purgeSeqno,
-            ctx->stats.post.size,
-            ctx->stats.post.items,
-            ctx->stats.post.deletedItems,
-            ctx->stats.post.purgeSeqno);
+    EP_LOG_INFO_CTX("Compaction complete",
+                    {"vb", vb->getId()},
+                    {"result", result},
+                    {"purged",
+                     {{"tombstones", ctx->stats.tombstonesPurged},
+                      {"prepares", ctx->stats.preparesPurged},
+                      {"prepare_bytes", ctx->stats.prepareBytesPurged},
+                      {"collections_items", ctx->stats.collectionsItemsPurged},
+                      {"collections_deleted_items",
+                       ctx->stats.collectionsDeletedItemsPurged},
+                      {"collections", ctx->stats.collectionsPurged}}},
+                    {"pre",
+                     {{"size", ctx->stats.pre.size},
+                      {"items", ctx->stats.pre.items},
+                      {"deleted_items", ctx->stats.pre.deletedItems},
+                      {"purge_seqno", ctx->stats.pre.purgeSeqno}}},
+                    {"post",
+                     {{"size", ctx->stats.post.size},
+                      {"items", ctx->stats.post.items},
+                      {"deleted_items", ctx->stats.post.deletedItems},
+                      {"purge_seqno", ctx->stats.post.purgeSeqno}}});
     return result == CompactDBStatus::Success;
 }
 
