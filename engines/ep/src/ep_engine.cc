@@ -1155,6 +1155,8 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
         std::string_view key,
         std::string_view value,
         Vbid vbid) {
+    std::lock_guard<std::mutex> lh(setParameterMutex);
+
     const std::string keyz(key);
     const std::string valz(value);
 
@@ -1178,7 +1180,12 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
         break;
     }
 
-    if (ret != cb::engine_errc::success && !msg.empty()) {
+    if (ret == cb::engine_errc::success) {
+        EP_LOG_INFO_CTX("setParameter",
+                        {"category", category},
+                        {"key", key},
+                        {"value", value});
+    } else if (!msg.empty()) {
         setErrorContext(cookie, msg);
     }
 

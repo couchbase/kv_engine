@@ -1662,6 +1662,13 @@ protected:
      */
     Configuration configuration;
     /**
+     * Mutex to lock setting parameters, which serialises execution of all
+     * setParameter calls. This also ensures all listeners are serialised,
+     * simplifying the implementation of them.
+     */
+    std::mutex setParameterMutex;
+
+    /**
      * Interface used for OOM conditions and triggering memory reclamation. For
      * quota-sharing engines, the memory usage of the entire quota-sharing
      * group will be considered.
