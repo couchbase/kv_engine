@@ -218,4 +218,8 @@ protected:
      * Test forced updates with replication
      */
     void replicateForcedUpdate(uint64_t newUid, bool warmup);
+
+    void testMB_47009(uint64_t startSeqno,
+                      snapshot_range_t snapshot,
+                      snapshot_range_t expectedSnapshot);
 };

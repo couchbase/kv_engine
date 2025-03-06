@@ -1906,7 +1906,10 @@ TEST_P(CollectionsDcpParameterizedTest, collection_tombstone_on_scope_filter) {
 
 // Test that we can stream-resume an interrupted snapshot where the rest of the
 // snapshot is filtered away.
-TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
+void CollectionsDcpParameterizedTest::testMB_47009(
+        uint64_t startSeqno,
+        snapshot_range_t snapshot,
+        snapshot_range_t expectedSnapshot) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Create two collections
@@ -1944,11 +1947,11 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
                       0,
                       1, // opaque
                       vbid,
-                      4, // start_seqno
+                      startSeqno,
                       ~0ull, // end_seqno
                       vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
-                      0, // snap_start_seqno,
-                      6, // snap_end_seqno,
+                      snapshot.getStart(),
+                      snapshot.getEnd(),
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -1958,6 +1961,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
     // Drive the stream and expect a seqno-advance to move us to the end of
     // the snapshot
     notifyAndStepToCheckpoint();
+    EXPECT_EQ(expectedSnapshot.getStart(), producers->last_snap_start_seqno);
+    EXPECT_EQ(expectedSnapshot.getEnd(), producers->last_snap_end_seqno);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers->last_op);
     EXPECT_EQ(6, producers->last_byseqno);
@@ -1982,6 +1987,17 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
     EXPECT_EQ(8, producers->last_byseqno);
     // 9 is filtered out, but the stream read it
     EXPECT_EQ(9, stream->getLastReadSeqno());
+}
+
+TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
+    testMB_47009(4, snapshot_range_t(1, 6), snapshot_range_t(1, 6));
+}
+
+TEST_P(CollectionsDcpParameterizedTest, MB_47009_to_highest_seqno) {
+    // Tests that when using a snapshot which is less than the available data,
+    // that seqno-advance takes us to seqno 6 and not 5 (it used to go to 5
+    // before fixing MB-65581).
+    testMB_47009(4, snapshot_range_t(1, 5), snapshot_range_t(1, 6));
 }
 
 // Test that when using TO_LATEST flag with a filtered stream and the

@@ -6003,6 +6003,184 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
     }
 }
 
+TEST_P(SingleThreadedActiveStreamTest, MB_65581) {
+    // Just start with a blank checkpoint
+    stream.reset();
+    auto& vb = *store->getVBucket(vbid);
+    removeCheckpoint(vb);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cFruit = CollectionEntry::fruit;
+    manifest.add(
+            cFruit, cb::NoExpiryLimit, true /*history*/, ScopeEntry::defaultS);
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, manager.getHighSeqno());
+
+    // seqno:2 in cFruit
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("keyF", cFruit), value);
+    ASSERT_EQ(2, manager.getHighSeqno());
+
+    // Add some data to the default collection
+    const auto& cDefault = CollectionEntry::defaultC;
+    store_item(vbid, makeStoredDocKey("keyD", cDefault), value);
+    ASSERT_EQ(3, manager.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3)
+
+    // Other mutations queued in the same checkpoint
+    store_item(vbid, makeStoredDocKey("keyDD", cDefault), value);
+    ASSERT_EQ(4, manager.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4)
+
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(5, manager.getNumItems());
+
+    // Note: Placing a dummy cursor in the first checkpoint on ephemeral for
+    // preventing that closed checkpoints are removed during the test.
+    // Not necessary for persistent bucket as we just don't move the persistence
+    // cursor.
+    std::shared_ptr<CheckpointCursor> dummyCursor;
+    if (ephemeral()) {
+        dummyCursor =
+                manager.registerCursorBySeqno("dummy-cursor",
+                                              0,
+                                              CheckpointCursor::Droppable::Yes)
+                        .takeCursor()
+                        .lock();
+    }
+
+    // Other mutations queued in new checkpoint
+    manager.createNewCheckpoint();
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4 ce:5]
+    //
+    // [e:5 cs:5)
+
+    store_item(vbid, makeStoredDocKey("keyFF", cFruit), value);
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(5, manager.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4 ce:5]
+    //
+    // [e:5 cs:5 m(keyFF):5)
+
+    store_item(vbid, makeStoredDocKey("keyDDD", cDefault), value);
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(6, manager.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4 ce:5]
+    //
+    // [e:5 cs:5 m(keyFF):5 m(keyDDD):6)
+
+    // Now we simulate all data persisted (ie up to s:6), s:1 expelled and a DCP
+    // client that:
+    // - connects for the first time
+    // - filters on collection fruits
+    // - start:0 -> backfill as s:1 expelled
+    // - gets SnapMarker(Disk, 1, 6)
+    // - gets up to seqno:2
+    // - disconnect BEFORE getting SeqnoAdvance(3)
+    //
+    // At reconnecting that DCP client will issue a
+    // StreamReq(start:2, snap:[1, 6])
+
+    stream = producer->mockActiveStreamRequest(
+            0 /*flags*/,
+            0 /*opaque*/,
+            vb,
+            2 /*st_seqno*/,
+            ~0 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            1 /*snap_start_seqno*/,
+            6 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            fmt::format(R"({{"collections":["{:x}"]}})", uint32_t(cFruit.uid)));
+    ASSERT_TRUE(stream);
+
+    auto& cursor = stream->getCursor();
+    EXPECT_EQ(2, (*cursor.lock()->getPos())->getBySeqno());
+    EXPECT_EQ(6, manager.getNumItemsForCursor(*cursor.lock()));
+    EXPECT_EQ(2, stream->getLastReadSeqno());
+    EXPECT_EQ(6, stream->getSnapEndSeqno());
+    // Note: At registerCursor this is set to the seqno of the next item for
+    // cursor.
+    EXPECT_EQ(3, stream->getCurChkSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4 ce:5]
+    //                        ^
+    // [e:5 cs:5 m(keyFF):5 m(keyDDD):6)
+
+    // Note: Purpose here is forcing a behaviour where DCP pulls 1 checkpoint
+    // a time. That is for reproducing the real scenario where at reconnect DCP
+    // manages to process a first checkpoint in isolation and sets lastReadSeqno
+    // to some value. Then DCP processes a second checkpoint that triggers the
+    // monotonic invariant on lastReadSeqno. See next steps for details.
+    auto& config = engine->getConfiguration();
+    config.setCheckpointMaxSize(1);
+    ASSERT_EQ(1, manager.getCheckpointConfig().getCheckpointMaxSize());
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // DCP gets only the first checkpoint
+    stream->nextCheckpointItemTask();
+    EXPECT_EQ(3, manager.getNumItemsForCursor(*cursor.lock()));
+    EXPECT_EQ(queue_op::empty, (*cursor.lock()->getPos())->getOperation());
+    EXPECT_EQ(5, (*cursor.lock()->getPos())->getBySeqno());
+
+    // Before the fix: lastReadSeqno=6 as we sent SeqnoAdvance(6)
+    // EXPECT_EQ(6, stream->getLastReadSeqno());
+    // At fix the last nextCheckpointItemTask() hasn't produced any data:
+    EXPECT_EQ(4, stream->getLastReadSeqno());
+
+    // Checks on DCP readyQ
+    //
+    // Before the fix, at this point we have queued SnapMarker(1, 6) +
+    // SeqnoAdvance(6).
+    // While at fix:
+    ASSERT_EQ(0, readyQ.size());
+
+    // This is the current state in checkpoint:
+    //
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3) m(keyDD):4 ce:5]
+    //
+    // [e:5 cs:5 m(keyFF):5 m(keyDDD):6)
+    //    ^
+
+    // DCP moves and gets the second checkpoint.
+    //
+    // ActiveStream processes the snapshot and tries to update lastReadSeqno.
+    //
+    // Before the fix this call throws by monotonic invariant failure on
+    // lastReadSeqno.
+    stream->nextCheckpointItemTask();
+    EXPECT_EQ(0, manager.getNumItemsForCursor(*cursor.lock()));
+
+    // At fix:
+    {
+        ASSERT_EQ(2, readyQ.size());
+        // SnapMarker(1, 5)
+        auto resp = stream->public_nextQueuedItem(*producer);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+        auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+        EXPECT_EQ(1, marker->getStartSeqno());
+        EXPECT_EQ(5, marker->getEndSeqno());
+        // Mutation(5)
+        resp = stream->public_nextQueuedItem(*producer);
+        EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+        EXPECT_EQ(5, resp->getBySeqno());
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
