@@ -52,6 +52,20 @@ protected:
             cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None);
 
     /**
+     * Reset the current producer with the given params.
+     *
+     * @param vb
+     * @param dcpOpenflags The flags used at producer creation
+     * @param controls a vector of key/value pairs representing the desired DCP
+     * controls.
+     */
+    void recreateProducer(
+            VBucket& vb,
+            cb::mcbp::DcpOpenFlag flags,
+            const std::vector<std::pair<std::string, std::string>>& controls =
+                    {});
+
+    /**
      * Reset the current producer and stream and recreate with the given params.
      *
      * @param vb
