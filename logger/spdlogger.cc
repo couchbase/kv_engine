@@ -309,6 +309,11 @@ void cb::logger::logWithContext(spdlog::logger& logger,
         msg = sanitized;
     }
 
+    // Remove trailing spaces from the message
+    while (!msg.empty() && msg.back() == ' ') {
+        msg.remove_suffix(1);
+    }
+
     // We build up the log string here then pass the already-formatted
     // string down to spdlog directly, not using spdlog's formatting
     // functions.
