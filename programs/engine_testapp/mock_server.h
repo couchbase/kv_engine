@@ -54,3 +54,7 @@ cb::engine_errc mock_waitfor_cookie(CookieIface* cookie);
  * to read.
  */
 bool mock_cookie_notified(CookieIface* cookie);
+
+void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout);
+
+void mock_set_dcp_disconnect_when_stuck_name_regex(std::string regex);

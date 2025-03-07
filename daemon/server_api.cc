@@ -71,6 +71,14 @@ struct ServerCoreApi : public ServerCoreIface {
     std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
         return Settings::instance().getQuotaSharingPagerSleepTime();
     }
+
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
+        return Settings::instance().getDcpDisconnectWhenStuckTimeout();
+    }
+
+    std::string getDcpDisconnectWhenStuckNameRegex() override {
+        return Settings::instance().getDcpDisconnectWhenStuckNameRegex();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {
