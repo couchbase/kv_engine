@@ -43,54 +43,10 @@ void BucketLogger::flush_() {
 void BucketLogger::logInner(spdlog::level::level_enum lvl,
                             fmt::string_view fmt,
                             fmt::format_args args) {
-    // get engine before disabling memory tracking!
-    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-
-    // Disable memory tracking for the formatting and logging of the
-    // message. This is necessary because the message will be written to
-    // disk (and subsequently freed) by the shared background thread (as
-    // part of spdlog::async_logger) and hence we do not know which engine
-    // to associate the deallocation to. Instead account any log message
-    // memory to "NonBucket" (it is only transient and typically small - of
-    // the order of the log message length).
-    // scope of memory-tracking disablement must also cover the exception
-    // handler - see MB-61032.
-    NonBucketAllocationGuard guard;
-
-    try {
-        // We want to prefix the specified message with the bucket name &
-        // optional prefix, but we cannot be sure that bucket name / prefix
-        // doesn't contain any fmtlib formatting characters. Therefore we build
-        // up the log string here then pass the already-formatted string down to
-        // spdlog directly, not using spdlog's formatting functions.
-        fmt::memory_buffer msg;
-
-        // Append the id (if set)
-        if (connectionId != 0) {
-            fmt::format_to(std::back_inserter(msg), "{}: ", connectionId);
-        }
-
-        // Append the engine name (if applicable)
-        fmt::format_to(std::back_inserter(msg),
-                       "({}) ",
-                       engine ? engine->getName() : "No Engine");
-
-        // Append the given prefix (if set)
-        if (!prefix.empty()) {
-            fmt::format_to(std::back_inserter(msg), "{} ", prefix);
-        }
-
-        // Finally format the actual user-specified format string & args.
-        fmt::vformat_to(std::back_inserter(msg), fmt, args);
-        spdlog::logger::log(lvl, {msg.data(), msg.size()});
-    } catch (const std::exception& e) {
-        // Log a fixed message about this failing - we can't really be sure
-        // what arguments failed above.
-        spdlog::logger::log(spdlog::level::err,
-                            "BucketLogger::logInner: Failed to log message "
-                            "with format string '{}'",
-                            fmt);
-    }
+    fmt::memory_buffer msg;
+    // Format the user-specified format string & args.
+    fmt::vformat_to(std::back_inserter(msg), fmt, args);
+    logWithContext(lvl, {msg.data(), msg.size()}, cb::logger::Json::object());
 }
 
 void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
@@ -121,6 +77,8 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
         }
 
         auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+        object.reserve(object.size() + prefixContext.size() + bool(engine) +
+                       bool(connectionId));
 
         if (!prefixContext.empty()) {
             const auto& prefixObject =

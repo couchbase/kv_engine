@@ -80,7 +80,7 @@ TEST_F(BucketLoggerTest, TraceMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "TRACE (No Engine) formattedtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "TRACE formattedtext"));
 }
 
 /**
@@ -91,7 +91,7 @@ TEST_F(BucketLoggerTest, DebugMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "DEBUG (No Engine) formattedtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "DEBUG formattedtext"));
 }
 
 /**
@@ -102,7 +102,7 @@ TEST_F(BucketLoggerTest, InfoMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "INFO (No Engine) formattedtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "INFO formattedtext"));
 }
 
 /**
@@ -113,8 +113,7 @@ TEST_F(BucketLoggerTest, WarnMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1,
-              countInFile(files.front(), "WARNING (No Engine) formattedtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "WARNING formattedtext"));
 }
 
 /**
@@ -125,8 +124,7 @@ TEST_F(BucketLoggerTest, CriticalMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1,
-              countInFile(files.front(), "CRITICAL (No Engine) formattedtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL formattedtext"));
 }
 
 /**
@@ -142,7 +140,7 @@ TEST_F(BucketLoggerTest, TraceRawMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "TRACE (No Engine) rawtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "TRACE rawtext"));
 }
 
 /**
@@ -153,7 +151,7 @@ TEST_F(BucketLoggerTest, DebugRawMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "DEBUG (No Engine) rawtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "DEBUG rawtext"));
 }
 
 /**
@@ -164,7 +162,7 @@ TEST_F(BucketLoggerTest, InfoRawMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "INFO (No Engine) rawtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "INFO rawtext"));
 }
 
 /**
@@ -175,7 +173,7 @@ TEST_F(BucketLoggerTest, WarnRawMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "WARNING (No Engine) rawtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "WARNING rawtext"));
 }
 
 /**
@@ -186,7 +184,7 @@ TEST_F(BucketLoggerTest, CriticalRawMacro) {
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL (No Engine) rawtext"));
+    EXPECT_EQ(1, countInFile(files.front(), "CRITICAL rawtext"));
 }
 
 /**

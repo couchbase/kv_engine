@@ -317,9 +317,14 @@ void cb::logger::logWithContext(spdlog::logger& logger,
     // We build up the log string here then pass the already-formatted
     // string down to spdlog directly, not using spdlog's formatting
     // functions.
+    std::string_view formattedView{msg};
     fmt::memory_buffer formatted;
-    fmt::format_to(std::back_inserter(formatted), "{} {}", msg, ctx);
-    logger.log(lvl, {formatted.data(), formatted.size()});
+    if (!ctx.empty()) {
+        fmt::format_to(std::back_inserter(formatted), "{} {}", msg, ctx);
+        formattedView = {formatted.data(), formatted.size()};
+    }
+
+    logger.log(lvl, formattedView);
 }
 
 std::unordered_set<std::string> cb::logger::getDeksInUse() {

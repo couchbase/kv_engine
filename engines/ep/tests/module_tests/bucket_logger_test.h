@@ -19,7 +19,6 @@
  * Contains basic tests that check:
  *      - the spdlog stlye formatting ({})
  *      - the logging level prefixing
- *      - the prefixing of (No Engine) to non-engine threads
  */
 class BucketLoggerTest : virtual public SpdloggerTest {
 protected:
