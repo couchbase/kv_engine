@@ -321,12 +321,6 @@ public:
          */
         void acknowledge(size_t bytes);
 
-        /**
-         * Pause the producer if full.
-         * @return true if the producer was paused; else false.
-         */
-        bool pauseIfFull();
-
         [[nodiscard]] size_t getAckedBytes() const {
             return ackedBytes;
         }
@@ -342,6 +336,17 @@ public:
         [[nodiscard]] bool isFull() const {
             return getState() == State::Full;
         }
+
+        /**
+         * isStuck will update internal state to record ackedBytes and a time.
+         * It can then compare the current ackedBytes against the recorded
+         * value and return true if the limit has been exceeded.
+         *
+         * @param limit The limit to check against.
+         * @return true if the ackedBytes has not changed within the given
+         *         limit, false otherwise.
+         */
+        [[nodiscard]] bool isStuck(std::chrono::seconds limit);
 
     private:
         bool isEnabled() const {
@@ -369,6 +374,14 @@ public:
         /// Total number of bytes acknowledeged. Should be non-decreasing in
         /// normal usage; but can be reset to zero when buffer size changes.
         Monotonic<size_t> ackedBytes{0};
+
+        /// When paused and state is Full, update this value to the current
+        /// value of ackedBytes.
+        std::optional<size_t> lastCheckedAckedBytes;
+
+        /// When paused and state is Full, record the time when
+        /// lastCheckedAckedBytes changed value.
+        std::chrono::steady_clock::time_point lastCheckedTime;
     };
 
     /*
@@ -838,4 +851,16 @@ protected:
      * references).
      */
     std::mutex closeAllStreamsLock;
+
+    /**
+     * If true, disconnect the producer if it appears to be stuck. This value is
+     * configured from the producer's name, so we can opt into this protection.
+     */
+    bool shouldDisconnectWhenStuck{false};
+
+    /**
+     * The timeout for disconnecting a producer when stuck. The default here is
+     * 2x the default dcp_idle_timeout.
+     */
+    std::chrono::seconds stuckTimeout{std::chrono::seconds(720)};
 };

@@ -24,6 +24,7 @@
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
+#include <regex>
 #include <system_error>
 
 Settings::Settings() = default;
@@ -81,6 +82,42 @@ void Settings::setMaxConcurrentAuthentications(size_t val) {
     max_concurrent_authentications.store(val, std::memory_order_release);
     has.max_concurrent_authentications = true;
     notify_changed("max_concurrent_authentications");
+}
+
+void Settings::setDcpDisconnectWhenStuckTimeout(std::chrono::seconds val) {
+    dcp_disconnect_when_stuck_timeout_seconds.store(val,
+                                                    std::memory_order_release);
+    has.dcp_disconnect_when_stuck_timeout_seconds = true;
+    notify_changed("dcp_disconnect_when_stuck_timeout_seconds");
+}
+
+void Settings::setDcpDisconnectWhenStuckNameRegexFromBase64(
+        const std::string& val) {
+    // The string from the JSON is base64 encoded, decode and store the regex so
+    // that it is immediately usable from the getter.
+    setDcpDisconnectWhenStuckNameRegex(cb::base64::decode(val));
+}
+
+void Settings::setDcpDisconnectWhenStuckNameRegex(std::string val) {
+    // This must be usable by std::regex, which will throw if not.
+    try {
+        std::regex regex(val);
+    } catch (const std::exception& e) {
+        // Log that we are ignoring the bad regex. If we throw here ns_server
+        // may still push the "bad" config, and this throw would cause an outage
+        // if we restart.
+        LOG_WARNING(
+                "dcp_disconnect_when_stuck_name_regex ignoring \"{}\" and "
+                "using \"{}\". std::regex rejected the new value because "
+                "\"{}\"",
+                val,
+                *dcp_disconnect_when_stuck_name_regex.lock(),
+                e.what());
+        return;
+    }
+    dcp_disconnect_when_stuck_name_regex.lock()->assign(std::move(val));
+    has.dcp_disconnect_when_stuck_name_regex = true;
+    notify_changed("dcp_disconnect_when_stuck_name_regex");
 }
 
 void Settings::reconfigure(const nlohmann::json& json) {
@@ -389,6 +426,12 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "slow_prometheus_scrape_duration"sv) {
             setSlowPrometheusScrapeDuration(
                     std::chrono::duration<float>(value.get<float>()));
+        } else if (key == "dcp_disconnect_when_stuck_timeout_seconds"sv) {
+            setDcpDisconnectWhenStuckTimeout(
+                    std::chrono::seconds(value.get<size_t>()));
+        } else if (key == "dcp_disconnect_when_stuck_name_regex"sv) {
+            setDcpDisconnectWhenStuckNameRegexFromBase64(
+                    value.get<std::string>());
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -1022,6 +1065,30 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      {"from", o},
                      {"to", n});
         setSlowPrometheusScrapeDuration(n);
+    }
+
+    if (other.has.dcp_disconnect_when_stuck_name_regex) {
+        // Both these values are the decoded values, not base64 encoded
+        const auto newValue = other.getDcpDisconnectWhenStuckNameRegex();
+        const auto current = getDcpDisconnectWhenStuckNameRegex();
+        if (newValue != current) {
+            LOG_INFO_CTX("Change dcp_disconnect_when_stuck_name_regex",
+                         {"from", current},
+                         {"to", newValue});
+            // Use the protected setter which validates newValue
+            setDcpDisconnectWhenStuckNameRegex(std::move(newValue));
+        }
+    }
+
+    if (other.has.dcp_disconnect_when_stuck_timeout_seconds) {
+        const auto newValue = other.getDcpDisconnectWhenStuckTimeout();
+        const auto current = getDcpDisconnectWhenStuckTimeout();
+        if (newValue != current) {
+            LOG_INFO_CTX("Change dcp_disconnect_when_stuck_timeout_seconds",
+                         {"from", current.count()},
+                         {"to", newValue.count()});
+            setDcpDisconnectWhenStuckTimeout(newValue);
+        }
     }
 }
 

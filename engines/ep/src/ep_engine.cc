@@ -8066,3 +8066,13 @@ cb::engine_errc EventuallyPersistentEngine::stopFusionUploaderInner(Vbid vbid) {
     Expects(kvBucket);
     return kvBucket->stopFusionUploader(vbid);
 }
+
+std::chrono::seconds
+EventuallyPersistentEngine::getDcpDisconnectWhenStuckTimeout() const {
+    return serverApi->core->getDcpDisconnectWhenStuckTimeout();
+}
+
+std::string EventuallyPersistentEngine::getDcpDisconnectWhenStuckNameRegex()
+        const {
+    return serverApi->core->getDcpDisconnectWhenStuckNameRegex();
+}

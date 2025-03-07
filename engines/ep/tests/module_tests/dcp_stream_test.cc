@@ -9525,3 +9525,151 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                  0));
     EXPECT_EQ(1, vb.getHighSeqno());
 }
+class TestStuckProducer : public SingleThreadedActiveStreamTest {
+public:
+    void SetUp() override {
+        // Set the timeout to 0 and regex to only match a specific name
+        mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds{0});
+        mock_set_dcp_disconnect_when_stuck_name_regex(".*:disconnect-me:.*");
+        SingleThreadedActiveStreamTest::SetUp();
+
+        store_item(vbid, makeStoredDocKey("keyA"), "value");
+        store_item(vbid, makeStoredDocKey("keyB"), "value");
+    }
+};
+
+TEST_P(TestStuckProducer, producerDisconnected) {
+    auto& vb = *store->getVBucket(vbid);
+    // The name of this producer will match the configured regex.
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "dcp:disconnect-me:p->c",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    // Set a small connection buffer size to force the producer to pause
+    // The snapshot and first mutation will fill the buffer, the 2nd mutation
+    // (final step) will then trigger the producer to disconnect when the flow
+    // control is seen to be in the paused state with no change for 0 seconds
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+
+    producer->mockActiveStreamRequest(
+                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+            ->setActive();
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, producers.last_byseqno);
+    EXPECT_EQ("keyA", producers.last_key);
+
+    EXPECT_EQ(cb::engine_errc::disconnect, producer->step(false, producers));
+}
+
+TEST_P(TestStuckProducer, producerNotDisconnected) {
+    auto& vb = *store->getVBucket(vbid);
+    // The name of this producer will not match the configured regex.
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "dcp:connected:p->c",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    // Set a small connection buffer size to force the producer to pause
+    // The snapshot and first mutation will fill the buffer, the 2nd mutation
+    // (final step) will then trigger the producer to disconnect when the flow
+    // control is seen to be in the paused state with no change for 0 seconds
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+
+    producer->mockActiveStreamRequest(
+                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+            ->setActive();
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, producers.last_byseqno);
+    EXPECT_EQ("keyA", producers.last_key);
+
+    // No data, but stays connected
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+}
+
+// This is a variation of the disconnect test - here we ACK some bytes and avoid
+// a disconnect!
+TEST_P(TestStuckProducer, producerNotDisconnectedClientAcked) {
+    auto& vb = *store->getVBucket(vbid);
+    // The name of this producer will match the configured regex.
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "dcp:disconnect-me:p->c",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    // Set a small connection buffer size to force the producer to pause
+    // The snapshot and first mutation will fill the buffer, the 2nd mutation
+    // (final step) will then trigger the producer to disconnect when the flow
+    // control is seen to be in the paused state with no change for 0 seconds
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+
+    producer->mockActiveStreamRequest(
+                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+            ->setActive();
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, producers.last_byseqno);
+    EXPECT_EQ("keyA", producers.last_key);
+
+    // Acknowledge some bytes so the next step doesn't disconnect
+    producer->ackBytesOutstanding(100);
+
+    // Unpaused, no disconnect and the next mutation is processed
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(2, producers.last_byseqno);
+    EXPECT_EQ("keyB", producers.last_key);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         TestStuckProducer,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

@@ -47,6 +47,8 @@
 #include <statistics/cbstat_collector.h>
 #include <numeric>
 
+#include <regex>
+
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
 /**
@@ -108,14 +110,6 @@ void DcpProducer::BufferLog::release(size_t bytes) {
     bytesOutstanding -= bytes;
 }
 
-bool DcpProducer::BufferLog::pauseIfFull() {
-    if (getState() == State::Full) {
-        producer.pause(PausedReason::BufferLogFull);
-        return true;
-    }
-    return false;
-}
-
 void DcpProducer::BufferLog::acknowledge(size_t bytes) {
     State state = getState();
     if (state != State::Disabled) {
@@ -134,6 +128,54 @@ void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
     } else {
         producer.addStat("flow_control", "disabled", add_stat, c);
     }
+
+    if (lastCheckedAckedBytes) {
+        producer.addStat("flow_control_last_checked_acked_bytes",
+                         *lastCheckedAckedBytes,
+                         add_stat,
+                         c);
+    } else {
+        producer.addStat("flow_control_last_checked_acked_bytes",
+                         "nullopt",
+                         add_stat,
+                         c);
+    }
+    producer.addStat("flow_control_last_checked_time",
+                     lastCheckedTime.time_since_epoch().count(),
+                     add_stat,
+                     c);
+}
+
+bool DcpProducer::BufferLog::isStuck(std::chrono::seconds limit) {
+    const auto now = std::chrono::steady_clock::now();
+
+    // If no recorded ackedBytes or the value has changed then record the
+    // current value and time.
+    if (!lastCheckedAckedBytes || ackedBytes != lastCheckedAckedBytes) {
+        lastCheckedAckedBytes = ackedBytes;
+        lastCheckedTime = now;
+    }
+
+    // lastCheckedAckedBytes is defined and hasn't changed. This path must now
+    // compare lastCheckedTime against the limit. WARN and return true when
+    // limit is exceeded.
+    if ((now - lastCheckedTime) >= limit) {
+        EP_LOG_WARN(
+                "{} Disconnecting because ackedBytes has not changed for "
+                "{} seconds. lastCheckedAckedBytes:{} "
+                "lastCheckedTime:{} now:{} maxBytes:{} bytesOutstanding:{} "
+                "ackedBytes:{}",
+                producer.logHeader(),
+                limit.count(),
+                *lastCheckedAckedBytes,
+                lastCheckedTime.time_since_epoch().count(),
+                now.time_since_epoch().count(),
+                maxBytes,
+                bytesOutstanding.load(),
+                ackedBytes.load());
+        return true;
+    }
+    return false;
 }
 
 /// Decode IncludeValue from DCP producer flags.
@@ -179,7 +221,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       createChkPtProcessorTsk(startTask),
       connectionSupportsSnappy(
               cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)),
-      collectionsEnabled(cookie->isCollectionsSupported()) {
+      collectionsEnabled(cookie->isCollectionsSupported()),
+      stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()) {
     if (getName().find("secidx") != std::string::npos) {
         logBufferFullInterval = std::chrono::seconds{15};
 #ifdef CB_DEVELOPMENT_ASSERTS
@@ -247,6 +290,19 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
             isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
+
+    auto regex = e.getDcpDisconnectWhenStuckNameRegex();
+    if (!regex.empty()) {
+        std::regex re(regex);
+        if (std::regex_match(name, re)) {
+            EP_LOG_INFO(
+                    "{} producer will disconnect if stuck as name "
+                    "matches with dcp_disconnect_when_stuck_name_regex:{}",
+                    logHeader(),
+                    regex);
+            shouldDisconnectWhenStuck = true;
+        }
+    }
 }
 
 DcpProducer::~DcpProducer() {
@@ -783,6 +839,12 @@ cb::engine_errc DcpProducer::step(bool throttled,
     // the stream was pasued, but the log may be full without pause being
     // called.
     if (log.rlock()->isFull()) {
+        // Now check if the producer is actually "stuck", just not acking
+        // anything in our timeout
+        if (shouldDisconnectWhenStuck && log.wlock()->isStuck(stuckTimeout)) {
+            return cb::engine_errc::disconnect;
+        }
+
         // If the stream wasn't paused, pause the stream and return
         // that we're blocked (as we can't add more messages to the
         // stream
@@ -1728,6 +1790,12 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
     addStat("synchronous_writes", isSyncWritesEnabled(), add_stat, c);
     addStat("max_marker_version", to_string(maxMarkerVersion), add_stat, c);
+
+    addStat("should_disconnect_when_stuck",
+            shouldDisconnectWhenStuck,
+            add_stat,
+            c);
+    addStat("disconnect_when_stuck_timeout", stuckTimeout.count(), add_stat, c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.
