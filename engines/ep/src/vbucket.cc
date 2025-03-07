@@ -300,27 +300,29 @@ VBucket::VBucket(Vbid i,
 
     setupSyncReplication(std::shared_lock(stateLock), replTopology);
 
-    EP_LOG_INFO(
-            "VBucket: created {} with state:{} initialState:{} lastSeqno:{} "
-            "persistedRange:{{{},{}}} purge_seqno:{} max_cas:{} uuid:{} "
-            "topology:{}",
-            id,
-            VBucket::toString(state),
-            VBucket::toString(initialState),
-            lastSeqno,
-            persistedRange.getStart(),
-            persistedRange.getEnd(),
-            purge_seqno,
-            getMaxCas(),
-            failovers ? std::to_string(failovers->getLatestUUID()) : "<>",
-            getReplicationTopology());
+    EP_LOG_INFO_CTX(
+            "VBucket created",
+            {"vb", id},
+            {"state", VBucket::toString(state)},
+            {"initial_state", VBucket::toString(initialState)},
+            {"last_seqno", lastSeqno},
+            {"persisted_range",
+             {{"start", persistedRange.getStart()},
+              {"end", persistedRange.getEnd()}}},
+            {"purge_seqno", purge_seqno.load()},
+            {"max_cas", getMaxCas()},
+            {"uuid",
+             failovers ? std::to_string(failovers->getLatestUUID()) : ""},
+            {"topology", getReplicationTopology()});
 }
 
 VBucket::~VBucket() {
-    EP_LOG_INFO("~VBucket(): {}", id);
+    EP_LOG_INFO_CTX("~VBucket()", {"vb", id});
 
     if (!pendingOps.empty()) {
-        EP_LOG_WARN("~VBucket(): {} has {} pending ops", id, pendingOps.size());
+        EP_LOG_WARN_CTX("~VBucket(): pending ops",
+                        {"vb", id},
+                        {"total", pendingOps.size()});
     }
 
     stats.getCoreLocalDiskQueueSize().fetch_sub(dirtyQueueSize.load());
@@ -696,15 +698,20 @@ void VBucket::setState_UNLOCKED(
         }
     }
 
-    EP_LOG_INFO(
-            "VBucket::setState: transitioning {} with high seqno:{} from:{} "
-            "to:{}{}",
-            id,
-            getHighSeqno(),
-            VBucket::toString(oldstate),
-            VBucket::toString(to),
-            meta ? (" meta:"s + meta->dump()) : ""s);
-
+    if (meta) {
+        EP_LOG_INFO_CTX("VBucket::setState: transitioning",
+                        {"vb", id},
+                        {"high_seqno", getHighSeqno()},
+                        {"from", VBucket::toString(oldstate)},
+                        {"to", VBucket::toString(to)},
+                        {"meta", *meta});
+    } else {
+        EP_LOG_INFO_CTX("VBucket::setState: transitioning",
+                        {"vb", id},
+                        {"high_seqno", getHighSeqno()},
+                        {"from", VBucket::toString(oldstate)},
+                        {"to", VBucket::toString(to)});
+    }
     state = to;
 
     setupSyncReplication(vbStateLock, meta ? &meta->at("topology") : nullptr);
