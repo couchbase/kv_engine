@@ -61,6 +61,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
+        coreLocalStats->storedValOverhead += size - sv->getObjectSize();
         coreLocalStats->numStoredVal++;
         coreLocalStats->totalStoredValSize += size;
     }
@@ -72,6 +73,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
+        coreLocalStats->storedValOverhead -= size - sv->getObjectSize();
         coreLocalStats->totalStoredValSize -= size;
         coreLocalStats->numStoredVal--;
     }

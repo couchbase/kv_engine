@@ -73,6 +73,51 @@ TEST_F(ObjectRegistryTest, MemOverhead) {
     EXPECT_EQ(baseline, engine->getEpStats().getMemOverhead());
 }
 
+TEST_F(ObjectRegistryTest, StoredValStats) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    auto baselineSize = engine->getEpStats().getStoredValSize();
+    auto baselineOverhead = engine->getEpStats().getStoredValOverhead();
+    auto baselineNum = engine->getEpStats().getNumStoredVal();
+
+    {
+        auto sv = StoredValueFactory()(
+                make_item(Vbid(0), makeStoredDocKey("key"), ""), nullptr);
+        sv->resetValue();
+        EXPECT_EQ(baselineNum + 1, engine->getEpStats().getNumStoredVal());
+        EXPECT_LT(baselineSize + sv->getObjectSize(),
+                  engine->getEpStats().getStoredValSize());
+        EXPECT_LT(baselineOverhead,
+                  engine->getEpStats().getStoredValOverhead());
+    }
+    EXPECT_EQ(baselineSize, engine->getEpStats().getStoredValSize());
+    EXPECT_EQ(baselineNum, engine->getEpStats().getNumStoredVal());
+    EXPECT_EQ(baselineOverhead, engine->getEpStats().getStoredValOverhead());
+}
+
+TEST_F(ObjectRegistryTest, BlobStats) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    auto baselineSize = engine->getEpStats().getTotalValueSize();
+    auto baselineOverhead = engine->getEpStats().getBlobOverhead();
+    auto baselineNum = engine->getEpStats().getNumBlob();
+
+    {
+        std::unique_ptr<Blob> blob(Blob::New(1));
+        EXPECT_EQ(baselineNum + 1, engine->getEpStats().getNumBlob());
+        EXPECT_LT(baselineSize + blob->getSize(),
+                  engine->getEpStats().getTotalValueSize());
+        EXPECT_LT(baselineOverhead, engine->getEpStats().getBlobOverhead());
+    }
+    EXPECT_EQ(baselineSize, engine->getEpStats().getTotalValueSize());
+    EXPECT_EQ(baselineNum, engine->getEpStats().getNumBlob());
+    EXPECT_EQ(baselineOverhead, engine->getEpStats().getBlobOverhead());
+}
+
 /**
  * Test fixture for ObjectRegistry + BucketLogger tests.
  *

@@ -86,6 +86,9 @@ public:
     //! Total memory for stored values
     BifurcatedCounter totalStoredValSize;
 
+    //! Total size of StoredVal memory overhead
+    Counter storedValOverhead;
+
     //! Amount of memory used to track items and what-not.
     Counter memOverhead;
 
@@ -180,6 +183,9 @@ public:
 
     /// @returns size of all StoredValue objects.
     BifurcatedCounter getStoredValSize() const;
+
+    /// @returns overhead of StoredValue objects.
+    size_t getStoredValOverhead() const;
 
     /// @returns amount of memory used to track items and what-not.
     size_t getMemOverhead() const;

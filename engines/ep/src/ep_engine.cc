@@ -3471,7 +3471,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_storedval_size_freed_total, storedvalSize.getRemoved());
     }
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
-    collector.addStat(Key::ep_storedval_overhead, stats.getBlobOverhead());
+    collector.addStat(Key::ep_storedval_overhead, stats.getStoredValOverhead());
 #else
     collector.addStat(Key::ep_storedval_overhead, "unknown");
 #endif
