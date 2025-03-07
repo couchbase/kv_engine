@@ -1524,14 +1524,34 @@ void ActiveStream::processItemsInner(
     // returns true (see isSeqnoAdvancedEnabled). This means that we
     // do not need to set the HCS/MVS or timestamp parameters of the
     // snapshot marker. MB-47877 tracks enabling sync-writes+filtering
-    if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_) {
+    //
+    // MB-65581 introduces the (curChkSeqno >= snap_end_seqno_) condition.
+    // Meaning: We must not send any SnapMarker+SeqnoAdvance in the case where a
+    // stream (that got a partial snapshot) reconnects and registers it cursor
+    // in a checkpoint that overlaps with the previous partial snapshot (ie
+    // curChkSeqno < snap_end_seqno_ by logic).
+    // If we do send that SnapMarker+SeqnoAdvance in that case, then we might
+    // prematurely update lastReadSeqno. Then a subsequent ActiveStreamProcessor
+    // run might try to reset lastReadSeqno to the same (or lower) value, thus
+    // breaking lastReadSeqno's monotonicity invariant.
+    // So to address MB-65581:
+    //  1. We skip this block (ie the current ActiveStreamProcessor run doesn't
+    //     push any data over the stream). By that we avoid a premature update
+    //     on lastReadSeqno;
+    //  2. Then, a subsequent ActiveStreamProcessor run will move the stream
+    //     by processing remaining checkpoint items. That will set lastReadSeqno
+    //     successfully.
+    // The covered scenario is quite complex; details in MB-65581 and in the
+    // unit test included with the fix.
+    if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_ &&
+        curChkSeqno >= snap_end_seqno_) {
         // MB-47009: This first snapshot has been completely filtered
         // away. The remaining items must not of been for this client.
         // We must still send a snapshot marker so that the client is
         // moved to their end seqno - so a snapshot + seqno advance is
         // needed.
         sendSnapshotAndSeqnoAdvanced(
-                outstandingItemsResult, snap_start_seqno_, snap_end_seqno_);
+                outstandingItemsResult, start_seqno_, curChkSeqno);
         firstMarkerSent = true;
     } else if (isSeqnoGapAtEndOfSnapshot(lastReplicateableSeqno)) {
         auto vb = engine->getVBucket(getVBucket());
