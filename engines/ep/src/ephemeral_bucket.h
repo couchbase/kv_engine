@@ -209,6 +209,8 @@ public:
      */
     void useEphemeralMemRecovery(bool enableEphMemRec);
 
+    void doEphemeralMemRecoveryStats(const StatCollector& collector);
+
 protected:
     friend class KVBucketTest;
     friend class SingleThreadedEphemeralTest;

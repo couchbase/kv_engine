@@ -1209,6 +1209,20 @@
         "description": "Average read amplification for all background fetch operations - ratio of read()s to documents fetched.",
         "added": "7.0.0"
     },
+    {
+        "key": "ep_ephemeral_mem_recovery_state",
+        "unit": "none",
+        "description": "The current state of the ephemeral memory recovery task.",
+        "prometheus": false,
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_ephemeral_mem_recovery_removers_remaining",
+        "unit": "none",
+        "description": "The number of checkpoint remover tasks which ephemeral memory recovery is waiting for to complete.",
+        "prometheus": false,
+        "added": "8.0.0"
+    },
 /* Continuous backup stats */
     {
         "key": "ep_continuous_backup_callback_count",

@@ -7379,6 +7379,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                          {"ep_ephemeral_full_policy",
                           "ep_ephemeral_mem_recovery_enabled",
                           "ep_ephemeral_mem_recovery_sleep_time",
+                          "ep_ephemeral_mem_recovery_state",
+                          "ep_ephemeral_mem_recovery_removers_remaining",
                           "ep_ephemeral_metadata_mark_stale_chunk_duration",
                           "ep_ephemeral_metadata_purge_age",
                           "ep_ephemeral_metadata_purge_interval",

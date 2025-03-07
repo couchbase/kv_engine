@@ -5,6 +5,8 @@
 #include "kv_bucket.h"
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
+#include <phosphor/phosphor.h>
+#include <statistics/cbstat_collector.h>
 
 EphemeralMemRecovery::EphemeralMemRecovery(EventuallyPersistentEngine& e,
                                            KVBucket& bucket,
@@ -31,6 +33,8 @@ void EphemeralMemRecovery::updateSleepTime(
 }
 
 bool EphemeralMemRecovery::runInner(bool manuallyNotified) {
+    TRACE_EVENT0("ep-engine/task", "EphemeralMemRecovery");
+
     switch (recoveryState) {
     case RecoveryState::Initial:
         if (manuallyNotified || shouldStartRecovery()) {
@@ -81,4 +85,26 @@ bool EphemeralMemRecovery::shouldContinueRecovery() const {
     return bucket.getPageableMemCurrent() >
                    bucket.getPageableMemLowWatermark() ||
            stats.getEstimatedTotalMemoryUsed() > stats.mem_low_wat;
+}
+
+// Add a new method to expose stats
+void EphemeralMemRecovery::addStats(const StatCollector& collector) {
+    using namespace cb::stats;
+    collector.addStat(Key::ep_ephemeral_mem_recovery_state,
+                      toString(recoveryState.load()));
+    collector.addStat(Key::ep_ephemeral_mem_recovery_removers_remaining,
+                      removersToComplete.load());
+}
+
+std::string EphemeralMemRecovery::toString(RecoveryState state) {
+    switch (state) {
+    case RecoveryState::Initial:
+        return "Initial";
+    case RecoveryState::WaitingForChkRemovers:
+        return "WaitingForChkRemovers";
+    case RecoveryState::ChkRemoversCompleted:
+        return "ChkRemoversCompleted";
+    }
+
+    return "Unknown";
 }

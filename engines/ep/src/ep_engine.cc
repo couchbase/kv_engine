@@ -3539,6 +3539,11 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         }
     }
 
+    if (getConfiguration().getBucketTypeString() == "ephemeral") {
+        auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*kvBucket);
+        ephemeralBucket.doEphemeralMemRecoveryStats(collector);
+    }
+
     collector.addStat(Key::ep_num_ops_get_meta, epstats.numOpsGetMeta);
     collector.addStat(Key::ep_num_ops_set_meta, epstats.numOpsSetMeta);
     collector.addStat(Key::ep_num_ops_del_meta, epstats.numOpsDelMeta);

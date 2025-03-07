@@ -454,6 +454,15 @@ void EphemeralBucket::useEphemeralMemRecovery(bool enableEphMemRec) {
     });
 }
 
+void EphemeralBucket::doEphemeralMemRecoveryStats(
+        const StatCollector& collector) {
+    ephemeralMemRecoveryTask.withRLock([&collector](auto& task) {
+        if (task) {
+            task->addStats(collector);
+        }
+    });
+}
+
 // Protected methods //////////////////////////////////////////////////////////
 
 std::unique_ptr<VBucketCountVisitor> EphemeralBucket::makeVBCountVisitor(

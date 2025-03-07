@@ -4,6 +4,7 @@
 
 class EPStats;
 class KVBucket;
+class StatCollector;
 
 /**
  * EphemeralMemRecovery task recovers memory from checkpoint memory usage when
@@ -79,10 +80,14 @@ public:
     // Called from CheckpointMemoryRecovery
     void signal() override;
 
+    void addStats(const StatCollector& collector);
+
 private:
     // Check memory usage to start/continue recovery
     bool shouldStartRecovery() const;
     bool shouldContinueRecovery() const;
+
+    std::string toString(RecoveryState state);
 
     KVBucket& bucket;
 
