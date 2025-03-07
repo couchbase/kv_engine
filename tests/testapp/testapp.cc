@@ -104,6 +104,7 @@ void TestappTest::rebuildAdminConnection() {
             adminConnection = c.clone();
             adminConnection->authenticate("@admin");
             adminConnection->unselectBucket();
+            adminConnection->setAutoRetryTmpfail(true);
 
             std::vector<cb::mcbp::Feature> features = {
                     {cb::mcbp::Feature::MUTATION_SEQNO,
