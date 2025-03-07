@@ -122,7 +122,7 @@ void TestBucketImpl::setParam(
 TestBucketImpl::TestBucketImpl(const std::filesystem::path& test_directory,
                                std::string extraConfig)
     : dbPath(test_directory / "dbase"), extraConfig(std::move(extraConfig)) {
-    encryption_keys.emplace_back(cb::crypto::DataEncryptionKey::generate());
+    keystore.setActiveKey(cb::crypto::DataEncryptionKey::generate());
 }
 
 void TestBucketImpl::createBucket(const std::string& name,
@@ -211,13 +211,7 @@ bool TestBucketImpl::isFullEviction() const {
 }
 
 std::string TestBucketImpl::getEncryptionConfig() const {
-    nlohmann::json encryption = {{"active", encryption_keys.front()->id}};
-    auto keys = nlohmann::json::array();
-    for (const auto& key : encryption_keys) {
-        keys.push_back(*key);
-    }
-    encryption["keys"] = std::move(keys);
-    return encryption.dump();
+    return nlohmann::json(keystore).dump();
 }
 
 McdEnvironment::McdEnvironment(std::string engineConfig)

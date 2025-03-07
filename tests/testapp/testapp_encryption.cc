@@ -210,3 +210,41 @@ TEST_P(EncryptionTest, TestPruneDeks) {
     ASSERT_EQ(stats["@logs"].front().get<std::string>(),
               dekManager.lookup(cb::dek::Entity::Logs)->getId());
 }
+
+TEST_P(EncryptionTest, TestDisableEncryption) {
+    // Verify that the bucket is encrypted
+    auto connection = adminConnection->clone();
+    connection->authenticate("@admin");
+    connection->selectBucket(bucketName);
+
+    nlohmann::json stats;
+    connection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+
+    ASSERT_EQ(1, stats.size()) << stats.dump();
+    ASSERT_NE("unencrypted", stats.front().get<std::string>());
+
+    // Disable encryption
+    mcd_env->getTestBucket().keystore.setActiveKey({});
+    std::string config =
+            nlohmann::json(mcd_env->getTestBucket().keystore).dump();
+
+    auto rsp = connection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+            bucketName,
+            config});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // Compact the vbucket
+    rsp = connection->execute(BinprotCompactDbCommand{});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // fetch the stats and it should be "unencrypted"
+    connection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+
+    ASSERT_EQ(1, stats.size()) << stats.dump();
+    ASSERT_EQ("unencrypted", stats.front().get<std::string>());
+}

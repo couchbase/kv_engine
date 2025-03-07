@@ -1556,7 +1556,10 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                     if (ret) {
                         vbucketEncryptionKeysManager.setNextKey(vbid, ret->id);
                     } else {
-                        vbucketEncryptionKeysManager.removeNextKey(vbid);
+                        vbucketEncryptionKeysManager.setNextKey(
+                                vbid,
+                                cb::crypto::DataEncryptionKey::
+                                        UnencryptedKeyId);
                     }
                     return ret;
                 },

@@ -144,6 +144,9 @@ public:
         return extraConfig;
     }
 
+    /// The keystore used to keep track of the encrypt keys for the bucket
+    cb::crypto::KeyStore keystore;
+
 protected:
     static void createEwbBucket(const std::string& name,
                                 BucketType type,
@@ -158,9 +161,6 @@ protected:
     std::string mergeConfigString(const std::string& next);
 
     std::string extraConfig;
-
-    /// The key to use for encryption@rest
-    std::vector<std::shared_ptr<cb::crypto::DataEncryptionKey>> encryption_keys;
 
     BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
 };
