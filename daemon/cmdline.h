@@ -9,7 +9,17 @@
  */
 #pragma once
 
-#include <string>
+#include <filesystem>
+
+/**
+ * Parse the command line arguments and set the configuration file path.
+ * @param argc The number of command line arguments
+ * @param argv The command line arguments
+ */
 void parse_arguments(int argc, char **argv);
 
-const std::string& get_config_file();
+/**
+ * Get the configuration file path
+ * @return The configuration file path
+ */
+const std::filesystem::path& get_config_file();

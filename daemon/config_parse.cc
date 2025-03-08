@@ -8,18 +8,13 @@
  *   the file licenses/APL2.txt.
  */
 #include "config_parse.h"
-#include "cmdline.h"
 #include "settings.h"
 
 #include <dek/manager.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
-/******************************************************************************
- * Public functions
- *****************************************************************************/
-
-void load_config_file(const std::string& file, Settings& settings) {
+void load_config_file(const std::filesystem::path& file, Settings& settings) {
     auto content = cb::dek::Manager::instance().load(
             cb::dek::Entity::Config, file, std::chrono::seconds{5});
     settings.reconfigure(nlohmann::json::parse(content));

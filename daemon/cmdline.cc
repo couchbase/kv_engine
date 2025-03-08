@@ -17,10 +17,11 @@
 #include <getopt.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_utilities.h>
+#include <filesystem>
 #include <iostream>
 #include <vector>
 
-static std::string config_file;
+static std::filesystem::path config_file;
 
 static void usage() {
     std::cerr << "memcached " << get_server_version() << R"(
@@ -141,6 +142,6 @@ void parse_arguments(int argc, char** argv) {
     load_config_file(config_file, Settings::instance());
 }
 
-const std::string& get_config_file() {
+const std::filesystem::path& get_config_file() {
     return config_file;
 }

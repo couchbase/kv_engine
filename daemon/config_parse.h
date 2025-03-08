@@ -15,11 +15,12 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <filesystem>
 #include <optional>
 #include <string_view>
-
 class Settings;
-void load_config_file(const std::string& filename, Settings& settings);
+void load_config_file(const std::filesystem::path& filename,
+                      Settings& settings);
 
 /* Given a new, proposed config, check if it can be applied to the running
  * config. Returns true if all differences between new_cfg and the live config
