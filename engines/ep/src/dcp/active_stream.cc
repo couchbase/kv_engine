@@ -100,7 +100,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       filter(std::move(f)),
       sid(filter.getStreamId()),
       changeStreamsEnabled(p->areChangeStreamsEnabled()),
-      endSeqno(en_seqno) {
+      endSeqno(en_seqno),
+      checkpointDequeueLimit(
+              e->getConfiguration().getDcpCheckpointDequeueLimit()) {
     if (isTakeoverStream()) {
         endSeqno = dcpMaxSeqno;
     }
@@ -1102,8 +1104,8 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     CheckpointManager::ItemsForCursor itemsForCursor{};
     auto cursorPtr = cursor.lock();
     if (cursorPtr) {
-        itemsForCursor = vb.checkpointManager->getNextItemsForDcp(*cursorPtr,
-                                                                  result.items);
+        itemsForCursor = vb.checkpointManager->getNextItemsForDcp(
+                *cursorPtr, result.items, checkpointDequeueLimit);
     }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(

@@ -1094,12 +1094,12 @@ size_t CheckpointManager::queueSetVBState() {
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForDcp(
-        CheckpointCursor& cursor, std::vector<queued_item>& items) {
+        CheckpointCursor& cursor,
+        std::vector<queued_item>& items,
+        size_t limit) {
     Expects(&cursor != persistenceCursor);
-    return getItemsForCursor(cursor,
-                             items,
-                             std::numeric_limits<size_t>::max(),
-                             checkpointConfig.getCheckpointMaxSize());
+    return getItemsForCursor(
+            cursor, items, limit, checkpointConfig.getCheckpointMaxSize());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(

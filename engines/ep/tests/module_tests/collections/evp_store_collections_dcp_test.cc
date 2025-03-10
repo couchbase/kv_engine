@@ -5676,6 +5676,96 @@ TEST_P(CollectionsDcpParameterizedTest, skipNonMatchingSeqnos) {
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 }
 
+class MB_65581_Test : public CollectionsDcpParameterizedTest {
+    void SetUp() override {
+        config_string += "dcp_checkpoint_dequeue_limit=2";
+        CollectionsDcpParameterizedTest::SetUp();
+    }
+};
+
+TEST_P(MB_65581_Test, MB_65581) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Create two collections, seq 1 and 2
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Put data into checkpoints, the test process 2 items per step as
+    // getDcpItemsForCursor returns 2 items (see SetUp)
+
+    // 2x fruit, seq 3 and 4
+    vb->checkpointManager->createNewCheckpoint();
+    store_item(vbid, StoredDocKey{"fruit1", CollectionEntry::fruit}, "fruit1");
+    store_item(vbid, StoredDocKey{"fruit2", CollectionEntry::fruit}, "fruit2");
+
+    // 1x vegetable, seq 5, and seq 6 is fruit.
+    vb->checkpointManager->createNewCheckpoint();
+    store_item(vbid, StoredDocKey{"fruit3", CollectionEntry::fruit}, "fruit3");
+    store_item(vbid, StoredDocKey{"fruit4", CollectionEntry::fruit}, "fruit4");
+    vb->checkpointManager->createNewCheckpoint();
+
+    // Now items for the stream and this would trigger the lastReadSeqno
+    // monotonicity violation
+    store_item(vbid, StoredDocKey{"veg1", CollectionEntry::vegetable}, "veg1");
+    store_item(vbid, StoredDocKey{"veg2", CollectionEntry::vegetable}, "veg2");
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
+
+    // Now DCP stream the vegetable collection only, but request as if we were
+    // interrupted from the initial backfill, but have all of the collection.
+    // I.e. as if our backfill looked like
+    // snap{0, 6}
+    // The resume happens to use a seqno which can be served from memory.
+    // The stream request starts with 2 and sets the snapshot as {0:6} - seq 2
+    // was the system-event for vegetable and is a valid resume point for this
+    // stream.
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::None,
+                      1, // opaque
+                      vbid,
+                      2, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      8, // snap_end_seqno
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      R"({"collections":["a"]})"));
+
+    // Drive the stream and expect a seqno-advance to move us to the end of
+    // the snapshot. These steps are different to what forces the monotonic
+    // invariant as the fix to MB-65581 changes the DCP output, no longer do we
+    // send snapshot+seqno-advance as the MB-47009 code now doesn't trigger. The
+    // streams gets a snapshot with the single collection item.
+    notifyAndRunToCheckpoint(*producer, *producers, true); // to seq:4
+    // If MB-65581 is unfixed, snapshot is sent here and lastReadSeqno is setup
+    // for fail.
+    notifyAndRunToCheckpoint(*producer, *producers, true); // to seq:6
+    notifyAndStepToCheckpoint(); // to seq:8
+
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(8, producers->last_snap_end_seqno);
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    EXPECT_EQ(7, producers->last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+    EXPECT_EQ(8, producers->last_byseqno);
+
+    auto stream = producer->findStream(vbid);
+    EXPECT_EQ(8, stream->getLastReadSeqno());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
@@ -5700,5 +5790,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpPersistentOnlyWithMagmaSyncAlways,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         MB_65581_Test,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

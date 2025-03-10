@@ -1093,6 +1093,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
             getConfiguration().setDcpBackfillIdleLimitSeconds(std::stoull(val));
         } else if (key == "dcp_backfill_idle_disk_threshold") {
             getConfiguration().setDcpBackfillIdleDiskThreshold(std::stof(val));
+        } else if (key == "dcp_checkpoint_dequeue_limit") {
+            getConfiguration().setDcpCheckpointDequeueLimit(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;

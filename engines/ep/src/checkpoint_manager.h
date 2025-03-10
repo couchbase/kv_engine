@@ -342,10 +342,13 @@ public:
      *
      * @param cursor
      * @param [out] items container which items will be appended to.
+     * @param itemLimit limit on the number of items to return
      * @return ItemsForCursor - See struct for details.
      */
     CheckpointManager::ItemsForCursor getNextItemsForDcp(
-            CheckpointCursor& cursor, std::vector<queued_item>& items);
+            CheckpointCursor& cursor,
+            std::vector<queued_item>& items,
+            size_t itemLimit = std::numeric_limits<size_t>::max());
 
     /**
      * Add all outstanding items for persistence to the vector. Only fetches

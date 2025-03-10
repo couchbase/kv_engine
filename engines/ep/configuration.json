@@ -1179,6 +1179,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "dcp_checkpoint_dequeue_limit": {
+            "default": "std::numeric_limits<size_t>::max()",
+            "descr": "The limit given to CheckpointManager::getNextItemsForDcp by ActiveStream",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_consumer_flow_control_enabled": {
             "default": "true",
             "descr": "Whether DCP Consumer on this node enable flow control",

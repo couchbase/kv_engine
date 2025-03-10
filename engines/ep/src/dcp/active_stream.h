@@ -1066,4 +1066,6 @@ private:
      * A prefix to use in all stream log messages
      */
     std::string logPrefix;
+
+    const size_t checkpointDequeueLimit{std::numeric_limits<size_t>::max()};
 };
