@@ -109,5 +109,8 @@ std::ostream& operator<<(std::ostream& os, const cb::UserData& d);
 inline auto format_as(const cb::UserData& d) {
     return d.getSanitizedValue();
 }
-
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, const UserData& d) {
+    j = format_as(d);
+}
 } // namespace cb

@@ -17,7 +17,6 @@
 #include "collections/manager.h"
 #include "collections/persist_manifest_task.h"
 #include "collections/vbucket_manifest_handles.h"
-#include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
@@ -144,12 +143,11 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
         num_deletes = store.getRWUnderlying(vbucketId)->getNumPersistedDeletes(
                 vbucketId);
     } catch (std::runtime_error& re) {
-        EP_LOG_WARN(
+        EP_LOG_WARN_CTX(
                 "BloomFilterCallback::initTempFilter: runtime error while "
-                "getting "
-                "number of persisted deletes for {} Details: {}",
-                vbucketId,
-                re.what());
+                "getting number of persisted deletes",
+                {"vb", vbucketId},
+                {"error", re.what()});
         return false;
     }
 
@@ -256,7 +254,8 @@ public:
                 warmup->setItemThreshold(value);
             }
         } else {
-            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
+            EP_LOG_WARN_CTX("Failed to change value for unknown variable",
+                            {"key", key});
         }
     }
 
@@ -270,7 +269,8 @@ public:
         } else if (key == "retain_erroneous_tombstones") {
             bucket.setRetainErroneousTombstones(value);
         } else {
-            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
+            EP_LOG_WARN_CTX("Failed to change value for unknown variable",
+                            {"key", key});
         }
     }
 
@@ -291,8 +291,8 @@ public:
                         config.getSecondaryWarmupMinItemsThreshold());
             }
         } else {
-            EP_LOG_WARN("Failed to change value for unknown string key:{}",
-                        key);
+            EP_LOG_WARN_CTX("Failed to change value for unknown variable",
+                            {"key", key});
         }
     }
 
@@ -518,11 +518,10 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
             vb.getId(), std::make_unique<EPPersistenceCallback>(stats, *vbPtr));
     while (!ctx) {
         ++stats.beginFailed;
-        EP_LOG_WARN(
-                "EPBucket::flushVBucket_UNLOCKED: () Failed to start a "
-                "transaction. "
-                "Retry in 1 second.",
-                vb.getId());
+        EP_LOG_WARN_CTX(
+                "EPBucket::flushVBucket_UNLOCKED: Failed to start a "
+                "transaction. Retry in 1 second.",
+                {"vb", vb.getId()});
         std::this_thread::sleep_for(std::chrono::seconds(1));
         ctx = rwUnderlying->begin(
                 vb.getId(),
@@ -555,9 +554,9 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     bool logged = false;
     const auto callback = [this, &logged, &vb](const std::system_error& err) {
         if (!logged) {
-            EP_LOG_WARN("EPBucket::flushVBucket_UNLOCKED: {} {}",
-                        vb.getId(),
-                        err.what());
+            EP_LOG_WARN_CTX("EPBucket::flushVBucket_UNLOCKED: ",
+                            {"vb", vb.getId()},
+                            {"error", err.what()});
             logged = true;
         }
 
@@ -1087,7 +1086,8 @@ bool EPBucket::commit(KVStoreIface& kvstore,
     auto vbid = txnCtx->vbid;
     const auto res = kvstore.commit(std::move(txnCtx), commitData);
     if (!res) {
-        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
+        EP_LOG_WARN_CTX("KVBucket::commit: kvstore.commit failed",
+                        {"vb", vbid});
     }
 
     const auto commit_time =
@@ -1108,7 +1108,8 @@ void EPBucket::startFlusher() {
 
 void EPBucket::stopFlusher() {
     for (const auto& flusher : flushers) {
-        EP_LOG_INFO("Attempting to stop flusher:{}", flusher->getId());
+        EP_LOG_INFO_CTX("Attempting to stop flusher",
+                        {"flusher", flusher->getId()});
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
             flusher->wait();
@@ -1120,11 +1121,9 @@ bool EPBucket::pauseFlusher() {
     bool rv = true;
     for (const auto& flusher : flushers) {
         if (!flusher->pause()) {
-            EP_LOG_WARN(
-                    "Attempted to pause flusher in state "
-                    "[{}], flusher = {}",
-                    flusher->stateName(),
-                    flusher->getId());
+            EP_LOG_WARN_CTX("Attempted to pause flusher in state",
+                            {"state", flusher->stateName()},
+                            {"flusher", flusher->getId()});
             rv = false;
         }
     }
@@ -1136,11 +1135,9 @@ bool EPBucket::resumeFlusher() {
     bool rv = true;
     for (const auto& flusher : flushers) {
         if (!flusher->resume()) {
-            EP_LOG_WARN(
-                    "Attempted to resume flusher in state [{}], "
-                    "flusher = {}",
-                    flusher->stateName(),
-                    flusher->getId());
+            EP_LOG_WARN_CTX("Attempted to resume flusher in state",
+                            {"state", flusher->stateName()},
+                            {"flusher", flusher->getId()});
             rv = false;
         }
     }
@@ -1176,10 +1173,11 @@ void EPBucket::allVbucketsDeinitialize() {
             VBucketPtr vb = shard->getBucket(vbid);
             if (vb) {
                 if (vb->hasPendingBGFetchItems()) {
-                    EP_LOG_WARN(
+                    EP_LOG_WARN_CTX(
                             "Shutting down engine while there are still pending"
-                            "data read for shard {} from database storage",
-                            shard->getId());
+                            "data read for shard",
+                            {"vb", vbid},
+                            {"shard", shard->getId()});
                 }
 
                 // MB-53953: Ensure all RangeScans are cancelled and release
@@ -1541,21 +1539,23 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     try {
         result = store->compactDB(vb.getLock(), ctx);
     } catch (const std::exception& e) {
-        EP_LOG_ERR("EPBucket::compactInternal(): compactDB() threw:'{}'",
-                   e.what());
+        EP_LOG_ERR_CTX(
+                "EPBucket::compactInternal(): compactDB() threw exception",
+                {"vb", vb->getId()},
+                {"error", e.what()});
         stats.compactionFailed++;
         return false;
     }
 
     switch (result) {
     case CompactDBStatus::Failed:
-        EP_LOG_ERR("EPBucket::compactInternal: compaction failed for {}",
-                   vb->getId());
+        EP_LOG_ERR_CTX("EPBucket::compactInternal: compaction failed",
+                       {"vb", vb->getId()});
         stats.compactionFailed++;
         break;
     case CompactDBStatus::Aborted:
-        EP_LOG_DEBUG("EPBucket::compactInternal: compaction aborted for {}",
-                    vb->getId());
+        EP_LOG_DEBUG_CTX("EPBucket::compactInternal: compaction aborted",
+                         {"vb", vb->getId()});
         stats.compactionAborted++;
         break;
     case CompactDBStatus::Success:
@@ -1948,12 +1948,12 @@ public:
                         cb::durability::Level::Majority &&
                 postRbSeqnoItem->getBySeqno() >=
                         static_cast<int64_t>(rollbackSeqno)) {
-                EP_LOG_INFO(
-                        "({}) Rolling back a Majority level prepare with "
-                        "key:{} and seqno:{}",
-                        vb->getId(),
-                        cb::UserData(postRbSeqnoItem->getKey().to_string()),
-                        postRbSeqnoItem->getBySeqno());
+                EP_LOG_INFO_CTX(
+                        "Rolling back a Majority level prepare",
+                        {"vb", vb->getId()},
+                        {"key",
+                         cb::UserData(postRbSeqnoItem->getKey().to_string())},
+                        {"seqno", postRbSeqnoItem->getBySeqno()});
             }
             removeDeletedDoc(*vb, *postRbSeqnoItem);
             return;
@@ -2028,9 +2028,9 @@ public:
             // If the item did not exist before we should delete it now
             removeDeletedDoc(*vb, *postRbSeqnoItem);
         } else {
-            EP_LOG_WARN(
-                    "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
-                    preRbSeqnoGetValue.getStatus());
+            EP_LOG_WARN_CTX(
+                    "EPDiskRollbackCB::callback:Unexpected Error Status",
+                    {"error", preRbSeqnoGetValue.getStatus()});
         }
     }
 
@@ -2088,24 +2088,23 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             // prepare from the HashTable. We will "warm up" any incomplete
             // prepares in a later stage of rollback.
             if (item->isPending()) {
-                EP_LOG_INFO(
-                        "({}) Rolling back an unpersisted {} prepare with "
-                        "key:{} and seqno:{}",
-                        vb.getId(),
-                        to_string(item->getDurabilityReqs().getLevel()),
-                        cb::UserData(item->getKey().to_string()),
-                        item->getBySeqno());
+                EP_LOG_INFO_CTX(
+                        "Rolling back an unpersisted prepare",
+                        {"vb", vb.getId()},
+                        {"level",
+                         to_string(item->getDurabilityReqs().getLevel())},
+                        {"key", cb::UserData(item->getKey().to_string())},
+                        {"seqno", item->getBySeqno()});
                 vb.removeItemFromMemory(*item);
                 continue;
             }
 
             if (item->isAbort()) {
-                EP_LOG_INFO(
-                        "({}) Rolling back an unpersisted abort with "
-                        "key:{} and seqno:{}",
-                        vb.getId(),
-                        cb::UserData(item->getKey().to_string()),
-                        item->getBySeqno());
+                EP_LOG_INFO_CTX(
+                        "Rolling back an unpersisted abort",
+                        {"vb", vb.getId()},
+                        {"key", cb::UserData(item->getKey().to_string())},
+                        {"seqno", item->getBySeqno()});
                 // Aborts are not kept in the hashtable so do not
                 // need to be removed.
                 continue;
@@ -2254,13 +2253,12 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         static_cast<uint64_t>(vbState->highSeqno) != vbState->lastSnapEnd) {
         endSeqno = vbState->highSeqno;
 
-        EP_LOG_INFO(
-                "EPBucket::loadPreparedSyncWrites: {} current snapshot is "
-                "disk type and incomplete so loading all prepares from: "
-                "{} to {}",
-                vb.getId(),
-                startSeqno,
-                endSeqno);
+        EP_LOG_INFO_CTX(
+                "EPBucket::loadPreparedSyncWrites: current snapshot is "
+                "disk type and incomplete so loading all prepare",
+                {"vb", vb.getId()},
+                {"from", startSeqno},
+                {"to", endSeqno});
     }
 
     // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
@@ -2284,9 +2282,9 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     // Storage problems can lead to a null context, kvstore logs details
     if (!scanCtx) {
-        EP_LOG_CRITICAL(
-                "EPBucket::loadPreparedSyncWrites: scanCtx is null for {}",
-                epVb.getId());
+        EP_LOG_CRITICAL_CTX(
+                "EPBucket::loadPreparedSyncWrites: scanCtx is null for",
+                {"vb", epVb.getId()});
         // No prepares loaded
         return {0, 0, false};
     }
@@ -2302,9 +2300,8 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         // will have scanned correctly.
         break;
     case ScanStatus::Failed: {
-        EP_LOG_CRITICAL(
-                "EPBucket::loadPreparedSyncWrites: scan() failed for {}",
-                epVb.getId());
+        EP_LOG_CRITICAL_CTX("EPBucket::loadPreparedSyncWrites: scan() failed",
+                            {"vb", epVb.getId()});
         return {0, 0, false};
     }
     case ScanStatus::Cancelled: {
@@ -2522,10 +2519,10 @@ void EPBucket::primaryWarmupCompleted() {
 void EPBucket::stopWarmup() {
     // forcefully stop current warmup task
     if (isPrimaryWarmupLoadingData()) {
-        EP_LOG_INFO(
-                "Stopping warmup while engine is loading "
-                "data from underlying storage, shutdown = {}",
-                stats.isShutdown ? "yes" : "no");
+        EP_LOG_INFO_CTX(
+                "Stopping warmup while engine is loading data from underlying "
+                "storage",
+                {"shutdown", stats.isShutdown ? "yes" : "no"});
         warmupTask->stop();
     }
 
@@ -2535,10 +2532,10 @@ void EPBucket::stopWarmup() {
             return;
         }
         if (!warmup->isComplete()) {
-            EP_LOG_INFO(
-                    "Stopping secondary warmup while engine is loading "
-                    "data from underlying storage, shutdown = {}",
-                    stats.isShutdown ? "yes" : "no");
+            EP_LOG_INFO_CTX(
+                    "Stopping secondary warmup while engine is loading data "
+                    "from underlying storage",
+                    {"shutdown", stats.isShutdown ? "yes" : "no"});
             warmup->stop();
         }
     });
@@ -2685,13 +2682,11 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
         // This is the first part of the request (success)
         if (checkStatus != cb::engine_errc::would_block &&
             checkStatus != cb::engine_errc::success) {
-            EP_LOG_WARN(
-                    "{} createRangeScan failed to cancel for {} status:{} "
-                    "checkStatus:{}",
-                    vb,
-                    params.cid,
-                    status,
-                    checkStatus);
+            EP_LOG_WARN_CTX("createRangeScan failed to cancel",
+                            {"vb", vb->getId()},
+                            {"collection_id", params.cid},
+                            {"status", status},
+                            {"checkStatus", checkStatus});
         }
         return {status, {}};
     }
@@ -2819,16 +2814,17 @@ cb::engine_errc EPBucket::prepareForPause(
             return;
         }
         if (cancellationToken.isCancellationRequested()) {
-            EP_LOG_INFO(
+            EP_LOG_INFO_CTX(
                     "EPBucket::prepareForPause: Cancelling pause, skipping "
-                    "pause of shard:{}",
-                    shard.getId());
+                    "pause of shard",
+                    {"shard", shard.getId()});
         } else {
             if (shard.getRWUnderlying()->pause()) {
                 pausedShards.push_back(shard.getId());
             } else {
-                EP_LOG_WARN("EPBucket::prepareForPause: shard:{} failed",
-                            shard.getId());
+                EP_LOG_WARN_CTX(
+                        "EPBucket::prepareForPause: shard failed to pause",
+                        {"shard", shard.getId()});
                 allSuccess = false;
             }
         }
