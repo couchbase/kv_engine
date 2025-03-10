@@ -791,11 +791,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBfilterEnabled(cb_stob(val));
         } else if (key == "bfilter_residency_threshold") {
             configuration.setBfilterResidencyThreshold(std::stof(val));
-        } else if (key == "defragmenter_enabled") {
-            configuration.setDefragmenterEnabled(cb_stob(val));
-        } else if (key == "defragmenter_interval") {
-            auto v = std::stod(val);
-            configuration.setDefragmenterInterval(v);
         } else if (key == "item_compressor_interval") {
             size_t v = std::stoull(val);
             // Adding separate validation as external limit is minimum 1
@@ -804,33 +799,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setItemCompressorInterval(v);
         } else if (key == "item_compressor_chunk_duration") {
             configuration.setItemCompressorChunkDuration(std::stoull(val));
-        } else if (key == "defragmenter_age_threshold") {
-            configuration.setDefragmenterAgeThreshold(std::stoull(val));
-        } else if (key == "defragmenter_chunk_duration") {
-            configuration.setDefragmenterChunkDuration(std::stoull(val));
-        } else if (key == "defragmenter_stored_value_age_threshold") {
-            configuration.setDefragmenterStoredValueAgeThreshold(
-                    std::stoull(val));
-        } else if (key == "defragmenter_run") {
-            runDefragmenterTask();
-        } else if (key == "defragmenter_mode") {
-            configuration.setDefragmenterMode(val);
-        } else if (key == "defragmenter_auto_lower_threshold") {
-            configuration.setDefragmenterAutoLowerThreshold(std::stof(val));
-        } else if (key == "defragmenter_auto_upper_threshold") {
-            configuration.setDefragmenterAutoUpperThreshold(std::stof(val));
-        } else if (key == "defragmenter_auto_max_sleep") {
-            configuration.setDefragmenterAutoMaxSleep(std::stof(val));
-        } else if (key == "defragmenter_auto_min_sleep") {
-            configuration.setDefragmenterAutoMinSleep(std::stof(val));
-        } else if (key == "defragmenter_auto_pid_p") {
-            configuration.setDefragmenterAutoPidP(std::stof(val));
-        } else if (key == "defragmenter_auto_pid_i") {
-            configuration.setDefragmenterAutoPidI(std::stof(val));
-        } else if (key == "defragmenter_auto_pid_d") {
-            configuration.setDefragmenterAutoPidD(std::stof(val));
-        } else if (key == "defragmenter_auto_pid_dt") {
-            configuration.setDefragmenterAutoPidDt(std::stof(val));
         } else if (key == "compaction_max_concurrent_ratio") {
             configuration.setCompactionMaxConcurrentRatio(std::stof(val));
         } else if (key == "chk_expel_enabled") {
@@ -888,24 +856,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setCouchstoreMprotect(cb_stob(val));
         } else if (key == "allow_sanitize_value_in_deletion") {
             configuration.setAllowSanitizeValueInDeletion(cb_stob(val));
-        } else if (key == "magma_fragmentation_percentage") {
-            float value;
-            if (safe_strtof(val, value)) {
-                configuration.setMagmaFragmentationPercentage(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
         } else if (key == "persistent_metadata_purge_age") {
             uint32_t value;
             if (safe_strtoul(val, value)) {
                 configuration.setPersistentMetadataPurgeAge(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "magma_flusher_thread_percentage") {
-            uint32_t value;
-            if (safe_strtoul(val, value)) {
-                configuration.setMagmaFlusherThreadPercentage(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
@@ -916,25 +870,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
-        } else if (key == "magma_mem_quota_ratio") {
-            float value;
-            if (safe_strtof(val, value)) {
-                configuration.setMagmaMemQuotaRatio(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "magma_enable_block_cache") {
-            configuration.setMagmaEnableBlockCache(cb_stob(val));
-        } else if (key == "magma_seq_tree_data_block_size") {
-            configuration.setMagmaSeqTreeDataBlockSize(std::stoull(val));
-        } else if (key == "magma_min_value_block_size_threshold") {
-            configuration.setMagmaMinValueBlockSizeThreshold(std::stoull(val));
-        } else if (key == "magma_seq_tree_index_block_size") {
-            configuration.setMagmaSeqTreeIndexBlockSize(std::stoull(val));
-        } else if (key == "magma_key_tree_data_block_size") {
-            configuration.setMagmaKeyTreeDataBlockSize(std::stoull(val));
-        } else if (key == "magma_key_tree_index_block_size") {
-            configuration.setMagmaKeyTreeIndexBlockSize(std::stoull(val));
         } else if (key == "compaction_expire_from_start") {
             configuration.setCompactionExpireFromStart(cb_stob(val));
         } else if (key == "compaction_expiry_fetch_inline") {
@@ -956,8 +891,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setRangeScanMaxLifetime(std::stoull(val));
         } else if (key == "item_eviction_strategy") {
             getConfiguration().setItemEvictionStrategy(val);
-        } else if (key == "magma_per_document_compression_enabled") {
-            configuration.setMagmaPerDocumentCompressionEnabled(cb_stob(val));
         } else if (key == "history_retention_seconds") {
             configuration.setHistoryRetentionSeconds(std::stoul(val));
         } else if (key == "history_retention_bytes") {
@@ -968,10 +901,14 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupInterval(std::stoull(val));
         } else if (key == "fusion_metadata_auth_token") {
             setFusionMetadataAuthToken(val);
-        } else if (key.starts_with("magma_fusion")) {
-            return setFusionFlushParam(key, val, msg);
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
+        } else if (key.starts_with("defragmenter")) {
+            setDefragmenterFlushParam(key, val, msg);
+        } else if (key.starts_with("magma_fusion")) {
+            return setFusionFlushParam(key, val, msg);
+        } else if (key.starts_with("magma")) {
+            return setMagmaFlushParam(key, val, msg);
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},
@@ -1015,6 +952,83 @@ cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
         configuration.setMagmaFusionSyncRateLimit(std::stoull(val));
     } else {
         EP_LOG_WARN_CTX("Rejecting setFusionFlushParam request",
+                        {"key", key},
+                        {"value", val});
+        msg = "Unknown config param " + std::string{key};
+        rv = cb::engine_errc::invalid_arguments;
+    }
+    return rv;
+}
+
+cb::engine_errc EventuallyPersistentEngine::setMagmaFlushParam(
+        std::string_view key, const std::string& val, std::string& msg) {
+    auto rv = cb::engine_errc::success;
+    if (key == "magma_fragmentation_percentage") {
+        configuration.setMagmaFragmentationPercentage(std::stof(val));
+    } else if (key == "magma_flusher_thread_percentage") {
+        configuration.setMagmaFlusherThreadPercentage(std::stoul(val));
+    } else if (key == "magma_mem_quota_ratio") {
+        configuration.setMagmaMemQuotaRatio(std::stof(val));
+    } else if (key == "magma_enable_block_cache") {
+        configuration.setMagmaEnableBlockCache(cb_stob(val));
+    } else if (key == "magma_seq_tree_data_block_size") {
+        configuration.setMagmaSeqTreeDataBlockSize(std::stoull(val));
+    } else if (key == "magma_min_value_block_size_threshold") {
+        configuration.setMagmaMinValueBlockSizeThreshold(std::stoull(val));
+    } else if (key == "magma_seq_tree_index_block_size") {
+        configuration.setMagmaSeqTreeIndexBlockSize(std::stoull(val));
+    } else if (key == "magma_key_tree_data_block_size") {
+        configuration.setMagmaKeyTreeDataBlockSize(std::stoull(val));
+    } else if (key == "magma_key_tree_index_block_size") {
+        configuration.setMagmaKeyTreeIndexBlockSize(std::stoull(val));
+    } else if (key == "magma_per_document_compression_enabled") {
+        configuration.setMagmaPerDocumentCompressionEnabled(cb_stob(val));
+    } else {
+        EP_LOG_WARN_CTX("Rejecting setMagmaFlushParam request",
+                        {"key", key},
+                        {"value", val});
+        msg = "Unknown config param " + std::string{key};
+        rv = cb::engine_errc::invalid_arguments;
+    }
+    return rv;
+}
+
+cb::engine_errc EventuallyPersistentEngine::setDefragmenterFlushParam(
+        std::string_view key, const std::string& val, std::string& msg) {
+    auto rv = cb::engine_errc::success;
+    if (key == "defragmenter_enabled") {
+        configuration.setDefragmenterEnabled(cb_stob(val));
+    } else if (key == "defragmenter_interval") {
+        auto v = std::stod(val);
+        configuration.setDefragmenterInterval(v);
+    } else if (key == "defragmenter_age_threshold") {
+        configuration.setDefragmenterAgeThreshold(std::stoull(val));
+    } else if (key == "defragmenter_chunk_duration") {
+        configuration.setDefragmenterChunkDuration(std::stoull(val));
+    } else if (key == "defragmenter_stored_value_age_threshold") {
+        configuration.setDefragmenterStoredValueAgeThreshold(std::stoull(val));
+    } else if (key == "defragmenter_run") {
+        runDefragmenterTask();
+    } else if (key == "defragmenter_mode") {
+        configuration.setDefragmenterMode(val);
+    } else if (key == "defragmenter_auto_lower_threshold") {
+        configuration.setDefragmenterAutoLowerThreshold(std::stof(val));
+    } else if (key == "defragmenter_auto_upper_threshold") {
+        configuration.setDefragmenterAutoUpperThreshold(std::stof(val));
+    } else if (key == "defragmenter_auto_max_sleep") {
+        configuration.setDefragmenterAutoMaxSleep(std::stof(val));
+    } else if (key == "defragmenter_auto_min_sleep") {
+        configuration.setDefragmenterAutoMinSleep(std::stof(val));
+    } else if (key == "defragmenter_auto_pid_p") {
+        configuration.setDefragmenterAutoPidP(std::stof(val));
+    } else if (key == "defragmenter_auto_pid_i") {
+        configuration.setDefragmenterAutoPidI(std::stof(val));
+    } else if (key == "defragmenter_auto_pid_d") {
+        configuration.setDefragmenterAutoPidD(std::stof(val));
+    } else if (key == "defragmenter_auto_pid_dt") {
+        configuration.setDefragmenterAutoPidDt(std::stof(val));
+    } else {
+        EP_LOG_WARN_CTX("Rejecting setDefragmenterFlushParam request",
                         {"key", key},
                         {"value", val});
         msg = "Unknown config param " + std::string{key};
