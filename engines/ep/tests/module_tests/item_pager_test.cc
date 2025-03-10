@@ -2071,6 +2071,54 @@ TEST_P(STItemPagerTest, ItemPagerCannotRemoveKeyDuringWarmup) {
     }
 }
 
+// Item pager should correctly handle all vbuckets being dead and should
+// remain functional when there are non-dead vbuckets to evict from.
+TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
+    if (ephemeralFailNewData()) {
+        // items are not evicted, so the ItemPager does not run.
+        GTEST_SKIP();
+    }
+    if (isCrossBucketHtQuotaSharing()) {
+        // Only applies to StrictItemPager
+        GTEST_SKIP();
+    }
+    if (isEphemeralMemRecoveryEnabled()) {
+        // Only test ItemPager directly
+        GTEST_SKIP();
+    }
+
+    // Make active and put mem usage > HWM
+    auto vbid0 = Vbid(0);
+    setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
+    populateUntilAboveHighWaterMark(vbid0);
+
+    // Make vbucket dead and run item pager
+    // We cannot evict from a dead vbucket so the filter will be empty
+    // and we should return without scheduling paging visitor
+    setVBucketStateAndRunPersistTask(vbid0, vbucket_state_dead);
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+
+    runNextTask(lpNonioQ, itemPagerTaskName());
+
+    // Check that no paging visitor task/s are scheduled
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize())
+            << "No paging visitor tasks should be scheduled when all vbuckets "
+               "are dead";
+
+    // Put vbucket back to active and wake the item pager
+    setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
+    store->wakeItemPager();
+    runNextTask(lpNonioQ, itemPagerTaskName());
+
+    // Memory usage is still above HWM - so paging visitor should be scheduled
+    // Without the release of the semaphore, the paging visitor task will
+    // not be created and scheduled and so we should throw here.
+    ASSERT_NO_THROW(runPagingAdapterTask());
+    // Back to initial task count
+    EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+}
+
 /**
  * Test fixture for Ephemeral-only item pager tests.
  */
