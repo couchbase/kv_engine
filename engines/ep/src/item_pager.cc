@@ -351,6 +351,7 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
     auto filter = createVBucketFilter(*kvBucket, statesToEvictFrom);
     if (!filter) {
         // No vBuckets in the states we wanted to evict from.
+        pagerSemaphore->release(numConcurrentPagers);
         return;
     }
 
