@@ -40,7 +40,8 @@ bool ends_with(std::string_view name, std::string_view suffix) {
 void AuditFile::iterate_old_files(
         const std::function<void(const std::filesystem::path&)>& callback) {
     using namespace std::filesystem;
-    for (const auto& p : directory_iterator(log_directory)) {
+    std::error_code ec;
+    for (const auto& p : directory_iterator(log_directory, ec)) {
         try {
             const auto& path = p.path();
             if (starts_with(path.filename().generic_string(), hostname) &&
@@ -54,6 +55,14 @@ void AuditFile::iterate_old_files(
                     p.path().generic_string(),
                     e.what());
         }
+    }
+
+    if (ec) {
+        LOG_WARNING(
+                "AuditFile::iterate_old_files(): Error occurred "
+                "while inspecting \"{}\": {}",
+                log_directory,
+                ec.message());
     }
 }
 
