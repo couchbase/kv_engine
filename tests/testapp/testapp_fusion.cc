@@ -25,6 +25,15 @@ protected:
                 "local://" + dbPath + "/metadatastore",
                 chronicleAuthToken);
         doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
+
+        // Note: magma KVStore creation executes at the first flusher path run,
+        // which is asynchronous.
+        // We need to ensure that the KVStore is successfully created before
+        // executing and Fusion API against it in the various test cases. We
+        // would hit sporadic failures by "kvstore invalid" otherwise.
+        adminConnection->selectBucket(bucketName);
+        adminConnection->store("bump-vb-high-seqno", Vbid(0), {});
+        adminConnection->waitForSeqnoToPersist(Vbid(0), 1);
     }
 
     void SetUp() override {
