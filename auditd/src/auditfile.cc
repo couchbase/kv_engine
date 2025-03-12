@@ -35,7 +35,8 @@ void AuditFile::iterate_old_files(
         const std::function<void(const std::filesystem::path&)>& callback)
         const {
     using namespace std::filesystem;
-    for (const auto& p : directory_iterator(log_directory)) {
+    std::error_code ec;
+    for (const auto& p : directory_iterator(log_directory, ec)) {
         try {
             const auto& path = p.path();
             const auto filename = path.filename().string();
@@ -50,6 +51,14 @@ void AuditFile::iterate_old_files(
                     {"path", p.path().generic_string()},
                     {"error", e.what()});
         }
+    }
+
+    if (ec) {
+        LOG_WARNING_CTX(
+                "AuditFile::iterate_old_files(): Error occurred "
+                "while inspecting directory",
+                {"path", log_directory.generic_string()},
+                {"error", ec.message()});
     }
 }
 

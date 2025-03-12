@@ -339,3 +339,38 @@ TEST_F(AuditFileTest, TestDekRotation) {
     files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(10, files.size());
 }
+
+/**
+ * As part of configuration audit will try to create the log directory.
+ * If this fails the "prune" path would crash due to an exception being
+ * thrown as part of iterating the directory.
+ */
+TEST_F(AuditFileTest, MB65705_NonWritableLogDirectory) {
+    std::filesystem::path logdir = std::filesystem::path(testdir) / "logdir";
+    auto prune = folly::makeGuard([this] {
+        std::filesystem::permissions(testdir,
+                                     std::filesystem::perms::owner_all,
+                                     std::filesystem::perm_options::replace);
+    });
+
+    class MockAuditFile : public AuditFile {
+    public:
+        explicit MockAuditFile(const std::filesystem::path& logdir)
+            : AuditFile("PruneFiles") {
+            set_log_directory(logdir.generic_string());
+            prune_age = std::chrono::seconds{1};
+            next_prune =
+                    std::chrono::steady_clock::now() - std::chrono::seconds(1);
+        };
+    };
+
+    // make the filesystem read only
+    std::filesystem::permissions(testdir,
+                                 std::filesystem::perms::owner_read,
+                                 std::filesystem::perm_options::replace);
+
+    // Ensure we don't crash when the log directory don't exists and can't
+    // be created
+    MockAuditFile auditfile(logdir);
+    auditfile.prune_old_audit_files();
+}
