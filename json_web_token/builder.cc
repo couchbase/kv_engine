@@ -18,9 +18,16 @@
 namespace cb::jwt {
 class BuilderImpl : public Builder {
 public:
-    explicit BuilderImpl() {
-        header = {{"typ", "JWT"}};
-        payload = {{"iss", "cb-unit-tests"}};
+    BuilderImpl(nlohmann::json initial_header, nlohmann::json initial_payload)
+        : header(std::move(initial_header)),
+          payload(std::move(initial_payload)) {
+        if (!header.contains("typ")) {
+            header["typ"] = "JWT";
+        }
+
+        if (!payload.contains("iss")) {
+            payload["iss"] = "cb-unit-tests";
+        }
     }
 
     void setExpiration(std::chrono::system_clock::time_point exp) override {
@@ -65,16 +72,20 @@ public:
 
 class PlainBuilderImpl : public BuilderImpl {
 public:
-    explicit PlainBuilderImpl() {
-        header["alg"] = "none";
+    explicit PlainBuilderImpl(nlohmann::json initial)
+        : BuilderImpl({{"alg", "none"}}, std::move(initial)) {
+    }
+
+    [[nodiscard]] std::unique_ptr<Builder> clone() const override {
+        return std::make_unique<PlainBuilderImpl>(payload);
     }
 };
 
 class HS256BuilderImpl : public BuilderImpl {
 public:
-    explicit HS256BuilderImpl(std::string passphrase)
-        : passphrase(std::move(passphrase)) {
-        header["alg"] = "HS256";
+    HS256BuilderImpl(std::string passphrase, nlohmann::json initial)
+        : BuilderImpl({{"alg", "HS256"}}, std::move(initial)),
+          passphrase(std::move(passphrase)) {
     }
 
     std::string build() override {
@@ -84,16 +95,23 @@ public:
         return fmt::format("{}.{}", data, signature);
     }
 
+    [[nodiscard]] std::unique_ptr<Builder> clone() const override {
+        return std::make_unique<HS256BuilderImpl>(passphrase, payload);
+    }
+
+protected:
     const std::string passphrase;
 };
 
 std::unique_ptr<Builder> Builder::create(std::string_view alg,
-                                         std::string_view passphrase) {
+                                         std::string_view passphrase,
+                                         nlohmann::json payload) {
     if (alg == "HS256") {
-        return std::make_unique<HS256BuilderImpl>(std::string(passphrase));
+        return std::make_unique<HS256BuilderImpl>(std::string(passphrase),
+                                                  std::move(payload));
     }
     if (alg.empty() || alg == "none") {
-        return std::make_unique<PlainBuilderImpl>();
+        return std::make_unique<PlainBuilderImpl>(std::move(payload));
     }
     throw std::invalid_argument("Invalid Algorithm");
 }

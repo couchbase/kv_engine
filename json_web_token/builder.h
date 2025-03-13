@@ -9,6 +9,7 @@
  */
 
 #pragma once
+#include <nlohmann/json.hpp>
 #include <chrono>
 #include <memory>
 #include <string_view>
@@ -26,10 +27,13 @@ public:
      * Create a new instance of a JWT token builder
      * @param alg The algorithm to sign the token
      * @param passphrase The passphrase used for signing
+     * @param payload An optional payload to initialize the builder with
      * @return A new builder to use
      */
     [[nodiscard]] static std::unique_ptr<Builder> create(
-            std::string_view alg = "none", std::string_view passphrase = {});
+            std::string_view alg = "none",
+            std::string_view passphrase = {},
+            nlohmann::json payload = nlohmann::json::object());
     /// Set the expiration for the token to use
     virtual void setExpiration(std::chrono::system_clock::time_point exp) = 0;
     /// Specify when we can start using the token
@@ -47,6 +51,8 @@ public:
 
     /// Build the token
     [[nodiscard]] virtual std::string build() = 0;
-};
 
+    /// Clone this builder
+    [[nodiscard]] virtual std::unique_ptr<Builder> clone() const = 0;
+};
 } // namespace cb::jwt
