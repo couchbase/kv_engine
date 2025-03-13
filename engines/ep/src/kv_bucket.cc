@@ -2318,6 +2318,12 @@ void KVBucket::wakeUpExpiryPager() {
     }
 }
 
+void KVBucket::wakeUpStrictItemPager() {
+    auto* pager = dynamic_cast<ItemPager*>(itemPagerTask.get());
+    Expects(pager);
+    pager->wakeUp();
+}
+
 void KVBucket::wakeItemPager() {
     if (itemPagerTask->getState() == TASK_SNOOZED) {
         ExecutorPool::get()->wake(itemPagerTask->getId());

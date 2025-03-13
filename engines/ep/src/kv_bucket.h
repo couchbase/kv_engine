@@ -506,6 +506,10 @@ public:
     /// Wake up the expiry pager (if enabled), scheduling it for immediate run.
     void wakeUpExpiryPager();
 
+    // Wake up pager by calling EPNotifiable::wakeUp() which sets
+    // manuallyNotified flag.
+    void wakeUpStrictItemPager();
+
     /// Wake up the item pager (if enabled), scheduling it for immediate run.
     /// Currently this is used only during testing.
     void wakeItemPager();
