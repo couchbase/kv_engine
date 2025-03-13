@@ -50,6 +50,7 @@
 #include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/set_active_encryption_keys_context.h"
+#include "protocol/mcbp/set_chronicle_auth_token_command_context.h"
 #include "protocol/mcbp/set_cluster_config_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
@@ -682,6 +683,15 @@ static void stop_fusion_uploader_executor(Cookie& cookie) {
     cookie.obtainContext<StopFusionUploaderCommandContext>(cookie).drive();
 }
 
+static void set_chronicle_auth_token_executor(Cookie& cookie) {
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<SetChronicleAuthTokenCommandContext>(cookie).drive();
+}
+
 static void process_bin_noop_response(Cookie&) {
     // do nothing
 }
@@ -965,6 +975,9 @@ void initialize_mbcp_lookup_map() {
                   start_fusion_uploader_executor);
     setup_handler(cb::mcbp::ClientOpcode::StopFusionUploader,
                   stop_fusion_uploader_executor);
+
+    setup_handler(cb::mcbp::ClientOpcode::SetChronicleAuthToken,
+                  set_chronicle_auth_token_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

@@ -167,6 +167,8 @@ enum class ClientOpcode : uint8_t {
     SetParam = 0x82,
     GetReplica = 0x83,
 
+    SetChronicleAuthToken = 0x84,
+
     /* Bucket engine */
     CreateBucket = 0x85,
     DeleteBucket = 0x86,

@@ -287,7 +287,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::SyncFusionLogstore, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::StartFusionUploader,
           require<Privilege::NodeSupervisor>);
-    setup(cb::mcbp::ClientOpcode::StopFusionUploader,
+    setup(ClientOpcode::StopFusionUploader, require<Privilege::NodeSupervisor>);
+    setup(ClientOpcode::SetChronicleAuthToken,
           require<Privilege::NodeSupervisor>);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {

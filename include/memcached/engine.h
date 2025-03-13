@@ -899,6 +899,12 @@ struct EngineIface {
     [[nodiscard]] virtual cb::engine_errc stopFusionUploader(Vbid vbid);
 
     /**
+     * Set the Chronicle auth token.
+     */
+    [[nodiscard]] virtual cb::engine_errc setChronicleAuthToken(
+            std::string_view token);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

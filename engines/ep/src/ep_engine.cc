@@ -907,8 +907,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             return setFusionFlushParam(key, val, msg);
         } else if (key.starts_with("magma")) {
             return setMagmaFlushParam(key, val, msg);
-        } else if (key == "chronicle_auth_token") {
-            setChronicleAuthToken(val);
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},

@@ -2138,6 +2138,49 @@ following 7-byte ascii string (the request length set to 7).
         +---------------+
         Total 7 bytes
 
+### 0x84 SetChronicleAuthToken
+
+Sets the Chronicle Authetication Token for the given bucket.
+
+The request has:
+* No extras
+* No key
+* A value (JSON object encoding the arguments)
+* datatype must be JSON and client must enable JSON when issuing HELO
+
+The value is a JSON object, detailed below.
+
+## JSON definition
+
+The following keys are accepted input. All keys are mandatory.
+
+* The uuid to of the snapshot being released
+    * `"token"`
+    * The value is a string
+
+### Examples
+
+```
+{
+  "token": "some-token"
+}
+```
+
+### Returns
+
+The call returns Status::Success, an error code otherwise.
+
+### Errors
+
+**Status::Einval (0x04)**
+
+Input validation failure (e.g. incorrect arg format). The returned error context
+will contain details.
+
+**Status::Einternal (0x84)**
+
+This status code is used for unexpected internal failure.
+
 ### 0x85 Create Bucket
 
 The `create bucket` command is used to create a new bucket in the system.

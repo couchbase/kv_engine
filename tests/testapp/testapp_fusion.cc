@@ -204,17 +204,6 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     EXPECT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
 }
 
-TEST_P(FusionTest, SetMetadataAuthToken) {
-    adminConnection->executeInBucket(bucketName, [](auto& connection) {
-        const auto setParam = BinprotSetParamCommand(
-                cb::mcbp::request::SetParamPayload::Type::Flush,
-                "chronicle_auth_token",
-                "some-token");
-        const auto resp = BinprotMutationResponse(connection.execute(setParam));
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
-}
-
 TEST_P(FusionTest, MountFusionVbucket) {
     auto resp = mountVbucket({1, 2});
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());

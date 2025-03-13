@@ -827,6 +827,8 @@ public:
               {"START_FUSION_UPLOADER"sv, {Attribute::Supported}});
         setup(ClientOpcode::StopFusionUploader,
               {"STOP_FUSION_UPLOADER"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetChronicleAuthToken,
+              {"SET_CHRONICLE_AUTH_TOKEN"sv, {Attribute::Supported}});
     }
 
 protected:

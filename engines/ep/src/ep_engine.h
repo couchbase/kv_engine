@@ -310,6 +310,8 @@ public:
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
+    cb::engine_errc setChronicleAuthToken(std::string_view token) override;
+
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1552,8 +1554,6 @@ protected:
     cb::engine_errc syncFusionLogstoreInner(Vbid vbid);
     cb::engine_errc startFusionUploaderInner(Vbid vbid, uint64_t term);
     cb::engine_errc stopFusionUploaderInner(Vbid vbid);
-
-    cb::engine_errc setChronicleAuthToken(std::string_view token);
 
     /**
      * Get the configured shard count for the bucket

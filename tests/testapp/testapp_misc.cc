@@ -243,6 +243,66 @@ TEST_P(MiscTest, Version) {
     EXPECT_TRUE(rsp.isSuccess());
 }
 
+TEST_P(MiscTest, SetChronicalAuthToken_NoArg) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SetChronicleAuthToken};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+}
+
+TEST_P(MiscTest, SetChronicalAuthToken_InvalidArgName) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SetChronicleAuthToken};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["wrong-token-name"] = "1234";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+}
+
+TEST_P(MiscTest, SetChronicalAuthToken_InvalidArgPayload) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SetChronicleAuthToken};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["token"] = 1234;
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+}
+
+TEST_P(MiscTest, SetChronicalAuthToken) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        const auto backend = conn.statsMap("")["ep_backend"];
+        const auto expectedStatus = backend == "magma"
+                                            ? cb::mcbp::Status::Success
+                                            : cb::mcbp::Status::NotSupported;
+
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SetChronicleAuthToken};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["token"] = "1234";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(expectedStatus, resp.getStatus());
+    });
+}
+
 TEST_F(TestappTest, CollectionsSelectBucket) {
     // Create and select a bucket on which we will be able to hello collections
     mcd_env->getTestBucket().createBucket("collections", "", *adminConnection);

@@ -243,6 +243,8 @@ public:
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
+    cb::engine_errc setChronicleAuthToken(std::string_view token) override;
+
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1396,6 +1398,10 @@ cb::engine_errc EWB_Engine::startFusionUploader(Vbid vbid, uint64_t term) {
 
 cb::engine_errc EWB_Engine::stopFusionUploader(Vbid vbid) {
     return real_engine->stopFusionUploader(vbid);
+}
+
+cb::engine_errc EWB_Engine::setChronicleAuthToken(std::string_view token) {
+    return real_engine->setChronicleAuthToken(token);
 }
 
 cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {
