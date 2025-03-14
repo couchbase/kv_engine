@@ -1963,9 +1963,12 @@ public:
      * the derived HashTableVisitors to perform some action before iterating
      * on the HashBucket by overriding this function. For example, getting a
      * collections read lock before iterating on some HashBucket.
+     *
+     * @return true if the visit should continue, false if it should terminate
+     *         (which will lead to teardownHashBucketVisit being called).
      */
-    virtual void setUpHashBucketVisit() {
-        return;
+    virtual bool setUpHashBucketVisit() {
+        return true;
     };
 
     /**

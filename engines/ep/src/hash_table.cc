@@ -1564,7 +1564,10 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
         // Note: we don't record how far into the bucket linked-list we
         // pause at; so any restart will begin from the next bucket.
         for (; !paused && hash_bucket < size; hash_bucket += mutexes.size()) {
-            visitor.setUpHashBucketVisit();
+            if (!visitor.setUpHashBucketVisit()) {
+                visitor.tearDownHashBucketVisit();
+                break;
+            }
 
             // HashBucketLock scope. If a visitor needs additional locking
             // around the HashBucket visit then we need to release it before

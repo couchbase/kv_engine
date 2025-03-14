@@ -90,12 +90,13 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
             return true;
         }
 
-        void setUpHashBucketVisit() override {
+        bool setUpHashBucketVisit() override {
             // Need to lock the vbucket state before collections.
             vbStateLock =
                     std::shared_lock<folly::SharedMutex>(vb.getStateLock());
             // Need to lock collections before we visit each SV.
             readHandle = vb.lockCollections();
+            return true;
         }
 
         void tearDownHashBucketVisit() override {

@@ -181,9 +181,10 @@ public:
         return visitFn(lh, v);
     }
 
-    void setUpHashBucketVisit() override {
+    bool setUpHashBucketVisit() override {
         vbStateLock = std::shared_lock<folly::SharedMutex>(vb.getStateLock());
         readHandle = vb.lockCollections();
+        return true;
     }
 
     void tearDownHashBucketVisit() override {

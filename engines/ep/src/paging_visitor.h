@@ -66,7 +66,7 @@ public:
      * Ephemeral buckets (i.e. delete them) and need to update the collection
      * high seqno.
      */
-    void setUpHashBucketVisit() override;
+    bool setUpHashBucketVisit() override;
 
     /**
      * Override the tearDownHasBucketVisit method to release the

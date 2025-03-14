@@ -547,7 +547,7 @@ protected:
                                     static_cast<std::string_view>(key)));
             }
 
-            mockVisitor->setUpHashBucketVisit();
+            EXPECT_TRUE(mockVisitor->setUpHashBucketVisit());
             mockVisitor->visit(hbl, const_cast<StoredValue&>(*sv));
             mockVisitor->tearDownHashBucketVisit();
         }
