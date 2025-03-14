@@ -42,6 +42,7 @@
 #include <string>
 #include <utility>
 
+#include <folly/ScopeGuard.h>
 #include <folly/lang/Assume.h>
 
 struct WarmupCookie {
@@ -1070,6 +1071,14 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     // continue.
     setStatus(cb::engine_errc::success);
 
+    auto scopeGuard = folly::makeGuard([this]() {
+        // All success paths out of this callback should yield if required.
+        if (getStatus() == cb::engine_errc::success && deltaDeadlineFromNow &&
+            std::chrono::steady_clock::now() >= deadline) {
+            yield(); // Returns to scan with status Yield
+        }
+    });
+
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(std::move(val.item));
 
@@ -1168,10 +1177,6 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         // than not_my_bucket or temporary_failure can be used to cancel...
         setStatus(cb::engine_errc::cancelled);
         return;
-    }
-
-    if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
-        yield(); // Returns to scan with status Yield
     }
 }
 
