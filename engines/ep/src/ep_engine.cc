@@ -742,6 +742,11 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBfilterKeyCount(std::stoull(val));
         } else if (key == "paging_visitor_pause_check_count") {
             configuration.setPagingVisitorPauseCheckCount(std::stoull(val));
+        } else if (key == "expiry_visitor_items_only_duration_ms") {
+            configuration.setExpiryVisitorItemsOnlyDurationMs(std::stoull(val));
+        } else if (key == "expiry_visitor_expire_after_visit_duration_ms") {
+            configuration.setExpiryVisitorExpireAfterVisitDurationMs(
+                    std::stoull(val));
         } else if (key == "item_eviction_age_percentage") {
             configuration.setItemEvictionAgePercentage(std::stoull(val));
         } else if (key == "item_eviction_freq_counter_age_threshold") {

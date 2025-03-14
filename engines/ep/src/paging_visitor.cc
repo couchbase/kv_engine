@@ -46,6 +46,14 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       pagingVisitorPauseCheckCount(s.getEPEngine()
                                            .getConfiguration()
                                            .getPagingVisitorPauseCheckCount()),
+      expiryVisitorItemsOnlyDuration(std::chrono::milliseconds(
+              s.getEPEngine()
+                      .getConfiguration()
+                      .getExpiryVisitorItemsOnlyDurationMs())),
+      expiryVisitorExpireAfterVisitDuration(std::chrono::milliseconds(
+              s.getEPEngine()
+                      .getConfiguration()
+                      .getExpiryVisitorExpireAfterVisitDurationMs())),
       wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
       taskStart(std::chrono::steady_clock::now()) {
     setVBucketFilter(vbFilter);
@@ -93,24 +101,44 @@ bool PagingVisitor::maybeExpire(StoredValue& v) {
     return false;
 }
 
-void PagingVisitor::update() {
-    // Process expirations
-    if (!expired.empty()) {
-        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
-                    cb::executor::CoarseSteadyClock>
-                timer(getTraceable(), "pager.expire");
-        const auto startTime = ep_real_time();
-        for (auto& item : expired) {
-            store.processExpiredItem(item, startTime, ExpireBy::Pager);
-        }
-        EP_LOG_DEBUG("Purged {} expired items", expired.size());
-        expired.clear();
+void PagingVisitor::update(bool expireAllItems) {
+    if (isExpiredListEmpty()) {
+        return;
     }
+
+    // Process expirations
+    ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
+                cb::executor::CoarseSteadyClock>
+            timer(getTraceable(), "pager.expire");
+
+    const auto threshold = processExpiredItemsOnly
+                                   ? expiryVisitorItemsOnlyDuration
+                                   : expiryVisitorExpireAfterVisitDuration;
+    size_t itemCount = 0;
+
+    progressTracker.setDeadline(std::chrono::steady_clock::now() + threshold);
+    const auto startTime = ep_real_time();
+
+    while (!isExpiredListEmpty()) {
+        store.processExpiredItem(expired.front(), startTime, ExpireBy::Pager);
+        expired.pop_front();
+        itemCount++;
+
+        if (!progressTracker.shouldContinueVisiting(itemCount) &&
+            !expireAllItems) {
+            EP_LOG_DEBUG_CTX("Yielding expiry pager due to reaching threshold",
+                             {"threshold", threshold},
+                             {"expired_item_count", itemCount},
+                             {"num_items_to_expire", expired.size()});
+            return;
+        }
+    }
+
+    EP_LOG_DEBUG_CTX("PagingVisitor::update() Expired all items",
+                     {"expired_item_count", itemCount});
 }
 
 void PagingVisitor::complete() {
-    update();
-
     if (pagerSemaphore) {
         // visitor done, return token so parent is aware when all visitors
         // have finished.
@@ -189,6 +217,10 @@ bool PagingVisitor::shouldContinueHashTableVisit(
     return true;
 }
 
+bool PagingVisitor::isExpiredListEmpty() const {
+    return expired.empty();
+}
+
 ExpiredPagingVisitor::ExpiredPagingVisitor(
         KVBucket& s,
         EPStats& st,
@@ -204,6 +236,11 @@ ExpiredPagingVisitor::shouldInterrupt() {
         return ExecutionState::Continue;
     }
 
+    // Yield after expiration, do not visit vbucket
+    if (processExpiredItemsOnly) {
+        return ExecutionState::Pause;
+    }
+
     return CappedDurationVBucketVisitor::shouldInterrupt();
 }
 
@@ -217,7 +254,22 @@ bool ExpiredPagingVisitor::visit(const HashTable::HashBucketLock& lh,
 }
 
 void ExpiredPagingVisitor::visitBucket(VBucket& vb) {
-    update();
+    if (!isExpiredListEmpty()) {
+        // Set flag to yield after expiration and not visit vbucket
+        processExpiredItemsOnly = true;
+        /**
+         * TODO MB-65723: Consider handling cases where the expired list is very
+         * small, e.g. 1 item. In such a case, the task will expire one item and
+         * yield. More time may be spent entering the task run loop than
+         * actually expiring items. Potential improvement:
+         *  - Check remaining time and allow visiting if sufficient time
+         *  remains.
+         */
+        update(false);
+        return;
+    }
+
+    processExpiredItemsOnly = false;
 
     if (vBucketFilter(vb.getId())) {
         currentBucket = &vb;
@@ -232,6 +284,7 @@ void ExpiredPagingVisitor::visitBucket(VBucket& vb) {
 }
 
 void ExpiredPagingVisitor::complete() {
+    update(false);
     PagingVisitor::complete();
     stats.expiryPagerHisto.add(getElapsedTime());
 }
@@ -322,7 +375,8 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
 }
 
 void ItemPagingVisitor::visitBucket(VBucket& vb) {
-    update();
+    // 'true' ensures that the pager will expires all accumulated items.
+    update(true);
 
     if (shouldStopPaging()) {
         hashTablePosition = {};
@@ -399,6 +453,7 @@ bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
 }
 
 void ItemPagingVisitor::complete() {
+    update(true);
     PagingVisitor::complete();
     stats.itemPagerHisto.add(getElapsedTime());
 
@@ -410,8 +465,8 @@ void ItemPagingVisitor::complete() {
     store.checkAndMaybeFreeMemory();
 }
 
-void ItemPagingVisitor::update() {
-    PagingVisitor::update();
+void ItemPagingVisitor::update(bool expireAllItems) {
+    PagingVisitor::update(expireAllItems);
     if (ejected > 0) {
         EP_LOG_DEBUG("Paged out {} values", ejected);
         ejected = 0;

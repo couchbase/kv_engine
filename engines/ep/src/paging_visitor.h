@@ -14,6 +14,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "hash_table.h"
 #include "learning_age_and_mfu_based_eviction.h"
+#include "progress_tracker.h"
 #include "vb_visitors.h"
 
 #include <atomic>
@@ -52,7 +53,7 @@ public:
                   bool pause,
                   const VBucketFilter& vbFilter);
 
-    virtual void update();
+    virtual void update(bool expireAllItems = true);
 
     void complete() override;
 
@@ -123,6 +124,16 @@ protected:
      */
     bool shouldContinueHashTableVisit(const HashTable::HashBucketLock& hbl);
 
+    /**
+     * @return true if the list of expired items is empty
+     */
+    bool isExpiredListEmpty() const;
+
+    // getter for expired items
+    const std::list<Item>& getExpiredItems() const {
+        return expired;
+    }
+
     // The current vbucket that the eviction algorithm is operating on.
     // Only valid while inside visitBucket().
     VBucket* currentBucket{nullptr};
@@ -137,12 +148,17 @@ protected:
     // The position in the HashTable to continue visiting from
     HashTable::Position hashTablePosition;
 
+    /**
+     * Flag used to indicate if we should only expire items accumulated in the
+     * Expired list and not visit the HashTable to find new items to expire.
+     */
+    bool processExpiredItemsOnly = false;
+
     KVBucket& store;
     EPStats& stats;
 
 private:
     std::list<Item> expired;
-
     time_t startTime;
     std::shared_ptr<cb::Semaphore> pagerSemaphore;
     const bool isPausingAllowed;
@@ -156,6 +172,17 @@ private:
     // Used to determine when to check for pausing.
     size_t htVisitsSincePauseCheck = 0;
 
+    // The time limit in milliseconds for processing items from the expired
+    // items list at the start of an expiry pager run. If the expired items list
+    // is not empty when the pager starts, it will only process items from this
+    // list for up to this duration before yielding.
+    const std::chrono::milliseconds expiryVisitorItemsOnlyDuration;
+    // The time limit in milliseconds for processing expired items after
+    // visiting the HashTable. After finding expired items during hash table
+    // traversal, the expiry pager will process them until this duration is
+    // reached before yielding.
+    const std::chrono::milliseconds expiryVisitorExpireAfterVisitDuration;
+
     /**
      * Flag used to identify if memory usage was above the backfill threshold
      * when the PagingVisitor started. Used to determine if we have to wake up
@@ -164,6 +191,8 @@ private:
     bool wasAboveBackfillThreshold;
 
     std::chrono::steady_clock::time_point taskStart;
+
+    ProgressTracker progressTracker;
 };
 
 class ExpiredPagingVisitor : public PagingVisitor {
@@ -231,7 +260,7 @@ public:
 
     void complete() override;
 
-    void update() override;
+    void update(bool expireAllItems = true) override;
 
 protected:
     /**

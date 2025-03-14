@@ -1087,6 +1087,18 @@
                 }
             }
         },
+        "expiry_visitor_items_only_duration_ms": {
+            "default": "50",
+            "descr": "The time limit in milliseconds for processing items from the expired items list at the start of an expiry pager run. If the expired items list is not empty when the pager starts, it will only process items from this list for up to this duration before yielding.",
+            "dynamic": true,
+            "type": "size_t"
+        },
+        "expiry_visitor_expire_after_visit_duration_ms": {
+            "default": "25",
+            "descr": "The time limit in milliseconds for processing expired items after visiting hash tables. After finding expired items during hash table traversal, the expiry pager will process them until this duration is reached before yielding.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "persistent_metadata_purge_age": {
             "default": "259200",
             "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days. If this is dynamically changed for a magma bucket then magma may not trigger compactions when it should, this can be avoided by running a full manual compaction after changing this parameter.",

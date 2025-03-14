@@ -2733,6 +2733,87 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
 }
 
+TEST_P(STExpiryPagerTest, ProcessExpiredListBeforeVisitingHashTable) {
+    const auto quota = engine->getEpStats().getMaxDataSize();
+    increaseQuota(quota);
+
+    auto& config = engine->getConfiguration();
+    // Force immediate yield by setting duration limits to 0
+    config.setExpiryVisitorItemsOnlyDurationMs(0);
+    config.setExpiryVisitorExpireAfterVisitDurationMs(0);
+
+    auto expirySemaphore = std::make_shared<cb::Semaphore>();
+    MockExpiredPagingVisitor expiryVisitor(*store,
+                                           engine->getEpStats(),
+                                           expirySemaphore,
+                                           true,
+                                           VBucketFilter());
+
+    // Store items with an expiry time in the past
+    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    for (size_t i = 0; i < 102; i++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i + 1));
+        auto item = make_item(
+                vbid,
+                key,
+                createXattrValue("value_" + std::to_string(i + 1)),
+                expiry,
+                PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+    }
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 102});
+    EXPECT_EQ(102, engine->getVBucket(vbid)->getNumItems())
+            << "Should begin with 102 items in the bucket";
+
+    // First run of expiry pager should accumulate expired items and pause after
+    // expiring 101 items. This is because we have
+    // "visit_bucket_and_expire_items_duration_limit=0" and the ProgressTracker
+    // required a minimum of 100 + 1 items visited before it will consider
+    // yielding.
+    auto vbucket = store->getVBucket(vbid);
+    expiryVisitor.visitBucket(*vbucket);
+    EXPECT_EQ(102, expiryVisitor.getExpiredItems().size());
+    expiryVisitor.complete();
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 101});
+
+    // verify 1 key is left
+    EXPECT_EQ(1, expiryVisitor.getExpiredItems().size());
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
+
+    // Add a new key to the bucket that needs expiring
+    auto key = makeStoredDocKey("key_103");
+    auto value = createXattrValue("value_103");
+    auto item = make_item(
+            vbid,
+            key,
+            value,
+            expiry,
+            PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+    ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
+    EXPECT_EQ(2, engine->getVBucket(vbid)->getNumItems());
+
+    // This time when we wake up the expiry pager, because the expired list
+    // already contain an item, it should only process this expiry and not visit
+    // the hashtable to find key_103
+    expiryVisitor.visitBucket(*vbucket);
+    EXPECT_TRUE(expiryVisitor.getExpiredItems().empty());
+    expiryVisitor.complete();
+
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems())
+            << "key_103 should not be expired";
+
+    // The final run will visit the hashtable and expire key_103
+    expiryVisitor.visitBucket(*vbucket);
+    EXPECT_EQ(1, expiryVisitor.getExpiredItems().size());
+
+    expiryVisitor.complete();
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
+    EXPECT_TRUE(expiryVisitor.getExpiredItems().empty());
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems());
+}
+
 TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     // MB-42688: Test that the ordering of the paging visitor comparator is
     // fixed even if the amount of pageable memory or the vbucket state changes.

@@ -93,4 +93,6 @@ public:
     }
 
     MOCK_METHOD1(visitBucket, void(VBucket&));
+
+    using ExpiredPagingVisitor::getExpiredItems;
 };
