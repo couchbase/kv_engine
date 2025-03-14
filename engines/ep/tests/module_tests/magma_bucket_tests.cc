@@ -1223,16 +1223,12 @@ TEST_P(STMagmaFusionTest, MagmaFusionMigrationRateLimit) {
     EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
             << "value not passed down to Magma";
 
-    // Test with an invalid value: 0
-    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->setFlushParam(
                       "magma_fusion_migration_rate_limit", "0", msg));
-
-    // Verify the values are not updated
-    EXPECT_EQ(777777, config.getFusionMigrationRateLimit())
-            << "config should not have been updated";
-    EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
-            << "value should not have been updated";
+    EXPECT_EQ(0, config.getFusionMigrationRateLimit()) << "config not updated";
+    EXPECT_EQ(0, kvstore.getMagmaFusionMigrationRateLimit())
+            << "value not passed down to Magma";
 }
 
 TEST_P(STMagmaFusionTest, MagmaFusionSyncRateLimit) {
@@ -1247,15 +1243,11 @@ TEST_P(STMagmaFusionTest, MagmaFusionSyncRateLimit) {
     EXPECT_EQ(777777, kvstore.getMagmaFusionSyncRateLimit())
             << "value not passed down to Magma";
 
-    // Test with an invalid value: 0
-    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->setFlushParam("magma_fusion_sync_rate_limit", "0", msg));
-
-    // Verify the values are not updated
-    EXPECT_EQ(777777, config.getFusionSyncRateLimit())
-            << "config should not have been updated";
-    EXPECT_EQ(777777, kvstore.getMagmaFusionSyncRateLimit())
-            << "value should not have been updated";
+    EXPECT_EQ(0, config.getFusionSyncRateLimit()) << "config not updated";
+    EXPECT_EQ(0, kvstore.getMagmaFusionSyncRateLimit())
+            << "value not passed down to Magma";
 }
 
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {
