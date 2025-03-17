@@ -1041,7 +1041,7 @@ protected:
     /// The number of seconds to determine when to timeout a request to external
     /// auth
     std::atomic<std::chrono::microseconds> external_auth_request_timeout{
-            std::chrono::seconds{30}};
+            std::chrono::seconds{60}};
 
     /// The maximum number of connections allowed
     std::atomic<size_t> max_connections{60000};

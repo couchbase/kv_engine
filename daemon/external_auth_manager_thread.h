@@ -275,7 +275,7 @@ protected:
      * The duration to determine when to timeout a request to external auth
      */
     std::atomic<std::chrono::microseconds> externalAuthRequestTimeout{
-            std::chrono::seconds(30)};
+            std::chrono::seconds(60)};
 
     /**
      * The time point we last sent the list of active users to the auth

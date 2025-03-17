@@ -1355,3 +1355,11 @@ TEST_F(SettingsTest, TestPrometheusScrapeSlowDuration) {
 
     EXPECT_NO_THROW(test(1));
 }
+
+TEST_F(SettingsTest, TestDefaultExternalAuthTimeout) {
+    using namespace std::chrono_literals;
+    using namespace std::chrono;
+    Settings settings;
+    EXPECT_EQ(60s,
+              duration_cast<seconds>(settings.getExternalAuthRequestTimeout()));
+}
