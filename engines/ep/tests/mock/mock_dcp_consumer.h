@@ -68,6 +68,10 @@ public:
         return flowControl;
     }
 
+    void setSyncReplication(SyncReplication value) {
+        supportsSyncReplication = value;
+    }
+
     /*
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.

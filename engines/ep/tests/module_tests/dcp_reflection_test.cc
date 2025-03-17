@@ -135,9 +135,14 @@ public:
         void transferDeletion(const StoredDocKey& expectedKey,
                               uint64_t expectedSeqno);
 
-        void transferSnapshotMarker(uint64_t expectedStart,
-                                    uint64_t expectedEnd,
-                                    DcpSnapshotMarkerFlag expectedFlags);
+        void transferPrepare(const StoredDocKey& expectedKey,
+                             uint64_t expectedSeqno);
+
+        void transferSnapshotMarker(
+                uint64_t expectedStart,
+                uint64_t expectedEnd,
+                DcpSnapshotMarkerFlag expectedFlags,
+                std::optional<uint64_t> expectedHighPreparedSeqno);
 
         void transferResponseMessage();
 
@@ -157,7 +162,9 @@ public:
     DcpRoute createDcpRoute(
             Node producerNode,
             Node consumerNode,
-            EnableExpiryOutput producerExpiryOutput = EnableExpiryOutput::Yes) {
+            EnableExpiryOutput producerExpiryOutput = EnableExpiryOutput::Yes,
+            SyncReplication syncReplication = SyncReplication::SyncReplication,
+            MarkerVersion maxMarkerVersion = MarkerVersion::V2_0) {
         EXPECT_TRUE(engines[producerNode])
                 << " createDcpRoute: No engine for producer Node"
                 << producerNode;
@@ -166,9 +173,12 @@ public:
                 << consumerNode;
         return {vbid,
                 engines[producerNode],
-                createDcpProducer(
-                        producerNode, consumerNode, producerExpiryOutput),
-                createDcpConsumer(producerNode, consumerNode)};
+                createDcpProducer(producerNode,
+                                  consumerNode,
+                                  producerExpiryOutput,
+                                  syncReplication,
+                                  maxMarkerVersion),
+                createDcpConsumer(producerNode, consumerNode, syncReplication)};
     }
 
     static cb::engine_errc fakeDcpAddFailoverLog(
@@ -180,8 +190,8 @@ public:
             Node producerNode,
             Node consumerNode,
             EnableExpiryOutput enableExpiryOutput = EnableExpiryOutput::Yes,
-            SyncReplication syncReplication =
-                    SyncReplication::SyncReplication) {
+            SyncReplication syncReplication = SyncReplication::SyncReplication,
+            MarkerVersion maxMarkerVersion = MarkerVersion::V2_0) {
         EXPECT_TRUE(engines[producerNode])
                 << "createDcpProducer: No engine for Node" << producerNode;
 
@@ -210,11 +220,15 @@ public:
 
         producer->setSyncReplication(syncReplication);
 
+        producer->setMaxMarkerVersion(maxMarkerVersion);
+
         return producer;
     }
 
-    std::shared_ptr<MockDcpConsumer> createDcpConsumer(Node producerNode,
-                                                       Node consumerNode) {
+    std::shared_ptr<MockDcpConsumer> createDcpConsumer(
+            Node producerNode,
+            Node consumerNode,
+            SyncReplication syncReplication = SyncReplication::No) {
         EXPECT_TRUE(engines[consumerNode])
                 << "createDcpConsumer: No engine for Node" << consumerNode;
         auto mockConsumer = std::make_shared<MockDcpConsumer>(
@@ -223,11 +237,17 @@ public:
                 "Node" + std::to_string(consumerNode) + " from Node" +
                         std::to_string(producerNode));
 
+        mockConsumer->setSyncReplication(syncReplication);
+
         return mockConsumer;
     }
 
     cb::engine_errc storePrepare(std::string key) {
         auto docKey = makeStoredDocKey(key);
+        return storePrepare(docKey);
+    }
+
+    cb::engine_errc storePrepare(const StoredDocKey& docKey) {
         using namespace cb::durability;
         auto reqs = Requirements(Level::Majority, Timeout::Infinity());
         return store->set(*makePendingItem(docKey, {}, reqs), cookie);
@@ -235,11 +255,16 @@ public:
 
     cb::engine_errc storeCommit(std::string key) {
         auto docKey = makeStoredDocKey(key);
+        return storeCommit(docKey);
+    }
+
+    cb::engine_errc storeCommit(const StoredDocKey& docKey,
+                                uint64_t prepareSeqno = 1) {
         auto vb = engine->getVBucket(vbid);
         std::shared_lock rlh(vb->getStateLock());
         return vb->commit(rlh,
                           docKey,
-                          1,
+                          prepareSeqno,
                           {},
                           CommitType::Majority,
                           vb->lockCollections(docKey));
@@ -539,10 +564,24 @@ void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
               streams.second->messageReceived(std::move(msg)));
 }
 
+void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
+        const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
+    auto* prepare = static_cast<MutationResponse*>(msg.get());
+    EXPECT_EQ(expectedKey, prepare->getItem()->getKey());
+    EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
+}
+
 void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         uint64_t expectedStart,
         uint64_t expectedEnd,
-        DcpSnapshotMarkerFlag expectedFlags) {
+        DcpSnapshotMarkerFlag expectedFlags,
+        std::optional<uint64_t> expectedHighPreparedSeqno = std::nullopt) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
@@ -551,6 +590,10 @@ void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
     EXPECT_EQ(expectedStart, marker->getStartSeqno());
     EXPECT_EQ(expectedEnd, marker->getEndSeqno());
     EXPECT_EQ(expectedFlags, marker->getFlags());
+    if (expectedHighPreparedSeqno) {
+        EXPECT_EQ(expectedHighPreparedSeqno.value(),
+                  marker->getHighPreparedSeqno());
+    }
     EXPECT_EQ(cb::engine_errc::success,
               streams.second->messageReceived(std::move(msg)));
 }
@@ -1428,6 +1471,72 @@ TEST_P(DCPLoopbackStreamTest,
     auto newActiveVB = engines[Node1]->getVBucket(vbid);
     auto failoverEntry = newActiveVB->failovers->getLatestEntry();
     EXPECT_EQ(0, failoverEntry.by_seqno);
+}
+
+TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForPendingItems) {
+    // Store a pending item
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+
+    // Store a second pending item
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+
+    // Store a few more items to flush the above items to disk.
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+    auto k4 = makeStoredDocKey("k4");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k4));
+
+    // Flush everything to disk
+    flushNodeIfPersistent(Node0);
+
+    // clear checkpoint to force a backfill from disk
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    // Flush the set_vb_state to disk
+    flushNodeIfPersistent(Node1);
+
+    route0_1.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            2);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    *replicaVB->checkpointManager);
+
+    EXPECT_EQ(2, checkpoint.getHighPreparedSeqno());
+
+    route0_1.transferPrepare(k1, 1);
+    route0_1.transferPrepare(k2, 2);
+    route0_1.transferMutation(k3, 3);
+    route0_1.transferMutation(k4, 4);
+
+    if (isPersistent()) {
+        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+    } else {
+        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+    }
+
+    // Persist the mutations on replica, the HPS will be updated to 4, before
+    // the fix for MB-51689.
+    flushNodeIfPersistent(Node1);
+
+    if (isPersistent()) {
+        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+    }
 }
 
 // Ideally this class would've inherited STParameterizedBucketTest which already
