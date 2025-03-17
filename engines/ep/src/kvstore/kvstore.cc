@@ -32,6 +32,7 @@
 #include "snapshots/cache.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
+#include <memcached/cookie_iface.h>
 
 #ifdef EP_USE_MAGMA
 #include "magma-kvstore/magma-kvstore.h"
@@ -384,6 +385,9 @@ void KVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     const char* backend = getConfig().getBackendString().c_str();
     const auto prefix = getStatsPrefix();
 
+    const auto privileged =
+            c.testPrivilege(cb::rbac::Privilege::Stats, {}, {}).success();
+
     /* stats for both read-only and read-write threads */
     add_prefixed_stat(prefix, "backend_type", backend, add_stat, c);
     add_prefixed_stat(prefix, "open", st.numOpen, add_stat, c);
@@ -415,6 +419,25 @@ void KVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
                       st.io_document_write_bytes,
                       add_stat,
                       c);
+
+    // Privileged stats.
+    if (privileged) {
+        auto rv = getEncryptionKeyIds();
+        nlohmann::json keyIds;
+        if (std::holds_alternative<cb::engine_errc>(rv)) {
+            auto errc = std::get<cb::engine_errc>(rv);
+            keyIds = cb::make_error_condition(errc).message();
+        } else {
+            keyIds = std::get<std::unordered_set<std::string>>(rv);
+        }
+        // This is reported as "cached" because there could be concurrent
+        // operations that alter the set of keyIDs in use.
+        add_prefixed_stat(prefix,
+                          "cached_encryption_key_ids",
+                          keyIds.dump(),
+                          add_stat,
+                          c);
+    }
 }
 
 void KVStore::addTimingStats(const AddStatFn& add_stat, CookieIface& c) const {
