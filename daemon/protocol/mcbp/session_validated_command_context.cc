@@ -12,8 +12,8 @@
 
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
-
-#include "../../session_cas.h"
+#include <daemon/session_cas.h>
+#include <logger/logger.h>
 
 SessionValidatedCommandContext::SessionValidatedCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
@@ -96,27 +96,12 @@ cb::engine_errc GetVbucketCommandContext::step() {
 SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)
     : SessionValidatedCommandContext(cookie) {
     const auto& req = cookie.getRequest();
-    auto extras = req.getExtdata();
-
+    const auto extras = req.getExtdata();
     try {
-        if (extras.size() == 1) {
-            // This is the new encoding for the SetVBucket state.
-            state = vbucket_state_t(extras.front());
-            auto val = req.getValueString();
-            if (!val.empty()) {
-                meta = nlohmann::json::parse(val);
-            }
-        } else {
-            // This is the pre-mad-hatter encoding for the SetVBucketState
-            if (extras.size() != sizeof(vbucket_state_t)) {
-                // MB-31867: ns_server encodes this in the value field. Fall
-                // back
-                //           and check if it contains the value
-                extras = req.getValue();
-            }
-
-            state = static_cast<vbucket_state_t>(
-                    ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
+        state = vbucket_state_t(extras.front());
+        auto val = req.getValueString();
+        if (!val.empty()) {
+            meta = nlohmann::json::parse(val);
         }
     } catch (const std::exception& exception) {
         error = exception.what();

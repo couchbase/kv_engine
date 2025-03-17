@@ -2032,35 +2032,20 @@ The `set vbucket` command is used to set the state of vbucket.
 
 Request:
 
-* MAY have extra
+* MUST have extra
 * MUST NOT have key
 * MAY have value
 
-If the command contains an extra section it may be one of the two different
-formats:
-
-      Byte/     0       |       1       |       2       |       3       |
-         /              |               |               |               |
-        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-        +---------------+---------------+---------------+---------------+
-       0| vbucket state in network byte order                           |
-        +---------------+---------------+---------------+---------------+
-        Total 4 bytes
-
-This is the encoding used "pre Mad-Hatter" and is deprecated. The new format
-is a single byte containing the vbucket state.
-
-State may be one of:
+Extras contain a single byte containing the vbucket state and may be one of:
 
     1 - Active
     2 - Replica
     3 - Pending
     4 - Dead
 
-If value is set it content depend on the datatype. If datatype is set to
-RAW the content MUST be the same as described for extras. If datatype is
-set to JSON the payload contains extra information for the vbucket (As it
-is JSON and may change over time it is not documented in this document).
+If a value is present the datatype must be set to JSON and the payload
+contains extra information for the vbucket (As it is JSON and may change
+over time it is not documented in this document).
 
 All other values for datatype is invalid.
 

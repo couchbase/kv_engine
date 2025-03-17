@@ -2182,7 +2182,7 @@ static Status set_vbucket_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     auto status = McbpValidator::verify_header(
             cookie,
-            header.getExtlen(),
+            1,
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Any,
             ExpectedCas::Any,
@@ -2192,38 +2192,18 @@ static Status set_vbucket_validator(Cookie& cookie) {
         return status;
     }
 
-    vbucket_state_t state;
-    auto extras = header.getExtdata();
-    auto value = header.getValue();
-    auto datatype = header.getDatatype();
+    const auto extras = header.getExtdata();
+    const auto value = header.getValue();
+    const auto datatype = header.getDatatype();
 
-    if (extras.size() == 1) {
-        // This is the new-style setVbucket
-        state = static_cast<vbucket_state_t>(extras.front());
-        if (value.empty()) {
-            if (datatype != PROTOCOL_BINARY_RAW_BYTES) {
-                cookie.setErrorContext("datatype should be set to RAW");
-                return Status::Einval;
-            }
-        } else {
-            if (datatype != PROTOCOL_BINARY_DATATYPE_JSON) {
-                cookie.setErrorContext("datatype should be set to JSON");
-                return Status::Einval;
-            }
+    const auto state = static_cast<vbucket_state_t>(extras.front());
+    if (value.empty()) {
+        if (datatype != PROTOCOL_BINARY_RAW_BYTES) {
+            cookie.setErrorContext("Datatype should be set to RAW");
+            return Status::Einval;
         }
-    } else if (extras.size() == sizeof(vbucket_state_t) && value.empty() &&
-               datatype == PROTOCOL_BINARY_RAW_BYTES) {
-        state = vbucket_state_t(
-                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
-    } else if (extras.empty() && value.size() == sizeof(vbucket_state_t) &&
-               datatype == PROTOCOL_BINARY_RAW_BYTES) {
-        state = vbucket_state_t(
-                ntohl(*reinterpret_cast<const uint32_t*>(value.data())));
-    } else {
-        // packet is incorrect
-        cookie.setErrorContext(
-                "Invalid format. Use 1 byte state in extras and an optional "
-                "JSON value");
+    } else if (datatype != PROTOCOL_BINARY_DATATYPE_JSON) {
+        cookie.setErrorContext("Datatype should be set to JSON");
         return Status::Einval;
     }
 
