@@ -434,7 +434,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
                      {"flags", flags},
                      {"high_completed_seqno", hcsToSend},
                      {"max_visible_seqno", mvsToSend},
-                     {"last_backfilled_seqno", lastBackfilledSeqno}});
+                     {"last_backfilled_seqno", lastBackfilledSeqno},
+                     {"high_prepared_seqno", hpsToSend},
+                     {"purge_seqno", psToSend}});
             // Clear the pending marker, it's no longer needed.
             // Note: Missing to reset the pending marker here would lead to
             // sending it unnecessarily in the case where the stream has an
@@ -598,19 +600,23 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // so they need to be consistent.
         if (pendingDiskMarker) {
             // There is a marker, move it to the readyQ
-            logWithContext(spdlog::level::level_enum::info,
-                           "ActiveStream::backfillReceived: Sending pending "
-                           "disk snapshot with start:{}, end:{}, flags:{}, "
-                           "hcs:{}, mvs:{}",
-                           {{"seqno", *resp->getBySeqno()},
-                            {"snapshot",
-                             {pendingDiskMarker->getStartSeqno(),
-                              pendingDiskMarker->getEndSeqno()}},
-                            {"flags", pendingDiskMarker->getFlags()},
-                            {"high_completed_seqno",
-                             pendingDiskMarker->getHighCompletedSeqno()},
-                            {"max_visible_seqno",
-                             pendingDiskMarker->getMaxVisibleSeqno()}});
+            logWithContext(
+                    spdlog::level::level_enum::info,
+                    "ActiveStream::backfillReceived: Sending pending "
+                    "disk snapshot with start:{}, end:{}, flags:{}, "
+                    "hcs:{}, mvs:{}",
+                    {{"seqno", *resp->getBySeqno()},
+                     {"snapshot",
+                      {pendingDiskMarker->getStartSeqno(),
+                       pendingDiskMarker->getEndSeqno()}},
+                     {"flags", pendingDiskMarker->getFlags()},
+                     {"high_completed_seqno",
+                      pendingDiskMarker->getHighCompletedSeqno()},
+                     {"max_visible_seqno",
+                      pendingDiskMarker->getMaxVisibleSeqno()},
+                     {"high_prepared_seqno",
+                      pendingDiskMarker->getHighPreparedSeqno()},
+                     {"purge_seqno", pendingDiskMarker->getPurgeSeqno()}});
 
             // Note: The presence of a pending disk marker means that we were
             // at SnapshotType::NoHistoryPrecedingHistory before this point and
