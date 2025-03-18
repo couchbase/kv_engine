@@ -2087,10 +2087,13 @@ TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
         GTEST_SKIP();
     }
 
-    // Make active and put mem usage > HWM
+    // Make active and put memory pressure to trigger paging
+    // While not required to populate until OOM, it is used to create
+    // a situation where the ItemPager will definitely run to reduce
+    // chances of intermittent test failures.
     auto vbid0 = Vbid(0);
     setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
-    populateUntilAboveHighWaterMark(vbid0);
+    populateUntilOOM(vbid0);
 
     // Make vbucket dead and run item pager
     // We cannot evict from a dead vbucket so the filter will be empty
@@ -2108,7 +2111,7 @@ TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
 
     // Put vbucket back to active and wake the item pager
     setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
-    store->wakeItemPager();
+    store->wakeUpStrictItemPager(); // set manuallyNotified to true
     runNextTask(lpNonioQ, itemPagerTaskName());
 
     // Memory usage is still above HWM - so paging visitor should be scheduled
