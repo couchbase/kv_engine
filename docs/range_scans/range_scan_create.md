@@ -27,80 +27,77 @@ sections will be ignored.
 
 The following keys will be checked for at the root of the JSON object
 
-* The collection of the scan
+* The collection of the scan.
   * `"collection"`
   * If this key is omitted, the scan will use the default collection.
-  * The value is a string
+  * The value is a string.
   * The value is the collection-ID as hexadecimal. This matches other interfaces
     where a collection-ID is included in a JSON object.
-  * For example collection with base10 ID 2748 is encoded as "abc"
+  * For example collection with base10 ID 2748 is encoded as "abc".
 
-* Key or Key/Value configuration of the scan
-  * `"key_only"`
-  * The value is a bool
-  * When set to true the scan will only return keys
+* Key or Key/Value configuration of the scan.
+  * `"key_only"`.
+  * The value is a bool.
+  * When set to true the scan will only return keys.
   * When set to false (or omitted) the scan will return the complete "document",
-    that is the key, metadata and value
+    that is the key, metadata and value.
 
-* Extended Attributes configuration of the scan
-  * `"include_xattrs"`
-  * The value is a bool
-  * When set to true the scan will also include the xattrs for each "document",
-    now consisting of the key, metadata, xattrs and value
+* Extended Attributes configuration of the scan.
+  * `"include_xattrs"`.
+  * The value is a bool.
+  * When set to true the scan will include the xattrs for each "document".
   * When set to false (or omitted) the scan will not include xattrs for
-    each document
-  * System xattrs will be included if the user has privilege,
-    otherwise only user xattrs are returned, if any
-  * This value cannot be set to true if `"key_only": true`
+    each document.
+  * System xattrs will be included if the user has the privilege to access system-xattrs,
+    otherwise only user xattrs are returned.
+  * This value cannot be set to true if `"key_only": true`.
 
 * Range-scan configuration
-  * `"range"`
-  * value is a JSON object (described below)
+  * `"range"`.
+  * value is a JSON object (described below).
   * When omitted the `"sampling"` key must be included.
 
 * Sampling configuration
-  * `"sampling"`
-  * value is a JSON object (described below)
+  * `"sampling"`.
+  * value is a JSON object (described below).
   * When omitted the `"range"` key must be included.
 
 * Snapshot Requirements
-  * `"snapshot_requirements"`
+  * `"snapshot_requirements"`.
   * value is a JSON object (described below)
-  * This key can be omitted
+  * This key can be omitted.
 
-* A client defined name which may assist debug and observability
-  * `"name`
-  * value is a JSON string
-  * This key can be omitted
-  * If this key is included, the name cannot exceed 50 bytes
+* A client defined name which may assist debug and observability.
+  * `"name`.
+  * value is a JSON string.
+  * This key can be omitted.
+  * If this key is included, the name cannot exceed 50 bytes.
 
 ### For a range-scan
 
-The range-scan configuration is defined in the `"ranges"` object, the object has
+The range-scan configuration is defined in the `"range"` object, the object has
 the following keys.
 
-Key values for each key are base64 encodings of the desired strings.
-
-* The start key of the scan
+* The start key of the scan.
   * `"start"`
-  * value is a string
-  * value must be base64 encoded
-  * The scan will be inclusive of the start key
-* The end key of the scan
+  * value is a string.
+  * value must be base64 encoded.
+  * The scan will be inclusive of the start key.
+* The end key of the scan.
   * `"end"`
-  * value is a string
-  * value must be base64 encoded
-  * The scan will be inclusive of the end key
-* The exclusive start key of the scan
+  * value is a string.
+  * value must be base64 encoded.
+  * The scan will be inclusive of the end key.
+* The exclusive start key of the scan.
   * `"excl_start"`
-  * value is a string
-  * value must be base64 encoded
-  * The scan will be exclusive of the start key
-* The exclusive end key of the scan
+  * value is a string.
+  * value must be base64 encoded.
+  * The scan will be exclusive of the start key.
+* The exclusive end key of the scan.
   * `"excl_end"`
-  * value is a string
-  * value must be base64 encoded
-  * The scan will be exclusive of the end key
+  * value is a string.
+  * value must be base64 encoded.
+  * The scan will be exclusive of the end key.
 
 * A start and an end must be defined.
 * The create will fail if `"start"` and `"excl_start"` are defined.
@@ -113,13 +110,13 @@ Key values for each key are base64 encodings of the desired strings.
 The random-sample configuration is defined in the `"sampling"` object, the
 object has the following keys.
 
-* The prng seed to use
+* The seed to use in the PRNG.
   * `"seed"`
-  * value is a number
-  * If omitted the seed is 0
-* The sample size
+  * value is a number.
+  * When this key is omitted the seed is 0.
+* The sample size.
   * `"samples"`
-  * value is a number
+  * value is a number.
   * This key must be included in the `"sampling"` object.
   * A sampling scan does not guarantee that exactly the requested number of
     items is returned. A bernoulli distribution with a probability of
@@ -146,25 +143,24 @@ can be defined for either a range-scan or a random-sample.
 * The 64-bit vbucket uuid which the snapshot must match for the create to
   succeed.
   * `"vb_uuid"`
-  * value is a string encoding a base10 number
+  * value is a string encoding a base10 number.
   * This key must be defined in the `"snapshot_requirements"` object.
-* A sequence number that must of been persisted for the create to succeed.
+* A sequence number that must have been persisted for the create to succeed.
   * `"seqno"`
-  * value is a number
+  * value is a number.
   * This key must be defined in the `"snapshot_requirements"` object.
-* If a mutation is still stored for the sequence number.
+* Require that a mutation is still stored for the sequence number.
   * `"seqno_exists"`
-  * value is a bool
-  * When true the scan will check the by-seqno index for existince of an item
+  * value is a bool.
+  * When true the scan will check the by-seqno index for an item with this sequence number.
     with `"seqno"`
   * When omitted this defaults to false
-* A millisecond timeout, the create request will wait this long the `"seqno"` to
+* A millisecond timeout. The create request will wait this long for the `"seqno"` to
   be persisted.
   * `"timeout_ms"`
-  * value is a number
+  * value is a number.
   * When omitted, no timeout is used and the command will fail immediately if
     the `"seqno"` is not persisted.
-  * TBD: upper limit on this timeout
 
 ### Examples
 
