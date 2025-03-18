@@ -10,6 +10,7 @@
  */
 
 #include "../mock/mock_magma_kvstore.h"
+#include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "configuration.h"
 #include "file_ops_tracker.h"
@@ -1043,6 +1044,52 @@ TEST_F(MagmaKVStoreFileOpsTest, trackingFileSystemPassthrough) {
     EXPECT_NE(nullptr, def.Rename);
     EXPECT_NE(nullptr, def.Link);
     EXPECT_NE(nullptr, def.RemoveAllWithCallback);
+}
+
+class MagmaKVStoreOpenFailTest : public MagmaKVStoreTest {
+protected:
+    struct injected_error : std::runtime_error {
+        injected_error() : runtime_error("Injected error") {
+        }
+    };
+
+    void SetUp() override {
+        MagmaKVStoreTest::SetUp();
+        injectError = false;
+    }
+
+    std::unique_ptr<MockMagmaKVStore> createStore(
+            MagmaKVStoreConfig& config) override {
+        // FSHook is just a convenient way to force an exception during
+        // initialisation.
+        config.magmaCfg.FSHook = [this](auto& fs) {
+            if (injectError) {
+                throw injected_error();
+            }
+        };
+        return std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+    }
+
+    bool injectError{false};
+};
+
+// Test that the logger is unregistered if KVStore initialization fails.
+TEST_F(MagmaKVStoreOpenFailTest, loggerIsUnregistered) {
+    {
+        auto logger = kvstore->logger;
+        ASSERT_TRUE(logger->isRegistered());
+        kvstore.reset();
+        ASSERT_FALSE(logger->isRegistered());
+    }
+
+    // Force the KVStore to fail during initialisation.
+    injectError = true;
+    ASSERT_THROW(createStore(*kvstoreConfig), injected_error);
+    injectError = false;
+
+    // Check that the new KVStore can register its logger.
+    kvstore = createStore(*kvstoreConfig);
+    EXPECT_TRUE(kvstore->logger->isRegistered());
 }
 
 class MagmaKVStoreHistoryTest : public MagmaKVStoreTest {

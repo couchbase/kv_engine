@@ -819,6 +819,18 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
     configuration.magmaCfg.LogContext = logger;
     configuration.magmaCfg.UID = loggerName;
 
+    try {
+        initialize(encryptionKeyProvider, chronicleAuthToken);
+    } catch (...) {
+        // If the constructor fails, the destructor does not run.
+        // Ensure that the logger is destroyed.
+        logger->unregister();
+        throw;
+    }
+}
+
+void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
+                              std::string_view chronicleAuthToken) {
     magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
 
     magma->SetMaxOpenFiles(configuration.getMaxFileDescriptors());

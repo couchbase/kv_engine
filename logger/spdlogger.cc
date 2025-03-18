@@ -230,11 +230,12 @@ void cb::logger::createConsoleLogger() {
     spdlog::register_logger(file_logger);
 }
 
-void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
+bool cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
     NoArenaGuard guard;
     try {
         file_logger->debug("Registering logger {}", l->name());
         spdlog::register_logger(l);
+        return true;
     } catch (spdlog::spdlog_ex& e) {
         file_logger->warn(
                 "Exception caught when attempting to register the "
@@ -243,6 +244,7 @@ void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
                 "={}",
                 l->name(),
                 e.what());
+        return false;
     }
 }
 

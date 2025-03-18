@@ -156,13 +156,15 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
             std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
 
     // Register the logger in the logger library registry
-    cb::logger::registerSpdLogger(bucketLogger);
+    bucketLogger->registered = cb::logger::registerSpdLogger(bucketLogger);
     return bucketLogger;
 }
 
 void BucketLogger::unregister() {
-    // Unregister the logger in the logger library registry
-    cb::logger::unregisterSpdLogger(name());
+    if (registered.exchange(false)) {
+        // Unregister the logger in the logger library registry
+        cb::logger::unregisterSpdLogger(name());
+    }
 }
 
 std::shared_ptr<BucketLogger>& getGlobalBucketLogger() {

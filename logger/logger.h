@@ -101,8 +101,9 @@ void reset();
  * memcached receives a request to update verbosity
  *
  * @param l spdlogger instance
+ * @returns false on failure (exceptions are caught and logged)
  */
-void registerSpdLogger(std::shared_ptr<spdlog::logger> l);
+bool registerSpdLogger(std::shared_ptr<spdlog::logger> l);
 
 /**
  * Engines that create their own instances of an spdlogger should unregister

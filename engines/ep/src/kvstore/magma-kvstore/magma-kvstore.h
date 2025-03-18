@@ -690,6 +690,9 @@ public:
     std::shared_ptr<BucketLogger> logger;
 
 protected:
+    // Opens the Magma instance and finishes initialisation.
+    void initialize(EncryptionKeyProvider* encryptionKeyProvider,
+                    std::string_view chronicleAuthToken);
 
     /**
      * CompactDB implementation. See comments on public compactDB.

@@ -195,6 +195,11 @@ public:
     /// Context to merge into logs.
     nlohmann::json prefixContext;
 
+    /// @returns true if the logger is registered in the logger registry.
+    bool isRegistered() const {
+        return registered;
+    }
+
     /// Unregisters the BucketLogger in the logger library registry.
     void unregister();
 
@@ -240,6 +245,7 @@ private:
      * logger will log messages to various sinks after we format it.
      */
     spdlog::logger* spdLogger;
+    std::atomic_bool registered{false};
 };
 
 // Global (one instance shared across all ep-engine instances) BucketLogger
