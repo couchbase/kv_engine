@@ -226,14 +226,25 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
 }
 
 TEST_P(FusionTest, SyncFusionLogstore) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = "1";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
         auto cmd = BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::SyncFusionLogstore};
         cmd.setVBucket(Vbid(0));
-        resp = conn.execute(cmd);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     });
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 TEST_P(FusionTest, StartFusionUploader) {
