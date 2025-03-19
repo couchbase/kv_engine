@@ -801,3 +801,10 @@ std::tuple<magma::Status, bool> MagmaMemoryTrackingProxy::IsFusionUploader(
     cb::UseArenaMallocSecondaryDomain d;
     return magma->IsFusionUploader(kvId);
 }
+
+std::tuple<magma::Status, uint64_t>
+MagmaMemoryTrackingProxy::GetFusionUploaderTerm(
+        const magma::Magma::KVStoreID kvId) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->GetFusionUploaderTerm(kvId);
+}

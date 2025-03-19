@@ -336,6 +336,12 @@ public:
     std::tuple<magma::Status, bool> IsFusionUploader(
             magma::Magma::KVStoreID kvId);
 
+    /**
+     * @return The fusion uploader term for the given kvstore.
+     */
+    std::tuple<magma::Status, uint64_t> GetFusionUploaderTerm(
+            const magma::Magma::KVStoreID kvId);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

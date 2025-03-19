@@ -331,8 +331,13 @@ TEST_P(FusionTest, UploaderState) {
         conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
                    "fusion uploader_state 0");
         ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_string());
-        EXPECT_EQ("disabled", res);
+        ASSERT_TRUE(res.is_object());
+        ASSERT_TRUE(res.contains("state"));
+        ASSERT_TRUE(res["state"].is_string());
+        EXPECT_EQ("disabled", res["state"]);
+        ASSERT_TRUE(res.contains("term"));
+        ASSERT_TRUE(res["term"].is_number_integer());
+        EXPECT_EQ(0, res["term"]);
     });
 
     // Start uploader
@@ -354,8 +359,13 @@ TEST_P(FusionTest, UploaderState) {
         conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
                    "fusion uploader_state 0");
         ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_string());
-        EXPECT_EQ("enabled", res);
+        ASSERT_TRUE(res.is_object());
+        ASSERT_TRUE(res.contains("state"));
+        ASSERT_TRUE(res["state"].is_string());
+        EXPECT_EQ("enabled", res["state"]);
+        ASSERT_TRUE(res.contains("term"));
+        ASSERT_TRUE(res["term"].is_number_integer());
+        EXPECT_EQ(123, res["term"]);
     });
 
     // Stop uploader
@@ -373,8 +383,13 @@ TEST_P(FusionTest, UploaderState) {
         conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
                    "fusion uploader_state 0");
         ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_string());
-        EXPECT_EQ("disabled", res);
+        ASSERT_TRUE(res.is_object());
+        ASSERT_TRUE(res.contains("state"));
+        ASSERT_TRUE(res["state"].is_string());
+        EXPECT_EQ("disabled", res["state"]);
+        ASSERT_TRUE(res.contains("term"));
+        ASSERT_TRUE(res["term"].is_number_integer());
+        EXPECT_EQ(0, res["term"]);
     });
 }
 

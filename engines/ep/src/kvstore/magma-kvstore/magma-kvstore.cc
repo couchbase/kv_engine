@@ -4553,10 +4553,19 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
         return {std::get<std::vector<std::string>>(res)};
     }
     case FusionStat::UploaderState: {
-        const auto res = magma->IsFusionUploader(Magma::KVStoreID(vbid.get()));
-        checkError(std::get<Status>(res));
-        return nlohmann::json::string_t(std::get<bool>(res) ? "enabled"
-                                                            : "disabled");
+        const auto id = Magma::KVStoreID(vbid.get());
+        nlohmann::json json;
+        {
+            const auto res = magma->IsFusionUploader(id);
+            checkError(std::get<Status>(res));
+            json["state"] = std::get<bool>(res) ? "enabled" : "disabled";
+        }
+        {
+            const auto res = magma->GetFusionUploaderTerm(id);
+            checkError(std::get<Status>(res));
+            json["term"] = std::get<uint64_t>(res);
+        }
+        return json;
     }
     }
 
