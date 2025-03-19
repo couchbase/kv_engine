@@ -89,7 +89,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     core->numCheckpoints++;
     stats.checkpointManagerEstimatedMemUsage->fetch_add(sizeof(Checkpoint));
 
-    this->highPreparedSeqno.reset(highPreparedSeqno);
+    this->highPreparedSeqno = highPreparedSeqno;
 
     auto state = manager.getVBState();
     if (state == vbucket_state_replica || state == vbucket_state_dead) {

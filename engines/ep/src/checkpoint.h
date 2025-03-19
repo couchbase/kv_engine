@@ -428,7 +428,6 @@ public:
      * @param seqno the seqno of the prepare which has been queued
      */
     void setHighPreparedSeqno(uint64_t seqno) {
-        // assignment checks monotonicity
         highPreparedSeqno = seqno;
     }
 
@@ -769,7 +768,13 @@ private:
     // checkpoint has been persisted, the state on disk definitely has a
     // state which could be warmed up and validly have this seqno as the
     // high prepared seqno.
-    Monotonic<uint64_t> highPreparedSeqno{0};
+    // TODO MB-65706: Remove monotonic as temporary solution. As part of
+    // MB-51689, we set this value to equal the HPS of the active initially. We
+    // hit a monotonic violation when a replica then processes a disk snapshot
+    // and a prepare is processed. In that case the HPS of the prepare is <= to
+    // the current HPS already set and we hit a violation when setting it.
+    // TODO: Revert to monotonic once a fix for MB-51689 is completed.
+    uint64_t highPreparedSeqno{0};
 
     // queueDirty inspects each queued_item looking for isDeleted():true
     // this value tracks the largest rev seqno of those deleted items,
