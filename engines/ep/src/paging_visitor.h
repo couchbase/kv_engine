@@ -190,7 +190,7 @@ private:
      */
     bool wasAboveBackfillThreshold;
 
-    std::chrono::steady_clock::time_point taskStart;
+    cb::time::steady_clock::time_point taskStart;
 
     ProgressTracker progressTracker;
 };

@@ -24,7 +24,7 @@ DefragmentVisitor::DefragmentVisitor(size_t max_size_class)
 DefragmentVisitor::~DefragmentVisitor() = default;
 
 void DefragmentVisitor::setDeadline(
-        std::chrono::steady_clock::time_point deadline) {
+        cb::time::steady_clock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 

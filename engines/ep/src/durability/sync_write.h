@@ -92,7 +92,7 @@ protected:
 
     /// The time point the SyncWrite was added to the DurabilityMonitor.
     /// Used for statistics (track how long SyncWrites take to complete).
-    const std::chrono::steady_clock::time_point startTime;
+    const cb::time::steady_clock::time_point startTime;
 
     SyncWriteStatus status = SyncWriteStatus::Pending;
 

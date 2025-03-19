@@ -277,7 +277,7 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                                                 uint64_t startSeqno,
                                                 uint64_t endSeqno,
                                                 uint64_t maxSeqno) {
-    runtime += (std::chrono::steady_clock::now() - runStart);
+    runtime += (cb::time::steady_clock::now() - runStart);
     stream.completeBackfill(maxSeqno, runtime, bytesRead, keysScanned);
     stream.logWithContext(
             spdlog::level::level_enum::debug,
@@ -339,13 +339,13 @@ bool DCPBackfillDiskToStream::isProgressStalled(
     if (!trackedPosition || *trackedPosition != position) {
         // Begin tracking or save the new position. Both cases record current
         // time for the next check.
-        lastPositionChangedTime = std::chrono::steady_clock::now();
+        lastPositionChangedTime = cb::time::steady_clock::now();
         trackedPosition = position;
         return false;
     }
 
     // *trackedPosition == position, are we within the time limit?
-    const auto now = std::chrono::steady_clock::now();
+    const auto now = cb::time::steady_clock::now();
     if ((now - lastPositionChangedTime) < *maxNoProgressDuration) {
         return false;
     }

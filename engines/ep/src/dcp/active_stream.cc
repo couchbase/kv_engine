@@ -661,7 +661,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
 }
 
 void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
-                                    std::chrono::steady_clock::duration runtime,
+                                    cb::time::steady_clock::duration runtime,
                                     size_t diskBytesRead,
                                     size_t keysScanned) {
     completeBackfillInner(BackfillType::InOrder,
@@ -671,11 +671,10 @@ void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
                           keysScanned);
 }
 
-void ActiveStream::completeOSOBackfill(
-        uint64_t maxScanSeqno,
-        std::chrono::steady_clock::duration runtime,
-        size_t diskBytesRead,
-        size_t keysScanned) {
+void ActiveStream::completeOSOBackfill(uint64_t maxScanSeqno,
+                                       cb::time::steady_clock::duration runtime,
+                                       size_t diskBytesRead,
+                                       size_t keysScanned) {
     completeBackfillInner(BackfillType::OutOfSequenceOrder,
                           maxScanSeqno,
                           runtime,
@@ -1106,7 +1105,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
-    auto _begin_ = std::chrono::steady_clock::now();
+    auto _begin_ = cb::time::steady_clock::now();
     CheckpointManager::ItemsForCursor itemsForCursor{};
     auto cursorPtr = cursor.lock();
     if (cursorPtr) {
@@ -1115,7 +1114,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - _begin_));
+                    cb::time::steady_clock::now() - _begin_));
 
     result.checkpointType = itemsForCursor.checkpointType;
     result.ranges = itemsForCursor.ranges;
@@ -2212,7 +2211,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
 void ActiveStream::completeBackfillInner(
         BackfillType backfillType,
         uint64_t maxScanSeqno,
-        std::chrono::steady_clock::duration runtime,
+        cb::time::steady_clock::duration runtime,
         size_t diskBytesRead,
         size_t keysScanned) {
     {

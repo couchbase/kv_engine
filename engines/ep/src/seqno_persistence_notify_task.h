@@ -15,6 +15,8 @@
 
 #include "ep_task.h"
 
+#include <platform/cb_time.h>
+
 class KVBucket;
 
 /**
@@ -47,7 +49,7 @@ public:
      * @param deadline The deadline the SeqnoPersistenceRequest must be
      *        notified by.
      */
-    void addVbucket(Vbid vbid, std::chrono::steady_clock::time_point deadline);
+    void addVbucket(Vbid vbid, cb::time::steady_clock::time_point deadline);
 
 protected:
     void processVbuckets();

@@ -26,7 +26,7 @@ public:
     ~ItemFreqDecayerVisitor() override = default;
 
     // Set the deadline at which point the visitor will pause visiting.
-    void setDeadline(std::chrono::steady_clock::time_point deadline_);
+    void setDeadline(cb::time::steady_clock::time_point deadline_);
 
     // The visit function will decay the frequency counter of each document
     // in the hash table by the percentage set when the visitor was

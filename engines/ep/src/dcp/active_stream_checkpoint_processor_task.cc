@@ -36,7 +36,7 @@ bool ActiveStreamCheckpointProcessorTask::runInner(bool) {
         return false;
     }
 
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
     do {
         if (streams.empty()) {
             streams = queuePop();
@@ -53,16 +53,16 @@ bool ActiveStreamCheckpointProcessorTask::runInner(bool) {
     return true;
 }
 
-std::chrono::steady_clock::time_point
+cb::time::steady_clock::time_point
 ActiveStreamCheckpointProcessorTask::processStreams(
-        std::chrono::steady_clock::time_point start) {
-    std::chrono::steady_clock::time_point now = start;
+        cb::time::steady_clock::time_point start) {
+    cb::time::steady_clock::time_point now = start;
     while (!streams.empty()) {
         auto& stream = *streams.back().get();
         stream.nextCheckpointItemTask();
         streams.pop_back();
         // check current runtime of the task
-        now = std::chrono::steady_clock::now();
+        now = cb::time::steady_clock::now();
         if ((now - start) > maxDuration) {
             // time is up
             break;

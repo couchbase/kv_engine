@@ -381,7 +381,7 @@ protected:
      * It is protected so we can access from MockDcpConsumer, for
      * for testing purposes.
      */
-    std::chrono::steady_clock::time_point lastMessageTime;
+    cb::time::steady_clock::time_point lastMessageTime;
 
     // Searches the streams map for a stream for vbucket ID. Returns the found
     // stream, or an empty pointer if none found.

@@ -35,7 +35,7 @@ std::chrono::microseconds VBucketSyncWriteTimeoutTask::maxExpectedDuration()
 bool VBucketSyncWriteTimeoutTask::run() {
     // Inform the vBucket that it should process (and abort) any pending
     // SyncWrites which have timed out as of now.
-    vBucket.processDurabilityTimeout(std::chrono::steady_clock::now());
+    vBucket.processDurabilityTimeout(cb::time::steady_clock::now());
 
     // Note that while run() returns 'true' here (to re-schedule based on
     // ::waketime), there's no explicit snooze() in this method. This is

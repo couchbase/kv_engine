@@ -43,7 +43,7 @@ public:
 TEST_P(InitialMFUTest, TaskIsInitiallyScheduled) {
     auto task = getInitialMfuUpdaterTask();
     EXPECT_LE(task->getWaketime(),
-              std::chrono::steady_clock::now() + getUpdateInterval());
+              cb::time::steady_clock::now() + getUpdateInterval());
 }
 
 TEST_P(InitialMFUTest, TaskRunsPeriodicallyForMfuEvictionOnly) {
@@ -52,22 +52,21 @@ TEST_P(InitialMFUTest, TaskRunsPeriodicallyForMfuEvictionOnly) {
     task->run();
     if (isMfuOnlyEviction()) {
         EXPECT_LE(task->getWaketime(),
-                  std::chrono::steady_clock::now() + getUpdateInterval());
+                  cb::time::steady_clock::now() + getUpdateInterval());
     } else {
         EXPECT_EQ(task->getWaketime(),
-                  std::chrono::steady_clock::time_point::max());
+                  cb::time::steady_clock::time_point::max());
     }
 }
 
 TEST_P(InitialMFUTest, TaskRunsAfterEvictionChange) {
     auto task = getInitialMfuUpdaterTask();
     ExecutorPool::get()->snooze(task->getId(), INT_MAX);
-    ASSERT_EQ(task->getWaketime(),
-              std::chrono::steady_clock::time_point::max());
+    ASSERT_EQ(task->getWaketime(), cb::time::steady_clock::time_point::max());
 
     engine->getConfiguration().setItemEvictionStrategy("upfront_mfu_only");
     EXPECT_LE(task->getWaketime(),
-              std::chrono::steady_clock::now() + getUpdateInterval());
+              cb::time::steady_clock::now() + getUpdateInterval());
 }
 
 /**

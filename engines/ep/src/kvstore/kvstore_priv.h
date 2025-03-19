@@ -34,7 +34,7 @@ public:
 
     std::chrono::microseconds getDelta() const {
         return std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - start);
+                cb::time::steady_clock::now() - start);
     }
 
     const DiskDocKey& getKey() const {
@@ -48,5 +48,5 @@ public:
 protected:
     const queued_item item;
     DiskDocKey key;
-    std::chrono::steady_clock::time_point start;
+    cb::time::steady_clock::time_point start;
 };

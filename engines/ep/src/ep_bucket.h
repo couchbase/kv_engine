@@ -545,7 +545,7 @@ protected:
      */
     virtual void flushSuccessEpilogue(
             VBucket& vb,
-            const std::chrono::steady_clock::time_point flushStart,
+            const cb::time::steady_clock::time_point flushStart,
             size_t itemsFlushed,
             const AggregatedFlushStats& aggStats,
             Collections::VB::Flush& collectionFlush);

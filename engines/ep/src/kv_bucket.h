@@ -23,6 +23,7 @@
 #include "vbucketmap.h"
 #include <executor/task_type.h>
 #include <memcached/storeddockey.h>
+#include <platform/cb_time.h>
 #include <utilities/testing_hook.h>
 
 #include <folly/Expected.h>
@@ -174,9 +175,10 @@ public:
         getAggregatedVBucketStats(collector, cb::prometheus::MetricGroup::All);
     }
 
-    void completeBGFetchMulti(Vbid vbId,
-                              std::vector<bgfetched_item_t>& fetchedItems,
-                              std::chrono::steady_clock::time_point start) override;
+    void completeBGFetchMulti(
+            Vbid vbId,
+            std::vector<bgfetched_item_t>& fetchedItems,
+            cb::time::steady_clock::time_point start) override;
 
     /**
      * Returns the number of vbuckets in a given state.
@@ -568,8 +570,7 @@ public:
     void resetAccessScannerStartTime() override;
 
     void resetAccessScannerTasktime() override {
-        accessScanner.wlock()->lastTaskRuntime =
-                std::chrono::steady_clock::now();
+        accessScanner.wlock()->lastTaskRuntime = cb::time::steady_clock::now();
     }
 
     void enableItemCompressor();
@@ -588,11 +589,11 @@ public:
 
     void logQTime(const GlobalTask& taskType,
                   std::string_view threadName,
-                  std::chrono::steady_clock::duration enqTime) override;
+                  cb::time::steady_clock::duration enqTime) override;
 
     void logRunTime(const GlobalTask& taskType,
                     std::string_view threadName,
-                    std::chrono::steady_clock::duration runTime) override;
+                    cb::time::steady_clock::duration runTime) override;
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) override {
         cachedResidentRatio.activeRatio.store(activePerc);
@@ -1067,11 +1068,11 @@ public:
      *        client being notified and the request removed.
      */
     void addVbucketWithSeqnoPersistenceRequest(
-            Vbid vbid, std::chrono::steady_clock::time_point deadline);
+            Vbid vbid, cb::time::steady_clock::time_point deadline);
 
     /// @return the waketime of the SeqnoPersistenceNotifyTask
-    std::chrono::steady_clock::time_point
-    getSeqnoPersistenceNotifyTaskWakeTime() const;
+    cb::time::steady_clock::time_point getSeqnoPersistenceNotifyTaskWakeTime()
+            const;
 
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             CookieIface& cookie,
@@ -1500,11 +1501,11 @@ protected:
     std::shared_ptr<ExpiredItemPager> expiryPagerTask;
 
     struct ALogTask {
-        ALogTask() : lastTaskRuntime(std::chrono::steady_clock::now()) {
+        ALogTask() : lastTaskRuntime(cb::time::steady_clock::now()) {
         }
         size_t sleeptime = 0;
         size_t task = 0;
-        std::chrono::steady_clock::time_point lastTaskRuntime;
+        cb::time::steady_clock::time_point lastTaskRuntime;
         bool enabled = true;
     };
     folly::Synchronized<ALogTask> accessScanner;

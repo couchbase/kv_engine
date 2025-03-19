@@ -47,7 +47,6 @@ GlobalTask::GlobalTask(Taskable& t,
 GlobalTask::~GlobalTask() = default;
 
 bool GlobalTask::execute(std::string_view threadName) {
-    using namespace std::chrono;
     if (isdead()) {
         return false;
     }
@@ -66,7 +65,7 @@ bool GlobalTask::execute(std::string_view threadName) {
     // then schedule on the IOThreadPool for the given time.
     // If false: Cancel task, will not run again.
 
-    const auto executedAt = steady_clock::now();
+    const auto executedAt = cb::time::steady_clock::now();
 
     // Calculate and record scheduler overhead.
     auto scheduleOverhead = executedAt - getWaketime();
@@ -74,19 +73,19 @@ bool GlobalTask::execute(std::string_view threadName) {
     // been woken up before we expected it too be. In this case this
     // means that we have no schedule overhead and thus need to set
     // it too 0.
-    if (scheduleOverhead < steady_clock::duration::zero()) {
-        scheduleOverhead = steady_clock::duration::zero();
+    if (scheduleOverhead < cb::time::steady_clock::duration::zero()) {
+        scheduleOverhead = cb::time::steady_clock::duration::zero();
     }
 
     getTaskable().logQTime(*this, threadName, scheduleOverhead);
 
-    const auto start = steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
     updateLastStartTime(start);
 
     setState(TASK_RUNNING, TASK_SNOOZED);
     bool runAgain = run();
 
-    const auto end = steady_clock::now();
+    const auto end = cb::time::steady_clock::now();
     auto runtime = end - start;
     getTaskable().logRunTime(*this, threadName, runtime);
     updateRuntime(runtime);
@@ -97,11 +96,11 @@ bool GlobalTask::execute(std::string_view threadName) {
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        updateWaketime(std::chrono::steady_clock::time_point::max());
+        updateWaketime(cb::time::steady_clock::time_point::max());
         return;
     }
 
-    const auto curTime = std::chrono::steady_clock::now();
+    const auto curTime = cb::time::steady_clock::now();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
         auto nano_secs = static_cast<int64_t>(secs * 1000000000);
@@ -112,7 +111,7 @@ void GlobalTask::snooze(const double secs) {
 }
 
 void GlobalTask::wakeUp() {
-    updateWaketime(std::chrono::steady_clock::now());
+    updateWaketime(cb::time::steady_clock::now());
 }
 
 /*

@@ -13,6 +13,8 @@
 #include "ep_task.h"
 #include "executor/globaltask.h"
 #include <folly/synchronization/Baton.h>
+#include <platform/cb_time.h>
+#include <chrono>
 
 class SignalTest : public EpSignalTask {
 public:
@@ -49,7 +51,7 @@ public:
     void waitUntilPaused() {
         if (pauseExecution) {
             // call will wait until this task enters pause state when running
-            auto deadline = std::chrono::steady_clock::now() + 30s;
+            auto deadline = cb::time::steady_clock::now() + 30s;
             if (!isPaused.try_wait_until(deadline)) {
                 FAIL() << "Task did not pause within timeout";
             }
@@ -93,8 +95,7 @@ private:
 void TaskSignalTest::waitForTaskCompletion(SignalTest& task,
                                            std::chrono::seconds timeout) {
     using namespace std::chrono_literals;
-    using std::chrono::steady_clock;
-    auto deadline = steady_clock::now() + timeout;
+    auto deadline = cb::time::steady_clock::now() + timeout;
 
     bool done;
     do {
@@ -102,7 +103,7 @@ void TaskSignalTest::waitForTaskCompletion(SignalTest& task,
         if (!done) {
             std::this_thread::sleep_for(5ms);
         }
-    } while (!done && steady_clock::now() < deadline);
+    } while (!done && cb::time::steady_clock::now() < deadline);
 
     if (!done) {
         FAIL() << "Task did not finish within timeout";
@@ -115,8 +116,7 @@ std::shared_ptr<SignalTest> TaskSignalTest::makeAndScheduleTask(
     ExecutorPool::get()->schedule(task);
     EXPECT_EQ(0, task->runs);
     EXPECT_EQ(TASK_SNOOZED, task->getState());
-    EXPECT_EQ(std::chrono::steady_clock::time_point::max(),
-              task->getWaketime());
+    EXPECT_EQ(cb::time::steady_clock::time_point::max(), task->getWaketime());
     return task;
 }
 

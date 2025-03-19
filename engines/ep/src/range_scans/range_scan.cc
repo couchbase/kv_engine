@@ -668,12 +668,12 @@ bool RangeScan::isVbucketScannable(const VBucket& vb) const {
            vb.failovers->getLatestUUID() == vbUuid;
 }
 
-static std::function<std::chrono::steady_clock::time_point()>
+static std::function<cb::time::steady_clock::time_point()>
 getDefaultClockFunction() {
-    return []() { return std::chrono::steady_clock::now(); };
+    return []() { return cb::time::steady_clock::now(); };
 }
 
-std::function<std::chrono::steady_clock::time_point()> RangeScan::now =
+std::function<cb::time::steady_clock::time_point()> RangeScan::now =
         getDefaultClockFunction();
 
 void RangeScan::resetClockFunction() {

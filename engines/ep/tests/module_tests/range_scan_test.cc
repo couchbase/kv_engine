@@ -596,7 +596,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_time_limit) {
     // Replace time with a function that ticks per call, forcing the scan to
     // yield for every item
     RangeScan::setClockFunction([]() {
-        static auto now = std::chrono::steady_clock::now();
+        static auto now = cb::time::steady_clock::now();
         now += std::chrono::milliseconds(100);
         return now;
     });
@@ -1744,7 +1744,7 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scan_due_to_time_limit) {
 TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
     std::chrono::seconds tick(5);
     RangeScan::setClockFunction([&tick]() {
-        static auto now = std::chrono::time_point<std::chrono::steady_clock>();
+        static auto now = cb::time::steady_clock::time_point();
         now += tick;
         return now;
     });
@@ -2010,7 +2010,7 @@ TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
     // RangeScan::now will tick 5 seconds per call
     static std::chrono::seconds tick = std::chrono::seconds(5);
     RangeScan::setClockFunction([]() {
-        static auto now = std::chrono::steady_clock::now();
+        static auto now = cb::time::steady_clock::now();
         now += tick;
         return now;
     });

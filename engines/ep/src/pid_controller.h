@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <platform/cb_time.h>
 #include <chrono>
 #include <functional>
 #include <iosfwd>
@@ -48,7 +49,7 @@ public:
                       float ki,
                       float kd,
                       std::chrono::milliseconds dt,
-                      std::chrono::time_point<std::chrono::steady_clock> now);
+                      cb::time::steady_clock::time_point now);
 
     /**
      * Step the controller - comparing now with the previous step and if dt
@@ -62,7 +63,7 @@ public:
      * @return the PID's computed output
      */
     float step(float current,
-               std::chrono::time_point<std::chrono::steady_clock> now,
+               cb::time::steady_clock::time_point now,
                std::function<bool(PIDControllerImpl&)> checkAndMaybeReset);
 
     /**
@@ -116,7 +117,7 @@ private:
     float setPoint{0.0};
     float previousError{0.0};
     float output{0.0};
-    std::chrono::time_point<std::chrono::steady_clock> lastStep;
+    cb::time::steady_clock::time_point lastStep;
     friend std::ostream& operator<<(std::ostream&, const PIDControllerImpl&);
 };
 
@@ -125,7 +126,7 @@ private:
  * test and simulation purposes
  * @tparam Clock a clock to call ::now(), allowing for replacement of time
  */
-template <class Clock = std::chrono::steady_clock>
+template <class Clock = cb::time::steady_clock>
 class PIDController {
 public:
     PIDController(float setPoint,

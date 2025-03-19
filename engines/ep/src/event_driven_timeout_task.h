@@ -11,8 +11,7 @@
 #pragma once
 
 #include "ep_types.h"
-
-#include <chrono>
+#include <platform/cb_time.h>
 #include <memory>
 
 class GlobalTask;
@@ -29,7 +28,7 @@ public:
 
     ~EventDrivenTimeoutTask() override;
 
-    void updateNextExpiryTime(std::chrono::steady_clock::time_point) override;
+    void updateNextExpiryTime(cb::time::steady_clock::time_point) override;
 
     void cancelNextExpiryTime() override;
 

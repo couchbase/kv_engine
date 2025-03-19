@@ -94,13 +94,13 @@ public:
 
     void clearCookie();
 
-    std::chrono::steady_clock::time_point getStartTime() const;
+    cb::time::steady_clock::time_point getStartTime() const;
 
     /**
      * @returns The time point this SyncWrite will expire at. Will return
      * an empty optional for SyncWrites which have no expiry time set.
      */
-    std::optional<std::chrono::steady_clock::time_point> getExpiryTime() const;
+    std::optional<cb::time::steady_clock::time_point> getExpiryTime() const;
 
     /**
      * Notify this SyncWrite that it has been ack'ed by node.
@@ -127,7 +127,7 @@ public:
      * @param asOf The time to be compared with this SW's expiry-time
      * @return true if this SW's expiry-time < asOf, false otherwise
      */
-    bool isExpired(std::chrono::steady_clock::time_point asOf) const;
+    bool isExpired(cb::time::steady_clock::time_point asOf) const;
 
     /**
      * Reset the ack-state for this SyncWrite and set it up for the new
@@ -224,7 +224,7 @@ private:
 
     // Used for enforcing the Durability Requirements Timeout. It is set
     // when this SyncWrite is added for tracking into the DurabilityMonitor.
-    const std::optional<std::chrono::steady_clock::time_point> expiryTime = {};
+    const std::optional<cb::time::steady_clock::time_point> expiryTime = {};
 
     friend std::ostream& operator<<(std::ostream&, const ActiveSyncWrite&);
 };
@@ -495,7 +495,7 @@ struct ActiveDurabilityMonitor::State {
      * @param asOf The time to be compared with tracked-SWs' expiry-time
      * @param [out] the ResolvedQueue to enqueue the expired Prepares onto.
      */
-    void removeExpired(std::chrono::steady_clock::time_point asOf,
+    void removeExpired(cb::time::steady_clock::time_point asOf,
                        ResolvedQueue& expired);
 
     /**

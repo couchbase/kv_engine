@@ -14,8 +14,8 @@
 #include <memcached/vbucket.h>
 
 #include <folly/Synchronized.h>
+#include <platform/cb_time.h>
 
-#include <chrono>
 #include <memory>
 
 /**
@@ -176,9 +176,9 @@ protected:
     const uint64_t uid{0};
 
     /// Cumulative runtime of this backfill.
-    std::chrono::steady_clock::duration runtime{0};
+    cb::time::steady_clock::duration runtime{0};
     /// start time for each invocation of run
-    std::chrono::steady_clock::time_point runStart;
+    cb::time::steady_clock::time_point runStart;
     /**
      * The requested CreateMode. This value should be set before the backfill
      * runs for the first time, however, some tests do not do this and

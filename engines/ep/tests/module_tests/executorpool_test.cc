@@ -467,7 +467,7 @@ TYPED_TEST(ExecutorPoolTest, WakeUpdatesWaketime) {
             sleepTime,
             false,
             [&baton](LambdaTask& t) {
-                EXPECT_LE(t.getWaketime(), std::chrono::steady_clock::now());
+                EXPECT_LE(t.getWaketime(), cb::time::steady_clock::now());
                 baton.post();
                 return false;
             });
@@ -476,7 +476,7 @@ TYPED_TEST(ExecutorPoolTest, WakeUpdatesWaketime) {
     // Saity check - waketime should be ~60 mins after schedule (shouldn't take
     // anywhere close to 1minuteto actually schedule the task!).
     ASSERT_GT(task->getWaketime(),
-              std::chrono::steady_clock::now() + std::chrono::minutes{59})
+              cb::time::steady_clock::now() + std::chrono::minutes{59})
             << "Waketime should be ~60 mins in future";
 
     // Test: Wake the task, and expect to run "immediately" (give a generous
@@ -818,7 +818,7 @@ TYPED_TEST(ExecutorPoolTest, ReturnTrueWithoutSnoozeUpdatesWakeTime) {
     bool firstRun = true;
     folly::Baton<> taskFinished;
 
-    std::chrono::steady_clock::time_point firstWaketime;
+    cb::time::steady_clock::time_point firstWaketime;
 
     using namespace std::chrono_literals;
 

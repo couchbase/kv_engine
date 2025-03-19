@@ -54,16 +54,16 @@ public:
      *        time to run "now", without having to actually wait for real-time
      *        to pass.
      */
-    std::chrono::steady_clock::time_point runNextTask(
+    cb::time::steady_clock::time_point runNextTask(
             TaskQueue& taskQ,
             std::string_view expectedTaskName,
-            std::chrono::steady_clock::duration timeAdvance =
-                    std::chrono::steady_clock::duration::zero());
+            cb::time::steady_clock::duration timeAdvance =
+                    cb::time::steady_clock::duration::zero());
 
     /*
      * Run the next task from the taskQ
      */
-    std::chrono::steady_clock::time_point runNextTask(TaskQueue& taskQ);
+    cb::time::steady_clock::time_point runNextTask(TaskQueue& taskQ);
 
     /*
      * DCP helper. Create a MockDcpProducer configured with (or without)

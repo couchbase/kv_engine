@@ -32,6 +32,7 @@
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
+#include <platform/cb_time.h>
 #include <platform/dirutils.h>
 #include <platform/string_utilities.h>
 #include <platform/timeutils.h>
@@ -73,12 +74,12 @@ public:
             Warmup& warmup,
             bool shouldCheckIfWarmupThresholdReached,
             WarmupState::State warmupState,
-            std::optional<const std::chrono::steady_clock::duration>
+            std::optional<const cb::time::steady_clock::duration>
                     deltaDeadlineFromNow = std::nullopt);
 
     void callback(GetValue& val) override;
 
-    void updateDeadLine(std::chrono::steady_clock::time_point chunkStart) {
+    void updateDeadLine(cb::time::steady_clock::time_point chunkStart) {
         if (deltaDeadlineFromNow) {
             deadline = (chunkStart + *deltaDeadlineFromNow);
         }
@@ -90,9 +91,8 @@ private:
     EPBucket& epstore;
     VBucket& vb;
     Warmup& warmup;
-    std::optional<const std::chrono::steady_clock::duration>
-            deltaDeadlineFromNow;
-    std::chrono::steady_clock::time_point deadline;
+    std::optional<const cb::time::steady_clock::duration> deltaDeadlineFromNow;
+    cb::time::steady_clock::time_point deadline;
 
     /**
      * If true, after each K/V pair loaded check if the bucket has reached any
@@ -351,7 +351,7 @@ public:
      * pause (inside the kvCallback).
      */
     void begin() {
-        chunkStart = std::chrono::steady_clock::now();
+        chunkStart = cb::time::steady_clock::now();
     }
 
     /**
@@ -369,7 +369,7 @@ private:
     std::unique_ptr<BySeqnoScanContext> currentScanCtx;
     /// Time when this chunk of work (task run()) begin, used to determine when
     /// the visitor should yield.
-    std::chrono::steady_clock::time_point chunkStart;
+    cb::time::steady_clock::time_point chunkStart;
 };
 
 /**
@@ -1053,14 +1053,14 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
         Warmup& warmup,
         bool shouldCheckIfWarmupThresholdReached,
         WarmupState::State warmupState,
-        std::optional<const std::chrono::steady_clock::duration>
+        std::optional<const cb::time::steady_clock::duration>
                 deltaDeadlineFromNow)
     : stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
       vb(vb),
       warmup(warmup),
       deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
-      deadline(std::chrono::steady_clock::time_point::max()),
+      deadline(cb::time::steady_clock::time_point::max()),
       shouldCheckIfWarmupThresholdReached(shouldCheckIfWarmupThresholdReached),
       warmupState(warmupState) {
 }
@@ -1075,7 +1075,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     auto scopeGuard = folly::makeGuard([this]() {
         // All success paths out of this callback should yield if required.
         if (getStatus() == cb::engine_errc::success && deltaDeadlineFromNow &&
-            std::chrono::steady_clock::now() >= deadline) {
+            cb::time::steady_clock::now() >= deadline) {
             yield(); // Returns to scan with status Yield
         }
     });
@@ -1256,7 +1256,7 @@ Warmup::Warmup(Warmup& warmup,
 }
 
 void Warmup::setup(size_t memoryThreshold, size_t itemsThreshold) {
-    syncData.lock()->startTime = std::chrono::steady_clock::now();
+    syncData.lock()->startTime = cb::time::steady_clock::now();
     setMemoryThreshold(memoryThreshold);
     setItemThreshold(itemsThreshold);
 }
@@ -1506,7 +1506,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
 }
 
 void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
-    auto st = std::chrono::steady_clock::now();
+    auto st = cb::time::steady_clock::now();
     size_t item_count = 0;
 
     for (auto& entry : shardVBData[shardId]) {
@@ -1527,7 +1527,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
     // Start off by adding each shard's total item count. A healthy warmup and
     // this would represent 100%
     estimatedKeyCount.fetch_add(item_count);
-    estimateTime.fetch_add(std::chrono::steady_clock::now() - st);
+    estimateTime.fetch_add(cb::time::steady_clock::now() - st);
 
     if (++threadtask_count == getNumShards()) {
         transition(WarmupState::State::LoadPreparedSyncWrites);
@@ -1612,7 +1612,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         }
 
         {
-            metadata.store(std::chrono::steady_clock::now() -
+            metadata.store(cb::time::steady_clock::now() -
                            syncData.lock()->startTime);
         }
         EP_LOG_INFO("Warmup({}) metadata loaded in {}",
@@ -1806,7 +1806,7 @@ Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
     // alive (there may be millions of items per-vBucket), process it
     // a batch at a time.
     using namespace std::chrono;
-    auto start = steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     auto maxDuration = milliseconds{config.getWarmupAccesslogLoadDuration()};
     auto batchSize = config.getWarmupAccesslogLoadBatchSize();
 
@@ -1816,7 +1816,7 @@ Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
             &cookie,
             &batchWarmupCallback,
             store.getItemEvictionPolicy() == EvictionPolicy::Value)) {
-        if (steady_clock::now() - start >= maxDuration) {
+        if (cb::time::steady_clock::now() - start >= maxDuration) {
             return WarmupAccessLogState::Yield;
         }
     }
@@ -1857,7 +1857,7 @@ void Warmup::step() {
                 std::make_shared<WarmupCheckforAccessLog>(store, this));
         return;
     case WarmupState::State::EstimateDatabaseItemCount: {
-        estimateTime.store(std::chrono::steady_clock::duration::zero());
+        estimateTime.store(cb::time::steady_clock::duration::zero());
         estimatedKeyCount = 0;
     }
     case WarmupState::State::CreateVBuckets:

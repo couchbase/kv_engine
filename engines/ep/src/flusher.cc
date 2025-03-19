@@ -45,7 +45,7 @@ bool Flusher::stop(bool isForceShutdown) {
 }
 
 void Flusher::wait() {
-    auto startt = std::chrono::steady_clock::now();
+    auto startt = cb::time::steady_clock::now();
     while (_state != State::Stopped) {
         if (!ExecutorPool::get()->wakeAndWait(taskId)) {
             EP_LOG_WARN("Flusher::wait: taskId: {} has vanished!", taskId);
@@ -53,7 +53,7 @@ void Flusher::wait() {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    auto endt = std::chrono::steady_clock::now();
+    auto endt = cb::time::steady_clock::now();
     if ((endt - startt) > std::chrono::milliseconds{10}) {
         EP_LOG_INFO("Flusher::wait: had to wait {} for shutdown",
                     cb::time2text(endt - startt));
@@ -203,7 +203,7 @@ bool Flusher::step(GlobalTask *task) {
             stepPreSnoozeHook();
 
             if (!shouldSnooze) {
-                task->updateWaketime(std::chrono::steady_clock::now());
+                task->updateWaketime(cb::time::steady_clock::now());
             }
         }
         return true;

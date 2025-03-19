@@ -23,6 +23,7 @@
 #include <memcached/durability_spec.h>
 #include <memcached/storeddockey.h>
 #include <memcached/types.h>
+#include <platform/cb_time.h>
 #include <platform/n_byte_integer.h>
 
 #include <optional>
@@ -310,12 +311,12 @@ public:
         return static_cast<DeleteSource>(deletionCause);
     }
 
-    void setQueuedTime(std::chrono::steady_clock::time_point newTime =
-                               std::chrono::steady_clock::now()) {
+    void setQueuedTime(cb::time::steady_clock::time_point newTime =
+                               cb::time::steady_clock::now()) {
         queuedTime = newTime;
     }
 
-    std::chrono::steady_clock::time_point getQueuedTime() const {
+    cb::time::steady_clock::time_point getQueuedTime() const {
         return queuedTime;
     }
 
@@ -664,7 +665,7 @@ private:
      * mutations. Used to measure how long it takes for the flusher to visit the
      * Item. See dirtyAge stat and storage_age histogram.
      */
-    std::chrono::steady_clock::time_point queuedTime;
+    cb::time::steady_clock::time_point queuedTime;
 
     static std::atomic<uint64_t> casCounter;
     DISALLOW_ASSIGN(Item);

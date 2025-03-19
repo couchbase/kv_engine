@@ -917,7 +917,7 @@ TEST_P(MFUTrackingTest, bgfetchedDeletedItem) {
     GetValue gv(std::move(itemPtr));
     fetched_item.value = &gv;
     vbucket->completeBGFetchForSingleItem(
-            DiskDocKey(key), fetched_item, std::chrono::steady_clock::now());
+            DiskDocKey(key), fetched_item, cb::time::steady_clock::now());
 }
 
 TEST_P(MFUTrackingTest, accessUpdatesMFU) {
@@ -1004,7 +1004,7 @@ TEST_P(MFUTrackingTest, FreqDecayer) {
 
     while (pos != ht.endPosition()) {
         // keep visiting until done
-        visitor.setDeadline(std::chrono::steady_clock::now() +
+        visitor.setDeadline(cb::time::steady_clock::now() +
                             std::chrono::seconds(1));
         pos = ht.pauseResumeVisit(visitor, pos);
     }

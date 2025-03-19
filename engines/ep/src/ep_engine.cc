@@ -3595,7 +3595,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     kvBucket->getImplementationStats(collector);
 
     // Timing of all KVStore related stats
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
 
     doDiskFailureStats(collector);
     doDiskSlownessStats(collector);
@@ -3631,9 +3631,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     if (cookie) {
         NonBucketAllocationGuard guard;
-        cookie->getTracer().record(Code::StorageEngineStats,
-                                   start,
-                                   std::chrono::steady_clock::now());
+        cookie->getTracer().record(
+                Code::StorageEngineStats, start, cb::time::steady_clock::now());
     }
 
     return cb::engine_errc::success;
@@ -6339,15 +6338,14 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     cb::const_byte_buffer emd;
     extractNmetaFromExtras(emd, value, extras);
 
-    std::chrono::steady_clock::time_point startTime;
+    cb::time::steady_clock::time_point startTime;
     {
         auto startTimeC =
-                takeEngineSpecific<std::chrono::steady_clock::time_point>(
-                        cookie);
+                takeEngineSpecific<cb::time::steady_clock::time_point>(cookie);
         if (startTimeC.has_value()) {
             startTime = *startTimeC;
         } else {
-            startTime = std::chrono::steady_clock::now();
+            startTime = cb::time::steady_clock::now();
         }
     }
 
@@ -6397,7 +6395,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                         success = (ret ==
                                                    cb::engine_errc::success),
                                         this] {
-        auto endTime = std::chrono::steady_clock::now();
+        auto endTime = cb::time::steady_clock::now();
 
         {
             NonBucketAllocationGuard guard;
@@ -7586,13 +7584,13 @@ WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy() {
 
 void EpEngineTaskable::logQTime(const GlobalTask& task,
                                 std::string_view threadName,
-                                std::chrono::steady_clock::duration enqTime) {
+                                cb::time::steady_clock::duration enqTime) {
     myEngine->getKVBucket()->logQTime(task, threadName, enqTime);
 }
 
 void EpEngineTaskable::logRunTime(const GlobalTask& task,
                                   std::string_view threadName,
-                                  std::chrono::steady_clock::duration runTime) {
+                                  cb::time::steady_clock::duration runTime) {
     myEngine->getKVBucket()->logRunTime(task, threadName, runTime);
 }
 

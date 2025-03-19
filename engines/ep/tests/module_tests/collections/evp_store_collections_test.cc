@@ -1604,7 +1604,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactPrepareAbort) {
         }
         seenPrepare = true;
 
-        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+        vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                      std::chrono::seconds(1000));
         vb->processResolvedSyncWrites();
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1671,7 +1671,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
               store->set(*meatPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                  std::chrono::seconds(1000));
     vb->processResolvedSyncWrites();
 

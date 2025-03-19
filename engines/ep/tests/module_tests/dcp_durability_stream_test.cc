@@ -234,7 +234,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     }
     case Resolution::Abort:
         // Simulate timeout, indirectly calls VBucket::abort
-        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+        vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                      std::chrono::milliseconds(1000));
         EXPECT_EQ(0, vb->getNumItems());
         break;

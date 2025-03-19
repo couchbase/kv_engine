@@ -275,7 +275,7 @@ public:
      * @param keysScanned The total number of keys scanned during this backfill.
      */
     void completeBackfill(uint64_t maxScanSeqno,
-                          std::chrono::steady_clock::duration runtime,
+                          cb::time::steady_clock::duration runtime,
                           size_t diskBytesRead,
                           size_t keysScanned);
 
@@ -294,7 +294,7 @@ public:
      * @param keysScanned The total number of keys scanned during this backfill.
      */
     void completeOSOBackfill(uint64_t maxScanSeqno,
-                             std::chrono::steady_clock::duration runtime,
+                             cb::time::steady_clock::duration runtime,
                              size_t diskBytesRead,
                              size_t keysScanned);
 
@@ -671,7 +671,7 @@ protected:
     /// Common helper function for completing backfills.
     void completeBackfillInner(BackfillType backfillType,
                                uint64_t maxSeqno,
-                               std::chrono::steady_clock::duration runtime,
+                               cb::time::steady_clock::duration runtime,
                                size_t diskBytesRead,
                                size_t keysScanned);
 

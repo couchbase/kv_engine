@@ -110,7 +110,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
 
     // Prepare the underlying visitor.
     auto& visitor = getDefragVisitor();
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
     const auto deadline = start + getChunkDuration();
     visitor.setDeadline(deadline);
     visitor.setBlobAgeThreshold(getAgeThreshold());
@@ -125,7 +125,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
     // Do it - set off the visitor.
     epstore_position = engine->getKVBucket()->pauseResumeVisit(
             *prAdapter, epstore_position);
-    const auto end = std::chrono::steady_clock::now();
+    const auto end = cb::time::steady_clock::now();
 
     // Defrag complete. Restore thread caching.
     cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),

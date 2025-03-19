@@ -79,6 +79,6 @@ private:
 
     // For MB-62703 track the seqno of the scan and see if it changes over time
     std::optional<seqno_t> trackedPosition;
-    std::chrono::steady_clock::time_point lastPositionChangedTime;
+    cb::time::steady_clock::time_point lastPositionChangedTime;
     std::optional<std::chrono::seconds> maxNoProgressDuration;
 };

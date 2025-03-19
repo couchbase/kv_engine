@@ -61,7 +61,7 @@ public:
      * @returns true if 'task' is in the FutureQueue.
      */
     bool updateWaketime(const ExTask& task,
-                        std::chrono::steady_clock::time_point newTime) {
+                        cb::time::steady_clock::time_point newTime) {
         std::lock_guard<std::mutex> lock(queueMutex);
         task->updateWaketime(newTime);
         // After modifiying the task's wakeTime, rebuild the heap

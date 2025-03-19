@@ -42,30 +42,29 @@ class CB3ExecutorThread {
 
 public:
     /* The AtomicProcessTime class provides an abstraction for ensuring that
-     * changes to a std::chrono::steady_clock::time_point are atomic.  This is
+     * changes to a cb::time::steady_clock::time_point are atomic.  This is
      * achieved by ensuring that all accesses are protected by a mutex.
      */
     class AtomicProcessTime {
     public:
         AtomicProcessTime() = default;
-        explicit AtomicProcessTime(
-                const std::chrono::steady_clock::time_point& tp)
+        explicit AtomicProcessTime(const cb::time::steady_clock::time_point& tp)
             : timepoint(tp) {
         }
 
-        void setTimePoint(const std::chrono::steady_clock::time_point& tp) {
+        void setTimePoint(const cb::time::steady_clock::time_point& tp) {
             std::lock_guard<std::mutex> lock(mutex);
             timepoint = tp;
         }
 
-        std::chrono::steady_clock::time_point getTimePoint() const {
+        cb::time::steady_clock::time_point getTimePoint() const {
             std::lock_guard<std::mutex> lock(mutex);
             return timepoint;
         }
 
     private:
         mutable std::mutex mutex;
-        std::chrono::steady_clock::time_point timepoint;
+        cb::time::steady_clock::time_point timepoint;
     };
 
     CB3ExecutorThread(CB3ExecutorPool* m, TaskType type, const std::string nm)
@@ -73,7 +72,7 @@ public:
           taskType(type),
           name(nm),
           state(EXECUTOR_RUNNING),
-          now(std::chrono::steady_clock::now()),
+          now(cb::time::steady_clock::now()),
           taskStart(),
           currentTask(nullptr) {
     }
@@ -106,24 +105,24 @@ public:
 
     const std::string getTaskableName();
 
-    std::chrono::steady_clock::time_point getTaskStart() const {
+    cb::time::steady_clock::time_point getTaskStart() const {
         return taskStart.getTimePoint();
     }
 
     void updateTaskStart() {
-        const std::chrono::steady_clock::time_point& now =
-                std::chrono::steady_clock::now();
+        const cb::time::steady_clock::time_point& now =
+                cb::time::steady_clock::now();
         taskStart.setTimePoint(now);
     }
 
     const std::string getStateName();
 
-    virtual std::chrono::steady_clock::time_point getCurTime() const {
+    virtual cb::time::steady_clock::time_point getCurTime() const {
         return now.getTimePoint();
     }
 
     void updateCurrentTime() {
-        now.setTimePoint(std::chrono::steady_clock::now());
+        now.setTimePoint(cb::time::steady_clock::now());
     }
 
     /// @return the threads' type.

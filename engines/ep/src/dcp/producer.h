@@ -265,7 +265,7 @@ public:
         return multipleStreamRequests == MultipleStreamRequests::Yes;
     }
 
-    void setLastReceiveTime(std::chrono::steady_clock::time_point time) {
+    void setLastReceiveTime(cb::time::steady_clock::time_point time) {
         lastReceiveTime = time;
     }
 
@@ -381,7 +381,7 @@ public:
 
         /// When paused and state is Full, record the time when
         /// lastCheckedAckedBytes changed value.
-        std::chrono::steady_clock::time_point lastCheckedTime;
+        cb::time::steady_clock::time_point lastCheckedTime;
     };
 
     /*
@@ -542,10 +542,10 @@ protected:
 
     struct {
         // The time of the last noop message sent by this producer
-        std::chrono::steady_clock::time_point sendTime;
+        cb::time::steady_clock::time_point sendTime;
 
         // The time of the last noop response message received by this producer
-        std::chrono::steady_clock::time_point recvTime;
+        cb::time::steady_clock::time_point recvTime;
 
         uint32_t opaque;
 

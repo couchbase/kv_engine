@@ -28,14 +28,13 @@ bool FlusherTask::run() {
     return flusher->step(this);
 }
 
-CompactTask::CompactTask(
-        EPBucket& bucket,
-        Vbid vbid,
-        CompactionConfig config,
-        std::chrono::steady_clock::time_point requestedStartTime,
-        CookieIface* ck,
-        cb::AwaitableSemaphore& semaphore,
-        bool completeBeforeShutdown)
+CompactTask::CompactTask(EPBucket& bucket,
+                         Vbid vbid,
+                         CompactionConfig config,
+                         cb::time::steady_clock::time_point requestedStartTime,
+                         CookieIface* ck,
+                         cb::AwaitableSemaphore& semaphore,
+                         bool completeBeforeShutdown)
     : EpLimitedConcurrencyTask(bucket.getEPEngine(),
                                TaskId::CompactVBucketTask,
                                semaphore,
@@ -133,7 +132,7 @@ CompactionConfig CompactTask::getCurrentConfig() const {
 std::optional<std::pair<CompactionConfig, std::vector<CookieIface*>>>
 CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
-    if (lockedState->requestedStartTime > std::chrono::steady_clock::now()) {
+    if (lockedState->requestedStartTime > cb::time::steady_clock::now()) {
         updateWaketime(lockedState->requestedStartTime);
         return {};
     }
@@ -148,7 +147,7 @@ CompactTask::preDoCompact() {
 CompactionConfig CompactTask::runCompactionWithConfig(
         std::optional<CompactionConfig> config,
         CookieIface* cookie,
-        std::chrono::steady_clock::time_point requestedStartTime) {
+        cb::time::steady_clock::time_point requestedStartTime) {
     auto lockedState = compaction.wlock();
     if (config) {
         lockedState->config.merge(config.value());

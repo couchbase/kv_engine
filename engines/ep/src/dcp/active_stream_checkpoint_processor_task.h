@@ -78,8 +78,8 @@ private:
      * @param start A start time for use in duration calculations
      * @return the last read time_point, i.e. "now"
      */
-    std::chrono::steady_clock::time_point processStreams(
-            const std::chrono::steady_clock::time_point start);
+    cb::time::steady_clock::time_point processStreams(
+            const cb::time::steady_clock::time_point start);
 
     /// Human-readable description of this task.
     const std::string description;

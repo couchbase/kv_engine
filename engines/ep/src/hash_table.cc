@@ -242,7 +242,7 @@ static size_t nearest(size_t n, size_t a, size_t b) {
 }
 
 size_t HashTable::getPreferredSize(
-        std::chrono::steady_clock::duration delay) const {
+        cb::time::steady_clock::duration delay) const {
     const size_t minSize = minimumSize();
     const size_t numItems = getNumInMemoryItems();
     const size_t currSize = getSize();
@@ -273,7 +273,7 @@ size_t HashTable::getPreferredSize(
     }
 
     if (newSize < currSize) {
-        auto duration = std::chrono::steady_clock::now() - getLastResizeTime();
+        auto duration = cb::time::steady_clock::now() - getLastResizeTime();
         // Don't resize down if the delay interval has not passed since last
         // resize.
         if (duration < delay) {
@@ -360,7 +360,7 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     resizeInProgress.store(ResizeAlgo::None, std::memory_order_release);
 
     // Record resize completion time
-    lastResizeTime = std::chrono::steady_clock::now();
+    lastResizeTime = cb::time::steady_clock::now();
 
     return NeedsRevisit::No;
 }
@@ -469,7 +469,7 @@ NeedsRevisit HashTable::continueIncrementalResize() {
         resizingTemporaryValues.swap(sortedByLock);
 
         // Record resize completion time
-        lastResizeTime = std::chrono::steady_clock::now();
+        lastResizeTime = cb::time::steady_clock::now();
 
         return NeedsRevisit::No;
     }

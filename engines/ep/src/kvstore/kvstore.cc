@@ -559,7 +559,7 @@ std::ostream& operator<<(std::ostream& os, const FlushStateMutation& state) {
 IORequest::IORequest(queued_item itm)
     : item(std::move(itm)),
       key(DiskDocKey(*item)),
-      start(std::chrono::steady_clock::now()) {
+      start(cb::time::steady_clock::now()) {
 }
 
 IORequest::~IORequest() = default;

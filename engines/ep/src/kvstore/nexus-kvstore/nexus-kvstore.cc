@@ -739,7 +739,7 @@ void NexusKVStore::setMaxDataSize(size_t size) {
  */
 class NexusBGFetchItem : public BGFetchItem {
 public:
-    explicit NexusBGFetchItem(std::chrono::steady_clock::time_point initTime,
+    explicit NexusBGFetchItem(cb::time::steady_clock::time_point initTime,
                               ValueFilter filter,
                               uint64_t token)
         : BGFetchItem(initTime, token), filter(filter) {
@@ -747,7 +747,7 @@ public:
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,
-                  std::chrono::steady_clock::time_point startTime,
+                  cb::time::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override {
         // Do nothing, we will compare the GetValues later
     }

@@ -105,7 +105,7 @@ bool CheckpointTest::queueNewItem(const std::string& key) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0)};
-    qi->setQueuedTime(std::chrono::steady_clock::now());
+    qi->setQueuedTime(cb::time::steady_clock::now());
     return manager->queueDirty(qi,
                                GenerateBySeqno::Yes,
                                GenerateCas::Yes,
@@ -118,7 +118,7 @@ bool CheckpointTest::queueNewCDCItem(const std::string& key) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0)};
-    qi->setQueuedTime(std::chrono::steady_clock::now());
+    qi->setQueuedTime(cb::time::steady_clock::now());
     qi->setCanDeduplicate(CanDeduplicate::No);
     return manager->queueDirty(qi,
                                GenerateBySeqno::Yes,
@@ -5010,7 +5010,7 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_LT(postDetachEPMemUsage, initialEPMemUsage);
 
     // now the task should be ready to run
-    EXPECT_LE(task->getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_LE(task->getWaketime(), cb::time::steady_clock::now());
 
     auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIOQueue, "Destroying closed unreferenced checkpoints");
@@ -5105,7 +5105,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
     // none of the tasks should be scheduled to run
     for (const auto& task : *locked) {
         EXPECT_EQ(task->getWaketime(),
-                  std::chrono::steady_clock::time_point::max());
+                  cb::time::steady_clock::time_point::max());
     }
 
     // queue an item, then destroy the checkpoint for each of the vbuckets
@@ -5132,7 +5132,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
         // The specific task this vbid is associated with should have been
         // scheduled to run
         EXPECT_LE(getCkptDestroyerTask(vbid)->getWaketime(),
-                  std::chrono::steady_clock::now());
+                  cb::time::steady_clock::now());
     }
 
     auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
@@ -5142,7 +5142,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
         if (numVbuckets > i) {
             // there are enough vbuckets that this task should definitely
             // have been triggered
-            EXPECT_LE(task->getWaketime(), std::chrono::steady_clock::now());
+            EXPECT_LE(task->getWaketime(), cb::time::steady_clock::now());
             runNextTask(nonIOQueue,
                         "Destroying closed unreferenced checkpoints");
         } else {
@@ -5154,7 +5154,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
             // none of the 4 vbuckets can map to the 5th task
             // this task should not have been woken.
             EXPECT_EQ(task->getWaketime(),
-                      std::chrono::steady_clock::time_point::max());
+                      cb::time::steady_clock::time_point::max());
         }
     }
 }

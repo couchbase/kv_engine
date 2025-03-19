@@ -73,7 +73,7 @@ public:
 
     void flushSuccessEpilogue(
             VBucket& vb,
-            const std::chrono::steady_clock::time_point flushStart,
+            const cb::time::steady_clock::time_point flushStart,
             size_t itemsFlushed,
             const AggregatedFlushStats& aggStats,
             Collections::VB::Flush& collectionFlush) override;
@@ -89,7 +89,7 @@ public:
     void completeBGFetchMulti(
             Vbid vbId,
             std::vector<bgfetched_item_t>& fetchedItems,
-            std::chrono::steady_clock::time_point start) override;
+            cb::time::steady_clock::time_point start) override;
 
     void publicCompactionCompletionCallback(CompactionContext& ctx);
 

@@ -22,6 +22,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/cb_time.h>
 #include <platform/string_hex.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -128,8 +129,6 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
      * pool.
      */
     void scheduleViaCPUPool() {
-        using namespace std::chrono;
-
         LOG_TRACE_CTX("TaskProxy::scheduleViaCPUPool()",
                       {"id", task->getId()},
                       {"name", GlobalTask::getTaskName(task->getTaskId())},
@@ -248,8 +247,8 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         }
 
         using namespace std::chrono;
-        auto timeout = duration_cast<milliseconds>(task->getWaketime() -
-                                                   steady_clock::now());
+        auto timeout = duration_cast<milliseconds>(
+                task->getWaketime() - cb::time::steady_clock::now());
         if (timeout > milliseconds::zero()) {
             eventBase->timer().scheduleTimeout(this, timeout);
         } else {
@@ -276,7 +275,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         // Cancel any previously set future execution of the
         // task, and set its waketime (scheduled time) to now.
         cancelTimeout();
-        task->updateWaketime(std::chrono::steady_clock::now());
+        task->updateWaketime(cb::time::steady_clock::now());
         task->setState(TASK_RUNNING, TASK_SNOOZED);
 
         if (!scheduledOnCpuPool) {
@@ -1072,7 +1071,7 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
                     add_stat,
                     cookie);
     add_casted_stat(fmt::format("ep_tasks:cur_time:{}", taskable.getName()),
-                    to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
+                    to_ns_since_epoch(cb::time::steady_clock::now()).count(),
                     add_stat,
                     cookie);
 
@@ -1201,8 +1200,7 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
         return;
     }
 
-    using namespace std::chrono;
-    auto now = steady_clock::now();
+    auto now = cb::time::steady_clock::now();
 
     // if a task is not dead and has not set snooze, update its waketime to now
     // before rescheduling for more accurate timing histograms and to avoid
@@ -1210,6 +1208,7 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
     proxy.task->updateWaketimeIfLessThan(now);
 
     // Task still alive, so should be run again. In the future or immediately?
+    using namespace std::chrono;
     const auto timeout =
             duration_cast<milliseconds>(proxy.task->getWaketime() - now);
     if (timeout > milliseconds::zero()) {

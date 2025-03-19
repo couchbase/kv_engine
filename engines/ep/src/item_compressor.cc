@@ -57,7 +57,7 @@ bool ItemCompressorTask::run() {
 
         // Prepare the underlying visitor.
         auto& visitor = getItemCompressorVisitor();
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
         visitor.clearStats();
@@ -67,7 +67,7 @@ bool ItemCompressorTask::run() {
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(
                 *prAdapter, epstore_position);
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
 
         // Update stats
         stats.compressorNumCompressed.fetch_add(visitor.getCompressedCount());

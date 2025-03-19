@@ -231,7 +231,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     if (isModeStoredValue()) {
         // Force visiting of every item by setting a large deadline
-        defragVisitor->setDeadline(std::chrono::steady_clock::now() +
+        defragVisitor->setDeadline(cb::time::steady_clock::now() +
                                    std::chrono::hours(5));
         // And set the age, which enables SV defragging
         defragVisitor->setStoredValueAgeThreshold(0);
@@ -391,11 +391,11 @@ public:
     }
 
     struct MockDefragmenterTaskClock {
-        static std::chrono::time_point<std::chrono::steady_clock> now() {
+        static cb::time::steady_clock::time_point now() {
             static std::chrono::milliseconds currentTime{0};
             currentTime += step;
-            return std::chrono::time_point<std::chrono::steady_clock>{
-                    std::chrono::steady_clock::duration{currentTime}};
+            return cb::time::steady_clock::time_point{
+                    cb::time::steady_clock::duration{currentTime}};
         }
         static std::chrono::milliseconds step;
     };

@@ -14,14 +14,14 @@
 #include "dcp/dcp-types.h"
 #include "utility.h"
 
+#include <folly/Synchronized.h>
 #include <memcached/dcp.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
+#include <platform/cb_time.h>
 #include <relaxed_atomic.h>
-
-#include <folly/Synchronized.h>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -466,7 +466,7 @@ protected:
             IncludeDeletedUserXattrs::No};
 
     //! Connection creation time
-    const std::chrono::steady_clock::time_point created;
+    const cb::time::steady_clock::time_point created;
 
     /**
      * Flag used to state if we've received a control message with
@@ -492,7 +492,7 @@ protected:
         /// Reason why the connection is currently paused.
         PausedReason reason{PausedReason::Unknown};
         /// When the connection was last paused.
-        std::chrono::steady_clock::time_point lastPaused{};
+        cb::time::steady_clock::time_point lastPaused{};
         /// Count of how many times the connection has previously been paused
         /// for each possible reason (excluding current pause)
         std::array<size_t, PausedReasonCount> reasonCounts{};

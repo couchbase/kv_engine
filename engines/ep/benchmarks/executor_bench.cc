@@ -49,11 +49,11 @@ public:
     }
     void logQTime(const GlobalTask& task,
                   std::string_view threadName,
-                  std::chrono::steady_clock::duration enqTime) override {
+                  cb::time::steady_clock::duration enqTime) override {
     }
     void logRunTime(const GlobalTask& task,
                     std::string_view threadName,
-                    std::chrono::steady_clock::duration runTime) override {
+                    cb::time::steady_clock::duration runTime) override {
     }
     bool isShutdown() const override {
         return false;

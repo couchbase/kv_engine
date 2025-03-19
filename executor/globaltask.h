@@ -14,8 +14,10 @@
 #include "task_type.h"
 #include "tracer.h"
 #include <platform/atomic.h>
+#include <platform/cb_time.h>
 #include <platform/processclock.h>
 #include <array>
+#include <chrono>
 
 enum task_state_t {
     /// Runnable/Running: Task is ready to run (but awaiting a thread to run
@@ -154,39 +156,39 @@ public:
         return taskable;
     }
 
-    std::chrono::steady_clock::time_point getWaketime() const {
+    cb::time::steady_clock::time_point getWaketime() const {
         const auto waketime_chrono = std::chrono::nanoseconds(waketime);
-        return std::chrono::steady_clock::time_point(waketime_chrono);
+        return cb::time::steady_clock::time_point(waketime_chrono);
     }
 
-    void updateWaketime(std::chrono::steady_clock::time_point tp) {
+    void updateWaketime(cb::time::steady_clock::time_point tp) {
         waketime = to_ns_since_epoch(tp).count();
     }
 
-    void updateWaketimeIfLessThan(std::chrono::steady_clock::time_point tp) {
+    void updateWaketimeIfLessThan(cb::time::steady_clock::time_point tp) {
         const int64_t tp_ns = to_ns_since_epoch(tp).count();
         atomic_setIfBigger(waketime, tp_ns);
     }
 
     // @return true if task was put to sleep with INT_MAX (sleep forever)
     bool isSleepingForever() const {
-        return getWaketime() == std::chrono::steady_clock::time_point::max();
+        return getWaketime() == cb::time::steady_clock::time_point::max();
     }
 
-    std::chrono::steady_clock::time_point getLastStartTime() const {
+    cb::time::steady_clock::time_point getLastStartTime() const {
         const auto waketime_chrono = std::chrono::nanoseconds(lastStartTime);
-        return std::chrono::steady_clock::time_point(waketime_chrono);
+        return cb::time::steady_clock::time_point(waketime_chrono);
     }
 
-    void updateLastStartTime(std::chrono::steady_clock::time_point tp) {
+    void updateLastStartTime(cb::time::steady_clock::time_point tp) {
         lastStartTime = to_ns_since_epoch(tp).count();
     }
 
-    std::chrono::steady_clock::duration getTotalRuntime() const {
+    cb::time::steady_clock::duration getTotalRuntime() const {
         return std::chrono::nanoseconds(totalRuntime);
     }
 
-    std::chrono::steady_clock::duration getPrevRuntime() const {
+    cb::time::steady_clock::duration getPrevRuntime() const {
         return std::chrono::nanoseconds(previousRuntime);
     }
 
@@ -194,7 +196,7 @@ public:
         return runCount;
     }
 
-    void updateRuntime(std::chrono::steady_clock::duration tp) {
+    void updateRuntime(cb::time::steady_clock::duration tp) {
         int64_t nanoseconds =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
                         .count();

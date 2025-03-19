@@ -236,9 +236,8 @@ void Cache::dump(std::ostream& os) const {
     });
 }
 
-void Cache::Entry::addDebugStats(
-        const StatCollector& collector,
-        std::chrono::steady_clock::time_point now) const {
+void Cache::Entry::addDebugStats(const StatCollector& collector,
+                                 cb::time::steady_clock::time_point now) const {
     collector.addStat(
             std::string_view{fmt::format("vb_{}:age", manifest.vbid.get())},
             std::chrono::duration_cast<std::chrono::seconds>(now - timestamp)

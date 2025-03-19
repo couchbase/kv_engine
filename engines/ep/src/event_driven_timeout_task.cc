@@ -23,9 +23,9 @@ EventDrivenTimeoutTask::~EventDrivenTimeoutTask() {
 }
 
 void EventDrivenTimeoutTask::updateNextExpiryTime(
-        std::chrono::steady_clock::time_point nextExpiry) {
+        cb::time::steady_clock::time_point nextExpiry) {
     auto snoozeTime = std::chrono::duration<double>(
-            nextExpiry - std::chrono::steady_clock::now());
+            nextExpiry - cb::time::steady_clock::now());
     EP_LOG_DEBUG(
             "EventDrivenTimeoutTask::updateNextExpiryTime taskId:{} "
             "snooze:{}",

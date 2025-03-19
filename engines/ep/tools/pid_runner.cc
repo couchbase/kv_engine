@@ -32,16 +32,16 @@ struct FauxClock {
     static std::chrono::milliseconds rate;
 
     // now will change time
-    static std::chrono::time_point<std::chrono::steady_clock> now() {
+    static cb::time::steady_clock::time_point now() {
         currentTime += rate;
-        return std::chrono::time_point<std::chrono::steady_clock>{
-                std::chrono::steady_clock::duration{currentTime}};
+        return cb::time::steady_clock::time_point{
+                cb::time::steady_clock::duration{currentTime}};
     }
 
     // Doesn't tick
-    static std::chrono::time_point<std::chrono::steady_clock> getTime() {
-        return std::chrono::time_point<std::chrono::steady_clock>{
-                std::chrono::steady_clock::duration{currentTime}};
+    static cb::time::steady_clock::time_point getTime() {
+        return cb::time::steady_clock::time_point{
+                cb::time::steady_clock::duration{currentTime}};
     }
 };
 

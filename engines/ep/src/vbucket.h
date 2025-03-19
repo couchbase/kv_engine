@@ -108,13 +108,13 @@ struct SeqnoPersistenceRequest {
      * @return duration for how long this object has existed relative to the
      *         input (now)
      */
-    std::chrono::steady_clock::duration getDuration(
-            std::chrono::steady_clock::time_point now) const;
+    cb::time::steady_clock::duration getDuration(
+            cb::time::steady_clock::time_point now) const;
 
     /**
      * @return the deadline for this SeqnoPersistenceRequest object
      */
-    std::chrono::steady_clock::time_point getDeadline() const;
+    cb::time::steady_clock::time_point getDeadline() const;
 
     // Method invoked once the request has expired (not persisted)
     virtual void expired() const;
@@ -124,7 +124,7 @@ struct SeqnoPersistenceRequest {
     // The sequence number this request is waiting for
     const uint64_t seqno{0};
     // The time that this request was created (started)
-    const std::chrono::steady_clock::time_point start;
+    const cb::time::steady_clock::time_point start;
     // How long until this request notified with temporary_failure
     const std::chrono::milliseconds timeout{0};
 };
@@ -133,7 +133,7 @@ struct SeqnoPersistenceRequestNotifications {
     /// map of cookies that have requests completed
     std::unordered_map<CookieIface*, cb::engine_errc> notifications;
     /// when requests are still waiting completion, this is the next deadline
-    std::optional<std::chrono::steady_clock::time_point> nextDeadline;
+    std::optional<cb::time::steady_clock::time_point> nextDeadline;
 };
 
 /// Instance of SeqnoAckCallback which does nothing.
@@ -151,7 +151,7 @@ public:
     NoopEventDrivenDurabilityTimeout() = default;
 
     void updateNextExpiryTime(
-            std::chrono::steady_clock::time_point next) override {
+            cb::time::steady_clock::time_point next) override {
     }
     void cancelNextExpiryTime() override {
     }
@@ -525,7 +525,7 @@ public:
      * @param asOf The time to be compared with tracked-SWs' expiry-time
      */
     void processDurabilityTimeout(
-            const std::chrono::steady_clock::time_point asOf);
+            const cb::time::steady_clock::time_point asOf);
 
     void notifySyncWritesPendingCompletion();
 
@@ -687,7 +687,7 @@ public:
      * @param seqno causing the notification(s).
      * @return the next deadline to check, or std::nullopt for no deadline
      */
-    std::optional<std::chrono::steady_clock::time_point>
+    std::optional<cb::time::steady_clock::time_point>
     notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
                                uint64_t seqno);
 
@@ -1049,7 +1049,7 @@ public:
     virtual cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,
             const FrontEndBGFetchItem& fetched_item,
-            const std::chrono::steady_clock::time_point startTime) = 0;
+            const cb::time::steady_clock::time_point startTime) = 0;
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -2229,7 +2229,7 @@ protected:
      * @param request to be added
      * @return the deadline (time at which the request should expire)
      */
-    std::chrono::steady_clock::time_point addHighPriorityVBEntry(
+    cb::time::steady_clock::time_point addHighPriorityVBEntry(
             std::unique_ptr<SeqnoPersistenceRequest> request);
 
     /**
@@ -2734,7 +2734,7 @@ private:
 
     std::mutex                           pendingOpLock;
     std::vector<CookieIface*> pendingOps;
-    std::chrono::steady_clock::time_point pendingOpsStart;
+    cb::time::steady_clock::time_point pendingOpsStart;
 
     /**
      * Sequence number of the highest purged tombstone.

@@ -64,6 +64,7 @@
 #include <folly/Random.h>
 #include <folly/portability/GMock.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <platform/cb_time.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
@@ -359,7 +360,7 @@ void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
 int KVBucketTest::flushVBucket(Vbid vbid) {
     size_t actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
-    const auto deadline = std::chrono::steady_clock::now() + time_limit;
+    const auto deadline = cb::time::steady_clock::now() + time_limit;
 
     // Need to retry as warmup may not have completed, or if the flush is
     // in multiple parts.
@@ -375,7 +376,7 @@ int KVBucketTest::flushVBucket(Vbid vbid) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::microseconds(100));
-    } while ((std::chrono::steady_clock::now() < deadline) &&
+    } while ((cb::time::steady_clock::now() < deadline) &&
              moreAvailable == MoreAvailable::Yes);
 
     EXPECT_TRUE(flush_successful)
@@ -1411,12 +1412,11 @@ TEST_F(KVBucketTest, ExpiryConfigChangeWakesTask) {
     // try to change the config to get the task to run asap
     store->setExpiryPagerSleeptime(0);
 
-    using namespace std::chrono;
     using namespace std::chrono_literals;
-    auto deadline = steady_clock::now() + 5s;
+    auto deadline = cb::time::steady_clock::now() + 5s;
 
     while (epstats.expiryPagerRuns == 0 &&
-           std::chrono::steady_clock::now() < deadline) {
+           cb::time::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
 
@@ -2633,7 +2633,7 @@ TEST_F(AbsoluteExpiryLimitTest, MB_37643) {
 TEST_P(KVBucketParamTest, addVbucketWithSeqnoPersistenceRequest) {
     store->createAndScheduleSeqnoPersistenceNotifier();
 
-    auto ts1 = std::chrono::steady_clock::now();
+    auto ts1 = cb::time::steady_clock::now();
     auto ts2 = ts1 + std::chrono::hours(24);
     // snoozing forever, definitely greater than ts2
     EXPECT_GT(store->getSeqnoPersistenceNotifyTaskWakeTime(), ts2);
@@ -2642,7 +2642,7 @@ TEST_P(KVBucketParamTest, addVbucketWithSeqnoPersistenceRequest) {
     // Must be lower of ts1/ts2
     EXPECT_LT(ts1, ts2);
     // Can't compare exactly as the snooze time is calculated from
-    // std::chrono::steady_clock::now
+    // cb::time::steady_clock::now
     EXPECT_LT(store->getSeqnoPersistenceNotifyTaskWakeTime(), ts2);
 }
 

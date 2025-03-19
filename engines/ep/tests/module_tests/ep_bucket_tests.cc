@@ -369,7 +369,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
     ExTask hpTask = task;
     task_executor->schedule(hpTask);
 
-    std::chrono::steady_clock::time_point waketime =
+    cb::time::steady_clock::time_point waketime =
             runNextTask(lpNonioQ, "TestTask PendingOpsNotification");
     EXPECT_EQ(waketime, task->getWaketime())
             << "Rescheduled to much later time!";

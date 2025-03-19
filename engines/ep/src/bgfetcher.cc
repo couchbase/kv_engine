@@ -76,8 +76,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                  vbId.get(),
                  "#itemsToFetch",
                  itemsToFetch.size());
-    std::chrono::steady_clock::time_point startTime(
-            std::chrono::steady_clock::now());
+    cb::time::steady_clock::time_point startTime(cb::time::steady_clock::now());
     EP_LOG_DEBUG(
             "BgFetcher is fetching data, {} numDocs:{} "
             "startTime:{}",

@@ -12,6 +12,7 @@
 
 #include <folly/Synchronized.h>
 #include <memcached/engine_error.h>
+#include <platform/cb_time.h>
 #include <snapshot/manifest.h>
 #include <iostream>
 #include <optional>
@@ -56,12 +57,12 @@ public:
     /**
      * @param path path to the snapshot directory
      * @param time a callback that set to control the time used by cache
-     *        functions. Default to steady_clock::now
+     *        functions. Default to cb::time::steady_clock::now
      */
     Cache(
             const std::filesystem::path& path,
-            std::function<std::chrono::steady_clock::time_point()> time =
-                    []() { return std::chrono::steady_clock::now(); })
+            std::function<cb::time::steady_clock::time_point()> time =
+                    []() { return cb::time::steady_clock::now(); })
         : path(path / "snapshots"), time(std::move(time)) {
     }
 
@@ -156,18 +157,17 @@ protected:
     std::filesystem::path path;
 
     struct Entry {
-        explicit Entry(Manifest m,
-                       std::chrono::steady_clock::time_point timestamp)
+        explicit Entry(Manifest m, cb::time::steady_clock::time_point timestamp)
             : manifest(std::move(m)), timestamp(timestamp) {
         }
         Manifest manifest;
-        mutable std::chrono::steady_clock::time_point timestamp;
+        mutable cb::time::steady_clock::time_point timestamp;
         void addDebugStats(const StatCollector& collector,
-                           std::chrono::steady_clock::time_point now) const;
+                           cb::time::steady_clock::time_point now) const;
     };
     folly::Synchronized<std::map<std::string, Entry>, std::mutex> snapshots;
     // replaceable time callback to permit control/testing of time/purge
-    std::function<std::chrono::steady_clock::time_point()> time;
+    std::function<cb::time::steady_clock::time_point()> time;
 };
 
 std::ostream& operator<<(std::ostream& os, const Cache& version);

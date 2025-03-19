@@ -119,14 +119,14 @@ EPVBucket::~EPVBucket() {
 cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         const DiskDocKey& key,
         const FrontEndBGFetchItem& fetched_item,
-        const std::chrono::steady_clock::time_point startTime) {
+        const cb::time::steady_clock::time_point startTime) {
     cb::engine_errc status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
 
     // when this scope ends, update stats and tracing
     auto traceEndGuard = gsl::finally(
             [this, &fetched_item = std::as_const(fetched_item), startTime] {
-                const auto fetchEnd = std::chrono::steady_clock::now();
+                const auto fetchEnd = cb::time::steady_clock::now();
                 updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
                 // Close the BackgroundWait span; and add a BackgroundLoad span
@@ -892,10 +892,9 @@ void EPVBucket::bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
                  bgFetchSize);
 }
 
-void EPVBucket::updateBGStats(
-        const std::chrono::steady_clock::time_point init,
-        const std::chrono::steady_clock::time_point start,
-        const std::chrono::steady_clock::time_point stop) {
+void EPVBucket::updateBGStats(const cb::time::steady_clock::time_point init,
+                              const cb::time::steady_clock::time_point start,
+                              const cb::time::steady_clock::time_point stop) {
     ++stats.bgNumOperations;
     auto waitNs =
             std::chrono::duration_cast<std::chrono::nanoseconds>(start - init);
@@ -1794,7 +1793,7 @@ void EPVBucket::addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
 // failed and can quickly fill logs with failure messages. Here logging per
 // vbucket is reduced to every 30 seconds.
 bool EPVBucket::shouldWarnForFlushFailure() {
-    const auto now = std::chrono::steady_clock::now();
+    const auto now = cb::time::steady_clock::now();
     if ((now - flushFailedLogTime) > std::chrono::seconds{30}) {
         flushFailedLogTime = now;
         return true;

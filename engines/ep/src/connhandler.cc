@@ -23,6 +23,7 @@
 #include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/cb_time.h>
 #include <platform/timeutils.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
@@ -338,7 +339,8 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
                 add_stat,
                 c);
         addStat("paused_current_duration",
-                cb::time2text(steady_clock::now() - details.lastPaused),
+                cb::time2text(cb::time::steady_clock::now() -
+                              details.lastPaused),
                 add_stat,
                 c);
     }
@@ -366,7 +368,7 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
 
 void ConnHandler::pause(ConnHandler::PausedReason r) {
     paused.store(true);
-    auto now = std::chrono::steady_clock::now();
+    auto now = cb::time::steady_clock::now();
     pausedDetails.withLock([r, now](auto& details) {
         details.reason = r;
         details.lastPaused = now;
@@ -391,8 +393,7 @@ void ConnHandler::unPause() {
     if (!wasPaused) {
         return;
     }
-    using namespace std::chrono;
-    auto now = steady_clock::now();
+    auto now = cb::time::steady_clock::now();
     pausedDetails.withLock([now](auto& details) {
         auto index = static_cast<std::underlying_type_t<PausedReason>>(
                 details.reason);

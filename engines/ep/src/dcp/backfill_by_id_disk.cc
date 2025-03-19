@@ -169,7 +169,7 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
 
 void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
     trackedPosition = std::nullopt;
-    runtime += (std::chrono::steady_clock::now() - runStart);
+    runtime += (cb::time::steady_clock::now() - runStart);
     stream.completeOSOBackfill(scanCtx->maxSeqno,
                                runtime,
                                scanCtx->diskBytesRead,

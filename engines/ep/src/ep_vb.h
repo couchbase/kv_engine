@@ -61,7 +61,7 @@ public:
     cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,
             const FrontEndBGFetchItem& fetched_item,
-            const std::chrono::steady_clock::time_point startTime) override;
+            const cb::time::steady_clock::time_point startTime) override;
 
     /**
      * Expire an item found during compaction that required a BGFetch
@@ -474,9 +474,9 @@ private:
      * @param start the time when the background fetch was started
      * @param stop the time when the background fetch completed
      */
-    void updateBGStats(const std::chrono::steady_clock::time_point init,
-                       const std::chrono::steady_clock::time_point start,
-                       const std::chrono::steady_clock::time_point stop);
+    void updateBGStats(const cb::time::steady_clock::time_point init,
+                       const cb::time::steady_clock::time_point start,
+                       const cb::time::steady_clock::time_point stop);
 
     GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                     const DocKeyView& key,
@@ -565,7 +565,7 @@ private:
 
     folly::Synchronized<BfilterData, std::mutex> bFilterData;
 
-    std::chrono::steady_clock::time_point flushFailedLogTime;
+    cb::time::steady_clock::time_point flushFailedLogTime;
 
     friend class EPVBucketTest;
 };

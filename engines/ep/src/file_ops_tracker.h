@@ -13,15 +13,15 @@
 #include "executor/task_type.h"
 #include <folly/Synchronized.h>
 #include <folly/ThreadLocal.h>
+#include <platform/cb_time.h>
 #include <utilities/testing_hook.h>
-#include <chrono>
 
 /**
  * A record of a pending IO request which has started at some point in the past.
  */
 struct FileOp {
     /// The chrono::time_point specialisation used by the clock.
-    using TimePoint = std::chrono::steady_clock::time_point;
+    using TimePoint = cb::time::steady_clock::time_point;
     /// The type of IO request.
     enum class Type {
         /// No IO is being performed.

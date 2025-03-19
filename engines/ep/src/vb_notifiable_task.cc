@@ -22,7 +22,7 @@ using namespace std::chrono_literals;
 VBNotifiableTask::VBNotifiableTask(
         EventuallyPersistentEngine& engine,
         TaskId taskId,
-        std::chrono::steady_clock::duration maxChunkDuration)
+        cb::time::steady_clock::duration maxChunkDuration)
     : EpTask(engine, taskId),
       queue(engine.getConfiguration().getMaxVbuckets()),
       maxChunkDuration(maxChunkDuration) {
@@ -44,7 +44,7 @@ bool VBNotifiableTask::run() {
 
     visitPrologue();
 
-    const auto startTime = std::chrono::steady_clock::now();
+    const auto startTime = cb::time::steady_clock::now();
 
     Vbid pendingVb;
     while (queue.popFront(pendingVb)) {
@@ -55,7 +55,7 @@ bool VBNotifiableTask::run() {
 
         // Yield back to scheduler if we have exceeded the maximum runtime
         // for a single execution.
-        auto runtime = std::chrono::steady_clock::now() - startTime;
+        auto runtime = cb::time::steady_clock::now() - startTime;
         if (runtime > maxChunkDuration) {
             wakeUp();
             break;

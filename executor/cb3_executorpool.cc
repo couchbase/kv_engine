@@ -703,7 +703,7 @@ static void addWorkerStats(const char* prefix,
             checked_snprintf(
                     statname.data(), statname.size(), "%s:runtime", prefix);
             const auto duration =
-                    std::chrono::steady_clock::now() - t.getTaskStart();
+                    cb::time::steady_clock::now() - t.getTaskStart();
             add_casted_stat(
                     statname.data(),
                     std::chrono::duration_cast<std::chrono::microseconds>(
@@ -795,7 +795,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
                     cookie);
 
     add_casted_stat(fmt::format("{}:cur_time:{}", prefix, taskable.getName()),
-                    to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
+                    to_ns_since_epoch(cb::time::steady_clock::now()).count(),
                     add_stat,
                     cookie);
 

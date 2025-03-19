@@ -147,7 +147,7 @@ void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
 }
 
 bool DcpProducer::BufferLog::isStuck(std::chrono::seconds limit) {
-    const auto now = std::chrono::steady_clock::now();
+    const auto now = cb::time::steady_clock::now();
 
     // If no recorded ackedBytes or the value has changed then record the
     // current value and time.
@@ -868,8 +868,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
 #endif
 
         if (details.reason == PausedReason::BufferLogFull) {
-            using std::chrono::steady_clock;
-            const auto now = steady_clock::now();
+            const auto now = cb::time::steady_clock::now();
             if (details.lastPaused + nextLogBufferFull < now) {
                 logger->warnWithContext(
                         "Waited for the consumer to free up space in the "
@@ -1760,7 +1759,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
         addStat("total_uncompressed_data_size", getTotalUncompressedDataSize(),
                 add_stat, c);
     }
-    auto toFloatSecs = [](std::chrono::steady_clock::time_point t) {
+    auto toFloatSecs = [](cb::time::steady_clock::time_point t) {
         using namespace std::chrono;
         return duration_cast<duration<float>>(t.time_since_epoch()).count();
     };

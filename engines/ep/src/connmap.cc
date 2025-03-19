@@ -14,7 +14,7 @@
 #include "ep_time.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
-#include <chrono>
+#include <platform/cb_time.h>
 
 ConnManager::ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
     : EpTask(e,
@@ -35,7 +35,7 @@ ConnManager::ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
 bool ConnManager::run() {
     TRACE_EVENT0("ep-engine/task", "ConnManager");
     connmap->notifyConnections();
-    const auto now = std::chrono::steady_clock::now();
+    const auto now = cb::time::steady_clock::now();
     if (now - lastConnectionCleanupTime >= connectionCleanupInterval.load()) {
         lastConnectionCleanupTime = now;
         connmap->manageConnections();

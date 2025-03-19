@@ -20,16 +20,15 @@
 FrontEndBGFetchItem::FrontEndBGFetchItem(CookieIface* cookie,
                                          ValueFilter filter,
                                          uint64_t token)
-    : BGFetchItem(std::chrono::steady_clock::now(), token),
+    : BGFetchItem(cb::time::steady_clock::now(), token),
       cookie(cookie),
       filter(filter) {
 }
 
-void FrontEndBGFetchItem::complete(
-        EventuallyPersistentEngine& engine,
-        VBucketPtr& vb,
-        std::chrono::steady_clock::time_point startTime,
-        const DiskDocKey& key) const {
+void FrontEndBGFetchItem::complete(EventuallyPersistentEngine& engine,
+                                   VBucketPtr& vb,
+                                   cb::time::steady_clock::time_point startTime,
+                                   const DiskDocKey& key) const {
     cb::engine_errc status =
             vb->completeBGFetchForSingleItem(key, *this, startTime);
 
@@ -53,7 +52,7 @@ void FrontEndBGFetchItem::abort(
 void CompactionBGFetchItem::complete(
         EventuallyPersistentEngine& engine,
         VBucketPtr& vb,
-        std::chrono::steady_clock::time_point startTime,
+        cb::time::steady_clock::time_point startTime,
         const DiskDocKey& key) const {
     auto* epvb = dynamic_cast<EPVBucket*>(vb.get());
     Expects(epvb);

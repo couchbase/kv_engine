@@ -693,7 +693,7 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
 
     Expects(source == ExpireBy::Compactor);
 
-    auto fetchStartTime = std::chrono::steady_clock::now();
+    auto fetchStartTime = cb::time::steady_clock::now();
 
     auto key = DiskDocKey(it);
     auto gv = getROUnderlying(vb->getId())->get(key, vb->getId());
@@ -715,7 +715,7 @@ bool KVBucket::isMetaDataResident(VBucketPtr& vb, const DocKeyView& key) {
 
 void KVBucket::logQTime(const GlobalTask& task,
                         std::string_view threadName,
-                        std::chrono::steady_clock::duration enqTime) {
+                        cb::time::steady_clock::duration enqTime) {
     // MB-25822: It could be useful to have the exact datetime of long
     // schedule times, in the same way we have for long runtimes.
     // It is more difficult to estimate the expected schedule time than
@@ -744,7 +744,7 @@ void KVBucket::logQTime(const GlobalTask& task,
 
 void KVBucket::logRunTime(const GlobalTask& task,
                           std::string_view threadName,
-                          std::chrono::steady_clock::duration runTime) {
+                          cb::time::steady_clock::duration runTime) {
     // Check if exceeded expected duration; and if so log.
     if (runTime > task.maxExpectedDuration()) {
         cb::logger::Json ctx{{"task", task.getDescription()},
@@ -1565,7 +1565,7 @@ void KVBucket::appendDatatypeStats(const DatatypeStatVisitor& active,
 void KVBucket::completeBGFetchMulti(
         Vbid vbId,
         std::vector<bgfetched_item_t>& fetchedItems,
-        std::chrono::steady_clock::time_point startTime) {
+        cb::time::steady_clock::time_point startTime) {
     VBucketPtr vb = getVBucket(vbId);
     if (vb) {
         for (const auto& item : fetchedItems) {
@@ -1578,7 +1578,7 @@ void KVBucket::completeBGFetchMulti(
                 uint64_t(fetchedItems.size()),
                 vbId,
                 std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch())
+                        cb::time::steady_clock::now().time_since_epoch())
                         .count());
     } else {
         std::map<CookieIface*, cb::engine_errc> toNotify;
@@ -3388,13 +3388,13 @@ void KVBucket::createAndScheduleBucketQuotaChangeTask() {
 }
 
 void KVBucket::addVbucketWithSeqnoPersistenceRequest(
-        Vbid vbid, std::chrono::steady_clock::time_point deadline) {
+        Vbid vbid, cb::time::steady_clock::time_point deadline) {
     if (seqnoPersistenceNotifyTask) {
         seqnoPersistenceNotifyTask->addVbucket(vbid, deadline);
     }
 }
 
-std::chrono::steady_clock::time_point
+cb::time::steady_clock::time_point
 KVBucket::getSeqnoPersistenceNotifyTaskWakeTime() const {
     // Added for unit-testing, so expect the task to exist
     Expects(seqnoPersistenceNotifyTask);

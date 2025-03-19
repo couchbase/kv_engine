@@ -19,9 +19,9 @@
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <platform/atomic_duration.h>
+#include <platform/cb_time.h>
 
 #include <atomic>
-#include <chrono>
 #include <deque>
 #include <iosfwd>
 #include <map>
@@ -317,14 +317,14 @@ public:
      */
     void addStatusMetrics(const StatCollector& c) const;
 
-    std::chrono::steady_clock::duration getTime() const {
+    cb::time::steady_clock::duration getTime() const {
         return warmup.load();
     }
 
     void setWarmupTime() {
-        warmup.store(std::chrono::steady_clock::now() -
+        warmup.store(cb::time::steady_clock::now() -
                      syncData.lock()->startTime +
-                     std::chrono::steady_clock::duration(1));
+                     cb::time::steady_clock::duration(1));
     }
 
     enum class WarmupAccessLogState { Yield, Done, Failed };
@@ -618,7 +618,7 @@ private:
         }
         bool cleanShutdown{false};
         bool corruptAccessLog{false};
-        std::chrono::steady_clock::time_point startTime;
+        cb::time::steady_clock::time_point startTime;
         /// True if we've been unable to persist vbucket state during warmup
         bool failedToSetAVbucketState{false};
 

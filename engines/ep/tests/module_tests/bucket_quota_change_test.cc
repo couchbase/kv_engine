@@ -460,10 +460,9 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
 
     if (STParameterizedBucketTest::isMagma()) {
         // Allow magma 10 seconds to reduce memory.
-        auto timeout =
-                std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        auto timeout = cb::time::steady_clock::now() + std::chrono::seconds(10);
         while (engine->getEpStats().getMaxDataSize() != newQuota) {
-            if (timeout < std::chrono::steady_clock::now()) {
+            if (timeout < cb::time::steady_clock::now()) {
                 // We waited too long for magma to reduce memory usage. Either
                 // the test is racey and we need to up the timeout, or magma is
                 // not recovering memory for some reason. Fail now for some

@@ -14,6 +14,7 @@
 #include "vb_ready_queue.h"
 #include "vbucket_fwd.h"
 #include <memcached/vbucket.h>
+#include <platform/cb_time.h>
 
 #include <chrono>
 
@@ -81,7 +82,7 @@ protected:
      */
     VBNotifiableTask(EventuallyPersistentEngine& engine,
                      TaskId taskId,
-                     std::chrono::steady_clock::duration maxChunkDuration);
+                     cb::time::steady_clock::duration maxChunkDuration);
 
     /**
      * Called once per task run, immediately before visiting vBuckets.
@@ -113,5 +114,5 @@ private:
 
     /// Maximum duration this task should execute for before yielding back to
     /// the ExecutorPool (to allow other tasks to run).
-    const std::chrono::steady_clock::duration maxChunkDuration;
+    const cb::time::steady_clock::duration maxChunkDuration;
 };

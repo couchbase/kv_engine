@@ -440,7 +440,7 @@ public:
     virtual void completeBGFetchMulti(
             Vbid vbId,
             std::vector<bgfetched_item_t>& fetchedItems,
-            std::chrono::steady_clock::time_point start) = 0;
+            cb::time::steady_clock::time_point start) = 0;
 
     virtual VBucketPtr getVBucket(Vbid vbid) = 0;
 
@@ -706,11 +706,11 @@ public:
 
     virtual void logQTime(const GlobalTask& taskType,
                           std::string_view threadName,
-                          std::chrono::steady_clock::duration enqTime) = 0;
+                          cb::time::steady_clock::duration enqTime) = 0;
 
     virtual void logRunTime(const GlobalTask& taskType,
                             std::string_view threadName,
-                            std::chrono::steady_clock::duration runTime) = 0;
+                            cb::time::steady_clock::duration runTime) = 0;
 
     virtual void updateCachedResidentRatio(size_t activePerc,
                                            size_t replicaPerc) = 0;

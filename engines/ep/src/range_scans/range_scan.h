@@ -19,6 +19,7 @@
 #include <memcached/range_scan_id.h>
 #include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
+#include <platform/cb_time.h>
 #include <relaxed_atomic.h>
 
 #include <atomic>
@@ -359,7 +360,7 @@ public:
      * be replaced
      */
     static void setClockFunction(
-            std::function<std::chrono::steady_clock::time_point()> func) {
+            std::function<cb::time::steady_clock::time_point()> func) {
         now = func;
     }
 
@@ -369,7 +370,7 @@ public:
     static void resetClockFunction();
 
     /// @return the current time which is used by RangeScans
-    static std::chrono::steady_clock::time_point getTime() {
+    static cb::time::steady_clock::time_point getTime() {
         return now();
     }
 
@@ -423,7 +424,7 @@ protected:
     /// how many continues were issued, this is useful in analysing performance
     cb::RelaxedAtomic<size_t> continueCount{0};
     /// Time the scan was created
-    std::chrono::steady_clock::time_point createTime;
+    cb::time::steady_clock::time_point createTime;
 
     /**
      * Following 2 member variables are used only when a
@@ -454,7 +455,7 @@ protected:
         size_t byteLimit{0};
 
         /// This stores the deadline time, (re)computed once per continue
-        std::chrono::steady_clock::time_point scanContinueDeadline;
+        cb::time::steady_clock::time_point scanContinueDeadline;
 
         /// dump this to std::cerr
         void dump() const;
@@ -696,7 +697,7 @@ protected:
 
     // To facilitate testing, the clock can be replaced with something else
     // this is static as there's no need for replacement on a scan by scan basis
-    static std::function<std::chrono::steady_clock::time_point()> now;
+    static std::function<cb::time::steady_clock::time_point()> now;
 
     friend std::ostream& operator<<(std::ostream&, const RangeScan::State&);
     friend std::ostream& operator<<(std::ostream&, const RangeScan&);

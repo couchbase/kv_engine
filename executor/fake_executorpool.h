@@ -145,8 +145,8 @@ class CheckedExecutor : public CB3ExecutorThread {
 public:
     CheckedExecutor(ExecutorPool* manager_,
                     TaskQueue& q,
-                    std::chrono::steady_clock::duration timeAdvance =
-                            std::chrono::steady_clock::duration::zero())
+                    cb::time::steady_clock::duration timeAdvance =
+                            cb::time::steady_clock::duration::zero())
         // TODO: The dynamic_cast will fail if the ExecutorPool is
         // not CB3ExecutorPool (e.g. FollyExecutorPool).
         : CB3ExecutorThread(dynamic_cast<CB3ExecutorPool*>(manager_),
@@ -208,8 +208,8 @@ public:
         run();
     }
 
-    std::chrono::steady_clock::time_point completeCurrentTask() {
-        auto min_waketime = std::chrono::steady_clock::time_point::min();
+    cb::time::steady_clock::time_point completeCurrentTask() {
+        auto min_waketime = cb::time::steady_clock::time_point::min();
         manager->doneWork(taskType);
         if (rescheduled && !currentTask->isdead()) {
             min_waketime = queue.reschedule(currentTask);
@@ -227,14 +227,14 @@ public:
         return currentTask;
     }
 
-    std::chrono::steady_clock::time_point getCurTime() const override {
+    cb::time::steady_clock::time_point getCurTime() const override {
         return CB3ExecutorThread::getCurTime() + nowAdjustment;
     }
 
     /// Adjustment which is added to getCurTime(), to allow tests to simulate
     /// time advancing without actually having to wait for real-time
     /// to advance.
-    std::chrono::steady_clock::duration nowAdjustment{0};
+    cb::time::steady_clock::duration nowAdjustment{0};
 
 private:
     /*

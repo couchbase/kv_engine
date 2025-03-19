@@ -23,11 +23,10 @@ DCPBackfill::DCPBackfill(Vbid vbid) : vbid(vbid), uid(++backfillUID) {
 }
 
 backfill_status_t DCPBackfill::run() {
-    runStart = std::chrono::steady_clock::now();
+    runStart = cb::time::steady_clock::now();
     auto lockedState = state.wlock();
-    auto runtimeGuard = folly::makeGuard([this] {
-        runtime += (std::chrono::steady_clock::now() - runStart);
-    });
+    auto runtimeGuard = folly::makeGuard(
+            [this] { runtime += (cb::time::steady_clock::now() - runStart); });
 
     auto& currentState = *lockedState;
     TRACE_EVENT2("dcp/backfill",

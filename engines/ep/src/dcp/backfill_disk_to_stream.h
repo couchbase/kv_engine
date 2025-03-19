@@ -194,7 +194,7 @@ protected:
     // Once backfill reaches scanning, the scan Position is tracked for changes
     std::optional<ScanContext::Position> trackedPosition;
     // time when the Position last changed
-    std::chrono::steady_clock::time_point lastPositionChangedTime;
+    cb::time::steady_clock::time_point lastPositionChangedTime;
     // the maximum duration that the scan is permitted no Position change. This
     // is optional, std::nullopt disables any slow scan detection
     std::optional<std::chrono::seconds> maxNoProgressDuration;

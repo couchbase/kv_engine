@@ -36,7 +36,7 @@ public:
      * @return The waketime of the earliest (next) task in the futureQueue -
      *         note this isn't necessarily the same as `task`.
      */
-    std::chrono::steady_clock::time_point reschedule(ExTask& task);
+    cb::time::steady_clock::time_point reschedule(ExTask& task);
 
     void doWake(size_t& numToWake);
 
@@ -72,7 +72,7 @@ public:
 
 private:
     void _schedule(ExTask& task);
-    std::chrono::steady_clock::time_point _reschedule(ExTask& task);
+    cb::time::steady_clock::time_point _reschedule(ExTask& task);
     bool _sleepThenFetchNextTask(CB3ExecutorThread& t);
     bool _fetchNextTask(CB3ExecutorThread& thread);
     bool _fetchNextTaskInner(CB3ExecutorThread& t,
@@ -81,7 +81,7 @@ private:
     bool _doSleep(CB3ExecutorThread& thread,
                   std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t& numToWake);
-    size_t _moveReadyTasks(const std::chrono::steady_clock::time_point tv);
+    size_t _moveReadyTasks(const cb::time::steady_clock::time_point tv);
     ExTask _popReadyTask();
 
     SyncObject mutex;

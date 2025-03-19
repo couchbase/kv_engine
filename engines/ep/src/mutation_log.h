@@ -39,6 +39,7 @@
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
+#include <platform/cb_time.h>
 #include <array>
 #include <atomic>
 #include <cstring>
@@ -467,7 +468,7 @@ public:
      * @return how long it has been since this instance opened the log file.
      */
     const std::chrono::nanoseconds getDurationSinceOpen() const {
-        return std::chrono::steady_clock::now() - openTimePoint;
+        return cb::time::steady_clock::now() - openTimePoint;
     }
 
     //! Items logged by type.
@@ -514,7 +515,7 @@ protected:
     uint8_t            syncConfig;
     bool               readOnly;
     iterator resumeItr;
-    std::chrono::steady_clock::time_point openTimePoint;
+    cb::time::steady_clock::time_point openTimePoint;
     size_t keyLoaded{0};
     size_t keySkipped{0};
     size_t keyError{0};

@@ -552,7 +552,7 @@ void MutationLog::open(bool _readOnly) {
     if (!isEnabled()) {
         return;
     }
-    openTimePoint = std::chrono::steady_clock::now();
+    openTimePoint = cb::time::steady_clock::now();
     readOnly = _readOnly;
     std::string error;
     if (readOnly) {

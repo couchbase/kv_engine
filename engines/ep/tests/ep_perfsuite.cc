@@ -381,7 +381,7 @@ static void perf_latency_core(EngineIface* h,
 
     // Create (add)
     for (auto& key : keys) {
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
                              cookie,
@@ -395,22 +395,22 @@ static void perf_latency_core(EngineIface* h,
                              0)
                         .first,
                 "Failed to add a value");
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         add_timings.push_back((end - start).count());
     }
 
     // Get
     for (auto& key : keys) {
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         auto ret = get(h, cookie, key, Vbid(0));
         checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         get_timings.push_back((end - start).count());
     }
 
     // Update (Replace)
     for (auto& key : keys) {
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
                              cookie,
@@ -424,17 +424,17 @@ static void perf_latency_core(EngineIface* h,
                              0)
                         .first,
                 "Failed to replace a value");
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         replace_timings.push_back((end - start).count());
     }
 
     // Delete
     for (auto& key : keys) {
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 del(h, key, 0, Vbid(0), cookie),
                 "Failed to delete a value");
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         delete_timings.push_back((end - start).count());
     }
 
@@ -792,7 +792,7 @@ static void perf_load_client(EngineIface* h,
                         .first,
                 "Failed set.");
         insertTimes.push_back(
-                std::chrono::steady_clock::now().time_since_epoch().count());
+                cb::time::steady_clock::now().time_since_epoch().count());
     }
 
     add_sentinel_doc(h, vbid);
@@ -827,7 +827,7 @@ static void perf_background_sets(EngineIface* h,
         if (ii == count) {
             ii = 0;
         }
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         checkeq(storeCasVb11(h,
                              cookie,
                              StoreSemantics::Set,
@@ -839,7 +839,7 @@ static void perf_background_sets(EngineIface* h,
                         .first,
                 cb::engine_errc::success,
                 "Failed set.");
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         insertTimes.push_back((end - start).count());
         ++ii;
     }
@@ -944,7 +944,7 @@ static void perf_dcp_client(EngineIface* h,
                     done = true;
                     break;
                 }
-                recv_timings.push_back(std::chrono::steady_clock::now()
+                recv_timings.push_back(cb::time::steady_clock::now()
                                                .time_since_epoch()
                                                .count());
                 bytes_received.push_back(producers.last_value.length());
@@ -1221,7 +1221,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                         {} /*purgeSeqno*/),
                 "dcp.snapshot_marker failed");
 
-        auto begin = std::chrono::steady_clock::now();
+        auto begin = cb::time::steady_clock::now();
         std::string key = "key_" + std::to_string(seqno);
         // 2) snapshot-end mutation
         checkeq(cb::engine_errc::success,
@@ -1244,7 +1244,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                 "dcp.mutation failed");
 
         timings.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  std::chrono::steady_clock::now() - begin)
+                                  cb::time::steady_clock::now() - begin)
                                   .count());
     }
 
@@ -1338,7 +1338,7 @@ static void perf_stat_latency_core(EngineIface* h,
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
-                auto start = std::chrono::steady_clock::now();
+                auto start = cb::time::steady_clock::now();
                 if (stat.first == "engine") {
                     checkeq(cb::engine_errc::success,
                             get_stats_wrapper(h, *cookie, {}, {}, add_stats),
@@ -1355,7 +1355,7 @@ static void perf_stat_latency_core(EngineIface* h,
                                     stat.second.key);
                 }
 
-                auto end = std::chrono::steady_clock::now();
+                auto end = cb::time::steady_clock::now();
                 stat.second.timings.push_back((end - start).count());
             }
         }
@@ -1554,12 +1554,12 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
         // restart the bucket so we can warm it up.
         testHarness->reload_engine(&h, "", false, false);
         // initialise, and time how long it takes to complete warmup.
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 h->initialize(testHarness->get_current_testcase()->cfg, {}, {}),
                 "Failed to initialize engine");
         wait_for_warmup_complete(h);
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
         // Store the duration for the warmup
         warmup_timings.push_back(
                 duration_cast<microseconds>(end - start).count());

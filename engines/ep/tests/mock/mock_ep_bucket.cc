@@ -123,7 +123,7 @@ Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {
 
 void MockEPBucket::flushSuccessEpilogue(
         VBucket& vb,
-        const std::chrono::steady_clock::time_point flushStart,
+        const cb::time::steady_clock::time_point flushStart,
         size_t itemsFlushed,
         const AggregatedFlushStats& aggStats,
         Collections::VB::Flush& collectionFlush) {
@@ -135,7 +135,7 @@ void MockEPBucket::flushSuccessEpilogue(
 void MockEPBucket::completeBGFetchMulti(
         Vbid vbId,
         std::vector<bgfetched_item_t>& fetchedItems,
-        std::chrono::steady_clock::time_point start) {
+        cb::time::steady_clock::time_point start) {
     completeBGFetchMultiHook(vbId);
     EPBucket::completeBGFetchMulti(vbId, fetchedItems, start);
 }

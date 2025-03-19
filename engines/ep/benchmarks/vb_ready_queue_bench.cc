@@ -36,9 +36,9 @@ public:
         while (!shouldConsumerStop()) {
             Vbid vbid;
 
-            auto start = std::chrono::steady_clock::now();
+            auto start = cb::time::steady_clock::now();
             auto popped = queue.popFront(vbid);
-            auto end = std::chrono::steady_clock::now();
+            auto end = cb::time::steady_clock::now();
 
             if (popped) {
                 popTime += std::chrono::duration<double>(end - start).count();
@@ -107,9 +107,9 @@ public:
 
             Vbid vbid;
 
-            auto start = std::chrono::steady_clock::now();
+            auto start = cb::time::steady_clock::now();
             auto popped = queue.popFront(vbid);
-            auto end = std::chrono::steady_clock::now();
+            auto end = cb::time::steady_clock::now();
 
             // Running in sanity mode - notify the condVar to run the producer
             // again
@@ -153,9 +153,9 @@ public:
 
         Vbid vbid;
         while (true) {
-            auto start = std::chrono::steady_clock::now();
+            auto start = cb::time::steady_clock::now();
             auto popped = queue.popFront(vbid);
-            auto end = std::chrono::steady_clock::now();
+            auto end = cb::time::steady_clock::now();
 
             if (popped) {
                 queueSize.fetch_sub(1, std::memory_order_acq_rel);
@@ -207,9 +207,9 @@ protected:
         while (state.KeepRunning()) {
             auto index = indexFn();
 
-            auto start = std::chrono::steady_clock::now();
+            auto start = cb::time::steady_clock::now();
             queue.pushUnique(index);
-            auto end = std::chrono::steady_clock::now();
+            auto end = cb::time::steady_clock::now();
 
             syncObject.notify_one();
 
@@ -230,9 +230,9 @@ protected:
         while (state.KeepRunning()) {
             auto index = indexFn();
 
-            auto start = std::chrono::steady_clock::now();
+            auto start = cb::time::steady_clock::now();
             auto pushed = queue.pushUnique(index);
-            auto end = std::chrono::steady_clock::now();
+            auto end = cb::time::steady_clock::now();
 
             EXPECT_TRUE(pushed);
 
@@ -266,9 +266,9 @@ protected:
             Vbid vbid;
             for (auto i = 0; i < 1024; i++) {
                 vbid = Vbid(i);
-                auto start = std::chrono::steady_clock::now();
+                auto start = cb::time::steady_clock::now();
                 auto pushed = queue.pushUnique(vbid);
-                auto end = std::chrono::steady_clock::now();
+                auto end = cb::time::steady_clock::now();
 
                 ++pushedCount;
                 queueSize.fetch_add(1, std::memory_order_acq_rel);
@@ -357,9 +357,9 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PushEmpty)(benchmark::State& state) {
          * Manual timing for this benchmark as timing will be inaccurate if we
          * pause and resume for the bits we care about.
          */
-        auto start = std::chrono::steady_clock::now();
+        auto start = cb::time::steady_clock::now();
         queue.pushUnique(Vbid(0));
-        auto end = std::chrono::steady_clock::now();
+        auto end = cb::time::steady_clock::now();
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
@@ -376,9 +376,9 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PushNotEmpty)(benchmark::State& state) {
          * pause and resume for the bits we care about.
          */
         queue.pushUnique(Vbid(0));
-        auto start = std::chrono::steady_clock::now();
+        auto start = cb::time::steady_clock::now();
         queue.pushUnique(Vbid(0));
-        auto end = std::chrono::steady_clock::now();
+        auto end = cb::time::steady_clock::now();
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
@@ -396,10 +396,10 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopFront)(benchmark::State& state) {
          * Manual timing for this benchmark as timing will be inaccurate if we
          * pause and resume for the bits we care about.
          */
-        auto start = std::chrono::steady_clock::now();
+        auto start = cb::time::steady_clock::now();
         Vbid vbid;
         queue.popFront(vbid);
-        auto end = std::chrono::steady_clock::now();
+        auto end = cb::time::steady_clock::now();
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
@@ -419,13 +419,13 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopAllSanity)(benchmark::State& state) {
          * Manual timing for this benchmark as timing will be inaccurate if we
          * pause and resume for the bits we care about.
          */
-        auto start = std::chrono::steady_clock::now();
+        auto start = cb::time::steady_clock::now();
         Vbid vbid;
         for (int i = 0; i < 1024; i++) {
             auto popped = queue.popFront(vbid);
             EXPECT_TRUE(popped);
         }
-        auto end = std::chrono::steady_clock::now();
+        auto end = cb::time::steady_clock::now();
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 

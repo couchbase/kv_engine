@@ -1327,7 +1327,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
 
     // Not scheduled to run initially
     EXPECT_EQ(remover->getWaketime(),
-              std::chrono::steady_clock::time_point::max());
+              cb::time::steady_clock::time_point::max());
     EXPECT_EQ(remover->getState(), TASK_SNOOZED);
 
     // Reduction still required after first run
@@ -1336,7 +1336,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
 
     // Scheduled to run again
     EXPECT_NE(remover->getWaketime(),
-              std::chrono::steady_clock::time_point::max());
+              cb::time::steady_clock::time_point::max());
     EXPECT_EQ(remover->getState(), TASK_SNOOZED);
 
     // Update upper_mark above current usage
@@ -1348,7 +1348,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
 
     // Not scheduled to run again
     EXPECT_EQ(remover->getWaketime(),
-              std::chrono::steady_clock::time_point::max());
+              cb::time::steady_clock::time_point::max());
     EXPECT_EQ(remover->getState(), TASK_SNOOZED);
 }
 

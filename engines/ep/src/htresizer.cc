@@ -26,7 +26,7 @@
 class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
     ResizingVisitor(HashTable::ResizeAlgo algo,
-                    std::chrono::steady_clock::duration delay)
+                    cb::time::steady_clock::duration delay)
         : resizeAlgoToUse(algo), sizeDecreaseDelay(delay) {
     }
 
@@ -58,7 +58,7 @@ protected:
     NeedsRevisit needsRevisit = NeedsRevisit::No;
 
     const HashTable::ResizeAlgo resizeAlgoToUse;
-    const std::chrono::steady_clock::duration sizeDecreaseDelay;
+    const cb::time::steady_clock::duration sizeDecreaseDelay;
 };
 
 HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)

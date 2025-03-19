@@ -65,7 +65,7 @@ public:
 
     cb::RelaxedAtomic<Duration> connectionCleanupInterval;
 
-    std::chrono::steady_clock::time_point lastConnectionCleanupTime;
+    cb::time::steady_clock::time_point lastConnectionCleanupTime;
 
 private:
     ConnMap* connmap;

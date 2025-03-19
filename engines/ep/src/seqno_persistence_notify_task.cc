@@ -39,10 +39,10 @@ bool SeqnoPersistenceNotifyTask::run() {
 }
 
 void SeqnoPersistenceNotifyTask::addVbucket(
-        Vbid vbid, std::chrono::steady_clock::time_point deadline) {
+        Vbid vbid, cb::time::steady_clock::time_point deadline) {
     vbuckets.pushUnique(vbid);
 
-    auto now = std::chrono::steady_clock::now();
+    auto now = cb::time::steady_clock::now();
     std::unique_lock<std::mutex> lock(adjustWakeUp);
     auto wakeTime = getWaketime();
     if (deadline < wakeTime) {
@@ -58,7 +58,7 @@ void SeqnoPersistenceNotifyTask::processVbuckets() {
     // run of the task
     const size_t iterations = vbuckets.size();
 
-    auto wakeUp = std::chrono::time_point<std::chrono::steady_clock>::max();
+    auto wakeUp = cb::time::steady_clock::time_point::max();
 
     for (size_t iteration = 0; iteration < iterations; iteration++) {
         Vbid vbid;
@@ -86,8 +86,7 @@ void SeqnoPersistenceNotifyTask::processVbuckets() {
     std::unique_lock<std::mutex> lock(adjustWakeUp);
     // If vbuckets is empty set the sleep 'forever'
     if (vbuckets.empty()) {
-        updateWaketime(
-                std::chrono::time_point<std::chrono::steady_clock>::max());
+        updateWaketime(cb::time::steady_clock::time_point::max());
     } else {
         // vbuckets not empty set the sleep to only use our value if it is lower
         updateWaketimeIfLessThan(wakeUp);

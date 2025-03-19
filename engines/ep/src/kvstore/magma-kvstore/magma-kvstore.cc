@@ -1224,7 +1224,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     DomainAwareFetchBuffer idxBuf;
     DomainAwareFetchBuffer seqBuf;
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
 
     Status status = magma->Get(
             vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice);
@@ -1256,7 +1256,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
 
     // record stats
     st.readTimeHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - start));
+            cb::time::steady_clock::now() - start));
     st.readSizeHisto.add(keySlice.Len() + metaSlice.Len() + valueSlice.Len());
 
     ++st.io_bg_fetch_docs_read;
@@ -1332,7 +1332,7 @@ void MagmaKVStore::getMulti(Vbid vbid,
                 fetch->value = rv;
                 st.readTimeHisto.add(
                         std::chrono::duration_cast<std::chrono::microseconds>(
-                                std::chrono::steady_clock::now() -
+                                cb::time::steady_clock::now() -
                                 fetch->initTime));
                 st.readSizeHisto.add(op.Key.Len() + valueSlice.Len());
             }
@@ -1530,7 +1530,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
         return true;
     }
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
 
     if (!writeVBStateToDisk(vbid, meta)) {
         return false;
@@ -1540,7 +1540,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
     postVBStateFlush(vbid, meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - start));
+            cb::time::steady_clock::now() - start));
 
     return true;
 }
@@ -1795,7 +1795,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     WriteOps postWriteOps;
     int64_t lastSeqno = 0;
 
-    auto beginTime = std::chrono::steady_clock::now();
+    auto beginTime = cb::time::steady_clock::now();
     std::chrono::microseconds saveDocsDuration;
 
     auto postWriteDocsCB =
@@ -1861,7 +1861,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                 });
 
         addLocalDbReqs(localDbReqs, postWriteOps);
-        auto now = std::chrono::steady_clock::now();
+        auto now = cb::time::steady_clock::now();
         saveDocsDuration =
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         now - beginTime);
@@ -1982,7 +1982,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         // between post writedocs callback and now
         st.commitHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - beginTime));
+                        cb::time::steady_clock::now() - beginTime));
 
         st.batchSize.add(ctx.pendingReqs.size());
         st.docsCommitted = ctx.pendingReqs.size();
@@ -3041,7 +3041,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
                       count);
     }
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     auto status = magma->GetRange(
             vbid.get(), startKeySlice, endKeySlice, callback, false);
     if (!status) {
@@ -3057,7 +3057,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
 
     st.getAllKeysHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - start));
+                    cb::time::steady_clock::now() - start));
 
     return cb::engine_errc::success;
 }
@@ -3072,8 +3072,7 @@ CompactDBStatus MagmaKVStore::compactDB(
 CompactDBStatus MagmaKVStore::compactDBInternal(
         std::unique_lock<std::mutex>& vbLock,
         std::shared_ptr<CompactionContext> ctx) {
-    std::chrono::steady_clock::time_point start =
-            std::chrono::steady_clock::now();
+    cb::time::steady_clock::time_point start = cb::time::steady_clock::now();
     auto vbid = ctx->getVBucket()->getId();
     logger->debug(
             "MagmaKVStore::compactDBInternal: {} purge_before_ts:{} "
@@ -3407,7 +3406,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
         st.compactHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - start));
+                        cb::time::steady_clock::now() - start));
         logger->TRACE(
                 "MagmaKVStore::compactDBInternal: max_purged_seq:{}"
                 " collectionsItemsPurged:{}"
@@ -4555,12 +4554,12 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
     // Work is done in the KV domain, but the flatbuffer result is constructed
     // and returned under Magma.
     cb::UseArenaMallocPrimaryDomain domainGuard;
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     auto statUpdate = folly::makeGuard([this, start]() {
         st.continuousBackupCallbackCount.fetch_add(1);
         st.continuousBackupCallbackTime +=
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - start);
+                        cb::time::steady_clock::now() - start);
     });
 
     auto [magmaStatus, vbstateString] =

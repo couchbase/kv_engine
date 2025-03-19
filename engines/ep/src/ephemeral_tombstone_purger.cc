@@ -26,7 +26,7 @@ EphemeralVBucket::HTTombstonePurger::HTTombstonePurger(rel_time_t purgeAge)
 }
 
 void EphemeralVBucket::HTTombstonePurger::setDeadline(
-        std::chrono::steady_clock::time_point deadline) {
+        cb::time::steady_clock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 
@@ -107,13 +107,13 @@ bool EphTombstoneHTCleaner::run() {
 
     // Prepare the underlying visitor.
     auto& visitor = getPurgerVisitor();
-    visitor.setDeadline(std::chrono::steady_clock::now() + getChunkDuration());
+    visitor.setDeadline(cb::time::steady_clock::now() + getChunkDuration());
     visitor.clearStats();
 
     // (re)start visiting.
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     bucketPosition = bucket.pauseResumeVisit(*prAdapter, bucketPosition);
-    auto end = std::chrono::steady_clock::now();
+    auto end = cb::time::steady_clock::now();
 
     // Check if the visitor completed a full pass.
     bool completed = (bucketPosition == bucket.endPosition());
@@ -214,7 +214,7 @@ public:
         return numItemsDeleted;
     }
 
-    void setDeadline(std::chrono::steady_clock::time_point deadline) {
+    void setDeadline(cb::time::steady_clock::time_point deadline) {
         progressTracker.setDeadline(deadline);
     }
 
@@ -262,14 +262,14 @@ bool EphTombstoneStaleItemDeleter::run() {
     }
 
     // Create a StaleItemDeleter, and run across all VBuckets.
-    staleItemDeleteVbVisitor->setDeadline(std::chrono::steady_clock::now() +
+    staleItemDeleteVbVisitor->setDeadline(cb::time::steady_clock::now() +
                                           getChunkDuration());
     staleItemDeleteVbVisitor->clearStats();
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     bucketPosition =
             bucket.pauseResumeVisit(*staleItemDeleteVbVisitor, bucketPosition);
-    auto end = std::chrono::steady_clock::now();
+    auto end = cb::time::steady_clock::now();
 
     // Check if the visitor completed a full pass.
     bool completed = (bucketPosition == bucket.endPosition());

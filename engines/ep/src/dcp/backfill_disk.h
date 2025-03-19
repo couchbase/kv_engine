@@ -12,7 +12,7 @@
 #pragma once
 
 #include "callbacks.h"
-
+#include <platform/cb_time.h>
 #include <chrono>
 #include <memory>
 
@@ -47,8 +47,7 @@ public:
 
     void setBackfillStartTime();
 
-    std::chrono::time_point<std::chrono::steady_clock> getBackfillStartTime()
-            const {
+    auto getBackfillStartTime() const {
         return backfillStartTime;
     }
 
@@ -70,7 +69,7 @@ private:
     /**
      * Record the time backfill begins to scan
      */
-    std::chrono::time_point<std::chrono::steady_clock> backfillStartTime{};
+    cb::time::steady_clock::time_point backfillStartTime{};
 
     // Maximum duration for backfill to run before yielding
     std::chrono::milliseconds backfillMaxDuration;

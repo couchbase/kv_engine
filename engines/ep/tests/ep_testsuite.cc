@@ -26,6 +26,7 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_time.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
@@ -8045,12 +8046,12 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
 
     // 9. Wait for the small bucket to return vbucket state infomation
     // (i.e. have completed Warmup::populateVBucketMap().
-    const auto smallStart = steady_clock::now();
+    const auto smallStart = cb::time::steady_clock::now();
     checkeq(get_str_stat(smallBucket, "vb_0", "vbucket"),
             std::string("active"),
             "slowBucket vbucket state vb:0 isn't active");
 
-    const auto smallEnd = steady_clock::now();
+    const auto smallEnd = cb::time::steady_clock::now();
     // Small bucket should have populated VB map "quickly" - certainly less than
     // the time taken the slowBucket to load keysPerVbucket * 100ms.
     // Give it a generous threshold of 50% of the time it would take if
@@ -8111,7 +8112,7 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
         testHarness->set_ewouldblock_handling(cookie1, false);
 
         auto key = std::string("key_") + std::to_string(i);
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
 
         checkeq(cb::engine_errc::would_block,
                 store(h,
@@ -8131,7 +8132,7 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
         // Wait for the cookie to be notified - should occur no sooner than
         // timeout.
         auto status = mock_waitfor_cookie(cookie1);
-        const auto end = std::chrono::steady_clock::now();
+        const auto end = cb::time::steady_clock::now();
 
         checkeq(cb::engine_errc::sync_write_ambiguous,
                 status,

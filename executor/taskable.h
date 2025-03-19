@@ -67,7 +67,7 @@ public:
      */
     virtual void logQTime(const GlobalTask& task,
                           std::string_view threadName,
-                          std::chrono::steady_clock::duration enqTime) = 0;
+                          cb::time::steady_clock::duration enqTime) = 0;
 
     /**
      * Log the the time the given task spent running.
@@ -77,7 +77,7 @@ public:
      */
     virtual void logRunTime(const GlobalTask& task,
                             std::string_view threadName,
-                            std::chrono::steady_clock::duration runTime) = 0;
+                            cb::time::steady_clock::duration runTime) = 0;
 
     /**
      * Call the given function in the context of this taskable - any memory

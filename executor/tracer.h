@@ -11,18 +11,19 @@
 
 #include <folly/container/F14Map-fwd.h>
 #include <memcached/tracer.h>
+#include <platform/cb_time.h>
 
 namespace cb::executor {
 
 /**
  * Uses the coarse system clock (via folly) and has a time_point compatible with
- * the std::chrono::steady_clock.
+ * the cb::time::steady_clock.
  */
 struct CoarseSteadyClock {
-    using duration = std::chrono::steady_clock::duration;
-    using period = std::chrono::steady_clock::period;
-    using rep = std::chrono::steady_clock::rep;
-    using time_point = std::chrono::steady_clock::time_point;
+    using duration = cb::time::steady_clock::duration;
+    using period = cb::time::steady_clock::period;
+    using rep = cb::time::steady_clock::rep;
+    using time_point = cb::time::steady_clock::time_point;
     static constexpr bool is_steady{true};
 
     static time_point now();

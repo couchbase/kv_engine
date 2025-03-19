@@ -670,7 +670,7 @@ public:
     /**
      * Get the time the last successful resize completed at.
      */
-    std::chrono::steady_clock::time_point getLastResizeTime() const {
+    cb::time::steady_clock::time_point getLastResizeTime() const {
         return lastResizeTime;
     }
 
@@ -826,8 +826,7 @@ public:
      *         - Same size if it's less than the current size and the delay
      *           has not surpassed.
      */
-    size_t getPreferredSize(
-            std::chrono::steady_clock::duration delay = {}) const;
+    size_t getPreferredSize(cb::time::steady_clock::duration delay = {}) const;
 
     /**
      * Automatically resize to fit the current data.
@@ -1795,7 +1794,7 @@ protected:
     cb::NonBlockingSharedMutex visitorMutex;
     std::atomic<ResizeAlgo> resizeInProgress{ResizeAlgo::None};
     // The time of the previously completed resize
-    std::chrono::steady_clock::time_point lastResizeTime;
+    cb::time::steady_clock::time_point lastResizeTime;
 
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;

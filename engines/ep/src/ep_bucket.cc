@@ -495,7 +495,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     }
 
     auto& vb = vbPtr.getEPVbucket();
-    const auto flushStart = std::chrono::steady_clock::now();
+    const auto flushStart = cb::time::steady_clock::now();
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
     auto toFlush =
@@ -998,7 +998,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
 
 void EPBucket::flushSuccessEpilogue(
         VBucket& vb,
-        const std::chrono::steady_clock::time_point flushStart,
+        const cb::time::steady_clock::time_point flushStart,
         size_t itemsFlushed,
         const AggregatedFlushStats& aggStats,
         Collections::VB::Flush& collectionFlush) {
@@ -1008,7 +1008,7 @@ void EPBucket::flushSuccessEpilogue(
     }
 
     // Update flush stats
-    const auto flushEnd = std::chrono::steady_clock::now();
+    const auto flushEnd = cb::time::steady_clock::now();
     const auto transTime =
             std::chrono::duration_cast<std::chrono::milliseconds>(flushEnd -
                                                                   flushStart)
@@ -1082,7 +1082,7 @@ bool EPBucket::commit(KVStoreIface& kvstore,
                       VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
             &stats.diskCommitHisto, "disk_commit", stats.timingLog.get());
-    const auto commit_start = std::chrono::steady_clock::now();
+    const auto commit_start = cb::time::steady_clock::now();
 
     auto vbid = txnCtx->vbid;
     const auto res = kvstore.commit(std::move(txnCtx), commitData);
@@ -1093,7 +1093,7 @@ bool EPBucket::commit(KVStoreIface& kvstore,
 
     const auto commit_time =
             std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - commit_start)
+                    cb::time::steady_clock::now() - commit_start)
                     .count();
     stats.commit_time.store(commit_time);
     stats.cumulativeCommitTime.fetch_add(commit_time);
@@ -1214,7 +1214,7 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
 
     // find the earliest time the compaction task should start, to obey
     // the requested delay
-    auto requestedStartTime = std::chrono::steady_clock::now() + delay;
+    auto requestedStartTime = cb::time::steady_clock::now() + delay;
     // Convert delay to ExecutorPool 'double' e.g. 1500ms = 1.5 secs
     std::chrono::duration<double> execDelay = delay;
 
@@ -1341,7 +1341,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
 
     std::chrono::microseconds dirtyAge =
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - qi->getQueuedTime());
+                    cb::time::steady_clock::now() - qi->getQueuedTime());
     stats.dirtyAgeHisto.add(dirtyAge);
 
     // Keep count of the number of items flushed that come from a history=true
@@ -2375,7 +2375,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     };
 
     auto& epVb = dynamic_cast<EPVBucket&>(vb);
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
 
     // Get the kvStore. Using the RW store as the rollback code that will call
     // this function will modify vbucket_state that will only be reflected in
@@ -2502,7 +2502,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             "prepared SyncWrites for {} in {}",
             storageCB.outstandingPrepares.size(),
             epVb.getId(),
-            cb::time2text(std::chrono::steady_clock::now() - start));
+            cb::time2text(cb::time::steady_clock::now() - start));
 
     // Insert all outstanding Prepares into the VBucket (HashTable &
     // DurabilityMonitor).

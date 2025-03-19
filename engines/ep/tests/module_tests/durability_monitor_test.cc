@@ -1461,7 +1461,7 @@ TEST_P(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
 
     // Never expire, neither after 1 year !
     const auto year = std::chrono::hours(24 * 365);
-    simulateTimeoutCheck(adm, std::chrono::steady_clock::now() + year);
+    simulateTimeoutCheck(adm, cb::time::steady_clock::now() + year);
 
     // Not expired, still tracked
     EXPECT_EQ(1, monitor->getNumTracked());
@@ -1469,7 +1469,7 @@ TEST_P(ActiveDurabilityMonitorTest, NeverExpireIfTimeoutNotSet) {
 
 void ActiveDurabilityMonitorTest::simulateTimeoutCheck(
         ActiveDurabilityMonitor& adm,
-        std::chrono::steady_clock::time_point now) const {
+        cb::time::steady_clock::time_point now) const {
     adm.processTimeout(now);
     adm.processCompletedSyncWriteQueue(
             std::shared_lock<folly::SharedMutex>(vb->getStateLock()));
@@ -1497,7 +1497,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     simulateTimeoutCheck(
             adm,
-            std::chrono::steady_clock::now() + std::chrono::milliseconds(1000));
+            cb::time::steady_clock::now() + std::chrono::milliseconds(1000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1526,9 +1526,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    simulateTimeoutCheck(adm,
-                         std::chrono::steady_clock::now() +
-                                 std::chrono::milliseconds(10000));
+    simulateTimeoutCheck(
+            adm,
+            cb::time::steady_clock::now() + std::chrono::milliseconds(10000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1551,9 +1551,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    simulateTimeoutCheck(adm,
-                         std::chrono::steady_clock::now() +
-                                 std::chrono::milliseconds(10000));
+    simulateTimeoutCheck(
+            adm,
+            cb::time::steady_clock::now() + std::chrono::milliseconds(10000));
 
     EXPECT_EQ(1, monitor->getNumTracked());
     auto tracked = adm.getTrackedSeqnos();
@@ -1566,9 +1566,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
-    simulateTimeoutCheck(adm,
-                         std::chrono::steady_clock::now() +
-                                 std::chrono::milliseconds(100000));
+    simulateTimeoutCheck(
+            adm,
+            cb::time::steady_clock::now() + std::chrono::milliseconds(100000));
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
@@ -1594,19 +1594,19 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     simulateTimeoutCheck(
             adm,
-            std::chrono::steady_clock::now() + std::chrono::milliseconds(5000));
+            cb::time::steady_clock::now() + std::chrono::milliseconds(5000));
 
     // A second processTimeout (now up to 15s later). Still shouldn't time
     // anything out as would break In-Order completion.
-    simulateTimeoutCheck(adm,
-                         std::chrono::steady_clock::now() +
-                                 std::chrono::milliseconds(15000));
+    simulateTimeoutCheck(
+            adm,
+            cb::time::steady_clock::now() + std::chrono::milliseconds(15000));
     EXPECT_EQ(3, monitor->getNumTracked());
 
     // Only when the first item reaches it's timeout can we process all of them.
-    simulateTimeoutCheck(adm,
-                         std::chrono::steady_clock::now() +
-                                 std::chrono::milliseconds(30000));
+    simulateTimeoutCheck(
+            adm,
+            cb::time::steady_clock::now() + std::chrono::milliseconds(30000));
     EXPECT_EQ(0, monitor->getNumTracked());
 }
 
@@ -3651,7 +3651,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     // acking, the active could timeout a given syncWrite, and then proceed to
     // commit it.
     simulateTimeoutCheck(
-            adm, std::chrono::steady_clock::now() + std::chrono::seconds(31));
+            adm, cb::time::steady_clock::now() + std::chrono::seconds(31));
 
     {
         CB_SCOPED_TRACE("");

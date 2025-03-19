@@ -247,7 +247,7 @@ void EphemeralVBucket::dump(std::ostream& ostream) const {
 cb::engine_errc EphemeralVBucket::completeBGFetchForSingleItem(
         const DiskDocKey& key,
         const FrontEndBGFetchItem& fetched_item,
-        const std::chrono::steady_clock::time_point startTime) {
+        const cb::time::steady_clock::time_point startTime) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::completeBGFetchForSingleItem() "

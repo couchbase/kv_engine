@@ -13,7 +13,7 @@
 
 #include <executor/taskable.h>
 #include <folly/portability/GMock.h>
-
+#include <platform/cb_time.h>
 /**
  * Mock task owner for testing purposes.
  */
@@ -36,12 +36,12 @@ public:
                 logQTime,
                 (const GlobalTask& task,
                  std::string_view threadName,
-                 std::chrono::steady_clock::duration enqTime),
+                 cb::time::steady_clock::duration enqTime),
                 (override));
 
     void logRunTime(const GlobalTask& task,
                     std::string_view threadName,
-                    std::chrono::steady_clock::duration runTime) override;
+                    cb::time::steady_clock::duration runTime) override;
 
     MOCK_METHOD(bool, isShutdown, (), (const override));
 

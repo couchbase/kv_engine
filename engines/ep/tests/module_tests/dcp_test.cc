@@ -1219,7 +1219,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     // Define a known, large time point which we initialise consumer's
     // lastMessageTime to, we can then check after receiving messages it has
     // changed.
-    const std::chrono::steady_clock::time_point initMsgTime(1234s);
+    const cb::time::steady_clock::time_point initMsgTime(1234s);
     consumer->setLastMessageTime(initMsgTime);
     consumer->addStream(/*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None);
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())

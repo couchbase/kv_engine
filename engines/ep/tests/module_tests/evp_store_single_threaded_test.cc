@@ -77,10 +77,10 @@ using namespace std::string_view_literals;
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 
-std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
+cb::time::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ,
         std::string_view expectedTaskName,
-        std::chrono::steady_clock::duration timeAdvance) {
+        cb::time::steady_clock::duration timeAdvance) {
     CheckedExecutor executor(task_executor, taskQ, timeAdvance);
 
     // Run the task
@@ -88,7 +88,7 @@ std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
     return executor.completeCurrentTask();
 }
 
-std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
+cb::time::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ) {
     CheckedExecutor executor(task_executor, taskQ);
 

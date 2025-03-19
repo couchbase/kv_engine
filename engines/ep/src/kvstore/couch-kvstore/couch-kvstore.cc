@@ -648,7 +648,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
                                      const DiskDocKey& key,
                                      Vbid vb,
                                      ValueFilter filter) const {
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     DocInfo *docInfo = nullptr;
     GetValue rv;
 
@@ -677,7 +677,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
         // record stats
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - start));
+                        cb::time::steady_clock::now() - start));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(key.size() + rv.item->getNBytes());
         }
@@ -1169,13 +1169,13 @@ CompactDBStatus CouchKVStore::compactDB(
     auto status = CompactDBStatus::Failed;
     try {
         TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
-        const auto start = std::chrono::steady_clock::now();
+        const auto start = cb::time::steady_clock::now();
         status = compactDBInternal(
                 sourceDb, compact_file, vbLock, hook_ctx.get());
         if (status == CompactDBStatus::Success) {
             st.compactHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
-                            std::chrono::steady_clock::now() - start));
+                            cb::time::steady_clock::now() - start));
             vbucketEncryptionKeysManager.promoteNextKey(vbid);
         } else {
             vbucketEncryptionKeysManager.removeNextKey(vbid);
@@ -2051,7 +2051,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
         return true;
     }
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
 
     if (!writeVBucketState(vbucketId, meta.proposedVBState)) {
         logger.warn(
@@ -2069,7 +2069,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
                  meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - start));
+            cb::time::steady_clock::now() - start));
 
     return true;
 }
@@ -3179,7 +3179,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                     droppedCollections);
         }
 
-        auto cs_begin = std::chrono::steady_clock::now();
+        auto cs_begin = cb::time::steady_clock::now();
 
         uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
         const auto errCode =
@@ -3194,7 +3194,7 @@ couchstore_error_t CouchKVStore::saveDocs(
 
         st.saveDocsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - cs_begin));
+                        cb::time::steady_clock::now() - cs_begin));
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::saveDocs: couchstore_save_documents "
@@ -3254,11 +3254,11 @@ couchstore_error_t CouchKVStore::saveDocs(
         couchstore_set_purge_seq(db, kvctx.commitData.purgeSeqno);
     }
 
-    auto cs_begin = std::chrono::steady_clock::now();
+    auto cs_begin = cb::time::steady_clock::now();
 
     errCode = couchstore_commit(db, kvctx.commitData.sysErrorCallback);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - cs_begin));
+            cb::time::steady_clock::now() - cs_begin));
     if (errCode) {
         logger.warn("CouchKVStore::saveDocs: couchstore_commit error:{} [{}]",
                     couchstore_strerror(errCode),
@@ -3636,8 +3636,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
                                                      cbCtx->vbId,
                                                      valueFilter,
                                                      cbCtx->createItemCallback);
-    using namespace std::chrono;
-    auto fetDocEndTime = steady_clock::now();
+    auto fetDocEndTime = cb::time::steady_clock::now();
 
     if (errCode != COUCHSTORE_SUCCESS &&
         (valueFilter != ValueFilter::KEYS_ONLY)) {
@@ -3654,6 +3653,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     bool return_val_ownership_transferred = false;
     for (auto& fetch : bg_itm_ctx.getRequests()) {
+        using namespace std::chrono;
         return_val_ownership_transferred = true;
         st.readTimeHisto.add(
                 duration_cast<microseconds>(fetDocEndTime - fetch->initTime));
@@ -3944,7 +3944,7 @@ cb::engine_errc CouchKVStore::getAllKeys(
 
     AllKeysCtx ctx(cb, count);
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     errCode = couchstore_all_docs(
             db, &ref, COUCHSTORE_NO_DELETES, populateAllKeys, &ctx);
     if (!(errCode == COUCHSTORE_SUCCESS ||
@@ -3961,7 +3961,7 @@ cb::engine_errc CouchKVStore::getAllKeys(
 
     st.getAllKeysHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - start));
+                    cb::time::steady_clock::now() - start));
     return cb::engine_errc::success;
 }
 

@@ -12,6 +12,7 @@
 #pragma once
 
 #include "bucket_logger.h"
+#include <platform/cb_time.h>
 #include <chrono>
 
 /**
@@ -48,8 +49,8 @@ public:
      *  @param name_ A name for this mutex, used in log messages.
      */
     LockTimer(typename T::mutex_type& m, const char* name_)
-        : name(name_), start(std::chrono::steady_clock::now()), lock_holder(m) {
-        acquired = std::chrono::steady_clock::now();
+        : name(name_), start(cb::time::steady_clock::now()), lock_holder(m) {
+        acquired = cb::time::steady_clock::now();
         const uint64_t msec =
                 std::chrono::duration_cast<std::chrono::milliseconds>(acquired -
                                                                       start)
@@ -79,7 +80,7 @@ public:
 
 private:
     void check_held_duration() {
-        const auto released = std::chrono::steady_clock::now();
+        const auto released = cb::time::steady_clock::now();
         const uint64_t msec =
                 std::chrono::duration_cast<std::chrono::milliseconds>(released -
                                                                       acquired)
@@ -93,10 +94,10 @@ private:
     const char* name;
 
     // Time when lock acquisition started.
-    std::chrono::steady_clock::time_point start;
+    cb::time::steady_clock::time_point start;
 
     // Time when we completed acquiring the lock.
-    std::chrono::steady_clock::time_point acquired;
+    cb::time::steady_clock::time_point acquired;
 
     // The underlying 'real' lock holder we are wrapping.
     T lock_holder;

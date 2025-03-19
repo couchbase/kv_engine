@@ -38,7 +38,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
                                      std::unique_ptr<mlog::FileIface> fileIface)
     : stats(_stats),
       startTime(ep_real_time()),
-      taskStart(std::chrono::steady_clock::now()),
+      taskStart(cb::time::steady_clock::now()),
       shardID(sh),
       semaphoreGuard(std::move(guard)),
       items_to_scan(items_to_scan) {
@@ -135,7 +135,7 @@ void ItemAccessVisitor::complete() {
     stats.alogNumItems.store(num_items);
     stats.accessScannerHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - taskStart));
+                    cb::time::steady_clock::now() - taskStart));
 
     if (num_items == 0) {
         EP_LOG_INFO_RAW(

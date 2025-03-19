@@ -55,7 +55,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                       .getConfiguration()
                       .getExpiryVisitorExpireAfterVisitDurationMs())),
       wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
-      taskStart(std::chrono::steady_clock::now()) {
+      taskStart(cb::time::steady_clock::now()) {
     setVBucketFilter(vbFilter);
 }
 
@@ -116,7 +116,7 @@ void PagingVisitor::update(bool expireAllItems) {
                                    : expiryVisitorExpireAfterVisitDuration;
     size_t itemCount = 0;
 
-    progressTracker.setDeadline(std::chrono::steady_clock::now() + threshold);
+    progressTracker.setDeadline(cb::time::steady_clock::now() + threshold);
     const auto startTime = ep_real_time();
 
     while (!isExpiredListEmpty()) {
@@ -183,7 +183,7 @@ PagingVisitor::getVBucketComparator() const {
 
 std::chrono::microseconds PagingVisitor::getElapsedTime() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - taskStart);
+            cb::time::steady_clock::now() - taskStart);
 }
 
 void PagingVisitor::setUpHashBucketVisit() {

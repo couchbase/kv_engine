@@ -69,7 +69,7 @@ public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
                 CompactionConfig config,
-                std::chrono::steady_clock::time_point requestedStartTime,
+                cb::time::steady_clock::time_point requestedStartTime,
                 CookieIface* ck,
                 cb::AwaitableSemaphore& semaphore,
                 bool completeBeforeShutdown = false);
@@ -111,7 +111,7 @@ public:
     CompactionConfig runCompactionWithConfig(
             std::optional<CompactionConfig> config,
             CookieIface* cookie,
-            std::chrono::steady_clock::time_point requestedStartTime);
+            cb::time::steady_clock::time_point requestedStartTime);
 
     /**
      * @return true if a reschedule is required
@@ -176,7 +176,7 @@ private:
         std::vector<CookieIface*> cookiesWaiting;
         // if delayed compaction was requested, this task should not
         // start compaction until this time.
-        std::chrono::steady_clock::time_point requestedStartTime;
+        cb::time::steady_clock::time_point requestedStartTime;
         bool rescheduleRequired{false};
     };
 

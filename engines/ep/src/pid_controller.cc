@@ -12,19 +12,18 @@
 #include "pid_controller.h"
 #include "bucket_logger.h"
 
-PIDControllerImpl::PIDControllerImpl(
-        float setPoint,
-        float kp,
-        float ki,
-        float kd,
-        std::chrono::milliseconds dt,
-        std::chrono::time_point<std::chrono::steady_clock> now)
+PIDControllerImpl::PIDControllerImpl(float setPoint,
+                                     float kp,
+                                     float ki,
+                                     float kd,
+                                     std::chrono::milliseconds dt,
+                                     cb::time::steady_clock::time_point now)
     : kp{kp}, ki{ki}, kd{kd}, dt{dt}, setPoint(setPoint), lastStep(now) {
 }
 
 float PIDControllerImpl::step(
         float current,
-        std::chrono::time_point<std::chrono::steady_clock> now,
+        cb::time::steady_clock::time_point now,
         std::function<bool(PIDControllerImpl&)> checkAndMaybeReset) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - lastStep);

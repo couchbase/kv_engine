@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <chrono>
+#include <platform/cb_time.h>
 
 /**
  * Helper class used by objects which want to track their progress (how long
@@ -22,7 +22,7 @@
  *
  *     // Create a ProcessTracker with a deadline of 10ms from now.
  *     ProgressTracker tracker;
- *     tracker.setDeadline(std::chrono::steady_clock::now +
+ *     tracker.setDeadline(cb::time::steady_clock::now +
  * std::chrono::milliseconds(10));
  *
  *     // Loop doing some work; where you want to stop after some time limit.
@@ -38,7 +38,7 @@ class ProgressTracker
 public:
     ProgressTracker();
 
-    void setDeadline(std::chrono::steady_clock::time_point new_deadline);
+    void setDeadline(cb::time::steady_clock::time_point new_deadline);
 
     /**
      * Inform the progress tracker that work has been done, and if visiting
@@ -62,7 +62,7 @@ private:
     bool need_initial_time;
 
     size_t next_visit_count_check;
-    std::chrono::steady_clock::time_point deadline;
-    std::chrono::steady_clock::time_point previous_time;
+    cb::time::steady_clock::time_point deadline;
+    cb::time::steady_clock::time_point previous_time;
     size_t previous_visited;
 };

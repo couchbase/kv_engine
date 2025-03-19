@@ -302,7 +302,7 @@ protected:
      * Simulate a timeout event happening at the given time point.
      */
     void simulateTimeoutCheck(ActiveDurabilityMonitor& adm,
-                              std::chrono::steady_clock::time_point now) const;
+                              cb::time::steady_clock::time_point now) const;
 
     /**
      * Test that we can drop the first key in trackedWrites

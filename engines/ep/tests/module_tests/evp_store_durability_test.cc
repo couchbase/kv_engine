@@ -4186,7 +4186,7 @@ void DurabilityBucketTest::
     EXPECT_TRUE(cookies.empty());
 
     // We SHOULD have set the timeout to infinite if we had a PDM at some point
-    adm.processTimeout(std::chrono::steady_clock::now() +
+    adm.processTimeout(cb::time::steady_clock::now() +
                        std::chrono::seconds(70));
 
     // A dead vbucket will create a DDM and so the timeouts are lost
@@ -4413,7 +4413,7 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareAbort) {
     ASSERT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
     // time out to abort
-    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                  std::chrono::milliseconds(10001));
     vb->processResolvedSyncWrites();
 
@@ -4479,7 +4479,7 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareDeleteAbort) {
     ASSERT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
     // time out to abort
-    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                  std::chrono::milliseconds(10001));
     vb->processResolvedSyncWrites();
 
@@ -4688,8 +4688,8 @@ TEST_P(DurabilityEPBucketTest, MB_40480) {
     // 2) Now abort our prepare but don't persist it yet
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
-    std::chrono::milliseconds(10001));
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
+                                 std::chrono::milliseconds(10001));
     vb->processResolvedSyncWrites();
 
     EXPECT_EQ(1, vb->getSyncWriteAbortedCount());
@@ -5261,15 +5261,14 @@ TEST_P(DurabilityBucketTest, MB_46272) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // 3. timeout keyA which should generate an abort
-    adm.processTimeout(std::chrono::steady_clock::now() +
-                       std::chrono::seconds(5));
+    adm.processTimeout(cb::time::steady_clock::now() + std::chrono::seconds(5));
     // 4. cancel the inflight sync-writes returning to the client as ambiguous
     engine->cancel_all_operations_in_ewb_state();
     // Now check that logically we would be in a consistent state if the
     // durability timeout or completion tasks where to run
 
     // 5. Timeout keyB which should generate an abort
-    adm.processTimeout(std::chrono::steady_clock::now() +
+    adm.processTimeout(cb::time::steady_clock::now() +
                        std::chrono::seconds(10));
     // 6. Process resolved sync-writes this should cause us to add two aborts
     //    to the checkpoint manager first for keyA then keyB

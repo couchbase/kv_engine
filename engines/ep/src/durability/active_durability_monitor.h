@@ -223,7 +223,7 @@ public:
      * @param asOf The time to be compared with tracked-SWs' expiry-time
      * @throw std::logic_error
      */
-    void processTimeout(std::chrono::steady_clock::time_point asOf);
+    void processTimeout(cb::time::steady_clock::time_point asOf);
 
     /**
      * Get (and clear) the non-null cookies for all in-flight SyncWrites.

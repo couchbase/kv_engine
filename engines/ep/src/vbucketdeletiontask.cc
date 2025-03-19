@@ -93,10 +93,10 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
                  (vbucket->getId()).get());
     notifyAllPendingConnsFailed(false);
 
-    auto start = std::chrono::steady_clock::now();
+    auto start = cb::time::steady_clock::now();
     shard.getRWUnderlying()->delVBucket(vbucket->getId(),
                                         std::move(vbDeleteRevision));
-    auto elapsed = std::chrono::steady_clock::now() - start;
+    auto elapsed = cb::time::steady_clock::now() - start;
     auto wallTime =
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
 

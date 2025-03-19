@@ -26,6 +26,7 @@
 #include <memcached/server_core_iface.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/cb_time.h>
 #include <platform/cbassert.h>
 #include <array>
 
@@ -42,9 +43,9 @@ static std::array<char, 28> allow_no_stats_env{
  */
 class UnitTestServerCore : public ServerCoreIface {
 public:
-    std::chrono::steady_clock::time_point get_uptime_now() override {
+    cb::time::steady_clock::time_point get_uptime_now() override {
         // Reutn a fixed time point of 0.
-        return std::chrono::steady_clock::time_point(0s);
+        return cb::time::steady_clock::time_point(0s);
     }
 
     rel_time_t get_current_time() override {

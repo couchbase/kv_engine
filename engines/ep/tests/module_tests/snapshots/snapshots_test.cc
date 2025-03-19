@@ -41,8 +41,7 @@ public:
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
-    std::chrono::steady_clock::time_point time =
-            std::chrono::steady_clock::now();
+    cb::time::steady_clock::time_point time = cb::time::steady_clock::now();
     cb::snapshot::Cache cache{snapshotdir, [this]() { return time; }};
 };
 

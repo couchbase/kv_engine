@@ -389,7 +389,7 @@ std::optional<uint8_t> Item::getFreqCounterValue() const {
 }
 
 uint64_t Item::nextCas() {
-    return std::chrono::steady_clock::now().time_since_epoch().count() +
+    return cb::time::steady_clock::now().time_since_epoch().count() +
            (++casCounter);
 }
 

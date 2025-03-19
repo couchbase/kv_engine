@@ -26,7 +26,7 @@ public:
     ~DefragmentVisitor() override;
 
     // Set the deadline at which point the visitor will pause visiting.
-    void setDeadline(std::chrono::steady_clock::time_point deadline_);
+    void setDeadline(cb::time::steady_clock::time_point deadline_);
 
     /**
      * Set the age at which Blobs are defragged 0 - 255

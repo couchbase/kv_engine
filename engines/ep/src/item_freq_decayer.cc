@@ -109,7 +109,7 @@ void CrossBucketItemFreqDecayer::schedule() {
 #if CB_DEVELOPMENT_ASSERTS
             // Assert the above is true for debug builds.
             Expects(task->getWaketime() ==
-                    std::chrono::steady_clock::time_point::max());
+                    cb::time::steady_clock::time_point::max());
 #endif // CB_DEVELOPMENT_ASSERTS
             task->wakeup();
             locked.insert(task.get());
@@ -180,7 +180,7 @@ bool ItemFreqDecayerTask::run() {
 
     // Prepare the underlying visitor.
     auto& visitor = getItemFreqDecayerVisitor();
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = cb::time::steady_clock::now();
     const auto deadline = start + getChunkDuration();
     visitor.setDeadline(deadline);
     visitor.clearStats();
@@ -188,7 +188,7 @@ bool ItemFreqDecayerTask::run() {
     // Do it - set off the visitor.
     epstore_position = engine->getKVBucket()->pauseResumeVisit(
             *prAdapter, epstore_position);
-    const auto end = std::chrono::steady_clock::now();
+    const auto end = cb::time::steady_clock::now();
 
     // Check if the visitor completed a full pass.
     completed = (epstore_position == engine->getKVBucket()->endPosition());

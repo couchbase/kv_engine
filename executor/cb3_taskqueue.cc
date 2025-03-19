@@ -71,7 +71,7 @@ bool TaskQueue::_doSleep(CB3ExecutorThread& t,
     // Determine the time point to wake this thread - either "forever" if the
     // futureQueue is empty, or the earliest wake time in the futureQueue.
     const auto wakeTime = futureQueue.empty()
-                                  ? std::chrono::steady_clock::time_point::max()
+                                  ? cb::time::steady_clock::time_point::max()
                                   : futureQueue.top()->getWaketime();
 
     if (t.getCurTime() < wakeTime && manager->trySleep(queueType)) {
@@ -152,8 +152,7 @@ bool TaskQueue::sleepThenFetchNextTask(CB3ExecutorThread& thread) {
     return _sleepThenFetchNextTask(thread);
 }
 
-size_t TaskQueue::_moveReadyTasks(
-        const std::chrono::steady_clock::time_point tv) {
+size_t TaskQueue::_moveReadyTasks(const cb::time::steady_clock::time_point tv) {
     if (!readyQueue.empty()) {
         return 0;
     }
@@ -176,14 +175,14 @@ size_t TaskQueue::_moveReadyTasks(
     return numReady ? numReady - 1 : 0;
 }
 
-std::chrono::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
+cb::time::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
     std::lock_guard<std::mutex> lh(mutex);
 
     futureQueue.push(task);
     return futureQueue.top()->getWaketime();
 }
 
-std::chrono::steady_clock::time_point TaskQueue::reschedule(ExTask& task) {
+cb::time::steady_clock::time_point TaskQueue::reschedule(ExTask& task) {
     cb::NoArenaGuard guard;
     auto rv = _reschedule(task);
     return rv;
@@ -221,8 +220,8 @@ void TaskQueue::schedule(ExTask& task) {
 }
 
 void TaskQueue::_wake(ExTask& task) {
-    const std::chrono::steady_clock::time_point now =
-            std::chrono::steady_clock::now();
+    const cb::time::steady_clock::time_point now =
+            cb::time::steady_clock::now();
     TaskQueue* sleepQ;
     // One task is being made ready regardless of the queue it's in.
     size_t readyCount = 1;

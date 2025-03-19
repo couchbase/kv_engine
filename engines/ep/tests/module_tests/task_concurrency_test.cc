@@ -14,8 +14,8 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "ep_task.h"
 #include <platform/awaitable_semaphore.h>
+#include <platform/cb_time.h>
 #include <platform/semaphore_guard.h>
-
 #include <utility>
 
 #include "thread_gate.h"
@@ -78,8 +78,7 @@ void TaskConcurrencyTest::scheduleAll(
 void TaskConcurrencyTest::waitForTasks(
         std::vector<std::shared_ptr<ConcurrencyTestTask>>& tasks) {
     using namespace std::chrono_literals;
-    using std::chrono::steady_clock;
-    auto deadline = steady_clock::now() + 5s;
+    auto deadline = cb::time::steady_clock::now() + 5s;
 
     bool done;
     do {
@@ -90,7 +89,7 @@ void TaskConcurrencyTest::waitForTasks(
         if (!done) {
             std::this_thread::sleep_for(5ms);
         }
-    } while (!done && steady_clock::now() < deadline);
+    } while (!done && cb::time::steady_clock::now() < deadline);
 
     if (!done) {
         FAIL() << "Tasks did not finish within timeout";

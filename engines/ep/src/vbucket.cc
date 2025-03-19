@@ -155,18 +155,18 @@ SeqnoPersistenceRequest::SeqnoPersistenceRequest(
         CookieIface* cookie, uint64_t seqno, std::chrono::milliseconds timeout)
     : cookie(cookie),
       seqno(seqno),
-      start(std::chrono::steady_clock::now()),
+      start(cb::time::steady_clock::now()),
       timeout(timeout) {
 }
 
 SeqnoPersistenceRequest::~SeqnoPersistenceRequest() = default;
 
-std::chrono::steady_clock::duration SeqnoPersistenceRequest::getDuration(
-        std::chrono::steady_clock::time_point now) const {
+cb::time::steady_clock::duration SeqnoPersistenceRequest::getDuration(
+        cb::time::steady_clock::time_point now) const {
     return start - now;
 }
 
-std::chrono::steady_clock::time_point SeqnoPersistenceRequest::getDeadline()
+cb::time::steady_clock::time_point SeqnoPersistenceRequest::getDeadline()
         const {
     return start + timeout;
 }
@@ -293,7 +293,7 @@ VBucket::VBucket(Vbid i,
         conflictResolver = std::make_unique<LastWriteWinsResolution>();
     }
 
-    pendingOpsStart = std::chrono::steady_clock::time_point();
+    pendingOpsStart = cb::time::steady_clock::time_point();
     // HashTable accounts its own overhead
     stats.coreLocal.get()->memOverhead +=
             sizeof(VBucket) - sizeof(HashTable) + sizeof(CheckpointManager);
@@ -489,8 +489,8 @@ void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
                          cb::engine_errc code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
 
-    if (pendingOpsStart > std::chrono::steady_clock::time_point()) {
-        auto now = std::chrono::steady_clock::now();
+    if (pendingOpsStart > cb::time::steady_clock::time_point()) {
+        auto now = cb::time::steady_clock::now();
         if (now > pendingOpsStart) {
             auto d = std::chrono::duration_cast<std::chrono::microseconds>(
                     now - pendingOpsStart);
@@ -502,7 +502,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
         return;
     }
 
-    pendingOpsStart = std::chrono::steady_clock::time_point();
+    pendingOpsStart = cb::time::steady_clock::time_point();
     stats.pendingOps.fetch_sub(pendingOps.size());
     atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
@@ -552,7 +552,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxMaxItems,
     // cursor. Note that it is only valid to queue a complete checkpoint, this
     // is where the "approx" in the limit comes from.
 
-    const auto begin = std::chrono::steady_clock::now();
+    const auto begin = cb::time::steady_clock::now();
 
     auto rangeInfo = checkpointManager->getItemsForPersistence(
             result.items, approxMaxItems, approxMaxBytes);
@@ -577,7 +577,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxMaxItems,
 
     stats.persistenceCursorGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - begin));
+                    cb::time::steady_clock::now() - begin));
 
     return result;
 }
@@ -844,7 +844,7 @@ PassiveDurabilityMonitor& VBucket::getPassiveDM() {
 }
 
 void VBucket::processDurabilityTimeout(
-        const std::chrono::steady_clock::time_point asOf) {
+        const cb::time::steady_clock::time_point asOf) {
     std::shared_lock lh(stateLock);
     if (getState() != vbucket_state_active) {
         return;
@@ -933,11 +933,10 @@ uint64_t VBucket::getQueueAge() {
 
     // Get time now multiplied by the queue size. We need to subtract
     // dirtyQueueAge from this to offset time_since_epoch.
-    auto currentAge =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count() *
-            dirtyQueueSize;
+    auto currentAge = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              cb::time::steady_clock::now().time_since_epoch())
+                              .count() *
+                      dirtyQueueSize;
 
     // Since the size and age are independent atomics, we might see an
     // inconsistent snapshot, such as age updated more than size. Avoid
@@ -1231,7 +1230,7 @@ bool VBucket::addPendingOp(CookieIface* cookie) {
     }
     // Start a timer when enqueuing the first client.
     if (pendingOps.empty()) {
-        pendingOpsStart = std::chrono::steady_clock::now();
+        pendingOpsStart = cb::time::steady_clock::now();
     }
     pendingOps.push_back(cookie);
     ++stats.pendingOps;
@@ -4091,7 +4090,7 @@ void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
     v.setRevSeqno(seqno);
 }
 
-std::chrono::steady_clock::time_point VBucket::addHighPriorityVBEntry(
+cb::time::steady_clock::time_point VBucket::addHighPriorityVBEntry(
         std::unique_ptr<SeqnoPersistenceRequest> request) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
     hpVBReqs.emplace_back(std::move(request));
@@ -4117,12 +4116,12 @@ VBucket::getSeqnoPersistenceRequestsToNotify(EventuallyPersistentEngine& engine,
     std::unordered_map<CookieIface*, cb::engine_errc> toNotify;
 
     auto itr = hpVBReqs.begin();
-    std::optional<std::chrono::steady_clock::time_point> nextDeadline;
+    std::optional<cb::time::steady_clock::time_point> nextDeadline;
 
     while (itr != hpVBReqs.end()) {
         Expects(*itr);
         const auto& req = *itr;
-        const auto now = std::chrono::steady_clock::now();
+        const auto now = cb::time::steady_clock::now();
         if (req->seqno <= seqno) {
             toNotify[req->cookie] = cb::engine_errc::success;
             stats.seqnoPersistenceHisto.add(
@@ -4174,7 +4173,7 @@ bool VBucket::doesSeqnoSatisfyAnySeqnoPersistenceRequest(uint64_t seqno) {
     return false;
 }
 
-std::optional<std::chrono::steady_clock::time_point>
+std::optional<cb::time::steady_clock::time_point>
 VBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
                                     uint64_t seqno) {
     auto toNotify = getSeqnoPersistenceRequestsToNotify(engine, seqno);

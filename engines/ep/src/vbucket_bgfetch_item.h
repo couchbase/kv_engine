@@ -28,7 +28,7 @@ enum class ValueFilter;
  */
 class BGFetchItem {
 public:
-    BGFetchItem(std::chrono::steady_clock::time_point initTime, uint64_t token)
+    BGFetchItem(cb::time::steady_clock::time_point initTime, uint64_t token)
         : initTime(initTime), token(token) {
     }
 
@@ -44,7 +44,7 @@ public:
      */
     virtual void complete(EventuallyPersistentEngine& engine,
                           VBucketPtr& vb,
-                          std::chrono::steady_clock::time_point startTime,
+                          cb::time::steady_clock::time_point startTime,
                           const DiskDocKey& key) const = 0;
 
     /**
@@ -67,7 +67,7 @@ public:
      * when this BGFetchItem is added to the set of outstanding items.
      */
     GetValue* value{nullptr};
-    const std::chrono::steady_clock::time_point initTime;
+    const cb::time::steady_clock::time_point initTime;
 
     // Token is the cas value of the temp initial item that is placed into the
     // HashTable for this BgFetch and that this fetch can complete/restore. This
@@ -89,7 +89,7 @@ public:
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,
-                  std::chrono::steady_clock::time_point startTime,
+                  cb::time::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
     void abort(
@@ -112,13 +112,13 @@ public:
 class CompactionBGFetchItem : public BGFetchItem {
 public:
     explicit CompactionBGFetchItem(const Item& item, uint64_t token)
-        : BGFetchItem(std::chrono::steady_clock::now(), token),
+        : BGFetchItem(cb::time::steady_clock::now(), token),
           compactionItem(item) {
     }
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,
-                  std::chrono::steady_clock::time_point startTime,
+                  cb::time::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
     void abort(

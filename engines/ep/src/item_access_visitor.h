@@ -50,7 +50,7 @@ private:
 
     EPStats& stats;
     rel_time_t startTime;
-    std::chrono::steady_clock::time_point taskStart;
+    cb::time::steady_clock::time_point taskStart;
     std::string prev;
     std::string next;
     std::string name;

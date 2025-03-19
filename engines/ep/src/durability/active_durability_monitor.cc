@@ -436,7 +436,7 @@ cb::engine_errc ActiveDurabilityMonitor::seqnoAckReceived(
 }
 
 void ActiveDurabilityMonitor::processTimeout(
-        std::chrono::steady_clock::time_point asOf) {
+        cb::time::steady_clock::time_point asOf) {
     // @todo: Add support for DurabilityMonitor at Replica
     if (vb.getState() != vbucket_state_active) {
         throwException<std::logic_error>(
@@ -808,7 +808,7 @@ void ActiveDurabilityMonitor::State::advanceAndAckForPosition(
     // cookie) so just make the start+end the same.
     auto* cookie = pos.it->getCookie();
     if (cookie) {
-        const auto ackTime = std::chrono::steady_clock::now();
+        const auto ackTime = cb::time::steady_clock::now();
         const auto event = (node == getActive())
                                    ? cb::tracing::Code::SyncWriteAckLocal
                                    : cb::tracing::Code::SyncWriteAckRemote;
@@ -1006,7 +1006,7 @@ void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
         return;
     }
 
-    const auto prepareEnd = std::chrono::steady_clock::now();
+    const auto prepareEnd = cb::time::steady_clock::now();
     auto* cookie = sw.getCookie();
     if (cookie) {
         // Record a Span for the prepare phase duration. We do this before
@@ -1663,7 +1663,7 @@ void ActiveDurabilityMonitor::State::addSyncWrite(CookieIface* cookie,
 }
 
 void ActiveDurabilityMonitor::State::removeExpired(
-        std::chrono::steady_clock::time_point asOf, ResolvedQueue& expired) {
+        cb::time::steady_clock::time_point asOf, ResolvedQueue& expired) {
     // Given SyncWrites must complete In-Order, iterate from the beginning
     // of trackedWrites only as long as we find expired items; if we encounter
     // any unexpired items then must stop.

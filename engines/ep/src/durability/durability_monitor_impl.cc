@@ -21,7 +21,7 @@ class CookieIface;
 
 /// Helper function to determine the expiry time for a SyncWrite from the
 /// durability requirements.
-static std::optional<std::chrono::steady_clock::time_point>
+static std::optional<cb::time::steady_clock::time_point>
 expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
                         std::chrono::milliseconds defaultTimeout) {
     auto timeout = reqs.getTimeout();
@@ -32,11 +32,11 @@ expiryFromDurabiltyReqs(const cb::durability::Requirements& reqs,
     auto relativeTimeout = timeout.isDefault()
                                    ? defaultTimeout
                                    : std::chrono::milliseconds(timeout.get());
-    return std::chrono::steady_clock::now() + relativeTimeout;
+    return cb::time::steady_clock::now() + relativeTimeout;
 }
 
 DurabilityMonitor::SyncWrite::SyncWrite(queued_item item)
-    : item(std::move(item)), startTime(std::chrono::steady_clock::now()) {
+    : item(std::move(item)), startTime(cb::time::steady_clock::now()) {
 }
 
 const StoredDocKey& DurabilityMonitor::SyncWrite::getKey() const {
@@ -121,12 +121,12 @@ void DurabilityMonitor::ActiveSyncWrite::clearCookie() {
     cookie = nullptr;
 }
 
-std::chrono::steady_clock::time_point
+cb::time::steady_clock::time_point
 DurabilityMonitor::ActiveSyncWrite::getStartTime() const {
     return startTime;
 }
 
-std::optional<std::chrono::steady_clock::time_point>
+std::optional<cb::time::steady_clock::time_point>
 DurabilityMonitor::ActiveSyncWrite::getExpiryTime() const {
     return expiryTime;
 }
@@ -203,7 +203,7 @@ SyncWriteStatus DurabilityMonitor::ActiveSyncWrite::getStatusForCommit() const {
 }
 
 bool DurabilityMonitor::ActiveSyncWrite::isExpired(
-        std::chrono::steady_clock::time_point asOf) const {
+        cb::time::steady_clock::time_point asOf) const {
     if (!expiryTime) {
         return false;
     }

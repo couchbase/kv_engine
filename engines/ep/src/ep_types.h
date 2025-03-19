@@ -17,7 +17,7 @@
 #include <fmt/ostream.h>
 #include <folly/container/F14Map-fwd.h>
 #include <memcached/vbucket.h>
-#include <chrono>
+#include <platform/cb_time.h>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -175,7 +175,7 @@ struct EventDrivenDurabilityTimeoutIface {
 
     /// Update the time when the next SyncWrite will expire.
     virtual void updateNextExpiryTime(
-            std::chrono::steady_clock::time_point next) = 0;
+            cb::time::steady_clock::time_point next) = 0;
 
     /**
      * Cancel the next run of the durability timeout task (as there are no

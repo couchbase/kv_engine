@@ -354,7 +354,7 @@ VB::RangeScanOwner::cancelAllExceedingDuration(EPBucket& bucket,
         return std::nullopt;
     }
 
-    locked->timeoutTask->updateNextExpiryTime(std::chrono::steady_clock::now() +
+    locked->timeoutTask->updateNextExpiryTime(cb::time::steady_clock::now() +
                                               nextExpiry);
     return nextExpiry;
 }

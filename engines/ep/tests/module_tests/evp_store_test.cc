@@ -3120,7 +3120,7 @@ TEST_P(EPBucketTest, MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
 
     // Check that the task is scheduled to run immediately, and not with
     // a long delay.
-    EXPECT_LE(task1->getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_LE(task1->getWaketime(), cb::time::steady_clock::now());
     EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 }
 
@@ -3147,7 +3147,7 @@ TEST_P(EPBucketTest, RescheduleWithSmallerDelay) {
     task1 = mockEPBucket->getCompactionTask(vbid);
     ASSERT_TRUE(task1);
     // Task should now be marked as Running with a wakeTime of immediate.
-    EXPECT_LE(task1->getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_LE(task1->getWaketime(), cb::time::steady_clock::now());
     EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 }
 

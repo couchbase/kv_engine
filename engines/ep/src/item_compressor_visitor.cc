@@ -25,7 +25,7 @@ ItemCompressorVisitor::ItemCompressorVisitor()
 ItemCompressorVisitor::~ItemCompressorVisitor() = default;
 
 void ItemCompressorVisitor::setDeadline(
-        std::chrono::steady_clock::time_point deadline) {
+        cb::time::steady_clock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 

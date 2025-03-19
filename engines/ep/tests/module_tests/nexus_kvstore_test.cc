@@ -211,7 +211,7 @@ TEST_P(NexusKVStoreTest, MagmaImplicitCompactionExpires) {
                     // go through before we can continue.
                     const auto time_limit = std::chrono::seconds(10);
                     const auto deadline =
-                            std::chrono::steady_clock::now() + time_limit;
+                            cb::time::steady_clock::now() + time_limit;
                     auto flushed = 0;
 
                     do {
@@ -225,7 +225,7 @@ TEST_P(NexusKVStoreTest, MagmaImplicitCompactionExpires) {
                             break;
                         }
 
-                    } while ((std::chrono::steady_clock::now() < deadline));
+                    } while ((cb::time::steady_clock::now() < deadline));
 
                     ASSERT_EQ(1, flushed)
                             << "Hit timeout (" << time_limit.count()

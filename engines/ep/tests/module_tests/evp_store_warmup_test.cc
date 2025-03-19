@@ -1340,7 +1340,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
         auto vb = engine->getVBucket(vbid);
         EXPECT_EQ(1, vb->getNumItems());
         // Force an abort
-        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+        vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                      std::chrono::seconds(1000));
         vb->processResolvedSyncWrites();
 

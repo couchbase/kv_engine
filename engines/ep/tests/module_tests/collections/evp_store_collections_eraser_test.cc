@@ -1582,7 +1582,7 @@ TEST_P(CollectionsEraserSyncWriteTest, AbortAfterDropBeforeErase) {
     createPendingWrite();
     dropCollection();
 
-    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                  std::chrono::seconds(1000));
 
     // Should have moved the prepare to the resolvedQ but not run the task.
@@ -1640,7 +1640,7 @@ TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontAbortOldPrepare) {
         EXPECT_EQ(0, vb->getHighCompletedSeqno());
 
         // Ack it, don't commit it yet
-        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+        vb->processDurabilityTimeout(cb::time::steady_clock::now() +
                                      std::chrono::seconds(70));
 
         EXPECT_EQ(2, vb->getHighSeqno());

@@ -51,7 +51,7 @@ public:
     cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,
             const FrontEndBGFetchItem& fetched_item,
-            const std::chrono::steady_clock::time_point startTime) override;
+            const cb::time::steady_clock::time_point startTime) override;
 
     void resetStats() override;
 

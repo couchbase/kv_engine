@@ -118,14 +118,14 @@ void CacheCallback::callback(CacheLookup& lookup) {
     }
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - backfillStartTime);
+            cb::time::steady_clock::now() - backfillStartTime);
     if (duration >= getBackfillMaxDuration()) {
         yield();
     }
 }
 
 void CacheCallback::setBackfillStartTime() {
-    backfillStartTime = std::chrono::steady_clock::now();
+    backfillStartTime = cb::time::steady_clock::now();
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {

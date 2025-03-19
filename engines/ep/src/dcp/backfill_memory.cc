@@ -236,7 +236,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         return backfill_finished;
     }
 
-    auto startTime = std::chrono::steady_clock::now();
+    auto startTime = cb::time::steady_clock::now();
 
     /* Read items */
     UniqueItemPtr item;
@@ -342,7 +342,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         }
 
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - startTime);
+                cb::time::steady_clock::now() - startTime);
         if (duration >= getBackfillMaxDuration()) {
             stream->incrementNumBackfillPauses();
             return backfill_success;
@@ -358,7 +358,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
 void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
     TRACE_EVENT0("dcp/backfill", "MemoryBuffered::complete");
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
-    runtime += (std::chrono::steady_clock::now() - runStart);
+    runtime += (cb::time::steady_clock::now() - runStart);
     stream.completeBackfill(endSeqno, runtime, 0, 0);
     stream.logWithContext(
             spdlog::level::level_enum::debug,
@@ -398,7 +398,7 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     }
 
     if (!trackedPosition) {
-        lastPositionChangedTime = std::chrono::steady_clock::now();
+        lastPositionChangedTime = cb::time::steady_clock::now();
         trackedPosition = rangeItr.curr();
         return false;
     }
@@ -406,12 +406,12 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     if (*trackedPosition != rangeItr.curr()) {
         // The position has changed, save new position and the time.
         trackedPosition = rangeItr.curr();
-        lastPositionChangedTime = std::chrono::steady_clock::now();
+        lastPositionChangedTime = cb::time::steady_clock::now();
         return false;
     }
 
     // No change in position, check if the limit we are within limit
-    if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
+    if ((cb::time::steady_clock::now() - lastPositionChangedTime) <
         *maxNoProgressDuration) {
         return false;
     }

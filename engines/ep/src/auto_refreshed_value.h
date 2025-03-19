@@ -10,8 +10,8 @@
 
 #pragma once
 
+#include <platform/cb_time.h>
 #include <chrono>
-#include <functional>
 #include <optional>
 
 /**
@@ -19,7 +19,7 @@
  * given callback if the expiry time has elapsed. This can be useful for
  * providing a cached view of some expensive to compute value.
  */
-template <class Type, class Clock = std::chrono::steady_clock>
+template <class Type, class Clock = cb::time::steady_clock>
 class AutoRefreshedValue {
 public:
     AutoRefreshedValue() : expiry(std::chrono::seconds(10)) {

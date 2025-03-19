@@ -42,5 +42,5 @@ WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
 
 void MockTaskable::logRunTime(const GlobalTask& task,
                               std::string_view threadName,
-                              std::chrono::steady_clock::duration runTime) {
+                              cb::time::steady_clock::duration runTime) {
 }
