@@ -498,8 +498,7 @@ bool KVBucket::initialize() {
             std::make_shared<DurabilityCompletionTask>(engine);
     ExecutorPool::get()->schedule(durabilityCompletionTask);
 
-    ExTask workloadMonitorTask =
-            std::make_shared<WorkLoadMonitor>(engine, false);
+    workloadMonitorTask = std::make_shared<WorkLoadMonitor>(engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask);
 
 #if HAVE_JEMALLOC
@@ -2681,6 +2680,10 @@ void KVBucket::wakeUpCheckpointMemRecoveryTask() {
             task->wakeup();
         }
     }
+}
+
+void KVBucket::runWorkloadMonitor() {
+    workloadMonitorTask->execute("");
 }
 
 void KVBucket::runDefragmenterTask() {

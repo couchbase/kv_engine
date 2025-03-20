@@ -939,6 +939,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHistoryRetentionBytes(std::stoull(val));
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
+        } else if (key == "workload_pattern_default") {
+            configuration.setWorkloadPatternDefault(val);
         } else {
             EP_LOG_WARN("Rejecting setFlushParam request key:{}", key);
             msg = "Unknown config param " + std::string{key};

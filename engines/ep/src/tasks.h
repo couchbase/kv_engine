@@ -12,6 +12,7 @@
 #pragma once
 
 #include "ep_task.h"
+#include "executor/workload.h"
 #include "kvstore/kvstore.h"
 #include <memcached/storeddockey.h>
 #include <array>
@@ -283,6 +284,7 @@ public:
 
 private:
     void autoSelectWorkLoadPattern();
+    workload_pattern_t getDefaultWorkLoadPattern();
 
     size_t getNumMutations();
     size_t getNumGets();

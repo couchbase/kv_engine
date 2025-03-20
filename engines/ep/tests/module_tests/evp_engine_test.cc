@@ -354,6 +354,56 @@ TEST_P(EPEngineParamTest, VBucketSanityChecking) {
     EXPECT_NO_THROW(store_item(Vbid(1), "key", "value"));
 }
 
+TEST_P(EPEngineParamTest, WorkloadPatternDefault) {
+    engine->getKVBucket()->runWorkloadMonitor();
+
+    std::string msg;
+    // Check the defaults.
+    EXPECT_FALSE(engine->getConfiguration().isWorkloadMonitorEnabled())
+            << "Expected workload monitor to be disabled by default";
+    EXPECT_EQ("mixed", engine->getConfiguration().getWorkloadPatternDefault())
+            << "Expected default pattern to be mixed";
+    EXPECT_EQ(workload_pattern_t::MIXED,
+              engine->getWorkLoadPolicy().getWorkLoadPattern())
+            << "Expected active pattern to be mixed";
+
+    // Check the possible values.
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "workload_pattern_default", "read_heavy", msg));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "workload_pattern_default", "write_heavy", msg));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("workload_pattern_default", "mixed", msg));
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam("workload_pattern_default", "other", msg));
+
+    // Ensure the workload_pattern_default is propagated on the next task run.
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "workload_pattern_default", "read_heavy", msg));
+    engine->getKVBucket()->runWorkloadMonitor();
+
+    EXPECT_EQ("read_heavy",
+              engine->getConfiguration().getWorkloadPatternDefault())
+            << "Expected default pattern to be read_heavy";
+    EXPECT_EQ(workload_pattern_t::READ_HEAVY,
+              engine->getWorkLoadPolicy().getWorkLoadPattern())
+            << "Expected active pattern to be read_heavy";
+
+    // Ensure that workload monitoring can be enabled and overrides the default.
+    // 1 set / 0 gets is write_heavy.
+    engine->getEpStats().numOpsStore++;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("workload_monitor_enabled", "true", msg));
+    engine->getKVBucket()->runWorkloadMonitor();
+
+    EXPECT_EQ(workload_pattern_t::WRITE_HEAVY,
+              engine->getWorkLoadPolicy().getWorkLoadPattern())
+            << "Expected active pattern to be write_heavy";
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(
         EphemeralOrPersistent,
