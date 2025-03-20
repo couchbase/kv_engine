@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 template <class S, class Pointer, class Deleter> class SingleThreadedRCPtr;
@@ -69,6 +70,11 @@ enum class IncludeValue : char {
      */
     NoWithUnderlyingDatatype,
 };
+
+std::string to_string(IncludeValue includeValue);
+inline auto format_as(IncludeValue includeValue) {
+    return to_string(includeValue);
+}
 
 /*
  * IncludeXattrs is used to state whether an active stream needs to send the
