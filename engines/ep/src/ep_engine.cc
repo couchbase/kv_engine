@@ -872,6 +872,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHistoryRetentionBytes(std::stoull(val));
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
+        } else if (key == "workload_pattern_default") {
+            configuration.setWorkloadPatternDefault(val);
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;

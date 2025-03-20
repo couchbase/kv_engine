@@ -755,6 +755,8 @@ public:
 
     virtual void wakeUpCheckpointMemRecoveryTask() = 0;
 
+    virtual void runWorkloadMonitor() = 0;
+
     virtual void runDefragmenterTask() = 0;
 
     /**

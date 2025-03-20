@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "executor/workload.h"
 #include "kvstore/kvstore.h"
 #include "storeddockey.h"
 #include <executor/globaltask.h>
@@ -315,6 +316,7 @@ public:
 
 private:
     void autoSelectWorkLoadPattern();
+    workload_pattern_t getDefaultWorkLoadPattern();
 
     size_t getNumMutations();
     size_t getNumGets();

@@ -627,6 +627,8 @@ public:
 
     void wakeUpCheckpointMemRecoveryTask() override;
 
+    void runWorkloadMonitor() override;
+
     void runDefragmenterTask() override;
 
     /**
@@ -1142,6 +1144,7 @@ protected:
     std::vector<std::shared_ptr<CheckpointDestroyerTask>> ckptDestroyerTasks;
 
     float                           bfilterResidencyThreshold;
+    ExTask workloadMonitorTask;
     ExTask                          defragmenterTask;
     ExTask itemCompressorTask;
     // The itemFreqDecayerTask is used to decay the frequency count of items

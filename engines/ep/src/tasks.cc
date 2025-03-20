@@ -248,11 +248,23 @@ void WorkLoadMonitor::autoSelectWorkLoadPattern() {
     prevNumGets = curr_num_gets;
 }
 
+workload_pattern_t WorkLoadMonitor::getDefaultWorkLoadPattern() {
+    auto s = engine->getConfiguration().getWorkloadPatternDefault();
+    if (s == "read_heavy") {
+        return workload_pattern_t::READ_HEAVY;
+    } else if (s == "write_heavy") {
+        return workload_pattern_t::WRITE_HEAVY;
+    } else {
+        return workload_pattern_t::MIXED;
+    }
+}
+
 bool WorkLoadMonitor::run() {
     if (engine->getConfiguration().isWorkloadMonitorEnabled()) {
         autoSelectWorkLoadPattern();
     } else {
-        engine->getWorkLoadPolicy().setWorkLoadPattern(MIXED);
+        engine->getWorkLoadPolicy().setWorkLoadPattern(
+                getDefaultWorkLoadPattern());
     }
 
     snooze(WORKLOAD_MONITOR_FREQ);
