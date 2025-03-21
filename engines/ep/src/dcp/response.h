@@ -40,7 +40,8 @@ public:
         SystemEvent,
         SeqnoAcknowledgement,
         OSOSnapshot,
-        SeqnoAdvanced
+        SeqnoAdvanced,
+        CachedValue
     };
 
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
@@ -90,6 +91,7 @@ public:
         case Event::Prepare:
         case Event::Commit:
         case Event::Abort:
+        case Event::CachedValue:
             return false;
 
         case Event::SetVbucket:
@@ -470,6 +472,9 @@ public:
      * @param includeDeletesUserXattrs Does the DCP deletion contain user-xattrs
      * @param includeCollectionID If the incoming/outgoing key should contain
      *        the Collection-ID.
+     * @param sid The stream-ID
+     * @param eventType Optional Event. If not defined the Item defines the
+     * Event (see eventFromItem) else this defines the Event.
      */
     MutationResponse(queued_item item,
                      uint32_t opaque,
@@ -479,8 +484,10 @@ public:
                      IncludeDeletedUserXattrs includeDeletedUserXattrs,
                      DocKeyEncodesCollectionId includeCollectionID,
                      EnableExpiryOutput enableExpiryOut,
-                     cb::mcbp::DcpStreamId sid)
-        : DcpResponse(eventFromItem(*item), opaque, sid),
+                     cb::mcbp::DcpStreamId sid,
+                     std::optional<Event> eventType = std::nullopt)
+        : DcpResponse(
+                  eventType ? *eventType : eventFromItem(*item), opaque, sid),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),

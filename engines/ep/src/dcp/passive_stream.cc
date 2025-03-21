@@ -477,6 +477,7 @@ cb::engine_errc PassiveStream::processMessageInner(
     case DcpResponse::Event::SeqnoAcknowledgement:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
+    case DcpResponse::Event::CachedValue:
         throw std::invalid_argument(
                 "PassiveStream::processMessageInner: invalid event " +
                 std::string(message->to_string()));
@@ -1332,6 +1333,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::SeqnoAcknowledgement:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
+    case DcpResponse::Event::CachedValue:
         // These are invalid events for this path, they are handled by
         // the DcpConsumer class
         throw std::invalid_argument(

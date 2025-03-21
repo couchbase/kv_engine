@@ -1126,6 +1126,27 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                            resp->getStreamId());
             break;
         }
+        case DcpResponse::Event::CachedValue: {
+            if (itmCpy == nullptr) {
+                throw std::logic_error(
+                        "DcpProducer::step(CachedValue): itmCpy must be != "
+                        "nullptr");
+            }
+
+            const uint8_t hotness =
+                    encodeItemHotness(*mutationResponse->getItem());
+            // For now push through as a mutation which permits some level of
+            // testing with dcpdrain
+            ret = producers.mutation(mutationResponse->getOpaque(),
+                                     toUniqueItemPtr(std::move(itmCpy)),
+                                     mutationResponse->getVBucket(),
+                                     *mutationResponse->getBySeqno(),
+                                     mutationResponse->getRevSeqno(),
+                                     0 /* lock time */,
+                                     hotness,
+                                     mutationResponse->getStreamId());
+            break;
+        }
         default:
         {
             logger->warnWithContext("Unexpected dcp event, disconnecting",
@@ -1148,6 +1169,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::Prepare:
         case DcpResponse::Event::SystemEvent:
         case DcpResponse::Event::SeqnoAdvanced:
+        case DcpResponse::Event::CachedValue:
             itemsSent++;
             break;
         case DcpResponse::Event::AddStream:
@@ -2187,6 +2209,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
     case DcpResponse::Event::SystemEvent:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
+    case DcpResponse::Event::CachedValue:
         break;
     default:
         throw std::logic_error(fmt::format(

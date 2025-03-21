@@ -64,6 +64,8 @@ const char* DcpResponse::to_string() const {
         return "OSO snapshot";
     case Event::SeqnoAdvanced:
         return "Seqno Advanced";
+    case Event::CachedValue:
+        return "CachedValue";
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
