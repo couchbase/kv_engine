@@ -261,7 +261,7 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t snapEnd,
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
-        uint64_t highPreparedSeqno,
+        uint64_t initialHighPreparedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical,
         uint64_t purgeSeqno) {
@@ -275,7 +275,7 @@ void CheckpointManager::addOpenCheckpoint(
                 snapStart,
                 snapEnd,
                 visibleSnapEnd,
-                highPreparedSeqno,
+                initialHighPreparedSeqno,
                 to_string_or_none(highCompletedSeqno),
                 ::to_string(checkpointType),
                 ::to_string(historical),
@@ -308,7 +308,7 @@ void CheckpointManager::addOpenCheckpoint(
             snapEnd,
             visibleSnapEnd,
             to_string_or_none(highCompletedSeqno),
-            highPreparedSeqno,
+            initialHighPreparedSeqno,
             to_string(checkpointType),
             purgeSeqno);
 
@@ -319,7 +319,7 @@ void CheckpointManager::addOpenCheckpoint(
                                              snapEnd,
                                              visibleSnapEnd,
                                              highCompletedSeqno,
-                                             highPreparedSeqno,
+                                             initialHighPreparedSeqno,
                                              vb.getId(),
                                              checkpointType,
                                              historical,
