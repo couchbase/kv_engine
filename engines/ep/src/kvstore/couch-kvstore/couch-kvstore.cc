@@ -4391,7 +4391,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
             return {cb::engine_errc::key_already_exists, {}};
         }
     }
-    // TODO: Get DEK ids (MB-63440)
+    // TODO: Get DEK ids (MB-65911)
     return {cb::engine_errc::success, {}};
 }
 
