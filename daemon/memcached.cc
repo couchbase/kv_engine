@@ -881,7 +881,8 @@ int memcached_main(int argc, char** argv) {
                                            verbosity_changed_listener);
 
     // Logging available now extensions have been loaded.
-    LOG_INFO_CTX("Couchbase starting", {"version", get_server_version()});
+    LOG_INFO_CTX("Couchbase version starting",
+                 {"version", get_server_version()});
     LOG_INFO_CTX("Process identifier", {"pid", getpid()});
 
     if (folly::kIsSanitizeAddress) {
