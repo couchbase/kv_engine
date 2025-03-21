@@ -917,11 +917,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                     ? 0
                     : marker->getHighCompletedSeqno();
 
-    const std::optional<uint64_t> hps =
-            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
-                            !supportsSyncReplication
-                    ? 0
-                    : marker->getHighPreparedSeqno();
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+        supportsSyncReplication) {
+        cur_snapshot_hps = marker->getHighPreparedSeqno();
+    } else {
+        cur_snapshot_hps = std::nullopt;
+    }
 
     if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) && !hcs) {
         const auto msg = fmt::format(
@@ -998,19 +999,18 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                cur_snapshot_end.load(),
                                hcs,
-                               hps,
+                               cur_snapshot_hps,
                                checkpointType,
                                visibleSeq,
                                historical,
                                purgeSeqno);
     } else {
         // Case: receiving any type of snapshot (Disk/Memory).
-
         if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Checkpoint)) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    hcs,
-                                   hps,
+                                   cur_snapshot_hps,
                                    checkpointType,
                                    visibleSeq,
                                    historical,
@@ -1033,7 +1033,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
                                        hcs,
-                                       hps,
+                                       cur_snapshot_hps,
                                        checkpointType,
                                        visibleSeq,
                                        historical,

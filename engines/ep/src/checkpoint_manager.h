@@ -798,15 +798,20 @@ protected:
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      * @param historical Whether this checkpoint stores an historical snapshot
+     * @param snapHighPreparedSeqno has the HPS when a checkpoint is created
+     * from a disk snapshot. This is used to set the HPS on the checkpoint when
+     * the last mutation in the snapshot is processed.
      */
-    void addOpenCheckpoint(uint64_t snapStart,
-                           uint64_t snapEnd,
-                           uint64_t visibleSnapEnd,
-                           std::optional<uint64_t> highCompletedSeqno,
-                           uint64_t highPreparedSeqno,
-                           CheckpointType checkpointType,
-                           CheckpointHistorical historical,
-                           uint64_t purgeSeqno = 0);
+    void addOpenCheckpoint(
+            uint64_t snapStart,
+            uint64_t snapEnd,
+            uint64_t visibleSnapEnd,
+            std::optional<uint64_t> highCompletedSeqno,
+            uint64_t highPreparedSeqno,
+            CheckpointType checkpointType,
+            CheckpointHistorical historical,
+            uint64_t purgeSeqno = 0,
+            OptionalSeqno snapHighPreparedSeqno = std::nullopt);
 
     /**
      * Verifies whether the cursor and CM states allow to move the cursor to the

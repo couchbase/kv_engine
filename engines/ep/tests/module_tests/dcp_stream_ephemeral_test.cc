@@ -368,7 +368,7 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                        DcpSnapshotMarkerFlag::Checkpoint |
                                                DcpSnapshotMarkerFlag::Disk,
                                        {} /*HCS*/,
-                                       {},
+                                       {}, /*HPS*/
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 

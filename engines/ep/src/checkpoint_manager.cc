@@ -200,8 +200,6 @@ void CheckpointManager::addNewCheckpoint(
     // such that the Checkpoint [3:Mutation] also has HPS = 1.
     auto hps = oldOpenCkpt.getHighPreparedSeqno();
 
-    hps = std::max(hps, highPreparedSeqno.value_or(0));
-
     addOpenCheckpoint(snapStartSeqno,
                       snapEndSeqno,
                       visibleSnapEnd,
@@ -209,7 +207,8 @@ void CheckpointManager::addNewCheckpoint(
                       hps,
                       checkpointType,
                       historical,
-                      purgeSeqno);
+                      purgeSeqno,
+                      highPreparedSeqno);
 
     // If cursors reached to the end of its current checkpoint, move it to the
     // next checkpoint. That is done to help in making checkpoints eligible for
@@ -264,7 +263,8 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t initialHighPreparedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical,
-        uint64_t purgeSeqno) {
+        uint64_t purgeSeqno,
+        OptionalSeqno snapHighPreparedSeqno) {
     const auto makeException = [&](std::string_view suffix) {
         return std::invalid_argument(fmt::format(
                 "CheckpointManager::addOpenCheckpoint: {}, snapStart:{}, "
@@ -324,7 +324,8 @@ void CheckpointManager::addOpenCheckpoint(
                                              checkpointType,
                                              historical,
                                              purgeSeqno,
-                                             totalItems);
+                                             totalItems,
+                                             snapHighPreparedSeqno);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -1002,12 +1003,21 @@ bool CheckpointManager::queueDirty(
                 std::to_string(checkpointList.size()));
     }
 
-    // On a replica lastSnapshotHighSeqno, tracks if the last received snapshot
-    // was fully processed.  If there is a hard failover & this node
+    // 1. On a replica lastSnapshotHighSeqno, tracks if the last received
+    // snapshot was fully processed.  If there is a hard failover & this node
     // becomes active, we'll create the failover entry using
     // lastSnapshotHighSeqno.
+
+    // 2. When the last mutation is processed, update the highPreparedSeqno on
+    // the disk checkpoint.
     if (uint64_t(lastBySeqno) == snapEnd) {
         lastSnapshotHighSeqno = lastBySeqno;
+        if (openCkpt->isDiskCheckpoint()) {
+            const auto snapHps = openCkpt->getSnapHighPreparedSeqno();
+            if (snapHps.has_value()) {
+                openCkpt->setHighPreparedSeqno(snapHps.value());
+            }
+        }
     }
 
     switch (result.status) {

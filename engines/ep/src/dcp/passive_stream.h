@@ -397,6 +397,11 @@ protected:
     // front-end threads.
     std::atomic<bool> cur_snapshot_prepare;
 
+    // Cache the hps received in a snapshot marker. Remains unset when the
+    // producer doesn't support sync-replication or if snapshot marker is
+    // not v2.2
+    OptionalSeqno cur_snapshot_hps;
+
     // To keep the collections manifest for the Replica consistent we cannot
     // allow it to stream from an Active that is behind in terms of the
     // collections manifest. Send the collections manifest uid to the Active

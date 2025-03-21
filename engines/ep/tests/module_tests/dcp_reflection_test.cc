@@ -1517,7 +1517,7 @@ TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForPendingItems) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
                     *replicaVB->checkpointManager);
 
-    EXPECT_EQ(2, checkpoint.getHighPreparedSeqno());
+    EXPECT_EQ(0, checkpoint.getHighPreparedSeqno());
 
     route0_1.transferPrepare(k1, 1);
     route0_1.transferPrepare(k2, 2);

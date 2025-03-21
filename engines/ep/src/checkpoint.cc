@@ -60,7 +60,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        CheckpointType checkpointType,
                        CheckpointHistorical historical,
                        uint64_t purgeSeqno,
-                       size_t position)
+                       size_t position,
+                       OptionalSeqno snapHighPreparedSeqno)
+
     : manager(&manager),
       stats(st),
       checkpointId(id),
@@ -78,9 +80,11 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       queueMemOverhead(st, &manager.memOverheadQueue),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
+      highPreparedSeqno(highPreparedSeqno, {*this}),
       historical(historical),
       purgeSeqno(purgeSeqno),
-      positionOnItemLine(position) {
+      positionOnItemLine(position),
+      snapHighPreparedSeqno(snapHighPreparedSeqno) {
     Expects(snapStart <= snapEnd);
     Expects(visibleSnapEnd <= snapEnd);
 
@@ -88,8 +92,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     core->memOverhead += sizeof(Checkpoint);
     core->numCheckpoints++;
     stats.checkpointManagerEstimatedMemUsage->fetch_add(sizeof(Checkpoint));
-
-    this->highPreparedSeqno = highPreparedSeqno;
 
     auto state = manager.getVBState();
     if (state == vbucket_state_replica || state == vbucket_state_dead) {
@@ -773,7 +775,10 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
        << " type:" << to_string(c.getCheckpointType())
        << " positionOnItemLine:" << c.getPositionOnItemLine()
        << " hps:" << std::to_string(c.getHighPreparedSeqno())
-       << " purgeSeqno:" << c.getPurgeSeqno();
+       << " purgeSeqno:" << c.getPurgeSeqno() << " snapHighPreparedSeqno:"
+       << (c.getSnapHighPreparedSeqno()
+                   ? std::to_string(c.getSnapHighPreparedSeqno().value())
+                   : "none");
 
     const auto hcs = c.getHighCompletedSeqno();
     os << " hcs:" << (hcs ? std::to_string(hcs.value()) : "none ") << " items:["

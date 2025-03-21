@@ -7688,8 +7688,8 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  0, // start-seq
                                  2, // end-seq
                                  DcpSnapshotMarkerFlag::Disk,
-                                 0 /*HCS*/,
-                                 0 /*HPS*/,
+                                 2 /*HCS*/,
+                                 1 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "snapshot_marker returned an error");
