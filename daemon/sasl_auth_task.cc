@@ -96,6 +96,10 @@ void SaslAuthTask::successfull_external_auth(const nlohmann::json& json) {
         tokenMetadata = json["token"];
     }
 
+    if (json.contains("audit_props")) {
+        additionalAuditInformation = json["audit_props"];
+    }
+
     externalAuthManager->login(serverContext.getUsername());
 }
 

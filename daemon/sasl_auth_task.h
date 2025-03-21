@@ -66,6 +66,10 @@ public:
         return tokenMetadata;
     }
 
+    auto getAdditionalAuditInformation() const {
+        return additionalAuditInformation;
+    }
+
 protected:
     void successfull_external_auth(const nlohmann::json& json);
     void unsuccessfull_external_auth(cb::mcbp::Status status,
@@ -80,5 +84,6 @@ protected:
     std::string challenge;
     std::string context;
     std::optional<nlohmann::json> tokenMetadata;
+    std::optional<nlohmann::json> additionalAuditInformation;
     cb::sasl::Error error = cb::sasl::Error::FAIL;
 };

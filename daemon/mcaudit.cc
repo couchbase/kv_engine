@@ -27,6 +27,7 @@
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
+#include <optional>
 #include <sstream>
 
 /// @returns the singleton audit handle.
@@ -152,6 +153,7 @@ std::unique_ptr<AuditEventFilter> create_audit_event_filter() {
 void audit_auth_failure(const Connection& c,
                         const cb::rbac::UserIdent& ui,
                         const char* reason,
+                        const std::optional<nlohmann::json>& additional,
                         Cookie* cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                    c,
@@ -161,6 +163,9 @@ void audit_auth_failure(const Connection& c,
     auto root = create_memcached_audit_object(
             MEMCACHED_AUDIT_AUTHENTICATION_FAILED, c, ui, {});
     root["reason"] = reason;
+    if (additional) {
+        root["auth_provider"] = *additional;
+    }
 
     do_audit(cookie,
              MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
@@ -168,7 +173,9 @@ void audit_auth_failure(const Connection& c,
              "Failed to send AUTH FAILED audit event");
 }
 
-void audit_auth_success(const Connection& c, Cookie* cookie) {
+void audit_auth_success(const Connection& c,
+                        const std::optional<nlohmann::json>& additional,
+                        Cookie* cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
                    c,
                    cookie ? cookie->getEffectiveUser() : nullptr)) {
@@ -176,6 +183,9 @@ void audit_auth_success(const Connection& c, Cookie* cookie) {
     }
     auto root = create_memcached_audit_object(
             MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, c, c.getUser(), {});
+    if (additional) {
+        root["auth_provider"] = *additional;
+    }
     do_audit(cookie,
              MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
              root,

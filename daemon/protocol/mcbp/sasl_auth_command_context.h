@@ -47,6 +47,7 @@ protected:
     cb::sasl::Error error = cb::sasl::Error::FAIL;
     std::string payload;
     std::optional<nlohmann::json> tokenMetadata;
+    std::optional<nlohmann::json> additionalAuditInformation;
 
 private:
     cb::engine_errc handleSaslAuthTaskResult();

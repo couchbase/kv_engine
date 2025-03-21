@@ -82,7 +82,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
 
     // Success
     connection.setAuthenticated(serverContext.getUser());
-    audit_auth_success(connection, &cookie);
+    audit_auth_success(connection, additionalAuditInformation, &cookie);
     LOG_INFO_CTX("Client authenticated",
                  {"conn_id", connection.getId()},
                  {"description", connection.getDescription()},
@@ -128,6 +128,7 @@ cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
         payload = task->getChallenge();
         tokenMetadata = task->getTokenMetadata();
         task->updateExternalAuthContext();
+        additionalAuditInformation = task->getAdditionalAuditInformation();
         task.reset();
     }
 
@@ -175,8 +176,11 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 {"user", cb::UserDataView(serverContext.getUser().name)},
                 {"mechanism", mechanism},
                 {"event_id", cookie.getEventId()});
-        audit_auth_failure(
-                connection, serverContext.getUser(), "Unknown user", &cookie);
+        audit_auth_failure(connection,
+                           serverContext.getUser(),
+                           "Unknown user",
+                           additionalAuditInformation,
+                           &cookie);
         return authFailure(error);
 
     case cb::sasl::Error::PASSWORD_ERROR:
@@ -188,6 +192,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         audit_auth_failure(connection,
                            serverContext.getUser(),
                            "Incorrect password",
+                           additionalAuditInformation,
                            &cookie);
 
         return authFailure(error);
@@ -196,6 +201,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         audit_auth_failure(connection,
                            serverContext.getUser(),
                            "Password expired",
+                           additionalAuditInformation,
                            &cookie);
         cookie.setErrorContext("Password expired");
         return authFailure(error);
@@ -210,6 +216,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         audit_auth_failure(connection,
                            serverContext.getUser(),
                            "No RBAC profile",
+                           additionalAuditInformation,
                            &cookie);
         return authFailure(error);
 

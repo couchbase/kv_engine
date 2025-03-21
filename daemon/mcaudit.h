@@ -13,7 +13,9 @@
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privilege_database.h>
+#include <nlohmann/json.hpp>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -33,18 +35,33 @@ std::unique_ptr<AuditEventFilter> create_audit_event_filter();
  * @param c the connection object performing the sasl auth
  * @param ui the provided user ident used for bucket auth
  * @param reason the textual description of why auth failed
+ * @param additional optional additional information to include in the audit
+ *                 event (the external authentication provider may want to
+ *                 include additional information)
+ * @param cookie the cookie performing the operation (may be nullptr for
+ *               certificate based authentication)
  */
-void audit_auth_failure(const Connection& c,
-                        const cb::rbac::UserIdent& ui,
-                        const char* reason,
-                        Cookie* cookie = nullptr);
+void audit_auth_failure(
+        const Connection& c,
+        const cb::rbac::UserIdent& ui,
+        const char* reason,
+        const std::optional<nlohmann::json>& additional = std::nullopt,
+        Cookie* cookie = nullptr);
 
 /**
  * Send an audit event for a successful authentication
  *
  * @param c the connection object performing the sasl auth
+ * @param additional optional additional information to include in the audit
+ *                 event (the external authentication provider may want to
+ *                 include additional information)
+ * @param cookie the cookie performing the operation (may be nullptr for
+ *               certificate based authentication)
  */
-void audit_auth_success(const Connection& c, Cookie* cookie = nullptr);
+void audit_auth_success(
+        const Connection& c,
+        const std::optional<nlohmann::json>& additional = std::nullopt,
+        Cookie* cookie = nullptr);
 
 /**
  * Send an audit event for that the specified connection
