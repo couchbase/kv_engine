@@ -483,6 +483,33 @@ public:
     }
 
     /**
+     * Callback method for WarmupBackfillTask to notify Warmup that a task
+     * has successfully finished.
+     *
+     * @param nextState The next state to transition to if all backfill tasks
+     *                  have finished.
+     */
+    void backfillTaskFinished(WarmupState::State nextState);
+
+    /**
+     * For the following phases of warmup:
+     * - KeyDump
+     * - LoadingKVPairs
+     * - LoadingData
+     *
+     * This method returns the number of tasks to schedule.
+     *
+     * @param config The configuration to use for calculating the output, this
+     * is generally the value of warmup_backfill_task_shard_ratio. 0.0 means the
+     * result is the smaller of the number of shards or the number of reader
+     * threads. >0.0 (upto 1.0) results in the number of tasks being the number
+     * of shards multiplied by the config (and result is always >0).
+     * @param numShards The number of shards.
+     * @return The number of tasks to schedule.
+     */
+    static size_t getNumberOfTasksToSchedule(float config, size_t numShards);
+
+    /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
      */
@@ -585,12 +612,21 @@ private:
     void populateShardVbStates();
 
     /**
-     * Helper method to schedule a WarmupBackfillTask for each shard.
+     * Helper method to schedule a task for each shard.
      *
      * @param phase The warmup phase that is being scheduled to run. See
      *  WarmupState::State for details.
      */
-    void scheduleShardedTasks(const WarmupState::State phase);
+    void scheduleShardedTasks(WarmupState::State phase);
+
+    /**
+     * Helper method to schedule per sharded tasks which have a bounded
+     * number of tasks to run.
+     *
+     * @param phase The warmup phase that is being scheduled to run. See
+     *  WarmupState::State for details.
+     */
+    void scheduleShardedAndBoundedTasks(WarmupState::State phase);
 
     void transition(WarmupState::State to, bool force = false);
 
@@ -642,6 +678,7 @@ private:
     cb::AtomicDuration<> metadata;
     cb::AtomicDuration<> warmup;
     std::atomic<size_t> threadtask_count{0};
+    std::atomic<size_t> backfillTaskCounter{0};
 
     // VBData stores information for one VBucket
     struct VBData {

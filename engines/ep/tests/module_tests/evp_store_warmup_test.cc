@@ -3331,7 +3331,7 @@ TEST_F(WarmupTest, DoNotWarmupIntoNewVbucket) {
     EXPECT_EQ(0, vb->getNumItems());
 
     // Step once
-    runNextTask(readerQueue, "Warmup - key dump shard 0");
+    runNextTask(readerQueue, "Warmup - key dump shards 0-0");
 
     EXPECT_EQ(1, epStats.warmedUpKeys);
     EXPECT_EQ(0, epStats.warmedUpValues);
@@ -3342,7 +3342,7 @@ TEST_F(WarmupTest, DoNotWarmupIntoNewVbucket) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // Step again
-    runNextTask(readerQueue, "Warmup - key dump shard 0");
+    runNextTask(readerQueue, "Warmup - key dump shards 0-0");
 
     vb = engine->getKVBucket()->getVBucket(vbid);
     // No keys. Before weak_ptr changes (MB-62000), this would fail as a key
@@ -3434,4 +3434,26 @@ TEST_F(WarmupTest, ChangeConfig) {
     EXPECT_EQ(0, config.getPrimaryWarmupMinItemsThreshold());
     EXPECT_EQ(100, config.getSecondaryWarmupMinMemoryThreshold());
     EXPECT_EQ(100, config.getSecondaryWarmupMinItemsThreshold());
+}
+
+TEST_F(WarmupTest, TaskCount) {
+    ExecutorPool::get()->setNumReaders(ThreadPoolConfig::ThreadCount(4));
+
+    // Test ratio of shards
+    EXPECT_EQ(8, Warmup::getNumberOfTasksToSchedule(1.0, 8));
+    EXPECT_EQ(2, Warmup::getNumberOfTasksToSchedule(0.25, 8));
+    EXPECT_EQ(4, Warmup::getNumberOfTasksToSchedule(0.5, 8));
+
+    // Test at least 1 task is created
+    EXPECT_EQ(1, Warmup::getNumberOfTasksToSchedule(0.25, 2));
+
+    // Test when config is 0.0 (not a ratio of shards)
+    // shards > readers, capped to reader count
+    EXPECT_EQ(ExecutorPool::get()->getNumReaders(),
+              Warmup::getNumberOfTasksToSchedule(0.0, 8));
+    // Shards < readers, capped to shards
+    EXPECT_EQ(2, Warmup::getNumberOfTasksToSchedule(0.0, 2));
+
+    // 4 shards, 4 readers, 4 tasks
+    EXPECT_EQ(4, Warmup::getNumberOfTasksToSchedule(0.0, 4));
 }

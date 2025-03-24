@@ -394,15 +394,17 @@ public:
      * state.
      */
     WarmupBackfillTask(EPBucket& bucket,
-                       size_t shardId,
+                       std::vector<size_t> shards,
                        Warmup& warmup,
                        TaskId taskId,
-                       std::string_view taskDesc,
-                       std::atomic<size_t>& threadTaskCount)
+                       std::string_view taskDesc)
         : EpTask(bucket.getEPEngine(), taskId, 0, true),
           warmup(warmup),
-          shardId(shardId),
-          description(fmt::format("Warmup - {} shard {}", taskDesc, shardId)),
+          shardIds(std::move(shards)),
+          description(fmt::format("Warmup - {} shards {}-{}",
+                                  taskDesc,
+                                  shardIds.front(),
+                                  shardIds.back())),
           // Max expected duration is the chunk duration this task yields after,
           // plus additional margin to account for the time taken to process
           // the last item, and also to only catch truly "slow" outlying
@@ -411,9 +413,9 @@ public:
                                       .getWarmupBackfillScanChunkDuration() *
                               120) /
                              100),
-          currentNumBackfillTasks(threadTaskCount),
           visitor(bucket, *this),
-          currentVb(warmup.shardVBData[shardId].begin()) {
+          currentShardId(shardIds.begin()),
+          currentVb(warmup.shardVBData[*currentShardId].begin()) {
         warmup.addToTaskSet(uid);
     }
 
@@ -428,7 +430,7 @@ public:
     bool run() override {
         TRACE_EVENT1(
                 "ep-engine/task", "WarmupBackfillTask", "shard", getShardId());
-        if (warmup.shardVBData[shardId].empty() ||
+        if (warmup.shardVBData[*currentShardId].empty() ||
             engine->getEpStats().isShutdown) {
             // Technically "isShutdown" being true doesn't equate to a
             // successful task finish, however if we are shutting down we want
@@ -439,7 +441,7 @@ public:
 
         visitor.begin();
         try {
-            for (; currentVb != warmup.shardVBData[shardId].end();
+            for (; currentVb != warmup.shardVBData[*currentShardId].end();
                  ++currentVb) {
                 auto vb = warmup.tryAndGetVbucket(currentVb->vbid);
                 if (vb) {
@@ -461,16 +463,22 @@ public:
             return false;
         }
 
-        if (currentVb == warmup.shardVBData[shardId].end()) {
-            finishTask(true);
-            return false;
+        if (currentVb == warmup.shardVBData[*currentShardId].end()) {
+            // Advance to next shard
+            currentShardId++;
+            if (currentShardId != shardIds.end()) {
+                currentVb = warmup.shardVBData[*currentShardId].begin();
+            } else {
+                finishTask(true);
+                return false;
+            }
         }
 
         return true;
     }
 
     size_t getShardId() const {
-        return shardId;
+        return *currentShardId;
     }
 
     Warmup& getWarmup() const {
@@ -505,20 +513,16 @@ private:
             // completions.
             return;
         }
-        // If this is the last backfill task (all shards have finished) then
-        // move us to the next state.
-        if (++currentNumBackfillTasks ==
-            engine->getKVBucket()->getVBuckets().getNumShards()) {
-            warmup.transition(getNextState());
-        }
+
+        warmup.backfillTaskFinished(getNextState());
     }
 
-    const size_t shardId;
+    const std::vector<size_t> shardIds;
     const std::string description;
     /// After how long should this task yield, allowing other tasks to run?
     const std::chrono::milliseconds maxExpectedRuntime;
-    std::atomic<size_t>& currentNumBackfillTasks;
     WarmupVbucketVisitor visitor;
+    std::vector<size_t>::const_iterator currentShardId;
     Warmup::ShardList::const_iterator currentVb;
 };
 
@@ -645,16 +649,12 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
  */
 class WarmupKeyDump : public WarmupBackfillTask {
 public:
-    WarmupKeyDump(EPBucket& bucket,
-                  size_t shardId,
-                  Warmup& warmup,
-                  std::atomic<size_t>& threadTaskCount)
+    WarmupKeyDump(EPBucket& bucket, std::vector<size_t> shards, Warmup& warmup)
         : WarmupBackfillTask(bucket,
-                             shardId,
+                             std::move(shards),
                              warmup,
                              TaskId::WarmupKeyDump,
-                             "key dump",
-                             threadTaskCount) {
+                             "key dump") {
     }
 
     WarmupState::State getNextState() const override {
@@ -753,15 +753,13 @@ private:
 class WarmupLoadingKVPairs : public WarmupBackfillTask {
 public:
     WarmupLoadingKVPairs(EPBucket& bucket,
-                         size_t shardId,
-                         Warmup& warmup,
-                         std::atomic<size_t>& threadTaskCount)
+                         std::vector<size_t> shards,
+                         Warmup& warmup)
         : WarmupBackfillTask(bucket,
-                             shardId,
+                             std::move(shards),
                              warmup,
                              TaskId::WarmupLoadingKVPairs,
-                             "loading KV Pairs",
-                             threadTaskCount) {
+                             "loading KV Pairs") {
     }
 
     WarmupState::State getNextState() const override {
@@ -788,15 +786,13 @@ public:
 class WarmupLoadingData : public WarmupBackfillTask {
 public:
     WarmupLoadingData(EPBucket& bucket,
-                      size_t shardId,
-                      Warmup& warmup,
-                      std::atomic<size_t>& threadTaskCount)
+                      std::vector<size_t> shards,
+                      Warmup& warmup)
         : WarmupBackfillTask(bucket,
-                             shardId,
+                             std::move(shards),
                              warmup,
                              TaskId::WarmupLoadingData,
-                             "loading data",
-                             threadTaskCount) {
+                             "loading data") {
     }
 
     WarmupState::State getNextState() const override {
@@ -1621,10 +1617,9 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
     }
 }
 
-void Warmup::scheduleShardedTasks(const WarmupState::State phase) {
+void Warmup::scheduleShardedTasks(WarmupState::State phase) {
     threadtask_count = 0;
-
-    for (size_t shardId = 0; shardId < store.vbMap.shards.size(); ++shardId) {
+    for (size_t shardId = 0; shardId < getNumShards(); ++shardId) {
         switch (phase) {
         case WarmupState::State::CreateVBuckets:
             ExecutorPool::get()->schedule(
@@ -1651,23 +1646,13 @@ void Warmup::scheduleShardedTasks(const WarmupState::State phase) {
                     std::make_shared<WarmupPopulateVBucketMap>(
                             store, shardId, *this));
             break;
-        case WarmupState::State::KeyDump:
-            ExecutorPool::get()->schedule(std::make_shared<WarmupKeyDump>(
-                    store, shardId, *this, threadtask_count));
-            break;
         case WarmupState::State::LoadingAccessLog:
             ExecutorPool::get()->schedule(std::make_shared<WarmupLoadAccessLog>(
                     store, shardId, this));
             break;
-        case WarmupState::State::LoadingKVPairs:
-            ExecutorPool::get()->schedule(
-                    std::make_shared<WarmupLoadingKVPairs>(
-                            store, shardId, *this, threadtask_count));
-            break;
         case WarmupState::State::LoadingData:
-            ExecutorPool::get()->schedule(std::make_shared<WarmupLoadingData>(
-                    store, shardId, *this, threadtask_count));
-            break;
+        case WarmupState::State::KeyDump:
+        case WarmupState::State::LoadingKVPairs:
         case WarmupState::State::Initialize:
         case WarmupState::State::CheckForAccessLog:
         case WarmupState::State::Done:
@@ -1675,6 +1660,86 @@ void Warmup::scheduleShardedTasks(const WarmupState::State phase) {
                     "Warmup::scheduleShardedTasks: Unexpected phase:" +
                     to_string(phase));
         }
+    }
+}
+
+size_t Warmup::getNumberOfTasksToSchedule(float config, size_t numShards) {
+    Expects(config >= 0.0 && config <= 1.0);
+    // Constrain the number of tasks we create as shards can be huge compared to
+    // the number of reader threads available.
+    // Default to the number of readers or the number of shards, which is ever
+    // is the smaller.
+    size_t numTasks = std::min(ExecutorPool::get()->getNumReaders(), numShards);
+
+    // But check if there's a config value to choose something different.
+    // When config is >0.0 create n tasks, where n is a ratio of shards.
+    // At least 1 task must be created.
+    if (config > 0.0) {
+        numTasks = std::max(size_t(1), size_t(numShards * config));
+    }
+    return numTasks;
+}
+
+void Warmup::scheduleShardedAndBoundedTasks(const WarmupState::State phase) {
+    switch (phase) {
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+        break;
+    case WarmupState::State::CreateVBuckets:
+    case WarmupState::State::LoadingCollectionCounts:
+    case WarmupState::State::EstimateDatabaseItemCount:
+    case WarmupState::State::LoadPreparedSyncWrites:
+    case WarmupState::State::LoadingAccessLog:
+    case WarmupState::State::PopulateVBucketMap:
+    case WarmupState::State::Initialize:
+    case WarmupState::State::CheckForAccessLog:
+    case WarmupState::State::Done:
+        throw std::logic_error(
+                "Warmup::scheduleShardedAndBoundedTasks: Unexpected phase:" +
+                to_string(phase));
+    }
+    const auto config =
+            store.getConfiguration().getWarmupBackfillTaskShardRatio();
+    const auto numTasks = getNumberOfTasksToSchedule(config, getNumShards());
+
+    EP_LOG_INFO(
+            "Warmup({}) scheduling {} tasks for {} "
+            "warmup_backfill_task_shard_ratio:{}",
+            getName(),
+            numTasks,
+            to_string(phase),
+            config);
+
+    backfillTaskCounter = numTasks;
+    size_t shardId = 0;
+
+    // Spread shards across numTasks.
+    for (size_t task = 0; task < numTasks; ++task) {
+        std::vector<size_t> shards;
+        for (size_t shard = 0; shard < (getNumShards() / numTasks); ++shard) {
+            shards.push_back(shardId++);
+        }
+        // Could be an uneven distribution of shards over tasks, so spread final
+        // shards to final task.
+        if (task == numTasks - 1 && shardId < getNumShards()) {
+            while (shardId < getNumShards()) {
+                shards.push_back(shardId++);
+            }
+        }
+
+        ExTask newTask;
+        if (phase == WarmupState::State::KeyDump) {
+            newTask = std::make_shared<WarmupKeyDump>(
+                    store, std::move(shards), *this);
+        } else if (phase == WarmupState::State::LoadingKVPairs) {
+            newTask = std::make_shared<WarmupLoadingKVPairs>(
+                    store, std::move(shards), *this);
+        } else {
+            newTask = std::make_shared<WarmupLoadingData>(
+                    store, std::move(shards), *this);
+        }
+        ExecutorPool::get()->schedule(std::move(newTask));
     }
 }
 
@@ -1864,11 +1929,13 @@ void Warmup::step() {
     case WarmupState::State::LoadingCollectionCounts:
     case WarmupState::State::LoadPreparedSyncWrites:
     case WarmupState::State::PopulateVBucketMap:
-    case WarmupState::State::KeyDump:
     case WarmupState::State::LoadingAccessLog:
+        scheduleShardedTasks(state);
+        return;
+    case WarmupState::State::KeyDump:
     case WarmupState::State::LoadingKVPairs:
     case WarmupState::State::LoadingData:
-        scheduleShardedTasks(state);
+        scheduleShardedAndBoundedTasks(state);
         return;
     }
     folly::assume_unreachable();
@@ -2188,4 +2255,10 @@ VBucketPtr Warmup::tryAndGetVbucket(Vbid vbid) const {
         }
         return itr->second.lock();
     });
+}
+
+void Warmup::backfillTaskFinished(WarmupState::State nextState) {
+    if (--backfillTaskCounter == 0) {
+        transition(nextState);
+    }
 }

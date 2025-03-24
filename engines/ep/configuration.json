@@ -1906,6 +1906,22 @@
             },
             "comment": "The value selected needs to balance throughput of the task itself, and scheduling latency of other tasks on thr same thread. Too high a value (or not yielding at all) means that backfill tasks monopolise the thread they are running on and hence prevent other reader tasks - such as populating vBucket map for other Buckets being warmed up (see MB-47267 / MB-52383). Too low a value and the throughput of the task itself is low and warmup takes a long time - for example functional testing showed that time-to-first-item during a scan may be 40ms on mid-low end disks. If we selected a value less than 40ms then only a single item will be read per scan; given the setup of the scan itself can be costly we want aim to read at least a few items per scan."
         },
+        "warmup_backfill_task_shard_ratio": {
+            "default": "0.0",
+            "descr": "Ratio controlling how many tasks that will be created in the KeyDump, LoadingKVPairs and LoadingData phases. This is a ratio using the number of shards as the denominator and least 1 task will be created per phase. A value of 0.0 will create tasks equal to the lower of #shards or #reader-threads, a value of 1.0 restores the orginal behaviour, 1 task per shard.",
+            "dynamic": false,
+            "type": "float",
+            "requires": {
+                "bucket_type": "persistent"
+            },
+            "validator": {
+                "range": {
+                    "max": 1.0,
+                    "min": 0.0
+                }
+            },
+            "comment": "This value controls the number of tasks for certain phases of warmup and can help control the impact of warmup on read latency at the cost of a longer warmup time."
+        },
         "warmup_behavior": {
             "default": "background",
             "dynamic": true,
