@@ -1016,14 +1016,12 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         // DcpControl request, thus we expect the opaque to match.
         const auto& control = controls->front();
         if (response.getOpaque() != control.opaque.value()) {
-            logger->error(
-                    "Got non-matching opaque {} for "
-                    "DcpControl(\"{}\", \"{}\") expecting {} - "
-                    "disconnecting",
-                    response.getOpaque(),
-                    control.key,
-                    control.value,
-                    control.opaque.value());
+            logger->errorWithContext(
+                    "Got non-matching opaque for DcpControl - disconnecting",
+                    {{"opaque", response.getOpaque()},
+                     {"control_key", control.key},
+                     {"control_value", control.value},
+                     {"expected", control.opaque.value()}});
             return false;
         }
 
@@ -1032,23 +1030,19 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         if (response.getStatus() == cb::mcbp::Status::Success) {
             control.success();
         } else if (control.failure(*controls)) {
-            logger->error(
-                    "Got non-success status {} for "
-                    "DcpControl(\"{}\", \"{}\") - "
-                    "disconnecting",
-                    response.getStatus(),
-                    control.key,
-                    control.value);
+            logger->errorWithContext(
+                    "Got non-success status for DcpControl - disconnecting",
+                    {{"status", response.getStatus()},
+                     {"control_key", control.key},
+                     {"control_value", control.value}});
             // failure returned true, we must disconnect
             stayConnected = false;
         } else {
             // Log info about what didn't get enabled
-            logger->info(
-                    "Got non-success status {} for "
-                    "DcpControl(\"{}\", \"{}\")",
-                    response.getStatus(),
-                    control.key,
-                    control.value);
+            logger->infoWithContext("Got non-success status for DcpControl",
+                                    {{"status", response.getStatus()},
+                                     {"control_key", control.key},
+                                     {"control_value", control.value}});
         }
 
         // We have completed processing this control, discard it ready for the

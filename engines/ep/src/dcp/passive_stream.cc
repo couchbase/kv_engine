@@ -24,6 +24,7 @@
 #include "vbucket.h"
 
 #include <gsl/gsl-lite.hpp>
+#include <mcbp/protocol/json_utilities.h>
 #include <nlohmann/json.hpp>
 #include <platform/json_log_conversions.h>
 #include <platform/optional.h>
