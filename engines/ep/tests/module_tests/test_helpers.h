@@ -263,6 +263,31 @@ std::string generateNexusConfig(std::string_view testConfig);
  */
 std::string sanitizeTestParamConfigString(std::string_view config);
 
+/// A test flag implemented as an atomic flag, which needs to be cleared
+/// before it goes out of scope. If it is not cleared, an EXPECT_FALSE
+/// expectation will fail and will optionally output a message provided at
+/// construction.
+class ScopedFlag {
+public:
+    ScopedFlag(bool flag, std::string_view message = {})
+        : flag(flag), message(message) {
+    }
+
+    ~ScopedFlag();
+
+    void set() {
+        flag = true;
+    }
+
+    bool clear() {
+        return flag.exchange(false);
+    }
+
+private:
+    std::atomic<bool> flag;
+    std::string_view message;
+};
+
 StoredValue* forceInsert(HashTable& ht,
                          const HashTable::HashBucketLock& hbl,
                          const StoredValue& value);

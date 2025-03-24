@@ -314,6 +314,14 @@ std::string sanitizeTestParamConfigString(std::string_view config) {
     return ret;
 }
 
+ScopedFlag::~ScopedFlag() {
+    if (message.empty()) {
+        EXPECT_FALSE(flag.load());
+    } else {
+        EXPECT_FALSE(flag.load()) << message;
+    }
+}
+
 std::string generateBackendConfig(std::string_view config) {
     std::string ret = "backend=";
     if (config.find("persistent") == std::string::npos) {

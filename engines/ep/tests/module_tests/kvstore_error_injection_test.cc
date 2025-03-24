@@ -11,7 +11,6 @@
 #include "evp_store_single_threaded_test.h"
 
 #include "../couchstore/src/internal.h"
-#include "../mock/mock_magma_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
@@ -28,6 +27,11 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 
+#ifdef EP_USE_MAGMA
+#include "../mock/mock_magma_kvstore.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#endif // EP_USE_MAGMA
+
 #include <folly/portability/GMock.h>
 #include <storage_common/local_doc_constants.h>
 
@@ -35,7 +39,7 @@ using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 
 /**
- * Error injector interface with implementations for each KVStore that we care
+ * Error injector base class with implementations for each KVStore that we care
  * to test. This class/test fixture serves a different purpose to the
  * MockKVStore which we use to test Bucket/VBucket code. The purpose of the
  * ErrorInjector class/test fixture is to test changes in KVStore et. al. by
@@ -49,6 +53,8 @@ public:
      * Make the next KVStore::commit (flush) operation fail
      */
     virtual void failNextCommit() = 0;
+
+    virtual void failNextCompaction() = 0;
 
     /**
      * Make the next KVStore::snapshotVBucket (flush vbstate only) operation
@@ -73,6 +79,13 @@ public:
     }
 
     void failNextCommit() override {
+        using namespace testing;
+        EXPECT_CALL(ops, sync(_, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
+                .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
+    }
+
+    void failNextCompaction() override {
         using namespace testing;
         EXPECT_CALL(ops, sync(_, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
@@ -127,6 +140,14 @@ public:
             injector->onCloseFile(this);
         }
 
+        void failNextSync() {
+            using namespace testing;
+            EXPECT_CALL(*this, Sync())
+                    .WillOnce(Return(magma::Status(magma::Status::IOError,
+                                                   "Test error")))
+                    .WillRepeatedly(Return(magma::Status::OK()));
+        }
+
     private:
         MagmaKVStoreErrorInjector* const injector;
     };
@@ -144,6 +165,17 @@ public:
             kvstore->saveDocsErrorInjector = nullptr;
             return magma::Status::IOError;
         };
+    }
+
+    void failNextCompaction() override {
+        // Set the flag to fail if the hook is not called.
+        triggerPreCompactKVStoreHook.set();
+        kvstore->setPreCompactKVStoreHook([this]() {
+            if (triggerPreCompactKVStoreHook.clear()) {
+                // Fail the next sync of the seqIndex file.
+                failNextNewSeqIndexSync.set();
+            }
+        });
     }
 
     void failNextSnapshotVBucket() override {
@@ -170,8 +202,11 @@ public:
         };
     }
 
-    void onOpenFile(MockMagmaFile* file) {
+    void onOpenFile(FileMock* file) {
         if (file->isSSTable() && file->isSeqIndex()) {
+            if (failNextNewSeqIndexSync.clear()) {
+                file->failNextSync();
+            }
             LOG_INFO_CTX("Opening seqIndex", {"path", file->GetPath()});
         }
     }
@@ -183,12 +218,20 @@ public:
     }
 
     MockMagmaKVStore* kvstore;
+    /// Flag set when we expect the preCompactKVStore hook to be called.
+    ScopedFlag triggerPreCompactKVStoreHook{false,
+                                            "triggerPreCompactKVStoreHook"};
+    /// Flag set when we expect the next sync of the seqIndex file to fail.
+    ScopedFlag failNextNewSeqIndexSync{false, "failNextNewSeqIndexSync"};
 };
 #endif
 
 class KVStoreErrorInjectionTest : public STParamPersistentBucketTest {
 public:
     void SetUp() override {
+#ifdef EP_USE_MAGMA
+        config_string += "magma_sync_every_batch=true";
+#endif
         STParamPersistentBucketTest::SetUp();
         createErrorInjector();
     }
@@ -218,6 +261,19 @@ public:
      */
     void testFlushFailureStatsAtDedupedNonMetaItems(bool vbDeletion = false);
     void testFlushFailureAtPersistDelete(bool vbDeletion = false);
+
+    /**
+     * Writes a fixed number of items in two collections and drops one.
+     * Then runs a compaction to erase the collection data. Optionally fails
+     * that compaction.
+     * @param failCompaction set to true to fail compaction
+     */
+    void testCollectionDropCompaction(bool failCompaction);
+
+    /**
+     * Validates consistent stats when compaction fails.
+     */
+    void testCollectionDropCompactionFailPartial();
 
 protected:
     std::unique_ptr<ErrorInjector> errorInjector;
@@ -1004,6 +1060,103 @@ TEST_P(KVStoreErrorInjectionTest, WarmupScanCancelled) {
     auto secondVb = store->getVBucket(secondVbid);
     ASSERT_TRUE(secondVb);
     EXPECT_EQ(1, secondVb->ht.getNumItems());
+}
+
+void KVStoreErrorInjectionTest::testCollectionDropCompaction(
+        bool failCompaction) {
+    using namespace ::testing;
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Create collections fruit and vegetable, with 10 docs each.
+    CollectionsManifest cm(CollectionEntry::fruit);
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    flush_vbucket_to_disk(vbid, 2);
+
+    const int batchSize = 10;
+    const int numBatchesPerCollection = 5;
+    const int numItemsToKeep = batchSize * numBatchesPerCollection;
+    const int numItemsToDrop = batchSize * numBatchesPerCollection;
+
+    // Because of magma_sync_every_batch, each batch goes into new SST,
+    // this ensures we will need multiple SSTs compacted, which makes the test
+    // more robust.
+    for (auto cid : {CollectionEntry::fruit, CollectionEntry::vegetable}) {
+        int itemNum = 0;
+        for (int batch = 0; batch < numBatchesPerCollection; batch++) {
+            for (int i = 0; i < batchSize; i++) {
+                store_item(
+                        vbid,
+                        makeStoredDocKey(fmt::format("item-{}", itemNum), cid),
+                        "value");
+                itemNum++;
+            }
+            flush_vbucket_to_disk(vbid, batchSize);
+        }
+    }
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& kvstore = *vb.getShard()->getRWUnderlying();
+
+    // +2 for the collection system events
+    EXPECT_EQ(numItemsToKeep + numItemsToDrop + 2, kvstore.getItemCount(vbid));
+    EXPECT_EQ(numItemsToKeep + numItemsToDrop, vb.getNumTotalItems());
+
+    // Drop the fruit collection.
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flush_vbucket_to_disk(vbid, 1);
+
+    if (failCompaction) {
+        errorInjector->failNextCompaction();
+    }
+
+    // +1 for the remaining collection system event
+    EXPECT_EQ(numItemsToKeep + numItemsToDrop + 1, kvstore.getItemCount(vbid));
+    EXPECT_EQ(numItemsToKeep + numItemsToDrop, vb.getNumTotalItems());
+
+    auto preFailed = engine->getEpStats().compactionFailed;
+    // use runCompaction here because more data needs purging, and
+    // runCollectionsEraser expects no more to purge
+    runCompaction(vbid, 0);
+    auto postFailed = engine->getEpStats().compactionFailed;
+
+    auto [status, dropped] = kvstore.getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+
+    // The total items in the vb get updated by the
+    // EPBucket::compactionCompletionCallback, when compaction completes, by
+    // subtracting the number of purged items from the dropped collection.
+    // It should only be called on successful compaction.
+    EXPECT_EQ(vb.getNumTotalItems() + 1, kvstore.getItemCount(vbid));
+
+    if (failCompaction) {
+        ASSERT_EQ(preFailed + 1, postFailed);
+
+        // +1 for the remaining collection system event
+        EXPECT_EQ(numItemsToKeep + numItemsToDrop + 1,
+                  kvstore.getItemCount(vbid));
+        EXPECT_EQ(numItemsToKeep + numItemsToDrop, vb.getNumTotalItems());
+
+        ASSERT_EQ(1, dropped.size())
+                << "Expected to have 1 dropped collection with data left";
+        EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
+    } else {
+        ASSERT_EQ(preFailed, preFailed);
+
+        // +1 for the remaining collection system event
+        EXPECT_EQ(numItemsToKeep + 1, kvstore.getItemCount(vbid));
+        EXPECT_EQ(numItemsToKeep, vb.getNumTotalItems());
+
+        ASSERT_EQ(0, dropped.size())
+                << "Did not expect to have dropped collection with data left";
+    }
+}
+
+TEST_P(KVStoreErrorInjectionTest, CollectionDropCompaction_Success) {
+    testCollectionDropCompaction(false);
+}
+
+TEST_P(KVStoreErrorInjectionTest, CollectionDropCompaction_Fail) {
+    testCollectionDropCompaction(true);
 }
 
 INSTANTIATE_TEST_SUITE_P(

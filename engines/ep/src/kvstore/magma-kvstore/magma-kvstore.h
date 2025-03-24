@@ -782,16 +782,6 @@ protected:
         }
 
         /**
-         * Add a doc count delta to the the underlying MagmaDbStats. Used to
-         * decerement docCount by the size of a collection when we compact a
-         * range and remove the dropped collection stats
-         *
-         * @param cid Collection id
-         * @param delta to add
-         */
-        void processCollectionPurgeDelta(CollectionID cid, int64_t delta);
-
-        /**
          * @return true if this collection can be purged
          */
         bool canPurge(CollectionID collection);
@@ -825,6 +815,19 @@ protected:
          */
         std::optional<CollectionID> onlyThisCollection;
     };
+
+    /**
+     * Add a doc count delta to the the underlying MagmaDbStats. Used to
+     * decerement docCount by the size of a collection when we compact a
+     * range and remove the dropped collection stats
+     *
+     * @param magmaDbStats stats to update
+     * @param cid Collection id
+     * @param delta to add
+     */
+    void processCollectionPurgeDelta(MagmaDbStats& magmaDbStats,
+                                     CollectionID cid,
+                                     int64_t delta);
 
     /**
      * Called for each item during compaction to determine whether we should

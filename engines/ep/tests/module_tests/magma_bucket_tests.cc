@@ -913,14 +913,16 @@ void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
     kvstore->compactDB(lock, ctx);
 }
 
-TEST_P(STParamMagmaBucketTest, ConsistentStateAfterCompactKVStoreCallDocCount) {
+// Since MB-57405, the disk state is not updated after CompactKVStore, but
+// when the compaction completes and as part of updating the local docs.
+// Before MB-57405, we used to update the stats when the first SST compaction
+// completed.
+TEST_P(STParamMagmaBucketTest, StateAfterCompactKVStoreCallDocCount) {
     auto* kvstore = store->getRWUnderlying(vbid);
     testDiskStateAfterCompactKVStore([this, &kvstore]() {
-        // This is the test. After we run CompactKVStore but before we
-        // complete the compaction we call the completionCallback.
-        // Before the fix local docs and item count were not up to date
-        // at this point.
-        EXPECT_EQ(0, kvstore->getItemCount(vbid));
+        // Immediately after returning from CompactKVStore, the item count
+        // we keep in memory is still as it was.
+        EXPECT_NE(0, kvstore->getItemCount(vbid));
     });
 
     EXPECT_EQ(0, kvstore->getItemCount(vbid));

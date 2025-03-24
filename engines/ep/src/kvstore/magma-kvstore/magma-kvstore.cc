@@ -360,8 +360,9 @@ MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
 }
 
-void MagmaKVStore::MagmaCompactionCB::processCollectionPurgeDelta(
-        CollectionID cid, int64_t delta) {
+void MagmaKVStore::processCollectionPurgeDelta(MagmaDbStats& magmaDbStats,
+                                               CollectionID cid,
+                                               int64_t delta) {
     magmaDbStats.docCount += delta;
     magmaDbStats.droppedCollectionCounts[static_cast<uint32_t>(cid)] += delta;
 }
@@ -3138,6 +3139,10 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     std::unordered_set<CollectionID> purgedCollections;
     uint64_t purgedCollectionsEndSeqno = 0;
     auto compactionStatus = CompactDBStatus::Success;
+    // Item counts of the dropped collections.
+    std::vector<std::pair<Collections::KVStore::DroppedCollection, uint64_t>>
+            dcInfo;
+
     if (dropped.empty()) {
         // Compact the entire key range
         Slice nullKey;
@@ -3155,9 +3160,6 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             return CompactDBStatus::Failed;
         }
     } else {
-        std::vector<
-                std::pair<Collections::KVStore::DroppedCollection, uint64_t>>
-                dcInfo;
         for (auto& dc : dropped) {
             auto [status, itemCount] =
                     getDroppedCollectionItemCount(vbid, dc.collectionId);
@@ -3187,38 +3189,21 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                         cb::UserData{docKey.to_string()});
             }
 
-            // Mamga builds a MagmaCompactionCB for every table it visits in
-            // every level of the LSM when compacting a range (which is what
-            // we're doing here). We want to update the docCount stored in
-            // MagmaDbStats/UserStats during the call, but we don't want to do
-            // it that many times, we only want to do it once.
-            bool statsDeltaApplied = false;
-
-            auto compactionCBAndDecrementItemCount =
-                    [this,
-                     vbid,
-                     &ctx,
-                     &statsDeltaApplied,
-                     cid = dc.collectionId,
-                     itemCount = itemCount](const Magma::KVStoreID kvID) {
-                        auto ret = std::make_unique<
-                                MagmaKVStore::MagmaCompactionCB>(
-                                *this, vbid, ctx, cid);
-
-                        if (!statsDeltaApplied) {
-                            statsDeltaApplied = true;
-                            ret->processCollectionPurgeDelta(cid, -itemCount);
-                        }
-
-                        preCompactKVStoreHook();
-
-                        return ret;
-                    };
+            auto compactionCBAndHook = [this,
+                                        vbid,
+                                        &ctx,
+                                        cid = dc.collectionId](
+                                               const Magma::KVStoreID kvID) {
+                auto ret = std::make_unique<MagmaKVStore::MagmaCompactionCB>(
+                        *this, vbid, ctx, cid);
+                preCompactKVStoreHook();
+                return ret;
+            };
 
             status = magma->CompactKVStore(vbid.get(),
                                            keySlice,
                                            keySlice,
-                                           compactionCBAndDecrementItemCount,
+                                           compactionCBAndHook,
                                            ctx->obsolete_keys);
 
             compactionStatusHook(status);
@@ -3341,11 +3326,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
         // Need to write back some collections metadata, in particular we need
         // to remove from the dropped collections doc all of the collections
-        // that we have just purged. A collection drop might have happened after
-        // we started this compaction though and we may not have dropped it yet
-        // so we can't just delete the doc. To avoid a flusher coming along and
-        // dropping another collection while we do this we need to hold the
-        // vBucket write lock.
+        // that we have just purged. This is also where we update the item
+        // counts. A collection drop might have happened after we started this
+        // compaction though and we may not have dropped it yet so we can't just
+        // delete the doc. To avoid a flusher coming along and dropping another
+        // collection while we do this we need to hold the vBucket write lock.
         vbLock.lock();
 
         // 1) Get the current state from disk
@@ -3378,6 +3363,14 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                     LocalDocKey::droppedCollections));
         }
 
+        // Update the dbStats together with clearing droppedCollections, to
+        // ensure that we will not persist an inconsistent state.
+        MagmaDbStats dbStatsDelta;
+        for (auto& [dc, itemCount] : dcInfo) {
+            processCollectionPurgeDelta(
+                    dbStatsDelta, dc.collectionId, -itemCount);
+        }
+        addStatUpdateToWriteOps(dbStatsDelta, writeOps);
         addLocalDbReqs(localDbReqs, writeOps);
 
         const auto historyMode = ctx->getVBucket()->isHistoryRetentionEnabled()
