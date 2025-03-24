@@ -43,13 +43,13 @@ protected:
         }
     }
 
-    BinprotResponse mountVbucket(const nlohmann::json& volumes) {
+    BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes) {
         BinprotResponse resp;
         adminConnection->executeInBucket(
-                bucketName, [&resp, &volumes](auto& conn) {
+                bucketName, [&resp, vbid, &volumes](auto& conn) {
                     auto cmd = BinprotGenericCommand{
                             cb::mcbp::ClientOpcode::MountFusionVbucket};
-                    cmd.setVBucket(Vbid(1));
+                    cmd.setVBucket(vbid);
                     nlohmann::json json;
                     json["mountPaths"] = volumes;
                     cmd.setValue(json.dump());
@@ -204,11 +204,13 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     EXPECT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
 }
 
-TEST_P(FusionTest, MountFusionVbucket) {
-    auto resp = mountVbucket({1, 2});
+TEST_P(FusionTest, MountFusionVbucket_InvalidArgs) {
+    auto resp = mountVbucket(Vbid(1), {1, 2});
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
 
-    resp = mountVbucket({"path1", "path2"});
+TEST_P(FusionTest, MountFusionVbucket) {
+    const auto resp = mountVbucket(Vbid(1), {"path1", "path2"});
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
@@ -217,7 +219,7 @@ TEST_P(FusionTest, MountFusionVbucket) {
 }
 
 TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
-    const auto resp = mountVbucket(nlohmann::json::array());
+    const auto resp = mountVbucket(Vbid(1), nlohmann::json::array());
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());

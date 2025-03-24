@@ -4641,7 +4641,7 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
         const auto res = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
         checkError(std::get<Status>(res));
-        return {std::get<std::vector<std::string>>(res)};
+        return std::get<std::vector<std::string>>(res);
     }
     case FusionStat::UploaderState: {
         const auto id = Magma::KVStoreID(vbid.get());
