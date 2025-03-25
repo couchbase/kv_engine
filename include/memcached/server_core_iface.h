@@ -66,9 +66,16 @@ struct ServerCoreIface {
     /**
      * parser config options
      */
-    virtual int parse_config(const char* str,
-                             struct config_item items[],
-                             FILE* error) = 0;
+    int parse_config(const char* str, struct config_item items[], FILE* error) {
+        return parse_config(str, items, error, nullptr);
+    }
+
+    virtual int parse_config(
+            const char* str,
+            struct config_item items[],
+            FILE* error,
+            std::function<void(std::string_view, std::string_view)>
+                    logUnknownKey) = 0;
 
     /// Get the configured size for the reader and writer pool
     virtual ThreadPoolConfig getThreadPoolSizes() = 0;

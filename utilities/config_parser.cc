@@ -73,11 +73,14 @@ static int trim_copy(char *dest, size_t size, const char *src,
    return ret;
 }
 
-
-int parse_config(const char *str, struct config_item *items, FILE *error) {
+int parse_config(const char* str,
+                 struct config_item* items,
+                 FILE* error,
+                 std::function<void(std::string_view, std::string_view)>
+                         logUnknownKey) {
    const char *end;
    char key[80];
-      char value[1024];
+   char value[1024];
    int ret = 0;
    const char *ptr = str;
    int ii;
@@ -223,6 +226,9 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
       if (items[ii].key == nullptr) {
          if (error != nullptr) {
             fprintf(error, "Unsupported key: <%s>\n", key);
+         }
+         if (logUnknownKey) {
+            logUnknownKey(key, value);
          }
          ret = 1;
       }

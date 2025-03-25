@@ -349,10 +349,17 @@ bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
         items[ii].value.dt_string = config[ii]->value.dt_string;
     }
 
-    bool ret = sapi->core->parse_config(str, items.data(), stderr) == 0;
+    auto logUnknownKey = [](std::string_view k, std::string_view v) {
+        EP_LOG_WARN("Unknown configuration key: {} value: {}", k, v);
+    };
+
+    // 0 if success, 1 if unknown key, -1 if error
+    const int ret =
+            sapi->core->parse_config(str, items.data(), stderr, logUnknownKey);
     for (int ii = 0; ii < nelem; ++ii) {
         if (items[ii].found) {
-            if (ret) {
+            // if any key failed then dont set any parameters
+            if (ret != -1) {
                 switch (items[ii].datatype) {
                 case DT_STRING:
                     setParameter(items[ii].key,
@@ -385,7 +392,8 @@ bool Configuration::parseConfiguration(const char* str, ServerApi* sapi) {
         }
     }
 
-    return ret;
+    // Return true if ret is 0 or 1
+    return ret != -1;
 }
 void Configuration::visit(Configuration::Visitor visitor) const {
     for (const auto& attr : attributes) {

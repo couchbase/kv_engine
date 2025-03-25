@@ -10,7 +10,7 @@
 
 #include <cstdint>
 #include <cstdio>
-
+#include <functional>
 // Need ssize_t
 #include <folly/portability/SysTypes.h>
 
@@ -59,8 +59,13 @@ struct config_item {
  * @param str the encoded configuration string
  * @param items the config items to look for
  * @param error stream to write error messages to
+ * @param logUnknownKey callback to log unknown keys
  * @return 0 if config successfully parsed
  *         1 if config successfully parsed, but unknown tokens found
  *        -1 if illegal values was found in the config
  */
-int parse_config(const char* str, struct config_item items[], FILE* error);
+int parse_config(const char* str,
+                 struct config_item items[],
+                 FILE* error,
+                 std::function<void(std::string_view, std::string_view)>
+                         logUnknownKey = nullptr);

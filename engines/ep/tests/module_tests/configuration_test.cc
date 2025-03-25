@@ -10,8 +10,10 @@
  */
 
 #include "configuration.h"
-
 #include "configuration_impl.h"
+#include "memcached/config_parser.h"
+#include "memcached/server_core_iface.h"
+#include "programs/engine_testapp/mock_server.h"
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
@@ -316,7 +318,6 @@ TEST(ConfigurationTest, ValidatorWorks) {
                         "Validation Error, test_key takes values between 10 "
                         "and 100 (Got: 9)");
 }
-
 class MockValueChangedListener : public ValueChangedListener {
 public:
     MOCK_METHOD2(booleanValueChanged, void(const std::string&, bool));
@@ -351,4 +352,98 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
 
     // change parameters
     configuration.setParameter(key, (ssize_t)2);
+}
+
+class UnknownKeyCallbackMock {
+public:
+    MOCK_METHOD2(Callback, void(std::string_view key, std::string_view value));
+};
+
+class ConfigurationParseTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        configuration = std::make_unique<ConfigurationShim>();
+        mock_server_api = get_mock_server_api();
+        unknownKeyCallbackMock = std::make_unique<UnknownKeyCallbackMock>();
+
+        // Two attributes
+        items.resize(2);
+        items[0].key = "alog_sleep_time";
+        items[0].datatype = DT_SIZE;
+        items[0].value.dt_size = new size_t(200);
+        items[1].key = "different_key";
+        items[1].datatype = DT_SIZE;
+    }
+
+    void TearDown() override {
+        delete items[0].value.dt_size;
+    }
+
+    std::unique_ptr<ConfigurationShim> configuration;
+    ServerApi* mock_server_api;
+    std::unique_ptr<UnknownKeyCallbackMock> unknownKeyCallbackMock;
+    std::vector<config_item> items;
+};
+
+TEST_F(ConfigurationParseTest, KnownKey) {
+    auto callback = [this](std::string_view key, std::string_view value) {
+        unknownKeyCallbackMock->Callback(key, value);
+    };
+
+    // Unknown key callback should not be called
+    EXPECT_CALL(*unknownKeyCallbackMock, Callback("alog_sleep_time", "100"))
+            .Times(0);
+
+    // parse_config returns 0 if the key is found
+    EXPECT_EQ(0,
+              mock_server_api->core->parse_config(
+                      "alog_sleep_time=100;", items.data(), nullptr, callback));
+
+    // parseConfiguration should return true
+    EXPECT_TRUE(configuration->parseConfiguration("alog_sleep_time=100;",
+                                                  get_mock_server_api()));
+}
+
+TEST_F(ConfigurationParseTest, UnknownKey) {
+    auto callback = [this](std::string_view key, std::string_view value) {
+        // Correct key and value
+        EXPECT_EQ("unknown_key", key);
+        EXPECT_EQ("100", value);
+        unknownKeyCallbackMock->Callback(key, value);
+    };
+
+    // Should be called once
+    EXPECT_CALL(*unknownKeyCallbackMock, Callback("unknown_key", "100"))
+            .Times(1);
+
+    // parse_config returns 1 if the key is not found/unsupported
+    EXPECT_EQ(1,
+              mock_server_api->core->parse_config(
+                      "unknown_key=100;", items.data(), nullptr, callback));
+
+    // parseConfiguration should still return true if key is not found
+    EXPECT_TRUE(configuration->parseConfiguration("unknown_key=100;",
+                                                  get_mock_server_api()));
+}
+
+TEST_F(ConfigurationParseTest, ErrorKey) {
+    auto callback = [this](std::string_view key, std::string_view value) {
+        unknownKeyCallbackMock->Callback(key, value);
+    };
+
+    // Unknown key callback should not be called
+    EXPECT_CALL(*unknownKeyCallbackMock, Callback("alog_sleep_time", "100"))
+            .Times(0);
+
+    // parse_config returns -1 on error
+    EXPECT_EQ(-1,
+              mock_server_api->core->parse_config(
+                      "alog_sleep_time=false;", // wrong type
+                      items.data(),
+                      nullptr,
+                      callback));
+
+    // parseConfiguration should return false on error
+    EXPECT_FALSE(configuration->parseConfiguration("alog_sleep_time=false;",
+                                                   get_mock_server_api()));
 }

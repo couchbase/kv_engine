@@ -123,8 +123,12 @@ void mock_time_travel(int by) {
     time_travel_offset += by;
 }
 
-static int mock_parse_config(const char *str, struct config_item items[], FILE *error) {
-    return parse_config(str, items, error);
+static int mock_parse_config(
+        const char* str,
+        struct config_item items[],
+        FILE* error,
+        std::function<void(std::string_view, std::string_view)> logUnknownKey) {
+    return parse_config(str, items, error, logUnknownKey);
 }
 
 static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
@@ -153,8 +157,10 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
     int parse_config(const char* str,
                      config_item* items,
-                     FILE* error) override {
-        return mock_parse_config(str, items, error);
+                     FILE* error,
+                     std::function<void(std::string_view, std::string_view)>
+                             logUnknownKey) override {
+        return mock_parse_config(str, items, error, logUnknownKey);
     }
     ThreadPoolConfig getThreadPoolSizes() override {
         return {};

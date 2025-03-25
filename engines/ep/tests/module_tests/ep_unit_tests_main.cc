@@ -60,8 +60,10 @@ public:
 
     int parse_config(const char* str,
                      config_item* items,
-                     FILE* error) override {
-        return ::parse_config(str, items, error);
+                     FILE* error,
+                     std::function<void(std::string_view, std::string_view)>
+                             logUnknownKey) override {
+        return ::parse_config(str, items, error, logUnknownKey);
     }
 
     ThreadPoolConfig getThreadPoolSizes() override {
