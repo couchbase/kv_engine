@@ -68,6 +68,10 @@ void SaslAuthTask::externalResponse(Status status,
             }
         }
 
+        if (json.contains("audit_props")) {
+            additionalAuditInformation = json["audit_props"];
+        }
+
         if (status == Status::Success) {
             successfull_external_auth(json);
         } else {
@@ -94,10 +98,6 @@ void SaslAuthTask::successfull_external_auth(const nlohmann::json& json) {
 
     if (json.contains("token")) {
         tokenMetadata = json["token"];
-    }
-
-    if (json.contains("audit_props")) {
-        additionalAuditInformation = json["audit_props"];
     }
 
     externalAuthManager->login(serverContext.getUsername());
