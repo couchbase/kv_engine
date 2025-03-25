@@ -61,8 +61,8 @@ class FileSink;
 }
 
 /**
- * The Frame class is used to represent all of the data included in the
- * protocol unit going over the wire.
+ * The Frame class is used to represent the data included in the protocol unit
+ * going over the wire.
  */
 class Frame {
 public:
@@ -236,7 +236,7 @@ private:
 };
 
 /**
- * Exception thrown when the received response deosn't match our expections.
+ * Exception thrown when the received response doesn't match our expectations.
  */
 struct ValidationError : public std::runtime_error {
     explicit ValidationError(const std::string& msg) : std::runtime_error(msg) {
@@ -280,15 +280,18 @@ enum class TlsVersion {
 
 /**
  * The MemcachedConnection class is an abstract class representing a
- * connection to memcached. The concrete implementations of the class
- * implements the Memcached binary protocol and Greenstack.
+ * connection to memcached.
  *
- * By default a connection is set into a synchronous mode.
+ * By default, a connection is set into a synchronous mode, but it is possible
+ * to toggle the mode to "unordered execution" where the server may start
+ * executing the next command before the previous command is completed.
  *
- * All methods is expeted to work, and all failures is reported through
- * exceptions. Unexpected packets / responses etc will use the ConnectionError,
- * and other problems (like network error etc) use std::runtime_error.
+ * All methods are expected to work, and all failures is reported through
+ * exceptions. Unexpected packets / responses, will use the ConnectionError,
+ * and other problems (like network error) use std::runtime_error.
  *
+ * One may use the method "execute" to send a command to the server and
+ * get the response back if you would want to test "error" scenarios.
  */
 class MemcachedConnection {
 public:
@@ -383,10 +386,9 @@ public:
     }
 
     /**
-     * Set the SSL Certificate, private key and optionally cactore files to use
+     * Set the SSL Certificate, private key and optionally CA store files to use
      *
-     * @throws std::system_error if the any of the provided files
-     *         doesn't exist
+     * @throws std::system_error if any of the provided files doesn't exist
      */
     void setTlsConfigFiles(std::filesystem::path cert,
                            std::filesystem::path key,
@@ -490,9 +492,9 @@ public:
                          const std::function<void(MemcachedConnection&)>& func);
 
     /**
-     * List all of the buckets on the server
+     * List all the buckets on the server the user have access to
      *
-     * @return a vector containing all of the buckets
+     * @return a vector containing all the buckets
      */
     std::vector<std::string> listBuckets(
             const GetFrameInfoFunction& getFrameInfo = {});
@@ -502,7 +504,7 @@ public:
      *
      * @param id the name of the document
      * @param vbucket the vbucket the document resides in
-     * @return a document object containg the information about the
+     * @return a document object containing the information about the
      *         document.
      */
     Document get(const std::string& id,
@@ -529,7 +531,7 @@ public:
      *                         operation
      * @param errorCallback the callback if the server returns an error
      * @param getFrameInfo Optional FrameInfo to inject to the commands
-     * @return A vector containing all of the found documents
+     * @return A vector containing all documents found
      */
     void mget(const std::vector<std::pair<const std::string, Vbid>>& id,
               std::function<void(std::unique_ptr<Document>&)> documentCallback,
@@ -632,7 +634,7 @@ public:
      * @param callback the callback to call for each stat
      * @param group the stats group to request
      * @param value the value to pass to a stats request (used for filter for
-     *              dcp etc)
+     *              dcp etc.)
      * @getFrameInfo callback to get the frame info's to use in the request
      */
     void
@@ -648,7 +650,7 @@ public:
      * @param callback the callback to call for each stat
      * @param group the stats group to request
      * @param value the value to pass to a stats request (used for filter for
-     *              dcp etc)
+     *              dcp etc.)
      * @getFrameInfo callback to get the frame info's to use in the request
      */
     void stats(const std::function<void(const std::string&,
@@ -686,7 +688,7 @@ public:
     }
 
     /** Send part of the given frame over this connection. Upon success,
-     * the frame's payload will be modified such that the sent bytes are
+     * the frame's payload will be modified such that the bytes sent are
      * deleted - i.e. after a successful call the frame object will only have
      * the remaining, unsent bytes left.
      *
@@ -702,7 +704,7 @@ public:
      * @param frame the frame object to populate with the next frame
      * @param opcode the opcode we're waiting for (Only used in the timeout
      *               exception, as the same method is used for receiving
-     *               server commands in some unit tests.. I should provide
+     *               server commands in some unit tests... I should provide
      *               another method for that...)
      * @param readTimeout the number of ms we should wait for the server
      *                    to reply before timing out
@@ -785,7 +787,7 @@ public:
      * Perform an arithmetic operation on a document (increment or decrement)
      *
      * You may use this method when operating on "small" delta values which
-     * fit into a signed 64 bit integer. If you for some reason need to
+     * fit into a signed 64-bit integer. If you for some reason need to
      * incr / decr values above that you must use increment and decrement
      * directly.
      *
@@ -820,7 +822,7 @@ public:
      * Perform an increment operation on a document
      *
      * This method only exists in order to test the situations where you want
-     * to increment a value that wouldn't fit into a signed 64 bit integer.
+     * to increment a value that wouldn't fit into a signed 64-bit integer.
      *
      * @param key the document to operate on
      * @param delta The value to increment
@@ -861,7 +863,7 @@ public:
      * @param key the document to remove
      * @param vbucket the vbucket the document is stored in
      * @param cas the specific version of the document or 0 for "any"
-     * @return Details about the detion
+     * @return Details about the deletion
      */
     MutationInfo remove(const std::string& key,
                         Vbid vbucket,
@@ -965,8 +967,8 @@ public:
     /**
      * Set the connection features to use
      *
-     * @param features a vector containing all of the features to try
-     *                 to enable on the server
+     * @param features a vector containing the features to try to enable on the
+     *                 server
      */
     void setFeatures(const std::vector<cb::mcbp::Feature>& features);
 
@@ -1078,7 +1080,7 @@ public:
     }
 
     /// Get the interface uuid for the connection (set if read from
-    /// the portnumber file written by the server)
+    /// the port number file written by the server)
     const std::string& getServerInterfaceUuid() const;
 
     /// Set the interface uuid for the connection
@@ -1275,7 +1277,7 @@ protected:
      * The internal `features` array is updated with the result sent back
      * from the server.
      *
-     * @param feat the features to enable.
+     * @param features the features to enable.
      */
     void applyFeatures(const Featureset& features);
 
