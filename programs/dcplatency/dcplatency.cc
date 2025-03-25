@@ -290,10 +290,7 @@ int main(int argc, char** argv) {
             std::cerr << "Failed to send next mutation" << std::endl;
             return EXIT_FAILURE;
         }
-    } catch (const ConnectionError& ex) {
-        std::cerr << ex.what() << std::endl;
-        return EXIT_FAILURE;
-    } catch (const std::runtime_error& ex) {
+    } catch (const std::exception& ex) {
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }

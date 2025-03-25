@@ -134,11 +134,7 @@ int main(int argc, char** argv) {
                       << rsp.getDataView() << TerminalColor::Reset << std::endl;
             std::exit(EXIT_FAILURE);
         }
-    } catch (const ConnectionError& ex) {
-        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
-                  << std::endl;
-        return EXIT_FAILURE;
-    } catch (const std::runtime_error& ex) {
+    } catch (const std::exception& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
                   << std::endl;
         return EXIT_FAILURE;

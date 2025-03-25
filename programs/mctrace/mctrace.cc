@@ -158,11 +158,7 @@ int main(int argc, char** argv) {
 
         // Remove the dump
         connection->ioctl_set("trace.dump.clear", uuid);
-    } catch (const ConnectionError& ex) {
-        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
-                  << std::endl;
-        return EXIT_FAILURE;
-    } catch (const std::runtime_error& ex) {
+    } catch (const std::exception& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
                   << std::endl;
         return EXIT_FAILURE;

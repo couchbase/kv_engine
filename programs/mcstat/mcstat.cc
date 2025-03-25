@@ -477,11 +477,7 @@ int main(int argc, char** argv) {
             }
         } while (bucketItr != buckets.end());
 
-    } catch (const ConnectionError& ex) {
-        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
-                  << std::endl;
-        return EXIT_FAILURE;
-    } catch (const std::runtime_error& ex) {
+    } catch (const std::exception& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
                   << std::endl;
         return EXIT_FAILURE;
