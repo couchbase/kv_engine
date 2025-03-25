@@ -10,8 +10,11 @@
 
 #include "mc_program_getopt.h"
 #include <cbsasl/mechanism.h>
+#include <json_web_token/builder.h>
+#include <platform/dirutils.h>
 #include <platform/getpass.h>
 #include <platform/terminal_color.h>
+#include <platform/timeutils.h>
 #include <programs/hostname_utils.h>
 #include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
@@ -20,6 +23,13 @@
 
 using cb::getopt::Argument;
 using cb::getopt::Option;
+
+std::filesystem::path passphrase_file =
+        fmt::format("{}/.couchbase/shared_secret", getenv("HOME"));
+std::filesystem::path skeleton_file =
+        fmt::format("{}/.couchbase/token-skeleton.json", getenv("HOME"));
+
+McProgramGetopt::~McProgramGetopt() = default;
 
 McProgramGetopt::McProgramGetopt() {
     addOption({[this](auto value) { host = std::string{value}; },
@@ -77,6 +87,44 @@ McProgramGetopt::McProgramGetopt() {
                Argument::Required,
                "mechanism",
                "Use the provided mechanism for SASL authentication"});
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    addOption({[this](auto) { token_auth = true; },
+               "token-auth",
+               "Use JWT token authentication"});
+    addOption({[this](auto value) {
+                   std::string val(value);
+                   if (std::ranges::all_of(val, isdigit)) {
+                       int seconds = std::stoi(val);
+                       token_lifetime = std::chrono::seconds(seconds);
+                   } else {
+                       try {
+                           token_lifetime = std::chrono::duration_cast<
+                                   std::chrono::seconds>(cb::text2time(value));
+                       } catch (const std::exception& exception) {
+                           fmt::println(stderr,
+                                        "Failed to parse lifetime: {}",
+                                        exception.what());
+                           std::exit(EXIT_FAILURE);
+                       }
+                   }
+               },
+               "token-lifetime",
+               Argument::Required,
+               "value",
+               "Use the provided lifetime for the token (default: 1m)"});
+    addOption({[](auto value) { skeleton_file = value; },
+               "token-skeleton-file",
+               Argument::Required,
+               "value",
+               "Use the provided file as skeleton for tokens"});
+    addOption({[](auto value) { passphrase_file = value; },
+               "token-passphrase-file",
+               Argument::Required,
+               "value",
+               "Use the provided file containing token passphrase"});
+#endif
+
 #ifndef WIN32
     addOption({[](auto) { cb::terminal::setTerminalColorSupport(false); },
                'n',
@@ -109,22 +157,63 @@ std::vector<std::string_view> McProgramGetopt::parse(
 }
 
 void McProgramGetopt::assemble() {
-    if (!sasl_mechanism.empty()) {
-        try {
-            cb::sasl::selectMechanism(sasl_mechanism);
-        } catch (const std::invalid_argument& ex) {
-            throw std::runtime_error(fmt::format(
-                    "Unknown (or unsupported) mechanism: {}", ex.what()));
-        }
-    }
-
-    // try to build up the client
     if (password == "-") {
         password.assign(cb::getpass());
     } else if (password.empty()) {
         const char* env_password = std::getenv("CB_PASSWORD");
         if (env_password) {
             password = env_password;
+        }
+    }
+
+    if (token_auth) {
+        if (!exists(skeleton_file)) {
+            throw std::runtime_error(
+                    fmt::format("skeleton file \"{}\" does not exists. Specify "
+                                "with --token-skeleton-file=filename",
+                                skeleton_file.string()));
+        }
+        if (!exists(passphrase_file)) {
+            throw std::runtime_error(
+                    fmt::format("passphrase file \"{}\" does not exists. "
+                                "Specify with --token-passphrase-file=filename",
+                                passphrase_file.string()));
+        }
+        auto payload = nlohmann::json::parse(cb::io::loadFile(skeleton_file));
+        if (user.empty()) {
+            // it must be in the token
+            if (!payload.contains("sub")) {
+                throw std::runtime_error(
+                        "The token skeleton file does not contain a 'sub' "
+                        "field");
+            }
+        } else {
+            // override the one in the token with the one provided on the
+            // command line
+            payload["sub"] = user;
+        }
+
+        if (!password.empty()) {
+            token_builder = cb::jwt::Builder::create(
+                    "HS256", password, std::move(payload), token_lifetime);
+        } else if (exists(passphrase_file)) {
+            auto passphrase = cb::io::loadFile(passphrase_file);
+            while (!passphrase.empty() &&
+                   (passphrase.back() == '\n' || passphrase.back() == '\r')) {
+                passphrase.pop_back();
+            }
+            token_builder = cb::jwt::Builder::create(
+                    "HS256", passphrase, std::move(payload), token_lifetime);
+        } else {
+            token_builder = cb::jwt::Builder::create(
+                    "none", {}, std::move(payload), token_lifetime);
+        }
+    } else if (!sasl_mechanism.empty()) {
+        try {
+            cb::sasl::selectMechanism(sasl_mechanism);
+        } catch (const std::invalid_argument& ex) {
+            throw std::runtime_error(fmt::format(
+                    "Unknown (or unsupported) mechanism: {}", ex.what()));
         }
     }
 
@@ -145,6 +234,9 @@ void McProgramGetopt::assemble() {
     if (ssl_cert && ssl_key) {
         connection->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
     }
+    if (token_auth) {
+        connection->setTokenBuilder(token_builder->clone());
+    }
 }
 
 std::unique_ptr<MemcachedConnection>
@@ -156,8 +248,14 @@ McProgramGetopt::createAuthenticatedConnection(std::string h,
     if (ssl_cert && ssl_key) {
         ret->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
     }
+    if (token_builder) {
+        ret->setTokenBuilder(token_builder->clone());
+    }
+
     ret->connect();
-    if (!user.empty()) {
+    if (token_auth) {
+        ret->authenticateWithToken();
+    } else if (!user.empty()) {
         ret->authenticate(user,
                           password,
                           sasl_mechanism.empty() ? ret->getSaslMechanisms()
@@ -171,7 +269,9 @@ std::unique_ptr<MemcachedConnection> McProgramGetopt::getConnection() {
     if (connection) {
         auto ret = connection->clone(false);
         ret->connect();
-        if (!user.empty()) {
+        if (token_auth) {
+            ret->authenticateWithToken();
+        } else if (!user.empty()) {
             ret->authenticate(user,
                               password,
                               sasl_mechanism.empty() ? ret->getSaslMechanisms()

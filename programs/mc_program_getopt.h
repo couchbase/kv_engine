@@ -42,6 +42,7 @@
 class McProgramGetopt {
 public:
     McProgramGetopt();
+    ~McProgramGetopt();
 
     /**
      * Add a command line option to the list of command line options
@@ -75,7 +76,7 @@ public:
      *
      * @throws std::exception (subclass) if anything goes wrong
      */
-    virtual std::unique_ptr<MemcachedConnection> getConnection();
+    std::unique_ptr<MemcachedConnection> getConnection();
 
     /// Print the common command line options to the output stream
     void usage(std::ostream&) const;
@@ -106,6 +107,9 @@ protected:
     std::optional<std::filesystem::path> ca_store;
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
+    bool token_auth = false;
+    std::unique_ptr<cb::jwt::Builder> token_builder;
+    std::chrono::seconds token_lifetime = std::chrono::minutes{1};
 };
 
 std::ostream& operator<<(std::ostream& os,
