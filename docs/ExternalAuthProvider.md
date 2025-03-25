@@ -307,6 +307,7 @@ following reasons codes should be used:
     AuthError    If the username and password combination is correct
                  but the user doesn't have access to the system
     AuthStale    If the password has expired
+    Einval       If the request is malformed (missing fields etc)
 
 (These response codes don't need the above payload)
 

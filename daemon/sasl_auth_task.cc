@@ -123,6 +123,8 @@ void SaslAuthTask::unsuccessfull_external_auth(Status status,
         error = Error::PASSWORD_ERROR;
     } else if (status == Status::Etmpfail) {
         error = Error::AUTH_PROVIDER_DIED;
+    } else if (status == Status::Einval) {
+        error = Error::BAD_PARAM;
     } else {
         error = Error::FAIL;
     }
