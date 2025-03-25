@@ -21,6 +21,7 @@
 #include <xattr/blob.h>
 #include <memory>
 #include <sstream>
+#include <unordered_set>
 
 class ItemNoValuePruneTest : public ::testing::TestWithParam<
                              std::tuple<IncludeValue, IncludeXattrs>> {
@@ -421,4 +422,35 @@ TEST_F(ItemPruneTest, getValueViewWithoutXattrs) {
     ASSERT_TRUE(item->compressValue());
     // cannot get a xattr view on a compressed value
     EXPECT_THROW(item->getValueViewWithoutXattrs(), std::logic_error);
+}
+
+TEST_F(ItemTest, hash_and_unordered_set) {
+    const std::string value = "value";
+    Item item(makeStoredDocKey("key"), 0, 0, value.data(), value.size());
+    const auto itemHash = std::hash<Item>{}(item);
+    // Regenerates the same hash from the same item.
+    EXPECT_EQ(std::hash<Item>{}(item), itemHash);
+
+    Item item2 = item;
+    auto item2Hash = std::hash<Item>{}(item2);
+    EXPECT_EQ(std::hash<Item>{}(item2), itemHash);
+    // Change the cas generates a new hash
+    item2.setCas(42);
+    EXPECT_NE(item2Hash, std::hash<Item>{}(item2));
+
+    // Change the bySeqno generates a new hash
+    item2Hash = std::hash<Item>{}(item2);
+    item2.setBySeqno(item2.getBySeqno() + 1);
+    EXPECT_NE(item2Hash, std::hash<Item>{}(item2));
+
+    // Change the vbucketId generates a new hash
+    item2Hash = std::hash<Item>{}(item2);
+    item2.setVBucketId(++item2.getVBucketId());
+    EXPECT_NE(item2Hash, std::hash<Item>{}(item2));
+
+    // Can create an unordered_set of Item and uniquely store our two objects.
+    std::unordered_set<Item> items;
+    items.insert(item);
+    items.insert(item2);
+    EXPECT_EQ(items.size(), 2);
 }

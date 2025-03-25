@@ -705,3 +705,13 @@ struct OrderItemsForDeDuplication {
 
 template <>
 struct fmt::formatter<Item> : ostream_formatter {};
+
+template <>
+struct std::hash<Item> {
+    std::size_t operator()(const Item& item) const {
+        return item.getDocKey().hash() ^
+               std::hash<uint16_t>{}(item.getVBucketId().get()) ^
+               std::hash<uint64_t>{}(item.getCas()) ^
+               std::hash<uint64_t>{}(item.getBySeqno());
+    }
+};
