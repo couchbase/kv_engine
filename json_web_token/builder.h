@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string_view>
 
 namespace cb::jwt {
@@ -33,7 +34,8 @@ public:
     [[nodiscard]] static std::unique_ptr<Builder> create(
             std::string_view alg = "none",
             std::string_view passphrase = {},
-            nlohmann::json payload = nlohmann::json::object());
+            nlohmann::json payload = nlohmann::json::object(),
+            std::optional<std::chrono::seconds> lifetime = {});
     /// Set the expiration for the token to use
     virtual void setExpiration(std::chrono::system_clock::time_point exp) = 0;
     /// Specify when we can start using the token

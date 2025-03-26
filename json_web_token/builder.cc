@@ -18,9 +18,12 @@
 namespace cb::jwt {
 class BuilderImpl : public Builder {
 public:
-    BuilderImpl(nlohmann::json initial_header, nlohmann::json initial_payload)
+    BuilderImpl(nlohmann::json initial_header,
+                nlohmann::json initial_payload,
+                std::optional<std::chrono::seconds> lifetime)
         : header(std::move(initial_header)),
-          payload(std::move(initial_payload)) {
+          payload(std::move(initial_payload)),
+          lifetime(lifetime) {
         if (!header.contains("typ")) {
             header["typ"] = "JWT";
         }
@@ -61,6 +64,12 @@ public:
         payload[name] = value;
     }
     std::string build() override {
+        if (lifetime.has_value()) {
+            const auto now = std::chrono::system_clock::now();
+            const auto expiration = now + lifetime.value();
+            setIssuedAt(now);
+            setExpiration(expiration);
+        }
         return fmt::format("{}.{}",
                            cb::base64url::encode(header.dump()),
                            cb::base64url::encode(payload.dump()));
@@ -68,23 +77,27 @@ public:
 
     nlohmann::json header;
     nlohmann::json payload;
+    std::optional<std::chrono::seconds> lifetime;
 };
 
 class PlainBuilderImpl : public BuilderImpl {
 public:
-    explicit PlainBuilderImpl(nlohmann::json initial)
-        : BuilderImpl({{"alg", "none"}}, std::move(initial)) {
+    explicit PlainBuilderImpl(nlohmann::json initial,
+                              std::optional<std::chrono::seconds> lifetime)
+        : BuilderImpl({{"alg", "none"}}, std::move(initial), lifetime) {
     }
 
     [[nodiscard]] std::unique_ptr<Builder> clone() const override {
-        return std::make_unique<PlainBuilderImpl>(payload);
+        return std::make_unique<PlainBuilderImpl>(payload, lifetime);
     }
 };
 
 class HS256BuilderImpl : public BuilderImpl {
 public:
-    HS256BuilderImpl(std::string passphrase, nlohmann::json initial)
-        : BuilderImpl({{"alg", "HS256"}}, std::move(initial)),
+    HS256BuilderImpl(std::string passphrase,
+                     nlohmann::json initial,
+                     std::optional<std::chrono::seconds> lifetime)
+        : BuilderImpl({{"alg", "HS256"}}, std::move(initial), lifetime),
           passphrase(std::move(passphrase)) {
     }
 
@@ -96,22 +109,25 @@ public:
     }
 
     [[nodiscard]] std::unique_ptr<Builder> clone() const override {
-        return std::make_unique<HS256BuilderImpl>(passphrase, payload);
+        return std::make_unique<HS256BuilderImpl>(
+                passphrase, payload, lifetime);
     }
 
 protected:
     const std::string passphrase;
 };
 
-std::unique_ptr<Builder> Builder::create(std::string_view alg,
-                                         std::string_view passphrase,
-                                         nlohmann::json payload) {
+std::unique_ptr<Builder> Builder::create(
+        std::string_view alg,
+        std::string_view passphrase,
+        nlohmann::json payload,
+        std::optional<std::chrono::seconds> lifetime) {
     if (alg == "HS256") {
-        return std::make_unique<HS256BuilderImpl>(std::string(passphrase),
-                                                  std::move(payload));
+        return std::make_unique<HS256BuilderImpl>(
+                std::string(passphrase), std::move(payload), lifetime);
     }
     if (alg.empty() || alg == "none") {
-        return std::make_unique<PlainBuilderImpl>(std::move(payload));
+        return std::make_unique<PlainBuilderImpl>(std::move(payload), lifetime);
     }
     throw std::invalid_argument("Invalid Algorithm");
 }

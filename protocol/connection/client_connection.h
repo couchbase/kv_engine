@@ -32,6 +32,9 @@
 #include <utility>
 #include <vector>
 
+namespace cb::jwt {
+class Builder;
+}
 namespace cb::mcbp::request {
 class FrameInfo;
 }
@@ -435,6 +438,16 @@ public:
     void authenticate(const std::string& user,
                       const std::optional<std::string>& password = {},
                       const std::string& mech = "PLAIN");
+
+    /**
+     * Set the connection to use JWT (and auto renewal of tokens). Note
+     * that JWT may only be used over TLS
+     *
+     * @param builder The builder used to build JWT tokens
+     */
+    void setTokenBuilder(std::unique_ptr<cb::jwt::Builder> builder);
+
+    void authenticateWithToken();
 
     /**
      * Create a bucket
@@ -1225,6 +1238,7 @@ protected:
     std::string name;
     std::string serverInterfaceUuid;
     std::optional<std::chrono::microseconds> traceData;
+    std::unique_ptr<cb::jwt::Builder> tokenBuilder;
 
     using Featureset = std::unordered_set<uint16_t>;
 

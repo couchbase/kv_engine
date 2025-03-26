@@ -17,6 +17,7 @@
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <json/syntax_validator.h>
+#include <json_web_token/builder.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
@@ -38,6 +39,8 @@
 #include <netdb.h>
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
+#include <json_web_token/token.h>
+
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -954,6 +957,9 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     if (!agent_name.empty()) {
         ret->setAgentName(std::move(agent_name));
     }
+    if (tokenBuilder) {
+        ret->tokenBuilder = tokenBuilder->clone();
+    }
 
     if (connect) {
         ret->connect();
@@ -1237,6 +1243,29 @@ void MemcachedConnection::recvResponse(BinprotResponse& response,
 
     response.assign(std::move(frame.payload));
     traceData = response.getTracingData();
+}
+
+void MemcachedConnection::setTokenBuilder(
+        std::unique_ptr<cb::jwt::Builder> builder) {
+    if (!ssl) {
+        throw std::logic_error(
+                "MemcachedConnection::setTokenBuilder: "
+                "SSL must be enabled to use JWT");
+    }
+    tokenBuilder = std::move(builder);
+}
+
+void MemcachedConnection::authenticateWithToken() {
+    auto token = tokenBuilder->build();
+
+    auto parsed = cb::jwt::Token::parse(tokenBuilder->build());
+    if (!parsed->payload.contains("sub")) {
+        throw std::logic_error(
+                "MemcachedConnection::authenticateWithToken: "
+                "The token must contain a sub field");
+    }
+
+    doSaslAuthenticate(parsed->payload["sub"], token, "OAUTHBEARER");
 }
 
 void MemcachedConnection::authenticate(
@@ -2256,6 +2285,16 @@ BinprotResponse MemcachedConnection::execute(
             [&command, &response, &readTimeout, this]() -> bool {
                 sendCommand(command);
                 recvResponse(response, command.getOp(), readTimeout);
+
+                if (response.getStatus() == cb::mcbp::Status::AuthStale &&
+                    tokenBuilder) {
+                    if (command.getOp() == cb::mcbp::ClientOpcode::SaslAuth) {
+                        // we don't want to recursively do sasl auth
+                        return true;
+                    }
+                    authenticateWithToken();
+                    return false;
+                }
 
                 bool retry_by_tmpfail =
                         auto_retry_tmpfail &&

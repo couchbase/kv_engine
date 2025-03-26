@@ -24,6 +24,7 @@ target_link_libraries(mc_client_connection PRIVATE
     platform
     ${COUCHBASE_NETWORK_LIBS}
   PRIVATE
+    json_web_token
     folly_io_callbacks
     cbcompress
     json_validator
