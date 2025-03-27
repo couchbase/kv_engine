@@ -97,7 +97,6 @@ private:
     VBReadyQueue lpVbs;
     bool doHighPriority{false};
     size_t numHighPriority{0};
-    std::atomic<bool> pendingMutation{false};
 
     /**
      * UID of this flusher. Required for to name the various FlusherTasks that
