@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 
 namespace cb::rbac {
@@ -149,6 +150,7 @@ enum class Privilege {
     // Let RangeScan be the last privilege in the file, as its value is
     // used to size bitsets inside the RBAC module.
 };
+void to_json(nlohmann::json& json, const Privilege& privilege);
 
 /**
  * Return type of privilege checks

@@ -296,6 +296,9 @@ protected:
     bool internal;
 };
 
+class PrivilegeContext;
+void to_json(nlohmann::json& json, const PrivilegeContext& ctx);
+
 /**
  * The PrivilegeContext is the current context (selected bucket).
  * The reason for this class is to provide a fast lookup for all
@@ -439,6 +442,8 @@ protected:
     /// the token contains the authorizations which should
     /// have the same lifespan as the token)
     bool never_stale = false;
+
+    friend void to_json(nlohmann::json& json, const PrivilegeContext& ctx);
 };
 
 /**

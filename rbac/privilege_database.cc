@@ -728,4 +728,14 @@ std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
     }
 }
 
+void to_json(nlohmann::json& json, const PrivilegeContext& ctx) {
+    json = nlohmann::json{
+            {"gen", ctx.generation},
+            {"domain", ctx.domain},
+            {"mask", privilegeMask2Vector(ctx.mask)},
+            {"bucket", ctx.bucket ? *ctx.bucket : nlohmann::json::object()},
+            {"dropped", privilegeMask2Vector(ctx.droppedPrivileges)},
+            {"never_stale", ctx.never_stale}};
+}
+
 } // namespace cb::rbac

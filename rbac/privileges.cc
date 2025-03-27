@@ -9,6 +9,7 @@
  */
 
 #include <memcached/rbac/privileges.h>
+#include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <stdexcept>
 #include <unordered_map>
@@ -51,6 +52,10 @@ std::string to_string(Privilege privilege) {
 
     throw std::invalid_argument("to_string: Unknown privilege detected: " +
                                 std::to_string(int(privilege)));
+}
+
+void to_json(nlohmann::json& json, const Privilege& privilege) {
+    json = to_string(privilege);
 }
 
 Privilege to_privilege(const std::string& str) {
