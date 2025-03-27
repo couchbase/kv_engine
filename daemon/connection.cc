@@ -1145,29 +1145,38 @@ static void maximize_sndbuf(const SOCKET sfd) {
 }
 
 void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
+    auto reauthentication = isAuthenticated();
     user = std::move(ui);
-    maximize_sndbuf(socketDescriptor);
+
+    if (!reauthentication) {
+        maximize_sndbuf(socketDescriptor);
 
 #ifdef __linux__
-    if (!listening_port->system) {
-        auto timeout = Settings::instance().getTcpUserTimeout();
-        if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
-                                                IPPROTO_TCP,
-                                                TCP_USER_TIMEOUT,
-                                                timeout.count())) {
-            LOG_WARNING_CTX(
-                    "Failed to set TCP_USER_TIMEOUT",
-                    {"conn_id", getId()},
-                    {"timeout", timeout},
-                    {"error", cb_strerror(cb::net::get_socket_error())});
+        if (!listening_port->system) {
+            auto timeout = Settings::instance().getTcpUserTimeout();
+            if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
+                                                    IPPROTO_TCP,
+                                                    TCP_USER_TIMEOUT,
+                                                    timeout.count())) {
+                LOG_WARNING_CTX(
+                        "Failed to set TCP_USER_TIMEOUT",
+                        {"conn_id", getId()},
+                        {"timeout", timeout},
+                        {"error", cb_strerror(cb::net::get_socket_error())});
+            }
         }
-    }
 #endif
+    }
 
     updateDescription();
     droppedPrivileges.reset();
-    privilegeContext =
-            std::make_shared<cb::rbac::PrivilegeContext>(createContext({}));
+    try {
+        privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                createContext(getBucket().name));
+    } catch (const std::exception&) {
+        privilegeContext =
+                std::make_shared<cb::rbac::PrivilegeContext>(createContext({}));
+    }
     updatePrivilegeContext();
     thread.onConnectionAuthenticated(*this);
     if (!isInternal() && !registeredSdk && agentName.front() != '\0') {
