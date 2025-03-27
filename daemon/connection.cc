@@ -649,7 +649,9 @@ void Connection::executeCommandPipeline() {
     }
 
     std::chrono::steady_clock::time_point now;
-    if (!active || cookies.back()->mayReorder()) {
+    bool allow_more_commands = (!active || cookies.back()->mayReorder()) &&
+                               cookies.size() < maxActiveCommands;
+    if (allow_more_commands) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
 
@@ -740,6 +742,8 @@ void Connection::executeCommandPipeline() {
 
             nextPacket();
         }
+        allow_more_commands = (!active || cookies.back()->mayReorder()) &&
+                              cookies.size() < maxActiveCommands;
     } else {
         now = std::chrono::steady_clock::now();
     }
@@ -757,12 +761,14 @@ void Connection::executeCommandPipeline() {
         // out again due to too much data in the queue to start executing
         // a new command
         disableReadEvent();
-    } else if (isPacketAvailable()) {
-        disableReadEvent();
-        if (!active || // No active commands which would trigger
-            (cookies.back()->mayReorder() && // but we could OoO more commands
-             cookies.size() < maxActiveCommands)) {
+    } else if (allow_more_commands) {
+        if (isPacketAvailable()) {
+            // We have the entire packet spooled up in the input buffer
+            // and may continue processing it at the next time slice
+            disableReadEvent();
             triggerCallback();
+        } else {
+            enableReadEvent();
         }
     } else {
         enableReadEvent();
