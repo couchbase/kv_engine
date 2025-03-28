@@ -53,6 +53,7 @@ parser.add_argument(
 parser.add_argument('-a', '--command-args',
                     help="Filter by command arguments")
 parser.add_argument('-b', '--bucket', help='Filter by bucket')
+parser.add_argument('-s', '--stat', help='Filter by stat or histogram')
 parser.add_argument('-l', '--list', action='store_true',
                     help='Print available options (filters are applied)')
 parser.add_argument('-v', '--verbose', action='store_true',
@@ -63,6 +64,7 @@ args = parser.parse_args()
 command_filter = args.command.encode() if args.command else None
 command_args_filter = args.command_args.encode() if args.command_args else None
 bucket_filter = args.bucket.encode() if args.bucket else None
+stat_filter = args.stat.encode() if args.stat else None
 
 SEP_CMD = (b'=' * 78) + b'\n'
 SEP_BUCKET = (b'*' * 78) + b'\n'
@@ -163,9 +165,14 @@ def clean_bucket(bucket):
     name = re.sub(r'^Bucket:\'(.*)\'$', r'\1', name)
     return name.encode()
 
+def make_stat_regex(stat_filter):
+    if not stat_filter:
+        return None
+    return re.compile(rb'[: ]' + re.escape(stat_filter) + rb'[: ]')
 
 def process_input(outfile, infile, greppable, list_only, command_filter,
-                  command_args_filter, bucket_filter):
+                  command_args_filter, bucket_filter, stat_filter):
+    stat_regex = make_stat_regex(stat_filter)
     current_cmd_line = []
     current_bucket = b''
     for (cmd_line, bucket, output) in read_stats_log(infile):
@@ -196,6 +203,10 @@ def process_input(outfile, infile, greppable, list_only, command_filter,
                     prev_bucket == current_bucket:
                 # Do not print duplicates.
                 continue
+            if stat_regex is not None:
+                # Check if output contains the stat
+                if not any((stat_regex.search(line) for line in output)):
+                    continue
             # Just list options and exit.
             outfile.write(b'%s:%s:\n' % (cmd_line, bucket))
             continue
@@ -207,13 +218,33 @@ def process_input(outfile, infile, greppable, list_only, command_filter,
         if greppable:
             grep_prefix = b'%s:%s:' % (cmd_line, bucket)
 
-        for line in output:
-            if greppable:
-                outfile.write(grep_prefix)
-            outfile.write(line)
+        # If we end up printing output, we need separators
+        printed_output = False
+
+        if stat_regex is None:
+            printed_output = True
+            for line in output:
+                if greppable:
+                    outfile.write(grep_prefix)
+                outfile.write(line)
+        else:
+            # Print only matching stat or histogram.
+            # For histograms, print between the first and last line.
+            is_histogram = False
+            for line in output:
+                if not is_histogram and not stat_regex.search(line):
+                    continue
+                if b' total)\n' in line:
+                    is_histogram = True
+                if b' Avg ' in line:
+                    is_histogram = False
+                if greppable:
+                    outfile.write(grep_prefix)
+                outfile.write(line)
+                printed_output = True
 
         # If not greppable, separate visually as in the original input.
-        if not greppable:
+        if not greppable and printed_output:
             outfile.write(b'\n')
 
     outfile.flush()
@@ -230,7 +261,8 @@ if __name__ == '__main__':
             list_only=args.list,
             command_filter=command_filter,
             command_args_filter=command_args_filter,
-            bucket_filter=bucket_filter)
+            bucket_filter=bucket_filter,
+            stat_filter=stat_filter)
     except BrokenPipeError:
         # Ignore stdout being closed. This will happen if the output is piped
         # into e.g. head.
