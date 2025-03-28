@@ -301,3 +301,59 @@ TEST_P(LockTest, MB_22778) {
 
     userConnection->remove("NET", Vbid(0), response.getCas());
 }
+
+TEST_P(LockTest, SubdocMutateLockedDocument) {
+    using cb::mcbp::ClientOpcode;
+    using cb::mcbp::subdoc::PathFlag;
+
+    auto mutInfo = userConnection->mutate(document, Vbid(0), MutationType::Add);
+    auto lastModifiedCAS = mutInfo.cas;
+
+    const auto locked = userConnection->get_and_lock(name, Vbid(0), 0);
+    EXPECT_NE(lastModifiedCAS, locked.info.cas);
+    EXPECT_NE(lastModifiedCAS, locked.info.cas)
+            << "Locking a document should return a different CAS to last "
+               "modified CAS";
+
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                    PathFlag::None,
+                    "xattr_enabled",
+                    "false");
+
+    auto resp =
+            BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::Locked, resp.getStatus());
+
+    // But it should work if we use the locked cas
+    cmd.setCas(locked.info.cas);
+    resp = BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+TEST_P(LockTest, SubdocLookupLockedDocument) {
+    using cb::mcbp::subdoc::PathFlag;
+
+    auto mutInfo = userConnection->mutate(document, Vbid(0), MutationType::Add);
+    auto lastModifiedCAS = mutInfo.cas;
+
+    const auto locked = userConnection->get_and_lock(name, Vbid(0), 0);
+    EXPECT_NE(LOCKED_CAS, locked.info.cas);
+    EXPECT_NE(lastModifiedCAS, locked.info.cas)
+            << "Locking a document should return a different CAS to last "
+               "modified CAS";
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("xattr_enabled", PathFlag::None);
+    auto resp = BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    // For some "odd reason" the spec allows for a CAS value for lookup.
+    cmd.setCas(lastModifiedCAS);
+    resp = BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
+    ASSERT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
+
+    userConnection->unlock(name, Vbid(0), locked.info.cas);
+}

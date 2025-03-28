@@ -623,9 +623,11 @@ cb::engine_errc SubdocExecutionContext::get_document_for_searching(
         LOG_WARNING_CTX("Failed to get item info", {"conn_id", c.getId()});
         return cb::engine_errc::failed;
     }
-    if (info.cas == LOCKED_CAS) {
+
+    if (traits.is_mutator && info.cas == LOCKED_CAS) {
         // Check that item is not locked:
         if (client_cas == 0 || client_cas == LOCKED_CAS) {
+            // fast failure to bypass execution of the subdoc operation
             return cb::engine_errc::locked_tmpfail;
         }
         // If the user *did* supply the CAS, we will validate it later on

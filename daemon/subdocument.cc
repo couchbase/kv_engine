@@ -662,6 +662,17 @@ cb::engine_errc SubdocCommandContext::update_document(cb::engine_errc ret) {
                                cookie.getRequest().getDurabilityRequirements(),
                                new_state,
                                false);
+
+            if (ret == cb::engine_errc::locked) {
+                // If we failed due to lock error we should return tmpfail
+                // to clients without XERROR enabled as that's what we
+                // return if we detect that it is locked when starting
+                // the operation (fast failure to avoid doing the subdoc
+                // operation as we know it would fail when trying to update).
+                // We should however return the same error code if it
+                // turns out that it is locked.
+                ret = cb::engine_errc::locked_tmpfail;
+            }
         }
         ret = connection.remapErrorCode(ret);
     }
