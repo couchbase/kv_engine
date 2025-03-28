@@ -209,6 +209,14 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
                   exception.what());
         result = cb::engine_errc(exception.code().value());
         return result;
+    } catch (const std::exception& exception) {
+        bucket.reset();
+        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
+                  cid,
+                  name,
+                  exception.what());
+        result = cb::engine_errc::failed;
+        return result;
     }
 
     auto& engine = bucket.getEngine();
@@ -232,12 +240,12 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
                         name,
                         cb::time2text(stop - start));
         }
-    } catch (const std::runtime_error& e) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
-        result = cb::engine_errc::failed;
     } catch (const std::bad_alloc& e) {
         LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
         result = cb::engine_errc::no_memory;
+    } catch (const std::exception& e) {
+        LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
+        result = cb::engine_errc::failed;
     }
 
     if (result == cb::engine_errc::success) {

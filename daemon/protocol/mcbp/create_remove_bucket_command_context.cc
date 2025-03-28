@@ -59,7 +59,7 @@ cb::engine_errc CreateRemoveBucketCommandContext::create() {
                 try {
                     status = BucketManager::instance().create(
                             *client, nm, cfg, t);
-                } catch (const std::runtime_error& error) {
+                } catch (const std::exception& error) {
                     LOG_WARNING(
                             "{}: An error occurred while creating bucket [{}]: "
                             "{}",
@@ -115,7 +115,7 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
                 cb::engine_errc status;
                 try {
                     status = destroyer.drive();
-                } catch (const std::runtime_error& error) {
+                } catch (const std::exception& error) {
                     LOG_WARNING(
                             "{}: An error occurred while deleting bucket [{}]: "
                             "{}",
