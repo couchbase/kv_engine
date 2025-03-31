@@ -2615,78 +2615,85 @@ void CouchKVStore::logOpenError(std::string_view caller,
     }
 }
 
+std::optional<std::pair<Vbid, uint64_t>> CouchKVStore::getFileRevision(
+        std::string_view filename) {
+    // vbid.couch.rev
+    auto basename = cb::io::basename(filename);
+    std::string_view couchfile{basename};
+
+    // vbid.couch
+    auto name = couchfile.substr(0, couchfile.rfind("."));
+
+    // vbid
+    std::string vbid{name.substr(0, name.find('.'))};
+
+    // master.couch.x is expected and can be silently ignored
+    if (vbid == "master") {
+        return {};
+    }
+    // possible to get x..couch..y which is invalid
+    if (std::ranges::count(couchfile, '.') != 2) {
+        throw std::invalid_argument(fmt::format(
+                "CouchKVStore::getFileRevision: invalid filename:{}",
+                filename));
+    }
+
+    // rev
+    std::string rev{couchfile.substr(couchfile.rfind('.') + 1)};
+
+    if (allDigit(vbid) && allDigit(rev)) {
+        try {
+            return {{Vbid(gsl::narrow<uint16_t>(std::stoul(vbid))),
+                     std::stoull(rev)}};
+        } catch (const std::exception&) {
+            // will throw below
+        }
+    }
+
+    throw std::invalid_argument(
+            fmt::format("CouchKVStore::getFileRevision: invalid filename:{}, "
+                        "basename:{}, name:{}, vbid:{}, rev:{}",
+                        filename,
+                        basename,
+                        name,
+                        vbid,
+                        rev));
+}
+
 std::unordered_map<Vbid, std::unordered_set<uint64_t>>
 CouchKVStore::getVbucketRevisions(
         const std::vector<std::string>& filenames) const {
     std::unordered_map<Vbid, std::unordered_set<uint64_t>> vbids;
     for (const auto& filename : filenames) {
-        // vbid.couch.rev
-        auto basename = cb::io::basename(filename);
-        std::string_view couchfile(basename);
-
-        // vbid.couch
-        auto name = couchfile.substr(0, couchfile.rfind("."));
-
-        // vbid
-        std::string vbid(name.substr(0, name.find(".")));
-
-        // rev
-        std::string rev(couchfile.substr(couchfile.rfind('.') + 1));
-
-        // possible to get x..couch..y which is invalid
-        bool valid = std::ranges::count(couchfile, '.') == 2;
-
         Vbid id;
-        uint64_t revision = 0;
-        if (valid && allDigit(vbid) && allDigit(rev)) {
-            try {
-                id = Vbid(gsl::narrow<uint16_t>(std::stoul(vbid)));
-                revision = std::stoull(rev);
-            } catch (const std::exception&) {
-                valid = false;
+        uint64_t revision;
+        try {
+            auto result = getFileRevision(filename);
+            if (!result) {
+                // ignore
+                continue;
             }
-        } else if (vbid == "master") {
-            // master.couch.x is expected and can be silently ignored
+            std::tie(id, revision) = *result;
+        } catch (const std::invalid_argument& ex) {
+            logger.warnWithContext(
+                    "CouchKVStore::getVbucketRevisions: invalid argument",
+                    {{"error", ex.what()}});
             continue;
-        } else {
-            valid = false;
         }
-
-        if (valid) {
-            if (id.get() % configuration.getMaxShards() !=
-                configuration.getShardId()) {
-                // Either doesn't belong to this shard or is the last element
-                // (case where max vB % shards != 0) which we now need to check
-                // for
-                if (id.get() != (((configuration.getMaxVBuckets() /
-                                   configuration.getMaxShards()) *
-                                  configuration.getMaxShards()) +
-                                 configuration.getShardId())) {
-                    continue;
-                }
+        if (id.get() % configuration.getMaxShards() !=
+            configuration.getShardId()) {
+            // Either doesn't belong to this shard or is the last element
+            // (case where max vB % shards != 0) which we now need to check
+            // for
+            if (id.get() != (((configuration.getMaxVBuckets() /
+                               configuration.getMaxShards()) *
+                              configuration.getMaxShards()) +
+                             configuration.getShardId())) {
+                continue;
             }
-            // update map or create new element
-            if (vbids.contains(id)) {
-                // id is mapped, add the revision
-                vbids[id].emplace(revision);
-            } else {
-                // nothing mapped, create new vector with revision
-                auto inserted =
-                        vbids.emplace(Vbid(id), std::unordered_set<uint64_t>{});
-                inserted.first->second.emplace(revision);
-            }
-
-        } else {
-            // Dump all the bits we extracted from the input
-            logger.warn(
-                    "CouchKVStore::getVbucketRevisions: invalid filename:{}, "
-                    "basename:{}, name:{}, vbid:{}, rev:{}",
-                    filename,
-                    basename,
-                    name,
-                    vbid,
-                    rev);
         }
+        // update map or create new element
+        vbids[id].emplace(revision);
     }
     return vbids;
 }
@@ -4381,18 +4388,42 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
     Expects(source == VBucketSnapshotSource::Local);
     Expects(paths.size() == 1);
     const auto& path = paths.front();
+    uint64_t snapRev;
     {
-        auto vbs = mountedVBuckets.wlock();
-        const auto [iter, inserted] = vbs->emplace(vbid, path);
-        if (!inserted) {
-            logger.warnWithContext(
-                    "CouchKVStore::mountVBucket: Already exists",
-                    {{"vb", vbid}, {"path", path}, {"existing", iter->second}});
-            return {cb::engine_errc::key_already_exists, {}};
-        }
+        auto revResult = getFileRevision(path);
+        Expects(revResult && revResult->first == vbid);
+        snapRev = revResult->second;
     }
-    // TODO: Get DEK ids (MB-65911)
-    return {cb::engine_errc::success, {}};
+    std::vector<std::string> result;
+    try {
+        DbHolder db(*this);
+        auto errCode = openSpecificDBFile(
+                vbid, snapRev, db, COUCHSTORE_OPEN_FLAG_RDONLY, path);
+        if (errCode) {
+            logOpenError(__func__,
+                         spdlog::level::level_enum::warn,
+                         errCode,
+                         vbid,
+                         path,
+                         0);
+            return {cb::engine_errc::failed, {}};
+        }
+        if (cb::couchstore::isEncrypted(*db)) {
+            result.emplace_back(cb::couchstore::getEncryptionKeyId(*db));
+        }
+    } catch (const std::exception& ex) {
+        logger.warnWithContext("CouchKVStore::mountVBucket: exception",
+                               {{"error", ex.what()}});
+        return {cb::engine_errc::failed, {}};
+    }
+    const auto [iter, inserted] = mountedVBuckets.wlock()->emplace(vbid, path);
+    if (!inserted) {
+        logger.warnWithContext(
+                "CouchKVStore::mountVBucket: Already exists",
+                {{"vb", vbid}, {"path", path}, {"existing", iter->second}});
+        return {cb::engine_errc::key_already_exists, {}};
+    }
+    return {cb::engine_errc::success, std::move(result)};
 }
 
 KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
@@ -4407,17 +4438,9 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
     const auto& path = foundMountedVBucket->second;
     uint64_t snapRev;
     {
-        auto diskMap = getVbucketRevisions({path});
-        auto diskMapItr = diskMap.find(vbid);
-        if (diskMapItr == diskMap.end()) {
-            return {ReadVBStateStatus::NotFound, {}};
-        }
-        auto maxRevItr = std::max_element(diskMapItr->second.begin(),
-                                          diskMapItr->second.end());
-        if (maxRevItr == diskMapItr->second.end()) {
-            return {ReadVBStateStatus::NotFound, {}};
-        }
-        snapRev = *maxRevItr;
+        auto revResult = getFileRevision(path);
+        Expects(revResult && revResult->first == vbid);
+        snapRev = revResult->second;
     }
     ReadVBStateResult result;
     {

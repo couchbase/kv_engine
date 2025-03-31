@@ -518,6 +518,16 @@ protected:
     populateRevMapAndRemoveStaleFiles();
 
     /**
+     * Parse the vbid and revision from the given file path.
+     * Returns nullopt when the filename is master.couch.x
+     *
+     * @param filename file path
+     * @throws std::invalid_argument on invalid filename
+     */
+    static std::optional<std::pair<Vbid, uint64_t>> getFileRevision(
+            std::string_view filename);
+
+    /**
      * Get a map of vbucket => revision(s), created from the given filenames.
      * The expected usage is that a list of *.couch files found in the dbname
      * directory is created and handed to this function.

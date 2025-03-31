@@ -1413,6 +1413,55 @@ TEST_P(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
 }
 
+TEST_P(CouchKVStoreErrorInjectionTest, mountVBucket) {
+    populate_items(1);
+    const auto dbPath = std::filesystem::path(data_dir);
+    const auto copyPath = dbPath / "0.couch.9";
+    std::filesystem::copy(dbPath / "0.couch.2", copyPath);
+    const std::vector<std::string> copyPaths{{copyPath.string()}};
+    const size_t expectedDeks = GetParam() ? 1 : 0;
+    {
+        auto rev = kvstore->prepareToDelete(vbid);
+        kvstore->delVBucket(vbid, std::move(rev));
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::success, status);
+        EXPECT_EQ(expectedDeks, deks.size());
+    }
+    {
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::key_already_exists, status);
+        EXPECT_EQ(0, deks.size());
+        auto rev = kvstore->prepareToDelete(vbid);
+        kvstore->delVBucket(vbid, std::move(rev));
+    }
+    {
+        /* Establish Logger expectation */
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .RetiresOnSaturation();
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(AnyNumber());
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_READ))
+                .RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).RetiresOnSaturation();
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::failed, status);
+        EXPECT_EQ(0, deks.size());
+    }
+    {
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::success, status);
+        EXPECT_EQ(expectedDeks, deks.size());
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(
         CouchKVStoreErrorInjectionTest,
         CouchKVStoreErrorInjectionTest,
