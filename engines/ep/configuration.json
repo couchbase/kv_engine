@@ -1171,7 +1171,13 @@
             "default": "90.0",
             "descr": "The percentage of disk usage at which DCP backfills would be ended when no progress is made for dcp_backfill_idle_limit_seconds",
             "dynamic": true,
-            "type": "float"
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 100.0
+                }
+            }
         },
         "dcp_backfill_in_progress_per_connection_limit": {
             "default": "64",
