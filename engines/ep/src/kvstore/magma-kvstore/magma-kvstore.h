@@ -701,6 +701,11 @@ public:
     std::chrono::seconds getMagmaFusionUploadInterval() const;
     void setMagmaFusionUploadInterval(std::chrono::seconds value);
 
+    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
+            const std::filesystem::path& snapshotDirectory,
+            Vbid vb,
+            std::string_view uuid) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

@@ -12,6 +12,7 @@
 #include "ep_bucket.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <gtest/gtest.h>
 
@@ -19,6 +20,7 @@ class SnapshotEngineTest : public SingleThreadedEPBucketTest,
                            public ::testing::WithParamInterface<std::string> {
 public:
     void SetUp() override {
+        config_string = generateBucketTypeConfig(GetParam());
         SingleThreadedEPBucketTest::SetUp();
     }
 };
@@ -54,13 +56,16 @@ TEST_P(SnapshotEngineTest, prepare_snapshot) {
                       *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
     EXPECT_TRUE(manifest.contains("uuid"));
 
-    if (isMagma()) {
-        // Not sure what we can assume?
-        FAIL() << "No magma testing\n";
+    if (isCouchstore()) {
+        ASSERT_EQ(1, manifest["files"].size());
+        EXPECT_EQ(1, manifest["files"][0]["id"]);
+        EXPECT_EQ("0.couch.1", manifest["files"][0]["path"]);
+    } else {
+        // Let's not assume too much about magma, at least verify some fields
+        // are set.
+        ASSERT_GT(manifest["files"].size(), 1);
+        EXPECT_FALSE(manifest["files"][0]["path"].empty());
     }
-    EXPECT_EQ(1, manifest["files"].size());
-    EXPECT_EQ(1, manifest["files"][0]["id"]);
-    EXPECT_EQ("0.couch.1", manifest["files"][0]["path"]);
     EXPECT_GT(manifest["files"][0]["size"], 0);
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -227,8 +232,15 @@ static std::string PrintToStringParamName(
     return info.param;
 }
 
+#ifdef EP_USE_MAGMA
+#define TEST_VALUES ::testing::Values("persistent_couchdb", "persistent_magma")
+#else
+#define TEST_VALUES ::testing::Values("persistent_couchdb")
+#endif
+
 // todo: add magma (and maybe nexus)
 INSTANTIATE_TEST_SUITE_P(SnapshotEngineTests,
                          SnapshotEngineTest,
-                         ::testing::Values("persistent_couchdb"),
+                         TEST_VALUES,
                          PrintToStringParamName);
+#undef TEST_VALUES

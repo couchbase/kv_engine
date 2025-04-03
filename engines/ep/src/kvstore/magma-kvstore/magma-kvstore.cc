@@ -41,6 +41,7 @@
 #include <platform/compress.h>
 #include <platform/sized_buffer.h>
 #include <statistics/cbstat_collector.h>
+#include <utilities/dek_file_utilities.h>
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
@@ -4842,4 +4843,47 @@ cb::engine_errc MagmaKVStore::stopFusionUploader(Vbid vbid) {
         return cb::engine_errc::failed;
     }
     return cb::engine_errc::success;
+}
+
+std::variant<cb::engine_errc, cb::snapshot::Manifest>
+MagmaKVStore::prepareSnapshotImpl(
+        const std::filesystem::path& snapshotDirectory,
+        Vbid vb,
+        std::string_view uuid) {
+    magma->SyncKVStore(Magma::KVStoreID(vb.get()), false);
+    const auto res = magma->Clone(snapshotDirectory.string(),
+                                  Magma::KVStoreID(vb.get()));
+    if (std::get<Status>(res).ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::prepareSnapshotImpl Clone failed",
+                        {"vb", vb},
+                        {"uuid", uuid},
+                        {"status", std::get<Status>(res).String()});
+        return cb::engine_errc::failed;
+    }
+
+    const auto& cloneManifest = std::get<magma::CloneManifest>(res);
+    cb::snapshot::Manifest manifest(vb, uuid);
+    std::size_t fileid = 1;
+    for (const auto& file : cloneManifest.Files) {
+        manifest.files.emplace_back(file.FilePath, file.Size, fileid++);
+    }
+
+    create_directories(snapshotDirectory / "deks");
+    const auto root = std::filesystem::path(configuration.getDBName());
+    for (const auto& id : cloneManifest.EncryptionKeyIDs) {
+        auto keyfile = cb::dek::util::copyKeyFile(
+                id, root / "deks", snapshotDirectory / "deks");
+        manifest.deks.emplace_back(
+                fmt::format("deks/{}", keyfile.filename().string()),
+                file_size(snapshotDirectory / "deks" / keyfile.filename()),
+                fileid++);
+    }
+
+    if (logger->should_log(spdlog::level::debug)) {
+        logger->debugWithContext(
+                "MagmaKVStore::prepareSnapshotImpl generated a snapshot",
+                {{"manifest", nlohmann::json(manifest)}});
+    }
+
+    return manifest;
 }

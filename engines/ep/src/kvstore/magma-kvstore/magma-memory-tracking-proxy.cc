@@ -839,3 +839,9 @@ MagmaMemoryTrackingProxy::GetFusionUploaderTerm(
     cb::UseArenaMallocSecondaryDomain d;
     return magma->GetFusionUploaderTerm(kvId);
 }
+
+std::tuple<magma::Status, magma::CloneManifest> MagmaMemoryTrackingProxy::Clone(
+        const std::string& path, magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return copyToPrimaryDomain(magma->Clone(path, kvID));
+}

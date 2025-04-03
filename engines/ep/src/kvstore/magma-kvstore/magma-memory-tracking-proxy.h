@@ -353,6 +353,9 @@ public:
     std::tuple<magma::Status, uint64_t> GetFusionUploaderTerm(
             const magma::Magma::KVStoreID kvId);
 
+    std::tuple<magma::Status, magma::CloneManifest> Clone(
+            const std::string& path, magma::Magma::KVStoreID kvID);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

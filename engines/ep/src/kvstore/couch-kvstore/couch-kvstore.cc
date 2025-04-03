@@ -2125,7 +2125,7 @@ CouchKVStore::prepareSnapshotImpl(
                 id, root / "deks", snapshotDirectory / "deks");
         manifest.deks.emplace_back(
                 fmt::format("deks/{}", keyfile.filename().string()),
-                file_size(target),
+                file_size(snapshotDirectory / "deks" / keyfile.filename()),
                 fileid++);
     }
 

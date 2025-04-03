@@ -9,9 +9,10 @@
  */
 
 #include "../kvstore_test.h"
+#include "../test_helpers.h"
+#include "item.h"
 #include "kvstore/kvstore_config.h"
 #include "snapshots/cache.h"
-
 #include <platform/dirutils.h>
 
 #include <filesystem>
@@ -21,6 +22,13 @@ public:
     void SetUp() override {
         KVStoreParamTest::SetUp();
         create_directories(snapshotdir);
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        StoredDocKey key = makeStoredDocKey("key");
+        auto qi = makeCommittedItem(key, "value");
+        qi->setBySeqno(1);
+        kvstore->set(*ctx, qi);
+        EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
     }
 
     void TearDown() override {
@@ -86,12 +94,17 @@ TEST_P(SnapshotsTests, purge) {
 }
 
 /* NOLINTNEXTLINE(modernize-avoid-c-arrays) */
-static std::string testParams[] = {"couchdb"};
+#ifdef EP_USE_MAGMA
+#define TEST_VALUES ::testing::Values("couchdb", "magma")
+#else
+#define TEST_VALUES ::testing::Values("couchdb")
+#endif
 
 INSTANTIATE_TEST_SUITE_P(
         SnapshotsTests,
         SnapshotsTests,
-        ::testing::ValuesIn(testParams),
+        TEST_VALUES,
         [](const ::testing::TestParamInfo<std::string>& testInfo) {
             return testInfo.param;
         });
+#undef TEST_VALUES
