@@ -463,7 +463,7 @@ public:
                                 data_dir,
                                 error.code().message()));
         }
-        if (GetParam()) {
+        if (isEncrypted()) {
             keyStore = nlohmann::json::parse(R"({
     "keys": [
         {
@@ -548,26 +548,30 @@ protected:
         return itms;
     }
 
+    static bool isEncrypted() {
+        return GetParam();
+    }
+
     /**
      * Number of read calls per metadata header
      */
     static int numMetadataHeaderReads() {
         // Unencrypted files don't have a metadata header
-        return GetParam() ? 3 : 0;
+        return isEncrypted() ? 3 : 0;
     }
 
     /**
      * Number of write calls per data chunk
      */
     static int numDataChunkWrites() {
-        return GetParam() ? 1 : 2;
+        return isEncrypted() ? 1 : 2;
     }
 
     /**
      * Size of data chunk header
      */
     static size_t dataChunkHeaderSize() {
-        return GetParam() ? 4 : 8;
+        return isEncrypted() ? 4 : 8;
     }
 
     /**
@@ -988,6 +992,69 @@ TEST_P(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     testCompactDBCompactDBEx();
 }
 
+TEST_P(CouchKVStoreErrorInjectionTest, compactDB_EncryptionKeys) {
+    if (!isEncrypted()) {
+        GTEST_SKIP();
+    }
+    populate_items(4);
+    auto vb = makeVBucket();
+    std::mutex mutex;
+    CompactionConfig config;
+    config.purge_before_seq = 0;
+    config.purge_before_ts = 0;
+    config.drop_deletes = false;
+    auto getKeyIds = [this]() {
+        return std::get<std::unordered_set<std::string>>(
+                kvstore->getEncryptionKeyIds());
+    };
+    {
+        auto keys = getKeyIds();
+        ASSERT_FALSE(keys.empty());
+        EXPECT_EQ("MyActiveKey", *keys.begin());
+        nlohmann::json json = keyStore;
+        json["active"] = "MyOtherKey";
+        keyStore = json;
+        encryptionKeyProvider.setKeys(keyStore);
+    }
+    {
+        auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
+        std::unique_lock lock{mutex};
+        kvstore->compactDB(lock, cctx);
+    }
+    {
+        auto keys = getKeyIds();
+        ASSERT_FALSE(keys.empty());
+        EXPECT_EQ("MyOtherKey", *keys.begin());
+        nlohmann::json json = keyStore;
+        json["active"] = "MyActiveKey";
+        keyStore = json;
+        encryptionKeyProvider.setKeys(keyStore);
+    }
+    {
+        auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
+        std::unique_lock lock{mutex};
+        /* Establish Logger expectation */
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .RetiresOnSaturation();
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_READ))
+                .RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(4 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
+        kvstore->compactDB(lock, cctx);
+    }
+    {
+        auto keys = getKeyIds();
+        ASSERT_FALSE(keys.empty());
+        EXPECT_EQ("MyOtherKey", *keys.begin());
+    }
+}
+
 /**
  * Injects error during
  * CouchKVStore::initBySeqnoScanContext/couchstore_changes_count
@@ -1353,13 +1420,13 @@ TEST_P(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
             EXPECT_CALL(ops, pread(_, _, _, 8, _));
             // <variable> - byId tree root
             EXPECT_CALL(ops, pread(_, _, _, _, _));
-            if (GetParam()) {
+            if (isEncrypted()) {
                 // Metadata header
                 // 1 byte - detect block type
                 EXPECT_CALL(ops, pread(_, _, _, 1, _));
                 // 8 bytes - header
                 EXPECT_CALL(ops, pread(_, _, _, 8, _));
-                // <variable - content
+                // <variable> - content
                 EXPECT_CALL(ops, pread(_, _, _, _, _));
             }
             // 4/8 bytes - header
@@ -1381,7 +1448,7 @@ TEST_P(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
                         // Now check and modify the return value.
                         auto* length_ptr = reinterpret_cast<uint32_t*>(buf);
                         uint32_t expectedLength = 7;
-                        if (GetParam()) {
+                        if (isEncrypted()) {
                             // Encrypted chunks have a 16 byte MAC tag.
                             expectedLength += 16;
                         } else {
@@ -1398,7 +1465,7 @@ TEST_P(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
                     }));
             // Final read of the value's data (should be size 6 given we
             // changed the chunk.length above).
-            EXPECT_CALL(ops, pread(_, _, _, (GetParam() ? 6 + 16 : 6), _));
+            EXPECT_CALL(ops, pread(_, _, _, (isEncrypted() ? 6 + 16 : 6), _));
         }
 
         // As a result, expect to see a CHECKSUM_FAIL log message
@@ -1421,7 +1488,7 @@ TEST_P(CouchKVStoreErrorInjectionTest, mountVBucket) {
     const auto copyPath = dbPath / "0.couch.9";
     std::filesystem::copy(dbPath / "0.couch.2", copyPath);
     const std::vector<std::string> copyPaths{{copyPath.string()}};
-    const size_t expectedDeks = GetParam() ? 1 : 0;
+    const size_t expectedDeks = isEncrypted() ? 1 : 0;
     {
         auto rev = kvstore->prepareToDelete(vbid);
         kvstore->delVBucket(vbid, std::move(rev));
@@ -1470,7 +1537,7 @@ TEST_P(CouchKVStoreErrorInjectionTest, loadVBucketSnapshot) {
     const auto copyPath = dbPath / "0.couch.9";
     std::filesystem::copy(dbPath / "0.couch.2", copyPath);
     const std::vector<std::string> copyPaths{{copyPath.string()}};
-    const size_t expectedDeks = GetParam() ? 1 : 0;
+    const size_t expectedDeks = isEncrypted() ? 1 : 0;
     auto getKeyIds = [this]() {
         return std::get<std::unordered_set<std::string>>(
                 kvstore->getEncryptionKeyIds());
@@ -1514,7 +1581,7 @@ TEST_P(CouchKVStoreErrorInjectionTest, loadVBucketSnapshot) {
         EXPECT_EQ(KVStoreIface::ReadVBStateStatus::Success, result.status);
         auto keys = getKeyIds();
         ASSERT_EQ(1, keys.size());
-        if (GetParam()) {
+        if (isEncrypted()) {
             EXPECT_EQ("MyActiveKey", *keys.begin());
         } else {
             EXPECT_EQ("unencrypted", *keys.begin());
