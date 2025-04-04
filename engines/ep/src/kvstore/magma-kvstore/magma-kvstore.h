@@ -698,6 +698,9 @@ public:
     cb::engine_errc setFusionMetadataStoreURI(std::string_view uri);
     std::string getFusionMetadataStoreURI() const;
 
+    std::chrono::seconds getMagmaFusionUploadInterval() const;
+    void setMagmaFusionUploadInterval(std::chrono::seconds value);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

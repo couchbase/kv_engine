@@ -1679,7 +1679,7 @@
         "magma_fusion_upload_interval": {
             "default": "(60 * 10)",
             "descr": "The interval between kvstore syncs to fusion, in seconds.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "size_t"
         },
         "magma_fusion_log_checkpoint_interval": {

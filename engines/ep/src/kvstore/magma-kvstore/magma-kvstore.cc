@@ -4808,6 +4808,14 @@ std::string MagmaKVStore::getFusionMetadataStoreURI() const {
     return magma->GetFusionMetadataStoreURI();
 }
 
+void MagmaKVStore::setMagmaFusionUploadInterval(std::chrono::seconds value) {
+    magma->SetFusionUploadInterval(value);
+}
+
+std::chrono::seconds MagmaKVStore::getMagmaFusionUploadInterval() const {
+    return magma->GetFusionUploadInterval();
+}
+
 cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
     const auto status =
             magma->StartFusionUploader(Magma::KVStoreID(vbid.get()), term);

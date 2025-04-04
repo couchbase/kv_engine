@@ -50,6 +50,8 @@ public:
             config.setFusionMigrationRateLimit(value);
         } else if (key == "magma_fusion_sync_rate_limit") {
             config.setFusionSyncRateLimit(value);
+        } else if (key == "magma_fusion_upload_interval") {
+            config.setFusionUploadInterval(std::chrono::seconds(value));
         }
     }
 
@@ -251,6 +253,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_fusion_sync_rate_limit",
             std::make_unique<ConfigChangeListener>(*this));
+
+    fusionUploadInterval =
+            std::chrono::seconds(config.getMagmaFusionUploadInterval());
+    config.addValueChangedListener(
+            "magma_fusion_upload_interval",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
@@ -281,6 +289,12 @@ void MagmaKVStoreConfig::setFusionMetadatastoreURI(std::string_view uri) {
     Expects(store);
     fusionMetadatastoreURI = uri;
     store->setFusionMetadataStoreURI(uri);
+}
+
+void MagmaKVStoreConfig::setFusionUploadInterval(std::chrono::seconds value) {
+    Expects(store);
+    fusionUploadInterval.store(value);
+    store->setMagmaFusionUploadInterval(value);
 }
 
 void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {

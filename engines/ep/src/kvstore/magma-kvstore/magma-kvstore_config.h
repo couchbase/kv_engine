@@ -299,6 +299,8 @@ public:
         return fusionUploadInterval;
     }
 
+    void setFusionUploadInterval(std::chrono::seconds value);
+
     std::chrono::seconds getFusionLogCheckpointInterval() const {
         return fusionLogCheckpointInterval;
     }
@@ -591,7 +593,7 @@ private:
     // Fusion Namespace.
     std::string fusionNamespace;
     // The interval between kvstore syncs to fusion
-    std::chrono::seconds fusionUploadInterval;
+    std::atomic<std::chrono::seconds> fusionUploadInterval;
     // The interval at which FusionFS should create a log checkpoint on the
     // FusionMetadataStore and delete eligible logs from the FusionLogStore
     std::chrono::seconds fusionLogCheckpointInterval;

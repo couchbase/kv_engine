@@ -1288,6 +1288,28 @@ TEST_P(STMagmaFusionTest, MetadatastoreUri) {
     EXPECT_EQ(newUri, kvstore.getFusionMetadataStoreURI());
 }
 
+TEST_P(STMagmaFusionTest, MagmaFusionUploadInterval) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_upload_interval", "777777", msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(std::chrono::seconds(777777), config.getFusionUploadInterval())
+            << "config not updated";
+    EXPECT_EQ(std::chrono::seconds(777777),
+              kvstore.getMagmaFusionUploadInterval())
+            << "value not passed down to Magma";
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_fusion_upload_interval", "0", msg));
+    EXPECT_EQ(std::chrono::seconds(0), config.getFusionUploadInterval())
+            << "config not updated";
+    EXPECT_EQ(std::chrono::seconds(0), kvstore.getMagmaFusionUploadInterval())
+            << "value not passed down to Magma";
+}
+
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {
     auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore.getChronicleAuthToken().empty());
