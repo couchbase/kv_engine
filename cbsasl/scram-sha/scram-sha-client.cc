@@ -8,7 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/scram-sha.h"
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
@@ -16,8 +15,6 @@
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
-#include <map>
-#include <memory>
 #include <sstream>
 #include <string>
 
@@ -100,14 +97,14 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
         if (!attributes.contains('r') || !attributes.contains('s') ||
             !attributes.contains('i')) {
             errorMessage = "Missing r/s/i in server message";
-            LOG_ERROR("UUID:[{}]: {}", context.getUuid(), errorMessage);
+            LOG_ERROR_CTX(errorMessage, {"uuid", context.getUuid()});
             return {Error::BAD_PARAM, errorMessage};
         }
 
         // I've got the SALT, lets generate the salted password
         if (!generateSaltedPassword(passwordCallback())) {
             errorMessage = "Failed to generate salted passwod";
-            LOG_ERROR("UUID:[{}]: {}", context.getUuid(), errorMessage);
+            LOG_ERROR_CTX(errorMessage, {"uuid", context.getUuid()});
             return {Error::FAIL, errorMessage};
         }
 
@@ -131,8 +128,8 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
 
         AttributeMap attributes;
         if (!decodeAttributeList(context, server_final_message, attributes)) {
-            LOG_ERROR("UUID:[{}]: Failed to decode server-final-message",
-                      context.getUuid());
+            LOG_ERROR_CTX("Failed to decode server-final-message",
+                          {"uuid", context.getUuid()});
             return {Error::BAD_PARAM, {}};
         }
 

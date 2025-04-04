@@ -7,9 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/scram-sha.h"
-#include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
 
 #include <cbsasl/username_util.h>
@@ -18,8 +16,6 @@
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
-#include <map>
-#include <memory>
 #include <sstream>
 #include <string>
 
@@ -39,8 +35,8 @@ ServerBackend::ServerBackend(
 
         std::array<char, 8> nonce{};
         if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-            LOG_ERROR("UUID:[{}]: Failed to generate server nonce",
-                      context.getUuid());
+            LOG_ERROR_CTX("Failed to generate server nonce",
+                          {"uuid", context.getUuid()});
             throw std::bad_alloc();
         }
 

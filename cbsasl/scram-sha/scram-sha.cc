@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -9,16 +8,11 @@
  *   the file licenses/APL2.txt.
  */
 #include "cbsasl/scram-sha/scram-sha.h"
-#include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/stringutils.h"
-#include "cbsasl/util.h"
 
 #include <cbsasl/username_util.h>
 #include <logger/logger.h>
 #include <platform/base64.h>
-#include <map>
-#include <memory>
-#include <sstream>
 #include <string>
 
 namespace cb::sasl::mechanism::scram {
@@ -31,19 +25,20 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
     while (pos < list.length()) {
         auto equal = list.find('=', pos);
         if (equal == std::string::npos) {
-            // syntax error!!
-            LOG_ERROR("UUID:[{}] Decode attribute list [{}]] failed: no '='",
-                      context.getUuid(),
-                      list);
+            // syntax error. Log as debug as the client isn't authenticated and
+            // unauthenticated clients are not allowed to spam the server logs
+            LOG_DEBUG_CTX("Decode attribute list failed: no '='",
+                          {"uuid", context.getUuid()},
+                          {"entry", list});
             return false;
         }
 
         if ((equal - pos) != 1) {
-            LOG_ERROR(
-                    "UUID:[{}] Decode attribute list [{}] failed: key is "
-                    "multichar",
-                    context.getUuid(),
-                    list);
+            // syntax error. Log as debug as the client isn't authenticated and
+            // unauthenticated clients are not allowed to spam the server logs
+            LOG_DEBUG_CTX("Decode attribute list failed: key is multichar",
+                          {"uuid", context.getUuid()},
+                          {"entry", list});
             return false;
         }
 
@@ -52,12 +47,10 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
 
         // Make sure we haven't seen this key before..
         if (attributes.contains(key)) {
-            LOG_ERROR(
-                    "UUID:[{}] Decode attribute list [{}] failed: key [{}] "
-                    "already seen",
-                    context.getUuid(),
-                    list,
-                    key);
+            LOG_DEBUG_CTX("Decode attribute list failed: key already seen",
+                          {"uuid", context.getUuid()},
+                          {"entry", list},
+                          {"key", key});
             return false;
         }
 

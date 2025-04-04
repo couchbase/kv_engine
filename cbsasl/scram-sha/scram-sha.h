@@ -24,9 +24,8 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <cbsasl/user.h>
-#include <array>
-#include <iostream>
-#include <vector>
+#include <ostream>
+#include <unordered_map>
 
 namespace cb::sasl::mechanism::scram {
 
@@ -55,7 +54,7 @@ protected:
                              const std::string& value,
                              bool more);
 
-    using AttributeMap = std::map<char, std::string>;
+    using AttributeMap = std::unordered_map<char, std::string>;
 
     /**
      * Decode the attribute list into a set. The attribute list looks like:
