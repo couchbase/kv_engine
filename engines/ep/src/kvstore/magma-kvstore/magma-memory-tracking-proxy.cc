@@ -793,6 +793,28 @@ size_t MagmaMemoryTrackingProxy::GetFusionSyncRateLimit() const {
     return magma->GetFusionSyncRateLimit();
 }
 
+magma::Status MagmaMemoryTrackingProxy::SetFusionLogStoreURI(
+        const std::string& uri) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->SetFusionLogStoreURI(uri);
+}
+
+magma::Status MagmaMemoryTrackingProxy::SetFusionMetadataStoreURI(
+        const std::string& uri) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->SetFusionMetadataStoreURI(uri);
+}
+
+std::string MagmaMemoryTrackingProxy::GetFusionLogStoreURI() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return copyToPrimaryDomain(magma->GetFusionLogStoreURI());
+}
+
+std::string MagmaMemoryTrackingProxy::GetFusionMetadataStoreURI() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return copyToPrimaryDomain(magma->GetFusionMetadataStoreURI());
+}
+
 magma::Status MagmaMemoryTrackingProxy::StartFusionUploader(
         magma::Magma::KVStoreID kvId, uint64_t term) {
     cb::UseArenaMallocSecondaryDomain d;

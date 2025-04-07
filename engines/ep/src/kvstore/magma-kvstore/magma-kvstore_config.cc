@@ -63,6 +63,10 @@ public:
         if (key == "vbucket_mapping_sanity_checking_error_mode") {
             config.setVBucketMappingErrorHandlingMethod(
                     cb::getErrorHandlingMethod(value));
+        } else if (key == "magma_fusion_logstore_uri") {
+            config.setFusionLogstoreURI(value);
+        } else if (key == "magma_fusion_metadatastore_uri") {
+            config.setFusionMetadatastoreURI(value);
         }
     }
 
@@ -222,17 +226,27 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     historyRetentionSize = config.getHistoryRetentionBytes();
 
     fusionLogstoreURI = config.getMagmaFusionLogstoreUri();
+    config.addValueChangedListener(
+            "magma_fusion_logstore_uri",
+            std::make_unique<ConfigChangeListener>(*this));
+
     fusionMetadatastoreURI = config.getMagmaFusionMetadatastoreUri();
+    config.addValueChangedListener(
+            "magma_fusion_metadatastore_uri",
+            std::make_unique<ConfigChangeListener>(*this));
+
     fusionNamespace = config.getCouchBucket() + "/" + config.getUuid() + "/" +
                       config.getMagmaFusionNamespaceSuffix();
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
     fusionLogCheckpointInterval =
             std::chrono::seconds(config.getMagmaFusionLogCheckpointInterval());
+
     fusionMigrationRateLimit = config.getMagmaFusionMigrationRateLimit();
     config.addValueChangedListener(
             "magma_fusion_migration_rate_limit",
             std::make_unique<ConfigChangeListener>(*this));
+
     fusionSyncRateLimit = config.getMagmaFusionSyncRateLimit();
     config.addValueChangedListener(
             "magma_fusion_sync_rate_limit",
@@ -255,6 +269,18 @@ void MagmaKVStoreConfig::setFusionSyncRateLimit(size_t value) {
     if (store) {
         store->setMagmaFusionSyncRateLimit(value);
     }
+}
+
+void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {
+    Expects(store);
+    fusionLogstoreURI = uri;
+    store->setFusionLogStoreURI(uri);
+}
+
+void MagmaKVStoreConfig::setFusionMetadatastoreURI(std::string_view uri) {
+    Expects(store);
+    fusionMetadatastoreURI = uri;
+    store->setFusionMetadataStoreURI(uri);
 }
 
 void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {

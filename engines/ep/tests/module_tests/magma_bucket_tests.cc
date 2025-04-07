@@ -1253,6 +1253,41 @@ TEST_P(STMagmaFusionTest, MagmaFusionSyncRateLimit) {
             << "value not passed down to Magma";
 }
 
+TEST_P(STMagmaFusionTest, LogstoreUri) {
+    // Note: magma allows setting the param only when not already set
+    TearDown();
+    config_string.clear();
+    STParameterizedBucketTest::SetUp();
+
+    const auto& kvstore =
+            dynamic_cast<const MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const std::string newUri = "abcdef";
+    ASSERT_NE(newUri, kvstore.getFusionLogStoreURI());
+
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_fusion_logstore_uri", newUri, msg));
+    EXPECT_EQ(newUri, kvstore.getFusionLogStoreURI());
+}
+
+TEST_P(STMagmaFusionTest, MetadatastoreUri) {
+    // Note: magma allows setting the param only when not already set
+    TearDown();
+    config_string.clear();
+    STParameterizedBucketTest::SetUp();
+
+    const auto& kvstore =
+            dynamic_cast<const MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const std::string newUri = "ghijkl";
+    ASSERT_NE(newUri, kvstore.getFusionMetadataStoreURI());
+
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_metadatastore_uri", newUri, msg));
+    EXPECT_EQ(newUri, kvstore.getFusionMetadataStoreURI());
+}
+
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {
     auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore.getChronicleAuthToken().empty());

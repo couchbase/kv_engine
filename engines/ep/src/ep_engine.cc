@@ -953,6 +953,10 @@ cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
         configuration.setMagmaFusionMigrationRateLimit(std::stoull(val));
     } else if (key == "magma_fusion_sync_rate_limit") {
         configuration.setMagmaFusionSyncRateLimit(std::stoull(val));
+    } else if (key == "magma_fusion_logstore_uri") {
+        configuration.setMagmaFusionLogstoreUri(val);
+    } else if (key == "magma_fusion_metadatastore_uri") {
+        configuration.setMagmaFusionMetadatastoreUri(val);
     } else {
         EP_LOG_WARN_CTX("Rejecting setFusionFlushParam request",
                         {"key", key},

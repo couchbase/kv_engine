@@ -314,6 +314,12 @@ public:
     void SetFusionSyncRateLimit(size_t limit);
     size_t GetFusionSyncRateLimit() const;
 
+    magma::Status SetFusionLogStoreURI(const std::string& uri);
+    std::string GetFusionLogStoreURI() const;
+
+    magma::Status SetFusionMetadataStoreURI(const std::string& uri);
+    std::string GetFusionMetadataStoreURI() const;
+
     /**
      * Start uploading data to FusionLogStore for the latest revision of the
      * given kvstore.

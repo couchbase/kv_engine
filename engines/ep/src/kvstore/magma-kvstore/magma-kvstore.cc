@@ -4781,6 +4781,33 @@ size_t MagmaKVStore::getMagmaFusionSyncRateLimit() const {
     return magma->GetFusionSyncRateLimit();
 }
 
+cb::engine_errc MagmaKVStore::setFusionLogStoreURI(std::string_view uri) {
+    const auto status = magma->SetFusionLogStoreURI(std::string(uri));
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::SetFusionLogStoreURI: ", {"uri", uri});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}
+
+std::string MagmaKVStore::getFusionLogStoreURI() const {
+    return magma->GetFusionLogStoreURI();
+}
+
+cb::engine_errc MagmaKVStore::setFusionMetadataStoreURI(std::string_view uri) {
+    const auto status = magma->SetFusionMetadataStoreURI(std::string(uri));
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::SetFusionMetadataStoreURI: ",
+                        {"uri", uri});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}
+
+std::string MagmaKVStore::getFusionMetadataStoreURI() const {
+    return magma->GetFusionMetadataStoreURI();
+}
+
 cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
     const auto status =
             magma->StartFusionUploader(Magma::KVStoreID(vbid.get()), term);

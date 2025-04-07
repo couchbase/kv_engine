@@ -692,6 +692,12 @@ public:
     size_t getMagmaFusionSyncRateLimit() const;
     void setMagmaFusionSyncRateLimit(size_t value);
 
+    cb::engine_errc setFusionLogStoreURI(std::string_view uri);
+    std::string getFusionLogStoreURI() const;
+
+    cb::engine_errc setFusionMetadataStoreURI(std::string_view uri);
+    std::string getFusionMetadataStoreURI() const;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

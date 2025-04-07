@@ -283,9 +283,13 @@ public:
         return fusionLogstoreURI;
     }
 
+    void setFusionLogstoreURI(std::string_view uri);
+
     std::string getFusionMetadatastoreURI() const {
         return fusionMetadatastoreURI;
     }
+
+    void setFusionMetadatastoreURI(std::string_view uri);
 
     std::string getFusionNamespace() const {
         return fusionNamespace;

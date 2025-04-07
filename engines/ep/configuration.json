@@ -1661,13 +1661,13 @@
         "magma_fusion_logstore_uri": {
             "default": "",
             "descr": "URI of the Fusion LogStore.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "std::string"
         },
         "magma_fusion_metadatastore_uri": {
             "default": "",
             "descr": "URI of the Fusion MetadataStore.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "std::string"
         },
         "magma_fusion_namespace_suffix": {
