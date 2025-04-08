@@ -1470,7 +1470,7 @@
         "magma_max_default_storage_threads": {
             "default": "20",
             "dynamic": false,
-            "descr": "If the number of storage threads = 0, then we set the number of storage threads based on the number of writer threads up to a maximum of 20 threads and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
+            "descr": "If the number of storage threads = 0, then we set the number of storage threads to this value and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
             "type": "size_t"
         },
         "magma_sync_every_batch": {

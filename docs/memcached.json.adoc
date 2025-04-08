@@ -401,14 +401,24 @@ can be encoded either a string specifying a mode which memcached will interpret
 to calculate the number of threads, of as a unsigned number specifying the exact
 number. Possible values:
 
-"balanced" or 0:: Configure the number of threads based on the properties of the
-running system (currently logical CPU core count, capped at conservative values).
+"balanced" or 0:: Default thread settings providing a known good configuration.
+Readers are set to the number of logical CPUs capped to a conservative value
+(currently 16). Writers are set to 4.
 
 "disk_io_optimized":: Configure the number of for optimized disk throughput /
 latency based on the properties of the running system (currently logical CPU
-core count, with higher caps than `"balanced"`).
+core count x num_io_threads_per_core, with higher caps than `"balanced"` -
+currently 128).
 
 <positive integer>:: Use the exact number of threads specified.
+
+Changelog::
+
+ * 8.0
+ ** "default" was renamed to "balanced"
+ * 7.6
+ ** "disk_io_optimized" calculation changed to use "num_io_threads_per_core"
+   (doubles the number of threads used)
 
 === num_auxio_threads and num_nonio_threads
 
@@ -423,11 +433,26 @@ values).
 
 <positive integer>:: Use the exact number of threads specified.
 
+=== num_io_threads_per_core
+
+Specifies an integer multiplier used by reader/writer/auxio threads. The
+multiplier is applied to the number of logical CPUs. The default value is 2.
+
+Changelog::
+ * 7.6
+ ** introduced with a default value of 2
+ * 7.2
+ ** prior to 7.6 there was no multipler on the #CPUs (multiplier of 1)
+
 === num_storage_threads
 
-Specifies the number of storage backend threads.
-If 0 means that memcached should use the default number of storage threads which
-is calculated as 3 x num_writer_threads.
+Specifies the number of storage backend threads, which are additional to the
+reader and writer threads.
+
+If 0 means that the default used is based on the storage engine.
+
+Couchstore does not use backend threads.
+Magma uses magma_max_default_storage_threads backend threads by default.
 
 === logger
 
