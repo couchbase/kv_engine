@@ -290,6 +290,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::StopFusionUploader, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::SetChronicleAuthToken,
           require<Privilege::NodeSupervisor>);
+    setup(ClientOpcode::DeleteFusionNamespaces,
+          require<Privilege::NodeSupervisor>);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension

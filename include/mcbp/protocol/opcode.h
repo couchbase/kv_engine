@@ -159,7 +159,7 @@ enum class ClientOpcode : uint8_t {
     SyncFusionLogstore = 0x74,
     StartFusionUploader = 0x75,
     StopFusionUploader = 0x76,
-    ReservedFusion7 = 0x77,
+    DeleteFusionNamespaces = 0x77,
     ReservedFusion8 = 0x78,
 
     StopPersistence = 0x80,

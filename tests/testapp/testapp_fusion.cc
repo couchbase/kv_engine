@@ -460,4 +460,58 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
     EXPECT_EQ(false, error) << "Missing stats found";
 }
 
+TEST_P(FusionTest, DeleteFusionNamespaces) {
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
+    nlohmann::json json;
+    json["logstore_uri"] = "uri1";
+    json["metadatastore_uri"] = "uri2";
+    json["metadatastore_auth_token"] = "some-token";
+    json["namespaces"] = {"namespace-to-preserve", "another-one"};
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+TEST_P(FusionTest, DeleteFusionNamespaces_EmptyNamespacesArg) {
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
+    nlohmann::json json;
+    json["logstore_uri"] = "uri1";
+    json["metadatastore_uri"] = "uri2";
+    json["metadatastore_auth_token"] = "some-token";
+    json["namespaces"] = nlohmann::json::array();
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+#else
+
+/**
+ * Test class used to verify the behaviour of fusion APIs in a non-fusion env.
+ */
+class NonFusionTest : public TestappClientTest {};
+
+TEST_P(NonFusionTest, DeleteFusionNamespaces) {
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
+    nlohmann::json json;
+    json["logstore_uri"] = "uri1";
+    json["metadatastore_uri"] = "uri2";
+    json["metadatastore_auth_token"] = "some-token";
+    json["namespaces"] = {"namespace-to-preserve", "another-one"};
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+}
+
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         NonFusionTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
+
 #endif // USE_FUSION

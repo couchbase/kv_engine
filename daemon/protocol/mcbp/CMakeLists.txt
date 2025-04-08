@@ -40,6 +40,8 @@ add_library(memcached_daemon_mcbp OBJECT
         dcp_stream_req_executor.cc
         dcp_system_event_executor.cc
         dcp_system_event_executor.h
+        delete_fusion_namespaces_command_context.cc
+        delete_fusion_namespaces_command_context.h
         drop_privilege_executor.cc
         engine_wrapper.cc
         engine_wrapper.h
@@ -137,3 +139,12 @@ target_link_libraries(memcached_daemon_mcbp
         sigar_cpp
         statistics
         subjson)
+
+if (TARGET fusionfs)
+    target_compile_definitions(memcached_daemon_mcbp
+            PRIVATE -DUSE_FUSION=1)
+    target_include_directories(memcached_daemon_mcbp
+            SYSTEM PRIVATE ${MAGMA_INCLUDE_DIR})
+    target_link_libraries(memcached_daemon_mcbp
+            PRIVATE magma)
+endif()

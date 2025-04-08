@@ -301,6 +301,76 @@ will contain details.
 This status code is used for unexpected internal failure.
 
 
+# 0x77 - Delete Fusion Namespaces
+
+The command deletes data from the given FusionLogStore and FusionMetadataStore
+for  all Fusion volumes except those that are specified as a parameter to the call.
+
+The request has:
+* No extras
+* No key
+* A value (JSON object encoding the arguments)
+* datatype must be JSON and client must enable JSON when issuing HELO
+
+The value is a JSON object with a number of fields, detailed below.
+
+## JSON definition
+
+The following keys are accepted input. All keys are mandatory.
+Any key not shown in the following sections will be ignored.
+
+* The URI of the Logstore
+  * `"logstore_uri"`
+  * The value is a string
+
+* The URI of the Metadatastore
+  * `"metadatastore_uri"`
+  * The value is a string
+
+* The Auth token for accessing the Metadatastore
+  * `"metadatastore_auth_token"`
+  * The value is a string
+
+* The Fusion namespaces that must be excluded in the deletion
+  * `"namespaces"`
+  * The value is an array of strings
+
+### Examples
+
+```
+{
+  "logstore_uri": "uri1",
+  "metadatastore_uri": "uri2"
+  "metadatastore_auth_token": "some-token"
+  "namespaces": ["namespace-to-preserve", "another-one"]
+}
+```
+
+```
+{
+  "logstore_uri": "uri1",
+  "metadatastore_uri": "uri2"
+  "metadatastore_auth_token": "some-token"
+  "namespaces": []
+}
+```
+
+### Returns
+
+The call returns Status::Success, an error code otherwise.
+
+### Errors
+
+**Status::Einval (0x04)**
+
+Input validation failure (e.g. incorrect params format). The returned error context
+will contain details.
+
+**Status::Einternal (0x84)**
+
+This status code is used for unexpected internal failure.
+
+
 # 0x3d - Set VBucket State
 
 To request loading a vbucket from a snapshot, the command is extended from the

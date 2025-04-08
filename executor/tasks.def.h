@@ -80,6 +80,7 @@ TASK(Core_ReleaseFusionStorageSnapshotTask, TaskType::AuxIO, 6)
 TASK(Core_StartFusionUploaderTask, TaskType::AuxIO, 6)
 TASK(Core_StopFusionUploaderTask, TaskType::AuxIO, 6)
 TASK(Core_SetChronicleAuthTokenTask, TaskType::AuxIO, 6)
+TASK(Core_DeleteFusionNamespacesTask, TaskType::AuxIO, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, TaskType::Writer, 1)
