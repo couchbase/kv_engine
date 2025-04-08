@@ -1177,6 +1177,20 @@ public:
                              uint64_t length,
                              cb::io::FileSink& sink);
 
+    /**
+     * In order to simulate a slow client reading data one may set this
+     * callback which will be triggered when our IO layer wants us
+     * to provide a buffer. This callback may then do "sleep" and return
+     * a buffer just big enough to the fragment it wants to read off
+     * the socket.
+     *
+     * @param callback the callback function to get the buffer size to
+     *                 return to the io layer (the default allocation
+     *                 size is provided as a parameter to the callback)
+     */
+    void setReadChunkSizeCallback(
+            std::function<std::size_t(std::size_t)> callback);
+
 protected:
     /**
      * Perform a SASL authentication to memcached

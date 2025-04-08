@@ -133,7 +133,7 @@ static void handleFollyAsyncSocketException(
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 private:
     static constexpr size_t DefaultBufferSize = 8192;
-    static constexpr size_t MinTailroomSize = 256;
+    static constexpr size_t DefaultChunkSize = 256;
 
 public:
     AsyncReadCallback(folly::EventBase& base) : base(base) {
@@ -143,7 +143,12 @@ public:
 
     void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
         try {
-            auto [p, s] = input.preallocate(MinTailroomSize, DefaultBufferSize);
+            size_t chunk = DefaultChunkSize;
+            if (read_chunk_size_callback) {
+                chunk = read_chunk_size_callback(DefaultBufferSize);
+            }
+            auto [p, s] = input.preallocate(chunk,
+                                            std::max(chunk, DefaultBufferSize));
             *bufReturn = p;
             *lenReturn = s;
         } catch (const std::bad_alloc&) {
@@ -164,7 +169,10 @@ public:
     }
 
     size_t maxBufferSize() const override {
-        return 1024 * 1024;
+        if (read_chunk_size_callback) {
+            return read_chunk_size_callback(DefaultChunkSize);
+        }
+        return DefaultBufferSize;
     }
 
     void readBufferAvailable(
@@ -304,6 +312,10 @@ public:
     }
 
     std::function<void(const cb::mcbp::Header& header)> frameReceivedCallback;
+
+    /// A callback to determine the size of the chunk to allocate (may be used
+    /// in unit tests to simulate slow network conditions)
+    std::function<std::size_t(std::size_t)> read_chunk_size_callback;
 
     /// Set to true once we see EOF
     bool eof = false;
@@ -789,6 +801,11 @@ void MemcachedConnection::connect() {
     }
 
     asyncReadCallback = std::make_unique<AsyncReadCallback>(*eventBase);
+}
+
+void MemcachedConnection::setReadChunkSizeCallback(
+        std::function<std::size_t(std::size_t)> callback) {
+    asyncReadCallback->read_chunk_size_callback = std::move(callback);
 }
 
 /// Terminate the loop once we've sent all of the data
