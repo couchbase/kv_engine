@@ -199,6 +199,14 @@ TEST_P(ContinousBackupTest, StopBackupOnStateChange) {
     EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
 }
 
+TEST_P(ContinousBackupTest, stopBackupOnVBucketDeletion) {
+    auto& store = getMockKVStore(vbid);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+    engine->getKVBucket()->deleteVBucket(vbid);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+}
+
 TEST_P(ContinousBackupTest, DoNotStartBackupIfConfigDisabled) {
     auto& store = getMockKVStore(vbid);
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);

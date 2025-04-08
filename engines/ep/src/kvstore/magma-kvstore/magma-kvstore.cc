@@ -1459,6 +1459,10 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
+    // Reset the continuous backup status for the vbid as we are deleting this
+    // vbucket and new vbucket with this vbid should start with stopped status.
+    continuousBackupStatus[getCacheSlot(vbid)] = BackupStatus::Stopped;
+
     auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
     if (status) {
         return std::make_unique<KVStoreRevision>(kvsRev);
