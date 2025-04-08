@@ -464,7 +464,7 @@ public:
                                 error.code().message()));
         }
         if (GetParam()) {
-            auto keys = nlohmann::json::parse(R"({
+            keyStore = nlohmann::json::parse(R"({
     "keys": [
         {
             "id": "MyActiveKey",
@@ -479,7 +479,7 @@ public:
     ],
     "active": "MyActiveKey"
 })");
-            encryptionKeyProvider.setKeys(keys);
+            encryptionKeyProvider.setKeys(keyStore);
         }
         kvstore = std::make_unique<CouchKVStore>(
                 config, ops, &encryptionKeyProvider);
@@ -583,6 +583,7 @@ protected:
 
     CouchKVStoreConfig config;
     KVStoreIface::CreateItemCB defaultCreateItemCallback;
+    cb::crypto::KeyStore keyStore;
     EncryptionKeyProvider encryptionKeyProvider;
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<queued_item> items;
@@ -1459,6 +1460,64 @@ TEST_P(CouchKVStoreErrorInjectionTest, mountVBucket) {
                 vbid, VBucketSnapshotSource::Local, copyPaths);
         EXPECT_EQ(cb::engine_errc::success, status);
         EXPECT_EQ(expectedDeks, deks.size());
+    }
+}
+
+TEST_P(CouchKVStoreErrorInjectionTest, loadVBucketSnapshot) {
+    populate_items(1);
+    const auto dbPath = std::filesystem::path(data_dir);
+    const auto copyPath = dbPath / "0.couch.9";
+    std::filesystem::copy(dbPath / "0.couch.2", copyPath);
+    const std::vector<std::string> copyPaths{{copyPath.string()}};
+    const size_t expectedDeks = GetParam() ? 1 : 0;
+    auto getKeyIds = [this]() {
+        return std::get<std::unordered_set<std::string>>(
+                kvstore->getEncryptionKeyIds());
+    };
+    {
+        auto rev = kvstore->prepareToDelete(vbid);
+        kvstore->delVBucket(vbid, std::move(rev));
+        EXPECT_TRUE(getKeyIds().empty());
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::success, status);
+        EXPECT_EQ(expectedDeks, deks.size());
+        if (!deks.empty()) {
+            EXPECT_EQ("MyActiveKey", deks.front());
+        }
+        EXPECT_TRUE(getKeyIds().empty());
+    }
+    {
+        /* Establish Logger expectation */
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .RetiresOnSaturation();
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(AnyNumber());
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_READ))
+                .RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(4 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
+        auto result =
+                kvstore->loadVBucketSnapshot(vbid, vbucket_state_replica, {});
+        EXPECT_EQ(KVStoreIface::ReadVBStateStatus::Error, result.status);
+        EXPECT_TRUE(getKeyIds().empty());
+    }
+    {
+        auto result =
+                kvstore->loadVBucketSnapshot(vbid, vbucket_state_replica, {});
+        EXPECT_EQ(KVStoreIface::ReadVBStateStatus::Success, result.status);
+        auto keys = getKeyIds();
+        ASSERT_EQ(1, keys.size());
+        if (GetParam()) {
+            EXPECT_EQ("MyActiveKey", *keys.begin());
+        } else {
+            EXPECT_EQ("unencrypted", *keys.begin());
+        }
     }
 }
 

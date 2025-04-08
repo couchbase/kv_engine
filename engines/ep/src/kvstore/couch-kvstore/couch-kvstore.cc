@@ -4443,6 +4443,7 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
         snapRev = revResult->second;
     }
     ReadVBStateResult result;
+    std::string encryptionKeyId;
     {
         DbHolder db(*this);
         auto errCode = openSpecificDBFile(vbid, snapRev, db, 0, path);
@@ -4478,6 +4479,9 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
                     {{"vb", vbid}, {"error", couchstore_strerror(errCode)}});
             return {ReadVBStateStatus::Error, {}};
         }
+        if (cb::couchstore::isEncrypted(*db)) {
+            encryptionKeyId = cb::couchstore::getEncryptionKeyId(*db);
+        }
     }
     const auto lockedRevMap = dbFileRevMap->wlock();
     auto& cachedRev = (*lockedRevMap)[getCacheSlot(vbid)];
@@ -4485,6 +4489,13 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
     std::filesystem::rename(path, getDBFileName(dbname, vbid, fileRev));
     cachedRev = fileRev;
     updateCachedVBState(vbid, result.state);
+    if (encryptionKeyId.empty()) {
+        vbucketEncryptionKeysManager.setCurrentKey(
+                vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    } else {
+        vbucketEncryptionKeysManager.setCurrentKey(vbid,
+                                                   std::move(encryptionKeyId));
+    }
     return result;
 }
 
