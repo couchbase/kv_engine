@@ -208,7 +208,11 @@ def parse_slow_task_runtime(time, bucket, task, thread, runtime_sec):
 
 
 def parse_slow_task_runtime_legacy(m):
-    (time, bucket, task, thread, runtime) = m.groups()
+    time = m.group('time')
+    bucket = m.group('bucket') or 'No Bucket'
+    task = m.group('task')
+    thread = m.group('thread')
+    runtime = m.group('runtime')
     runtime_sec = human_duration_to_sec(runtime)
     parse_slow_task_runtime(time, bucket, task, thread, runtime_sec)
 
@@ -330,7 +334,7 @@ def main(file):
                 node = m.group(1)
         # Match ISO 8601 formatted log timestamps. Example:
         # 2022-07-20T01:58:01.316016+03:00
-        time_regex = "(\\d{4}-\\d{2}-\\d{2}T[0-9:.+-]+)"
+        time_regex = "(?P<time>\\d{4}-\\d{2}-\\d{2}T[0-9:.+-]+)"
         m = re.search(
             time_regex +
             " WARNING (\\d+): Slow operation. (.*)",
@@ -352,7 +356,7 @@ def main(file):
         # 'Compact DB file 421' on thread WriterPool3: 32 s
         m = re.search(
             time_regex +
-            " WARNING \\(([^)]+)\\) Slow runtime for '(.+)' on thread (.+): (.+)",
+            " WARNING ?(?P<bucket>\\(([^)]+)\\))? Slow runtime for '(?P<task>.+)' on thread (?P<thread>.+): (?P<runtime>.+)",
             line)
         if m:
             if system_clock_steady_clock_delta:
