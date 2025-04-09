@@ -280,13 +280,13 @@ public:
     }
 
     std::string getFusionLogstoreURI() const {
-        return fusionLogstoreURI;
+        return *fusionLogstoreURI.rlock();
     }
 
     void setFusionLogstoreURI(std::string_view uri);
 
     std::string getFusionMetadatastoreURI() const {
-        return fusionMetadatastoreURI;
+        return *fusionMetadatastoreURI.rlock();
     }
 
     void setFusionMetadatastoreURI(std::string_view uri);
@@ -587,9 +587,9 @@ private:
     std::chrono::seconds historyRetentionTime{0};
 
     // Fusion Logstore URI.
-    std::string fusionLogstoreURI;
+    folly::Synchronized<std::string> fusionLogstoreURI;
     // Fusion Metadatastore URI.
-    std::string fusionMetadatastoreURI;
+    folly::Synchronized<std::string> fusionMetadatastoreURI;
     // Fusion Namespace.
     std::string fusionNamespace;
     // The interval between kvstore syncs to fusion

@@ -281,13 +281,13 @@ void MagmaKVStoreConfig::setFusionSyncRateLimit(size_t value) {
 
 void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {
     Expects(store);
-    fusionLogstoreURI = uri;
+    *fusionLogstoreURI.wlock() = uri;
     store->setFusionLogStoreURI(uri);
 }
 
 void MagmaKVStoreConfig::setFusionMetadatastoreURI(std::string_view uri) {
     Expects(store);
-    fusionMetadatastoreURI = uri;
+    *fusionMetadatastoreURI.wlock() = uri;
     store->setFusionMetadataStoreURI(uri);
 }
 
