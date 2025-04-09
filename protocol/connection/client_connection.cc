@@ -428,7 +428,7 @@ MemcachedConnection::MemcachedConnection(std::string host,
     if (is_unit_test_mode()) {
         // When running in unit tests we want it to fail fast, but not
         // too fast as the CV builders are sometimes heavily loaded
-        timeout = std::chrono::minutes{10};
+        timeout = std::chrono::seconds{10};
     } else {
         // None of the command line commands we had used to have a timeout
         // specified so lets bump it to 30 minutes to make sure that
