@@ -217,9 +217,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             fmt::format("{}-{}", config.getCouchBucket(), config.getUuid()));
 
     magmaCfg.OnBackupCallback = [this](auto vbid, auto& snapshot) {
-        if (!store) {
-            throw std::logic_error("OnBackupCallback: MagmaKVStore not set!");
-        }
+        Expects(store);
         return store->onContinuousBackupCallback(Vbid(vbid), snapshot);
     };
 
@@ -266,17 +264,15 @@ void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
 }
 
 void MagmaKVStoreConfig::setFusionMigrationRateLimit(size_t value) {
+    Expects(store);
     fusionMigrationRateLimit.store(value);
-    if (store) {
-        store->setMagmaFusionMigrationRateLimit(value);
-    }
+    store->setMagmaFusionMigrationRateLimit(value);
 }
 
 void MagmaKVStoreConfig::setFusionSyncRateLimit(size_t value) {
+    Expects(store);
     fusionSyncRateLimit.store(value);
-    if (store) {
-        store->setMagmaFusionSyncRateLimit(value);
-    }
+    store->setMagmaFusionSyncRateLimit(value);
 }
 
 void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {
@@ -298,25 +294,22 @@ void MagmaKVStoreConfig::setFusionUploadInterval(std::chrono::seconds value) {
 }
 
 void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
+    Expects(store);
     magmaFragmentationPercentage.store(value);
-    if (store) {
-        store->setMagmaFragmentationPercentage(value);
-    }
+    store->setMagmaFragmentationPercentage(value);
 }
 
 void MagmaKVStoreConfig::setStorageThreads(
         ThreadPoolConfig::StorageThreadCount value) {
+    Expects(store);
     storageThreads.store(value);
-    if (store) {
-        store->calculateAndSetMagmaThreads();
-    }
+    store->calculateAndSetMagmaThreads();
 }
 
 void MagmaKVStoreConfig::setMagmaFlusherThreadPercentage(size_t value) {
+    Expects(store);
     magmaFlusherPercentage.store(value);
-    if (store) {
-        store->calculateAndSetMagmaThreads();
-    }
+    store->calculateAndSetMagmaThreads();
 }
 
 void MagmaKVStoreConfig::setBucketQuota(size_t value) {
@@ -326,60 +319,52 @@ void MagmaKVStoreConfig::setBucketQuota(size_t value) {
 }
 
 void MagmaKVStoreConfig::setMagmaMemQuotaRatio(float value) {
+    Expects(store);
     magmaMemQuotaRatio.store(value);
-    if (store) {
-        store->setMaxDataSize(bucketQuota);
-    }
+    store->setMaxDataSize(bucketQuota);
 }
 
 void MagmaKVStoreConfig::setMagmaEnableBlockCache(bool enable) {
+    Expects(store);
     magmaEnableBlockCache.store(enable);
-    if (store) {
-        store->setMagmaEnableBlockCache(enable);
-    }
+    store->setMagmaEnableBlockCache(enable);
 }
 
 void MagmaKVStoreConfig::setMagmaSeqTreeDataBlockSize(size_t value) {
+    Expects(store);
     magmaSeqTreeDataBlockSize.store(value);
-    if (store) {
-        store->setMagmaSeqTreeDataBlockSize(value);
-    }
+    store->setMagmaSeqTreeDataBlockSize(value);
 }
 
 void MagmaKVStoreConfig::setMagmaMinValueBlockSizeThreshold(size_t value) {
+    Expects(store);
     magmaMinValueBlockSizeThreshold.store(value);
-    if (store) {
-        store->setMagmaMinValueBlockSizeThreshold(value);
-    }
+    store->setMagmaMinValueBlockSizeThreshold(value);
 }
 
 void MagmaKVStoreConfig::setMagmaSeqTreeIndexBlockSize(size_t value) {
+    Expects(store);
     magmaSeqTreeIndexBlockSize.store(value);
-    if (store) {
-        store->setMagmaSeqTreeIndexBlockSize(value);
-    }
+    store->setMagmaSeqTreeIndexBlockSize(value);
 }
 
 void MagmaKVStoreConfig::setMagmaKeyTreeDataBlockSize(size_t value) {
+    Expects(store);
     magmaKeyTreeDataBlockSize.store(value);
-    if (store) {
-        store->setMagmaKeyTreeDataBlockSize(value);
-    }
+    store->setMagmaKeyTreeDataBlockSize(value);
 }
 
 void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
+    Expects(store);
     magmaKeyTreeIndexBlockSize.store(value);
-    if (store) {
-        store->setMagmaKeyTreeIndexBlockSize(value);
-    }
+    store->setMagmaKeyTreeIndexBlockSize(value);
 }
 
 void MagmaKVStoreConfig::setContinousBackupInterval(
         std::chrono::seconds interval) {
+    Expects(store);
     continuousBackupInterval = interval;
-    if (store) {
-        store->setContinuousBackupInterval(interval);
-    }
+    store->setContinuousBackupInterval(interval);
 }
 
 void MagmaKVStoreConfig::setMakeDirectoryFn(magma::DirectoryConstructor fn) {
