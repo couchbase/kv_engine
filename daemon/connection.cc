@@ -616,6 +616,18 @@ void Connection::executeCommandPipeline() {
     // time (as it can't change).
     static const auto serverless = cb::serverless::isEnabled();
 
+    // Allow DCP clients to spool up to 50 times the amount of data in
+    // their send buffers before we back off waiting for data to be
+    // sent.
+    const auto maxSendQueueSize =
+            isDCP() ? 50 * Settings::instance().getMaxSendQueueSize()
+                    : Settings::instance().getMaxSendQueueSize();
+    const auto tooMuchData = [this, maxSendQueueSize]() {
+        return getSendQueueSize() >= maxSendQueueSize;
+    };
+
+    using cb::mcbp::Status;
+
     numEvents = max_reqs_per_event;
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
@@ -629,11 +641,10 @@ void Connection::executeCommandPipeline() {
     }
 
     std::chrono::steady_clock::time_point now;
-    const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
-        bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
+        bool stop = tooMuchData();
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
                !stop && cookies.size() < maxActiveCommands &&
@@ -691,7 +702,7 @@ void Connection::executeCommandPipeline() {
                     cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
-                    stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
+                    stop = tooMuchData();
                 } else {
                     active = true;
                     // We need to block, so we need to preserve the request
@@ -724,7 +735,13 @@ void Connection::executeCommandPipeline() {
         get_thread_stats(this)->conn_timeslice_yields++;
     }
 
-    if (isPacketAvailable()) {
+    if (tooMuchData()) {
+        // The client have too much data spooled. Disable read event
+        // to avoid the client from getting rescheduled just to back
+        // out again due to too much data in the queue to start executing
+        // a new command
+        disableReadEvent();
+    } else if (isPacketAvailable()) {
         disableReadEvent();
         if (!active || // No active commands which would trigger
             (cookies.back()->mayReorder() && // but we could OoO more commands
