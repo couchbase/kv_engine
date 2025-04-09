@@ -749,9 +749,13 @@ void Connection::executeCommandPipeline() {
     }
 
     if (numEvents == 0) {
+        // We've used all the iterations we're allowed to do for each
+        // time we're scheduled to run (max_reqs_per_event)
         yields++;
         get_thread_stats(this)->conn_yields++;
     } else if (now > current_timeslice_end) {
+        // We've used more time than we're allowed to do for each
+        // time we're scheduled to run
         get_thread_stats(this)->conn_timeslice_yields++;
     }
 
