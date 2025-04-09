@@ -15,11 +15,27 @@
 #include <platform/command_line_options_parser.h>
 #include <platform/dirutils.h>
 #include <platform/terminal_color.h>
+#include <programs/natsort.h>
 #include <iostream>
 #include <istream>
 #include <vector>
 
 namespace mclogfmt {
+
+bool LineFilter::operator()(std::string_view ts) const {
+    cb::natsort::compare_three_way comparator;
+
+    if (!after.empty() && comparator(ts, after) == std::strong_ordering::less) {
+        return false;
+    }
+
+    if (!before.empty() &&
+        comparator(before, ts) != std::strong_ordering::greater) {
+        return false;
+    }
+
+    return true;
+}
 
 // Ingore the following lines.
 // Those match the output appended by cbcollect_info.
@@ -82,7 +98,8 @@ void formatLine(fmt::memory_buffer& buffer,
 
 void convertLine(fmt::memory_buffer& buffer,
                  std::string_view line,
-                 LogFormat output) {
+                 LogFormat output,
+                 const LineFilter& filter) {
     if (std::ranges::find(IGNORED_LINES, line) != IGNORED_LINES.end()) {
         return;
     }
@@ -95,8 +112,13 @@ void convertLine(fmt::memory_buffer& buffer,
         if (output == LogFormat::Auto) {
             output = LogFormat::JsonLog;
         }
+
+        auto& ts = parsedLog.at("ts").template get_ref<std::string&>();
+        if (!filter(ts)) {
+            return;
+        }
         formatLine(buffer,
-                   parsedLog.at("ts").template get_ref<std::string&>(),
+                   ts,
                    parsedLog.at("lvl").template get_ref<std::string&>(),
                    parsedLog.at("msg").template get_ref<std::string&>(),
                    contextString,
@@ -114,6 +136,10 @@ void convertLine(fmt::memory_buffer& buffer,
     }
     auto timestamp{lineView.substr(0, timestampEnd)};
     if (std::ranges::find(IGNORED_WORDS, timestamp) != IGNORED_WORDS.end()) {
+        return;
+    }
+
+    if (!filter(timestamp)) {
         return;
     }
 
@@ -144,10 +170,10 @@ void convertLine(fmt::memory_buffer& buffer,
     formatLine(buffer, timestamp, severity, message, {}, output);
 }
 
-void processFile(std::istream& s, LogFormat output) {
+void processFile(std::istream& s, LogFormat output, const LineFilter& filter) {
     for (std::string line; std::getline(s, line);) {
         fmt::memory_buffer buffer;
-        convertLine(buffer, line, output);
+        convertLine(buffer, line, output, filter);
         if (buffer.size()) {
             fmt::println("{}", std::string_view{buffer.data(), buffer.size()});
         }

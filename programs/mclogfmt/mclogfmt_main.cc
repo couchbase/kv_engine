@@ -46,6 +46,9 @@ int main(int argc, char** argv) {
 
     std::optional<std::string> input;
     LogFormat outputMode{LogFormat::Auto};
+    std::string afterPrefix;
+    std::string beforePrefix;
+
     parser.addOption({
             [&input](auto value) { input = std::string{value}; },
             'i',
@@ -62,6 +65,20 @@ int main(int argc, char** argv) {
              "mode",
              "Specify an output mode. Options: auto (default), json, json-log "
              "(>=8.0)"});
+    parser.addOption({[&beforePrefix](auto value) { beforePrefix = value; },
+                      'b',
+                      "before",
+                      Argument::Required,
+                      "before-prefix",
+                      "Specify a timestamp (or portion of a timestamp) after "
+                      "which entries will not be printed."});
+    parser.addOption({[&afterPrefix](auto value) { afterPrefix = value; },
+                      'a',
+                      "after",
+                      Argument::Required,
+                      "after-prefix",
+                      "Specify a timestamp (or portion of a timestamp) before "
+                      "which entries will not be printed."});
     parser.addOption({[&parser](auto) {
                           std::cerr << "mclogfmt [options]" << std::endl;
                           parser.usage(std::cerr);
@@ -76,11 +93,13 @@ int main(int argc, char** argv) {
         std::exit(EXIT_FAILURE);
     });
 
+    LineFilter filter{afterPrefix, beforePrefix};
+
     if (!input.has_value()) {
-        processFile(std::cin, outputMode);
+        processFile(std::cin, outputMode, filter);
     } else {
         std::ifstream s(*input);
-        processFile(s, outputMode);
+        processFile(s, outputMode, filter);
     }
 
     return EXIT_SUCCESS;

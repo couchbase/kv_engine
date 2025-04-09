@@ -38,6 +38,16 @@ void formatLine(fmt::memory_buffer& buffer,
                 std::string_view context,
                 LogFormat output);
 
+struct LineFilter {
+    /// Only timestamps ordered after this one will be allowed.
+    std::string after;
+    /// Only timestamps ordered before this one will be allowed.
+    std::string before;
+
+    /// Returns true if the input matches the filter.
+    bool operator()(std::string_view ts) const;
+};
+
 /**
  * Changes the formatting of the line from the input one, to the one specified.
  * @param buffer the output memory buffer
@@ -46,8 +56,9 @@ void formatLine(fmt::memory_buffer& buffer,
  */
 void convertLine(fmt::memory_buffer& buffer,
                  std::string_view line,
-                 LogFormat output);
+                 LogFormat output,
+                 const LineFilter& filter);
 
-void processFile(std::istream& s, LogFormat output);
+void processFile(std::istream& s, LogFormat output, const LineFilter& filter);
 
 } // namespace mclogfmt

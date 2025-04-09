@@ -37,7 +37,7 @@ static const nlohmann::ordered_json TestJson =
 
 std::string convertLine(std::string_view line, LogFormat output) {
     fmt::memory_buffer buffer;
-    convertLine(buffer, line, output);
+    convertLine(buffer, line, output, {});
     return {buffer.data(), buffer.size()};
 }
 
@@ -66,4 +66,35 @@ TEST(McLogFmt, Roundtrip) {
                      TestJsonString};
     auto output = convertLineToJsonLog(convertLineToJson(line).dump());
     EXPECT_EQ(output, line);
+}
+
+TEST(McLogFmt, BeforeAfter) {
+    const std::string t1 = "2025-01-01T12:29:00.000000+00:00";
+    const std::string t2 = "2025-01-01T12:30:00.000000+00:00";
+    const std::string t3 = "2025-01-02T00:30:00.000000+00:00";
+
+    {
+        LineFilter filter{t1, t3};
+        EXPECT_TRUE(filter(t1));
+        EXPECT_TRUE(filter(t2));
+        // Too late.
+        EXPECT_FALSE(filter(t3));
+    }
+
+    {
+        LineFilter filter{t1, t2};
+        EXPECT_TRUE(filter(t1));
+        // Too late.
+        EXPECT_FALSE(filter(t2));
+        EXPECT_FALSE(filter(t3));
+    }
+
+    {
+        LineFilter filter{t2, t3};
+        // Too early.
+        EXPECT_FALSE(filter(t1));
+        EXPECT_TRUE(filter(t2));
+        // Too late.
+        EXPECT_FALSE(filter(t3));
+    }
 }
