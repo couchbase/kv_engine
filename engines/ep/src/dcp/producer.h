@@ -504,6 +504,11 @@ protected:
             dcp_add_failover_log callback,
             bool callAddVBConnByVBId);
 
+    std::shared_ptr<ActiveStream> makeStream(uint32_t opaque,
+                                             StreamRequestInfo& req,
+                                             VBucketPtr vb,
+                                             Collections::VB::Filter filter);
+
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of
      * the collections in the filter. std::nullopt is returned for and

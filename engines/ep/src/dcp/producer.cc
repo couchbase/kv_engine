@@ -399,32 +399,12 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::no_memory;
     }
 
-    std::shared_ptr<ActiveStream> stream;
-    try {
-        stream = std::make_shared<ActiveStream>(&engine_,
-                                                shared_from_base<DcpProducer>(),
-                                                getName(),
-                                                req.flags,
-                                                opaque,
-                                                *vb,
-                                                req.start_seqno,
-                                                req.end_seqno,
-                                                req.vbucket_uuid,
-                                                req.snap_start_seqno,
-                                                req.snap_end_seqno,
-                                                includeValue,
-                                                includeXattrs,
-                                                includeDeleteTime,
-                                                includeDeletedUserXattrs,
-                                                maxMarkerVersion,
-                                                std::move(filter));
-    } catch (const cb::engine_error& e) {
+    auto stream = makeStream(opaque, req, vb, std::move(filter));
+    if (!stream) {
         logger->warnWithContext(
-                "Stream request failed because the filter cannot be "
-                "constructed, returning",
-                {{"vb", Vbid(vbucket)},
-                 {"error", cb::engine_errc(e.code().value())}});
-        return cb::engine_errc(e.code().value());
+                "Stream request failed because the stream was not created",
+                {{"vb", vbucket}});
+        return cb::engine_errc::failed;
     }
 
     return scheduleTasksForStreamRequest(std::move(stream),
@@ -432,6 +412,30 @@ cb::engine_errc DcpProducer::streamRequest(
                                          streamID,
                                          std::move(callback),
                                          callAddVBConnByVBId);
+}
+
+std::shared_ptr<ActiveStream> DcpProducer::makeStream(
+        uint32_t opaque,
+        StreamRequestInfo& req,
+        VBucketPtr vb,
+        Collections::VB::Filter filter) {
+    return std::make_shared<ActiveStream>(&engine_,
+                                          shared_from_base<DcpProducer>(),
+                                          getName(),
+                                          req.flags,
+                                          opaque,
+                                          *vb,
+                                          req.start_seqno,
+                                          req.end_seqno,
+                                          req.vbucket_uuid,
+                                          req.snap_start_seqno,
+                                          req.snap_end_seqno,
+                                          includeValue,
+                                          includeXattrs,
+                                          includeDeleteTime,
+                                          includeDeletedUserXattrs,
+                                          maxMarkerVersion,
+                                          std::move(filter));
 }
 
 std::pair<cb::engine_errc, VBucketPtr>
