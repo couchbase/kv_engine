@@ -1306,6 +1306,19 @@ protected:
      * @return true if we should stop accepting more commands
      */
     bool handleThrottleCommand(Cookie& cookie) const;
+    /**
+     * Helper method for executeCommandPipeline to deal with the situation
+     * where the cookie should be rejected due to validation error or stale
+     * authentication
+     *
+     * @param cookie The cookie to handle
+     * @param status The status returned by the validator
+     * @param auth_stale Set to true if the authentication is stale (currently
+     *                   used in token auth)
+     */
+    static void handleRejectCommand(Cookie& cookie,
+                                    cb::mcbp::Status status,
+                                    bool auth_stale);
 
     /// Try to make any progress on a DCP stream by calling step()
     void tryToProgressDcpStream();

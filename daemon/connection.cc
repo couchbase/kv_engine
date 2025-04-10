@@ -649,6 +649,21 @@ inline bool Connection::handleThrottleCommand(Cookie& cookie) const {
     return true;
 }
 
+inline void Connection::handleRejectCommand(Cookie& cookie,
+                                            const cb::mcbp::Status status,
+                                            const bool auth_stale) {
+    cookie.getConnection().getBucket().rejectCommand(cookie);
+    if (status == cb::mcbp::Status::Success && auth_stale) {
+        // The packet was correctly encoded, but the
+        // authentication expired
+        cookie.sendResponse(cb::mcbp::Status::AuthStale);
+    } else {
+        // Packet validation failed
+        cookie.sendResponse(status);
+    }
+    cookie.reset();
+}
+
 void Connection::executeCommandPipeline() {
     // Allow DCP clients to spool up to 50 times the amount of data in
     // their send buffers before we back off waiting for data to be
@@ -729,16 +744,7 @@ void Connection::executeCommandPipeline() {
                 }
                 --numEvents;
             } else {
-                cookie.getConnection().getBucket().rejectCommand(cookie);
-                if (status == Status::Success && auth_stale) {
-                    // The packet was correctly encoded, but the
-                    // authentication expired
-                    cookie.sendResponse(Status::AuthStale);
-                } else {
-                    // Packet validation failed
-                    cookie.sendResponse(status);
-                }
-                cookie.reset();
+                handleRejectCommand(cookie, status, auth_stale);
             }
 
             nextPacket();
