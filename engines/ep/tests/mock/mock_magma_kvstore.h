@@ -14,10 +14,12 @@
 #ifdef EP_USE_MAGMA
 
 #include "kvstore/magma-kvstore/magma-kvstore.h"
+#include "tests/mock/mock_magma_filesystem.h"
 
 class MockMagmaKVStore : public MagmaKVStore {
 public:
-    explicit MockMagmaKVStore(MagmaKVStoreConfig& config);
+    explicit MockMagmaKVStore(MagmaKVStoreConfig& config,
+                              const MockMagmaFileSystem& fs = {});
 
     /**
      * See base-class comments for usage. However this "mock" version will
@@ -121,6 +123,10 @@ public:
      * for testing of various two-phase backfills.
      */
     std::optional<uint64_t> historyStartSeqno;
+
+private:
+    static MagmaKVStoreConfig& makeMockConfig(MagmaKVStoreConfig& config,
+                                              const MockMagmaFileSystem& fs);
 };
 
 #endif

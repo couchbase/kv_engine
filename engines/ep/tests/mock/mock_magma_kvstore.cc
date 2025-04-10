@@ -10,10 +10,13 @@
  */
 
 #include "mock_magma_kvstore.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "kvstore/magma-kvstore/magma-memory-tracking-proxy.h"
+#include "mock_magma_filesystem.h"
 
-MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config)
-    : MagmaKVStore(config, {}, {}),
+MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config,
+                                   const MockMagmaFileSystem& fs)
+    : MagmaKVStore(makeMockConfig(config, fs), {}, {}),
       storageProperties(StorageProperties::ByIdScan::Yes,
                         StorageProperties::AutomaticDeduplication::No,
                         StorageProperties::PrepareCounting::No,
@@ -150,4 +153,51 @@ std::unique_ptr<ByIdScanContext> MockMagmaKVStore::initByIdScanContext(
         scanContext->historyStartSeqno = historyStartSeqno.value();
     }
     return scanContext;
+}
+
+MagmaKVStoreConfig& MockMagmaKVStore::makeMockConfig(
+        MagmaKVStoreConfig& config, const MockMagmaFileSystem& mockFs) {
+    // Patch up the FSHook. We want to call the original hook we had, then
+    // superimpose our replacement MakeFile and MakeDirectory, which can
+    // all into the mockFs.
+    config.magmaCfg.FSHook = [origHook = std::move(config.magmaCfg.FSHook),
+                              mockFs](auto& fs) {
+        origHook(fs);
+        fs.MakeFile = [origMakeFile = std::move(fs.MakeFile),
+                       makeFile = mockFs.makeFile,
+                       wrapFile = mockFs.wrapFile](const std::string& path) {
+            std::unique_ptr<magma::File> file;
+            if (makeFile) {
+                file = makeFile(path);
+            } else {
+                // Use the original Magma factory.
+                file = origMakeFile(path);
+            }
+
+            if (wrapFile) {
+                file = wrapFile(std::move(file));
+            }
+
+            return file;
+        };
+        fs.MakeDirectory = [origMakeDirectory = std::move(fs.MakeDirectory),
+                            makeDirectory = mockFs.makeDirectory,
+                            wrapDirectory = mockFs.wrapDirectory](
+                                   const std::string& path) {
+            std::unique_ptr<magma::Directory> directory;
+            if (makeDirectory) {
+                directory = makeDirectory(path);
+            } else {
+                // Use the original Magma factory.
+                directory = origMakeDirectory(path);
+            }
+
+            if (wrapDirectory) {
+                directory = wrapDirectory(std::move(directory));
+            }
+
+            return directory;
+        };
+    };
+    return config;
 }

@@ -492,7 +492,9 @@ SET(MOCK_SOURCE
     ${CMAKE_CURRENT_BINARY_DIR}/src/generated_enums.h)
 
 if(EP_USE_MAGMA)
-    list(APPEND MOCK_SOURCE tests/mock/mock_magma_kvstore.cc)
+    list(APPEND MOCK_SOURCE
+         tests/mock/mock_magma_kvstore.cc
+         tests/mock/mock_magma_filesystem.cc)
 endif()
 
 add_library(ep_mocks EXCLUDE_FROM_ALL OBJECT ${MOCK_SOURCE})

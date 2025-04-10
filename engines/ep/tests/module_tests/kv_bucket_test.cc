@@ -58,6 +58,7 @@
 #include <executor/globaltask.h>
 
 #ifdef EP_USE_MAGMA
+#include "../mock/mock_magma_filesystem.h"
 #include "../mock/mock_magma_kvstore.h"
 #endif
 
@@ -629,25 +630,41 @@ void KVBucketTest::replaceCouchKVStore(FileOpsInterface* ops) {
     store->setRW(shardId, std::move(rw));
 }
 
-void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
+void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config,
+                                       const MockMagmaFileSystem& mockFs) {
     EXPECT_EQ(engine->getConfiguration().getBucketTypeString(), "persistent");
     EXPECT_EQ(engine->getConfiguration().getBackendString(), "magma");
 #ifdef EP_USE_MAGMA
     store->takeRW(0);
-    auto rw = std::make_unique<MockMagmaKVStore>(config);
+    auto rw = std::make_unique<MockMagmaKVStore>(config, mockFs);
     store->setRW(0, std::move(rw));
 #endif
 }
 
-void KVBucketTest::replaceMagmaKVStore() {
+void KVBucketTest::replaceMagmaKVStore(const MockMagmaFileSystem& mockFs) {
 #ifdef EP_USE_MAGMA
     // Get hold of the current Magma config so we can create a MockMagmaKVStore
     // with the same config
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
     auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig));
+    replaceMagmaKVStore(dynamic_cast<MagmaKVStoreConfig&>(nonConstConfig),
+                        mockFs);
 #endif
 }
+
+void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
+#ifdef EP_USE_MAGMA
+    replaceMagmaKVStore(config, {});
+#endif
+}
+
+void KVBucketTest::replaceMagmaKVStore() {
+#ifdef EP_USE_MAGMA
+    replaceMagmaKVStore({});
+#endif
+}
+
+void replaceMagmaKVStore();
 
 void KVBucketTest::writeDocToReplica(Vbid vbid,
                                      StoredDocKey key,

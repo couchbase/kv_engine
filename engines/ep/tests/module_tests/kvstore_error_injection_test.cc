@@ -19,6 +19,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
+#include "logger/logger.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -111,8 +112,28 @@ protected:
 #ifdef EP_USE_MAGMA
 class MagmaKVStoreErrorInjector : public ErrorInjector {
 public:
+    /**
+     * File mock which registers with the injector.
+     */
+    class FileMock : public MockMagmaFile {
+    public:
+        FileMock(std::unique_ptr<File> wrapped,
+                 MagmaKVStoreErrorInjector* injector)
+            : MockMagmaFile(std::move(wrapped)), injector(injector) {
+            injector->onOpenFile(this);
+        }
+
+        ~FileMock() override {
+            injector->onCloseFile(this);
+        }
+
+    private:
+        MagmaKVStoreErrorInjector* const injector;
+    };
+
     MagmaKVStoreErrorInjector(KVBucketTest& test) {
-        test.replaceMagmaKVStore();
+        test.replaceMagmaKVStore(MockMagmaFileSystem::withMockFile<
+                                 ::testing::NiceMock<FileMock>>(this));
         kvstore = dynamic_cast<MockMagmaKVStore*>(
                 test.store->getRWUnderlying(test.vbid));
     }
@@ -147,6 +168,18 @@ public:
             kvstore->scanErrorInjector = nullptr;
             return result;
         };
+    }
+
+    void onOpenFile(MockMagmaFile* file) {
+        if (file->isSSTable() && file->isSeqIndex()) {
+            LOG_INFO_CTX("Opening seqIndex", {"path", file->GetPath()});
+        }
+    }
+
+    void onCloseFile(MockMagmaFile* file) {
+        if (file->isSSTable() && file->isSeqIndex()) {
+            LOG_INFO_CTX("Closing seqIndex", {"path", file->GetPath()});
+        }
     }
 
     MockMagmaKVStore* kvstore;

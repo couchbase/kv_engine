@@ -41,6 +41,7 @@ class FileOpsInterface;
 class ItemMetaData;
 class KVBucket;
 class MagmaKVStoreConfig;
+struct MockMagmaFileSystem;
 class VBucket;
 
 namespace Collections {
@@ -380,14 +381,28 @@ public:
     void replaceCouchKVStore(FileOpsInterface* ops);
 
     /**
+     * Replace the r/w KVStore with a MockMagmaKVStore and use a
+     * MockMagmaFileSystem. This function will test the config to be sure the
+     * KVBucket is persistent/magma.
+     */
+    void replaceMagmaKVStore(MagmaKVStoreConfig& config,
+                             const MockMagmaFileSystem& mockFs);
+
+    /**
      * Replace the r/w KVStore with a MockMagmaKVStore. This function will test
      * the config to be sure the KVBucket is persistent/magma.
      */
     void replaceMagmaKVStore(MagmaKVStoreConfig& config);
 
     /**
+     * Replace the r/w KVStore with a MockMagmaKVStore with a
+     * MockMagmaFileSystem.
+     */
+    void replaceMagmaKVStore(const MockMagmaFileSystem& mockFs);
+
+    /**
      * Replace the r/w KVStore with a MockMagmaKVStore. Without having to
-     * specify the Magma config.
+     * specify the Magma config or MockMagmaFileSystem.
      */
     void replaceMagmaKVStore();
 
