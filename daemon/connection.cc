@@ -742,12 +742,12 @@ void Connection::executeCommandPipeline() {
                         stop = true;
                     }
                 }
-                --numEvents;
             } else {
                 handleRejectCommand(cookie, status, auth_stale);
             }
 
             nextPacket();
+            --numEvents;
         }
         allow_more_commands = (!active || cookies.back()->mayReorder()) &&
                               cookies.size() < maxActiveCommands;
