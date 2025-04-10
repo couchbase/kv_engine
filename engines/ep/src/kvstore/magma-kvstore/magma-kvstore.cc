@@ -4622,46 +4622,56 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
                                       *magmaFileHandle.snapshot.get());
 }
 
-nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
-    const auto checkError = [stat, vbid](magma::Status status) -> void {
+std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
+        FusionStat stat, Vbid vbid) {
+    const auto checkStatus =
+            [this, stat, vbid](magma::Status status) -> cb::engine_errc {
         if (status.ErrorCode() != Status::Code::Ok) {
-            const auto msg = fmt::format(
-                    "MagmaKVStore::getFusionStats: stat:{} {}, status:{}",
-                    stat,
-                    vbid,
-                    status);
-            throw std::logic_error(msg);
+            if (status.ErrorCode() == Status::Code::InvalidKVStore) {
+                return cb::engine_errc::not_my_vbucket;
+            }
+            EP_LOG_WARN_CTX("MagmaKVStore::getFusionStats: ",
+                            {"stat", stat},
+                            {"vb", vbid.get()},
+                            {"status", status.String()});
+            return cb::engine_errc::failed;
         }
+        return cb::engine_errc::success;
     };
 
     switch (stat) {
     case FusionStat::Invalid:
         throw std::logic_error("MagmaKVStore::getFusionStats: Invalid");
     case FusionStat::SyncInfo: {
-        const auto res = magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
-        checkError(std::get<Status>(res));
-        return std::get<nlohmann::json>(res);
+        const auto [status, data] =
+                magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
+        return {checkStatus(status), data};
     }
     case FusionStat::ActiveGuestVolumes: {
-        const auto res = magma->GetActiveFusionGuestVolumes(
+        const auto [status, data] = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
-        checkError(std::get<Status>(res));
-        return std::get<std::vector<std::string>>(res);
+        return {checkStatus(status), data};
     }
     case FusionStat::UploaderState: {
         const auto id = Magma::KVStoreID(vbid.get());
         nlohmann::json json;
         {
-            const auto res = magma->IsFusionUploader(id);
-            checkError(std::get<Status>(res));
-            json["state"] = std::get<bool>(res) ? "enabled" : "disabled";
+            const auto [status, data] = magma->IsFusionUploader(id);
+            if (const auto errc = checkStatus(status);
+                errc != cb::engine_errc::success) {
+                return {errc, {}};
+            }
+            json["state"] = data ? "enabled" : "disabled";
         }
         {
-            const auto res = magma->GetFusionUploaderTerm(id);
-            checkError(std::get<Status>(res));
-            json["term"] = std::get<uint64_t>(res);
+            const auto [status, data] = magma->GetFusionUploaderTerm(id);
+            if (const auto errc = checkStatus(status);
+                errc != cb::engine_errc::success) {
+                return {errc, {}};
+            }
+            json["term"] = data;
         }
-        return json;
+        return {cb::engine_errc::success, json};
     }
     }
 

@@ -996,8 +996,9 @@ public:
     // Fusion
     // Only supported by backends which report StorageProperties::Fusion::Yes
 
-    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
-        return {};
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+            FusionStat stat, Vbid vbid) override {
+        return {cb::engine_errc::not_supported, {}};
     }
 
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(

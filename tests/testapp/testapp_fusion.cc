@@ -122,6 +122,20 @@ TEST_P(FusionTest, Stat_SyncInfo) {
     EXPECT_EQ(1, res["version"]);
 }
 
+TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
+    try {
+        adminConnection->executeInBucket(bucketName, [](auto& conn) {
+            nlohmann::json res;
+            conn.stats([&res](auto& k,
+                              auto& v) { res = nlohmann::json::parse(v); },
+                       "fusion sync_info 1");
+        });
+        FAIL();
+    } catch (const ConnectionError& e) {
+        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    }
+}
+
 TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     nlohmann::json res;
     adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
@@ -133,6 +147,20 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     // + SetVBstate(open_snapshot=true). At the time of writing MountKVStore is
     // ready, we need the latter.
     ASSERT_TRUE(res.is_array());
+}
+
+TEST_P(FusionTest, Stat_ActiveGuestVolumes_KVStoreInvalid) {
+    try {
+        adminConnection->executeInBucket(bucketName, [](auto& conn) {
+            nlohmann::json res;
+            conn.stats([&res](auto& k,
+                              auto& v) { res = nlohmann::json::parse(v); },
+                       "fusion active_guest_volumes 1");
+        });
+        FAIL();
+    } catch (const ConnectionError& e) {
+        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    }
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
@@ -326,7 +354,7 @@ TEST_P(FusionTest, StopFusionUploader) {
     });
 }
 
-TEST_P(FusionTest, UploaderState) {
+TEST_P(FusionTest, Stat_UploaderState) {
     // Uploader disabled at start
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
         nlohmann::json res;
@@ -393,6 +421,20 @@ TEST_P(FusionTest, UploaderState) {
         ASSERT_TRUE(res["term"].is_number_integer());
         EXPECT_EQ(0, res["term"]);
     });
+}
+
+TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
+    try {
+        adminConnection->executeInBucket(bucketName, [](auto& conn) {
+            nlohmann::json res;
+            conn.stats([&res](auto& k,
+                              auto& v) { res = nlohmann::json::parse(v); },
+                       "fusion uploader_state 1");
+        });
+        FAIL();
+    } catch (const ConnectionError& e) {
+        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    }
 }
 
 TEST_P(FusionTest, GetPrometheusFusionStats) {

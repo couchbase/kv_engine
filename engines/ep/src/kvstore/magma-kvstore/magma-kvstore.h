@@ -657,7 +657,8 @@ public:
     virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
             Vbid vbid, magma::Magma::Snapshot& snapshot);
 
-    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override;
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+            FusionStat stat, Vbid vbid) override;
 
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
             std::string_view fusionNamespace,

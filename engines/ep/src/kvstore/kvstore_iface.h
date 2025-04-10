@@ -926,7 +926,8 @@ public:
 
     /// Fusion API, supported only by MagmaKVStore
 
-    virtual nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) = 0;
+    virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+            FusionStat stat, Vbid vbid) = 0;
 
     virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
             std::string_view fusionNamespace,

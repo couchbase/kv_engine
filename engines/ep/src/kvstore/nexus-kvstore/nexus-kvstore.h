@@ -188,8 +188,9 @@ public:
 
     // Fusion not supported on nexus
 
-    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
-        return {};
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+            FusionStat stat, Vbid vbid) override {
+        return {cb::engine_errc::not_supported, {}};
     }
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
             std::string_view fusionNamespace,

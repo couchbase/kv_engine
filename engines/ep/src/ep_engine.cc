@@ -5566,12 +5566,14 @@ cb::engine_errc EventuallyPersistentEngine::doFusionStats(
         return cb::engine_errc::invalid_arguments;
     }
 
-    add_stat("fusion",
-             kvBucket->getRWUnderlying(*vbid)
-                     ->getFusionStats(stat, *vbid)
-                     .dump(),
-             cookie);
+    const auto [errc, json] =
+            kvBucket->getRWUnderlying(*vbid)->getFusionStats(stat, *vbid);
 
+    if (errc != cb::engine_errc::success) {
+        return errc;
+    }
+
+    add_stat("fusion", json.dump(), cookie);
     return cb::engine_errc::success;
 }
 
