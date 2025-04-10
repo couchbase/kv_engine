@@ -6304,6 +6304,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                        itemMeta.cas,
                                        -1,
                                        vbucket);
+    stats.itemAllocSizeHisto.addValue(finalValue.size());
+
     item->setRevSeqno(itemMeta.revSeqno);
     if (isDeleted) {
         item->setDeleted();
