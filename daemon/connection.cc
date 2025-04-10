@@ -784,11 +784,8 @@ void Connection::resumeThrottledDcpStream() {
 }
 
 void Connection::tryToProgressDcpStream() {
-    if (cookies.empty()) {
-        throw std::runtime_error(
-                "Connection::executeCommandsCallback(): no cookies "
-                "available!");
-    }
+    Expects(!cookies.empty() &&
+            "Connection::tryToProgressDcpStream(): no cookies available!");
 
     if (dcpStreamThrottled) {
         return;
