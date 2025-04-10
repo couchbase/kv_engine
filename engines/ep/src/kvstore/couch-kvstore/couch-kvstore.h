@@ -1024,8 +1024,11 @@ protected:
     /// compaction is running (and we just need to abort the compaction)
     std::vector<std::atomic_bool> vbAbortCompaction;
 
+    /// Target revision and snapshot path
+    using MountPath = std::pair<uint64_t, std::string>;
     /// Paths to vbucket snapshots that will later be loaded
-    folly::Synchronized<std::unordered_map<Vbid, std::string>> mountedVBuckets;
+    folly::Synchronized<std::unordered_map<Vbid, MountPath>, std::mutex>
+            mountedVBuckets;
 
     VBucketEncryptionKeysManager vbucketEncryptionKeysManager;
 

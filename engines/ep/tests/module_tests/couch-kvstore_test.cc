@@ -2943,6 +2943,30 @@ TEST_F(CouchstoreTest, EnsureCompactionThrowsIfdroppedKeyCbIsntSepcified) {
     EXPECT_THROW(kvstore->compactDB(lock, ctx), std::invalid_argument);
 }
 
+TEST_F(CouchstoreTest, DeleteMountVBucket) {
+    {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        kvstore->commit(std::move(ctx), flush);
+    }
+    const auto dbPath = std::filesystem::path(data_dir);
+    const auto copyPath = dbPath / "0.couch.9";
+    std::filesystem::copy(dbPath / "0.couch.2", copyPath);
+    const std::vector<std::string> copyPaths{{copyPath.string()}};
+    auto rev = kvstore->prepareToDelete(vbid);
+    {
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::success, status);
+    }
+    kvstore->delVBucket(vbid, std::move(rev));
+    {
+        const auto [status, deks] = kvstore->mountVBucket(
+                vbid, VBucketSnapshotSource::Local, copyPaths);
+        EXPECT_EQ(cb::engine_errc::key_already_exists, status);
+    }
+}
+
 TEST(CouchKVStoreStatic, collectionStatsNames) {
     EXPECT_EQ(
             "|0x0|",

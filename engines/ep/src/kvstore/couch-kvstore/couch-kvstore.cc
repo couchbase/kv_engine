@@ -880,7 +880,6 @@ void CouchKVStore::delVBucket(Vbid vbucket,
         (*dbFileRevMap->rlock()).at(getCacheSlot(vbucket))) {
         vbucketEncryptionKeysManager.removeCurrentKey(vbucket);
     }
-    mountedVBuckets.wlock()->erase(vbucket);
     unlinkCouchFile(vbucket, fileRev->getRevision());
 }
 
@@ -4082,6 +4081,7 @@ std::unique_ptr<KVStoreRevision> CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     cachedFileSize[getCacheSlot(vbid)] = 0;
     cachedSpaceUsed[getCacheSlot(vbid)] = 0;
     cachedOnDiskPrepareSize[getCacheSlot(vbid)] = 0;
+    mountedVBuckets.lock()->erase(vbid);
     return std::make_unique<KVStoreRevision>(getDbRevision(vbid));
 }
 
@@ -4438,7 +4438,9 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
                                {{"error", ex.what()}});
         return {cb::engine_errc::failed, {}};
     }
-    const auto [iter, inserted] = mountedVBuckets.wlock()->emplace(vbid, path);
+    const auto rev = ++(*dbFileRevMap->wlock())[getCacheSlot(vbid)];
+    const auto [iter, inserted] =
+            mountedVBuckets.lock()->emplace(vbid, std::make_pair(rev, path));
     if (!inserted) {
         logger.warnWithContext(
                 "CouchKVStore::mountVBucket: Already exists",
@@ -4450,14 +4452,27 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
 
 KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
         Vbid vbid, vbucket_state_t state, const nlohmann::json& topology) {
-    auto lockedMountedVBuckets = mountedVBuckets.rlock();
-    const auto foundMountedVBucket = lockedMountedVBuckets->find(vbid);
-    if (foundMountedVBucket == lockedMountedVBuckets->end()) {
-        logger.warnWithContext("CouchKVStore::loadVBucketSnapshot: Not mounted",
-                               {{"vb", vbid}});
-        return {ReadVBStateStatus::NotFound, {}};
+    const auto rev = getDbRevision(vbid);
+    std::string path;
+    {
+        auto lockedMountedVBuckets = mountedVBuckets.lock();
+        const auto foundMountedVBucket = lockedMountedVBuckets->find(vbid);
+        if (foundMountedVBucket == lockedMountedVBuckets->end()) {
+            logger.warnWithContext(
+                    "CouchKVStore::loadVBucketSnapshot: Not mounted",
+                    {{"vb", vbid}});
+            return {ReadVBStateStatus::NotFound, {}};
+        }
+        const auto& [mountedRev, mountedPath] = foundMountedVBucket->second;
+        if (mountedRev != rev) {
+            logger.warnWithContext(
+                    "CouchKVStore::loadVBucketSnapshot "
+                    "called for outdated revision",
+                    {{"vb", vbid}, {"rev", rev}, {"mounted_rev", mountedRev}});
+            return {ReadVBStateStatus::NotFound, {}};
+        }
+        path = mountedPath;
     }
-    const auto& path = foundMountedVBucket->second;
     uint64_t snapRev;
     {
         auto revResult = getFileRevision(path);
@@ -4505,19 +4520,35 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
             encryptionKeyId = cb::couchstore::getEncryptionKeyId(*db);
         }
     }
-    const auto lockedRevMap = dbFileRevMap->wlock();
-    auto& cachedRev = (*lockedRevMap)[getCacheSlot(vbid)];
-    const auto fileRev = cachedRev + 1;
-    std::filesystem::rename(path, getDBFileName(dbname, vbid, fileRev));
-    cachedRev = fileRev;
-    updateCachedVBState(vbid, result.state);
-    if (encryptionKeyId.empty()) {
-        vbucketEncryptionKeysManager.setCurrentKey(
-                vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
-    } else {
-        vbucketEncryptionKeysManager.setCurrentKey(vbid,
-                                                   std::move(encryptionKeyId));
+    std::filesystem::rename(path, getDBFileName(dbname, vbid, rev));
+    {
+        auto lockedRevMap = dbFileRevMap->wlock();
+        const uint64_t currRev = (*lockedRevMap)[getCacheSlot(vbid)];
+        if (rev != currRev) {
+            logger.warnWithContext(
+                    "CouchKVStore::loadVBucketSnapshot: "
+                    "Revision changed after IO",
+                    {{"vb", vbid}, {"rev", rev}, {"curr_rev", currRev}});
+            return {ReadVBStateStatus::Error, {}};
+        }
+        // We are under lockedRevMap for update consistency.
+        // We only care about loadVBucketSnapshot(), as other updates are done
+        // to already initialized vbuckets.
+        // The rev map mutex will ensure that the update is visible to other
+        // threads, as those will rlock.
+        updateCachedVBState(vbid, result.state);
+        if (encryptionKeyId.empty()) {
+            vbucketEncryptionKeysManager.setCurrentKey(
+                    vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+        } else {
+            vbucketEncryptionKeysManager.setCurrentKey(
+                    vbid, std::move(encryptionKeyId));
+        }
     }
+    // Reading the vbucket db succeeded, so it is no longer in mounted state.
+    // We can erase without checking the revision as insert will not modify the
+    // existing entry.
+    mountedVBuckets.lock()->erase(vbid);
     return result;
 }
 
