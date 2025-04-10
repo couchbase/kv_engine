@@ -624,6 +624,31 @@ static bool isReAuthenticate(const cb::mcbp::Header& header) {
            opcode == cb::mcbp::ClientOpcode::SaslStep;
 }
 
+inline bool Connection::handleThrottleCommand(Cookie& cookie) const {
+    if (isNonBlockingThrottlingMode()) {
+        using namespace std::chrono;
+        const auto now = steady_clock::now();
+        const auto sec = duration_cast<seconds>(now.time_since_epoch());
+        const auto usec =
+                duration_cast<microseconds>(now.time_since_epoch()) - sec;
+        const auto delta = duration_cast<microseconds>(seconds{1}) - usec;
+        cookie.setErrorJsonExtras(
+                nlohmann::json{{"next_tick_us", delta.count()}});
+        cookie.sendResponse(cb::mcbp::Status::EWouldThrottle);
+        cookie.reset();
+        return false;
+    }
+    cookie.setThrottled(true);
+    // Set the cookie to true to block the destruction
+    // of the command (and the connection)
+    cookie.setEwouldblock();
+    cookie.preserveRequest();
+    // Given that we're blocked on throttling, we should
+    // stop accepting new commands and wait for throttling
+    // to unblock the execution pipeline
+    return true;
+}
+
 void Connection::executeCommandPipeline() {
     // Allow DCP clients to spool up to 50 times the amount of data in
     // their send buffers before we back off waiting for data to be
@@ -682,31 +707,7 @@ void Connection::executeCommandPipeline() {
                 //  * We have an ongoing command and this command allows
                 //    for reorder
                 if (getBucket().shouldThrottle(cookie, true, 0)) {
-                    if (isNonBlockingThrottlingMode()) {
-                        using namespace std::chrono;
-                        const auto now = steady_clock::now();
-                        const auto sec =
-                                duration_cast<seconds>(now.time_since_epoch());
-                        const auto usec = duration_cast<microseconds>(
-                                                  now.time_since_epoch()) -
-                                          sec;
-                        const auto delta =
-                                duration_cast<microseconds>(seconds{1}) - usec;
-                        cookie.setErrorJsonExtras(nlohmann::json{
-                                {"next_tick_us", delta.count()}});
-                        cookie.sendResponse(cb::mcbp::Status::EWouldThrottle);
-                        cookie.reset();
-                    } else {
-                        cookie.setThrottled(true);
-                        // Set the cookie to true to block the destruction
-                        // of the command (and the connection)
-                        cookie.setEwouldblock();
-                        cookie.preserveRequest();
-                        // Given that we're blocked on throttling, we should
-                        // stop accepting new commands and wait for throttling
-                        // to unblock the execution pipeline
-                        stop = true;
-                    }
+                    stop = handleThrottleCommand(cookie) || tooMuchData();
                 } else if ((!active || cookie.mayReorder()) &&
                            cookie.execute(true)) {
                     // Command executed successfully, reset the cookie to

@@ -1298,6 +1298,14 @@ protected:
      * execution
      */
     void executeCommandPipeline();
+    /**
+     * Helper method for executeCommandPipeline to deal with the situation
+     * where the cookie should be throttled.
+     *
+     * @param cookie The cookie to handle
+     * @return true if we should stop accepting more commands
+     */
+    bool handleThrottleCommand(Cookie& cookie) const;
 
     /// Try to make any progress on a DCP stream by calling step()
     void tryToProgressDcpStream();
