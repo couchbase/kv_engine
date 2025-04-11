@@ -37,19 +37,47 @@ bool LineFilter::operator()(std::string_view ts) const {
     return true;
 }
 
-// Ingore the following lines.
-// Those match the output appended by cbcollect_info.
-static const std::vector<std::string_view> IGNORED_LINES = {
-        R"(===============================================================================\n)",
-        "Memcached logs\n",
-};
+void formatAsJson(fmt::memory_buffer& buffer,
+                  std::string_view timestamp,
+                  std::string_view severity,
+                  std::string_view message,
+                  std::string_view context) {
+    if (context.empty()) {
+        fmt::format_to(std::back_inserter(buffer),
+                       R"({{"ts":"{}","lvl":"{}","msg":{}}})",
+                       timestamp,
+                       severity,
+                       nlohmann::json(message).dump());
+    } else {
+        fmt::format_to(std::back_inserter(buffer),
+                       R"({{"ts":"{}","lvl":"{}","msg":{},"ctx":{}}})",
+                       timestamp,
+                       severity,
+                       nlohmann::json(message).dump(),
+                       context);
+    }
+}
 
-// Ignore lines on which the first token matches.
-// Those match the output appended by cbcollect_info.
-static const std::vector<std::string_view> IGNORED_WORDS = {
-        "sh",
-        "cd",
-};
+void formatAsJsonLog(fmt::memory_buffer& buffer,
+                     std::string_view timestamp,
+                     std::string_view severity,
+                     std::string_view message,
+                     std::string_view context) {
+    if (context.empty()) {
+        fmt::format_to(std::back_inserter(buffer),
+                       "{} {} {}",
+                       timestamp,
+                       severity,
+                       message);
+    } else {
+        fmt::format_to(std::back_inserter(buffer),
+                       "{} {} {} {}",
+                       timestamp,
+                       severity,
+                       message,
+                       context);
+    }
+}
 
 void formatLine(fmt::memory_buffer& buffer,
                 std::string_view timestamp,
@@ -59,36 +87,10 @@ void formatLine(fmt::memory_buffer& buffer,
                 LogFormat output) {
     switch (output) {
     case LogFormat::Json:
-        if (context.empty()) {
-            fmt::format_to(std::back_inserter(buffer),
-                           R"({{"ts":"{}","lvl":"{}","msg":{}}})",
-                           timestamp,
-                           severity,
-                           nlohmann::json(message).dump());
-        } else {
-            fmt::format_to(std::back_inserter(buffer),
-                           R"({{"ts":"{}","lvl":"{}","msg":{},"ctx":{}}})",
-                           timestamp,
-                           severity,
-                           nlohmann::json(message).dump(),
-                           context);
-        }
+        formatAsJson(buffer, timestamp, severity, message, context);
         break;
     case LogFormat::JsonLog:
-        if (context.empty()) {
-            fmt::format_to(std::back_inserter(buffer),
-                           "{} {} {}",
-                           timestamp,
-                           severity,
-                           message);
-        } else {
-            fmt::format_to(std::back_inserter(buffer),
-                           "{} {} {} {}",
-                           timestamp,
-                           severity,
-                           message,
-                           context);
-        }
+        formatAsJsonLog(buffer, timestamp, severity, message, context);
         break;
     case LogFormat::Auto:
         throw std::runtime_error(
@@ -96,48 +98,35 @@ void formatLine(fmt::memory_buffer& buffer,
     }
 }
 
-void convertLine(fmt::memory_buffer& buffer,
-                 std::string_view line,
-                 LogFormat output,
-                 const LineFilter& filter) {
-    if (std::ranges::find(IGNORED_LINES, line) != IGNORED_LINES.end()) {
+static void convertJsonLine(fmt::memory_buffer& buffer,
+                            std::string_view line,
+                            LogFormat output,
+                            const LineFilter& filter) {
+    auto parsedLog = nlohmann::ordered_json::parse(line);
+    auto& ts = parsedLog.at("ts").template get_ref<std::string&>();
+
+    if (!filter(ts)) {
         return;
     }
 
-    std::string_view lineView = line;
-    if (lineView.at(0) == '{') {
-        auto parsedLog = nlohmann::ordered_json::parse(lineView);
-        auto contextString = parsedLog["ctx"].dump();
+    auto contextString = parsedLog["ctx"].dump();
+    formatLine(buffer,
+               ts,
+               parsedLog.at("lvl").template get_ref<std::string&>(),
+               parsedLog.at("msg").template get_ref<std::string&>(),
+               contextString,
+               output);
+}
 
-        if (output == LogFormat::Auto) {
-            output = LogFormat::JsonLog;
-        }
-
-        auto& ts = parsedLog.at("ts").template get_ref<std::string&>();
-        if (!filter(ts)) {
-            return;
-        }
-        formatLine(buffer,
-                   ts,
-                   parsedLog.at("lvl").template get_ref<std::string&>(),
-                   parsedLog.at("msg").template get_ref<std::string&>(),
-                   contextString,
-                   output);
-        return;
-    }
-
-    if (output == LogFormat::Auto) {
-        output = LogFormat::Json;
-    }
-
+static void convertPlainTextLine(fmt::memory_buffer& buffer,
+                                 std::string_view line,
+                                 LogFormat output,
+                                 const LineFilter& filter) {
     auto timestampEnd = line.find(' ');
     if (timestampEnd == std::string::npos) {
         return;
     }
-    auto timestamp{lineView.substr(0, timestampEnd)};
-    if (std::ranges::find(IGNORED_WORDS, timestamp) != IGNORED_WORDS.end()) {
-        return;
-    }
+    auto timestamp{line.substr(0, timestampEnd)};
 
     if (!filter(timestamp)) {
         return;
@@ -148,15 +137,15 @@ void convertLine(fmt::memory_buffer& buffer,
         return;
     }
     auto severity{
-            lineView.substr(timestampEnd + 1, severityEnd - timestampEnd - 1)};
+            line.substr(timestampEnd + 1, severityEnd - timestampEnd - 1)};
 
     auto contextBegin = line.find(" {\"");
 
     try {
         if (contextBegin != std::string::npos && line.back() == '}') {
-            auto context = lineView.substr(contextBegin + 1);
-            auto message = lineView.substr(severityEnd + 1,
-                                           contextBegin - severityEnd - 1);
+            auto context = line.substr(contextBegin + 1);
+            auto message = line.substr(severityEnd + 1,
+                                       contextBegin - severityEnd - 1);
 
             { auto validJson = nlohmann::json::parse(context); }
             formatLine(buffer, timestamp, severity, message, context, output);
@@ -166,8 +155,37 @@ void convertLine(fmt::memory_buffer& buffer,
         // Proceed without context.
     }
 
-    auto message = lineView.substr(severityEnd + 1);
+    auto message = line.substr(severityEnd + 1);
     formatLine(buffer, timestamp, severity, message, {}, output);
+}
+
+void convertLine(fmt::memory_buffer& buffer,
+                 std::string_view line,
+                 LogFormat output,
+                 const LineFilter& filter) {
+    if (line.empty()) {
+        return;
+    }
+
+    if (line.at(0) == '{') {
+        if (output == LogFormat::Auto) {
+            output = LogFormat::JsonLog;
+        }
+        convertJsonLine(buffer, line, output, filter);
+        return;
+    }
+
+    if (output == LogFormat::Auto) {
+        output = LogFormat::Json;
+    }
+
+    if (!isdigit(line.at(0))) {
+        // Ignore lines that don't start with a timestamp. These are the results
+        // of cbcollect_info.
+        return;
+    }
+
+    convertPlainTextLine(buffer, line, output, filter);
 }
 
 void processFile(std::istream& s, LogFormat output, const LineFilter& filter) {
