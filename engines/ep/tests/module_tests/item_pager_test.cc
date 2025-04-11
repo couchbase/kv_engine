@@ -260,7 +260,8 @@ protected:
     size_t populateVbsUntil(const std::vector<Vbid>& vbids,
                             const std::function<bool()>& predicate,
                             std::string_view keyPrefix = "key_",
-                            size_t itemSize = 5000) {
+                            size_t itemSize = 5000,
+                            size_t batchSize = 1) {
         bool populate = true;
         int count = 0;
         while (populate) {
@@ -268,20 +269,23 @@ protected:
                 // scope to ensure everything is destroyed before checking the
                 // predicate (in case the predicate depends on memory usage)
                 {
-                    auto key = makeStoredDocKey(std::string(keyPrefix) +
-                                                std::to_string(count++));
-                    auto item =
-                            make_item(vbid, key, std::string(itemSize, 'x'));
-                    // Set the frequency counter to the same value for all items
-                    // to avoid potential probabilistic failures around not
-                    // evicting to below the LWM in one pass
-                    item.setFreqCounterValue(0);
-                    const auto status = storeItem(item);
-                    if (status != cb::engine_errc::success) {
-                        ADD_FAILURE() << "Failed (cb::engine_errc: " << status
-                                      << ") storing an item before the "
-                                         "predicate returned true";
-                        return count;
+                    for (size_t i = 0; i < batchSize; i++) {
+                        auto key = makeStoredDocKey(std::string(keyPrefix) +
+                                                    std::to_string(count++));
+                        auto item = make_item(
+                                vbid, key, std::string(itemSize, 'x'));
+                        // Set the frequency counter to the same value for all items
+                        // to avoid potential probabilistic failures around not
+                        // evicting to below the LWM in one pass
+                        item.setFreqCounterValue(0);
+                        const auto status = storeItem(item);
+                        if (status != cb::engine_errc::success) {
+                            ADD_FAILURE()
+                                    << "Failed (cb::engine_errc: " << status
+                                    << ") storing an item before the "
+                                       "predicate returned true";
+                            return count;
+                        }
                     }
 
                     // Some ItemPager tests want to store up to the HWM, which
@@ -289,18 +293,19 @@ protected:
                     // that, just move the cursor and expel from checkpoints.
                     //
                     // Note: Flushing and expelling at every mutation is indeed
-                    // expensive but it seems that we can't avoid that at the
-                    // time of writing. Problem is that some ItemPager tests
-                    // wants to verify that the ItemPager is able to push the
-                    // mem-usage down to the LWM. And that is obviously based on
-                    // the assumption that there's enough allocation in the HT
+                    // expensive but it seems that we can't avoid that for some
+                    // tests. Problem is that some ItemPager tests want to
+                    // verify that the ItemPager is able to push the mem-usage
+                    // down to the LWM. And that is obviously based on the
+                    // assumption that there's enough allocation in the HT
                     // for the pager to free-up. So, if (eg) I perform the
                     // flush+expel only periodically, then we do get to HWM but
                     // the allocation in the HT doesn't hit the required level
                     // for verifying the pager assumptions.
-                    // For avoiding the runtime increase of those tests, I've
-                    // just increased the value-size of stored items, so we
-                    // manage to hit the same mem-conditions with less work.
+                    //
+                    // For avoiding that, we use larger value sizes and a batch
+                    // size of 1 as default. Other tests can override this if
+                    // they require different (less strict) conditions.
                     flushAndExpelFromCheckpoints(vbid);
                 }
                 populate = !predicate();
@@ -2080,20 +2085,24 @@ TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
         GTEST_SKIP();
     }
 
-    // Make active and put memory pressure to trigger paging
-    // While not required to populate until OOM, it is used to create
-    // a situation where the ItemPager will definitely run to reduce
-    // chances of intermittent test failures.
+    // Make active and put populate so memory is above
+    // LWM so ItemPager can schedule paging visitor
     auto vbid0 = Vbid(0);
-    setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
-    populateUntilOOM(vbid0);
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+
+    auto& stats = engine->getEpStats();
+    auto aboveHWM = [&stats]() {
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+    };
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    populateVbsUntil(
+            {vbid0}, aboveHWM, "key_", 256 /*valSize*/, 50 /*batchSize*/);
 
     // Make vbucket dead and run item pager
     // We cannot evict from a dead vbucket so the filter will be empty
     // and we should return without scheduling paging visitor
     setVBucketStateAndRunPersistTask(vbid0, vbucket_state_dead);
-    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-
+    store->wakeUpStrictItemPager(); // set manuallyNotified to true
     runNextTask(lpNonioQ, itemPagerTaskName());
 
     // Check that no paging visitor task/s are scheduled
