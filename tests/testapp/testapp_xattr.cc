@@ -1707,12 +1707,19 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
                     "66");
     cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
 
-    EXPECT_EQ(cb::mcbp::Status::Success,
-              userConnection->execute(cmd).getStatus());
+    BinprotResponse rsp = userConnection->execute(cmd);
+
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
+    auto metarsp = BinprotGetMetaResponse{userConnection->execute(
+            BinprotGetMetaCommand{name, Vbid(0), GetMetaVersion::V2})};
+    ASSERT_EQ(cb::mcbp::Status::Success, metarsp.getStatus());
+
+    EXPECT_EQ(rsp.getCas(), metarsp.getCas());
+    auto meta = metarsp.getMetaPayload();
+    EXPECT_EQ(cb::mcbp::Datatype::Xattr,
+              static_cast<cb::mcbp::Datatype>(meta.getDatatype()));
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.getDeleted());
 
