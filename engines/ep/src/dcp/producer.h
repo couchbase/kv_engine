@@ -13,6 +13,7 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/stream_container.h"
+#include "dcp/stream_request_info.h"
 #include "ep_engine.h"
 #include "utilities/testing_hook.h"
 #include "vb_ready_queue.h"
@@ -447,33 +448,6 @@ public:
     TestingHook<> updateStreamsMapHook;
 
 protected:
-    class StreamRequestInfo {
-    public:
-        StreamRequestInfo(cb::mcbp::DcpAddStreamFlag flags,
-                          uint64_t vbucket_uuid,
-                          uint64_t high_seqno,
-                          uint64_t start_seqno,
-                          uint64_t end_seqno,
-                          uint64_t snap_start_seqno,
-                          uint64_t snap_end_seqno)
-            : flags{flags},
-              vbucket_uuid{vbucket_uuid},
-              high_seqno{high_seqno},
-              start_seqno{start_seqno},
-              end_seqno{end_seqno},
-              snap_start_seqno{snap_start_seqno},
-              snap_end_seqno{snap_end_seqno} {
-        }
-
-        const cb::mcbp::DcpAddStreamFlag flags;
-        uint64_t vbucket_uuid;
-        uint64_t high_seqno;
-        uint64_t start_seqno;
-        uint64_t end_seqno;
-        uint64_t snap_start_seqno;
-        uint64_t snap_end_seqno;
-    };
-
     std::pair<cb::engine_errc, VBucketPtr> checkConditionsForStreamRequest(
             StreamRequestInfo& req,
             Vbid vbucket,

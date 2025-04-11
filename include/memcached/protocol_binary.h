@@ -39,6 +39,7 @@ enum class Level : uint8_t;
  */
 
 #include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/dcp_add_stream_flags.h>
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/feature.h>
 #include <mcbp/protocol/magic.h>
@@ -581,56 +582,6 @@ enum class DcpOpenFlag : uint32_t {
 std::string format_as(DcpOpenFlag flag);
 
 DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpOpenFlag);
-
-/// DcpAddStreamFlag is a bitmask where the following values are used:
-enum class DcpAddStreamFlag : uint32_t {
-    None = 0,
-    TakeOver = 1,
-    DiskOnly = 2,
-    /**
-     * Request that the server sets the end-seqno (ignoring any client input)
-     * The end-seqno is set to the current high-seqno of the requested vbucket.
-     */
-    ToLatest = 4,
-    /**
-     * This flag is not used anymore, and should NOT be
-     * set. It is replaced by DCP_OPEN_NO_VALUE.
-     */
-    NoValue = 8,
-    /**
-     * Indicate the server to add stream only if the vbucket
-     * is active.
-     * If the vbucket is not active, the stream request fails with
-     * error cb::engine_errc::not_my_vbucket
-     */
-    ActiveVbOnly = 16,
-    /**
-     * Indicate the server to check for vb_uuid match even at start_seqno 0
-     * before adding the stream successfully. If the flag is set and there is a
-     * vb_uuid mismatch at start_seqno 0, then the server returns
-     * cb::engine_errc::rollback error.
-     */
-    StrictVbUuid = 32,
-    /**
-     * Request that the server sets the start-seqno to the vbucket high-seqno.
-     * The client is stating they have no DCP history and are not resuming, thus
-     * the input snapshot start/end and UUID are ignored. Only supported for
-     * stream_request (produce from latest)
-     */
-    FromLatest = 64,
-    /**
-     * Request that the server skips rolling back if the client is behind the
-     * purge seqno, but the request is otherwise valid and satifiable (i.e. no
-     * other rollback checks such as UUID mismatch fail). The client could end
-     * up missing purged tombstones (and hence could end up never being told
-     * about a document deletion). The intent of this flag is to allow clients
-     * who ignore deletes to avoid rollbacks to zero which are sorely due to
-     * them being behind the purge seqno.
-     */
-    IgnorePurgedTombstones = 128
-};
-std::string format_as(DcpAddStreamFlag flag);
-DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpAddStreamFlag);
 
 namespace request {
 
