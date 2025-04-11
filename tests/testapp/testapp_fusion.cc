@@ -163,6 +163,15 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes_KVStoreInvalid) {
     }
 }
 
+TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        nlohmann::json res;
+        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
+                   "fusion active_guest_volumes");
+        ASSERT_TRUE(res.is_array());
+    });
+}
+
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     // Negative test: try to release a non-existent snapshot
     BinprotResponse resp;

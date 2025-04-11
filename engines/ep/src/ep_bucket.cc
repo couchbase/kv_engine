@@ -3321,27 +3321,91 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         vbid = Vbid(std::stoul(third));
     }
 
-    // @todo: At the time of writing I'm first adding support for per-vbucket
-    // sub-commands.
-    if (!subCmd || !vbid) {
+    if (!subCmd) {
         return cb::engine_errc::not_supported;
     }
 
     const auto stat = toFusionStat(*subCmd);
     if (stat == FusionStat::Invalid) {
-        EP_LOG_WARN_CTX("EPBucket::::doFusionStats: Invalid arguments",
-                        {"stat_key", statKey});
+        EP_LOG_WARN_CTX("EPBucket::doFusionStats: Invalid arguments",
+                        {"stat", *subCmd});
         return cb::engine_errc::invalid_arguments;
     }
 
-    const auto [errc, json] =
-            getRWUnderlying(*vbid)->getFusionStats(stat, *vbid);
-
-    if (errc != cb::engine_errc::success) {
-        return errc;
+    if (vbid) {
+        return doFusionVBucketStats(cookie, add_stat, stat, *vbid);
     }
 
+    return doFusionAggregatedStats(cookie, add_stat, stat);
+}
+
+cb::engine_errc EPBucket::doFusionVBucketStats(CookieIface& cookie,
+                                               const AddStatFn& add_stat,
+                                               FusionStat stat,
+                                               Vbid vbid) {
+    const auto [errc, json] = getRWUnderlying(vbid)->getFusionStats(stat, vbid);
+    if (errc != cb::engine_errc::success) {
+        // Details logged at KVStore level
+        return errc;
+    }
     add_stat("fusion", json.dump(), cookie);
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::doFusionAggregatedStats(CookieIface& cookie,
+                                                  const AddStatFn& add_stat,
+                                                  FusionStat stat) {
+    switch (stat) {
+    case FusionStat::ActiveGuestVolumes:
+        return doFusionAggregatedGuestVolumesStats(cookie, add_stat);
+    case FusionStat::UploaderState:
+    case FusionStat::SyncInfo:
+    case FusionStat::Invalid: {
+        EP_LOG_WARN_CTX("EPBucket::doFusionAggregatedStats: Not supported",
+                        {"stat", stat});
+        return cb::engine_errc::not_supported;
+    }
+    }
+    folly::assume_unreachable();
+}
+
+cb::engine_errc EPBucket::doFusionAggregatedGuestVolumesStats(
+        CookieIface& cookie, const AddStatFn& add_stat) {
+    const auto vbuckets = vbMap.getBuckets();
+    std::unordered_set<std::string> volumes;
+    for (const auto vbid : vbuckets) {
+        const auto [errc, json] = getRWUnderlying(vbid)->getFusionStats(
+                FusionStat::ActiveGuestVolumes, vbid);
+        if (errc != cb::engine_errc::success) {
+            // Details logged at KVStore level
+            return errc;
+        }
+        if (!json.is_array()) {
+            EP_LOG_WARN_CTX(
+                    "EPBucket::doFusionAggregatedGuestVolumesStats: json is "
+                    "not array",
+                    {"json", json.dump()});
+            return cb::engine_errc::failed;
+        }
+        std::vector<std::string> vbVolumes;
+        try {
+            vbVolumes = json;
+        } catch (const std::exception& e) {
+            EP_LOG_WARN_CTX(
+                    "EPBucket::doFusionAggregatedGuestVolumesStats: Invalid "
+                    "json",
+                    {"json", json.dump()},
+                    {"error", e.what()});
+            return cb::engine_errc::failed;
+        }
+
+        const std::vector<std::string> vbVols = json;
+        volumes.insert(vbVols.begin(), vbVols.end());
+    }
+
+    nlohmann::json ret;
+    ret = volumes;
+    add_stat("fusion", ret.dump(), cookie);
     return cb::engine_errc::success;
 }
 

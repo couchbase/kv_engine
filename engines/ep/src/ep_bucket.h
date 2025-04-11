@@ -617,6 +617,18 @@ protected:
      */
     std::filesystem::space_info getDiskSpaceUsed() const;
 
+    cb::engine_errc doFusionVBucketStats(CookieIface& cookie,
+                                         const AddStatFn& add_stat,
+                                         FusionStat stat,
+                                         Vbid vbid);
+
+    cb::engine_errc doFusionAggregatedStats(CookieIface& cookie,
+                                            const AddStatFn& add_stat,
+                                            FusionStat stat);
+
+    cb::engine_errc doFusionAggregatedGuestVolumesStats(
+            CookieIface& cookie, const AddStatFn& add_stat);
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
