@@ -1935,15 +1935,14 @@ void MemcachedConnection::dropPrivilege(
         cb::rbac::Privilege privilege,
         const GetFrameInfoFunction& getFrameInfo) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::DropPrivilege,
-                                  cb::rbac::to_string(privilege));
+                                  format_as(privilege));
     applyFrameInfos(command, getFrameInfo);
 
     const auto response = execute(command);
     if (!response.isSuccess()) {
-        throw ConnectionError("dropPrivilege \"" +
-                                      cb::rbac::to_string(privilege) +
-                                      "\" failed.",
-                              response.getStatus());
+        throw ConnectionError(
+                fmt::format("dropPrivilege \"{}\" failed.", privilege),
+                response.getStatus());
     }
 }
 

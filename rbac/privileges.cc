@@ -43,23 +43,19 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"SystemCollectionMutation", Privilege::SystemCollectionMutation},
         {"RangeScan", Privilege::RangeScan}};
 
-std::string to_string(Privilege privilege) {
-    for (const auto& entry : privilegemap) {
-        if (entry.second == privilege) {
-            return entry.first;
+std::string format_as(Privilege privilege) {
+    for (const auto& [text, priv] : privilegemap) {
+        if (priv == privilege) {
+            return text;
         }
     }
 
-    throw std::invalid_argument("to_string: Unknown privilege detected: " +
-                                std::to_string(int(privilege)));
-}
-
-std::string format_as(Privilege privilege) {
-    return to_string(privilege);
+    throw std::invalid_argument("format_as: Unknown privilege detected: " +
+                                std::to_string(static_cast<int>(privilege)));
 }
 
 void to_json(nlohmann::json& json, const Privilege& privilege) {
-    json = to_string(privilege);
+    json = format_as(privilege);
 }
 
 Privilege to_privilege(const std::string& str) {

@@ -88,7 +88,7 @@ class ImpersonateUserExtraPrivilegeFrameInfo : public FrameInfo {
 public:
     explicit ImpersonateUserExtraPrivilegeFrameInfo(
             cb::rbac::Privilege privilege)
-        : ImpersonateUserExtraPrivilegeFrameInfo(to_string(privilege)) {
+        : ImpersonateUserExtraPrivilegeFrameInfo(format_as(privilege)) {
     }
     explicit ImpersonateUserExtraPrivilegeFrameInfo(std::string privilege)
         : privilege(std::move(privilege)) {

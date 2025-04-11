@@ -740,7 +740,7 @@ nlohmann::json Cookie::getPrivilegeFailedErrorMessage(
     }
     json["context"] = privilegeContext->to_string();
     json["UUID"] = getEventId();
-    json["privilege"] = to_string(privilege);
+    json["privilege"] = privilege;
     json["command"] = std::move(opcode);
     return json;
 }
@@ -769,7 +769,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
             fmt::format("Authorization failure: can't execute {} operation "
                         "without the {} privilege",
                         command,
-                        to_string(privilege)));
+                        privilege));
 
     return ret;
 }

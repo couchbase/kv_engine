@@ -147,7 +147,7 @@ TEST(PrivilegeDatabaseTest, to_json) {
 TEST(Privilege, sanity_check) {
     using namespace cb::rbac;
     PrivilegeMask mask;
-    int highest = -1;
+    int highest_legal_priv_found = -1;
 
     // We've only defined a handfull of privileges, so loop with some
     // negative values and some higher so that we don't need to update
@@ -162,19 +162,17 @@ TEST(Privilege, sanity_check) {
         // don't update the switch
         if (is_legal_privilege(priv)) {
             // Verify 1
-            auto textual = to_string(priv);
+            auto textual = format_as(priv);
             // Verify 2
             EXPECT_EQ(priv, to_privilege(textual));
             // Verify 3
             EXPECT_LT(ii, mask.size())
                     << textual << " is outside the privilege mask";
-            if (highest > ii) {
-                highest = ii;
-            }
+            highest_legal_priv_found = ii;
         }
     }
 
-    EXPECT_LT(highest + 100, upper_test_limit)
+    EXPECT_LT(highest_legal_priv_found + 100, upper_test_limit)
             << "Please bump the upper test limit to ensure we test values "
                "outside the legal range";
 }

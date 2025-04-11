@@ -84,7 +84,7 @@ static std::vector<std::string> privilegeMask2Vector(
 
     for (std::size_t ii = 0; ii < mask.size(); ++ii) {
         if (mask.test(ii)) {
-            ret.emplace_back(cb::rbac::to_string(Privilege(ii)));
+            ret.emplace_back(format_as(static_cast<Privilege>(ii)));
         }
     }
 
@@ -590,7 +590,7 @@ std::string PrivilegeContext::to_string() const {
     ret.append("[");
     for (size_t ii = 0; ii < mask.size(); ++ii) {
         if (mask.test(ii)) {
-            ret.append(cb::rbac::to_string(Privilege(ii)));
+            ret.append(format_as(static_cast<Privilege>(ii)));
             ret.append(",");
         }
     }

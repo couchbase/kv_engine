@@ -240,6 +240,5 @@ bool is_legal_privilege(Privilege);
 Privilege to_privilege(const std::string& str);
 
 /// Get the textual representation of a privilege
-std::string to_string(Privilege privilege);
 std::string format_as(Privilege privilege);
 } // namespace cb::rbac
