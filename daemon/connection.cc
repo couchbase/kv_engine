@@ -871,20 +871,22 @@ void Connection::tryToProgressDcpStream() {
     }
 }
 
-void Connection::processBlockedSendQueue() {
+void Connection::processBlockedSendQueue(
+        const std::chrono::steady_clock::time_point& now) {
     if (blockedOnFullSendQueue.has_value()) {
-        blockedOnFullSendQueueDuration += (std::chrono::steady_clock::now() -
-                                           blockedOnFullSendQueue.value());
+        blockedOnFullSendQueueDuration +=
+                (now - blockedOnFullSendQueue.value());
         blockedOnFullSendQueue.reset();
     }
 }
 
-void Connection::updateBlockedSendQueue() {
+void Connection::updateBlockedSendQueue(
+        const std::chrono::steady_clock::time_point& now) {
     const std::size_t maxQSize = Settings::instance().getMaxSendQueueSize();
 
     // We may have copied data to the stream
     if (getSendQueueSize() >= maxQSize) {
-        blockedOnFullSendQueue = std::chrono::steady_clock::now();
+        blockedOnFullSendQueue = now;
     }
 }
 
@@ -896,10 +898,11 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     // Make sure any core dumps from this code contain the bucket name.
     cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
 
-    processBlockedSendQueue();
-
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
+
+    processBlockedSendQueue(start);
+
     try {
         Expects(cookie.isEwouldblock());
         cookie.setAiostat(status);
@@ -930,7 +933,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
     addCpuTime(ns);
 
-    updateBlockedSendQueue();
+    updateBlockedSendQueue(stop);
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
@@ -1035,12 +1038,10 @@ bool Connection::executeCommandsCallback() {
 
     // Make sure any core dumps from this code contain the bucket name.
     cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
-
-    processBlockedSendQueue();
-
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
 
+    processBlockedSendQueue(start);
     shutdownIfSendQueueStuck(start);
     if (state == State::running) {
         try {
@@ -1059,11 +1060,7 @@ bool Connection::executeCommandsCallback() {
         }
     }
 
-    const auto stop = std::chrono::steady_clock::now();
-    const auto ns = duration_cast<nanoseconds>(stop - start);
-    scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
-    addCpuTime(ns);
-
+    bool ret = true;
     if (state != State::running) {
         if (state == State::closing) {
             externalAuthManager->remove(*this);
@@ -1091,12 +1088,18 @@ bool Connection::executeCommandsCallback() {
             }
 
             // delete the object
-            return false;
+            ret = false;
         }
     }
 
-    updateBlockedSendQueue();
-    return true;
+    // Update the scheduler information and the per-connection cpu usage
+    const auto stop = std::chrono::steady_clock::now();
+    const auto ns = duration_cast<nanoseconds>(stop - start);
+    scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
+    addCpuTime(ns);
+
+    updateBlockedSendQueue(stop);
+    return ret;
 }
 
 /*

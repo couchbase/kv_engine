@@ -1028,10 +1028,12 @@ protected:
     void updatePrivilegeContext();
 
     // Accumulate duration the send queue has been blocked.
-    void processBlockedSendQueue();
+    void processBlockedSendQueue(
+            const std::chrono::steady_clock::time_point& now);
 
     // Reset blocked send queue if it's no longer full.
-    void updateBlockedSendQueue();
+    void updateBlockedSendQueue(
+            const std::chrono::steady_clock::time_point& now);
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the
