@@ -794,12 +794,8 @@ void Connection::tryToProgressDcpStream() {
     Expects(!cookies.empty() &&
             "Connection::tryToProgressDcpStream(): no cookies available!");
 
-    if (dcpStreamThrottled) {
-        return;
-    }
-
-    // Currently working on an incomming packet
-    if (!cookies.front()->empty()) {
+    if (dcpStreamThrottled || !cookies.front()->empty()) {
+        // Currently throttled or working on an incomming packet
         return;
     }
 
@@ -809,25 +805,19 @@ void Connection::tryToProgressDcpStream() {
     cookies.front()->reset();
 
     // Verify that we still have access to DCP
+    const auto required_privilege = type == Type::Consumer
+                                            ? cb::rbac::Privilege::DcpConsumer
+                                            : cb::rbac::Privilege::DcpProducer;
+
     if (privilegeContext
-                ->checkForPrivilegeAtLeastInOneCollection(
-                        type == Type::Consumer
-                                ? cb::rbac::Privilege::DcpConsumer
-                                : cb::rbac::Privilege::DcpProducer)
+                ->checkForPrivilegeAtLeastInOneCollection(required_privilege)
                 .failed()) {
-        setTerminationReason(fmt::format(
-                "{} privilege no longer available",
-                to_string(type == Type::Consumer
-                                  ? cb::rbac::Privilege::DcpConsumer
-                                  : cb::rbac::Privilege::DcpProducer)));
-        LOG_WARNING_CTX(
-                "Shutting down connection due to lost privilege",
-                {"conn_id", getId()},
-                {"description", getDescription()},
-                {"priviledge",
-                 to_string(type == Type::Consumer
-                                   ? cb::rbac::Privilege::DcpConsumer
-                                   : cb::rbac::Privilege::DcpProducer)});
+        setTerminationReason(fmt::format("{} privilege no longer available",
+                                         required_privilege));
+        LOG_WARNING_CTX("Shutting down connection due to lost privilege",
+                        {"conn_id", getId()},
+                        {"description", getDescription()},
+                        {"priviledge", required_privilege});
         shutdown();
         return;
     }

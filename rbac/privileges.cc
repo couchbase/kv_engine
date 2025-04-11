@@ -54,6 +54,10 @@ std::string to_string(Privilege privilege) {
                                 std::to_string(int(privilege)));
 }
 
+std::string format_as(Privilege privilege) {
+    return to_string(privilege);
+}
+
 void to_json(nlohmann::json& json, const Privilege& privilege) {
     json = to_string(privilege);
 }
