@@ -2158,7 +2158,7 @@
         "key": "item_alloc_sizes",
         "unit": "bytes",
         "type": "histogram",
-        "description": "Item allocation size counters (in bytes)",
+        "description": "Item allocation size counters for front-end mutations (in bytes)",
         "added": "7.0.0"
     },
 /* TODO: this is not timing related but is in doTimingStats */
