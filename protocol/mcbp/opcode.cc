@@ -486,6 +486,8 @@ public:
         setup(ClientOpcode::DcpAbort, {"DCP_ABORT"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpSeqnoAdvanced,
               {"DCP_SEQNO_ADVANCED"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpCachedValue,
+              {"DCP_CACHED_VALUE"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpOsoSnapshot,
               {"DCP_OSO_SNAPSHOT"sv, {Attribute::Supported}});
         setup(ClientOpcode::StopPersistence,

@@ -374,6 +374,34 @@ struct DcpMessageProducersIface {
             Vbid vbucket,
             uint64_t seqno,
             cb::mcbp::DcpStreamId sid) = 0;
+
+    /**
+     * Send a CachedValue (for a CacheTransferStream)
+     *
+     * This is essentially a mutation but marked as CachedValue so the consumer
+     * knows not to treat like a DcpMutation.
+     *
+     * @param opaque this is the opaque requested by the consumer
+     *               in the Stream Request message
+     * @param itm the item to send.
+     * @param vbucket the vbucket id the message belong to
+     * @param by_seqno
+     * @param rev_seqno
+     * @param lock_time
+     * @param nru the nru field used by ep-engine (may safely be ignored)
+     * @param sid The stream-ID the CachedValue applies to (can be 0 for none)
+     *
+     * @return cb::engine_errc::success upon success
+     */
+    [[nodiscard]] virtual cb::engine_errc cached_value(
+            uint32_t opaque,
+            cb::unique_item_ptr itm,
+            Vbid vbucket,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t lock_time,
+            uint8_t nru,
+            cb::mcbp::DcpStreamId sid) = 0;
 };
 
 using dcp_add_failover_log =

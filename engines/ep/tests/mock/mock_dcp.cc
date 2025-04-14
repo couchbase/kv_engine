@@ -533,6 +533,27 @@ cb::engine_errc MockDcpMessageProducers::seqno_advanced(
     return cb::engine_errc::success;
 }
 
+cb::engine_errc MockDcpMessageProducers::cached_value(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        uint8_t nru,
+        cb::mcbp::DcpStreamId sid) {
+    auto status = mutation(opaque,
+                           std::move(itm),
+                           vbucket,
+                           by_seqno,
+                           rev_seqno,
+                           lock_time,
+                           nru,
+                           sid);
+    last_op = cb::mcbp::ClientOpcode::DcpCachedValue;
+    return status;
+}
+
 cb::engine_errc MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                        uint16_t version) {
     clear_dcp_data();

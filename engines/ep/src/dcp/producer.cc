@@ -1097,31 +1097,21 @@ cb::engine_errc DcpProducer::step(bool throttled,
             break;
         }
 
-        case DcpResponse::Event::Mutation:
-        {
-            if (itmCpy == nullptr) {
-                throw std::logic_error(
-                    "DcpProducer::step(Mutation): itmCpy must be != nullptr");
-            }
-
-            const uint8_t hotness =
-                    encodeItemHotness(*mutationResponse->getItem());
-            ret = producers.mutation(mutationResponse->getOpaque(),
-                                     toUniqueItemPtr(std::move(itmCpy)),
-                                     mutationResponse->getVBucket(),
-                                     *mutationResponse->getBySeqno(),
-                                     mutationResponse->getRevSeqno(),
-                                     0 /* lock time */,
-                                     hotness,
-                                     mutationResponse->getStreamId());
+        case DcpResponse::Event::Mutation: {
+            Expects(itmCpy);
+            ret = producers.mutation(
+                    mutationResponse->getOpaque(),
+                    toUniqueItemPtr(std::move(itmCpy)),
+                    mutationResponse->getVBucket(),
+                    *mutationResponse->getBySeqno(),
+                    mutationResponse->getRevSeqno(),
+                    0 /* lock time */,
+                    encodeItemHotness(*mutationResponse->getItem()),
+                    mutationResponse->getStreamId());
             break;
         }
-        case DcpResponse::Event::Deletion:
-        {
-            if (itmCpy == nullptr) {
-                throw std::logic_error(
-                    "DcpProducer::step(Deletion): itmCpy must be != nullptr");
-            }
+        case DcpResponse::Event::Deletion: {
+            Expects(itmCpy);
             ret = deletionV1OrV2(includeDeleteTime,
                                  *mutationResponse,
                                  producers,
@@ -1131,11 +1121,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
             break;
         }
         case DcpResponse::Event::Expiration: {
-            if (itmCpy == nullptr) {
-                throw std::logic_error(
-                        "DcpProducer::step(Expiration): itmCpy must be != "
-                        "nullptr");
-            }
+            Expects(itmCpy);
             if (enableExpiryOpcode) {
                 if (includeDeleteTime == IncludeDeleteTime::No) {
                     throw std::logic_error(
@@ -1161,28 +1147,22 @@ cb::engine_errc DcpProducer::step(bool throttled,
             break;
         }
         case DcpResponse::Event::Prepare: {
-            if (itmCpy == nullptr) {
-                throw std::logic_error(
-                        "DcpProducer::step(Prepare): itmCpy must be != "
-                        "nullptr");
-            }
-
-            const uint8_t hotness =
-                    encodeItemHotness(*mutationResponse->getItem());
+            Expects(itmCpy);
             const auto docState = mutationResponse->getItem()->isDeleted()
                                           ? DocumentState::Deleted
                                           : DocumentState::Alive;
-            ret = producers.prepare(mutationResponse->getOpaque(),
-                                    toUniqueItemPtr(std::move(itmCpy)),
-                                    mutationResponse->getVBucket(),
-                                    *mutationResponse->getBySeqno(),
-                                    mutationResponse->getRevSeqno(),
-                                    0 /* lock time */,
-                                    hotness,
-                                    docState,
-                                    mutationResponse->getItem()
-                                            ->getDurabilityReqs()
-                                            .getLevel());
+            ret = producers.prepare(
+                    mutationResponse->getOpaque(),
+                    toUniqueItemPtr(std::move(itmCpy)),
+                    mutationResponse->getVBucket(),
+                    *mutationResponse->getBySeqno(),
+                    mutationResponse->getRevSeqno(),
+                    0 /* lock time */,
+                    encodeItemHotness(*mutationResponse->getItem()),
+                    docState,
+                    mutationResponse->getItem()
+                            ->getDurabilityReqs()
+                            .getLevel());
             break;
         }
         case DcpResponse::Event::Abort: {
@@ -1253,24 +1233,16 @@ cb::engine_errc DcpProducer::step(bool throttled,
             break;
         }
         case DcpResponse::Event::CachedValue: {
-            if (itmCpy == nullptr) {
-                throw std::logic_error(
-                        "DcpProducer::step(CachedValue): itmCpy must be != "
-                        "nullptr");
-            }
-
-            const uint8_t hotness =
-                    encodeItemHotness(*mutationResponse->getItem());
-            // For now push through as a mutation which permits some level of
-            // testing with dcpdrain
-            ret = producers.mutation(mutationResponse->getOpaque(),
-                                     toUniqueItemPtr(std::move(itmCpy)),
-                                     mutationResponse->getVBucket(),
-                                     *mutationResponse->getBySeqno(),
-                                     mutationResponse->getRevSeqno(),
-                                     0 /* lock time */,
-                                     hotness,
-                                     mutationResponse->getStreamId());
+            Expects(itmCpy);
+            ret = producers.cached_value(
+                    mutationResponse->getOpaque(),
+                    toUniqueItemPtr(std::move(itmCpy)),
+                    mutationResponse->getVBucket(),
+                    *mutationResponse->getBySeqno(),
+                    mutationResponse->getRevSeqno(),
+                    0 /* lock time */,
+                    encodeItemHotness(*mutationResponse->getItem()),
+                    mutationResponse->getStreamId());
             break;
         }
         case DcpResponse::Event::CacheTransferToActiveStream: {
@@ -1770,6 +1742,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpPrepare:
     case cb::mcbp::ClientOpcode::DcpCommit:
     case cb::mcbp::ClientOpcode::DcpAbort:
+    case cb::mcbp::ClientOpcode::DcpCachedValue:
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;
         }

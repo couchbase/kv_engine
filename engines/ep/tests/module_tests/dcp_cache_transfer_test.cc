@@ -286,8 +286,8 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest) {
 
     while (!expectedValues.empty()) {
         EXPECT_EQ(cb::engine_errc::success,
-                  producer->stepAndExpect(producers,
-                                          cb::mcbp::ClientOpcode::DcpMutation));
+                  producer->stepAndExpect(
+                          producers, cb::mcbp::ClientOpcode::DcpCachedValue));
         // Check that the key is one of the expected keys
         auto keyIt = expectedValues.find(producers.last_key);
         ASSERT_NE(keyIt, expectedValues.end())
@@ -331,7 +331,7 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest_with_filter) {
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
+                                      cb::mcbp::ClientOpcode::DcpCachedValue));
     // seq is 3 as create-veg added a system-event
     EXPECT_EQ(3, producers.last_byseqno);
     EXPECT_EQ(CollectionUid::vegetable, producers.last_collection_id);
@@ -395,18 +395,16 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
                             std::nullopt);
     runCacheTransferTask();
 
-    // Currently the CacheTransferStream will produce Mutations, and there is no
-    // defined ordering as these come from HT visiting.
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
+                                      cb::mcbp::ClientOpcode::DcpCachedValue));
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
                   return item.getKey() == producers.last_dockey;
               }));
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
+                                      cb::mcbp::ClientOpcode::DcpCachedValue));
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
                   return item.getKey() == producers.last_dockey;
               }));

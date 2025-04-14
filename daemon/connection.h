@@ -789,6 +789,15 @@ public:
                                    uint64_t seqno,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc cached_value(uint32_t opaque,
+                                 cb::unique_item_ptr itm,
+                                 Vbid vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 uint32_t lock_time,
+                                 uint8_t nru,
+                                 cb::mcbp::DcpStreamId sid) override;
+
     /// Create the SASL server context object to use for SASL authentication
     void createSaslServerContext() {
         saslServerContext = std::make_unique<cb::sasl::server::ServerContext>();
@@ -1042,6 +1051,17 @@ protected:
     // Reset blocked send queue if it's no longer full.
     void updateBlockedSendQueue(
             const std::chrono::steady_clock::time_point& now);
+
+    // Handler to generate a DcpMutation or DcpCachedValue
+    cb::engine_errc mutation_or_cached_value(cb::mcbp::ClientOpcode opcode,
+                                             uint32_t opaque,
+                                             cb::unique_item_ptr it,
+                                             Vbid vbucket,
+                                             uint64_t by_seqno,
+                                             uint64_t rev_seqno,
+                                             uint32_t lock_time,
+                                             uint8_t nru,
+                                             cb::mcbp::DcpStreamId sid);
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the

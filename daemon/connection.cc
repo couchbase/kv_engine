@@ -1858,14 +1858,19 @@ cb::engine_errc Connection::marker(
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-cb::engine_errc Connection::mutation(uint32_t opaque,
-                                     cb::unique_item_ptr it,
-                                     Vbid vbucket,
-                                     uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     uint32_t lock_time,
-                                     uint8_t nru,
-                                     cb::mcbp::DcpStreamId sid) {
+// Mutation and CachedValue send the same data - just the opcode is different
+cb::engine_errc Connection::mutation_or_cached_value(
+        cb::mcbp::ClientOpcode opcode,
+        uint32_t opaque,
+        cb::unique_item_ptr it,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t lock_time,
+        uint8_t nru,
+        cb::mcbp::DcpStreamId sid) {
+    Expects(opcode == cb::mcbp::ClientOpcode::DcpMutation ||
+            opcode == cb::mcbp::ClientOpcode::DcpCachedValue);
     auto key = it->getDocKey();
 
     const auto doc_read_bytes = key.size() + it->getValueView().size();
@@ -1889,7 +1894,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     cb::mcbp::Request req = {};
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
+    req.setOpcode(opcode);
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(extras)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
@@ -1935,6 +1940,25 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     getBucket().recordDcpMeteringReadBytes(
             *this, doc_read_bytes, dcpResourceAllocationDomain);
     return cb::engine_errc::success;
+}
+
+cb::engine_errc Connection::mutation(uint32_t opaque,
+                                     cb::unique_item_ptr it,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t lock_time,
+                                     uint8_t nru,
+                                     cb::mcbp::DcpStreamId sid) {
+    return mutation_or_cached_value(cb::mcbp::ClientOpcode::DcpMutation,
+                                    opaque,
+                                    std::move(it),
+                                    vbucket,
+                                    by_seqno,
+                                    rev_seqno,
+                                    lock_time,
+                                    nru,
+                                    sid);
 }
 
 cb::engine_errc Connection::deletionInner(const ItemIface& item,
@@ -2407,6 +2431,26 @@ cb::engine_errc Connection::seqno_advanced(uint32_t opaque,
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
+
+cb::engine_errc Connection::cached_value(uint32_t opaque,
+                                         cb::unique_item_ptr it,
+                                         Vbid vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         uint32_t lock_time,
+                                         uint8_t nru,
+                                         cb::mcbp::DcpStreamId sid) {
+    return mutation_or_cached_value(cb::mcbp::ClientOpcode::DcpCachedValue,
+                                    opaque,
+                                    std::move(it),
+                                    vbucket,
+                                    by_seqno,
+                                    rev_seqno,
+                                    lock_time,
+                                    nru,
+                                    sid);
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //
