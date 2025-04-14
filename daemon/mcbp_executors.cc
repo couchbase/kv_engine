@@ -60,6 +60,7 @@
 #include "protocol/mcbp/stop_fusion_uploader_command_context.h"
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
+#include "protocol/mcbp/unmount_fusion_vbucket_command_context.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -657,6 +658,16 @@ static void mount_fusion_vbucket_executor(Cookie& cookie) {
     }
 }
 
+static void unmount_vbucket_executor(Cookie& cookie) {
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<UnmountFusionVbucketCommandContext>(cookie)
+                .drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
+}
+
 static void sync_fusion_logstore_executor(Cookie& cookie) {
     if (!cookie.getConnection().getBucket().supports(
                 cb::engine::Feature::Persistence)) {
@@ -974,6 +985,8 @@ void initialize_mbcp_lookup_map() {
                   release_fusion_storage_snapshot_executor);
     setup_handler(cb::mcbp::ClientOpcode::MountFusionVbucket,
                   mount_fusion_vbucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::UnmountFusionVbucket,
+                  unmount_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::SyncFusionLogstore,
                   sync_fusion_logstore_executor);
     setup_handler(cb::mcbp::ClientOpcode::StartFusionUploader,

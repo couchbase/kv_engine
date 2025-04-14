@@ -1947,6 +1947,34 @@ KVBucketResult<std::vector<std::string>> EPBucket::mountVBucket(
     return folly::Unexpected(cb::engine_errc::would_block);
 }
 
+cb::engine_errc EPBucket::unmountVBucket(Vbid vbid) {
+    std::unique_lock vbset(vbsetMutex);
+    if (vbid.get() >= vbMap.getSize()) {
+        return cb::engine_errc::out_of_range;
+    }
+    if (vbMap.getBucket(vbid)) {
+        // The VBucket is already instantiated (i.e. it's not just mounted) so
+        // unmounting is a logic error. Deletion could be requested instead.
+        return cb::engine_errc::key_already_exists;
+    }
+    if (vbucketsLoading.contains(vbid)) {
+        // Unmount is requested while a loading task is running (it could be a
+        // mounting or creation task).
+        return cb::engine_errc::temporary_failure;
+    }
+    auto* underlying = getRWUnderlying(vbid);
+    Expects(underlying);
+    if (!underlying->getStorageProperties().supportsFusion()) {
+        // Unmount is only used for Fusion
+        return cb::engine_errc::not_supported;
+    }
+    auto rev = underlying->prepareToDelete(vbid);
+    // We obtain the revision to delete under lock, and do the IO outside.
+    vbset.unlock();
+    underlying->delVBucket(vbid, std::move(rev));
+    return cb::engine_errc::success;
+}
+
 bool EPBucket::isVBucketLoading_UNLOCKED(
         Vbid vbid, const std::unique_lock<std::mutex>& vbset) const {
     return vbucketsLoading.contains(vbid);

@@ -218,6 +218,7 @@ public:
             const std::vector<std::string>& paths,
             const std::function<void(const nlohmann::json&)>& setResponse)
             override;
+    cb::engine_errc unmountVBucket(Vbid vbid) override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
                                                            Vbid vbid) override;
     cb::engine_errc setVBucket(CookieIface& cookie,
@@ -1393,6 +1394,10 @@ cb::engine_errc EWB_Engine::mountVBucket(
         const std::vector<std::string>& paths,
         const std::function<void(const nlohmann::json&)>& setResponse) {
     return real_engine->mountVBucket(cookie, vbid, paths, setResponse);
+}
+
+cb::engine_errc EWB_Engine::unmountVBucket(Vbid vbid) {
+    return real_engine->unmountVBucket(vbid);
 }
 
 cb::engine_errc EWB_Engine::syncFusionLogstore(Vbid vbid) {

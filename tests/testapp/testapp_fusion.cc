@@ -264,6 +264,29 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
     ASSERT_TRUE(res["deks"].is_array());
 }
 
+TEST_P(FusionTest, UnmountFusionVbucket_NeverMounted) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::UnmountFusionVbucket};
+        cmd.setVBucket(Vbid(1));
+        const auto res = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
+    });
+}
+
+TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
+    const Vbid vbid{1};
+    const auto resp = mountVbucket(vbid, {"path1", "path2"});
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::UnmountFusionVbucket};
+        cmd.setVBucket(vbid);
+        const auto res = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
+    });
+}
+
 TEST_P(FusionTest, SyncFusionLogstore) {
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
         auto cmd = BinprotGenericCommand{

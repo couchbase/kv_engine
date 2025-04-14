@@ -282,6 +282,13 @@ public:
     }
 
     /**
+     * Unmounts a vbucket that was previously mounted.
+     */
+    virtual cb::engine_errc unmountVBucket(Vbid vbid) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
      * Sets the vbucket or creates a vbucket with the desired state
      *
      * @param vbid vbucket id

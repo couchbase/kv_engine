@@ -795,6 +795,11 @@ struct EngineIface {
             const std::function<void(const nlohmann::json&)>& setResponse);
 
     /**
+     * Unmounts a vbucket that was previously mounted.
+     */
+    [[nodiscard]] virtual cb::engine_errc unmountVBucket(Vbid vbid);
+
+    /**
      * Set the state of a vbucket
      *
      * @param cookie The cookie identifying the request

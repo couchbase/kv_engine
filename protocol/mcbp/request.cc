@@ -403,7 +403,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::GetFusionStorageSnapshot:
         case ClientOpcode::ReleaseFusionStorageSnapshot:
         case ClientOpcode::MountFusionVbucket:
-        case ClientOpcode::ReservedFusion3:
+        case ClientOpcode::UnmountFusionVbucket:
         case ClientOpcode::SyncFusionLogstore:
         case ClientOpcode::StartFusionUploader:
         case ClientOpcode::StopFusionUploader:

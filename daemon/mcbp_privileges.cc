@@ -284,6 +284,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::ReleaseFusionStorageSnapshot,
           require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::MountFusionVbucket, require<Privilege::NodeSupervisor>);
+    setup(ClientOpcode::UnmountFusionVbucket,
+          require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::SyncFusionLogstore, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::StartFusionUploader,
           require<Privilege::NodeSupervisor>);

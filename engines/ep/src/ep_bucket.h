@@ -229,6 +229,8 @@ public:
             Vbid vbid,
             const std::vector<std::string>& paths) override;
 
+    cb::engine_errc unmountVBucket(Vbid vbid) override;
+
     bool isVBucketLoading_UNLOCKED(
             Vbid vbid,
             const std::unique_lock<std::mutex>& vbset) const override;

@@ -7828,6 +7828,10 @@ cb::engine_errc EventuallyPersistentEngine::mountVBucket(
     return cb::engine_errc::success;
 }
 
+cb::engine_errc EventuallyPersistentEngine::unmountVBucket(Vbid vbid) {
+    return acquireEngine(this)->unmountVBucketInner(vbid);
+}
+
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstore(Vbid vbid) {
     return acquireEngine(this)->syncFusionLogstoreInner(vbid);
 }
@@ -8012,6 +8016,11 @@ cb::engine_errc EventuallyPersistentEngine::maybeRemapStatus(
         return cb::engine_errc::temporary_failure;
     }
     return status;
+}
+
+cb::engine_errc EventuallyPersistentEngine::unmountVBucketInner(Vbid vbid) {
+    Expects(kvBucket);
+    return kvBucket->unmountVBucket(vbid);
 }
 
 std::pair<cb::engine_errc, nlohmann::json>

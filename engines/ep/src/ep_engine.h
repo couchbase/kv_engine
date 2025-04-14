@@ -313,6 +313,7 @@ public:
             const std::vector<std::string>& paths,
             const std::function<void(const nlohmann::json&)>& setResponse)
             override;
+    cb::engine_errc unmountVBucket(Vbid vbid) override;
 
     cb::engine_errc setChronicleAuthToken(std::string_view token) override;
 
@@ -1571,6 +1572,7 @@ protected:
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response);
 
+    cb::engine_errc unmountVBucketInner(Vbid vbid);
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshotInner(
             Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
     cb::engine_errc releaseFusionStorageSnapshotInner(
