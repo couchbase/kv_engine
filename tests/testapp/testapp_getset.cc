@@ -86,17 +86,15 @@ void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     auto meta = userConnection->getMeta(
             document.info.id, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(0, meta.second.getDeleted());
-    EXPECT_EQ(expectedDatatype, meta.second.getDatatype());
-    EXPECT_EQ(0, meta.second.getExpiry());
+    EXPECT_EQ(0, meta.getDeleted());
+    EXPECT_EQ(expectedDatatype, meta.getDatatype());
+    EXPECT_EQ(0, meta.getExpiry());
 
     meta = userConnection->getMeta(
             document.info.id, Vbid(0), GetMetaVersion::V1);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(0, meta.second.getDeleted());
-    EXPECT_NE(expectedDatatype, meta.second.getDatatype());
-    EXPECT_EQ(0, meta.second.getExpiry());
+    EXPECT_EQ(0, meta.getDeleted());
+    EXPECT_NE(expectedDatatype, meta.getDatatype());
+    EXPECT_EQ(0, meta.getExpiry());
 }
 
 void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
@@ -1041,9 +1039,8 @@ TEST_P(GetSetTest, TestGetMetaInvalidJSON) {
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     auto meta = userConnection->getMeta(
             document.info.id, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(0, meta.second.getDeleted());
-    EXPECT_EQ(expectedDatatype, meta.second.getDatatype());
+    EXPECT_EQ(0, meta.getDeleted());
+    EXPECT_EQ(expectedDatatype, meta.getDatatype());
 }
 
 TEST_P(GetSetTest, TestGetMetaExpiry) {
@@ -1070,18 +1067,16 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     auto meta = userConnection->getMeta(
             document.info.id, Vbid(0), GetMetaVersion::V1);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     uint32_t expected = gsl::narrow<uint32_t>(now) + seconds - 2;
-    EXPECT_GE(meta.second.getExpiry(), expected);
-    EXPECT_LE(meta.second.getExpiry(), expected + 3);
+    EXPECT_GE(meta.getExpiry(), expected);
+    EXPECT_LE(meta.getExpiry(), expected + 3);
 
     // Case `expiry` > `num_seconds_in_a_month`
     document.info.expiration = gsl::narrow<uint32_t>(now) + 60;
     userConnection->mutate(document, Vbid(0), MutationType::Replace);
     meta = userConnection->getMeta(
             document.info.id, Vbid(0), GetMetaVersion::V1);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    EXPECT_EQ(meta.second.getExpiry(), document.info.expiration);
+    EXPECT_EQ(meta.getExpiry(), document.info.expiration);
 }
 
 // Test that memcached correctly detects documents are JSON irrespective

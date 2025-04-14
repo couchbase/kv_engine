@@ -1287,3 +1287,20 @@ public:
                                 std::move(value)) {
     }
 };
+
+class BinprotGetMetaCommand : public BinprotGenericCommand {
+public:
+    BinprotGetMetaCommand() = delete;
+    BinprotGetMetaCommand(std::string key,
+                          Vbid vbucket,
+                          GetMetaVersion version);
+};
+
+class BinprotGetMetaResponse : public BinprotResponse {
+public:
+    BinprotGetMetaResponse() = default;
+    explicit BinprotGetMetaResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
+    GetMetaPayload getMetaPayload() const;
+};

@@ -36,9 +36,7 @@ BinprotSubdocMultiMutationResponse XattrNoDocTest::subdoc_multi_mutation(
 }
 
 GetMetaPayload XattrNoDocTest::get_meta() {
-    auto meta = userConnection->getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-    return meta.second;
+    return userConnection->getMeta(name, Vbid(0), GetMetaVersion::V2);
 }
 
 BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()

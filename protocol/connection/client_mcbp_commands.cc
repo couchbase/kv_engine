@@ -2235,3 +2235,24 @@ std::vector<std::string> BinprotGetKeysResponse::getKeys() const {
 
     return ret;
 }
+
+BinprotGetMetaCommand::BinprotGetMetaCommand(std::string key,
+                                             Vbid vbucket,
+                                             GetMetaVersion version)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetMeta, std::move(key)) {
+    setVBucket(vbucket);
+    const std::vector extras = {uint8_t(version)};
+    setExtras(extras);
+}
+
+GetMetaPayload BinprotGetMetaResponse::getMetaPayload() const {
+    Expects(isSuccess());
+
+    const auto ext = getExtrasView();
+    Expects((ext.size() == GetMetaPayloadV1Size ||
+             ext.size() == GetMetaPayloadV2Size) &&
+            "Unexpected payload size. Not V1 or V2");
+    GetMetaPayload ret;
+    memcpy(&ret, ext.data(), ext.size());
+    return ret;
+}

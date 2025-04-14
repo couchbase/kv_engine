@@ -152,9 +152,7 @@ public:
             // So we can validate that RangeScan meta matches GetMeta
             auto meta = userConnection->getMeta(
                     std::string{kv.first}, Vbid(0), GetMetaVersion::V2);
-            EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-            auto [itr, emplaced] =
-                    userKeysMeta.try_emplace(kv.first, meta.second);
+            auto [itr, emplaced] = userKeysMeta.try_emplace(kv.first, meta);
             EXPECT_TRUE(emplaced);
         }
 

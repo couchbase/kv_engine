@@ -197,9 +197,7 @@ TEST_P(StatsTest, TestGetMeta) {
 
     // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
     for (int i = 0; i < 10; i++) {
-        auto meta = userConnection->getMeta(
-                doc.info.id, Vbid(0), GetMetaVersion::V1);
-        EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
+        userConnection->getMeta(doc.info.id, Vbid(0), GetMetaVersion::V1);
     }
     auto stats = userConnection->stats("");
 
@@ -213,9 +211,9 @@ TEST_P(StatsTest, TestGetMeta) {
     // not increase the `cmd_get` and `get_misses` stats or the `get_hits`
     // stat
     for (int i = 0; i < 10; i++) {
-        auto meta =
-                userConnection->getMeta("no_key", Vbid(0), GetMetaVersion::V1);
-        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, meta.first);
+        auto rsp = userConnection->execute(
+                BinprotGetMetaCommand{"no_key", Vbid(0), GetMetaVersion::V1});
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     }
     stats = userConnection->stats("");
 

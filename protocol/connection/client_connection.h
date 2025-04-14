@@ -889,11 +889,16 @@ public:
                                 std::vector<uint8_t> metaExtras = {},
                                 const GetFrameInfoFunction& getFrameInfo = {});
 
-    std::pair<cb::mcbp::Status, GetMetaPayload> getMeta(
-            const std::string& key,
-            Vbid vbucket,
-            GetMetaVersion version,
-            const GetFrameInfoFunction& getFrameInfo = {});
+    /**
+     * Call GetMeta for the provided document in the provided vbucket.
+     * Like the other methods in client connection it throws an exception
+     * upon all errors. (Version must be set to V2 to return datatype
+     * (introduced in spock)
+     */
+    GetMetaPayload getMeta(const std::string& key,
+                           Vbid vbucket,
+                           GetMetaVersion version = GetMetaVersion::V2,
+                           const GetFrameInfoFunction& getFrameInfo = {});
 
     /**
      * Evict the provided key

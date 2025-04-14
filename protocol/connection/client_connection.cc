@@ -2005,23 +2005,18 @@ void MemcachedConnection::disablePersistence(
     }
 }
 
-std::pair<cb::mcbp::Status, GetMetaPayload> MemcachedConnection::getMeta(
+GetMetaPayload MemcachedConnection::getMeta(
         const std::string& key,
         Vbid vbucket,
         GetMetaVersion version,
         const GetFrameInfoFunction& getFrameInfo) {
-    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetMeta, key};
-    cmd.setVBucket(vbucket);
-    const std::vector<uint8_t> extras = {uint8_t(version)};
-    cmd.setExtras(extras);
+    BinprotGetMetaCommand cmd{key, vbucket, version};
     applyFrameInfos(cmd, getFrameInfo);
-
-    auto resp = execute(cmd);
-
-    GetMetaPayload meta;
-    const auto ext = resp.getResponse().getExtdata();
-    memcpy(&meta, ext.data(), ext.size());
-    return std::make_pair(resp.getStatus(), meta);
+    auto resp = BinprotGetMetaResponse{execute(cmd)};
+    if (!resp.isSuccess()) {
+        throw ConnectionError("GetMeta() failed", resp);
+    }
+    return resp.getMetaPayload();
 }
 
 Document MemcachedConnection::getRandomKey(Vbid vbucket) {
