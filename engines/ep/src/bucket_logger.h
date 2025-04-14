@@ -182,7 +182,7 @@ public:
      * @param prefix Optional prefix to be appended to every message
      */
     static std::shared_ptr<BucketLogger> createBucketLogger(
-            const std::string& name, const std::string& prefix = "");
+            const std::string& name);
 
     /// Set the connection id (printed before any other prefix or message)
     void setConnectionId(uint32_t id) {
@@ -235,9 +235,8 @@ protected:
      * BucketLogger. This constructor is protected to allow for mocking.
      *
      * @param name Registry name for the logger
-     * @param prefix Optional prefix to be appended to every message
      */
-    explicit BucketLogger(const std::string& name, std::string prefix = "");
+    explicit BucketLogger(const std::string& name);
 
 private:
     /**

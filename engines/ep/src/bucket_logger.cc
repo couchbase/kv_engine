@@ -19,8 +19,8 @@
 
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
-BucketLogger::BucketLogger(const std::string& name, std::string p)
-    : spdlog::logger(name, nullptr), prefix(std::move(p)) {
+BucketLogger::BucketLogger(const std::string& name)
+    : spdlog::logger(name, nullptr) {
     spdLogger = cb::logger::get();
 
     // Take the logging level of the memcached logger so we don't format
@@ -141,7 +141,7 @@ void BucketLogger::criticalWithContext(std::string_view msg,
 }
 
 std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
-        const std::string& name, const std::string& p) {
+        const std::string& name) {
     // Create a unique name using the engine name if available
     auto engine = ObjectRegistry::getCurrentEngine();
     std::string uname;
@@ -152,8 +152,7 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
     }
     uname.append(name);
 
-    auto bucketLogger =
-            std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
+    auto bucketLogger = std::shared_ptr<BucketLogger>(new BucketLogger(uname));
 
     // Register the logger in the logger library registry
     bucketLogger->registered = cb::logger::registerSpdLogger(bucketLogger);
