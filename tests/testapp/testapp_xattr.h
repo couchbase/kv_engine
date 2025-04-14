@@ -48,7 +48,7 @@ protected:
             cb::mcbp::subdoc::DocFlag docFlags =
                     cb::mcbp::subdoc::DocFlag::None);
 
-    GetMetaResponse get_meta();
+    GetMetaPayload get_meta();
 
     /// Constructs a Subdoc multi-mutation matching the style of an SDK
     // Transactions mutation.

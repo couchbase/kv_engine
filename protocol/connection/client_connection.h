@@ -889,7 +889,7 @@ public:
                                 std::vector<uint8_t> metaExtras = {},
                                 const GetFrameInfoFunction& getFrameInfo = {});
 
-    std::pair<cb::mcbp::Status, GetMetaResponse> getMeta(
+    std::pair<cb::mcbp::Status, GetMetaPayload> getMeta(
             const std::string& key,
             Vbid vbucket,
             GetMetaVersion version,

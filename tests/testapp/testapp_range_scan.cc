@@ -120,7 +120,7 @@ public:
                                                 "user::zoe",
                                                 "user:aaaaaaaa",
                                                 "users"};
-    std::unordered_map<StoredDocKey, GetMetaResponse> userKeysMeta;
+    std::unordered_map<StoredDocKey, GetMetaPayload> userKeysMeta;
 
     // Other keys that get stored in the bucket
     std::vector<std::string> otherKeys = {

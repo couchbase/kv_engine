@@ -1682,25 +1682,22 @@ protected:
 static_assert(sizeof(DelWithMetaPayload) == 24, "Unexpected struct size");
 } // namespace cb::mcbp::request
 
-/**
- * Structure holding getMeta command response fields
- */
-
-struct GetMetaResponse {
+/// Structure holding getMeta command response fields
+struct GetMetaPayload {
     uint32_t deleted;
     uint32_t flags;
     uint32_t expiry;
     uint64_t seqno;
     uint8_t datatype;
 
-    GetMetaResponse() : deleted(0), flags(0), expiry(0), seqno(0), datatype(0) {
+    GetMetaPayload() : deleted(0), flags(0), expiry(0), seqno(0), datatype(0) {
     }
 
-    GetMetaResponse(uint32_t deleted,
-                    uint32_t flags,
-                    uint32_t expiry,
-                    uint64_t seqno,
-                    uint8_t datatype)
+    GetMetaPayload(uint32_t deleted,
+                   uint32_t flags,
+                   uint32_t expiry,
+                   uint64_t seqno,
+                   uint8_t datatype)
         : deleted(deleted),
           flags(flags),
           expiry(expiry),
@@ -1713,7 +1710,7 @@ struct GetMetaResponse {
     }
 };
 
-static_assert(sizeof(GetMetaResponse) == 21, "Incorrect compiler padding");
+static_assert(sizeof(GetMetaPayload) == 21, "Incorrect compiler padding");
 
 /* Meta data versions for GET_META */
 enum class GetMetaVersion : uint8_t {

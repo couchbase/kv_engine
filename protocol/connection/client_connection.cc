@@ -2005,7 +2005,7 @@ void MemcachedConnection::disablePersistence(
     }
 }
 
-std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
+std::pair<cb::mcbp::Status, GetMetaPayload> MemcachedConnection::getMeta(
         const std::string& key,
         Vbid vbucket,
         GetMetaVersion version,
@@ -2018,7 +2018,7 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
 
     auto resp = execute(cmd);
 
-    GetMetaResponse meta;
+    GetMetaPayload meta;
     const auto ext = resp.getResponse().getExtdata();
     memcpy(&meta, ext.data(), ext.size());
     meta.deleted = ntohl(meta.deleted);

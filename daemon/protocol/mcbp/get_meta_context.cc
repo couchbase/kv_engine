@@ -50,11 +50,11 @@ cb::engine_errc GetMetaCommandContext::sendResponse() {
     uint32_t deleted =
             htonl(info.document_state == DocumentState::Deleted ? 1 : 0);
     uint8_t datatype = fetchDatatype ? info.datatype : uint8_t(0);
-    GetMetaResponse metaResponse(deleted,
-                                 info.flags,
-                                 htonl(gsl::narrow<uint32_t>(info.exptime)),
-                                 htonll(info.seqno),
-                                 datatype);
+    GetMetaPayload metaResponse(deleted,
+                                info.flags,
+                                htonl(gsl::narrow<uint32_t>(info.exptime)),
+                                htonll(info.seqno),
+                                datatype);
 
     const size_t responseExtlen =
             fetchDatatype
