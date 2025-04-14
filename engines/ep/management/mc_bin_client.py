@@ -26,7 +26,7 @@ from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, ALT_REQ_PKT_FMT, ALT_RES
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
-from memcacheConstants import DTYPE_RAW, DTYPE_JSON
+from memcacheConstants import DTYPE_RAW, DTYPE_JSON, DTYPE_XATTR
 import memcacheConstants
 
 
@@ -556,6 +556,7 @@ class MemcachedClient(object):
             seqno,
             remote_cas,
             collection,
+            dtype=DTYPE_RAW,
             options=None):
         extra = b''
         if options is not None:
@@ -568,7 +569,7 @@ class MemcachedClient(object):
                 options)
         else:
             extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
-        return self._doCmd(cmd, key, value, extra, cas, collection)
+        return self._doCmd(cmd, key, value, extra, cas, collection, dtype)
 
     def set(self, key, exp, flags, val, collection=None):
         """Set a value in the memcached server."""
@@ -592,6 +593,7 @@ class MemcachedClient(object):
             seqno,
             remote_cas,
             collection=None,
+            dtype=DTYPE_RAW,
             options=None):
         """Set a value and its meta data in the memcached server.
 
@@ -613,16 +615,19 @@ class MemcachedClient(object):
             seqno,
             remote_cas,
             collection,
+            dtype,
             options)
 
     def delWithMeta(
             self,
             key,
+            value,
             exp,
             flags,
             seqno,
             remote_cas,
             collection=None,
+            dtype=DTYPE_RAW,
             options=None):
         """Delete a value with its meta data in the memcached server.
 
@@ -638,13 +643,14 @@ class MemcachedClient(object):
         return self._doMetaCmd(
             memcacheConstants.CMD_DELETE_WITH_META,
             key,
-            '',
+            value,
             0,
             exp,
             flags,
             seqno,
             remote_cas,
             collection,
+            dtype,
             options)
 
     def add(self, key, exp, flags, val, collection=None):
@@ -1076,6 +1082,9 @@ class MemcachedClient(object):
                          '')
         self.vbucketId = tmpVbucketId
         return rv
+
+    def enable_xattr(self):
+        self.req_features.add(memcacheConstants.FEATURE_XATTR)
 
     def enable_xerror(self):
         self.req_features.add(memcacheConstants.FEATURE_XERROR)
