@@ -421,12 +421,12 @@ size_t RangeScanTest::drainItemResponse(
         // Check meta matches
         StoredDocKey collectionKey(record.key, CollectionID{collectionId});
         const auto& meta = userKeysMeta.at(collectionKey);
-        EXPECT_EQ(meta.flags, record.meta.getFlags());
-        EXPECT_EQ(meta.expiry, record.meta.getExpiry());
+        EXPECT_EQ(meta.getFlags(), record.meta.getFlags());
+        EXPECT_EQ(meta.getExpiry(), record.meta.getExpiry());
         // compare and ignore snappy as it varies based on test and where the
         // value came from. Above we validate that no snappy was present for
         // the none snappy test.
-        EXPECT_EQ(meta.datatype & ~PROTOCOL_BINARY_DATATYPE_SNAPPY,
+        EXPECT_EQ(meta.getDatatype() & ~PROTOCOL_BINARY_DATATYPE_SNAPPY,
                   record.meta.getDatatype() & ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
         record = payload.next();

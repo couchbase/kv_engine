@@ -274,7 +274,7 @@ protected:
 
         // Check the datatype.
         const auto meta = get_meta();
-        EXPECT_EQ(expectedDatatype, meta.datatype);
+        EXPECT_EQ(expectedDatatype, meta.getDatatype());
 
         return multiResp;
     }
@@ -408,7 +408,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocDict) {
     auto doc = userConnection->get(name, Vbid(0));
     EXPECT_EQ("{}", doc.value);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              get_meta().datatype);
+              get_meta().getDatatype());
 }
 
 // Test setting just an XATTR path without a value using a single-path
@@ -430,7 +430,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocArray) {
     auto doc = userConnection->get(name, Vbid(0));
     EXPECT_EQ("{}", doc.value);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              get_meta().datatype);
+              get_meta().getDatatype());
 }
 
 // Test setting just an XATTR path without a value using a multi-mutation
@@ -452,7 +452,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathDict) {
     auto doc = userConnection->get(name, Vbid(0));
     EXPECT_EQ("{}", doc.value);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              get_meta().datatype);
+              get_meta().getDatatype());
 }
 
 // Test setting just an XATTR path without a value using a multi-mutation
@@ -474,7 +474,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathArray) {
     auto doc = userConnection->get(name, Vbid(0));
     EXPECT_EQ("{}", doc.value);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              get_meta().datatype);
+              get_meta().getDatatype());
 }
 
 TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
@@ -1671,9 +1671,9 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.getDeleted());
 
     auto resp = subdoc_get(sysXattr,
                            PathFlag::XattrPath,
@@ -1714,9 +1714,9 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.getDeleted());
 
     auto resp = subdoc_get("userXattr", PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
@@ -1771,9 +1771,9 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
     // Should also be marked as deleted
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(1, meta.getDeleted());
 }
 
 // Verify that when a document with a user XATTR is deleted, then the
@@ -1785,8 +1785,8 @@ TEST_P(XattrTest, UserXAttrPrunedOnDelete) {
 
     // Should now be a deleted document with no body.
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.datatype);
-    EXPECT_EQ(1, meta.deleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, meta.getDatatype());
+    EXPECT_EQ(1, meta.getDeleted());
 }
 
 /**

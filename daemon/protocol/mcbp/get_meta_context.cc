@@ -47,19 +47,16 @@ cb::engine_errc GetMetaCommandContext::getItemMeta() {
 
 cb::engine_errc GetMetaCommandContext::sendResponse() {
     // Prepare response
-    uint32_t deleted =
-            htonl(info.document_state == DocumentState::Deleted ? 1 : 0);
+    uint32_t deleted = info.document_state == DocumentState::Deleted ? 1 : 0;
     uint8_t datatype = fetchDatatype ? info.datatype : uint8_t(0);
     GetMetaPayload metaResponse(deleted,
                                 info.flags,
-                                htonl(gsl::narrow<uint32_t>(info.exptime)),
-                                htonll(info.seqno),
+                                gsl::narrow<uint32_t>(info.exptime),
+                                info.seqno,
                                 datatype);
 
     const size_t responseExtlen =
-            fetchDatatype
-                    ? sizeof(metaResponse)
-                    : sizeof(metaResponse) - sizeof(metaResponse.datatype);
+            fetchDatatype ? GetMetaPayloadV2Size : GetMetaPayloadV1Size;
 
     std::string_view extras = {reinterpret_cast<const char*>(&metaResponse),
                                responseExtlen};

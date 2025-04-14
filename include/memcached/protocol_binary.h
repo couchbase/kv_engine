@@ -1683,31 +1683,53 @@ static_assert(sizeof(DelWithMetaPayload) == 24, "Unexpected struct size");
 } // namespace cb::mcbp::request
 
 /// Structure holding getMeta command response fields
-struct GetMetaPayload {
-    uint32_t deleted;
-    uint32_t flags;
-    uint32_t expiry;
-    uint64_t seqno;
-    uint8_t datatype;
-
-    GetMetaPayload() : deleted(0), flags(0), expiry(0), seqno(0), datatype(0) {
-    }
+class GetMetaPayload {
+public:
+    GetMetaPayload() = default;
 
     GetMetaPayload(uint32_t deleted,
                    uint32_t flags,
                    uint32_t expiry,
                    uint64_t seqno,
                    uint8_t datatype)
-        : deleted(deleted),
+        : deleted(htonl(deleted)),
           flags(flags),
-          expiry(expiry),
-          seqno(seqno),
+          expiry(htonl(expiry)),
+          seqno(htonll(seqno)),
           datatype(datatype) {
+    }
+
+    [[nodiscard]] uint32_t getDeleted() const {
+        return ntohl(deleted);
+    }
+
+    [[nodiscard]] uint32_t getFlags() const {
+        // flags is always retured as we received them from the client
+        return flags;
+    }
+
+    [[nodiscard]] uint32_t getExpiry() const {
+        return ntohl(expiry);
+    }
+
+    [[nodiscard]] uint64_t getSeqno() const {
+        return ntohll(seqno);
+    }
+
+    [[nodiscard]] uint8_t getDatatype() const {
+        return datatype;
     }
 
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
+
+protected:
+    uint32_t deleted = 0;
+    uint32_t flags = 0;
+    uint32_t expiry = 0;
+    uint64_t seqno = 0;
+    uint8_t datatype = 0;
 };
 
 static_assert(sizeof(GetMetaPayload) == 21, "Incorrect compiler padding");
@@ -1717,6 +1739,8 @@ enum class GetMetaVersion : uint8_t {
     V1 = 1, // returns deleted, flags, expiry and seqno
     V2 = 2, // The 'spock' version returns V1 + the datatype
 };
+constexpr size_t GetMetaPayloadV1Size = sizeof(GetMetaPayload) - 1;
+constexpr size_t GetMetaPayloadV2Size = sizeof(GetMetaPayload);
 
 /**
  * The physical layout for the CMD_RETURN_META

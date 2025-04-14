@@ -2021,10 +2021,6 @@ std::pair<cb::mcbp::Status, GetMetaPayload> MemcachedConnection::getMeta(
     GetMetaPayload meta;
     const auto ext = resp.getResponse().getExtdata();
     memcpy(&meta, ext.data(), ext.size());
-    meta.deleted = ntohl(meta.deleted);
-    meta.expiry = ntohl(meta.expiry);
-    meta.seqno = ntohll(meta.seqno);
-
     return std::make_pair(resp.getStatus(), meta);
 }
 
