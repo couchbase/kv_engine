@@ -11,6 +11,7 @@
 #pragma once
 
 #include "dcp/cache_transfer_stream.h"
+#include "dcp/stream_request_info.h"
 #include <memcached/vbucket.h>
 #include <memory>
 #include <unordered_set>
@@ -22,8 +23,7 @@ class MockCacheTransferStream : public CacheTransferStream {
 public:
     MockCacheTransferStream(std::shared_ptr<MockDcpProducer> p,
                             uint32_t opaque,
-                            uint64_t maxSeqno,
-                            uint64_t vbucketUuid,
+                            const StreamRequestInfo& req,
                             Vbid vbid,
                             EventuallyPersistentEngine& engine,
                             IncludeValue includeValue,
@@ -42,6 +42,9 @@ public:
     std::unique_ptr<DcpResponse> validateNextResponseIsEnd(
             cb::mcbp::DcpStreamEndStatus expectedStatus =
                     cb::mcbp::DcpStreamEndStatus::Ok);
+
+    std::unique_ptr<DcpResponse>
+    validateNextResponseIsCacheTransferToActiveStream();
 
     size_t getMemoryUsed() const override;
 

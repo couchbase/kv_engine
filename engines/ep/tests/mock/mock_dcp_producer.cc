@@ -142,15 +142,13 @@ std::shared_ptr<MockCacheTransferStream>
 MockDcpProducer::mockCacheTransferStreamRequest(
         uint32_t opaque,
         Vbid vbid,
-        uint64_t maxSeqno,
-        uint64_t vbucketUuid,
+        const StreamRequestInfo& req,
         IncludeValue includeValue,
         Collections::VB::Filter filter) {
     auto stream = std::make_shared<MockCacheTransferStream>(
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
             opaque,
-            maxSeqno,
-            vbucketUuid,
+            req,
             vbid,
             engine_,
             includeValue,
@@ -161,16 +159,15 @@ MockDcpProducer::mockCacheTransferStreamRequest(
 std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
         uint32_t opaque,
         StreamRequestInfo& req,
-        VBucketPtr vb,
+        VBucket& vb,
         Collections::VB::Filter filter) {
-    EXPECT_FALSE(vb->getStateLock().try_lock());
+    EXPECT_FALSE(vb.getStateLock().try_lock());
     if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
         return std::make_shared<MockCacheTransferStream>(
                 std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
                 opaque,
-                req.start_seqno,
-                req.vbucket_uuid,
-                vb->getId(),
+                req,
+                vb.getId(),
                 engine_,
                 includeValue,
                 std::move(filter));
@@ -181,7 +178,7 @@ std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
             getName(),
             req.flags,
             opaque,
-            *vb,
+            vb,
             req.start_seqno,
             req.end_seqno,
             req.vbucket_uuid,
@@ -193,23 +190,6 @@ std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
             includeDeletedUserXattrs,
             maxMarkerVersion,
             std::move(filter));
-    return std::make_shared<MockActiveStream>(&engine_,
-                                              shared_from_base<DcpProducer>(),
-                                              getName(),
-                                              req.flags,
-                                              opaque,
-                                              *vb,
-                                              req.start_seqno,
-                                              req.end_seqno,
-                                              req.vbucket_uuid,
-                                              req.snap_start_seqno,
-                                              req.snap_end_seqno,
-                                              includeValue,
-                                              includeXattrs,
-                                              includeDeleteTime,
-                                              includeDeletedUserXattrs,
-                                              maxMarkerVersion,
-                                              std::move(filter));
 }
 
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockStreamRequest(

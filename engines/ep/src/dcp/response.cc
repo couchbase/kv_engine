@@ -66,6 +66,8 @@ const char* DcpResponse::to_string() const {
         return "Seqno Advanced";
     case Event::CachedValue:
         return "CachedValue";
+    case Event::CacheTransferToActiveStream:
+        return "CacheTransferToActiveStream";
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
@@ -403,6 +405,13 @@ bool SeqnoAdvanced::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const SeqnoAdvanced&>(rsp);
     return vbucket == other.vbucket && advancedSeqno == other.advancedSeqno &&
            DcpResponse::isEqual(rsp);
+}
+
+bool CacheTransferToActiveStreamResponse::isEqual(
+        const DcpResponse& rsp) const {
+    const auto& other =
+            static_cast<const CacheTransferToActiveStreamResponse&>(rsp);
+    return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
 }
 
 SystemEventFlatBuffers::SystemEventFlatBuffers(uint32_t opaque,

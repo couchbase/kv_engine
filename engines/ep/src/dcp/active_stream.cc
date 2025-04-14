@@ -123,7 +123,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     }
 
     OBJ_LOG_INFO_CTX(*this,
-                     "Creating stream",
+                     "Creating ActiveStream stream",
                      {"takeover", isTakeoverStream()},
                      {"start_seqno", st_seqno},
                      {"end_seqno", endSeqno},

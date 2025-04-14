@@ -17,8 +17,7 @@
 MockCacheTransferStream::MockCacheTransferStream(
         std::shared_ptr<MockDcpProducer> p,
         uint32_t opaque,
-        uint64_t maxSeqno,
-        uint64_t vbucketUuid,
+        const StreamRequestInfo& req,
         Vbid vbid,
         EventuallyPersistentEngine& engine,
         IncludeValue includeValue,
@@ -26,8 +25,7 @@ MockCacheTransferStream::MockCacheTransferStream(
     : CacheTransferStream(p,
                           "MockCacheTransferStream",
                           opaque,
-                          maxSeqno,
-                          vbucketUuid,
+                          req,
                           vbid,
                           engine,
                           includeValue,
@@ -119,9 +117,7 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponseIsEnd(
     if (response->getEvent() != DcpResponse::Event::StreamEnd) {
         EXPECT_EQ(DcpResponse::Event::StreamEnd, response->getEvent())
                 << "MockCacheTransferStream::validateNextResponseIsEnd -> "
-                   "Expected "
-                   "a "
-                   "DcpResponse::Event::StreamEnd, got:"
+                   "Expected a DcpResponse::Event::StreamEnd, got:"
                 << response->to_string();
         return nullptr;
     }
@@ -130,9 +126,7 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponseIsEnd(
     if (streamEndResponse.getFlags() != expectedStatus) {
         EXPECT_EQ(expectedStatus, streamEndResponse.getFlags())
                 << "MockCacheTransferStream::validateNextResponseIsEnd -> "
-                   "Expected "
-                   "a "
-                   "StreamEndResponse with flags:"
+                   "Expected a StreamEndResponse with flags:"
                 << cb::mcbp::to_string(expectedStatus) << ", got:"
                 << cb::mcbp::to_string(streamEndResponse.getFlags());
         return nullptr;
@@ -142,4 +136,33 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponseIsEnd(
 
 size_t MockCacheTransferStream::getMemoryUsed() const {
     return CacheTransferStream::getMemoryUsed() + memoryUsedOffset;
+}
+
+std::unique_ptr<DcpResponse>
+MockCacheTransferStream::validateNextResponseIsCacheTransferToActiveStream() {
+    auto producer = preValidateSteps();
+    if (!producer) {
+        EXPECT_TRUE(producer)
+                << "Failed MockCacheTransferStream::validateNextResponse -> "
+                   "preValidateSteps()";
+        return nullptr;
+    }
+
+    auto response = next(*producer);
+    EXPECT_TRUE(response);
+    if (!response) {
+        return nullptr;
+    }
+
+    if (response->getEvent() !=
+        DcpResponse::Event::CacheTransferToActiveStream) {
+        EXPECT_EQ(DcpResponse::Event::CacheTransferToActiveStream,
+                  response->getEvent())
+                << "MockCacheTransferStream::validateNextResponse -> Expected "
+                   "a DcpResponse::Event::CacheTransferToActiveStream, got:"
+                << response->to_string();
+        return nullptr;
+    }
+
+    return response;
 }

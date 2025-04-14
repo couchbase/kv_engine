@@ -212,7 +212,7 @@ public:
     std::shared_ptr<ProducerStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,
-            VBucketPtr vb,
+            VBucket& vb,
             Collections::VB::Filter filter) override;
 
     /**
@@ -239,8 +239,7 @@ public:
     std::shared_ptr<MockCacheTransferStream> mockCacheTransferStreamRequest(
             uint32_t opaque,
             Vbid vbid,
-            uint64_t maxSeqno,
-            uint64_t vbucketUuid,
+            const StreamRequestInfo& req,
             IncludeValue includeValue,
             Collections::VB::Filter filter);
 

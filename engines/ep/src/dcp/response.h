@@ -41,7 +41,8 @@ public:
         SeqnoAcknowledgement,
         OSOSnapshot,
         SeqnoAdvanced,
-        CachedValue
+        CachedValue,
+        CacheTransferToActiveStream
     };
 
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
@@ -103,6 +104,7 @@ public:
         case Event::SeqnoAcknowledgement:
         case Event::OSOSnapshot:
         case Event::SeqnoAdvanced:
+        case Event::CacheTransferToActiveStream:
             return true;
         }
         throw std::invalid_argument(
@@ -354,6 +356,40 @@ protected:
 private:
     cb::mcbp::DcpStreamEndStatus flags_;
     Vbid vbucket_;
+};
+
+/**
+ * This is a DcpResponse object that is only queued by a CacheTransferStream. It
+ * does not generate a DCP message, but exists to signal to the producer that
+ * the CacheTransferStream is finshed and an ActiveStream must now replace it.
+ *
+ * Using a DcpResponse object in this way provides a way to avoid lock
+ * inversions and ensures that the switch to ActiveStream occurs after all
+ * readyQ items from cache transfer have been processed.
+ */
+class CacheTransferToActiveStreamResponse : public DcpResponse {
+public:
+    CacheTransferToActiveStreamResponse(uint32_t opaque,
+                                        Vbid vbucket,
+                                        cb::mcbp::DcpStreamId sid)
+        : DcpResponse(Event::CacheTransferToActiveStream, opaque, sid),
+          vbucket(vbucket) {
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
+    }
+
+    size_t getMessageSize() const override {
+        // Only used for readyQ memory accounting, not for flow-control
+        return sizeof(*this);
+    }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
+private:
+    Vbid vbucket;
 };
 
 class SetVBucketState : public DcpResponse {

@@ -412,7 +412,7 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::no_memory;
     }
 
-    auto stream = makeStream(opaque, req, vb, std::move(filter));
+    auto stream = makeStream(opaque, req, *vb, std::move(filter));
     if (!stream) {
         OBJ_LOG_WARN_CTX(
                 *logger,
@@ -446,26 +446,33 @@ cb::engine_errc DcpProducer::streamRequest(
 std::shared_ptr<ProducerStream> DcpProducer::makeStream(
         uint32_t opaque,
         StreamRequestInfo& req,
-        VBucketPtr vb,
+        VBucket& vb,
         Collections::VB::Filter filter) {
     if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
         return std::make_shared<CacheTransferStream>(
                 shared_from_base<DcpProducer>(),
                 getName(),
                 opaque,
-                req.start_seqno,
-                req.vbucket_uuid,
-                vb->getId(),
+                req,
+                vb.getId(),
                 engine_,
                 IncludeValue::Yes,
                 std::move(filter));
     }
+    return makeActiveStream(opaque, req, vb, std::move(filter));
+}
+
+std::shared_ptr<ProducerStream> DcpProducer::makeActiveStream(
+        uint32_t opaque,
+        const StreamRequestInfo& req,
+        VBucket& vb,
+        Collections::VB::Filter filter) {
     return std::make_shared<ActiveStream>(&engine_,
                                           shared_from_base<DcpProducer>(),
                                           getName(),
                                           req.flags,
                                           opaque,
-                                          *vb,
+                                          vb,
                                           req.start_seqno,
                                           req.end_seqno,
                                           req.vbucket_uuid,
@@ -830,6 +837,93 @@ cb::engine_errc DcpProducer::sendFailoverLog(
     return rv;
 }
 
+std::shared_ptr<ProducerStream> DcpProducer::findStream(
+        Vbid vbid, cb::mcbp::DcpStreamId sid) {
+    auto found = streams->find(vbid.get());
+    if (found != streams->end()) {
+        // vbid is already mapped. found.second is a shared_ptr<StreamContainer>
+        if (found->second) {
+            auto handle = found->second->wlock();
+            for (; !handle.end(); handle.next()) {
+                auto& sp = handle.get(); // get the shared_ptr<Stream>
+                if (sp->compareStreamId(sid)) {
+                    return sp;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+cb::engine_errc DcpProducer::switchToActiveStream(Vbid vbid,
+                                                  cb::mcbp::DcpStreamId sid) {
+    // First, locate the current stream
+    auto stream = findStream(vbid, sid);
+    if (!stream) {
+        // Would be very unexpected to find not find the stream
+        logger->errorWithContext("switchToActiveStream: Failed to get stream",
+                                 {{"vb", vbid}});
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    auto* cts = dynamic_cast<CacheTransferStream*>(stream.get());
+    if (!cts) {
+        // Would be very unexpected to find a stream that is not CTS, but
+        // processing the switch message.
+        logger->errorWithContext("switchToActiveStream: Failed to get cts",
+                                 {{"vb", vbid}});
+        return cb::engine_errc::disconnect;
+    }
+
+    auto vb = engine_.getVBucket(vbid);
+    if (!vb) {
+        logger->warnWithContext("switchToActiveStream: Failed to get VBucket",
+                                {{"vb", vbid}});
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    // Now, create the new ActiveStream and copy/move some state from the
+    // current object to the new one.
+    auto s = makeActiveStream(
+            cts->getOpaque(), cts->getRequest(), *vb, cts->takeFilter());
+    if (!s) {
+        logger->warnWithContext(
+                "switchToActiveStream: Failed to create ActiveStream",
+                {{"vb", vbid}});
+        return cb::engine_errc::failed;
+    }
+
+    // Close the current stream and remove from the streams map.
+    closeStreamInner(vbid, sid, true);
+
+    {
+        std::shared_lock rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_dead) {
+            logger->warnWithContext(
+                    "switchToActiveStream: Stream request failed because this "
+                    "vbucket is in dead "
+                    "state",
+                    {{"vb", vbid}});
+            return cb::engine_errc::not_my_vbucket;
+        }
+
+        if (vb->isReceivingInitialDiskSnapshot()) {
+            logger->infoWithContext(
+                    "switchToActiveStream: Stream request failed because this "
+                    "vbucket is currently "
+                    "receiving its initial disk snapshot",
+                    {{"vb", vbid}});
+            return cb::engine_errc::temporary_failure;
+        }
+
+        s->setActive();
+
+        updateStreamsMap(vbid, sid, s);
+    }
+    notifyStreamReady(vbid);
+    return cb::engine_errc::success;
+}
+
 uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
     auto freqCount =
             item.getFreqCounterValue().value_or(Item::initialFreqCount);
@@ -1179,6 +1273,12 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                      mutationResponse->getStreamId());
             break;
         }
+        case DcpResponse::Event::CacheTransferToActiveStream: {
+            auto& s = static_cast<CacheTransferToActiveStreamResponse&>(*resp);
+            // Stream is requesting that ActiveStream is created
+            ret = switchToActiveStream(s.getVbucket(), s.getStreamId());
+            break;
+        }
         default:
         {
             OBJ_LOG_WARN_CTX(*logger,
@@ -1212,6 +1312,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::StreamReq:
         case DcpResponse::Event::StreamEnd:
         case DcpResponse::Event::OSOSnapshot:
+        case DcpResponse::Event::CacheTransferToActiveStream:
             break;
         }
 
@@ -2256,6 +2357,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CachedValue:
+    case DcpResponse::Event::CacheTransferToActiveStream:
         break;
     default:
         throw std::logic_error(fmt::format(

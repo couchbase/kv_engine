@@ -40,21 +40,37 @@ public:
 
     std::shared_ptr<MockDcpProducer> producer;
 
+    /**
+     * Create a cache transfer stream with the given parameters.
+     * @param producer The DCP producer to create the stream on
+     * @param opaque The opaque value for the stream
+     * @param vbid The vbucket to create the stream on
+     * @param cacheMaxSeqno The maximum seqno for CacheTransfer
+     * @param endSeqno The end sequence number for the stream (i.e. switch to
+     * ActiveStream at this seqno)
+     * @param includeValue Whether to include the value in the stream
+     * @return A pointer to the created stream
+     */
     std::shared_ptr<MockCacheTransferStream> createStream(
             MockDcpProducer& producer,
             uint32_t opaque,
             Vbid vbid,
-            uint64_t maxSeqno,
+            uint64_t cacheMaxSeqno,
+            uint64_t endSeqno,
             IncludeValue includeValue) {
         Collections::VB::Filter f(
                 "", store->getVBucket(vbid)->getManifest(), *cookie, *engine);
-        auto stream =
-                producer.mockCacheTransferStreamRequest(1,
-                                                        Vbid(0),
-                                                        maxSeqno,
-                                                        0 /*uuid not used*/,
-                                                        includeValue,
-                                                        std::move(f));
+        StreamRequestInfo req{
+                cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                0, /*uuid not used*/
+                0, /*high seqno not used*/
+                cacheMaxSeqno,
+                endSeqno,
+                0, /*snap start seqno not used*/
+                0 /*snap end seqno not used*/
+        };
+        auto stream = producer.mockCacheTransferStreamRequest(
+                1, Vbid(0), req, includeValue, std::move(f));
         EXPECT_TRUE(stream->isActive());
         EXPECT_EQ(0, stream->getItemsRemaining());
         EXPECT_FALSE(stream->next(producer));
@@ -78,6 +94,7 @@ TEST_P(DcpCacheTransferTest, basic_stream) {
                                1,
                                Vbid(0),
                                store->getVBucket(vbid)->getHighSeqno(),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     runCacheTransferTask();
     // Should find 2 items and 1 stream-end
@@ -89,7 +106,7 @@ TEST_P(DcpCacheTransferTest, basic_stream) {
 
 TEST_P(DcpCacheTransferTest, basic_stream2) {
     store_item(Vbid(0), makeStoredDocKey("2"), "2");
-    auto stream = createStream(*producer, 1, Vbid(0), 1, IncludeValue::Yes);
+    auto stream = createStream(*producer, 1, Vbid(0), 1, 1, IncludeValue::Yes);
     runCacheTransferTask();
     // Should find 1 items and 1 stream-end
     ASSERT_EQ(2, stream->getItemsRemaining());
@@ -105,6 +122,7 @@ TEST_P(DcpCacheTransferTest, ignore_deleted_items) {
     auto stream = createStream(*producer,
                                1,
                                Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     runCacheTransferTask();
@@ -123,6 +141,7 @@ TEST_P(DcpCacheTransferTest, ignore_evicted_items) {
     auto stream = createStream(*producer,
                                1,
                                Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     runCacheTransferTask();
@@ -144,6 +163,7 @@ TEST_P(DcpCacheTransferTest, ignore_prepares) {
                                1,
                                Vbid(0),
                                store->getVBucket(vbid)->getHighSeqno(),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     runCacheTransferTask();
     // Should find 1 items and 1 stream-end
@@ -162,6 +182,7 @@ TEST_P(DcpCacheTransferTest, dropped_collection) {
     auto stream = createStream(*producer,
                                1,
                                Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     runCacheTransferTask();
@@ -183,6 +204,7 @@ TEST_P(DcpCacheTransferTest, oom) {
     auto stream = createStream(*producer,
                                1,
                                Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
     int callbacks = 0;
@@ -220,6 +242,7 @@ TEST_P(DcpCacheTransferTest, skip_expired_items) {
     auto stream = createStream(*producer,
                                1,
                                Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno(),
                                IncludeValue::Yes);
 
@@ -319,6 +342,93 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest_with_filter) {
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
+// Test that a CacheTransferStream will queue a request to switch to an
+// ActiveStream after the CacheTransferTask has completed and been drained
+TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream) {
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("2"), "2"));
+    const auto cacheMaxSeqno = store->getVBucket(vbid)->getHighSeqno();
+    store_item(Vbid(0), makeStoredDocKey("3"), "3");
+    store_item(Vbid(0), makeStoredDocKey("4"), "4");
+    // need end > start to switch to ActiveStream
+    EXPECT_GT(store->getVBucket(vbid)->getHighSeqno(), cacheMaxSeqno);
+    auto stream = createStream(
+            *producer,
+            1,
+            Vbid(0),
+            cacheMaxSeqno, // max_seqno for CTS
+            store->getVBucket(vbid)->getHighSeqno(), // end seqno for the stream
+            IncludeValue::Yes);
+    runCacheTransferTask();
+    // 3 items. 2 resident items and 1 cache-transfer to active stream
+    ASSERT_EQ(3, stream->getItemsRemaining());
+    EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+    EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+    EXPECT_TRUE(stream->validateNextResponseIsCacheTransferToActiveStream());
+    // Test ends here, CacheTransfer_then_ActiveStream_2 tests more as it uses
+    // the producer directly and an ActiveStream will be created when the
+    // CacheTransferToActiveStream message is stepped over.
+}
+
+// Non mock variant (i.e. call streamRequest directly)
+TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
+
+    auto vb = store->getVBucket(vbid);
+    auto cacheMaxSeqno = vb->getHighSeqno();
+    auto k3 = makeStoredDocKey("k3");
+    auto k4 = makeStoredDocKey("k4");
+    store_item(Vbid(0), k3, "3");
+    store_item(Vbid(0), k4, "4");
+
+    producer->streamRequest(cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                            1,
+                            Vbid(0),
+                            cacheMaxSeqno, // max_seqno for CTS
+                            ~0, // end seqno for the stream
+                            vb->failovers->getLatestUUID(),
+                            cacheMaxSeqno,
+                            cacheMaxSeqno,
+                            nullptr,
+                            mock_dcp_add_failover_log,
+                            std::nullopt);
+    runCacheTransferTask();
+
+    // Currently the CacheTransferStream will produce Mutations, and there is no
+    // defined ordering as these come from HT visiting.
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
+                  return item.getKey() == producers.last_dockey;
+              }));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
+                  return item.getKey() == producers.last_dockey;
+              }));
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    notifyAndRunToCheckpoint(*producer, producers);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(2, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_EQ(producers.last_dockey, k3);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(4, producers.last_byseqno);
+    EXPECT_EQ(producers.last_dockey, k4);
 }
 
 INSTANTIATE_TEST_SUITE_P(DcpCacheTransferTest,

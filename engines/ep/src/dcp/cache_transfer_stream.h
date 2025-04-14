@@ -13,7 +13,7 @@
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/producer_stream.h"
-
+#include "dcp/stream_request_info.h"
 #include <memory>
 
 class StoredValue;
@@ -40,8 +40,7 @@ public:
     CacheTransferStream(std::shared_ptr<DcpProducer> p,
                         const std::string& name,
                         uint32_t opaque,
-                        uint64_t maxSeqno,
-                        uint64_t vbucketUuid,
+                        const StreamRequestInfo& req,
                         Vbid vbid,
                         EventuallyPersistentEngine& engine,
                         IncludeValue includeValue,
@@ -127,6 +126,14 @@ public:
     std::function<void(const StoredValue&)> preQueueCallback =
             [](const auto&) { /*nothing*/ };
 
+    Collections::VB::Filter takeFilter() {
+        return std::move(filter);
+    }
+
+    StreamRequestInfo getRequest() const {
+        return request;
+    }
+
 protected:
     uint64_t getMaxSeqno() const {
         // maxSeqno is the Stream start...
@@ -136,10 +143,11 @@ protected:
     virtual size_t getMemoryUsed() const;
 
     /**
-     * Can only transition from Active to Dead via setDead (later change will
-     * add more states)
+     * Transitions are either:
+     * Active -> Dead
+     * Active -> SwitchingToActiveStream -> Dead
      */
-    enum class State { Active, Dead };
+    enum class State { Active, SwitchingToActiveStream, Dead };
     State state{State::Active};
 
     /// ID of the task generating data for the stream.
@@ -156,4 +164,7 @@ protected:
 
     /// Filter to apply to the items in the stream.
     Collections::VB::Filter filter;
+
+    /// The StreamRequestInfo which created this object
+    StreamRequestInfo request;
 };

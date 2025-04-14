@@ -435,6 +435,8 @@ public:
 
     StreamAggStats getStreamAggStats() const;
 
+    cb::engine_errc switchToActiveStream(Vbid vbid, cb::mcbp::DcpStreamId sid);
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 
@@ -479,7 +481,13 @@ protected:
     virtual std::shared_ptr<ProducerStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,
-            VBucketPtr vb,
+            VBucket& vb,
+            Collections::VB::Filter filter);
+
+    std::shared_ptr<ProducerStream> makeActiveStream(
+            uint32_t opaque,
+            const StreamRequestInfo& req,
+            VBucket& vb,
             Collections::VB::Filter filter);
 
     cb::engine_errc sendFailoverLog(
@@ -692,6 +700,9 @@ protected:
     bool isSeqnoAdvancedEnabled() const {
         return collectionsEnabled;
     }
+
+    std::shared_ptr<ProducerStream> findStream(Vbid vbid,
+                                               cb::mcbp::DcpStreamId sid);
 
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;

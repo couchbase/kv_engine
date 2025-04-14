@@ -266,8 +266,7 @@ bool CacheTransferTask::run() {
 CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                                          const std::string& name,
                                          uint32_t opaque,
-                                         uint64_t maxSeqno,
-                                         uint64_t uuid,
+                                         const StreamRequestInfo& req,
                                          Vbid vbid,
                                          EventuallyPersistentEngine& engine,
                                          IncludeValue includeValue,
@@ -280,17 +279,19 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                      cb::mcbp::DcpAddStreamFlag::None,
                      opaque,
                      vbid,
-                     maxSeqno,
-                     uuid),
+                     req.start_seqno,
+                     req.vbucket_uuid),
       engine(engine),
       includeValue(includeValue),
-      filter(std::move(filter)) {
+      filter(std::move(filter)),
+      request(req) {
     Expects(p);
     OBJ_LOG_INFO_CTX(p->getLogger(),
                      "Creating CacheTransferStream",
-                     {"max_seqno", maxSeqno},
+                     {"max_seqno", request.start_seqno},
+                     {"end_seqno", request.end_seqno},
                      {"vbid", vbid},
-                     {"vbucket_uuid", uuid},
+                     {"vbucket_uuid", request.vbucket_uuid},
                      {"include_value", includeValue});
 }
 
@@ -311,11 +312,18 @@ void CacheTransferStream::setActive() {
 void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     ExecutorPool::get()->cancel(tid);
     std::lock_guard<std::mutex> lh(streamMutex);
-    if (state == State::Dead) {
+    if (state != State::Active) {
         return;
     }
-    state = State::Dead;
-    pushToReadyQ(makeEndStreamResponse(status));
+    if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
+        request.end_seqno > request.start_seqno) {
+        state = State::SwitchingToActiveStream;
+        pushToReadyQ(std::make_unique<CacheTransferToActiveStreamResponse>(
+                opaque_, getVBucket(), cb::mcbp::DcpStreamId{/*no sid*/}));
+    } else {
+        state = State::Dead;
+        pushToReadyQ(makeEndStreamResponse(status));
+    }
 }
 
 bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
@@ -357,6 +365,8 @@ std::string CacheTransferStream::getStateName() const {
     switch (state) {
     case State::Active:
         return "Active";
+    case State::SwitchingToActiveStream:
+        return "SwitchingToActiveStream";
     case State::Dead:
         return "Dead";
     }
@@ -369,7 +379,7 @@ bool CacheTransferStream::isActive() const {
 }
 
 std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
-    std::lock_guard<std::mutex> lh(streamMutex);
+    std::unique_lock<std::mutex> lh(streamMutex);
     if (readyQ.empty()) {
         return nullptr;
     }
