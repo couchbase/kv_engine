@@ -20,33 +20,7 @@
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
 BucketLogger::BucketLogger(const std::string& name)
-    : spdlog::logger(name, nullptr) {
-    spdLogger = cb::logger::get();
-
-    // Take the logging level of the memcached logger so we don't format
-    // anything unnecessarily
-    set_level(spdLogger->level());
-}
-
-void BucketLogger::sink_it_(const spdlog::details::log_msg& msg) {
-    // Use the underlying ServerAPI spdlogger to log.
-    // Ideally we'd directly call spdLogger->sink_it() but it's protected so
-    // instead call log() which will call sink_it_() itself.
-    std::string msgString(msg.payload.begin(), msg.payload.end());
-    spdLogger->log(msg.level, msgString);
-}
-
-void BucketLogger::flush_() {
-    spdLogger->flush();
-}
-
-void BucketLogger::logFormatted(spdlog::level::level_enum lvl,
-                                fmt::string_view fmt,
-                                fmt::format_args args) {
-    fmt::memory_buffer msg;
-    // Format the user-specified format string & args.
-    fmt::vformat_to(std::back_inserter(msg), fmt, args);
-    logWithContext(lvl, {msg.data(), msg.size()}, cb::logger::Json::object());
+    : Logger(name, cb::logger::get()) {
 }
 
 void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
@@ -99,7 +73,7 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
             object.insert(object.begin(), {"conn_id", connectionId});
         }
 
-        cb::logger::logWithContext(*this, lvl, msg, std::move(ctx));
+        Logger::logWithContext(lvl, msg, std::move(ctx));
     } catch (const std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure
         // what arguments failed above.
@@ -127,15 +101,8 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
     auto bucketLogger = std::shared_ptr<BucketLogger>(new BucketLogger(uname));
 
     // Register the logger in the logger library registry
-    bucketLogger->registered = cb::logger::registerSpdLogger(bucketLogger);
+    bucketLogger->tryRegister();
     return bucketLogger;
-}
-
-void BucketLogger::unregister() {
-    if (registered.exchange(false)) {
-        // Unregister the logger in the logger library registry
-        cb::logger::unregisterSpdLogger(name());
-    }
 }
 
 std::shared_ptr<BucketLogger>& getGlobalBucketLogger() {

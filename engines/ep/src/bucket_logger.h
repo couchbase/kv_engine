@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "logger/logger_iface.h"
+#include "logger/logger.h"
 #include "spdlog/logger.h"
 #include <fmt/core.h>
 #include <platform/json_log.h>
@@ -72,55 +72,16 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  * Implementation
  * ==============
  *
- * On construction, a BucketLogger stores a pointer to the memcached
- * spdlog::logger that is responsible for (printing/sinking) to various outputs
- * (stderr, memcached.log with file rotation...) via various sinks.
- *
  * BucketLogger:log() hides the parent class' log() method with its own, which
  * prepends the previously mentioned fields to the user's message, then calls
  * the log() method on the stored spdlog::logger to (print/sink) the message.
  *
  * BucketLoggers should be created using the create method to ensure each logger
  * is registered correctly. BucketLoggers must be registered to ensure that
- * their verbosity can be changed at runtime. Spdlog provides a registry which
- * we can use to do so, however one exists per dynamically linked library. To
- * keep code simple we use only the registry within the logging library. As the
- * spdlog registry deals in shared_ptr<spdlog::logger>'s we can't rely on the
- * destructor of the BucketLogger to unregister the logger from the spdlog
- * registry on destruction of the copy held for our own purposes; as such we
- * must call unregister() on the BucketLogger before destruction to avoid
- * leaking the BucketLogger.
+ * their verbosity can be changed at runtime.
  */
-class BucketLogger : public spdlog::logger, public cb::logger::LoggerIface {
+class BucketLogger : public cb::logger::Logger {
 public:
-    using LoggerIface::critical;
-    using LoggerIface::debug;
-    using LoggerIface::error;
-    using LoggerIface::info;
-    using LoggerIface::log;
-    using LoggerIface::trace;
-    using LoggerIface::warn;
-
-    bool should_log(spdlog::level::level_enum lvl) const final {
-        return spdlog::logger::should_log(lvl);
-    }
-
-    void set_level(spdlog::level::level_enum lvl) final {
-        spdlog::logger::set_level(lvl);
-    }
-
-    void flush() final {
-        spdlog::logger::flush();
-    }
-
-    spdlog::level::level_enum level() const final {
-        return spdlog::logger::level();
-    }
-
-    const std::string& name() const final {
-        return spdlog::logger::name();
-    }
-
     /**
      * Record a log message for the bucket currently associated with the calling
      * thread.
@@ -156,25 +117,7 @@ public:
     /// Context to merge into logs.
     nlohmann::json prefixContext;
 
-    /// @returns true if the logger is registered in the logger registry.
-    bool isRegistered() const {
-        return registered;
-    }
-
-    /// Unregisters the BucketLogger in the logger library registry.
-    void unregister();
-
 protected:
-    /// Overriden sink_it_ method to log via ServerAPI logger.
-    void sink_it_(const spdlog::details::log_msg& msg) override;
-
-    /// Overriden flush_ method to flush via the ServerAPI logger.
-    void flush_() override;
-
-    void logFormatted(spdlog::level::level_enum lvl,
-                      fmt::string_view fmt,
-                      fmt::format_args args) override;
-
     /**
      * Connection ID prefix that is printed if set (printed before any other
      * prefix or message)
@@ -198,14 +141,6 @@ protected:
      * @param name Registry name for the logger
      */
     explicit BucketLogger(const std::string& name);
-
-private:
-    /**
-     * Pointer to the underlying spdlogger within the logging library. This
-     * logger will log messages to various sinks after we format it.
-     */
-    std::shared_ptr<spdlog::logger> spdLogger;
-    std::atomic_bool registered{false};
 };
 
 // Global (one instance shared across all ep-engine instances) BucketLogger

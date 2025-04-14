@@ -818,7 +818,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
 
     loggerName += "magma_" + std::to_string(configuration.getShardId());
     logger = BucketLogger::createBucketLogger(loggerName);
-    configuration.magmaCfg.LogContext = logger;
+    configuration.magmaCfg.LogContext = logger->getSpdLogger();
     configuration.magmaCfg.UID = loggerName;
 
     try {

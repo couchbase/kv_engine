@@ -291,7 +291,7 @@ TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
                 std::make_shared<FlushRaceLogger>("flushRaceLogger", tg1, tg2);
         // We hit the normal constructor of the BucketLogger via the
         // FlushRaceLogger so we need to manually register our logger
-        cb::logger::registerSpdLogger(sharedLogger);
+        sharedLogger->tryRegister();
 
         // Wait for the background flushing thread to enter our FlushRaceLoggers
         // flush_ function.

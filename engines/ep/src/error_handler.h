@@ -11,7 +11,7 @@
 #pragma once
 
 #include "ep_types.h"
-#include <spdlog/logger.h>
+#include <logger/logger.h>
 
 namespace cb {
 
@@ -25,7 +25,7 @@ ErrorHandlingMethod getErrorHandlingMethod(std::string_view);
  * @param msg message to be used when handling error
  * @param method method by which to handle the error
  */
-void handleError(spdlog::logger& logger,
+void handleError(cb::logger::Logger& logger,
                  spdlog::level::level_enum logLevel,
                  std::string_view msg,
                  ErrorHandlingMethod method);

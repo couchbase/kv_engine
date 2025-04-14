@@ -29,7 +29,7 @@ ErrorHandlingMethod getErrorHandlingMethod(std::string_view str) {
     throw std::logic_error("Invalid error handler parameter");
 }
 
-void handleError(spdlog::logger& logger,
+void handleError(cb::logger::Logger& logger,
                  spdlog::level::level_enum logLevel,
                  std::string_view msg,
                  ErrorHandlingMethod method) {

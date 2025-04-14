@@ -380,13 +380,13 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
         init_mock_server();
 
         // Set the logger to a debug logging level.
-        cb::logger::get()->set_level(spdlog::level::level_enum::debug);
+        cb::logger::setLogLevels(spdlog::level::level_enum::debug);
         const auto spd_log_level =
                 verbose_logging ? spdlog::level::level_enum::debug
                                 : spdlog::level::level_enum::critical;
         // But adjust the log level of the first sink to the level requested
         // (lower level wins).
-        cb::logger::get()->sinks().at(0)->set_level(spd_log_level);
+        cb::logger::getLoggerSinks().at(0)->set_level(spd_log_level);
 
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
@@ -454,13 +454,13 @@ std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> registerRingBufferSink(
     // Add a ringbuffer sink which stores the last `size` log entries.
     auto sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(size);
     sink->set_level(spdlog::level::debug);
-    cb::logger::get()->sinks().push_back(sink);
+    cb::logger::getLoggerSinks().push_back(sink);
     return sink;
 }
 
 void unregisterRingBufferSink(
         std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> sink) {
-    auto& sinks = cb::logger::get()->sinks();
+    auto& sinks = cb::logger::getLoggerSinks();
     sinks.erase(std::ranges::remove(sinks, sink).begin(), sinks.end());
 }
 

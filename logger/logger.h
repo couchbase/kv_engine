@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "logger_iface.h"
 #include <platform/json_log.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
@@ -36,6 +37,136 @@
 namespace cb::logger {
 
 struct Config;
+
+/**
+ * The base logger class.
+ *
+ * Logs using the global spdlog logger instance.
+ *
+ * Implements all of the logging methods via logWithContext().
+ *
+ * Implementation
+ * ==============
+ *
+ * Stores a pointer to a spdlog::logger that is responsible for
+ * (printing/sinking) to various outputs (stderr, memcached.log with file
+ * rotation...) via various sinks.
+ *
+ * This class hides the parent class' log() method with its own methods to
+ * allow the JSON context to be extended before the log message is passed to
+ * the inner spdlog::logger. Additionally, hiding the log() method resolves
+ * previous MB-32712, by allowing us full control over the log message
+ * allocation.
+ *
+ * Loggers must be registered to ensure that their verbosity can be changed at
+ * runtime. Spdlog provides a registry which we can use to do so, however one
+ * exists per dynamically linked library. To keep code simple we use only the
+ * registry within the logging library. As the spdlog registry deals in
+ * shared_ptr<spdlog::logger>'s we can't rely on the destructor of the Logger to
+ * unregister the logger from the spdlog registry on destruction of the copy
+ * held for our own purposes; as such we must call unregister() on the Logger
+ * before destruction to avoid leaking the Logger.
+ */
+class Logger : protected spdlog::logger,
+               public LoggerIface,
+               public std::enable_shared_from_this<Logger> {
+public:
+    // Shadow the spdlog::logger methods with the LoggerIface methods.
+    using LoggerIface::critical;
+    using LoggerIface::debug;
+    using LoggerIface::error;
+    using LoggerIface::info;
+    using LoggerIface::log;
+    using LoggerIface::trace;
+    using LoggerIface::warn;
+
+    /// Constructs a Logger with the given name and inner spdlog::logger.
+    explicit Logger(const std::string& name,
+                    std::shared_ptr<spdlog::logger> baseLogger);
+
+    /// Constructs a Logger with the given name and inner Logger.
+    explicit Logger(const std::string& name, std::shared_ptr<Logger> inner);
+
+    /**
+     * Record a log message with additional context.
+     *
+     * @param lvl The log level to report at
+     * @param msg The message to log
+     * @param ctx The context object
+     */
+    void logWithContext(spdlog::level::level_enum lvl,
+                        std::string_view msg,
+                        Json ctx) override;
+
+    /**
+     * Record a log message with a formatted string and arguments.
+     * This implementation calls logWithContext() with an empty context.
+     *
+     * @param lvl The log level to report at
+     * @param fmt The format string to use (fmtlib style).
+     * @param args Variable arguments to include in the format string.
+     */
+    void logFormatted(spdlog::level::level_enum lvl,
+                      fmt::string_view fmt,
+                      fmt::format_args args) override;
+
+    bool should_log(spdlog::level::level_enum lvl) const final {
+        return spdlog::logger::should_log(lvl);
+    }
+
+    void set_level(spdlog::level::level_enum lvl) final {
+        spdlog::logger::set_level(lvl);
+    }
+
+    void flush() final {
+        spdlog::logger::flush();
+    }
+
+    spdlog::level::level_enum level() const final {
+        return spdlog::logger::level();
+    }
+
+    const std::string& name() const final {
+        return spdlog::logger::name();
+    }
+
+    /**
+     * Try to register the logger in the logger registry.
+     * This allows the logger verbosity to be updated externally.
+     * Note this synchronises with all logger registry updates.
+     *
+     * @returns true if the logger is registered in the logger registry.
+     */
+    bool tryRegister();
+
+    /**
+     * Unregister the logger from the logger registry.
+     * Note this synchronises with all logger registry updates.
+     */
+    void unregister();
+
+    /// @returns true if the logger is registered in the logger registry.
+    bool isRegistered() const;
+
+    /**
+     * Access the private spdlog::logger base.
+     */
+    std::shared_ptr<spdlog::logger> getSpdLogger();
+
+protected:
+    /// Overriden sink_it_ method to log via the inner spdlog::logger.
+    void sink_it_(const spdlog::details::log_msg& msg) override;
+
+    /// Overriden flush_ method to flush via the inner spdlog::logger.
+    void flush_() override;
+
+private:
+    /**
+     * Pointer to the inner spdlog::logger.
+     */
+    const std::shared_ptr<spdlog::logger> baseLogger;
+    bool registered{false};
+};
 
 /**
  * Initialize the logger.
@@ -86,7 +217,12 @@ void createConsoleLogger();
  * - createBlackholeLogger()
  * - createConsoleLogger()
  */
-const std::shared_ptr<spdlog::logger>& get();
+const std::shared_ptr<cb::logger::Logger>& get();
+
+/**
+ * Get the sinks of the underlying logger object
+ */
+std::vector<spdlog::sink_ptr>& getLoggerSinks();
 
 /**
  * Reset the underlying logger object
@@ -143,23 +279,6 @@ void shutdown();
  */
 bool isInitialized();
 
-/**
- * Record a log message with additional context.
- * Format: <MSG> <JSON>
- *
- * NOTE: If present, the characters {} in the message are replaced by [].
- *
- * @param lvl The log level to report at
- * @param msg The message to log
- * @param ctx The context object
- * @throws std::invalid_argument if ctx is not an object (disabled in
- * production)
- */
-void logWithContext(spdlog::logger& logger,
-                    spdlog::level::level_enum lvl,
-                    std::string_view msg,
-                    Json ctx);
-
 /// Iterate over the log files on disk and generate a list of the DEKs
 /// in use in any of the files
 std::unordered_set<std::string> getDeksInUse();
@@ -183,13 +302,12 @@ std::unordered_set<std::string> getDeksInUse();
         }                                                                \
     } while (false)
 
-#define CB_LOG_ENTRY_CTX(severity, msg, ...)                  \
-    do {                                                      \
-        auto& _logger_ = cb::logger::get();                   \
-        if (_logger_ && _logger_->should_log(severity)) {     \
-            ::cb::logger::logWithContext(                     \
-                    *_logger_, severity, msg, {__VA_ARGS__}); \
-        }                                                     \
+#define CB_LOG_ENTRY_CTX(severity, msg, ...)                        \
+    do {                                                            \
+        auto& _logger_ = cb::logger::get();                         \
+        if (_logger_ && _logger_->should_log(severity)) {           \
+            _logger_->logWithContext(severity, msg, {__VA_ARGS__}); \
+        }                                                           \
     } while (false)
 
 #define CB_LOG_RAW(severity, msg)                         \

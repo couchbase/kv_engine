@@ -31,6 +31,7 @@
 #include <stdexcept>
 
 static const std::string logger_name{"spdlog_file_logger"};
+static const std::string wrapper_logger_name{"spdlog_file_logger_wrapper"};
 
 /**
  * Custom log pattern which the loggers will use.
@@ -50,9 +51,67 @@ static const std::string log_pattern{"%^%Y-%m-%dT%T.%f%z %l %v%$"};
  * to stream etc.) or further processing.
  */
 static std::shared_ptr<spdlog::logger> file_logger;
+/**
+ * A wrapper around the file_logger which extends the spdlog::logger interface
+ * with additional context to the log messages.
+ */
+static std::shared_ptr<cb::logger::Logger> file_logger_wrapper;
 
 static std::shared_ptr<std::filesystem::path> log_directory;
 static std::shared_ptr<std::string> log_file_prefix;
+
+cb::logger::Logger::Logger(const std::string& name,
+                           std::shared_ptr<spdlog::logger> inner)
+    : spdlog::logger(name, nullptr), baseLogger(inner) {
+    // Take the logging level of the inner spdlog::logger so we don't format
+    // anything unnecessarily.
+    set_level(inner->level());
+}
+
+cb::logger::Logger::Logger(const std::string& name,
+                           std::shared_ptr<cb::logger::Logger> inner)
+    : Logger(name, inner->getSpdLogger()) {
+}
+
+void cb::logger::Logger::sink_it_(const spdlog::details::log_msg& msg) {
+    baseLogger->log(msg.level, msg.payload);
+}
+
+void cb::logger::Logger::flush_() {
+    baseLogger->flush();
+}
+
+void cb::logger::Logger::logFormatted(spdlog::level::level_enum lvl,
+                                      fmt::string_view fmt,
+                                      fmt::format_args args) {
+    fmt::memory_buffer msg;
+    // Format the user-specified format string & args.
+    fmt::vformat_to(std::back_inserter(msg), fmt, args);
+    logWithContext(lvl, {msg.data(), msg.size()}, cb::logger::Json::object());
+}
+
+bool cb::logger::Logger::tryRegister() {
+    registered = cb::logger::registerSpdLogger(getSpdLogger());
+    return registered;
+}
+
+void cb::logger::Logger::unregister() {
+    if (registered) {
+        // Unregister the logger in the logger library registry
+        cb::logger::unregisterSpdLogger(name());
+        registered = false;
+    }
+}
+
+bool cb::logger::Logger::isRegistered() const {
+    return registered;
+}
+
+std::shared_ptr<spdlog::logger> cb::logger::Logger::getSpdLogger() {
+    // Need to reinterpret the pointer as the spdlog::logger is a protected base
+    // class and static_pointer_cast<> won't work.
+    return std::reinterpret_pointer_cast<spdlog::logger>(shared_from_this());
+}
 
 void cb::logger::flush() {
     NoArenaGuard guard;
@@ -80,6 +139,7 @@ void cb::logger::shutdown() {
      * no-op.
      */
     file_logger.reset();
+    file_logger_wrapper.reset();
     spdlog::details::registry::instance().shutdown();
 }
 
@@ -183,7 +243,12 @@ std::optional<std::string> cb::logger::initialize(
         // Set the flushing interval policy
         spdlog::flush_every(std::chrono::seconds(1));
 
+        spdlog::drop(wrapper_logger_name);
+        file_logger_wrapper =
+                std::make_shared<Logger>(wrapper_logger_name, file_logger);
+
         spdlog::register_logger(file_logger);
+        file_logger_wrapper->tryRegister();
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();
@@ -192,14 +257,20 @@ std::optional<std::string> cb::logger::initialize(
     return {};
 }
 
-const std::shared_ptr<spdlog::logger>& cb::logger::get() {
-    return file_logger;
+const std::shared_ptr<cb::logger::Logger>& cb::logger::get() {
+    return file_logger_wrapper;
+}
+
+std::vector<spdlog::sink_ptr>& cb::logger::getLoggerSinks() {
+    return file_logger->sinks();
 }
 
 void cb::logger::reset() {
     NoArenaGuard guard;
     spdlog::drop(logger_name);
+    spdlog::drop(wrapper_logger_name);
     file_logger.reset();
+    file_logger_wrapper.reset();
 }
 
 void cb::logger::createBlackholeLogger() {
@@ -213,7 +284,12 @@ void cb::logger::createBlackholeLogger() {
     file_logger->set_level(spdlog::level::off);
     file_logger->set_pattern(log_pattern);
 
+    spdlog::drop(wrapper_logger_name);
+    file_logger_wrapper =
+            std::make_shared<Logger>(wrapper_logger_name, file_logger);
+
     spdlog::register_logger(file_logger);
+    file_logger_wrapper->tryRegister();
 }
 
 void cb::logger::createConsoleLogger() {
@@ -227,7 +303,12 @@ void cb::logger::createConsoleLogger() {
     file_logger->set_level(spdlog::level::info);
     file_logger->set_pattern(log_pattern);
 
+    spdlog::drop(wrapper_logger_name);
+    file_logger_wrapper =
+            std::make_shared<Logger>(wrapper_logger_name, file_logger);
+
     spdlog::register_logger(file_logger);
+    file_logger_wrapper->tryRegister();
 }
 
 bool cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
@@ -282,10 +363,9 @@ void cb::logger::setLogLevels(spdlog::level::level_enum level) {
     flush();
 }
 
-void cb::logger::logWithContext(spdlog::logger& logger,
-                                spdlog::level::level_enum lvl,
-                                std::string_view msg,
-                                Json ctx) {
+void cb::logger::Logger::logWithContext(spdlog::level::level_enum lvl,
+                                        std::string_view msg,
+                                        Json ctx) {
     if (!ctx.is_object()) {
 #if CB_DEVELOPMENT_ASSERTS
         throw std::invalid_argument(fmt::format(
@@ -298,8 +378,7 @@ void cb::logger::logWithContext(spdlog::logger& logger,
 
     // TODO: Consider checking that the message conforms to the conventions and
     // doesn't contain ".:()", starts with a capital, etc.
-
-    if (!logger.should_log(lvl)) {
+    if (!should_log(lvl)) {
         return;
     }
 
@@ -326,7 +405,7 @@ void cb::logger::logWithContext(spdlog::logger& logger,
         formattedView = {formatted.data(), formatted.size()};
     }
 
-    logger.log(lvl, formattedView);
+    spdlog::logger::log(lvl, formattedView);
 }
 
 std::unordered_set<std::string> cb::logger::getDeksInUse() {
