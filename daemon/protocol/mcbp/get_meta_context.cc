@@ -21,13 +21,11 @@
 GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       vbucket(cookie.getRequest().getVBucket()),
-      state(State::GetItemMeta),
-      info(),
-      fetchDatatype(false) {
+      state(State::GetItemMeta) {
     auto extras = cookie.getRequest().getExtdata();
     // Read the version if extlen is 1
     if (extras.size() == 1 && *extras.data() == uint8_t(GetMetaVersion::V2)) {
-        fetchDatatype = true;
+        version = GetMetaVersion::V2;
     }
 }
 
@@ -48,16 +46,15 @@ cb::engine_errc GetMetaCommandContext::getItemMeta() {
 cb::engine_errc GetMetaCommandContext::sendResponse() {
     // Prepare response
     uint32_t deleted = info.document_state == DocumentState::Deleted ? 1 : 0;
-    uint8_t datatype = fetchDatatype ? info.datatype : uint8_t(0);
     GetMetaPayload metaResponse(deleted,
                                 info.flags,
                                 gsl::narrow<uint32_t>(info.exptime),
                                 info.seqno,
-                                datatype);
+                                info.datatype);
 
-    const size_t responseExtlen =
-            fetchDatatype ? GetMetaPayloadV2Size : GetMetaPayloadV1Size;
-
+    const size_t responseExtlen = version == GetMetaVersion::V1
+                                          ? GetMetaPayloadV1Size
+                                          : GetMetaPayloadV2Size;
     std::string_view extras = {reinterpret_cast<const char*>(&metaResponse),
                                responseExtlen};
     cookie.sendResponse(cb::mcbp::Status::Success,

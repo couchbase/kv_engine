@@ -75,5 +75,5 @@ private:
     State state;
 
     item_info info;
-    bool fetchDatatype;
+    GetMetaVersion version = GetMetaVersion::V1;
 };
