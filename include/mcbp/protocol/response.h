@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #endif
 #include <cstdint>
+#include <functional>
 
 namespace cb::mcbp {
 
