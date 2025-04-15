@@ -13,7 +13,6 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "memcached.h"
-#include "platform/timeutils.h"
 #include "settings.h"
 #include <cbsasl/server.h>
 #include <logger/logger.h>
@@ -50,7 +49,7 @@ void SaslAuthTask::logIfSlowResponse() const {
         LOG_WARNING_CTX("Slow external user authentication",
                         {"username", cb::tagUserData(getUsername())},
                         {"mechanism", mechanism},
-                        {"duration", cb::time2text(duration)});
+                        {"duration", duration});
     }
 }
 
