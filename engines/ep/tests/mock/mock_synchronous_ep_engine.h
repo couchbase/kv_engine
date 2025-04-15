@@ -58,8 +58,14 @@ public:
      * EpEngine instance, so direct calls to the engine or sub-objects
      * (i.e. not via EngineIface) will continue to track allocations against
      * this engine.
+     *
+     * @param config The configuration to use for the engine.
+     * @param encryptionKeys Boot-strap encryption keys to use for the new
+     * engine
      */
-    static SynchronousEPEngineUniquePtr build(const std::string& config);
+    static SynchronousEPEngineUniquePtr build(
+            const std::string& config,
+            nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /**
      * Destroys the SynchronousEPEngine instance.
@@ -127,6 +133,8 @@ public:
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
     }
+
+    void public_setActiveEncryptionKeys(nlohmann::json keys);
 
     using EventuallyPersistentEngine::doCollectionStats;
     using EventuallyPersistentEngine::doConnAggStats;

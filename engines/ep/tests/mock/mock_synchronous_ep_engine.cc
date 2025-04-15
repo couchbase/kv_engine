@@ -117,7 +117,7 @@ void SynchronousEPEngine::setServerApi(ServerApi* api) {
 }
 
 SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
-        const std::string& config) {
+        const std::string& config, nlohmann::json encryptionKeys) {
     auto client = cb::ArenaMalloc::registerClient();
     cb::ArenaMalloc::switchToClient(client);
     SynchronousEPEngineUniquePtr engine(
@@ -151,7 +151,7 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
             engine->getConfiguration().isCrossBucketHtQuotaSharing();
 
     engine->memoryTracker = std::make_unique<StrictQuotaMemoryTracker>(*engine);
-
+    engine->public_setActiveEncryptionKeys(std::move(encryptionKeys));
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));
     engine->setCompressionMode(
@@ -291,4 +291,8 @@ DocKeyView SynchronousEPEngine::public_makeDocKey(
     const auto buf = cb::const_byte_buffer{
             reinterpret_cast<const uint8_t*>(key.data()), key.size()};
     return makeDocKey(cookie, buf);
+}
+
+void SynchronousEPEngine::public_setActiveEncryptionKeys(nlohmann::json keys) {
+    encryptionKeyProvider.setKeys(std::move(keys));
 }

@@ -334,17 +334,25 @@ protected:
      *
      * @param new_config The config to supply to engine creation
      * @param unclean Should the restart be made to appear unclean
+     * @param encryptionKeys Boot-strap encryption keys to use for the new
+     * engine
      */
-    void resetEngine(std::string new_config = "", bool unclean = false);
+    void resetEngine(std::string new_config = "",
+                     bool unclean = false,
+                     nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
      *
      * @param new_config The config to supply to engine creation
      * @param unclean Should the restart be made to appear unclean
+     * @param encryptionKeys Boot-strap encryption keys to use for the new
+     * engine
      */
-    void resetEngineAndEnableWarmup(std::string new_config = "",
-                                    bool unclean = false);
+    void resetEngineAndEnableWarmup(
+            std::string new_config = "",
+            bool unclean = false,
+            nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
@@ -352,9 +360,13 @@ protected:
      *
      * @param new_config The config to supply to engine creation
      * @param unclean Should the restart be made to appear unclean
+     * @param encryptionKeys Boot-strap encryption keys to use for the new
+     * engine
      */
-    void resetEngineAndWarmup(std::string new_config = "",
-                              bool unclean = false);
+    void resetEngineAndWarmup(
+            std::string new_config = "",
+            bool unclean = false,
+            nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /*
      * Fake callback emulating dcp_add_failover_log

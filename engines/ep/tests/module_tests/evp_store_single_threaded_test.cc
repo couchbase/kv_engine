@@ -292,9 +292,11 @@ std::string SingleThreadedKVBucketTest::buildNewWarmupConfig(
 }
 
 void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
-                                             bool force) {
+                                             bool force,
+                                             nlohmann::json encryptionKeys) {
     shutdownAndPurgeTasks(engine.get());
-    reinitialise(buildNewWarmupConfig(new_config), force);
+    reinitialise(
+            buildNewWarmupConfig(new_config), force, std::move(encryptionKeys));
 }
 
 /**
@@ -302,8 +304,8 @@ void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
  * Finally, run warmup.
  */
 void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
-        std::string new_config, bool force) {
-    resetEngine(new_config, force);
+        std::string new_config, bool force, nlohmann::json encryptionKeys) {
+    resetEngine(new_config, force, std::move(encryptionKeys));
 
     if (isPersistent()) {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
@@ -315,9 +317,9 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
  * Destroy engine and replace it with a new engine that can be warmed up.
  * Finally, run warmup.
  */
-void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
-                                                      bool force) {
-    resetEngineAndEnableWarmup(new_config, force);
+void SingleThreadedKVBucketTest::resetEngineAndWarmup(
+        std::string new_config, bool force, nlohmann::json encryptionKeys) {
+    resetEngineAndEnableWarmup(new_config, force, std::move(encryptionKeys));
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();

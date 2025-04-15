@@ -99,7 +99,8 @@ void KVBucketTest::SetUp() {
     }
 }
 
-void KVBucketTest::initialise(std::string_view baseConfig) {
+void KVBucketTest::initialise(std::string_view baseConfig,
+                              nlohmann::json encryptionKeys) {
     {
         // Build up the full config string needed to create the engine.
         // Config defined in it's own scope to ensure correct memory accounting
@@ -138,7 +139,7 @@ void KVBucketTest::initialise(std::string_view baseConfig) {
             config += ";ephemeral_mem_recovery_enabled=false";
         }
 
-        engine = SynchronousEPEngine::build(config);
+        engine = SynchronousEPEngine::build(config, std::move(encryptionKeys));
         Expects(ObjectRegistry::getCurrentEngine() &&
                 "Expect current thread is associated with 'engine' after "
                 "build()ing it so any subsequent allocations below are "
@@ -213,9 +214,11 @@ void KVBucketTest::destroy(bool force) {
     engine.reset();
 }
 
-void KVBucketTest::reinitialise(std::string config, bool force) {
+void KVBucketTest::reinitialise(std::string config,
+                                bool force,
+                                nlohmann::json encryptionKeys) {
     destroy(force);
-    initialise(config);
+    initialise(config, std::move(encryptionKeys));
 }
 
 Item KVBucketTest::store_item(Vbid vbid,
@@ -759,6 +762,36 @@ void KVBucketTest::updateItemPagerSleepTime(
     strictQuotaItemPager->updateSleepTime(interval);
 }
 
+void KVBucketTest::setupEncryptionKeys() {
+    auto dbname = std::filesystem::path(engine->getConfiguration().getDbname());
+    std::filesystem::create_directories(dbname / "deks");
+
+    auto jsonKeys = getEncryptionKeys();
+    // Create what will look like valid DEK files by filename only.
+    // The contents of these files is not actually used by KV, here we are just
+    // mimicking what ns_server would of written out so that snapshot generation
+    // has files to copy.
+    for (const auto& key : jsonKeys["keys"]) {
+        std::ofstream(dbname / "deks" /
+                      key["id"].get<std::string>().append(".key.1"))
+                << key["key"].get<std::string>();
+    }
+    for (const auto& key : jsonKeys["keys"]) {
+        EXPECT_TRUE(std::filesystem::exists(
+                dbname / "deks" /
+                key["id"].get<std::string>().append(".key.1")));
+    }
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->set_active_encryption_keys(std::move(jsonKeys)));
+}
+
+nlohmann::json KVBucketTest::getEncryptionKeys() {
+    return {{"active", "MyActiveKey"},
+            {"keys",
+             {{{"id", "MyActiveKey"},
+               {"cipher", "AES-256-GCM"},
+               {"key", "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="}}}}};
+}
 class KVBucketParamTest : public STParameterizedBucketTest {
     void SetUp() override {
         STParameterizedBucketTest::SetUp();

@@ -308,9 +308,14 @@ public:
      * Effectively shutdown/restart. This destroys the test engine/store/cookie
      * and re-creates them.
      *
+     * @param config The configuration to use for the engine.
      * @param force Force the shutdown making it appear unclean
+     * @param encryptionKeys Boot-strap encryption keys to use for the new
+     * engine
      */
-    void reinitialise(std::string config, bool force = false);
+    void reinitialise(std::string config,
+                      bool force = false,
+                      nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /**
      * Create a *_with_meta packet with the key/body
@@ -411,8 +416,11 @@ public:
      * @param baseConfig The bucket config to create the bucket from.
      * Initialise() will append additional config params (e.g. path to dbfiles)
      * as appropriate.
+     * @param encryptionKeys The encryption keys to bootstrap with. Required for
+     * tests that are warming up following enabling encryption.
      */
-    void initialise(std::string_view baseConfig);
+    void initialise(std::string_view baseConfig,
+                    nlohmann::json encryptionKeys = nlohmann::json::object());
 
     /**
      * @return the stats for the given collections using
@@ -443,6 +451,22 @@ public:
     bool itemCompressorTaskIsSleepingForever() const;
 
     void updateItemPagerSleepTime(const std::chrono::milliseconds interval);
+
+    /**
+     * Setup encryption for the test.
+     *
+     * 1) Writes the encryption keys to the test's database directory (deks
+     * directory)
+     *
+     * 2) Call the engine's setupEncryptionKeys method with the value of
+     * getEncryptionKeys().
+     */
+    void setupEncryptionKeys();
+
+    /**
+     * Get a predefined encryption key spec (as JSON spec).
+     */
+    static nlohmann::json getEncryptionKeys();
 
 private:
     /**

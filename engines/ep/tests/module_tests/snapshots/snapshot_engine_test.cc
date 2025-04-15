@@ -16,12 +16,29 @@
 
 #include <gtest/gtest.h>
 
-class SnapshotEngineTest : public SingleThreadedEPBucketTest,
-                           public ::testing::WithParamInterface<std::string> {
+class SnapshotEngineTest
+    : public SingleThreadedEPBucketTest,
+      public ::testing::WithParamInterface<std::tuple<bool, std::string>> {
 public:
     void SetUp() override {
-        config_string = generateBucketTypeConfig(GetParam());
+        config_string = generateBucketTypeConfig(std::get<1>(GetParam()));
         SingleThreadedEPBucketTest::SetUp();
+
+        if (std::get<0>(GetParam())) {
+            setupEncryptionKeys();
+        }
+    }
+
+    bool isEncrypted() const {
+        return std::get<0>(GetParam());
+    }
+
+    void warmup() {
+        if (isEncrypted()) {
+            resetEngineAndWarmup({}, false, getEncryptionKeys());
+        } else {
+            resetEngineAndWarmup();
+        }
     }
 };
 
@@ -67,6 +84,13 @@ TEST_P(SnapshotEngineTest, prepare_snapshot) {
         EXPECT_FALSE(manifest["files"][0]["path"].empty());
     }
     EXPECT_GT(manifest["files"][0]["size"], 0);
+    if (isEncrypted()) {
+        ASSERT_EQ(1, manifest["deks"].size());
+        EXPECT_EQ("deks/MyActiveKey.key.1", manifest["deks"][0]["path"]);
+        EXPECT_EQ("44", manifest["deks"][0]["size"]);
+    } else {
+        EXPECT_TRUE(manifest["deks"].empty());
+    }
 
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie,
@@ -87,7 +111,7 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {
                           preWarmupManifest = m;
                       }));
 
-    resetEngineAndWarmup();
+    warmup();
 
     // Test harness doesn't hit EPBucket::initialize so must manually call
     // the cache initialise.
@@ -132,7 +156,7 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
             cb::engine_errc::success,
             engine->prepare_snapshot(*cookie, vb4, [&m4](auto& m) { m4 = m; }));
 
-    resetEngineAndWarmup();
+    warmup();
 
     // Perform various "corruptions" to the different snapshots. Delete the JSON
     // will make m1 "invalid", corrupt the file makes m2 "invalid".
@@ -169,30 +193,40 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
         file.close();
     }
 
-    {
+    std::filesystem::path removePath;
+    if (isEncrypted()) {
+        // snapshot 3, remove a DEK file
+        removePath = std::filesystem::path{test_dbname} / "snapshots" /
+                     manifest3.uuid / "deks" / "MyActiveKey.key.1";
+    } else {
         // snapshot 3, remove a file
-        std::error_code ec;
-        auto path = std::filesystem::path{test_dbname} / "snapshots" /
-                    manifest3.uuid;
-        std::filesystem::remove_all(path / manifest3.files.at(0).path, ec);
-        ASSERT_FALSE(ec);
+        removePath = std::filesystem::path{test_dbname} / "snapshots" /
+                     manifest3.uuid / manifest3.files.at(0).path;
     }
 
-    {
+    std::error_code ec;
+    std::filesystem::remove_all(removePath, ec);
+    ASSERT_FALSE(ec);
+
+    std::filesystem::path truncatePath;
+    size_t truncatedSize{0};
+    if (isEncrypted()) {
+        // snapshot 4, truncate a DEK file
+        truncatePath = std::filesystem::path{test_dbname} / "snapshots" /
+                       manifest4.uuid / "deks" / "MyActiveKey.key.1";
+        truncatedSize = manifest4.deks.at(0).size / 2;
+    } else {
         // snapshot 4, truncate a file
-        std::error_code ec;
-        auto path = std::filesystem::path{test_dbname} / "snapshots" /
-                    manifest4.uuid;
-        std::filesystem::resize_file(path / manifest4.files.at(0).path,
-                                     manifest4.files.at(0).size / 2,
-                                     ec);
-        ASSERT_FALSE(ec);
+        truncatePath = std::filesystem::path{test_dbname} / "snapshots" /
+                       manifest4.uuid / manifest4.files.at(0).path;
+        truncatedSize = manifest4.files.at(0).size / 2;
     }
+    std::filesystem::resize_file(truncatePath, truncatedSize, ec);
+    ASSERT_FALSE(ec);
 
     // Test harness doesn't call EPBucket::initialize so must manually call
     // to process existing snapshots and drop invalid ones.
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
-
     mockEPBucket.initialiseSnapshots();
     const auto& cache = mockEPBucket.public_getSnapshotCache();
 
@@ -203,13 +237,24 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
     auto manifest = cache.lookup(manifest3.uuid);
     ASSERT_TRUE(manifest);
     // Expect that the removed file is marked as such
-    EXPECT_EQ(cb::snapshot::FileStatus::Absent, manifest->files.at(0).status);
+    if (isEncrypted()) {
+        EXPECT_EQ(cb::snapshot::FileStatus::Absent,
+                  manifest->deks.at(0).status);
+    } else {
+        EXPECT_EQ(cb::snapshot::FileStatus::Absent,
+                  manifest->files.at(0).status);
+    }
 
     manifest = cache.lookup(manifest4.uuid);
     ASSERT_TRUE(manifest);
     // Expect that the truncated file is marked as such
-    EXPECT_EQ(cb::snapshot::FileStatus::Truncated,
-              manifest->files.at(0).status);
+    if (isEncrypted()) {
+        EXPECT_EQ(cb::snapshot::FileStatus::Truncated,
+                  manifest->deks.at(0).status);
+    } else {
+        EXPECT_EQ(cb::snapshot::FileStatus::Truncated,
+                  manifest->files.at(0).status);
+    }
 
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(
@@ -228,8 +273,11 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
 }
 
 static std::string PrintToStringParamName(
-        const testing::TestParamInfo<std::string>& info) {
-    return info.param;
+        const ::testing::TestParamInfo<SnapshotEngineTest::ParamType>& info) {
+    if (std::get<0>(info.param)) {
+        return "encrypted_" + std::get<1>(info.param);
+    }
+    return std::get<1>(info.param);
 }
 
 #ifdef EP_USE_MAGMA
@@ -241,6 +289,7 @@ static std::string PrintToStringParamName(
 // todo: add magma (and maybe nexus)
 INSTANTIATE_TEST_SUITE_P(SnapshotEngineTests,
                          SnapshotEngineTest,
-                         TEST_VALUES,
+                         ::testing::Combine(::testing::Values(true, false),
+                                            TEST_VALUES),
                          PrintToStringParamName);
 #undef TEST_VALUES
