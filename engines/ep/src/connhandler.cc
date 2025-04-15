@@ -380,12 +380,11 @@ void ConnHandler::pause(ConnHandler::PausedReason r) {
 
 void ConnHandler::setLogContext(const std::string& header,
                                 const nlohmann::json& ctx) {
-    logger->prefix = header;
-    logger->prefixContext = ctx;
+    logger->setPrefix(ctx, header);
 }
 
 const char* ConnHandler::logHeader() const {
-    return logger->prefix.c_str();
+    return logger->getFmtPrefix().c_str();
 }
 
 void ConnHandler::unPause() {

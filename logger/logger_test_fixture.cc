@@ -10,6 +10,7 @@
  */
 
 #include "logger_test_fixture.h"
+#include "logger/prefix_logger.h"
 
 #include <gsl/gsl-lite.hpp>
 #include <spdlog/spdlog.h>
@@ -100,4 +101,29 @@ std::string SpdloggerTest::getLogContents() {
     }
 
     return ret;
+}
+
+TEST_F(SpdloggerTest, PrefixLogger) {
+    auto prefixLogger = std::make_shared<cb::logger::PrefixLogger>(
+            "prefix_logger", cb::logger::get());
+    prefixLogger->setPrefix(cb::logger::BasicJsonType({{"prefix", "test"}}),
+                            "prefix=test");
+
+    prefixLogger->log(spdlog::level::info, "my message");
+    prefixLogger->logWithContext(
+            spdlog::level::info, "my message", {{"key", "value"}});
+
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(
+            1,
+            countInFile(files.front(), "INFO my message {\"prefix\":\"test\"}"))
+            << getLogContents();
+    EXPECT_EQ(
+            1,
+            countInFile(
+                    files.front(),
+                    "INFO my message {\"prefix\":\"test\",\"key\":\"value\"}"))
+            << getLogContents();
 }

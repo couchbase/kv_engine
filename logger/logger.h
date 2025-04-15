@@ -160,6 +160,13 @@ protected:
     /// Overriden flush_ method to flush via the inner spdlog::logger.
     void flush_() override;
 
+    /**
+     * Fix up the context object to ensure it is a JSON object.
+     *
+     * @param ctx The context object to fix up.
+     */
+    void fixupContext(Json& ctx) const;
+
 private:
     /**
      * Pointer to the inner spdlog::logger.

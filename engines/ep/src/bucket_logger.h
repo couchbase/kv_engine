@@ -11,8 +11,7 @@
 
 #pragma once
 
-#include "logger/logger.h"
-#include "spdlog/logger.h"
+#include "logger/prefix_logger.h"
 #include <fmt/core.h>
 #include <platform/json_log.h>
 #include <spdlog/fmt/ostr.h>
@@ -80,7 +79,7 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  * is registered correctly. BucketLoggers must be registered to ensure that
  * their verbosity can be changed at runtime.
  */
-class BucketLogger : public cb::logger::Logger {
+class BucketLogger : public cb::logger::PrefixLogger {
 public:
     /**
      * Record a log message for the bucket currently associated with the calling
@@ -110,12 +109,6 @@ public:
     void setConnectionId(uint32_t id) {
         this->connectionId = id;
     }
-
-    /// The prefix printed before the log message contents
-    std::string prefix;
-
-    /// Context to merge into logs.
-    nlohmann::json prefixContext;
 
 protected:
     /**

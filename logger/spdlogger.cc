@@ -81,6 +81,22 @@ void cb::logger::Logger::flush_() {
     baseLogger->flush();
 }
 
+void cb::logger::Logger::fixupContext(Json& ctx) const {
+    if (ctx.is_null()) {
+        ctx = Json::object();
+        return;
+    }
+    if (!ctx.is_object()) {
+#if CB_DEVELOPMENT_ASSERTS
+        throw std::invalid_argument(fmt::format(
+                "JSON context must be an object, not `{}`", ctx.dump()));
+#else
+        // In production, handle this case gracefully.
+        ctx = Json{{"context", std::move(ctx)}};
+#endif
+    }
+}
+
 void cb::logger::Logger::logFormatted(spdlog::level::level_enum lvl,
                                       fmt::string_view fmt,
                                       fmt::format_args args) {
@@ -366,15 +382,7 @@ void cb::logger::setLogLevels(spdlog::level::level_enum level) {
 void cb::logger::Logger::logWithContext(spdlog::level::level_enum lvl,
                                         std::string_view msg,
                                         Json ctx) {
-    if (!ctx.is_object()) {
-#if CB_DEVELOPMENT_ASSERTS
-        throw std::invalid_argument(fmt::format(
-                "JSON context must be an object, not `{}`", ctx.dump()));
-#else
-        // In production, handle this case gracefully.
-        ctx = Json{{"context", std::move(ctx)}};
-#endif
-    }
+    fixupContext(ctx);
 
     // TODO: Consider checking that the message conforms to the conventions and
     // doesn't contain ".:()", starts with a capital, etc.

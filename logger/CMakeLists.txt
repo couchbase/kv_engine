@@ -6,7 +6,9 @@ add_library(memcached_logger STATIC
             custom_rotating_file_sink.cc
             custom_rotating_file_sink.h
             logger_test_fixture.h
-            logger_iface.h)
+            logger_iface.h
+            prefix_logger.h
+            prefix_logger.cc)
 set_property(TARGET memcached_logger PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(memcached_logger)
 cb_enable_unity_build(memcached_logger)

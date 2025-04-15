@@ -20,7 +20,7 @@
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
 BucketLogger::BucketLogger(const std::string& name)
-    : Logger(name, cb::logger::get()) {
+    : PrefixLogger(name, cb::logger::get()) {
 }
 
 void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
@@ -40,40 +40,31 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
     // handler - see MB-61032.
     NonBucketAllocationGuard guard;
     try {
-        if (!ctx.is_object()) {
-#if CB_DEVELOPMENT_ASSERTS
-            throw std::invalid_argument(fmt::format(
-                    "JSON context must be an object, not `{}`", ctx.dump()));
-#else
-            // In production, handle this case gracefully.
-            ctx = Json{{"context", std::move(ctx)}};
-#endif
-        }
+        using namespace cb::logger;
+        // Get the prefix early so we can reserve space in the final context.
+        Json basePrefix = static_cast<BasicJsonType>(getContextPrefix());
+        // Create a new context object into which we will merge all keys.
+        // Final context is the conn_id + engine + static prefix + context.
+        Json finalContext = Json::object();
+        finalContext.get_ref<Json::object_t&>().reserve(
+                ctx.size() + basePrefix.size() + bool(engine) +
+                bool(connectionId));
 
-        auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
-        object.reserve(object.size() + prefixContext.size() + bool(engine) +
-                       bool(connectionId));
-
-        if (!prefixContext.empty()) {
-            const auto& prefixObject =
-                    prefixContext.get_ref<const nlohmann::json::object_t&>();
-            for (auto it = prefixObject.crbegin(); it != prefixObject.crend();
-                 ++it) {
-                object.insert(object.begin(),
-                              cb::logger::Json{it->first, it->second});
-            }
+        // Write the ID.
+        if (connectionId != 0) {
+            finalContext["conn_id"] = connectionId;
         }
 
         // Write the bucket
         if (engine) {
-            object.insert(object.begin(), {"bucket", engine->getName()});
-        }
-        // Write the ID.
-        if (connectionId != 0) {
-            object.insert(object.begin(), {"conn_id", connectionId});
+            finalContext["bucket"] = engine->getName();
         }
 
-        Logger::logWithContext(lvl, msg, std::move(ctx));
+        mergeContext(finalContext, std::move(basePrefix));
+        mergeContext(finalContext, std::move(ctx));
+        // Call the Logger, not the PrefixLogger, since we don't want to add
+        // the prefix again.
+        Logger::logWithContext(lvl, msg, std::move(finalContext));
     } catch (const std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure
         // what arguments failed above.

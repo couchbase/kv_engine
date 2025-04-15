@@ -239,7 +239,7 @@ TEST_F(BucketLoggerTest, InfoContextMacroWithCurlyBraces) {
  * characters which could be interpreted as fmtlib format strings.
  */
 TEST_F(BucketLoggerTest, FmtlibPrefix) {
-    getGlobalBucketLogger()->prefix = "abc:{def}";
+    getGlobalBucketLogger()->setPrefix({}, "abc:{def}");
     EP_LOG_INFO("Test {}", "abc");
 }
 
@@ -248,7 +248,7 @@ TEST_F(BucketLoggerTest, FmtlibPrefix) {
  * characters which is an invalid fmtlib format string.
  */
 TEST_F(BucketLoggerTest, IllegalFmtlibPrefix) {
-    getGlobalBucketLogger()->prefix = "abc:{def";
+    getGlobalBucketLogger()->setPrefix({}, "abc:{def");
     EP_LOG_INFO("Test {}", "abc");
 }
 
