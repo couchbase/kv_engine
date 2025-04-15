@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ep_task.h"
+#include "utilities/testing_hook.h"
 
 class EPStats;
 class KVBucket;
@@ -81,6 +82,8 @@ public:
     void signal() override;
 
     void addStats(const StatCollector& collector);
+
+    TestingHook<> chkRemoversScheduledHook;
 
 private:
     // Check memory usage to start/continue recovery

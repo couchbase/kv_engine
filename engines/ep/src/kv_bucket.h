@@ -663,12 +663,16 @@ public:
     void wakeUpCheckpointMemRecoveryTask() override;
 
     /**
-     * @return The pageable memory low watermark of the Bucket. this is the
-     * amount of bytes the ItemPager will attempt to reduce pageable memory
-     * usage to when it has exceeded the pageable high watermark.
+     * Wake up the requested number of checkpoint removers and get notified
+     * when they complete.
+     * @param waiter The waiter to notify when the checkpoint removers complete.
+     * @param count The number of checkpoint removers to wake up. If there are
+     * fewer checkpoint removers than requested, the waiter will be notified
+     * immediately. If there are more checkpoint removers than requested, only
+     * the requested number will be woken up.
      */
-    size_t wakeUpChkRemoversAndGetNotified(
-            const std::shared_ptr<cb::Waiter>& waiter) override;
+    void wakeUpChkRemoversAndGetNotified(
+            const std::shared_ptr<cb::Waiter>& waiter, size_t count) override;
 
     void runDefragmenterTask() override;
 

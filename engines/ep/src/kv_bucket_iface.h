@@ -807,10 +807,10 @@ public:
     virtual void wakeUpCheckpointMemRecoveryTask() = 0;
 
     /**
-     * @return the number of checkpoint removers which have been woken up
+     * @param count the number of checkpoint removers to wake up
      */
-    virtual size_t wakeUpChkRemoversAndGetNotified(
-            const std::shared_ptr<cb::Waiter>& waiter) = 0;
+    virtual void wakeUpChkRemoversAndGetNotified(
+            const std::shared_ptr<cb::Waiter>& waiter, size_t count) = 0;
 
     virtual void runDefragmenterTask() = 0;
 

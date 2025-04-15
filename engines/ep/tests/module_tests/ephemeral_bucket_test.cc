@@ -814,6 +814,48 @@ TEST_F(SingleThreadedEphemeralTestFailNewData, useEphemeralMemRecovery) {
     testEphemeralMemRecoverySwitching();
 }
 
+/**
+ * Test that the EphemeralMemRecovery task will run again even if the
+ * checkpoint removers complete before the task has run to completion.
+ */
+TEST_F(SingleThreadedEphemeralTest, earlyCheckpointRemoverCompletion) {
+    auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*store);
+    auto& config = engine->getConfiguration();
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+
+    // Use the EphemeralMemRecovery task.
+    ephemeralBucket.useEphemeralMemRecovery(true);
+
+    auto task = getEphemeralMemRecoveryTask();
+    ASSERT_TRUE(task);
+    ASSERT_FALSE(task->isdead());
+
+    auto numChkRemovers = config.getCheckpointRemoverTaskCount();
+
+    // Set a hook to run within the task's run method after we schedule the chk
+    // removers. We will signal the task immediately to simulate the removers
+    // completing before the task execution completes.
+    task->chkRemoversScheduledHook = [taskPtr = task.get(), numChkRemovers]() {
+        for (size_t i = 0; i < numChkRemovers; i++) {
+            taskPtr->signal();
+        }
+    };
+
+    // Set the task to sleep indefinitely after it runs.
+    task->updateSleepTime(std::chrono::seconds(INT_MAX));
+    // Wakeup using the notifiable task interface.
+    task->wakeup();
+    // Run the task with manual wakeup to force recovery.
+    runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+
+    // Expect to need to run again soon, since we completed the removers.
+    auto nextRunSeconds =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                    task->getWaketime() - cb::time::steady_clock::now())
+                    .count();
+    EXPECT_LT(nextRunSeconds, 30);
+}
+
 class SingleThreadedEphemeralPurgerTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {

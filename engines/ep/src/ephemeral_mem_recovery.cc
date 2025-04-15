@@ -40,9 +40,11 @@ bool EphemeralMemRecovery::runInner(bool manuallyNotified) {
         if (manuallyNotified || shouldStartRecovery()) {
             recoveryState.store(RecoveryState::WaitingForChkRemovers);
             // Wakeup checkpoint removers, pass this class as waiter
-            removersToComplete =
-                    bucket.wakeUpChkRemoversAndGetNotified(shared_from_this());
+            removersToComplete = bucket.getCheckpointRemoverTaskCount();
             Expects(removersToComplete > 0);
+            bucket.wakeUpChkRemoversAndGetNotified(shared_from_this(),
+                                                   removersToComplete);
+            chkRemoversScheduledHook();
         }
         break;
     case RecoveryState::ChkRemoversCompleted:

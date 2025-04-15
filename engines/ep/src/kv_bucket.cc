@@ -2772,12 +2772,17 @@ void KVBucket::wakeUpCheckpointMemRecoveryTask() {
     }
 }
 
-size_t KVBucket::wakeUpChkRemoversAndGetNotified(
-        const std::shared_ptr<cb::Waiter>& waiter) {
-    for (const auto& task : chkRemovers) {
-        task->wakeupAndGetNotified(waiter);
+void KVBucket::wakeUpChkRemoversAndGetNotified(
+        const std::shared_ptr<cb::Waiter>& waiter, size_t count) {
+    for (size_t i = chkRemovers.size(); i < count; i++) {
+        // Signal immediatley if we are not going to be able to wake up the
+        // requested number of checkpoint removers.
+        waiter->signal();
     }
-    return chkRemovers.size();
+    size_t toWake = std::min(chkRemovers.size(), count);
+    for (size_t i = 0; i < toWake; i++) {
+        chkRemovers[i]->wakeupAndGetNotified(waiter);
+    }
 }
 
 void KVBucket::runDefragmenterTask() {

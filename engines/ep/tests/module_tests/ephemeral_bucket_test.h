@@ -42,14 +42,13 @@ protected:
 class SingleThreadedEphemeralTest : public SingleThreadedKVBucketTest {
 public:
     bool isEphemeralMemRecoveryTaskDead() const {
+        auto task = getEphemeralMemRecoveryTask();
+        return task ? task->isdead() : true;
+    }
+
+    std::shared_ptr<EphemeralMemRecovery> getEphemeralMemRecoveryTask() const {
         auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*store);
-        return ephemeralBucket.ephemeralMemRecoveryTask.withRLock(
-                [&](const auto& task) {
-                    if (task) {
-                        return task->isdead();
-                    }
-                    return true;
-                });
+        return ephemeralBucket.ephemeralMemRecoveryTask.copy();
     }
 
     std::chrono::microseconds getItemPagerWakeTime() const {
