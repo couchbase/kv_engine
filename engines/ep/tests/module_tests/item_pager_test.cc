@@ -346,16 +346,9 @@ protected:
 class STItemPagerTest : public STBucketQuotaTest {
 public:
     static auto allConfigValuesAllEvictionStrategiesNoNexus() {
-        auto quotaSharing = config::Config{
-                {"cross_bucket_ht_quota_sharing", {"true", "false"}}};
-        // For upfront_mfu_only, also test with quota sharing on/off.
-        auto mfuOnly =
-                config::Config{{"item_eviction_strategy", "upfront_mfu_only"}} *
-                quotaSharing;
-
         auto evictionStrategies =
-                mfuOnly | config::Config{{"item_eviction_strategy",
-                                          "learning_age_and_mfu"}};
+                config::Config{{"item_eviction_strategy",
+                                {"upfront_mfu_only", "learning_age_and_mfu"}}};
         return allConfigValuesNoNexus() * evictionStrategies;
     }
 
