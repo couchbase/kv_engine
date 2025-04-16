@@ -14,7 +14,9 @@
 #include "node.h"
 
 #include <boost/filesystem/operations.hpp>
+#include <cbcrypto/key_store.h>
 #include <folly/Synchronized.h>
+#include <platform/file_sink.h>
 #include <platform/uuid.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <filesystem>
@@ -196,12 +198,38 @@ void ClusterImpl::createBucketOnNode(const Node& node,
                              cb::mcbp::Feature::Collections});
 
     const auto dbname = node.directory / bucket.getName();
+
+    auto deks = dbname / "deks";
+    create_directories(deks);
+
+    cb::crypto::KeyStore keystore;
+    keystore.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    keystore.iterateKeys([&deks](auto key) {
+        // ns_server generates (encrypted) files with the content of the
+        // key (and possibly more info). While creating snapshots we
+        // have logic which tries to copy all these files into the
+        // snapshot so we need a file
+        cb::io::FileSink file(deks / fmt::format("{}.key.0", key->getId()));
+        file.sink(nlohmann::json{*key}.dump(2));
+        file.close();
+    });
+
+    nlohmann::json json = keystore;
+    std::string escaped;
+    for (const auto& c : json.dump()) {
+        if (c == '=') {
+            escaped.push_back('\\');
+        }
+        escaped.push_back(c);
+    }
+
     connection->createBucket(
             bucket.getName(),
-            fmt::format("{}dbname={};alog_path={}",
+            fmt::format("{}dbname={};alog_path={};encryption={}",
                         config,
                         dbname.generic_string(),
-                        (dbname / "access.log").generic_string()),
+                        (dbname / "access.log").generic_string(),
+                        escaped),
             BucketType::Couchbase);
     connection->selectBucket(bucket.getName());
 
