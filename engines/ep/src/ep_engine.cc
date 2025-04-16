@@ -7792,11 +7792,32 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     return cb::engine_errc::success;
 }
 
+/**
+ * Helper function that returns a copy of the provided referenced object, copy
+ * allocated in the NonBucket domain.
+ * Any dynamically-allocated object returned from any EngineIface implementation
+ * can pass the returned object(s) through this function for avoiding that
+ * objects are allocated in a bucket domain and then released at caller in the
+ * NonBucket domain.
+ *
+ * @tparam T the type
+ * @param obj Const ref to the object to be copied. Const ref prevents
+ *            unnecessary arg copy for both const/non-const lvalues and
+ *            temporary objects
+ * @return A copy of obj, allocated in the NonBucket domain
+ */
+template <class T>
+[[nodiscard]] static T copyToNonBucketDomain(const T& obj) {
+    NonBucketAllocationGuard g;
+    return obj;
+};
+
 std::pair<cb::engine_errc, nlohmann::json>
 EventuallyPersistentEngine::getFusionStorageSnapshot(
         Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
-    return acquireEngine(this)->getFusionStorageSnapshotInner(
-            vbid, snapshotUuid, validity);
+    return copyToNonBucketDomain(
+            acquireEngine(this)->getFusionStorageSnapshotInner(
+                    vbid, snapshotUuid, validity));
 }
 
 cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshot(

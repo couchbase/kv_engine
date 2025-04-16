@@ -386,7 +386,11 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     // Create a snapshot
     const auto vbid = Vbid(0);
-    const auto snapshotUuid = "some-snapshot-uuid";
+
+    // MB-65649: snaps uuid reported in the GetFusionStorageSnapshot response.
+    // Here big-enough for preventing SSO that hides memory domain alloc issues.
+    const auto snapshotUuid = std::string(1024, 'u');
+
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
     const auto validity = secs.time_since_epoch().count();
