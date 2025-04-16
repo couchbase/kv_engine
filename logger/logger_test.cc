@@ -79,7 +79,7 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
 }
 
 TEST_F(FileRotationTest, DekForceRotation) {
-    auto* logger = cb::logger::get();
+    auto logger = cb::logger::get();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size());
 

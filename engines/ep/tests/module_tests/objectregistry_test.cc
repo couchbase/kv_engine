@@ -165,6 +165,7 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
 
     // const char* - uses the single argument overload of warn().
     auto logger = BucketLogger::createBucketLogger(testName);
+    logger->unregister();
     auto baselineMemory = engine->getEpStats().getPreciseTotalMemoryUsed();
     {
         logger->log(spdlog::level::warn, "const char* message");

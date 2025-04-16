@@ -192,8 +192,8 @@ std::optional<std::string> cb::logger::initialize(
     return {};
 }
 
-spdlog::logger* cb::logger::get() {
-    return file_logger.get();
+const std::shared_ptr<spdlog::logger>& cb::logger::get() {
+    return file_logger;
 }
 
 void cb::logger::reset() {

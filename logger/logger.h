@@ -86,7 +86,7 @@ void createConsoleLogger();
  * - createBlackholeLogger()
  * - createConsoleLogger()
  */
-spdlog::logger* get();
+const std::shared_ptr<spdlog::logger>& get();
 
 /**
  * Reset the underlying logger object
@@ -177,7 +177,7 @@ std::unordered_set<std::string> getDeksInUse();
 
 #define CB_LOG_ENTRY(severity, fmt, ...)                                 \
     do {                                                                 \
-        auto _logger_ = cb::logger::get();                               \
+        auto& _logger_ = cb::logger::get();                              \
         if (_logger_ && _logger_->should_log(severity)) {                \
             _logger_->log(severity, CHECK_FMT_STRING(fmt), __VA_ARGS__); \
         }                                                                \
@@ -185,7 +185,7 @@ std::unordered_set<std::string> getDeksInUse();
 
 #define CB_LOG_ENTRY_CTX(severity, msg, ...)                  \
     do {                                                      \
-        auto _logger_ = cb::logger::get();                    \
+        auto& _logger_ = cb::logger::get();                   \
         if (_logger_ && _logger_->should_log(severity)) {     \
             ::cb::logger::logWithContext(                     \
                     *_logger_, severity, msg, {__VA_ARGS__}); \
@@ -194,7 +194,7 @@ std::unordered_set<std::string> getDeksInUse();
 
 #define CB_LOG_RAW(severity, msg)                         \
     do {                                                  \
-        auto _logger_ = cb::logger::get();                \
+        auto& _logger_ = cb::logger::get();               \
         if (_logger_ && _logger_->should_log(severity)) { \
             _logger_->log(severity, msg);                 \
         }                                                 \

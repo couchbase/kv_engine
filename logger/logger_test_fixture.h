@@ -50,6 +50,8 @@ protected:
      */
     virtual void setUpLogger();
 
+    void shutdownLoggerAndRemoveFiles();
+
     /**
      * Helper function - removes the files in the test working directory that
      * are prefixed with the given filename

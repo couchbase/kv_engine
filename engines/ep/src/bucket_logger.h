@@ -243,7 +243,7 @@ private:
      * Pointer to the underlying spdlogger within the logging library. This
      * logger will log messages to various sinks after we format it.
      */
-    spdlog::logger* spdLogger;
+    std::shared_ptr<spdlog::logger> spdLogger;
     std::atomic_bool registered{false};
 };
 

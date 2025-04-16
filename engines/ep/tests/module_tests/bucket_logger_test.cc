@@ -31,12 +31,11 @@ void BucketLoggerTest::SetUp() {
     oldLogLevel = getGlobalBucketLogger()->level();
 
     if (getGlobalBucketLogger()) {
-        getGlobalBucketLogger()->unregister();
+        cb::logger::unregisterSpdLogger(getGlobalBucketLogger()->name());
     }
+    getGlobalBucketLogger().reset();
 
     SpdloggerTest::SetUp();
-    getGlobalBucketLogger() =
-            BucketLogger::createBucketLogger(globalBucketLoggerName);
 }
 
 void BucketLoggerTest::TearDown() {
@@ -47,6 +46,13 @@ void BucketLoggerTest::TearDown() {
                    << cb::io::loadFile(file) << "---END---\n";
         }
     }
+
+    // Resetting the global bucket logger will drop the reference to the logger
+    // in the core.
+    if (getGlobalBucketLogger()) {
+        cb::logger::unregisterSpdLogger(getGlobalBucketLogger()->name());
+    }
+    getGlobalBucketLogger().reset();
 
     SpdloggerTest::TearDown();
 
@@ -61,6 +67,7 @@ void BucketLoggerTest::TearDown() {
 }
 
 void BucketLoggerTest::setUpLogger() {
+    getGlobalBucketLogger().reset();
     SpdloggerTest::setUpLogger();
     getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
@@ -272,8 +279,8 @@ protected:
 TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
     // We need the async logger for this test, shutdown the existing one and
     // create it.
-    cb::logger::shutdown();
-    RemoveFiles();
+    getGlobalBucketLogger().reset();
+    shutdownLoggerAndRemoveFiles();
     config.unit_test = false;
     setUpLogger();
 

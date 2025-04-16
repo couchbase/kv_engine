@@ -12,6 +12,7 @@
 #include "logger_test_fixture.h"
 
 #include <gsl/gsl-lite.hpp>
+#include <spdlog/spdlog.h>
 
 SpdloggerTest::SpdloggerTest() {
     // Use default values from cb::logger::Config, apart from:
@@ -26,8 +27,7 @@ void SpdloggerTest::SetUp() {
 }
 
 void SpdloggerTest::TearDown() {
-    cb::logger::shutdown();
-    RemoveFiles();
+    shutdownLoggerAndRemoveFiles();
 }
 
 void SpdloggerTest::RemoveFiles() {
@@ -39,12 +39,41 @@ void SpdloggerTest::RemoveFiles() {
 }
 
 void SpdloggerTest::setUpLogger() {
-    RemoveFiles();
+    shutdownLoggerAndRemoveFiles();
 
     const auto ret = cb::logger::initialize(config);
     EXPECT_FALSE(ret) << ret.value();
 
     cb::logger::get()->set_level(config.log_level);
+}
+
+static auto getLoggerWeakPtrs() {
+    // May look contrived but it helps to detect if the logger is being
+    // referenced elsewhere, which is important especially on Windows, where if
+    // the logger is not destroyed, we cannot remove the log files since the
+    // process has an open file handle, and that may fail the test.
+    std::vector<std::weak_ptr<spdlog::logger>> weakLoggers;
+    auto& registry = spdlog::details::registry::instance();
+    registry.apply_all(
+            [&weakLoggers](const auto& l) { weakLoggers.push_back(l); });
+    return weakLoggers;
+}
+
+void SpdloggerTest::shutdownLoggerAndRemoveFiles() {
+    auto weakLoggers = getLoggerWeakPtrs();
+
+    cb::logger::shutdown();
+
+    for (const auto& l : weakLoggers) {
+        auto logger = l.lock();
+        if (!logger) {
+            continue;
+        }
+        FAIL() << "Logger '" << logger->name()
+               << "' still exists with use count: " << (l.use_count() - 1);
+    }
+
+    RemoveFiles();
 }
 
 int SpdloggerTest::countInFile(const std::string& file,
