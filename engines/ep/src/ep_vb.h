@@ -397,6 +397,11 @@ public:
      */
     void createFailoverEntry(uint64_t seqno) override;
 
+    /**
+     * @return true if we should use DCP cache transfer for this VB
+     */
+    bool shouldUseDcpCacheTransfer() const override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

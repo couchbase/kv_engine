@@ -1824,3 +1824,16 @@ void EPVBucket::createFailoverEntry(uint64_t seqno) {
     failovers->createEntry(seqno);
     checkpointManager->queueSetVBState();
 }
+
+bool EPVBucket::shouldUseDcpCacheTransfer() const {
+    auto memoryItems = ht.getNumItems();
+    auto diskItems = onDiskTotalItems.load();
+
+    // if the cache is empty (and no ejects) but the disk has items, then yes we
+    // should try a cache transfer.
+    if (memoryItems == 0 && diskItems && ht.getNumEjects() == 0) {
+        return true;
+    }
+
+    return false;
+}

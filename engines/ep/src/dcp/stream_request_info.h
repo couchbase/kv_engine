@@ -15,7 +15,7 @@
 /**
  * Struct for storing all information for a stream-request.
  * Use of non-const for many members is intentional as a stream-request can
- * adjust the values depending on thr request flags and system state.
+ * adjust the values depending on the request flags and system state.
  */
 class StreamRequestInfo {
 public:

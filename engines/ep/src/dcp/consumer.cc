@@ -336,6 +336,11 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
+    if (cacheTransfer && vb->shouldUseDcpCacheTransfer()) {
+        OBJ_LOG_INFO_CTX(*logger, "Requesting cache transfer", {"vb", vbucket});
+        flags |= cb::mcbp::DcpAddStreamFlag::CacheTransfer;
+    }
+
     stream = makePassiveStream(engine_,
                                shared_from_base<DcpConsumer>(),
                                getName(),

@@ -1995,6 +1995,13 @@ public:
      */
     failover_entry_t processFailover();
 
+    /**
+     * @return true if DCP should perform a cache transfer
+     */
+    virtual bool shouldUseDcpCacheTransfer() const {
+        return false;
+    }
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
