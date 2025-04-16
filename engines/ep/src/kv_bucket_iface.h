@@ -1001,6 +1001,13 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    [[nodiscard]] virtual cb::engine_errc doFusionStats(
+            CookieIface& cookie,
+            const AddStatFn& add_stat,
+            std::string_view statKey) {
+        return cb::engine_errc::not_supported;
+    }
+
     /**
      * Result of the loadPreparedSyncWrites function
      */

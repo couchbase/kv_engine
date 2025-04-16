@@ -456,6 +456,10 @@ public:
 
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
+    cb::engine_errc doFusionStats(CookieIface& cookie,
+                                  const AddStatFn& add_stat,
+                                  std::string_view statKey) override;
+
     /**
      * Handle the brief snapshot-status stat which is used by ns_server to
      * monitor downloads.

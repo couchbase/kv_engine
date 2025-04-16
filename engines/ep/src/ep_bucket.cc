@@ -39,6 +39,7 @@
 #include "warmup.h"
 #include "work_sharding.h"
 
+#include <boost/algorithm/string/trim.hpp>
 #include <executor/executorpool.h>
 #include <fmt/ostream.h>
 #include <folly/CancellationToken.h>
@@ -47,6 +48,7 @@
 #include <memcached/document_expired.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/util.h>
+#include <platform/split_string.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -3272,6 +3274,75 @@ cb::engine_errc EPBucket::stopFusionUploader(Vbid vbid) {
         return cb::engine_errc::not_supported;
     }
     return getRWUnderlying(vbid)->stopFusionUploader(vbid);
+}
+
+cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
+                                        const AddStatFn& add_stat,
+                                        std::string_view statKey) {
+    if (!getStorageProperties().supportsFusion()) {
+        EP_LOG_WARN_RAW(
+                "EPBucket::::doFusionStats: Not supported on non-magma "
+                "buckets");
+        return cb::engine_errc::not_supported;
+    }
+
+    std::optional<std::string> subCmd;
+    std::optional<Vbid> vbid;
+
+    // Format: "fusion opt<sub_cmd> opt<vbid>"
+    std::string trimmedStatKey(statKey);
+    boost::algorithm::trim(trimmedStatKey);
+    const auto args = cb::string::split(trimmedStatKey, ' ');
+    if (args.size() == 0 || args.size() > 3) {
+        EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid arguments",
+                        {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    Expects(args.at(0) == "fusion");
+    if (args.size() == 2) {
+        const auto second = std::string(args.at(1));
+        if (std::ranges::all_of(second, ::isdigit)) {
+            // "fusion <vbid>"
+            vbid = Vbid(std::stoul(second));
+        } else {
+            // "fusion <sub_cmd>"
+            subCmd = second;
+        }
+    } else if (args.size() == 3) {
+        // "fusion <sub_cmd> <vbid>"
+        subCmd = args.at(1);
+        const auto third = std::string(args.at(2));
+        if (!std::ranges::all_of(third, ::isdigit)) {
+            EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid arguments",
+                            {"stat_key", statKey});
+            return cb::engine_errc::invalid_arguments;
+        }
+        vbid = Vbid(std::stoul(third));
+    }
+
+    // @todo: At the time of writing I'm first adding support for per-vbucket
+    // sub-commands.
+    if (!subCmd || !vbid) {
+        return cb::engine_errc::not_supported;
+    }
+
+    const auto stat = toFusionStat(*subCmd);
+    if (stat == FusionStat::Invalid) {
+        EP_LOG_WARN_CTX("EPBucket::::doFusionStats: Invalid arguments",
+                        {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    const auto [errc, json] =
+            getRWUnderlying(*vbid)->getFusionStats(stat, *vbid);
+
+    if (errc != cb::engine_errc::success) {
+        return errc;
+    }
+
+    add_stat("fusion", json.dump(), cookie);
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EPBucket::initialiseSnapshots() {
