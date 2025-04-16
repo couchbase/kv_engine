@@ -111,9 +111,7 @@ void HistoryScanTest::validateSnapshot(
             } else {
                 stepAndExpect(ClientOpcode::DcpMutation);
             }
-            EXPECT_EQ(producers->last_key,
-                      std::string_view{
-                              item.getKey().makeDocKeyWithoutCollectionID()});
+            EXPECT_EQ(producers->last_dockey, item.getKey());
             EXPECT_EQ(producers->last_vbucket, vbucket);
             EXPECT_EQ(producers->last_byseqno, item.getBySeqno());
             if (!item.isAbort()) {
@@ -123,8 +121,6 @@ void HistoryScanTest::validateSnapshot(
             EXPECT_EQ(producers->last_value, item.getValueView());
             EXPECT_EQ(producers->last_stream_id, sid);
             EXPECT_EQ(producers->last_datatype, item.getDataType());
-            EXPECT_EQ(producers->last_collection_id,
-                      item.getKey().getCollectionID());
         }
     }
 }

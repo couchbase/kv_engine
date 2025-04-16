@@ -17,6 +17,7 @@
 #include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <memcached/storeddockey.h>
 
 #include <relaxed_atomic.h>
 
@@ -182,6 +183,7 @@ public:
     std::string last_meta;
     std::string last_value;
     std::string last_key;
+    StoredDocKey last_dockey;
     vbucket_state_t last_vbucket_state;
     protocol_binary_datatype_t last_datatype;
     mcbp::systemevent::id last_system_event;

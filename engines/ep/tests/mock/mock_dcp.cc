@@ -184,6 +184,7 @@ cb::engine_errc MockDcpMessageProducers::handleMutationOrPrepare(
     last_opaque = opaque;
     auto noCollectionKeyView = item->getKey().makeDocKeyWithoutCollectionID();
     last_key.assign(noCollectionKeyView.getBuffer());
+    last_dockey = StoredDocKey{item->getKey()};
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
@@ -228,6 +229,7 @@ cb::engine_errc MockDcpMessageProducers::deletionInner(
     last_opaque = opaque;
     auto noCollectionKeyView = item->getKey().makeDocKeyWithoutCollectionID();
     last_key.assign(noCollectionKeyView.getBuffer());
+    last_dockey = StoredDocKey{item->getKey()};
     last_cas = item->getCas();
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
@@ -448,6 +450,7 @@ cb::engine_errc MockDcpMessageProducers::commit(uint32_t opaque,
     last_prepared_seqno = prepare_seqno;
     last_commit_seqno = commit_seqno;
     last_key.assign(key.to_string());
+    last_dockey = StoredDocKey{key};
     last_packet_size = sizeof(cb::mcbp::Request) +
                        sizeof(cb::mcbp::request::DcpCommitPayload);
     if (!isCollectionsSupported) {
@@ -476,6 +479,7 @@ cb::engine_errc MockDcpMessageProducers::abort(uint32_t opaque,
     // last_collection_id
     auto k2 = key.makeDocKeyWithoutCollectionID();
     last_key = std::string{reinterpret_cast<const char*>(k2.data()), k2.size()};
+    last_dockey = StoredDocKey{key};
     last_byseqno = abort_seqno;
     last_collection_id = key.getCollectionID();
     last_packet_size = sizeof(cb::mcbp::Request) +
@@ -576,4 +580,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_can_deduplicate = CanDeduplicate::Yes;
     last_max_ttl = cb::NoExpiryLimit;
     last_metered = Collections::Metered::No;
+    last_dockey = {};
 }
