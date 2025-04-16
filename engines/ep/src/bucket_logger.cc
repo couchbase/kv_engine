@@ -40,9 +40,9 @@ void BucketLogger::flush_() {
     spdLogger->flush();
 }
 
-void BucketLogger::logInner(spdlog::level::level_enum lvl,
-                            fmt::string_view fmt,
-                            fmt::format_args args) {
+void BucketLogger::logFormatted(spdlog::level::level_enum lvl,
+                                fmt::string_view fmt,
+                                fmt::format_args args) {
     fmt::memory_buffer msg;
     // Format the user-specified format string & args.
     fmt::vformat_to(std::back_inserter(msg), fmt, args);
@@ -110,34 +110,6 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
                 ctx,
                 e.what());
     }
-}
-
-void BucketLogger::traceWithContext(std::string_view msg,
-                                    cb::logger::Json ctx) {
-    logWithContext(spdlog::level::trace, msg, std::move(ctx));
-}
-
-void BucketLogger::debugWithContext(std::string_view msg,
-                                    cb::logger::Json ctx) {
-    logWithContext(spdlog::level::debug, msg, std::move(ctx));
-}
-
-void BucketLogger::infoWithContext(std::string_view msg, cb::logger::Json ctx) {
-    logWithContext(spdlog::level::info, msg, std::move(ctx));
-}
-
-void BucketLogger::warnWithContext(std::string_view msg, cb::logger::Json ctx) {
-    logWithContext(spdlog::level::warn, msg, std::move(ctx));
-}
-
-void BucketLogger::errorWithContext(std::string_view msg,
-                                    cb::logger::Json ctx) {
-    logWithContext(spdlog::level::err, msg, std::move(ctx));
-}
-
-void BucketLogger::criticalWithContext(std::string_view msg,
-                                       cb::logger::Json ctx) {
-    logWithContext(spdlog::level::critical, msg, std::move(ctx));
 }
 
 std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "logger/logger_iface.h"
 #include "spdlog/logger.h"
 #include <fmt/core.h>
 #include <platform/json_log.h>
@@ -90,23 +91,35 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  * must call unregister() on the BucketLogger before destruction to avoid
  * leaking the BucketLogger.
  */
-class BucketLogger : public spdlog::logger {
+class BucketLogger : public spdlog::logger, public cb::logger::LoggerIface {
 public:
-    /**
-     * Record a log message for the bucket currently associated with the calling
-     * thread. Log message will have the bucket name prepended (assuming a
-     * bucket is currently selected).
-     * @param lvl The log level to report at
-     * @param fmt The format string to use (fmtlib style).
-     * @param args Variable arguments to include in the format string.
-     */
-    template <typename S, typename... Args>
-    void log(spdlog::level::level_enum lvl, const S& fmt, Args&&... args);
+    using LoggerIface::critical;
+    using LoggerIface::debug;
+    using LoggerIface::error;
+    using LoggerIface::info;
+    using LoggerIface::log;
+    using LoggerIface::trace;
+    using LoggerIface::warn;
 
-    template <typename... Args>
-    void log(spdlog::level::level_enum lvl, const char* msg);
-    template <typename T>
-    void log(spdlog::level::level_enum lvl, const T& msg);
+    bool should_log(spdlog::level::level_enum lvl) const final {
+        return spdlog::logger::should_log(lvl);
+    }
+
+    void set_level(spdlog::level::level_enum lvl) final {
+        spdlog::logger::set_level(lvl);
+    }
+
+    void flush() final {
+        spdlog::logger::flush();
+    }
+
+    spdlog::level::level_enum level() const final {
+        return spdlog::logger::level();
+    }
+
+    const std::string& name() const final {
+        return spdlog::logger::name();
+    }
 
     /**
      * Record a log message for the bucket currently associated with the calling
@@ -120,59 +133,7 @@ public:
      */
     void logWithContext(spdlog::level::level_enum lvl,
                         std::string_view msg,
-                        cb::logger::Json ctx);
-
-    /*
-     * The following convenience functions simplify logging a message at the
-     * named level (trace, debug, info, ...)
-     */
-    template <typename... Args>
-    void trace(const char* fmt, const Args&... args);
-
-    template <typename... Args>
-    void debug(const char* fmt, const Args&... args);
-
-    template <typename... Args>
-    void info(const char* fmt, const Args&... args);
-
-    template <typename... Args>
-    void warn(const char* fmt, const Args&... args);
-
-    template <typename... Args>
-    void error(const char* fmt, const Args&... args);
-
-    template <typename... Args>
-    void critical(const char* fmt, const Args&... args);
-
-    template <typename T>
-    void trace(const T& msg);
-
-    template <typename T>
-    void debug(const T& msg);
-
-    template <typename T>
-    void info(const T& msg);
-
-    template <typename T>
-    void warn(const T& msg);
-
-    template <typename T>
-    void error(const T& msg);
-
-    template <typename T>
-    void critical(const T& msg);
-
-    void traceWithContext(std::string_view msg, cb::logger::Json ctx);
-
-    void debugWithContext(std::string_view msg, cb::logger::Json ctx);
-
-    void infoWithContext(std::string_view msg, cb::logger::Json ctx);
-
-    void warnWithContext(std::string_view msg, cb::logger::Json ctx);
-
-    void errorWithContext(std::string_view msg, cb::logger::Json ctx);
-
-    void criticalWithContext(std::string_view msg, cb::logger::Json ctx);
+                        cb::logger::Json ctx) override;
 
     /**
      * Creates a BucketLogger with the given name and then register it in the
@@ -210,9 +171,9 @@ protected:
     /// Overriden flush_ method to flush via the ServerAPI logger.
     void flush_() override;
 
-    void logInner(spdlog::level::level_enum lvl,
-                  fmt::string_view fmt,
-                  fmt::format_args args);
+    void logFormatted(spdlog::level::level_enum lvl,
+                      fmt::string_view fmt,
+                      fmt::format_args args) override;
 
     /**
      * Connection ID prefix that is printed if set (printed before any other
@@ -361,91 +322,3 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 #define EP_LOG_ERR_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::err, msg)
 #define EP_LOG_CRITICAL_RAW(msg) \
     EP_LOG_RAW(spdlog::level::level_enum::critical, msg)
-
-template <typename S, typename... Args>
-void BucketLogger::log(spdlog::level::level_enum lvl,
-                       const S& fmt,
-                       Args&&... args) {
-    if (!should_log(lvl)) {
-        return;
-    }
-
-    logInner(lvl, fmt, fmt::make_format_args(args...));
-}
-
-template <typename... Args>
-void BucketLogger::log(spdlog::level::level_enum lvl, const char* msg) {
-    if (!should_log(lvl)) {
-        return;
-    }
-    logInner(lvl, msg, {});
-}
-
-template <typename T>
-void BucketLogger::log(spdlog::level::level_enum lvl, const T& msg) {
-    if (!should_log(lvl)) {
-        return;
-    }
-
-    logInner(lvl, "{}", fmt::make_format_args(msg));
-}
-
-template <typename... Args>
-void BucketLogger::trace(const char* fmt, const Args&... args) {
-    log(spdlog::level::trace, fmt, args...);
-}
-
-template <typename... Args>
-void BucketLogger::debug(const char* fmt, const Args&... args) {
-    log(spdlog::level::debug, fmt, args...);
-}
-
-template <typename... Args>
-void BucketLogger::info(const char* fmt, const Args&... args) {
-    log(spdlog::level::info, fmt, args...);
-}
-
-template <typename... Args>
-void BucketLogger::warn(const char* fmt, const Args&... args) {
-    log(spdlog::level::warn, fmt, args...);
-}
-
-template <typename... Args>
-void BucketLogger::error(const char* fmt, const Args&... args) {
-    log(spdlog::level::err, fmt, args...);
-}
-
-template <typename... Args>
-void BucketLogger::critical(const char* fmt, const Args&... args) {
-    log(spdlog::level::critical, fmt, args...);
-}
-
-template <typename T>
-void BucketLogger::trace(const T& msg) {
-    log(spdlog::level::trace, msg);
-}
-
-template <typename T>
-void BucketLogger::debug(const T& msg) {
-    log(spdlog::level::debug, msg);
-}
-
-template <typename T>
-void BucketLogger::info(const T& msg) {
-    log(spdlog::level::info, msg);
-}
-
-template <typename T>
-void BucketLogger::warn(const T& msg) {
-    log(spdlog::level::warn, msg);
-}
-
-template <typename T>
-void BucketLogger::error(const T& msg) {
-    log(spdlog::level::err, msg);
-}
-
-template <typename T>
-void BucketLogger::critical(const T& msg) {
-    log(spdlog::level::critical, msg);
-}
