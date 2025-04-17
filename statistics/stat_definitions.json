@@ -1810,7 +1810,7 @@
         "key": "ep_fusion_syncs",
         "unit": "count",
         "type": "counter",
-        "description": "Total number of time data was synced to Fusion.",
+        "description": "Total number of times data was synced to Fusion.",
         "added": "8.0.0"
     },
     {
@@ -1909,6 +1909,20 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total amount of memory consumed by file map.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_sync_failures",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of times syncing data to Fusion failed.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_migration_failures",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of times migrating logs failed.",
         "added": "8.0.0"
     },
     /* EPBucket::getFileStats */
