@@ -1106,13 +1106,6 @@ public:
     bool isCompactionExpiryFetchInline() const;
 
     /**
-     * Sets which error code should be returned when attempting to unlock an
-     * item that is not locked. When value is true, the legacy temporary_failure
-     * is used instead of not_locked.
-     */
-    void setNotLockedReturnsTmpfail(bool value);
-
-    /**
      * @return The number of checkpoint destroyer tasks enabled in this KVBucket
      */
     size_t getNumCheckpointDestroyers() const;

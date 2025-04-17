@@ -13,6 +13,8 @@
  * Testsuite for 'basic' key-value functionality in ep-engine.
  */
 
+#include <programs/engine_testapp/mock_server.h>
+
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include <memcached/range_scan_optional_configuration.h>
@@ -736,12 +738,30 @@ static enum test_result test_unl(EngineIface* h) {
             unl(h, nullptr, key, vbucketId, cas),
             "Expected to fail unl on lock timeout");
 
+    // Test that the bucket not_locked_returns_tmpfail setting works.
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
                       "not_locked_returns_tmpfail",
                       "true"),
             "Expected setting not_locked_returns_tmpfail to succeed");
+    checkeq(cb::engine_errc::temporary_failure,
+            unl(h, nullptr, key, vbucketId, cas),
+            "Expected to fail unl on lock timeout (returning tmpfail)");
+
+    // Disable the bucket not_locked_returns_tmpfail setting.
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "not_locked_returns_tmpfail",
+                      "false"),
+            "Expected setting not_locked_returns_tmpfail to succeed");
+    checkeq(cb::engine_errc::not_locked,
+            unl(h, nullptr, key, vbucketId, cas),
+            "Expected to fail unl on lock timeout with not_locked");
+
+    // Test that the global not_locked_returns_tmpfail setting works.
+    mock_set_not_locked_returns_tmpfail(true);
     checkeq(cb::engine_errc::temporary_failure,
             unl(h, nullptr, key, vbucketId, cas),
             "Expected to fail unl on lock timeout (returning tmpfail)");

@@ -174,8 +174,6 @@ public:
             store.setXattrEnabled(value);
         } else if (key.compare("compaction_expiry_fetch_inline") == 0) {
             store.setCompactionExpiryFetchInline(value);
-        } else if (key == "not_locked_returns_tmpfail") {
-            store.setNotLockedReturnsTmpfail(value);
         }
     }
 
@@ -413,11 +411,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setMinimumHashTableSize(config.getHtSize());
     config.addValueChangedListener(
             "ht_size", std::make_unique<EPStoreValueChangeListener>(*this));
-
-    setNotLockedReturnsTmpfail(config.isNotLockedReturnsTmpfail());
-    config.addValueChangedListener(
-            "not_locked_returns_tmpfail",
-            std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(
             "checkpoint_memory_ratio",
@@ -1986,7 +1979,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
             }
             return cb::engine_errc::locked_tmpfail;
         }
-        return notLockedError;
+        return engine.getNotLockedError();
     }
     case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {
@@ -2010,7 +2003,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
                 return cb::engine_errc::no_such_key;
             }
 
-            return notLockedError;
+            return engine.getNotLockedError();
         }
     case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
         return cb::engine_errc::sync_write_in_progress;
@@ -3402,11 +3395,6 @@ void KVBucket::setCompactionExpiryFetchInline(bool value) {
 
 bool KVBucket::isCompactionExpiryFetchInline() const {
     return compactionExpiryFetchInline;
-}
-
-void KVBucket::setNotLockedReturnsTmpfail(bool value) {
-    notLockedError = value ? cb::engine_errc::temporary_failure
-                           : cb::engine_errc::not_locked;
 }
 
 size_t KVBucket::getNumCheckpointDestroyers() const {

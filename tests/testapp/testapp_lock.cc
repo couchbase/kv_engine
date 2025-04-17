@@ -12,6 +12,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <folly/ScopeGuard.h>
 #include <algorithm>
 #include <array>
 
@@ -189,6 +190,51 @@ TEST_P(LockTest, UnlockNotLockedDocument_WithoutXerror) {
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isTemporaryFailure());
     }
+    userConnection->setAutoRetryTmpfail(true);
+}
+
+TEST_P(LockTest, UnlockNotLockedDocument_ForceTmpfail_BucketConfig) {
+    userConnection->setAutoRetryTmpfail(false);
+    auto info = userConnection->mutate(document, Vbid(0), MutationType::Add);
+
+    // Set bucket config for not_locked_returns_tmpfail via Flush param.
+    mcd_env->getTestBucket().setParam(
+            getAdminConnection(),
+            bucketName,
+            "not_locked_returns_tmpfail",
+            "true",
+            cb::mcbp::request::SetParamPayload::Type::Flush);
+    try {
+        userConnection->unlock(name, Vbid(0), info.cas);
+        FAIL() << "Unlocking a not locked document should fail";
+    } catch (const ConnectionError& ex) {
+        EXPECT_EQ(cb::mcbp::Status::Etmpfail, ex.getReason());
+    }
+
+    userConnection->setAutoRetryTmpfail(true);
+}
+
+TEST_P(LockTest, UnlockNotLockedDocument_ForceTmpfail_MemcachedConfig) {
+    userConnection->setAutoRetryTmpfail(false);
+    auto info = userConnection->mutate(document, Vbid(0), MutationType::Add);
+
+    // Enable the global config for not_locked_returns_tmpfail.
+    auto resetConfigGuard =
+            folly::makeGuard([this, oldConfig = memcached_cfg]() {
+                memcached_cfg = oldConfig;
+                reconfigure();
+            });
+
+    memcached_cfg["not_locked_returns_tmpfail"] = true;
+    reconfigure();
+
+    try {
+        userConnection->unlock(name, Vbid(0), info.cas);
+        FAIL() << "Unlocking a not locked document should fail";
+    } catch (const ConnectionError& ex) {
+        EXPECT_EQ(cb::mcbp::Status::Etmpfail, ex.getReason());
+    }
+
     userConnection->setAutoRetryTmpfail(true);
 }
 
