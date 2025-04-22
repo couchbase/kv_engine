@@ -3295,6 +3295,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
         const StatCollector& collector) {
     using namespace cb::stats;
 
+    // getStats from Magma
     constexpr std::array<std::string_view, 17> statNames = {
             {"fusion_NumSyncs",
              "fusion_NumBytesSynced",
@@ -3356,6 +3357,11 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_file_map_mem_used, "fusion_FileMapMemUsed");
     addStat(Key::ep_fusion_sync_failures, "fusion_NumSyncFailures");
     addStat(Key::ep_fusion_migration_failures, "fusion_NumMigrationFailures");
+
+    // Additional Fusion Stats
+    collector.addStat(Key::ep_fusion_namespace,
+                      configuration.getMagmaFusionNamespacePrefix() + "/" +
+                              name + "/" + configuration.getUuid());
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(

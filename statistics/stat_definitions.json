@@ -1807,6 +1807,13 @@
     },
 /* Fusion Stats */
     {
+        "key": "ep_fusion_namespace",
+        "unit": "none",
+        "prometheus": false,
+        "description": "The namespace corresponds to an instance of a Couchbase bucket. It is in the form '<service_prefix>/<bucket_name>/<bucket_uuid>'",
+        "added": "8.0.0"
+    },
+    {
         "key": "ep_fusion_syncs",
         "unit": "count",
         "type": "counter",

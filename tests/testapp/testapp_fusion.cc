@@ -447,7 +447,8 @@ TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
 }
 
 TEST_P(FusionTest, GetPrometheusFusionStats) {
-    std::array<std::string_view, 17> statKeysExpected = {
+    std::array<std::string_view, 18> statKeysExpected = {
+            "ep_fusion_namespace",
             "ep_fusion_syncs",
             "ep_fusion_bytes_synced",
             "ep_fusion_logs_migrated",
