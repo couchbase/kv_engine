@@ -37,7 +37,7 @@ public:
     void nextPacket() override;
     cb::const_byte_buffer getAvailableBytes() const override;
     size_t getSendQueueSize() const override;
-    void triggerCallback() override;
+    void triggerCallback(bool force) override;
     void disableReadEvent() override;
     void enableReadEvent() override;
 

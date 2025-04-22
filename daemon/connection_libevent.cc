@@ -340,7 +340,11 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
     LibeventConnection::read_callback(bev, ctx);
 }
 
-void LibeventConnection::triggerCallback() {
+void LibeventConnection::triggerCallback(bool force) {
+    if (!force && getSendQueueSize() != 0) {
+        // The framework will send a notification once the data is sent
+        return;
+    }
     constexpr auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
     bufferevent_trigger(bev.get(), EV_READ, opt);
 }

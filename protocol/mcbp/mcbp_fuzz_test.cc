@@ -56,7 +56,7 @@ public:
     cb::const_byte_buffer getAvailableBytes() const override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
-    void triggerCallback() override {
+    void triggerCallback(bool) override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
 

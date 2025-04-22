@@ -865,10 +865,11 @@ void Connection::tryToProgressDcpStream() {
             more = false;
         }
     }
-    if (more && (numEvents == 0 || exceededTimeslice)) {
-        // We used the entire timeslice... schedule a new one
-        triggerCallback();
-    }
+    // There is no need to try to request a "trigger" to continue the
+    // state machine because we would either have data in the send queue
+    // causing a callback to arrive (no matter if more is true or false)
+    // If numevents we would either have data in the output buffer or
+    // progressing the input stream would already have set up the callback
 }
 
 void Connection::processBlockedSendQueue(
@@ -917,7 +918,12 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
                     return ptr == cookie.get();
                 });
             }
-            triggerCallback();
+
+            if (!isPacketAvailable()) {
+                enableReadEvent();
+            } else {
+                triggerCallback();
+            }
         } else if (std::chrono::steady_clock::now() > current_timeslice_end) {
             ++yields;
         }
@@ -1336,7 +1342,7 @@ bool Connection::maybeInitiateShutdown(const std::string_view reason) {
                  {"reason", reason});
     setTerminationReason(std::move(message));
     shutdown();
-    triggerCallback();
+    triggerCallback(true);
     return true;
 }
 
@@ -1516,7 +1522,7 @@ bool Connection::signalIfIdle() {
     }
 
     if (state != State::immediate_close) {
-        triggerCallback();
+        triggerCallback(true);
         return true;
     }
     return false;

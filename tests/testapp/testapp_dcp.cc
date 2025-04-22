@@ -181,8 +181,10 @@ TEST_P(DcpTest, DcpStreamStats) {
             << "dcp stats: " << stats.dump(2);
 }
 
-/// Verify that we log unclean DCP disconnects
-TEST_P(DcpTest, MB60706) {
+/// Verify that we log unclean DCP disconnects. Disabled as part of the
+/// change to reduce the number of notifications (this changes the scheduling
+/// order in the test)
+TEST_P(DcpTest, DISABLED_MB60706) {
     nlohmann::json json;
 
     std::string value(2048 * 1024, 'a');
