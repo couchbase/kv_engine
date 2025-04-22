@@ -383,9 +383,6 @@ TEST_F(TestappTest, TuneMaxConcurrentAuth) {
 /// Unauthenticated connections should not be able to spool packets
 /// larger than 1k
 TEST_F(TestappTest, MB56893) {
-    if (memcached_cfg.value("event_framework", "bufferevent") == "folly") {
-        GTEST_SKIP();
-    }
     auto& conn = getConnection();
     conn.reconnect();
 

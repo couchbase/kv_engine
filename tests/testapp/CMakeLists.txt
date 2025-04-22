@@ -140,17 +140,6 @@ if (TIMEOUT_EXE AND NOT WIN32)
              PROPERTY CB_TEST_EXECUTOR ${TIMEOUT_EXE} --preserve-status --signal=ABRT 240s)
 endif()
 
-# There is some known bugs in the folly backend. Disable running the
-# unit tests until those are fixed
-#gtest_discover_tests(memcached_testapp
-#        EXTRA_ARGS -i folly -E default ${VERBOSE_EXTRA_ARG}
-#        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-#        TEST_PREFIX memcached_testapp.folly.default.
-#        ONE_CTEST_PER_SUITE
-#        DISCOVERY_TIMEOUT 60
-#        PROPERTIES TIMEOUT 300
-#        ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
-
 gtest_discover_tests(memcached_testapp
     EXTRA_ARGS -E ep ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

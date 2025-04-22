@@ -10,7 +10,6 @@
 #include "connection.h"
 
 #include "buckets.h"
-#include "connection_folly.h"
 #include "connection_libevent.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
@@ -1218,24 +1217,6 @@ Connection::Connection(FrontEndThread& thr)
 
 std::unique_ptr<Connection> Connection::create(
         SOCKET sfd, FrontEndThread& thr, std::shared_ptr<ListeningPort> descr) {
-    static bool force_folly_backend = getenv("CB_USE_FOLLY_IO");
-    const auto folly =
-            (force_folly_backend ||
-             Settings::instance().getEventFramework() == EventFramework::Folly);
-    if (folly) {
-        std::shared_ptr<folly::SSLContext> context;
-        if (descr->tls) {
-            context = networkInterfaceManager->getSslContext();
-            if (!context) {
-                throw std::runtime_error(
-                        "Connection::create: Failed to create TLS context");
-            }
-        }
-
-        return std::make_unique<FollyConnection>(
-                sfd, thr, std::move(descr), std::move(context));
-    }
-
     uniqueSslPtr context;
     if (descr->tls) {
         context = networkInterfaceManager->createClientSslHandle();
@@ -1372,12 +1353,7 @@ void Connection::close() {
         // we nuke the connection now, the error message we tried to send back
         // to the client won't be sent).
         disableReadEvent();
-        if (!dynamic_cast<FollyConnection*>(this)) {
-            // folly wasn't very happy when we shut down the socket underneath
-            // it. We've disabled the read event, so we won't be receiving any
-            // data from the client anyway.
-            cb::net::shutdown(socketDescriptor, SHUT_RD);
-        }
+        cb::net::shutdown(socketDescriptor, SHUT_RD);
     }
 
     // Notify interested parties that the connection is currently being

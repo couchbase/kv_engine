@@ -52,10 +52,6 @@ void startCluster(int verbosity, std::string_view backend) {
     cluster = cb::test::Cluster::create(
             3, {}, [verbosity](std::string_view id, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
-                // the cluster_test framework use folly io by default, but
-                // the serverless test in elixir should be as close as how
-                // we want to deploy it.
-                config.erase("event_framework");
                 // serverless configurations should _always_ collect trace
                 // no matter what memcached.json setting say
                 config["always_collect_trace_info"] = false;
