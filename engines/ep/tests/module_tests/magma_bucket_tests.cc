@@ -1403,6 +1403,10 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     store_item(vbid, docKey, "value");
     flushVBucket(vbid);
 
+    // Sync to FusionLogstore
+    EXPECT_EQ(cb::engine_errc::success, engine->startFusionUploader(vbid, 1));
+    EXPECT_EQ(cb::engine_errc::success, engine->syncFusionLogstore(vbid));
+
     shutdownAndPurgeTasks(engine.get());
     std::filesystem::remove_all(dbPath / "magma.0");
     std::filesystem::remove_all(dbPath / "magma.1");
