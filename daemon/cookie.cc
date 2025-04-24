@@ -452,7 +452,7 @@ void Cookie::maybeLogSlowCommand(
                                               getHeader().getOpaque())},
                                  {"peer", c.getPeername()},
                                  {"packet", getHeader().to_json(validated)},
-                                 {"worker_tid", folly::getCurrentThreadID()}};
+                                 {"worker_tid", c.getThread().index}};
         if (responseStatus != cb::mcbp::Status::COUNT) {
             details["status"] = responseStatus;
         }
