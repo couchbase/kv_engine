@@ -950,7 +950,20 @@
             "default": "false",
             "type": "bool",
             "dynamic": true,
-            "desc": "True if the workload monitor is enabled. If false, the workload pattern is always \"mixed\"."
+            "desc": "True if the workload monitor is enabled. If false, the default workload pattern is used."
+        },
+        "workload_pattern_default": {
+            "default": "mixed",
+            "descr": "Sets the default bucket workload pattern, used when the workload monitor is disabled. \"read_heavy\" limits the compaction concurrency. The remaining values are unused.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "mixed",
+                    "read_heavy",
+                    "write_heavy"
+                ]
+            }
         },
         "mem_used_merge_threshold_percent" : {
             "default": "0.5",

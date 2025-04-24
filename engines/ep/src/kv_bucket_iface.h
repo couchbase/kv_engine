@@ -812,6 +812,8 @@ public:
     virtual void wakeUpChkRemoversAndGetNotified(
             const std::shared_ptr<cb::Waiter>& waiter, size_t count) = 0;
 
+    virtual void runWorkloadMonitor() = 0;
+
     virtual void runDefragmenterTask() = 0;
 
     /**

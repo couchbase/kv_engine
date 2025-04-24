@@ -674,6 +674,8 @@ public:
     void wakeUpChkRemoversAndGetNotified(
             const std::shared_ptr<cb::Waiter>& waiter, size_t count) override;
 
+    void runWorkloadMonitor() override;
+
     void runDefragmenterTask() override;
 
     /**
@@ -1465,6 +1467,7 @@ protected:
     CheckpointDestroyers ckptDestroyerTasks;
 
     float                           bfilterResidencyThreshold;
+    ExTask workloadMonitorTask;
     ExTask                          defragmenterTask;
     std::shared_ptr<ItemCompressorTask> itemCompressorTask;
     // The itemFreqDecayerTask is used to decay the frequency count of items

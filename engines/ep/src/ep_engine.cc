@@ -906,6 +906,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupInterval(std::stoull(val));
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
+        } else if (key == "workload_pattern_default") {
+            configuration.setWorkloadPatternDefault(val);
         } else if (key.starts_with("defragmenter")) {
             setDefragmenterFlushParam(key, val, msg);
         } else if (key.starts_with("magma_fusion")) {
