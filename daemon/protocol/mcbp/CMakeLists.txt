@@ -40,8 +40,8 @@ add_library(memcached_daemon_mcbp OBJECT
         dcp_stream_req_executor.cc
         dcp_system_event_executor.cc
         dcp_system_event_executor.h
-        delete_fusion_namespaces_command_context.cc
-        delete_fusion_namespaces_command_context.h
+        delete_fusion_namespace_command_context.cc
+        delete_fusion_namespace_command_context.h
         drop_privilege_executor.cc
         engine_wrapper.cc
         engine_wrapper.h

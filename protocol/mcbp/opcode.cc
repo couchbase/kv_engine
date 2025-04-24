@@ -829,8 +829,8 @@ public:
               {"STOP_FUSION_UPLOADER"sv, {Attribute::Supported}});
         setup(ClientOpcode::SetChronicleAuthToken,
               {"SET_CHRONICLE_AUTH_TOKEN"sv, {Attribute::Supported}});
-        setup(ClientOpcode::DeleteFusionNamespaces,
-              {"DELETE_FUSION_NAMESPACES"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DeleteFusionNamespace,
+              {"DELETE_FUSION_NAMESPACE"sv, {Attribute::Supported}});
     }
 
 protected:

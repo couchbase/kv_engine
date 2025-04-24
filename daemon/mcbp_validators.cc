@@ -2902,7 +2902,7 @@ static Status set_chronicle_auth_token_validator(Cookie& cookie) {
     return status;
 }
 
-Status delete_fusion_namespaces_validator(Cookie& cookie) {
+Status delete_fusion_namespace_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(cookie,
                                                0,
                                                ExpectedKeyLen::Zero,
@@ -2921,7 +2921,7 @@ Status delete_fusion_namespaces_validator(Cookie& cookie) {
     } catch (const nlohmann::json::exception& e) {
         // Note: Don't log the full payload
         const auto msg = fmt::format(
-                "delete_fusion_namespaces_validator: Invalid json format {}",
+                "delete_fusion_namespace_validator: Invalid json format {}",
                 e.what());
         cookie.setErrorContext(msg);
         return Status::Einval;
@@ -2929,59 +2929,49 @@ Status delete_fusion_namespaces_validator(Cookie& cookie) {
 
     if (!json.contains("logstore_uri")) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: Missing logstore_uri");
+                "delete_fusion_namespace_validator: Missing logstore_uri");
         return Status::Einval;
     }
     if (!json["logstore_uri"].is_string()) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: logstore_uri not string");
+                "delete_fusion_namespace_validator: logstore_uri not string");
         return Status::Einval;
     }
 
     if (!json.contains("metadatastore_uri")) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: Missing "
+                "delete_fusion_namespace_validator: Missing "
                 "metadatastore_uri");
         return Status::Einval;
     }
     if (!json["metadatastore_uri"].is_string()) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: metadatastore_uri not "
+                "delete_fusion_namespace_validator: metadatastore_uri not "
                 "string");
         return Status::Einval;
     }
 
     if (!json.contains("metadatastore_auth_token")) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: Missing "
+                "delete_fusion_namespace_validator: Missing "
                 "metadatastore_auth_token");
         return Status::Einval;
     }
     if (!json["metadatastore_auth_token"].is_string()) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: metadatastore_auth_token "
+                "delete_fusion_namespace_validator: metadatastore_auth_token "
                 "not string");
         return Status::Einval;
     }
 
-    if (!json.contains("namespaces")) {
+    if (!json.contains("namespace")) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: Missing mountPaths");
+                "delete_fusion_namespace_validator: Missing namespace");
         return Status::Einval;
     }
-    if (!json["namespaces"].is_array()) {
+    if (!json["namespace"].is_string()) {
         cookie.setErrorContext(
-                "delete_fusion_namespaces_validator: namespaces not an array");
-        return Status::Einval;
-    }
-    try {
-        std::vector<std::string> paths = json["namespaces"];
-    } catch (const std::exception& e) {
-        const auto msg = fmt::format(
-                "delete_fusion_namespaces_validator: Invalid json '{}' {}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+                "delete_fusion_namespace_validator: namespace not string");
         return Status::Einval;
     }
 
@@ -3299,6 +3289,6 @@ McbpValidator::McbpValidator() {
           stop_fusion_uploader_validator);
     setup(cb::mcbp::ClientOpcode::SetChronicleAuthToken,
           set_chronicle_auth_token_validator);
-    setup(cb::mcbp::ClientOpcode::DeleteFusionNamespaces,
-          delete_fusion_namespaces_validator);
+    setup(cb::mcbp::ClientOpcode::DeleteFusionNamespace,
+          delete_fusion_namespace_validator);
 }

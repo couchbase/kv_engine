@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "delete_fusion_namespaces_command_context.h"
+#include "delete_fusion_namespace_command_context.h"
 
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
@@ -18,31 +18,31 @@
 #endif
 #include <logger/logger.h>
 
-DeleteFusionNamespacesCommandContext::DeleteFusionNamespacesCommandContext(
+DeleteFusionNamespaceCommandContext::DeleteFusionNamespaceCommandContext(
         Cookie& cookie)
     : BackgroundThreadCommandContext(
               cookie,
-              TaskId::Core_DeleteFusionNamespacesTask,
-              fmt::format("Core_DeleteFusionNamespacesTask:{}",
+              TaskId::Core_DeleteFusionNamespaceTask,
+              fmt::format("Core_DeleteFusionNamespaceTask:{}",
                           cookie.getRequest().getVBucket()),
               ConcurrencySemaphores::instance().fusion_management) {
 }
 
-cb::engine_errc DeleteFusionNamespacesCommandContext::execute() {
+cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
 #ifdef USE_FUSION
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
     const auto logstore = request["logstore_uri"];
     const auto metadatastore = request["metadatastore_uri"];
     const auto token = request["metadatastore_auth_token"];
-    const auto namespaces = request["namespaces"];
-    const auto status = magma::Magma::DeleteFusionNamespacesExcept(
-            logstore, metadatastore, token, namespaces);
+    const auto ns = request["namespace"];
+    const auto status = magma::Magma::DeleteFusionNamespace(
+            logstore, metadatastore, token, ns);
     if (status.ErrorCode() != magma::Status::Code::Ok) {
-        LOG_WARNING_CTX("DeleteFusionNamespacesExcept: ",
+        LOG_WARNING_CTX("DeleteFusionNamespace: ",
                         {"logstore_uri", logstore},
                         {"metadatastore_uri", metadatastore},
-                        {"namespaces", namespaces},
+                        {"namespace", ns},
                         {"error", status.String()});
         return cb::engine_errc::failed;
     }

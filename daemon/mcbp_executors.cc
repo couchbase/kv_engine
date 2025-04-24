@@ -25,7 +25,7 @@
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/dcp_system_event_executor.h"
-#include "protocol/mcbp/delete_fusion_namespaces_command_context.h"
+#include "protocol/mcbp/delete_fusion_namespace_command_context.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/gat_context.h"
@@ -693,8 +693,8 @@ static void set_chronicle_auth_token_executor(Cookie& cookie) {
     cookie.obtainContext<SetChronicleAuthTokenCommandContext>(cookie).drive();
 }
 
-static void delete_fusion_namespaces_executor(Cookie& cookie) {
-    cookie.obtainContext<DeleteFusionNamespacesCommandContext>(cookie).drive();
+static void delete_fusion_namespace_executor(Cookie& cookie) {
+    cookie.obtainContext<DeleteFusionNamespaceCommandContext>(cookie).drive();
 }
 
 static void process_bin_noop_response(Cookie&) {
@@ -982,8 +982,8 @@ void initialize_mbcp_lookup_map() {
                   stop_fusion_uploader_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetChronicleAuthToken,
                   set_chronicle_auth_token_executor);
-    setup_handler(cb::mcbp::ClientOpcode::DeleteFusionNamespaces,
-                  delete_fusion_namespaces_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DeleteFusionNamespace,
+                  delete_fusion_namespace_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

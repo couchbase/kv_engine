@@ -290,7 +290,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::StopFusionUploader, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::SetChronicleAuthToken,
           require<Privilege::NodeSupervisor>);
-    setup(ClientOpcode::DeleteFusionNamespaces,
+    setup(ClientOpcode::DeleteFusionNamespace,
           require<Privilege::NodeSupervisor>);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {

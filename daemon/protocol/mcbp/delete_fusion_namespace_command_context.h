@@ -12,13 +12,13 @@
 #include "background_thread_command_context.h"
 
 /**
- * Command context for executing DeleteFusionNamespaces requests in a
+ * Command context for executing DeleteFusionNamespace requests in a
  * AUXIO bg-thread and avoiding blocking IO in frontend threads.
  */
-class DeleteFusionNamespacesCommandContext
+class DeleteFusionNamespaceCommandContext
     : public BackgroundThreadCommandContext {
 public:
-    explicit DeleteFusionNamespacesCommandContext(Cookie& cookie);
+    explicit DeleteFusionNamespaceCommandContext(Cookie& cookie);
 
 protected:
     cb::engine_errc execute() override;

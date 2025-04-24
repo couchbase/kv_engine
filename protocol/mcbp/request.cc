@@ -407,7 +407,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::SyncFusionLogstore:
         case ClientOpcode::StartFusionUploader:
         case ClientOpcode::StopFusionUploader:
-        case ClientOpcode::DeleteFusionNamespaces:
+        case ClientOpcode::DeleteFusionNamespace:
         case ClientOpcode::ReservedFusion8:
         case ClientOpcode::SetChronicleAuthToken:
             // The command don't take (or we don't support decoding) extras

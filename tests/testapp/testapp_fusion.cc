@@ -514,28 +514,14 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
     EXPECT_EQ(false, error) << "Missing stats found";
 }
 
-TEST_P(FusionTest, DeleteFusionNamespaces) {
+TEST_P(FusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
+            cb::mcbp::ClientOpcode::DeleteFusionNamespace};
     nlohmann::json json;
     json["logstore_uri"] = "uri1";
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
-    json["namespaces"] = {"namespace-to-preserve", "another-one"};
-    cmd.setValue(json.dump());
-    cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    const auto resp = adminConnection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-}
-
-TEST_P(FusionTest, DeleteFusionNamespaces_EmptyNamespacesArg) {
-    auto cmd = BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
-    nlohmann::json json;
-    json["logstore_uri"] = "uri1";
-    json["metadatastore_uri"] = "uri2";
-    json["metadatastore_auth_token"] = "some-token";
-    json["namespaces"] = nlohmann::json::array();
+    json["namespace"] = "namespace-to-delete";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);
@@ -549,14 +535,14 @@ TEST_P(FusionTest, DeleteFusionNamespaces_EmptyNamespacesArg) {
  */
 class NonFusionTest : public TestappClientTest {};
 
-TEST_P(NonFusionTest, DeleteFusionNamespaces) {
+TEST_P(NonFusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::DeleteFusionNamespaces};
+            cb::mcbp::ClientOpcode::DeleteFusionNamespace};
     nlohmann::json json;
     json["logstore_uri"] = "uri1";
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
-    json["namespaces"] = {"namespace-to-preserve", "another-one"};
+    json["namespace"] = "namespace-to-delete";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);

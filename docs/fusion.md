@@ -301,10 +301,10 @@ will contain details.
 This status code is used for unexpected internal failure.
 
 
-# 0x77 - Delete Fusion Namespaces
+# 0x77 - Delete Fusion Namespace
 
 The command deletes data from the given FusionLogStore and FusionMetadataStore
-for  all Fusion volumes except those that are specified as a parameter to the call.
+for all Fusion volumes under the given namespace.
 
 The request has:
 * No extras
@@ -331,9 +331,9 @@ Any key not shown in the following sections will be ignored.
   * `"metadatastore_auth_token"`
   * The value is a string
 
-* The Fusion namespaces that must be excluded in the deletion
-  * `"namespaces"`
-  * The value is an array of strings
+* The Fusion namespace under which data for all volumes is to be deleted
+  * `"namespace"`
+  * The value is a string
 
 ### Examples
 
@@ -342,16 +342,7 @@ Any key not shown in the following sections will be ignored.
   "logstore_uri": "uri1",
   "metadatastore_uri": "uri2"
   "metadatastore_auth_token": "some-token"
-  "namespaces": ["namespace-to-preserve", "another-one"]
-}
-```
-
-```
-{
-  "logstore_uri": "uri1",
-  "metadatastore_uri": "uri2"
-  "metadatastore_auth_token": "some-token"
-  "namespaces": []
+  "namespaces": "namespace-to-delete"
 }
 ```
 
