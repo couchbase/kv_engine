@@ -665,12 +665,7 @@ inline void Connection::handleRejectCommand(Cookie& cookie,
 }
 
 void Connection::executeCommandPipeline() {
-    // Allow DCP clients to spool up to 50 times the amount of data in
-    // their send buffers before we back off waiting for data to be
-    // sent.
-    const auto maxSendQueueSize =
-            isDCP() ? 50 * Settings::instance().getMaxSendQueueSize()
-                    : Settings::instance().getMaxSendQueueSize();
+    const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     const auto tooMuchData = [this, maxSendQueueSize]() {
         return getSendQueueSize() >= maxSendQueueSize;
     };
