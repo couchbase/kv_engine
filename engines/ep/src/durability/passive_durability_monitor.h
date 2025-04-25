@@ -37,6 +37,8 @@ class VBucket;
  * - Consistency at failure scenarios
  */
 class PassiveDurabilityMonitor : public DurabilityMonitor {
+    friend class PassiveDurabilityMonitorIntrospector;
+
 public:
     // Container type used for State::trackedWrites
     using Element = SyncWrite;
@@ -178,8 +180,11 @@ public:
      * move-logic.
      *
      * @param snapEnd The snapshot-end seqno
+     * @param hps The HPS received in the snapshot marker. Has a value for
+     * snapshot marker v2.2
      */
-    void notifySnapshotEndReceived(uint64_t snapEnd);
+    void notifySnapshotEndReceived(uint64_t snapEnd,
+                                   OptionalSeqno hps = std::nullopt);
 
     /**
      * Notify this PDM that some persistence has happened. Attempts to update

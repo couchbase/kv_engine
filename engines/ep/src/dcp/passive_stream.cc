@@ -1091,8 +1091,12 @@ void PassiveStream::handleSnapshotEnd(uint64_t seqno) {
     // Disk snapshots are subject to deduplication, and may be missing purged
     // aborts. We must notify the PDM even if we have not seen a prepare, to
     // account for possible unseen prepares.
+
     if (cur_snapshot_prepare || cur_snapshot_type.load() == Snapshot::Disk) {
-        vb->notifyPassiveDMOfSnapEndReceived(seqno);
+        const auto hps = cur_snapshot_type.load() == Snapshot::Disk
+                                 ? cur_snapshot_hps
+                                 : std::nullopt;
+        vb->notifyPassiveDMOfSnapEndReceived(seqno, hps);
         cur_snapshot_prepare.store(false);
     }
 }

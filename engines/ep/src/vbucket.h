@@ -1593,8 +1593,11 @@ public:
      *
      * @param snapEnd The seqno of the last snapshot-end mutation received over
      *     the PassiveStream
+     * @param hps The HPS received in the snapshot marker. Has a value when the
+     * snapshot marker received is v2.2 & is a disk snapshot.
      */
-    void notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd);
+    void notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
+                                          OptionalSeqno hps = std::nullopt);
 
     /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.

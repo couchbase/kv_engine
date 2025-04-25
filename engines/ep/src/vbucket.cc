@@ -1213,8 +1213,9 @@ void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
     syncWriteCompleteCb(cookie, result);
 }
 
-void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
-    getPassiveDM().notifySnapshotEndReceived(snapEnd);
+void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
+                                               OptionalSeqno hps) {
+    getPassiveDM().notifySnapshotEndReceived(snapEnd, hps);
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {

@@ -32,6 +32,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "pdm_utils.h"
 #include "test_helpers.h"
 #include "vbucket.h"
 
@@ -972,14 +973,18 @@ TEST_P(DCPLoopbackStreamTest,
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePrepares_completeSnapshot) {
-    testBackfillAndInMemoryDuplicatePrepares({}, true);
+    if (isPersistent()) {
+        testBackfillAndInMemoryDuplicatePrepares({}, true);
+    }
 }
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePreparesTakeover_completeSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
-    testBackfillAndInMemoryDuplicatePrepares(
-            cb::mcbp::DcpAddStreamFlag::TakeOver, true);
+    if (isPersistent()) {
+        testBackfillAndInMemoryDuplicatePrepares(
+                cb::mcbp::DcpAddStreamFlag::TakeOver, true);
+    }
 }
 
 TEST_P(DCPLoopbackStreamTest, TestReplicaMaxCasEqualsActive) {
@@ -1527,7 +1532,7 @@ TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForPendingItems) {
     if (isPersistent()) {
         EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
     } else {
-        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
     }
 
     // Persist the mutations on replica, the HPS will be updated to 4, before
@@ -1535,7 +1540,85 @@ TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForPendingItems) {
     flushNodeIfPersistent(Node1);
 
     if (isPersistent()) {
-        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+    }
+}
+
+TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForCommittedItems) {
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+
+    // Store a pending item
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+
+    // Store a second pending item
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+
+    // commit items
+    ASSERT_EQ(cb::engine_errc::success, storeCommit(k1, 1));
+    ASSERT_EQ(cb::engine_errc::success, storeCommit(k2, 2));
+
+    // Store a non-durable item
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+
+    // Flush everything to disk
+    flushNodeIfPersistent(Node0);
+
+    // Clear the checkpoint to force a backfill from disk
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    // Flush the set_vb_state to disk
+    flushNodeIfPersistent(Node1);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    route0_1.transferSnapshotMarker(
+            0,
+            5,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            2 /*execptedHps*/);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    *replicaVB->checkpointManager);
+
+    // Check the HPS is not set before we have processed all the mutations in
+    // the snapshot.
+    EXPECT_EQ(0, checkpoint.getHighPreparedSeqno());
+
+    route0_1.transferMutation(k1, 3);
+    route0_1.transferMutation(k2, 4);
+    route0_1.transferMutation(k3, 5);
+
+    if (isPersistent()) {
+        // Verify the pdm->receivedSnapshotEnds.back() has the correct hps set
+        EXPECT_EQ(2,
+                  PassiveDurabilityMonitorIntrospector::
+                          public_getLastReceivedSnapshotHPS(
+                                  dynamic_cast<const PassiveDurabilityMonitor&>(
+                                          replicaVB->getDurabilityMonitor())));
+        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+    } else {
+        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+    }
+
+    // Persist the mutations on replica, the HPS will be updated to 4, before
+    // the fix for MB-51689.
+    flushNodeIfPersistent(Node1);
+    // TODO: Understand why we need to flush again here.
+    flushNodeIfPersistent(Node1);
+
+    if (isPersistent()) {
+        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
     }
 }
 

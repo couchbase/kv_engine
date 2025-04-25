@@ -355,6 +355,7 @@ struct ActiveDurabilityMonitor::ReplicationChain {
 struct SnapshotEndInfo {
     int64_t seqno;
     CheckpointType type;
+    OptionalSeqno hps;
 };
 
 /**
@@ -890,8 +891,11 @@ struct PassiveDurabilityMonitor::State {
      * the HPS if appropriate.
      * @param type Type of Checkpoint
      * @param snapEnd The snapshot end
+     * @param hps The high prepared seqno
      */
-    void processSnapshotEnd(CheckpointType type, uint64_t snapEnd);
+    void processSnapshotEnd(CheckpointType type,
+                            uint64_t snapEnd,
+                            OptionalSeqno hps);
 
     /**
      * Erase the SyncWrite at the given iterator after fixing up the iterators

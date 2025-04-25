@@ -1645,7 +1645,8 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
                 2 /*snapEnd*/,
                 (cpType == CheckpointType::Disk ? std::make_optional(1)
                                                 : std::nullopt) /*HCS*/,
-                {},
+                (cpType == CheckpointType::Disk ? std::make_optional(1)
+                                                : std::nullopt) /*HPS*/,
                 cpType,
                 0);
         ASSERT_EQ(cpType == CheckpointType::Disk,
@@ -1658,7 +1659,7 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
         storeMutation("mutation", 2, 2);
 
         // Notify snap end to correct the in-memory HPS
-        vb->notifyPassiveDMOfSnapEndReceived(1);
+        vb->notifyPassiveDMOfSnapEndReceived(1, 1);
 
         // 3) Flush and shutdown
         flushVBucketToDiskIfPersistent(vbid, 2);
@@ -2264,7 +2265,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         vb->checkpointManager->createSnapshot(1 /*snapStart*/,
                                               4 /*snapEnd*/,
                                               2 /*HCS*/,
-                                              {},
+                                              3 /*HPS*/,
                                               CheckpointType::Disk,
                                               4);
         ASSERT_TRUE(vb->isReceivingDiskSnapshot());
@@ -2305,7 +2306,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         // Commit is visible
         EXPECT_EQ(4, vb->checkpointManager->getMaxVisibleSeqno());
         // Notify snap end to correct the HPS
-        vb->notifyPassiveDMOfSnapEndReceived(4);
+        vb->notifyPassiveDMOfSnapEndReceived(4, 3);
 
         // 3) Flush and shutdown to simulate a partial snapshot. We should only
         // flush the Disk checkpoints

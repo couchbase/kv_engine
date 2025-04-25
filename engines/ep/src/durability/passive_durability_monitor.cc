@@ -150,7 +150,8 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
             s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
                                           ? CheckpointType::Disk
                                           : CheckpointType::Memory,
-                                  *last);
+                                  *last,
+                                  highPreparedSeqno);
         }
     }
 
@@ -165,7 +166,8 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(VBucket& vb,
         s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
                                       ? CheckpointType::Disk
                                       : CheckpointType::Memory,
-                              vb.getHighSeqno());
+                              vb.getHighSeqno(),
+                              highPreparedSeqno);
     }
 }
 
@@ -313,7 +315,8 @@ size_t PassiveDurabilityMonitor::getTotalMemoryUsed() const {
     return state.rlock()->getTotalMemoryUsed();
 }
 
-void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
+void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd,
+                                                         OptionalSeqno hps) {
     { // state locking scope
         auto s = state.wlock();
 
@@ -321,7 +324,8 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
         s->processSnapshotEnd(vb.isReceivingDiskSnapshot()
                                       ? CheckpointType::Disk
                                       : CheckpointType::Memory,
-                              snapEnd);
+                              snapEnd,
+                              hps);
 
         // Store the seqno ack to send after we drop the state lock
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
@@ -772,11 +776,12 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
             // SET
             // We would have no prepare for this op, but we still need to
             // seqno ack something. To resolve this, advance the HPS seqno to
-            // the snapshotEndSeqno. There may not be an associated prepare.
-            // NB: lastWriteSeqno is NOT guaranteed to match
-            // highPreparedSeqno.it->getBySeqno()
-            // because of this case
-            highPreparedSeqno.lastWriteSeqno = snapshotEnd.seqno;
+            // the snapshotEndSeqno if we explicitly didn't receive the hps in
+            // the snapshot marker (hps is packed only in snapshot marker v2.2
+            // for disk snapshots). NB: lastWriteSeqno is NOT guaranteed to
+            // match highPreparedSeqno.it->getBySeqno() because of this case
+            highPreparedSeqno.lastWriteSeqno =
+                    snapshotEnd.hps.value_or(snapshotEnd.seqno);
         }
 
         // Check if we could have acked everything within the snapshot and
@@ -876,8 +881,9 @@ void PassiveDurabilityMonitor::State::checkForAndRemoveDroppedCollections() {
 }
 
 void PassiveDurabilityMonitor::State::processSnapshotEnd(CheckpointType type,
-                                                         uint64_t snapEnd) {
-    receivedSnapshotEnds.push({int64_t(snapEnd), type});
+                                                         uint64_t snapEnd,
+                                                         OptionalSeqno hps) {
+    receivedSnapshotEnds.push({int64_t(snapEnd), type, hps});
     // Maybe the new tracked Prepare is already satisfied and could be
     // ack'ed back to the Active.
     updateHighPreparedSeqno();
