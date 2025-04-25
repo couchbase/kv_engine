@@ -26,8 +26,8 @@
 #include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
 #include <folly/lang/Assume.h>
+#include <mcbp/protocol/json_utilities.h>
 #include <memcached/protocol_binary.h>
-#include <platform/json_log_conversions.h>
 #include <platform/optional.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>

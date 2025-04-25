@@ -10,6 +10,7 @@
  */
 
 #include <mcbp/codec/dcp_snapshot_marker.h>
+#include <mcbp/protocol/json_utilities.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 
