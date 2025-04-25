@@ -1068,8 +1068,7 @@ uint64_t EPVBucket::addSystemEventItem(
     // Set the system events delete time if needed for tombstoning
     if (qi->isDeleted() && qi->getDeleteTime() == 0) {
         // We can never purge the drop of the default collection because it has
-        // an
-        // implied creation event. If we did allow the default collection
+        // an implied creation event. If we did allow the default collection
         // tombstone to be purged a client would wrongly assume it exists.
         if (cid && cid.value().isDefaultCollection()) {
             qi->setExpTime(~0);
@@ -1080,10 +1079,20 @@ uint64_t EPVBucket::addSystemEventItem(
 
     qi->setQueuedTime();
 
-    // System events must also respect history, e.g. sequences of maxTTL changes
-    // should be preserved.
-    if (bucket && bucket->isHistoryRetentionEnabled() && cid) {
-        qi->setCanDeduplicate(wHandle.getCanDeduplicate(cid.value()));
+    // MB-65281; Disable deduplication for all system events. Ensuring
+    // that checkpoints don't deduplicate create{c1}/drop{c1} sequences which
+    // for a single collection all use the same key.
+    //
+    // Additionally using CanDeduplicate::No allows for more efficient
+    // checkpoint usage. Instead of force creating a new checkpoint for
+    // every system event, we now would create a new checkpoint when a
+    // create/modify/delete occur in the same CP.
+    //
+    // Note: Only do this for active vbuckets (otherwise an assert can occur).
+    // A replica vbucket will have checkpoints correctly separated by
+    // replication of snapshot markers.
+    if (getState() == vbucket_state_active) {
+        qi->setCanDeduplicate(CanDeduplicate::No);
     }
 
     checkpointManager->queueDirty(

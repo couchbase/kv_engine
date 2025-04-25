@@ -285,7 +285,6 @@ TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
     EXPECT_TRUE(vb1->lockCollections().exists(CollectionEntry::meat));
     EXPECT_FALSE(vb1->lockCollections().exists(CollectionEntry::fruit));
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("fruit", producers->last_key);
@@ -666,7 +665,6 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
@@ -674,7 +672,6 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("meat", producers->last_key);
@@ -693,17 +690,13 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     notifyAndStepToCheckpoint();
     EXPECT_EQ(4, producers->last_snap_start_seqno);
-    EXPECT_EQ(4, producers->last_snap_end_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(3, replica->lockCollections().getManifestUid());
     EXPECT_EQ(4, producers->last_byseqno);
-
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(5, producers->last_snap_start_seqno);
-    EXPECT_EQ(5, producers->last_snap_end_seqno);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::EndCollection,
@@ -722,7 +715,6 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(7, replica->lockCollections().getManifestUid());
@@ -1260,16 +1252,13 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
     // default collection items, then disconnect and force backfill
 
     notifyAndStepToCheckpoint();
-
+    auto ss = producers->last_snap_start_seqno;
+    auto se = producers->last_snap_end_seqno;
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
     EXPECT_EQ(producers->last_system_event,
               mcbp::systemevent::id::BeginCollection);
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    // Record the snapshot we're processing
-    auto ss = producers->last_snap_start_seqno;
-    auto se = producers->last_snap_end_seqno;
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     EXPECT_EQ(producers->last_system_event,
@@ -1517,7 +1506,6 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_scope) {
     EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     // SystemEvent createCollection dairy in shop1
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
@@ -1604,7 +1592,6 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope_from_empty) {
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
@@ -1670,7 +1657,6 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope) {
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
@@ -1760,10 +1746,8 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_shrink_scope) {
     ASSERT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // Check the collection create events are correct
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     ASSERT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     ASSERT_EQ(CollectionEntry::vegetable.getId(),
               producers->last_collection_id);
@@ -2235,8 +2219,6 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     // gets the manifest ID of 3, so create scope is 0
     EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
-    // SystemEvent createCollection
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
@@ -4440,14 +4422,12 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     setCollections(cookie, cm);
 
     // Wake and step DCP
-    // Expect snap1, create fruit, snap2, create vegetable
+    // Expect snapshot{create fruit, create vegetable}
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
-    // New snapshot for next SystemEvent (create vegetable)
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
@@ -4473,7 +4453,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     setCollections(cookie, cm);
 
     // Wake and step DCP
-    // Expect snap1, modify fruit, snap2, modify vegetable
+    // Expect snapshot{modify fruit, modify vegetable}
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
@@ -4481,8 +4461,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     EXPECT_EQ(producers->last_key, "vegetable");
     EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
     auto seq1 = producers->last_byseqno;
-
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
@@ -4782,8 +4760,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
         EXPECT_EQ(producers->last_collection_id, vegetable.getId());
         EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
 
-        // checkpoint split...
-        dcp->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
         dcp->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
         EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
         EXPECT_EQ(producers->last_collection_id, vegetable.getId());

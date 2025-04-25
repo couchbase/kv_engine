@@ -861,12 +861,6 @@ void Manifest::dropScope(VBucketStateLockRef vbStateLock,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    // If seq is not set, then this is an active vbucket queueing the event.
-    // Collection events will end the CP so they don't de-dup.
-    if (!optionalSeqno.has_value()) {
-        vb.checkpointManager->createNewCheckpoint();
-    }
-
     EP_LOG_DEBUG("{} drop scope:id:{} seq:{}, manifest:{:#x}{}",
                  vb.getId(),
                  sid,
@@ -1117,12 +1111,6 @@ uint64_t Manifest::queueCollectionSystemEvent(
         SystemEventType type,
         OptionalSeqno seq,
         std::function<void(int64_t)> assignedSeqnoCallback) const {
-    // If seq is not set, then this is an active vbucket queueing the event.
-    // Collection events will end the CP so they don't de-dup.
-    if (!seq.has_value()) {
-        vb.checkpointManager->createNewCheckpoint();
-    }
-
     auto item = makeCollectionSystemEvent(getManifestUid(),
                                           cid,
                                           collectionName,

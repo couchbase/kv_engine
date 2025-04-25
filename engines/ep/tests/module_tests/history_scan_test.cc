@@ -782,24 +782,26 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
     store_item(vbid, makeStoredDocKey("a", CollectionEntry::vegetable), "v0");
     flush_vbucket_to_disk(vbid, 1 + 1);
 
-    // This first "vegetable" item isn't "history" until retention is configured
+    // getHistoricalItemsFlushed is a measure of flushed items that requested
+    // no de-duplication. All SystemEvents now request no-deduplication, so
+    // this stat returns 1 even without CDC enabled. MB-65281
     auto& epVB = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
-    EXPECT_EQ(0, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(01, epVB.getHistoricalItemsFlushed());
 
     // Now history begins here
     store->setHistoryRetentionBytes(1024 * 1024 * 100);
     setHistoryStartSeqno(3);
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v0");
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(1, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(2, epVB.getHistoricalItemsFlushed());
 
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v1");
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(2, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(3, epVB.getHistoricalItemsFlushed());
 
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v2");
     flush_vbucket_to_disk(vbid, 1);
-    EXPECT_EQ(3, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(4, epVB.getHistoricalItemsFlushed());
 
     // Now store 1 item to default (which will be in the snapshot)
     items.emplace_back(store_item(
@@ -814,7 +816,7 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
 
     // At this point this test has flushed a mixture of history=true and false
     // items - check the flush statistic
-    EXPECT_EQ(4, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(5, epVB.getHistoricalItemsFlushed());
     runCollectionsEraser(vbid);
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},
