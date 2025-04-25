@@ -184,7 +184,7 @@ TEST_P(DcpTest, DcpStreamStats) {
 /// Verify that we log unclean DCP disconnects. Disabled as part of the
 /// change to reduce the number of notifications (this changes the scheduling
 /// order in the test)
-TEST_P(DcpTest, DISABLED_MB60706) {
+TEST_P(DcpTest, MB60706) {
     nlohmann::json json;
 
     std::string value(2048 * 1024, 'a');
@@ -202,11 +202,16 @@ TEST_P(DcpTest, DISABLED_MB60706) {
     Frame frame;
     do {
         conn->recvFrame(frame);
-    } while (frame.getHeader()->isResponse() ||
-             frame.getRequest()->getClientOpcode() !=
-                     cb::mcbp::ClientOpcode::DcpMutation);
+        if (frame.getRequest()->getClientOpcode() ==
+            cb::mcbp::ClientOpcode::DcpMutation) {
+            // DCP has started sending data
+            conn->close();
+            // Delete bucket forces the message we're looking for.
+            adminConnection->deleteBucket(bucketName);
+            break;
+        }
+    } while (frame.getHeader()->isRequest());
 
-    conn->close();
     const auto id = json["socket"].get<int>();
     const auto timeout =
             std::chrono::steady_clock::now() + std::chrono::seconds{10};

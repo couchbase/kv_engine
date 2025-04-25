@@ -163,11 +163,15 @@ void TestappTest::DeleteTestBucket() {
     // the logic to disconnect the client first)
     userConnection.reset();
 
-    try {
-        adminConnection->deleteBucket(bucketName);
-    } catch (const ConnectionError& error) {
-        EXPECT_FALSE(error.isNotFound()) << "Delete bucket [" << bucketName
-                                         << "] failed with: " << error.what();
+    auto buckets = adminConnection->listBuckets();
+    if (std::ranges::find(buckets, bucketName) != std::ranges::end(buckets)) {
+        try {
+            adminConnection->deleteBucket(bucketName);
+        } catch (const ConnectionError& error) {
+            EXPECT_FALSE(error.isNotFound())
+                    << "Delete bucket [" << bucketName
+                    << "] failed with: " << error.what();
+        }
     }
 }
 
