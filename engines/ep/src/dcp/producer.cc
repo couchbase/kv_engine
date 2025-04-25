@@ -2356,8 +2356,7 @@ void DcpProducer::scheduleCheckpointProcessorTask() {
     ExecutorPool::get()->schedule(checkpointCreator->task);
 }
 
-void DcpProducer::scheduleCheckpointProcessorTask(
-        std::shared_ptr<ActiveStream> s) {
+void DcpProducer::scheduleCheckpointProcessorTask(Vbid vbid) {
     std::lock_guard<std::mutex> guard(checkpointCreator->mutex);
     if (!checkpointCreator->task) {
         throw std::logic_error(
@@ -2365,7 +2364,7 @@ void DcpProducer::scheduleCheckpointProcessorTask(
     }
     static_cast<ActiveStreamCheckpointProcessorTask*>(
             checkpointCreator->task.get())
-            ->schedule(s);
+            ->schedule(vbid);
 }
 
 DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {

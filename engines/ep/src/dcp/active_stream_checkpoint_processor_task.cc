@@ -71,9 +71,8 @@ ActiveStreamCheckpointProcessorTask::processStreams(
     return now;
 }
 
-void ActiveStreamCheckpointProcessorTask::schedule(
-        std::shared_ptr<ActiveStream> stream) {
-    if (!queue.pushUnique(stream->getVBucket())) {
+void ActiveStreamCheckpointProcessorTask::schedule(Vbid vbid) {
+    if (!queue.pushUnique(vbid)) {
         // Return if already in queue, no need to notify the task
         return;
     }

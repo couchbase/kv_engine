@@ -43,7 +43,7 @@ public:
     }
 
     bool runInner(bool manuallyNotified) override;
-    void schedule(std::shared_ptr<ActiveStream> stream);
+    void schedule(Vbid vbid);
 
     /* Returns the number of unique streams waiting to be processed */
     size_t queueSize() {

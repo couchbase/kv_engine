@@ -394,9 +394,9 @@ public:
 
     /*
         Schedules active stream checkpoint processor task
-        for given stream.
+        for given vbucket.
     */
-    void scheduleCheckpointProcessorTask(std::shared_ptr<ActiveStream> s);
+    void scheduleCheckpointProcessorTask(Vbid vbid);
 
     /**
      * Schedule the checkpointCreatorTask on the ExecutorPool
