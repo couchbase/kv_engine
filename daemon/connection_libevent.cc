@@ -56,15 +56,15 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
                                                options));
         bufferevent_setcb(bev.get(),
                           LibeventConnection::ssl_read_callback,
-                          LibeventConnection::write_callback,
+                          LibeventConnection::rw_callback,
                           LibeventConnection::event_callback,
                           static_cast<void*>(this));
     } else {
         bev.reset(bufferevent_socket_new(
                 thr.eventBase.getLibeventBase(), sfd, options));
         bufferevent_setcb(bev.get(),
-                          LibeventConnection::read_callback,
-                          LibeventConnection::write_callback,
+                          LibeventConnection::rw_callback,
+                          LibeventConnection::rw_callback,
                           LibeventConnection::event_callback,
                           static_cast<void*>(this));
     }
@@ -72,6 +72,16 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     bufferevent_set_max_single_write(bev.get(), 64 * 1024);
     bufferevent_enable(bev.get(), EV_READ);
     bufferevent_setwatermark(bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
+
+    try {
+        max_send_watermark_size =
+                2 * cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_SNDBUF);
+    } catch (const std::exception&) {
+        auto& settings = Settings::instance();
+        max_send_watermark_size = std::min(
+                static_cast<std::size_t>(settings.getMaxSoSndbufSize()),
+                settings.getMaxSendQueueSize());
+    }
 }
 
 LibeventConnection::~LibeventConnection() {
@@ -124,31 +134,7 @@ std::string LibeventConnection::getOpenSSLErrors() {
     return formatOpenSslErrorCodes(getOpenSslErrorCodes());
 }
 
-void LibeventConnection::read_callback() {
-    if (isTlsEnabled()) {
-        const auto ssl_errors = getOpenSSLErrors();
-        if (!ssl_errors.empty()) {
-            LOG_INFO("{} - read_callback OpenSSL errors reported: {}",
-                     this->getId(),
-                     ssl_errors);
-        }
-    }
-
-    TRACE_LOCKGUARD_TIMED(thread.mutex,
-                          "mutex",
-                          "LibeventConnection::read_callback::threadLock",
-                          SlowMutexThreshold);
-
-    if (!executeCommandsCallback()) {
-        thread.destroy_connection(*this);
-    }
-}
-
-void LibeventConnection::read_callback(bufferevent*, void* ctx) {
-    reinterpret_cast<LibeventConnection*>(ctx)->read_callback();
-}
-
-void LibeventConnection::write_callback() {
+void LibeventConnection::rw_callback() {
     if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
@@ -163,13 +149,32 @@ void LibeventConnection::write_callback() {
                           "LibeventConnection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
-    if (!executeCommandsCallback()) {
+    // reset the write watermark
+    bufferevent_setwatermark(
+            bev.get(), EV_WRITE, 0, std::numeric_limits<std::size_t>::max());
+    if (executeCommandsCallback()) {
+        // Increase the write watermark to provide a callback once we've
+        // transferred at least 64k to getting notified *too* often.
+        const auto length = getSendQueueSize();
+        if (length) {
+            const size_t chunk = 64 * 1024;
+            if (length > chunk) {
+                const auto watermark =
+                        std::min(length - chunk, max_send_watermark_size);
+                bufferevent_setwatermark(
+                        bev.get(),
+                        EV_WRITE,
+                        watermark,
+                        std::numeric_limits<std::size_t>::max());
+            }
+        }
+    } else {
         thread.destroy_connection(*this);
     }
 }
 
-void LibeventConnection::write_callback(bufferevent*, void* ctx) {
-    reinterpret_cast<LibeventConnection*>(ctx)->write_callback();
+void LibeventConnection::rw_callback(bufferevent*, void* ctx) {
+    reinterpret_cast<LibeventConnection*>(ctx)->rw_callback();
 }
 
 static nlohmann::json BevEvent2Json(short event) {
@@ -320,16 +325,20 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     // update the callback to call the normal read callback
     bufferevent_setcb(bev,
-                      LibeventConnection::read_callback,
-                      LibeventConnection::write_callback,
+                      LibeventConnection::rw_callback,
+                      LibeventConnection::rw_callback,
                       LibeventConnection::event_callback,
                       ctx);
 
     // and let's call it to make sure we step through the state machinery
-    LibeventConnection::read_callback(bev, ctx);
+    LibeventConnection::rw_callback(bev, ctx);
 }
 
-void LibeventConnection::triggerCallback() {
+void LibeventConnection::triggerCallback(bool force) {
+    if (!force && getSendQueueSize() != 0) {
+        // The framework will send a notification once the data is sent
+        return;
+    }
     const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
     bufferevent_trigger(bev.get(), EV_READ, opt);
 }

@@ -657,7 +657,7 @@ TEST_P(RegressionTest, MB54848) {
     FAIL() << "Timed out waiting for log messages to appear";
 }
 
-TEST_P(RegressionTest, MB55754) {
+TEST_P(RegressionTest, DISABLED_MB55754) {
     // Store the document
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);

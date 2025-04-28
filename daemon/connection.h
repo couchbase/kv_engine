@@ -634,8 +634,16 @@ public:
      * Trigger a callback from libevent for the connection at some time
      * in the future (as part of the event dispatch loop) so that the
      * connection may continue its command execution.
+     * By default a new callback is only scheduled if there isn't data
+     * in the send queue as that will generate a callback once the
+     * data is in the send queue. In some cases we would want the
+     * callback to be scheduled anyway (for instance when trying to shut
+     * down a connection which isn't reading its socket). To do so
+     * set force to true
+     *
+     * @param force force a new EV_READ callback to be triggered
      */
-    virtual void triggerCallback() = 0;
+    virtual void triggerCallback(bool force = false) = 0;
 
     /// Check if DCP should use the write buffer for the message or if it
     /// should use an IOVector to do so

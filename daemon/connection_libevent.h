@@ -31,7 +31,7 @@ public:
     void nextPacket() override;
     cb::const_byte_buffer getAvailableBytes() const override;
     size_t getSendQueueSize() const override;
-    void triggerCallback() override;
+    void triggerCallback(bool force) override;
     void disableReadEvent() override;
     void enableReadEvent() override;
 
@@ -41,6 +41,10 @@ protected:
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;
 
+    /// The max value we would like to use for the watermark (typically
+    /// 2x the socket send buffer size
+    std::size_t max_send_watermark_size;
+
     /// Get a formatted string of all OpenSSL Errors
     std::string getOpenSSLErrors();
     /// Format all the OpenSSL Errors in the provided vector
@@ -49,27 +53,11 @@ protected:
     /// Get all of the OpenSSL Errors currently set
     std::vector<unsigned long> getOpenSslErrorCodes();
 
-    /**
-     * The callback method called from bufferevent when there is new data
-     * available on the socket
-     *
-     * @param bev the bufferevent structure the event belongs to
-     * @param ctx the context registered with the bufferevent (pointer to
-     *            the connection object)
-     */
-    static void read_callback(bufferevent* bev, void* ctx);
-    void read_callback();
-
-    /**
-     * The callback method called from bufferevent when we're below the write
-     * threshold (or all data is sent)
-     *
-     * @param bev the bufferevent structure the event belongs to
-     * @param ctx the context registered with the bufferevent (pointer to
-     *            the connection object)
-     */
-    static void write_callback(bufferevent* bev, void* ctx);
-    void write_callback();
+    /// Shared callback for Read and Write events as there is
+    /// no difference in the actions performed for the events. No need
+    /// to duplicate the implementation.
+    void rw_callback();
+    static void rw_callback(bufferevent* bev, void* ctx);
 
     /**
      * The callback method called from bufferevent for "other" callbacks

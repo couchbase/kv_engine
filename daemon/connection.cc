@@ -615,12 +615,7 @@ void Connection::executeCommandPipeline() {
     // time (as it can't change).
     static const auto serverless = cb::serverless::isEnabled();
 
-    // Allow DCP clients to spool up to 50 times the amount of data in
-    // their send buffers before we back off waiting for data to be
-    // sent.
-    const auto maxSendQueueSize =
-            isDCP() ? 50 * Settings::instance().getMaxSendQueueSize()
-                    : Settings::instance().getMaxSendQueueSize();
+    const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     const auto tooMuchData = [this, maxSendQueueSize]() {
         return getSendQueueSize() >= maxSendQueueSize;
     };
@@ -843,10 +838,9 @@ void Connection::tryToProgressDcpStream() {
             more = false;
         }
     }
-    if (more && (numEvents == 0 || exceededTimeslice)) {
-        // We used the entire timeslice... schedule a new one
-        triggerCallback();
-    }
+    // There is no need to try to trigger a callback as we should
+    // have data in the output queue if we have more data to send (otherwise
+    // we would have tried to put it in the output queue).
 }
 
 void Connection::processBlockedSendQueue() {
@@ -870,54 +864,13 @@ void Connection::processNotifiedCookie(
         Cookie& cookie,
         cb::engine_errc status,
         std::chrono::steady_clock::time_point scheduled) {
-    using std::chrono::duration_cast;
-    using std::chrono::microseconds;
-    using std::chrono::nanoseconds;
-
-    // Make sure any core dumps from this code contain the bucket name.
-    cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
-
-    processBlockedSendQueue();
-
-    const auto start = last_used_timestamp = std::chrono::steady_clock::now();
-    current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
-    try {
-        Expects(cookie.isEwouldblock());
-        cookie.getTracer().record(
-                cb::tracing::Code::Notified, scheduled, start);
-        cookie.setAiostat(status);
-        cookie.clearEwouldblock();
-        if (cookie.execute()) {
-            // completed!!! time to clean up after it and process the
-            // command pipeline? / schedule more?
-            if (cookies.front().get() == &cookie) {
-                cookies.front()->reset();
-            } else {
-                cookies.erase(
-                        std::remove_if(cookies.begin(),
-                                       cookies.end(),
-                                       [ptr = &cookie](const auto& cookie) {
-                                           return ptr == cookie.get();
-                                       }),
-                        cookies.end());
-            }
-            triggerCallback();
-        } else if (std::chrono::steady_clock::now() > current_timeslice_end) {
-            ++yields;
-        }
-    } catch (const std::exception& e) {
-        logExecutionException("processNotifiedCookie", e);
-        setTerminationReason("Exception occurred during command execution");
-        shutdown();
-        triggerCallback();
-    }
-
-    const auto stop = std::chrono::steady_clock::now();
-    const auto ns = duration_cast<nanoseconds>(stop - start);
-    scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
-    addCpuTime(ns);
-
-    updateBlockedSendQueue();
+    Expects(cookie.isEwouldblock());
+    cookie.setAiostat(status);
+    cookie.clearEwouldblock();
+    triggerCallback();
+    cookie.getTracer().record(cb::tracing::Code::Notified,
+                              scheduled,
+                              std::chrono::steady_clock::now());
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
@@ -1271,7 +1224,7 @@ bool Connection::maybeInitiateShutdown(const std::string_view reason) {
     LOG_INFO("{}: {}", getId(), message);
     setTerminationReason(std::move(message));
     shutdown();
-    triggerCallback();
+    triggerCallback(true);
     return true;
 }
 
@@ -1404,7 +1357,7 @@ bool Connection::signalIfIdle() {
     }
 
     if (state != State::immediate_close) {
-        triggerCallback();
+        triggerCallback(true);
         return true;
     }
     return false;
