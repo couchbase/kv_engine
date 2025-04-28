@@ -866,7 +866,10 @@ void Connection::updateBlockedSendQueue() {
     }
 }
 
-void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
+void Connection::processNotifiedCookie(
+        Cookie& cookie,
+        cb::engine_errc status,
+        std::chrono::steady_clock::time_point scheduled) {
     using std::chrono::duration_cast;
     using std::chrono::microseconds;
     using std::chrono::nanoseconds;
@@ -880,6 +883,8 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
     try {
         Expects(cookie.isEwouldblock());
+        cookie.getTracer().record(
+                cb::tracing::Code::Notified, scheduled, start);
         cookie.setAiostat(status);
         cookie.clearEwouldblock();
         if (cookie.execute()) {

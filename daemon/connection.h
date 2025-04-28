@@ -801,8 +801,11 @@ public:
      *
      * @param cookie The cookie to resume execution of (must be blocked)
      * @param status The status the background thread set for the cookie
+     * @param scheduled The time point being added to the notification queue
      */
-    void processNotifiedCookie(Cookie& cookie, cb::engine_errc status);
+    void processNotifiedCookie(Cookie& cookie,
+                               cb::engine_errc status,
+                               std::chrono::steady_clock::time_point scheduled);
 
     /// Notify that a command was executed (needed for command rate limiting)
     void commandExecuted(Cookie& cookie);
