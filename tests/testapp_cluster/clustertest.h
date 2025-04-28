@@ -20,6 +20,7 @@ namespace cb::test {
 
 class Bucket;
 class Cluster;
+enum class BucketPersistenceBackend;
 
 struct MemStats {
     size_t current{0};
@@ -52,7 +53,7 @@ public:
     static void TearDownTestCase();
 
     /// Start the cluster with 4 nodes.
-    static void StartCluster();
+    static void StartCluster(BucketPersistenceBackend backend);
 
     /// Shutdown the cluster
     static void ShutdownCluster();

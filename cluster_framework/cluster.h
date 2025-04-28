@@ -23,6 +23,10 @@ class MemcachedConnection;
 
 namespace cb::test {
 
+enum class BucketPersistenceBackend { Couchstore, Magma };
+std::string format_as(BucketPersistenceBackend backend);
+void to_json(nlohmann::json& j, const BucketPersistenceBackend backend);
+
 class Node;
 class Bucket;
 class AuthProviderService;
@@ -36,6 +40,11 @@ class AuthProviderService;
 class Cluster {
 public:
     virtual ~Cluster();
+
+    /// Set the backend to use for buckets
+    virtual void setBucketPersistenceBackend(
+            BucketPersistenceBackend backend) = 0;
+    virtual BucketPersistenceBackend getBucketPersistenceBackend() const = 0;
 
     /**
      * Create a Couchbase bucket

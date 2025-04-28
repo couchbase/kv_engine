@@ -83,6 +83,7 @@ cb::engine_errc GetFileFragmentContext::step() {
             ret = transfer_with_sendfile();
             break;
         case State::Done:
+            cookie.clearEwouldblock();
             return cb::engine_errc::success;
         }
     }
@@ -272,6 +273,11 @@ cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
                           iob->length()};
     connection.chainDataToOutputStream(
             std::make_unique<IOBufSendBuffer>(std::move(iob), view));
-    state = State::ReadFileChunk;
+    if (length) {
+        // We need to read another chunk
+        state = State::ReadFileChunk;
+    } else {
+        state = State::Done;
+    }
     return cb::engine_errc::too_much_data_in_output_buffer;
 }

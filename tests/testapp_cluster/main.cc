@@ -8,16 +8,20 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "cluster_framework/cluster.h"
 #include "clustertest.h"
-
 #include <event2/thread.h>
 #include <platform/cbassert.h>
+#include <platform/command_line_options_parser.h>
 #include <platform/dirutils.h>
 #include <platform/platform_socket.h>
 #include <array>
 #include <csignal>
 #include <cstdlib>
 #include <string>
+
+using cb::test::BucketPersistenceBackend;
+using namespace std::string_view_literals;
 
 int main(int argc, char** argv) {
     setupWindowsDebugCRTAssertHandling();
@@ -61,8 +65,38 @@ int main(int argc, char** argv) {
     }
 #endif
     ::testing::InitGoogleTest(&argc, argv);
+    auto backend = BucketPersistenceBackend::Couchstore;
 
-    cb::test::ClusterTest::StartCluster();
+    cb::getopt::CommandLineOptionsParser parser;
+    using cb::getopt::Argument;
+    parser.addOption(
+            {[&backend](auto value) {
+                 if (value == "magma"sv) {
+                     backend = BucketPersistenceBackend::Magma;
+                 } else if (value == "couchstore"sv) {
+                     backend = BucketPersistenceBackend::Couchstore;
+                 } else {
+                     std::cerr << "backend must be 'couchstore' or 'magma'"
+                               << std::endl;
+                     exit(EXIT_FAILURE);
+                 }
+             },
+             "backend",
+             Argument::Required,
+             "magma",
+             "The name of the backend"});
+
+    parser.addOption({[&parser](auto) {
+                          std::cout << std::endl
+                                    << std::endl
+                                    << parser << std::endl;
+                      },
+                      "help",
+                      "This help text"});
+
+    parser.parse(argc, argv, [&parser]() { std::exit(EXIT_FAILURE); });
+
+    cb::test::ClusterTest::StartCluster(backend);
     const auto ret = RUN_ALL_TESTS();
     cb::test::ClusterTest::ShutdownCluster();
 

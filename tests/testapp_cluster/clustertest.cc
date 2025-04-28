@@ -26,7 +26,7 @@ std::ostream& cb::test::operator<<(std::ostream& os,
               << " MiB, upper: " << stats.upper / 1024.0 / 1024.0 << " MiB}";
 }
 
-void cb::test::ClusterTest::StartCluster() {
+void cb::test::ClusterTest::StartCluster(BucketPersistenceBackend backend) {
     MemcachedConnection::setLookupUserPasswordFunction(
             [](const std::string& user) -> std::string {
                 if (user == "@admin") {
@@ -45,6 +45,7 @@ void cb::test::ClusterTest::StartCluster() {
             });
 
     cluster = Cluster::create(4);
+    cluster->setBucketPersistenceBackend(backend);
     if (!cluster) {
         std::cerr << "Failed to create the cluster" << std::endl;
         std::exit(EXIT_FAILURE);

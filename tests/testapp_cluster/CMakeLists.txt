@@ -28,3 +28,15 @@ add_test(NAME cluster_test
 # Don't run it concurrently with any other tests.
 set_tests_properties(cluster_test
         PROPERTIES RUN_SERIAL TRUE)
+
+if (BUILD_ENTERPRISE AND NOT WIN32)
+    # Magma emits a lot of critical warnings and fails on
+    # win32 due to failing to open files.
+    # Only run on other platforms for now
+    add_test(NAME cluster_test_magma
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND cluster_test --backend=magma)
+    # The cluster_test spins up 4 memcached instances and is relatively heavyweight.
+    # Don't run it concurrently with any other tests.
+    set_tests_properties(cluster_test_magma PROPERTIES RUN_SERIAL TRUE)
+endif()

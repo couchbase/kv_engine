@@ -24,6 +24,20 @@
 
 namespace cb::test {
 
+std::string format_as(BucketPersistenceBackend backend) {
+    switch (backend) {
+    case BucketPersistenceBackend::Couchstore:
+        return "couchdb";
+    case BucketPersistenceBackend::Magma:
+        return "magma";
+    }
+    Expects(false && "Unexpected backend");
+}
+
+void to_json(nlohmann::json& j, const BucketPersistenceBackend backend) {
+    j = format_as(backend);
+}
+
 Cluster::~Cluster() = default;
 
 class ClusterImpl : public Cluster {
@@ -33,6 +47,13 @@ public:
     ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
                 std::filesystem::path dir);
     ~ClusterImpl() override;
+    void setBucketPersistenceBackend(
+            BucketPersistenceBackend backend_) override {
+        backend = backend_;
+    }
+    BucketPersistenceBackend getBucketPersistenceBackend() const override {
+        return backend;
+    }
     [[nodiscard]] std::shared_ptr<Bucket> createBucket(
             const std::string& name,
             const nlohmann::json& attributes,
@@ -76,6 +97,7 @@ protected:
     const std::string uuid;
     std::atomic<int64_t> revno{1};
     static constexpr int64_t epoch = 1;
+    BucketPersistenceBackend backend = BucketPersistenceBackend::Couchstore;
 };
 
 ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
@@ -239,7 +261,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
     size_t replicas = std::min<size_t>(size() - 1, 3);
 
     nlohmann::json json = {{"max_size", 67108864},
-                           {"backend", "couchdb"},
+                           {"backend", backend},
                            {"couch_bucket", name},
                            {"max_vbuckets", vbuckets},
                            {"data_traffic_enabled", false},
