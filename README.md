@@ -41,6 +41,7 @@ built via the Couchbase
 * [Document size limits](docs/DocumentSizeLimits.md)
 * [Document attributes](docs/Document.md)
 * [Environment variables](docs/EnvironmentVariables.md)
+* [Frontend Worker Threads](docs/FrontendWorkerThread.md)
 * [Role Based Access Control (RBAC)](docs/rbac.md)
 * [SSL Client Certificate](docs/ssl_client_cert.md)
 * [DCP](docs/dcp/README.md)
