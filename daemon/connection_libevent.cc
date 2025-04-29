@@ -31,7 +31,7 @@
 /// consume memory on the server (for instance send everything except
 /// the last byte of a request and let the server be stuck waiting
 /// for the last byte of a 20MB command)
-static constexpr size_t MaxUnauthenticatedFrameSize = 1024;
+static constexpr size_t MaxUnauthenticatedFrameSize = 16 * 1024;
 
 LibeventConnection::LibeventConnection(SOCKET sfd,
                                        FrontEndThread& thr,
