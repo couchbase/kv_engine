@@ -356,7 +356,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
 
 class UnknownKeyCallbackMock {
 public:
-    MOCK_METHOD2(Callback, void(std::string_view key, std::string_view value));
+    MOCK_METHOD2(Callback, void(std::string key, std::string value));
 };
 
 class ConfigurationParseTest : public ::testing::Test {
@@ -366,28 +366,32 @@ protected:
         mock_server_api = get_mock_server_api();
         unknownKeyCallbackMock = std::make_unique<UnknownKeyCallbackMock>();
 
-        // Two attributes
-        items.resize(2);
+        // Initialize two config items
         items[0].key = "alog_sleep_time";
         items[0].datatype = DT_SIZE;
         items[0].value.dt_size = new size_t(200);
+        items[0].found = true;
         items[1].key = "different_key";
         items[1].datatype = DT_SIZE;
+        items[1].value.dt_size = new size_t(200);
+        items[1].found = true;
+        items[2].key = nullptr; // End of array
     }
 
     void TearDown() override {
         delete items[0].value.dt_size;
+        delete items[1].value.dt_size;
     }
 
     std::unique_ptr<ConfigurationShim> configuration;
     ServerApi* mock_server_api;
     std::unique_ptr<UnknownKeyCallbackMock> unknownKeyCallbackMock;
-    std::vector<config_item> items;
+    config_item items[3];
 };
 
 TEST_F(ConfigurationParseTest, KnownKey) {
     auto callback = [this](std::string_view key, std::string_view value) {
-        unknownKeyCallbackMock->Callback(key, value);
+        unknownKeyCallbackMock->Callback(std::string(key), std::string(value));
     };
 
     // Unknown key callback should not be called
@@ -397,7 +401,7 @@ TEST_F(ConfigurationParseTest, KnownKey) {
     // parse_config returns 0 if the key is found
     EXPECT_EQ(0,
               mock_server_api->core->parse_config(
-                      "alog_sleep_time=100;", items.data(), nullptr, callback));
+                      "alog_sleep_time=100;", items, nullptr, callback));
 
     // parseConfiguration should return true
     EXPECT_TRUE(configuration->parseConfiguration("alog_sleep_time=100;",
@@ -409,7 +413,7 @@ TEST_F(ConfigurationParseTest, UnknownKey) {
         // Correct key and value
         EXPECT_EQ("unknown_key", key);
         EXPECT_EQ("100", value);
-        unknownKeyCallbackMock->Callback(key, value);
+        unknownKeyCallbackMock->Callback(std::string(key), std::string(value));
     };
 
     // Should be called once
@@ -419,7 +423,7 @@ TEST_F(ConfigurationParseTest, UnknownKey) {
     // parse_config returns 1 if the key is not found/unsupported
     EXPECT_EQ(1,
               mock_server_api->core->parse_config(
-                      "unknown_key=100;", items.data(), nullptr, callback));
+                      "unknown_key=100;", items, nullptr, callback));
 
     // parseConfiguration should still return true if key is not found
     EXPECT_TRUE(configuration->parseConfiguration("unknown_key=100;",
@@ -428,7 +432,7 @@ TEST_F(ConfigurationParseTest, UnknownKey) {
 
 TEST_F(ConfigurationParseTest, ErrorKey) {
     auto callback = [this](std::string_view key, std::string_view value) {
-        unknownKeyCallbackMock->Callback(key, value);
+        unknownKeyCallbackMock->Callback(std::string(key), std::string(value));
     };
 
     // Unknown key callback should not be called
@@ -439,7 +443,7 @@ TEST_F(ConfigurationParseTest, ErrorKey) {
     EXPECT_EQ(-1,
               mock_server_api->core->parse_config(
                       "alog_sleep_time=false;", // wrong type
-                      items.data(),
+                      items,
                       nullptr,
                       callback));
 

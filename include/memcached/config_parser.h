@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <string_view>
 // Need ssize_t
 #include <folly/portability/SysTypes.h>
 
