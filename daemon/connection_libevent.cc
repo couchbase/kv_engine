@@ -69,6 +69,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
                           static_cast<void*>(this));
     }
 
+    bufferevent_set_max_single_write(bev.get(), 64 * 1024);
     bufferevent_enable(bev.get(), EV_READ);
     bufferevent_setwatermark(bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
 }
