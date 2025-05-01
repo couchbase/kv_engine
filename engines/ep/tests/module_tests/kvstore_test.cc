@@ -37,6 +37,24 @@
 using namespace std::string_literals;
 using namespace testing;
 
+std::string_view format_as(KVStoreTestEncryption encryption) {
+    return (encryption == KVStoreTestEncryption::Unencrypted) ? "Unencrypted"
+                                                              : "Encrypted";
+}
+
+std::string to_string(KVStoreTestEncryption encryption) {
+    return std::string(format_as(encryption));
+}
+
+std::string_view format_as(KVStoreTestBuffering buffering) {
+    return (buffering == KVStoreTestBuffering::Unbuffered) ? "Unbuffered"
+                                                           : "Buffered";
+}
+
+std::string to_string(KVStoreTestBuffering buffering) {
+    return std::string(format_as(buffering));
+}
+
 // Value to use when testing Snappy compression.
 static const std::string COMPRESSIBLE_VALUE = "xxyyzzxxyyzzxxyyzzxxyyzz";
 

@@ -114,6 +114,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/item_eviction_test.cc
         module_tests/item_pager_test.cc
         module_tests/item_test.cc
+        module_tests/kvstore_fuzz_test.cc
         module_tests/kvstore_test.cc
         module_tests/kvstore_error_injection_test.cc
         module_tests/kv_bucket_test.cc

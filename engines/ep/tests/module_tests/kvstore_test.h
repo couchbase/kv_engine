@@ -29,6 +29,16 @@
 class KVStoreConfig;
 class KVStore;
 
+enum class KVStoreTestEncryption { Unencrypted, Encrypted };
+
+std::string_view format_as(KVStoreTestEncryption);
+std::string to_string(KVStoreTestEncryption);
+
+enum class KVStoreTestBuffering { Unbuffered, Buffered };
+
+std::string_view format_as(KVStoreTestBuffering);
+std::string to_string(KVStoreTestBuffering);
+
 class TestEPVBucketFactory {
 public:
     static std::shared_ptr<VBucket> makeVBucket(Vbid vbid);
