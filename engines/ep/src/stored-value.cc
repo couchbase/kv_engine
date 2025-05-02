@@ -690,6 +690,12 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     return os;
 }
 
+std::string format_as(const StoredValue& sv) {
+    std::stringstream ss;
+    ss << sv;
+    return ss.str();
+}
+
 bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
 }

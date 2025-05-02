@@ -1215,6 +1215,7 @@ static_assert(sizeof(StoredValue) == 56);
 
 void to_json(nlohmann::json& json, const StoredValue& sv);
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
+std::string format_as(const StoredValue& sv);
 
 /**
  * Subclass of StoredValue which additionally supports sequence number ordering.
