@@ -847,6 +847,16 @@ public:
         notify_changed("num_storage_threads");
     }
 
+    bool getNotLockedReturnsTmpfail() const {
+        return not_locked_returns_tmpfail.load(std::memory_order_relaxed);
+    }
+
+    void setNotLockedReturnsTmpfail(bool val) {
+        not_locked_returns_tmpfail.store(val, std::memory_order_relaxed);
+        has.not_locked_returns_tmpfail = true;
+        notify_changed("not_locked_returns_tmpfail");
+    }
+
     void setPhosphorConfig(std::string value) {
         *phosphor_config.wlock() = std::move(value);
         has.phosphor_config = true;
@@ -1118,6 +1128,10 @@ protected:
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};
 
+    /// If true, then the server will return tmpfail instead of a not_locked
+    /// error where possible.
+    std::atomic<bool> not_locked_returns_tmpfail{false};
+
     /// The number of seconds before keepalive kicks in
     std::atomic<std::chrono::seconds> tcp_keepalive_idle{
             std::chrono::seconds{360}};
@@ -1260,6 +1274,7 @@ public:
         bool num_nonio_threads = false;
         bool num_io_threads_per_core = false;
         bool num_storage_threads = false;
+        bool not_locked_returns_tmpfail = false;
         bool portnumber_file = false;
         bool parent_identifier = false;
         bool prometheus_config = false;

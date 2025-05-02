@@ -88,6 +88,10 @@ public:
     std::string getDcpDisconnectWhenStuckNameRegex() override {
         return {}; // empty disables the feature
     }
+
+    bool getNotLockedReturnsTmpfail() override {
+        return false;
+    }
 };
 
 int main(int argc, char **argv) {

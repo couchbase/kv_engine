@@ -321,6 +321,15 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "unsigned integer or \"default\"!! Value:'{}'",
                         value.dump()));
             }
+        } else if (key == "not_locked_returns_tmpfail"sv) {
+            if (value.is_boolean()) {
+                setNotLockedReturnsTmpfail(value.get<bool>());
+            } else {
+                throw std::invalid_argument(
+                        fmt::format("not_locked_returns_tmpfail must be a "
+                                    "boolean! Value:'{}'",
+                                    value.dump()));
+            }
         } else if (key == "tracing_enabled"sv) {
             setTracingEnabled(value.get<bool>());
         } else if (key == "scramsha_fallback_salt"sv) {
@@ -1046,6 +1055,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  storageThreadConfig2String(other.getNumStorageThreads())});
         setNumStorageThreads(other.getNumStorageThreads());
 
+    }
+
+    if (other.has.not_locked_returns_tmpfail) {
+        if (other.getNotLockedReturnsTmpfail() !=
+            getNotLockedReturnsTmpfail()) {
+            LOG_INFO_CTX("Change not_locked_returns_tmpfail",
+                         {"from", getNotLockedReturnsTmpfail()},
+                         {"to", other.getNotLockedReturnsTmpfail()});
+            setNotLockedReturnsTmpfail(other.getNotLockedReturnsTmpfail());
+        }
     }
 
     if (other.has.phosphor_config) {

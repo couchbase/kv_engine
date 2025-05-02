@@ -79,6 +79,10 @@ struct ServerCoreApi : public ServerCoreIface {
     std::string getDcpDisconnectWhenStuckNameRegex() override {
         return Settings::instance().getDcpDisconnectWhenStuckNameRegex();
     }
+
+    bool getNotLockedReturnsTmpfail() override {
+        return Settings::instance().getNotLockedReturnsTmpfail();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

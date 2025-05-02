@@ -172,8 +172,6 @@ public:
         } else if (key == "continuous_backup_enabled") {
             // The new setting will take effect after the vbstate flush.
             store.scheduleVBStatePersist();
-        } else if (key == "not_locked_returns_tmpfail") {
-            store.setNotLockedReturnsTmpfail(value);
         }
     }
 
@@ -422,11 +420,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setHtTempItemsAllowedPercent(config.getHtTempItemsAllowedPercent());
     config.addValueChangedListener(
             "ht_temp_items_allowed_percent",
-            std::make_unique<EPStoreValueChangeListener>(*this));
-
-    setNotLockedReturnsTmpfail(config.isNotLockedReturnsTmpfail());
-    config.addValueChangedListener(
-            "not_locked_returns_tmpfail",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(
@@ -2058,7 +2051,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKeyView& key,
             }
             return cb::engine_errc::locked_tmpfail;
         }
-        return notLockedError;
+        return engine.getNotLockedError();
     }
     case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {
@@ -2082,7 +2075,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKeyView& key,
                 return cb::engine_errc::no_such_key;
             }
 
-            return notLockedError;
+            return engine.getNotLockedError();
         }
     case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
         return cb::engine_errc::sync_write_in_progress;
@@ -3528,11 +3521,6 @@ void KVBucket::setCompactionExpiryFetchInline(bool value) {
 
 bool KVBucket::isCompactionExpiryFetchInline() const {
     return compactionExpiryFetchInline;
-}
-
-void KVBucket::setNotLockedReturnsTmpfail(bool value) {
-    notLockedError = value ? cb::engine_errc::temporary_failure
-                           : cb::engine_errc::not_locked;
 }
 
 size_t KVBucket::getNumCheckpointDestroyers() const {

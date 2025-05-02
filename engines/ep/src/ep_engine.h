@@ -1129,6 +1129,28 @@ public:
 
     std::string getCachedChronicleAuthToken() const;
 
+    /**
+     * Set the setting for returning tmpfail instead of not_locked when
+     * unlocking an item that is not locked.
+     *
+     * @param value true if tmpfail should be returned, false otherwise.
+     */
+    void setNotLockedReturnsTmpfail(bool value);
+
+    /**
+     * Get the setting for returning tmpfail instead of not_locked when
+     * unlocking an item that is not locked.
+     *
+     * @return true if tmpfail should be returned, false otherwise.
+     */
+    bool getNotLockedReturnsTmpfail() const;
+
+    /**
+     * @return the error code to return when attempting to unlock an item that
+     * is not locked.
+     */
+    cb::engine_errc getNotLockedError() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1737,6 +1759,13 @@ protected:
      * Non-const as the related configuration param is dynamic.
      */
     std::atomic_bool allowSanitizeValueInDeletion;
+
+    /**
+     * If true, then the server will return tmpfail instead of a not_locked
+     * error where possible. Note this is the bucket-level setting, but the
+     * node-level setting should also be consulted.
+     */
+    cb::RelaxedAtomic<bool> notLockedReturnsTmpfail{false};
 
     /**
      * Should we validate that the key - vBucket mapping is correct?
