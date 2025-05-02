@@ -24,6 +24,7 @@
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
+#include <boost/filesystem.hpp>
 #include <executor/executorpool.h>
 #include <fmt/format.h>
 #include <libcouchstore/couch_db.h>
@@ -7719,6 +7720,88 @@ static enum test_result test_mb20697(EngineIface* h) {
     return SUCCESS;
 }
 
+/* Test that a flush fails for documents with a seqno value smaller than the
+ * persistence seqno on disk */
+static enum test_result test_mb65737_check_flush_fails(EngineIface* h) {
+    Vbid vb(0);
+    check(set_vbucket_state(h, vb, vbucket_state_active),
+          "Failed to set vbucket state for vb");
+
+    // Store 10 items and ensure all documents are flushed to disk
+    const std::string keyBase("key-");
+    write_items(h, 10, 0, keyBase.c_str(), "value", 0, vb);
+    wait_for_flusher_to_settle(h);
+
+    checkeq(0,
+            get_int_stat(h, "ep_item_commit_failed"),
+            "Unexpected flush failures");
+    checkeq(10,
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
+            "Unexpected high seqno after storing 10 items");
+    checkeq(10,
+            get_int_stat(h, "vb_0:last_persisted_seqno", "vbucket-seqno"),
+            "Unexpected last_persisted_seqno after storing 10 items");
+
+    // db file contains persistenceSeqno = 10
+    // Rename couchstore file to simulate loss of data
+    namespace fs = boost::filesystem;
+    std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
+    std::string oldFileName = dbname + cb::io::DirectorySeparator + "0.couch.1";
+    std::string newFileName = dbname + cb::io::DirectorySeparator + "goodbye";
+    try {
+        if (!fs::exists(oldFileName)) {
+            std::cerr << "Error: Source file does not exist: " << oldFileName
+                      << '\n';
+            return FAIL;
+        }
+        fs::rename(oldFileName, newFileName);
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error renaming file: " << e.what() << '\n';
+        return FAIL;
+    }
+
+    // Restart memcached
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+    // Re-create vb:0, high seqno is reset
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+          "Failed to set VB0 state.");
+    wait_for_stat_to_be_gte(h, "ep_persist_vbstate_total", 1);
+    wait_for_flusher_to_settle(h);
+    wait_for_warmup_complete(h);
+
+    // Bring db file back
+    if (fs::exists(oldFileName)) {
+        fs::remove(oldFileName);
+    }
+    fs::rename(newFileName, oldFileName);
+
+    // Store 5 items, highSeqno = 5 and persistenceSeqno=10 (from disk)
+    write_items(h, 5, 0, keyBase.c_str(), "value", 0, vb);
+
+    // Wait for flusher to run
+    std::chrono::microseconds sleepTime{128};
+    while (true) {
+        if (get_str_stat(h, "ep_flusher_state", nullptr) == "running") {
+            break;
+        }
+        decayingSleep(&sleepTime);
+    }
+
+    // Expect commit failure due to MB-65737
+    wait_for_stat_to_be_gte(h, "ep_item_commit_failed", 0);
+    checkeq(5,
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
+            "Unexpected high seqno after storing 5 items");
+    checkeq(0,
+            get_int_stat(h, "vb_0:last_persisted_seqno", "vbucket-seqno"),
+            "Unexpected last_persisted_seqno");
+
+    fs::remove(oldFileName);
+    fs::create_directories(dbname);
+    return SUCCESS;
+}
+
 /* Check if vbucket reject ops are incremented on persistence failure */
 static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
     std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
@@ -9452,6 +9535,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // Magma: Error injection for magma is done as part of
                  // the magma unit tests.
+                 prepare_ep_bucket_skip_broken_under_magma,
+                 cleanup),
+        TestCase("test_mb65737_check_flush_fails",
+                 test_mb65737_check_flush_fails,
+                 test_setup,
+                 teardown,
+                 nullptr,
                  prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
 

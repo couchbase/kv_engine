@@ -26,6 +26,7 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "rollback_result.h"
 #include "statistics/cbstat_collector.h"
+#include "utilities/logtags.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
@@ -3166,9 +3167,33 @@ couchstore_error_t CouchKVStore::saveDocs(
 
     // Only do a couchstore_save_documents if there are docs
     if (!docs.empty()) {
+        auto dbUpdateSeqNum = cb::couchstore::getHeader(*db).updateSeqNum;
         for (size_t idx = 0; idx < docs.size(); idx++) {
+            // Document seqno should never be less than persisted seqno
+            if (docinfos[idx]->db_seq <= dbUpdateSeqNum) {
+                auto const docId = std::string_view{docinfos[idx]->id.buf,
+                                                    docinfos[idx]->id.size};
+                auto const metadata = MetaDataFactory::createMetaData(
+                        docinfos[idx]->rev_meta);
+                EP_LOG_ERR(
+                        "CouchKVStore::saveDocs: aborting flush while "
+                        "db_seq <= updateSeqNum. vb:{}, docId:{}, "
+                        "db_seq:{}, rev_seq:{}, cas:{}, deleted:{}, "
+                        "docSize:{}, updateSeqNum:{}, "
+                        "couchfile_revision:{}, db_filename:{}",
+                        vbid,
+                        docId,
+                        docinfos[idx]->db_seq,
+                        docinfos[idx]->rev_seq,
+                        metadata->getCas(),
+                        docinfos[idx]->deleted,
+                        docinfos[idx]->getTotalSize(),
+                        dbUpdateSeqNum,
+                        db.getFileRev(),
+                        db.getFilename());
+                return COUCHSTORE_ERROR_CANCEL;
+            }
             maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-
             // Accumulate the size of the useful data in this docinfo.
             docsLogicalBytes += calcLogicalDataSize(docs[idx], *docinfos[idx]);
         }

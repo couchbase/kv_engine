@@ -294,7 +294,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     // Now delete keys (if requested). Alternate between value and no-value
     // (like xattr)
-    for (int i = deletedRange.first, seqno = keys; i < deletedRange.second;
+    for (int i = deletedRange.first, seqno = keys + 1; i < deletedRange.second;
          ++i, ++seqno) {
         std::unique_ptr<Item> item;
         auto key = makeStoredDocKey(std::to_string(i));
@@ -356,7 +356,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
     auto deletedCount = deletedRange.second - deletedRange.first;
     EXPECT_EQ(keys - deletedCount, stats.itemCount);
-    EXPECT_EQ(keys + (deletedCount - 1), stats.highSeqno);
+    EXPECT_EQ(keys + deletedCount, stats.highSeqno);
     EXPECT_NE(0, stats.diskSize);
 
     auto kvstoreContext = kvstore2->makeFileHandle(Vbid(0));
@@ -1326,11 +1326,12 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     }
 
     {
-        generate_items(1);
-
+        std::string key("key7");
+        auto qi = makeCommittedItem(makeStoredDocKey(key), "value");
+        qi->setBySeqno(7);
         auto ctx =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-        kvstore->set(*ctx, items.front());
+        kvstore->set(*ctx, qi);
         {
             /* Establish Logger expectation */
             EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
