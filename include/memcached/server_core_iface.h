@@ -92,4 +92,10 @@ struct ServerCoreIface {
      * when stuck.
      */
     virtual std::string getDcpDisconnectWhenStuckNameRegex() = 0;
+
+    /**
+     * If true, then the server will return tmpfail instead of a not_locked
+     * error where possible.
+     */
+    virtual bool getNotLockedReturnsTmpfail() = 0;
 };

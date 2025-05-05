@@ -141,6 +141,7 @@ void mock_time_travel(int by) {
 
 static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
 static std::string dcp_disconnect_when_stuck_name_regex;
+static bool not_locked_returns_tmpfail{false};
 
 void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
     dcp_disconnect_when_stuck_timeout = timeout;
@@ -148,6 +149,10 @@ void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
 
 void mock_set_dcp_disconnect_when_stuck_name_regex(std::string regex) {
     dcp_disconnect_when_stuck_name_regex = regex;
+}
+
+void mock_set_not_locked_returns_tmpfail(bool value) {
+    not_locked_returns_tmpfail = value;
 }
 
 struct MockServerCoreApi : public ServerCoreIface {
@@ -189,6 +194,10 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     std::string getDcpDisconnectWhenStuckNameRegex() override {
         return dcp_disconnect_when_stuck_name_regex;
+    }
+
+    bool getNotLockedReturnsTmpfail() override {
+        return not_locked_returns_tmpfail;
     }
 };
 

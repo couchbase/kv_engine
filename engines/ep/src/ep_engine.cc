@@ -2167,6 +2167,8 @@ void EpEngineValueChangeListener::booleanValueChanged(std::string_view key,
         engine.allowSanitizeValueInDeletion.store(b);
     } else if (key == "vbucket_mapping_sanity_checking") {
         engine.sanityCheckVBucketMapping = b;
+    } else if (key == "not_locked_returns_tmpfail") {
+        engine.setNotLockedReturnsTmpfail(b);
     }
 }
 
@@ -2332,6 +2334,11 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             std::make_unique<EpEngineValueChangeListener>(*this));
     configuration.addValueChangedListener(
             "range_scan_max_lifetime",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    notLockedReturnsTmpfail = configuration.isNotLockedReturnsTmpfail();
+    configuration.addValueChangedListener(
+            "not_locked_returns_tmpfail",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     // The number of shards for a magma bucket cannot be changed after the first
@@ -8081,4 +8088,15 @@ EventuallyPersistentEngine::getDcpDisconnectWhenStuckTimeout() const {
 std::string EventuallyPersistentEngine::getDcpDisconnectWhenStuckNameRegex()
         const {
     return serverApi->core->getDcpDisconnectWhenStuckNameRegex();
+}
+
+void EventuallyPersistentEngine::setNotLockedReturnsTmpfail(bool value) {
+    notLockedReturnsTmpfail = value;
+}
+
+cb::engine_errc EventuallyPersistentEngine::getNotLockedError() const {
+    const bool useTmpfail = notLockedReturnsTmpfail ||
+                            serverApi->core->getNotLockedReturnsTmpfail();
+    return useTmpfail ? cb::engine_errc::temporary_failure
+                      : cb::engine_errc::not_locked;
 }
