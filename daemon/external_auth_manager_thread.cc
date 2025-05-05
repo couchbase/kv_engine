@@ -229,8 +229,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
                 json["context"] = saslTask->getContext();
             }
             json["mechanism"] = saslTask->getMechanism();
-            json["challenge"] =
-                    cb::base64::encode(saslTask->getChallenge(), false);
+            json["challenge"] = cb::base64::encode(saslTask->getChallenge());
             json["authentication-only"] =
                     haveRbacEntryForUser(saslTask->getUsername());
             auto payload = json.dump();

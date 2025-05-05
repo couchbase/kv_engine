@@ -59,8 +59,8 @@ public:
 
         auto mInfo = storeTestKeys();
 
-        start = cb::base64::encode("user", false);
-        end = cb::base64::encode("user\xFF", false);
+        start = cb::base64::encode("user");
+        end = cb::base64::encode("user\xFF");
 
         // if snappy evict so values comes from disk and we can validate snappy
         if (::testing::get<3>(GetParam()) == ClientSnappySupport::Yes) {
@@ -268,8 +268,8 @@ TEST_P(RangeScanTest, CreateKeyExceedMaxLength) {
     std::string e(250, 'L');
 
     // Exceed the 250 byte limit (the non-encoded size is what matters)
-    auto keyInvalid = cb::base64::encode(s, false);
-    auto keyValid = cb::base64::encode(e, false);
+    auto keyInvalid = cb::base64::encode(s);
+    auto keyValid = cb::base64::encode(e);
     BinprotRangeScanCreate create1(
             Vbid(0),
             nlohmann::json{
@@ -337,8 +337,8 @@ TEST_P(RangeScanTest, CreateCancel) {
 
 // Empty range fails at the create point
 TEST_P(RangeScanTest, CreateEmpty) {
-    auto start = cb::base64::encode("L", false);
-    auto end = cb::base64::encode("M\xFF", false);
+    auto start = cb::base64::encode("L");
+    auto end = cb::base64::encode("M\xFF");
     nlohmann::json emptyRange = {{"range", {{"start", start}, {"end", end}}}};
     BinprotRangeScanCreate create(Vbid(0), emptyRange);
     auto resp = userConnection->execute(create);
@@ -561,8 +561,8 @@ TEST_P(RangeScanTest, ScanWithSmallBufferWithLimit) {
 TEST_P(RangeScanTest, ExclusiveRangeStart) {
     config["key_only"] = true;
     // 1, 2, 3
-    auto start = cb::base64::encode("0", false);
-    auto end = cb::base64::encode("3", false);
+    auto start = cb::base64::encode("0");
+    auto end = cb::base64::encode("3");
     config["range"] = {{"excl_start", start}, {"end", end}};
 
     BinprotRangeScanCreate create(Vbid(0), config);
@@ -581,8 +581,8 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
     config["key_only"] = true;
 
     // 0, 1, 2
-    auto start = cb::base64::encode("0", false);
-    auto end = cb::base64::encode("3", false);
+    auto start = cb::base64::encode("0");
+    auto end = cb::base64::encode("3");
     config["range"] = {{"start", start}, {"excl_end", end}};
 
     BinprotRangeScanCreate create(Vbid(0), config);

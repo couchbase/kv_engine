@@ -150,8 +150,8 @@ static void settings_web_callback(struct evhttp_request* req, void*) {
                               nullptr);
             return;
         }
-        credentials = cb::base64::encode(
-                username->second + ":" + password->second, false);
+        credentials =
+                cb::base64::encode(username->second + ":" + password->second);
         cluster = cb::test::Cluster::create(4);
         cluster->getAuthProviderService().upsertUser(
                 {username->second, password->second, R"({

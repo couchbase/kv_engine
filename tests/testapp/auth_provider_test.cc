@@ -113,7 +113,7 @@ TEST_F(AuthProviderTest, NoAuthenticationOnly) {
 TEST_F(AuthProviderTest, PLAIN_SuccessfulAuth) {
     nlohmann::json json;
     json["mechanism"] = "PLAIN";
-    json["challenge"] = cb::base64::encode({"\0trond\0foo", 10}, false);
+    json["challenge"] = cb::base64::encode({"\0trond\0foo", 10});
     json["authentication-only"] = false;
     const auto ret = provider.processAuthnRequest(json.dump());
     EXPECT_EQ(cb::mcbp::Status::Success, ret.first);
@@ -125,7 +125,7 @@ TEST_F(AuthProviderTest, PLAIN_SuccessfulAuth) {
 TEST_F(AuthProviderTest, PLAIN_SuccessfulAuthOnly) {
     nlohmann::json json;
     json["mechanism"] = "PLAIN";
-    json["challenge"] = cb::base64::encode({"\0trond\0foo", 10}, false);
+    json["challenge"] = cb::base64::encode({"\0trond\0foo", 10});
     json["authentication-only"] = true;
     const auto ret = provider.processAuthnRequest(json.dump());
     EXPECT_EQ(cb::mcbp::Status::Success, ret.first);

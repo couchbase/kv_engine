@@ -716,8 +716,8 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    rStart = cb::base64::encode(rStart, false);
-    rEnd = cb::base64::encode(rEnd, false);
+    rStart = cb::base64::encode(rStart);
+    rEnd = cb::base64::encode(rEnd);
 
     // Build the JSON create config
     nlohmann::json jsonConfig;

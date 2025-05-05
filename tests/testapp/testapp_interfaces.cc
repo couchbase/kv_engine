@@ -312,7 +312,7 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedKey) {
                "SHA256"}}},
             {"cipher order", true},
             {"client cert auth", "disabled"},
-            {"password", cb::base64::encode("This is the passphrase", false)}};
+            {"password", cb::base64::encode("This is the passphrase")}};
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
@@ -344,8 +344,7 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {
                "SHA256"}}},
             {"cipher order", true},
             {"client cert auth", "disabled"},
-            {"password",
-             cb::base64::encode("This is the wrong passphrase", false)}};
+            {"password", cb::base64::encode("This is the wrong passphrase")}};
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});

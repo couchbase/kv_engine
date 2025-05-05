@@ -136,7 +136,7 @@ TEST_F(TlsConfigurationFormatTest, Password) {
     // that.. So go ahead and add a single base64 encded string so we can
     // check that it must be a string
     acceptString("password",
-                 std::vector<std::string>{{cb::base64::encode("bar", false)}});
+                 std::vector<std::string>{{cb::base64::encode("bar")}});
 }
 
 TEST_F(TlsConfigurationFormatTest, PasswordNotBase64) {
@@ -181,8 +181,7 @@ TEST_F(TlsConfigurationTest, Basic) {
 
 TEST_F(TlsConfigurationTest, PasswordProtectedKey) {
     try {
-        legalSpec["password"] =
-                cb::base64::encode("This is the passphrase", true);
+        legalSpec["password"] = cb::base64::encode("This is the passphrase");
         legalSpec["private key"] = getCertFile("ca_root_encrypted.key");
         TlsConfiguration configuration(legalSpec);
     } catch (const std::exception& e) {
@@ -192,8 +191,7 @@ TEST_F(TlsConfigurationTest, PasswordProtectedKey) {
 
 TEST_F(TlsConfigurationTest, PasswordProtectedWrongKey) {
     try {
-        legalSpec["password"] =
-                cb::base64::encode("This isn't the passphrase", true);
+        legalSpec["password"] = cb::base64::encode("This isn't the passphrase");
         legalSpec["private key"] = getCertFile("ca_root_encrypted.key");
         TlsConfiguration configuration(legalSpec);
         FAIL() << "For some reason it accepted the wrong key";
