@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -9,10 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "sendbuffer.h"
-
 #include "buckets.h"
-#include <folly/io/IOBuf.h>
-#include <memcached/cookie_iface.h>
 
 ItemSendBuffer::ItemSendBuffer(cb::unique_item_ptr itm,
                                std::string_view view,

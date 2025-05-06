@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,14 +9,10 @@
  */
 #pragma once
 
+#include <folly/io/IOBuf.h>
 #include <memcached/engine.h>
-#include <platform/compression/buffer.h>
 
 class Bucket;
-
-namespace folly {
-class IOBuf;
-}
 
 /**
  * Abstract class for a generic send buffer to be passed to libevent
