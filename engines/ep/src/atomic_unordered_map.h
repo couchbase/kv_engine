@@ -95,6 +95,7 @@
 #include <platform/rwlock.h>
 
 #include <algorithm>
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 
