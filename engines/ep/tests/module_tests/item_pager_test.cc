@@ -2085,8 +2085,8 @@ TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
         GTEST_SKIP();
     }
 
-    // Make active and put populate so memory is above
-    // LWM so ItemPager can schedule paging visitor
+    // Make active and populate above HWM so the ItemPager can
+    // schedule it's paging visitor
     auto vbid0 = Vbid(0);
     auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
