@@ -15,6 +15,7 @@
 #include "callbacks_fwd.h"
 #include "collections/kvstore.h"
 #include "ep_types.h"
+#include "kvfilehandle.h"
 #include "persistence_callback.h"
 #include "vbucket_state.h"
 
@@ -29,7 +30,6 @@ class ByIdScanContext;
 class BySeqnoScanContext;
 class CookieIface;
 class GetValue;
-class KVFileHandle;
 class KVStoreConfig;
 class KVStoreStats;
 class RollbackCB;

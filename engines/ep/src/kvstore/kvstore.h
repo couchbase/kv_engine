@@ -16,6 +16,7 @@
 #include "collections/kvstore.h"
 #include "diskdockey.h"
 #include "ep_time.h"
+#include "kvfilehandle.h"
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
 #include "rollback_result.h"
@@ -396,22 +397,6 @@ struct DBFileInfo {
 };
 
 struct vbucket_state;
-
-/**
- * Abstract file handle class to allow a DB file to be opened and held open
- * for multiple KVStore methods.
- */
-class KVFileHandle {
-public:
-    virtual ~KVFileHandle() = default;
-
-    // @returns how many bytes could be freed by closing this hndle. This
-    // occurs when the open snapshot is not current, i.e. we're holding a delete
-    // snapshot which is "inflating" disk usage.
-    virtual size_t getHowManyBytesCouldBeFreed() const {
-        return 0; // default implementation is to say nothing.
-    }
-};
 
 class ScanContext {
 public:
