@@ -89,7 +89,7 @@ Manifest::~Manifest() {
     }
 }
 
-Manifest::Manifest(Manifest& other) : manager(other.manager) {
+Manifest::Manifest(const Manifest& other) : manager(other.manager) {
     // Prevent other from being modified while we copy.
     std::unique_lock<Manifest::mutex_type> wlock(other.rwlock);
 

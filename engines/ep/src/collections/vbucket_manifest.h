@@ -144,14 +144,8 @@ public:
      * Copy ctor - more of a logical copy as we can't copy the lock guarding
      * the manifest. Used by NexusKVStore to generate a manifest for the
      * secondary KVStore to update stats against when flushing.
-     *
-     * Interestingly this isn't const because we want to take the write lock
-     * (wlock()) to prevent updates to the manifest. It's probably fine to
-     * take a read lock instead but because the read handles can update various
-     * stats which will be copied it's better to err on the side of caution and
-     * take the write lock.
      */
-    Manifest(Manifest& other);
+    Manifest(const Manifest& other);
 
     /**
      * @return ReadHandle, no iterator is held on the collection container
