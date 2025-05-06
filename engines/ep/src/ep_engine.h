@@ -1578,6 +1578,12 @@ protected:
     cb::engine_errc stopFusionUploaderInner(Vbid vbid);
 
     /**
+     * Get the auto-configured shard count for the bucket
+     * @return shard count
+     */
+    size_t getAutoShardCount() const;
+
+    /**
      * Get the configured shard count for the bucket
      * @return shard count
      */

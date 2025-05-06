@@ -100,8 +100,10 @@ protected:
         }
 #endif
         }
-        WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                config.getMaxNumShards());
+        int numShards = config.getMaxNumShards()
+                                ? config.getMaxNumShards()
+                                : cb::get_available_cpu_count();
+        WorkLoadPolicy workload(config.getMaxNumWorkers(), numShards);
 
         // Initialize KVStore
         kvstoreConfig =

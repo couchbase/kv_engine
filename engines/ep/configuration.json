@@ -934,6 +934,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "max_num_shards_vbucket_factor": {
+            "default": "8",
+            "descr": "When auto-configuring the number of shards, this factor is used to determine the maximum number of shards by dividing the max_vbuckets by this factor. For 1024 vBuckets, the default limits the number of shards to 1024 / 8 = 128. For 128 vBuckets, the default limits the number of shards to 128 / 8 = 16. Setting to 1 will allow the number of shards to be equal to the number of vBuckets. Setting to 0 will disable the limit.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 1024
+                }
+            }
+        },
         "max_num_workers": {
             "default": "4",
             "descr": "Bucket Priority relative to other buckets",

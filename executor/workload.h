@@ -12,6 +12,7 @@
 
 #include <atomic>
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/sysinfo.h>
 #include <string>
 
@@ -29,24 +30,12 @@ enum workload_pattern_t { READ_HEAVY, WRITE_HEAVY, MIXED };
 class WorkLoadPolicy {
 public:
     WorkLoadPolicy(int m, int numShards)
-        : maxNumWorkers(m),
-          maxNumShards(numShards),
-          workloadPattern(READ_HEAVY) {
-        if (maxNumShards == 0) {
-            // If user didn't specify a maximum shard count, then auto-select
-            // based on the number of available CPUs.
-            maxNumShards = cb::get_available_cpu_count();
-
-            // Sanity - must always have at least 1 shard., but not more than
-            // 128 given we don't have machines commonly available to test at
-            // greater sizes.
-            maxNumShards = std::max(1, maxNumShards);
-            maxNumShards = std::min(128, maxNumShards);
-        }
+        : maxNumWorkers(m), numShards(numShards), workloadPattern(READ_HEAVY) {
+        Expects(numShards > 0);
     }
 
     size_t getNumShards() {
-        return maxNumShards;
+        return numShards;
     }
 
     bucket_priority_t getBucketPriority() const {
@@ -81,6 +70,6 @@ public:
 
 private:
     int maxNumWorkers;
-    int maxNumShards;
+    int numShards;
     std::atomic<workload_pattern_t> workloadPattern;
 };

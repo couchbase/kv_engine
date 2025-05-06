@@ -271,8 +271,10 @@ void KVStoreBackend::setup(const std::string& dataDir,
     configStr += "max_vbuckets=16;max_num_shards=2";
 
     config.parseConfiguration(configStr);
-    WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                            config.getMaxNumShards());
+
+    int numShards = config.getMaxNumShards() ? config.getMaxNumShards()
+                                             : cb::get_available_cpu_count();
+    WorkLoadPolicy workload(config.getMaxNumWorkers(), numShards);
 
     kvstoreConfig =
             KVStoreConfig::createKVStoreConfig(config,

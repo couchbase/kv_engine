@@ -141,6 +141,7 @@ public:
     using EventuallyPersistentEngine::doContinuousBackupStats;
     using EventuallyPersistentEngine::doEngineStats;
     using EventuallyPersistentEngine::fileOpsTracker;
+    using EventuallyPersistentEngine::getAutoShardCount;
 
     // Test hook called before creating an item that is BgFetched
     TestingHook<> preCreateItemHook;
