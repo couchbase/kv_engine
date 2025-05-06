@@ -10,6 +10,8 @@
  */
 #pragma once
 
+#include "protocol/mcbp/command_context.h"
+#include <folly/io/IOBuf.h>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/cookie_iface.h>
@@ -23,7 +25,6 @@
 
 // Forward decls
 class Connection;
-class CommandContext;
 enum class ResourceAllocationDomain : uint8_t;
 class GetAuthorizationTask;
 namespace cb::mcbp {
@@ -34,10 +35,6 @@ class Response;
 namespace cb::compression {
 class Buffer;
 } // namespace cb::compression
-
-namespace folly {
-class IOBuf;
-}
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
