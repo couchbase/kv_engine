@@ -61,6 +61,7 @@ built via the Couchbase
 
 * [Coding Standards](docs/CodingStandards.rst)
 * [Error Handling Best Practices](docs/ErrorHandling.md)
+* [File ownership in bucket data directory](docs/BucketDataDirectory.md)
 
 ## Tools
 
