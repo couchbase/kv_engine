@@ -362,11 +362,11 @@ public:
           state_(state) {
     }
 
-    Vbid getVBucket() {
+    Vbid getVBucket() const {
         return vbucket_;
     }
 
-    vbucket_state_t getState() {
+    vbucket_state_t getState() const {
         return state_;
     }
 

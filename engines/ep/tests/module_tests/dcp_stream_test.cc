@@ -1617,10 +1617,11 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(
 void SingleThreadedActiveStreamTest::recreateStream(
         VBucket& vb,
         bool enforceProducerFlags,
-        std::optional<std::string_view> jsonFilter) {
+        std::optional<std::string_view> jsonFilter,
+        uint32_t addStreamFlags) {
     if (enforceProducerFlags) {
         stream = producer->mockActiveStreamRequest(
-                0 /*flags*/,
+                addStreamFlags,
                 0 /*opaque*/,
                 vb,
                 0 /*st_seqno*/,
@@ -1633,7 +1634,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getIncludeDeletedUserXattrs(),
                 jsonFilter);
     } else {
-        stream = producer->mockActiveStreamRequest(0 /*flags*/,
+        stream = producer->mockActiveStreamRequest(addStreamFlags,
                                                    0 /*opaque*/,
                                                    vb,
                                                    0 /*st_seqno*/,
@@ -6199,6 +6200,132 @@ TEST_P(SingleThreadedActiveStreamTest, MB_65581) {
         EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
         EXPECT_EQ(5, resp->getBySeqno());
     }
+}
+
+void SingleThreadedActiveStreamTest::pushStreamToTakeoverBackupPhase() {
+    // Note: The test runs a full takeover phase on an empty vbucket, no need
+    // for data.
+
+    // Prepare for recreating a ActiveStream that pushes the vbucket into a
+    // takeover-backup state at the very first TakeoverSend phase
+    auto& config = engine->getConfiguration();
+    ASSERT_NE(0, config.getDcpTakeoverMaxTime());
+    config.setDcpTakeoverMaxTime(0);
+    ASSERT_EQ(0, config.getDcpTakeoverMaxTime());
+
+    // Ensure ActiveStream::takeoverStart > 0 at stream creation. The stream
+    // would miss to set the VBucket::takeover_backed_up flag in the subsequent
+    // TakeoverSend phase otherwise.
+    TimeTraveller t1(1);
+
+    // Note: dcp_takeover_max_time applied to newly create streams
+    EXPECT_NE(0, stream->getTakeoverSendMaxTime());
+    auto& vb = *store->getVBucket(vbid);
+    recreateStream(vb, true, {}, DCP_ADD_STREAM_FLAG_TAKEOVER);
+    ASSERT_TRUE(stream);
+    ASSERT_EQ(0, stream->getTakeoverSendMaxTime());
+    ASSERT_TRUE(stream->isTakeoverStream());
+    ASSERT_TRUE(stream->isTakeoverSend());
+
+    // Vbucket clear, still accepting frontend traffic
+    ASSERT_FALSE(vb.isTakeoverBackedUp());
+
+    // Ensure that at least 1sec has past since takeoverStart. The stream might
+    // miss to set the VBucket::takeover_backed_up flag in the subsequent
+    // TakeoverSend phase otherwise.
+    TimeTraveller t2(1);
+
+    // Just move the stream's cursor at the end of checkpoint for avoiding some
+    // additional TakeoverSend calls in the next steps.
+    stream->nextCheckpointItemTask();
+
+    // First TakeoverSend call. That just sends a SetVBState(pending) message to
+    // the peer.
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SetVbucket, resp->getEvent());
+    EXPECT_EQ(vbucket_state_pending,
+              dynamic_cast<const SetVBucketState&>(*resp).getState());
+
+    // The stream's TakeoverSend phase has already pushed the vbucket into a
+    // takeover-backup state.
+    EXPECT_TRUE(vb.isTakeoverBackedUp());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase) {
+    pushStreamToTakeoverBackupPhase();
+
+    // At TakeoverSend the stream has sent a SetVBState(pending) message to the
+    // peer. Now the stream is in TakeoverWait, waiting for the SetVBState ACK
+    // from the peer.
+    EXPECT_TRUE(stream->isTakeoverWait());
+    // The vbucket is still active
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_EQ(vbucket_state_active, vb.getState());
+
+    // Ensure ActiveStream::takeoverStart is reset to > 0 when the stream
+    // transitions back to TakeoverSend. The stream would miss to set the
+    // VBucket::takeover_backed_up flag in the subsequent TakeoverSend phase
+    // otherwise.
+    TimeTraveller t1(1);
+
+    // Now the stream received the ACK
+    stream->setVBucketStateAckRecieved(*producer);
+    // The stream has moved back into TakeoverSend
+    ASSERT_TRUE(stream->isTakeoverSend());
+    // The vbucket has been set to dead
+    EXPECT_EQ(vbucket_state_dead, vb.getState());
+    // VBucket::takeover_backed_up flag cleared as the vbucket has transitioned
+    // to !active
+    EXPECT_FALSE(vb.isTakeoverBackedUp());
+
+    // Ensure that at least 1sec has past since takeoverStart. The stream might
+    // miss to set the VBucket::takeover_backed_up flag in the subsequent
+    // TakeoverSend phase otherwise.
+    TimeTraveller t2(1);
+
+    // Again, the vbstate transition has created a new checkpoint. Just move the
+    // stream's cursor at the end of checkpoint for avoiding some additional
+    // TakeoverSend calls in the next steps.
+    stream->nextCheckpointItemTask();
+
+    // TakeoverSend sends a SetVBState(active) to the peer
+    const auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SetVbucket, resp->getEvent());
+    EXPECT_EQ(vbucket_state_active,
+              dynamic_cast<const SetVBucketState&>(*resp).getState());
+
+    // Stream back to TakeoverWait, waiting for the SetVBState ACK from the peer
+    EXPECT_TRUE(stream->isTakeoverWait());
+    // VBucket::takeover_backed_up flag set again
+    EXPECT_TRUE(vb.isTakeoverBackedUp());
+
+    // Now the stream received the ACK
+    stream->setVBucketStateAckRecieved(*producer);
+    // The stream has been set to dead
+    EXPECT_TRUE(stream->isDead());
+    // IMPORTANT:
+    // The VBucket::takeover_backed_up flag must be cleared at the end of the
+    // takeover procedure. Before MB-66609 we miss to do that and we leave the
+    // vbucket in a endless takeover-backup state.
+    EXPECT_FALSE(vb.isTakeoverBackedUp());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase_EarlyStreamEnd) {
+    pushStreamToTakeoverBackupPhase();
+
+    // Simulate disconnection
+    producer->closeAllStreams();
+
+    // The stream has been set to dead
+    EXPECT_TRUE(stream->isDead());
+    // IMPORTANT:
+    // The VBucket::takeover_backed_up flag must be cleared at the end of the
+    // takeover procedure. Before MB-66609 we miss to do that and we leave the
+    // vbucket in a endless takeover-backup state.
+    auto& vb = *store->getVBucket(vbid);
+    EXPECT_FALSE(vb.isTakeoverBackedUp());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
