@@ -5615,6 +5615,83 @@ TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, MB_66612) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Create two collections, seq:1 and seq:2
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Store seq:3 and seq:4.
+    // The lower seqno item matches the later DCP stream.
+    store_item(vbid, StoredDocKey{"3", CollectionEntry::vegetable}, "seq3");
+    store_item(vbid, StoredDocKey{"4", CollectionEntry::fruit}, "seq4");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Must wipe out the chekcpoint state so that we will go through the
+    // backfill phase, and assign curChkSeqno to the vb next seqno (5).
+    // In the real field occurence of  this bug it was a replica->active state
+    // change that added an empty checkpoint.
+    ensureDcpWillBackfill();
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
+
+    // Generate a stream request that is means we have observed
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      0,
+                      1, // opaque
+                      vbid,
+                      3, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
+                      2, // snap_start_seqno,
+                      4, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      R"({"collections":["a"]})"));
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    runBackfill();
+    const auto curChkSeqno = vb->getHighSeqno() + 1;
+    EXPECT_EQ(curChkSeqno, stream->getCurChkSeqno());
+
+    // runBackfill will have called notifyStreamReady, so we can step forwards.
+    // But no snapshot is triggered, compared to before the fix when an empty
+    // snapshot + seqno-advance was incorrectly triggered.
+    // We can though observe that a checkpoint_start was dequeued by expecting
+    // the nextSnapshotIsCheckpoint member to change from false to true.
+    EXPECT_FALSE(stream->getNextSnapshotIsCheckpoint());
+    runCheckpointProcessor();
+    EXPECT_TRUE(stream->getNextSnapshotIsCheckpoint());
+
+    // But nothing is ready
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+
+    // Now demonstrate that we can continue without crashing
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::vegetable}, "value");
+
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(2, producers->last_snap_start_seqno);
+    EXPECT_EQ(curChkSeqno, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(curChkSeqno, producers->last_byseqno);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

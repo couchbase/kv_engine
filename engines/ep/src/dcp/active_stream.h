@@ -506,6 +506,10 @@ public:
         return chkptItemsExtractionInProgress;
     }
 
+    bool getNextSnapshotIsCheckpoint() const {
+        return nextSnapshotIsCheckpoint;
+    }
+
 protected:
     void clear_UNLOCKED();
 
