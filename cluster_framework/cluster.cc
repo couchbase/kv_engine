@@ -210,7 +210,8 @@ void ClusterImpl::createBucketOnNode(const Node& node,
         // have logic which tries to copy all these files into the
         // snapshot so we need a file
         cb::io::FileSink file(deks / fmt::format("{}.key.0", key->getId()));
-        file.sink(nlohmann::json{*key}.dump(2));
+        nlohmann::json json = *key;
+        file.sink(json.dump(2));
         file.close();
     });
 

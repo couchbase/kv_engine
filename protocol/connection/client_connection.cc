@@ -2370,9 +2370,32 @@ void MemcachedConnection::setVbucket(Vbid vbid,
 
     auto rsp = execute(command);
     if (!rsp.isSuccess()) {
-        throw ConnectionError("setVbucket: Faled to set state",
-                              rsp.getStatus());
+        throw ConnectionError("setVbucket: Failed to set state", rsp);
     }
+}
+
+vbucket_state_t MemcachedConnection::getVbucket(
+        Vbid vbid, const GetFrameInfoFunction& getFrameInfo) {
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetVbucket);
+    cmd.setVBucket(vbid);
+    applyFrameInfos(cmd, getFrameInfo);
+
+    auto rsp = execute(cmd);
+    if (!rsp.isSuccess()) {
+        if (rsp.getStatus() == cb::mcbp::Status::NotMyVbucket) {
+            return vbucket_state_dead;
+        }
+        throw ConnectionError("getVbucket: Failed to get vbucket state", rsp);
+    }
+    if (rsp.getDataView().size() != sizeof(uint32_t)) {
+        throw std::runtime_error("getVbucket: Unexpected response size");
+    }
+    uint32_t ret;
+    std::copy_n(rsp.getDataView().data(),
+                sizeof(ret),
+                reinterpret_cast<char*>(&ret));
+
+    return static_cast<vbucket_state_t>(ntohl(ret));
 }
 
 void MemcachedConnection::waitForSeqnoToPersist(Vbid vbid, uint64_t seqno) {

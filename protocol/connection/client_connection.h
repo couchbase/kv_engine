@@ -977,6 +977,9 @@ public:
                     const nlohmann::json& payload,
                     const GetFrameInfoFunction& getFrameInfo = {});
 
+    vbucket_state_t getVbucket(Vbid vbid,
+                               const GetFrameInfoFunction& getFrameInfo = {});
+
     /**
      * Wait for the given seqno to be persisted to disk
      *

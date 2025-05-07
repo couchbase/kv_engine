@@ -14,10 +14,11 @@ cb_add_test_executable(cluster_test
                quota_sharing_paging_test.cc
                rbac_tests.cc
                regression_tests.cc
+               snapshot_tests.cc
                upgrade_test.cc
                upgrade_test.h)
 target_link_libraries(cluster_test PRIVATE cluster_framework snapshot)
-add_dependencies(cluster_test memcached)
+add_dependencies(cluster_test memcached Generate_kv_engine_X509_Test_Certificates)
 add_sanitizers(cluster_test)
 cb_enable_unity_build(cluster_test)
 kv_enable_pch(cluster_test)
