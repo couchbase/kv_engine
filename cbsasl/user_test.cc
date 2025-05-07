@@ -139,7 +139,7 @@ TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForHash) {
         User::PasswordMetaData md(sha1_blueprint);
     } catch (const std::exception& e) {
         failed = true;
-        EXPECT_STREQ("cb::base64::code2val Invalid input character", e.what());
+        EXPECT_STREQ("cb::base64::decode invalid input", e.what());
     }
     EXPECT_TRUE(failed);
 }
@@ -151,7 +151,7 @@ TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForSalt) {
         User::PasswordMetaData md(sha1_blueprint);
     } catch (const std::exception& e) {
         failed = true;
-        EXPECT_STREQ("cb::base64::code2val Invalid input character", e.what());
+        EXPECT_STREQ("cb::base64::decode invalid input", e.what());
     }
     EXPECT_TRUE(failed);
 }
