@@ -1905,7 +1905,17 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
+
+        // Reset the vbucket takeover state
+        if (isTakeoverStream()) {
+            auto vb = engine->getVBucket(vb_);
+            if (vb) {
+                vb->setTakeoverBackedUpState(false);
+            }
+        }
+
         transitionState(StreamState::Dead);
+
         if (reason != cb::mcbp::DcpStreamEndStatus::Disconnected) {
             pushToReadyQ(std::make_unique<StreamEndResponse>(
                     opaque_, reason, vb_, sid));

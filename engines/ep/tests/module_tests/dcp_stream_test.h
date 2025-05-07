@@ -67,6 +67,7 @@ protected:
      *  where Stream features are enabled depending on the flags passed from
      *  Producer.
      * @param jsonFilter JSON representing the collections filter for the stream
+     * @param addStreamFlags Baseline flags to use when creating the stream
      *
      *  @todo: Currently we use some arg-defaults which would be nice to remove,
      *  but that needs a general refactor and touching many tests unrelated from
@@ -74,7 +75,8 @@ protected:
      */
     void recreateStream(VBucket& vb,
                         bool enforceProducerFlags = false,
-                        std::optional<std::string_view> jsonFilter = {});
+                        std::optional<std::string_view> jsonFilter = {},
+                        uint32_t addStreamFlags = 0);
 
     /**
      * Verify that a DCP Producer sends user-xattrs in Normal (DCP_DELETE) and
@@ -112,6 +114,13 @@ protected:
     void testExpirationRemovesBody(uint32_t flags,
                                    Xattrs xattrs,
                                    ExpiryPath path);
+
+    /**
+     * Moves the stream to running the first TakeoverSend phase in a
+     * configuration where the stream sets the VBucket::takeover_backed_up flag.
+     * Used by multiple takeover tests as baseline step.
+     */
+    void pushStreamToTakeoverBackupPhase();
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
