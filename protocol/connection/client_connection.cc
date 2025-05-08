@@ -2204,16 +2204,15 @@ void MemcachedConnection::recvDcpBufferAck(uint32_t expected) {
                 "opcode request:" +
                 request->to_json(request->isValid()).dump());
     }
-    auto* dcpBufferAck =
-            reinterpret_cast<const cb::mcbp::request::DcpBufferAckPayload*>(
-                    request->getExtdata().data());
+    const auto& dcpBufferAck = request->getCommandSpecifics<
+            cb::mcbp::request::DcpBufferAckPayload>();
 
-    if (dcpBufferAck->getBufferBytes() != expected) {
+    if (dcpBufferAck.getBufferBytes() != expected) {
         throw std::logic_error(
-                "MemcachedConnection::recvDcpBufferAck: Unexpected buffer "
-                "bytes:" +
-                std::to_string(dcpBufferAck->getBufferBytes()) +
-                " expected:" + std::to_string(expected));
+                fmt::format("MemcachedConnection::recvDcpBufferAck: Unexpected "
+                            "buffer bytes:{} expected:{}",
+                            dcpBufferAck.getBufferBytes(),
+                            expected));
     }
 }
 
