@@ -40,10 +40,6 @@ cb::engine_errc SessionValidatedCommandContext::step() {
     return ret;
 }
 
-cb::engine_errc CompactDatabaseCommandContext::sessionLockedStep() {
-    return bucket_compact_database(cookie);
-}
-
 cb::engine_errc GetVbucketCommandContext::step() {
     const auto [status, state] = bucket_get_vbucket(cookie);
     if (status == cb::engine_errc::success) {

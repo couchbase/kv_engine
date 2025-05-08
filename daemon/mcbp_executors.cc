@@ -593,7 +593,9 @@ static void delete_vbucket_executor(Cookie& cookie) {
 }
 
 static void compact_db_executor(Cookie& cookie) {
-    cookie.obtainContext<CompactDatabaseCommandContext>(cookie).drive();
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return bucket_compact_database(c);
+          }).drive();
 }
 
 static void rbac_refresh_executor(Cookie& cookie) {

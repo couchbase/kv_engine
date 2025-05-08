@@ -43,17 +43,6 @@ private:
     const bool valid;
 };
 
-/// Class to implement the CompactDB command
-class CompactDatabaseCommandContext : public SessionValidatedCommandContext {
-public:
-    explicit CompactDatabaseCommandContext(Cookie& cookie)
-        : SessionValidatedCommandContext(cookie) {
-    }
-
-protected:
-    cb::engine_errc sessionLockedStep() override;
-};
-
 /// Class to implement the SetVBucket command
 class SetVbucketCommandContext : public SessionValidatedCommandContext {
 public:
