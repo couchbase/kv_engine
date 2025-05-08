@@ -83,6 +83,8 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "sasl";
     case Code::StorageEngineStats:
         return "storage_engine_stats";
+    case Code::Notified:
+        return "notified";
     }
     return "unknown tracecode";
 }
