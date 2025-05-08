@@ -562,40 +562,6 @@ void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
     acquireEngine(this)->resetStats();
 }
 
-cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
-        std::string_view key, const std::string& val, std::string& msg) {
-    auto rv = cb::engine_errc::success;
-
-    try {
-        // Last param (replication_throttle_threshold) in this group removed.
-        // @todo MB-52953: Remove the replication_param group from cbepctl,
-        //  the existing dcp_param seems enough for now
-
-        msg = "Unknown config param";
-        rv = cb::engine_errc::no_such_key;
-
-        // Handles exceptions thrown by the standard
-        // library stoi/stoul style functions when not numeric
-    } catch (std::invalid_argument&) {
-        msg = "Argument was not numeric";
-        rv = cb::engine_errc::invalid_arguments;
-
-        // Handles exceptions thrown by the standard library stoi/stoul
-        // style functions when the conversion does not fit in the datatype
-    } catch (std::out_of_range&) {
-        msg = "Argument was out of range";
-        rv = cb::engine_errc::invalid_arguments;
-
-        // Handles any miscellaenous exceptions in addition to the range_error
-        // exceptions thrown by the configuration::set<param>() methods
-    } catch (std::exception& error) {
-        msg = error.what();
-        rv = cb::engine_errc::invalid_arguments;
-    }
-
-    return rv;
-}
-
 cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
         std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
@@ -1209,9 +1175,6 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
     switch (category) {
     case EngineParamCategory::Flush:
         ret = setFlushParam(keyz, valz, msg);
-        break;
-    case EngineParamCategory::Replication:
-        ret = setReplicationParam(keyz, valz, msg);
         break;
     case EngineParamCategory::Checkpoint:
         ret = setCheckpointParam(keyz, valz, msg);

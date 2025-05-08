@@ -743,10 +743,6 @@ public:
                                               const std::string& val,
                                               std::string& msg);
 
-    cb::engine_errc setReplicationParam(std::string_view key,
-                                        const std::string& val,
-                                        std::string& msg);
-
     cb::engine_errc setCheckpointParam(std::string_view key,
                                        const std::string& val,
                                        std::string& msg);

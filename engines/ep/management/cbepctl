@@ -35,8 +35,6 @@ def set_param(mc, type, key, val, force=False):
         engine_param = memcacheConstants.ENGINE_PARAM_CHECKPOINT
     elif type == 'flush_param':
         engine_param = memcacheConstants.ENGINE_PARAM_FLUSH
-    elif type == 'replication_param':
-        engine_param = memcacheConstants.ENGINE_PARAM_REPLICATION
     elif type == 'dcp_param':
         engine_param = memcacheConstants.ENGINE_PARAM_DCP
     elif type == 'vbucket_param':
@@ -302,9 +300,6 @@ Available params for "set":
     magma_fusion_logstore_uri - URI of the Fusion LogStore
     magma_fusion_metadatastore_uri - URI of the Fusion MetadataStore
     magma_fusion_upload_interval - The interval between kvstore syncs to fusion, in seconds.
-
-  Available params for "set replication_param":
-    <empty>
 
   Available params for "set dcp_param":
     dcp_consumer_process_buffered_messages_yield_limit - The threshold at which

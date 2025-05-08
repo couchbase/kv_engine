@@ -101,8 +101,6 @@ std::string to_string(const EngineParamCategory epc) {
     switch (epc) {
     case EngineParamCategory::Flush:
         return "Flush";
-    case EngineParamCategory::Replication:
-        return "Replication";
     case EngineParamCategory::Checkpoint:
         return "Checkpoint";
     case EngineParamCategory::Dcp:

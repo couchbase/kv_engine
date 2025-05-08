@@ -47,14 +47,14 @@ static EngineParamCategory getParamCategory(Cookie& cookie) {
     switch (payload.getParamType()) {
     case SetParamPayload::Type::Flush:
         return EngineParamCategory::Flush;
-    case SetParamPayload::Type::Replication:
-        return EngineParamCategory::Replication;
     case SetParamPayload::Type::Checkpoint:
         return EngineParamCategory::Checkpoint;
     case SetParamPayload::Type::Dcp:
         return EngineParamCategory::Dcp;
     case SetParamPayload::Type::Vbucket:
         return EngineParamCategory::Vbucket;
+    case SetParamPayload::Type::Replication:
+        Expects(false && "mcbp_validator should reject this group");
     }
     throw std::invalid_argument("getParamCategory(): Invalid param provided: " +
                                 std::to_string(int(payload.getParamType())));

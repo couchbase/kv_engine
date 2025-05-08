@@ -316,10 +316,6 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                 cb::engine_errc::success) {
                 handled.emplace_back("setFlushParam");
             }
-            if (engine->setReplicationParam(key, value, msg) ==
-                cb::engine_errc::success) {
-                handled.emplace_back("setReplicationParam");
-            }
             if (engine->setCheckpointParam(key, value, msg) ==
                 cb::engine_errc::success) {
                 handled.emplace_back("setCheckpointParam");

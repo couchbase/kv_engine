@@ -10,6 +10,7 @@
 #pragma once
 
 #include "steppable_command_context.h"
+#include <variant>
 
 /**
  * The SessionValidatedCommandContext is a state machine used by all commands
