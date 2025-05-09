@@ -149,8 +149,6 @@ protected:
             std::initializer_list<std::pair<const std::string, std::string>>
                     xattrList);
 
-    void setClusterSessionToken(uint64_t new_value);
-
     /// Perform the specified subdoc command; returning the response.
     BinprotSubdocResponse subdoc(
             cb::mcbp::ClientOpcode opcode,

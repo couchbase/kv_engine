@@ -1435,7 +1435,7 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
                                                sizeof(SetCtrlTokenPayload),
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
-                                               ExpectedCas::Any,
+                                               ExpectedCas::NotSet,
                                                GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {

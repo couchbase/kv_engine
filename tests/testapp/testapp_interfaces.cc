@@ -21,7 +21,6 @@ class InterfacesTest : public TestappClientTest {
 public:
     /// Simulate the the server created the bootstrap interfaces
     static void SetUpTestCase() {
-        token = 0xdeadbeef;
         memcached_cfg = generate_config();
         start_memcached_server();
         if (HasFailure()) {

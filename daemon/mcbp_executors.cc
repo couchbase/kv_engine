@@ -63,16 +63,12 @@
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
 #include "protocol/mcbp/unmount_fusion_vbucket_command_context.h"
-#include "session_cas.h"
 #include "settings.h"
-#include "ssl_utils.h"
 #include "subdocument.h"
 
-#include <dek/manager.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
-#include <platform/base64.h>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
@@ -339,35 +335,11 @@ static void arithmetic_executor(Cookie& cookie) {
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
-    using cb::mcbp::request::SetCtrlTokenPayload;
-    auto& req = cookie.getRequest();
-    auto extras = req.getExtdata();
-    auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
-    auto newval = payload->getCas();
-    const auto casval = req.getCas();
-    uint64_t value;
-
-    auto ret = session_cas.cas(newval, casval, value);
-
-    // The contract in the protocol description for set-ctrl-token is
-    // to include the CAS value in the response even for failures
-    // (there is a unit test which enforce this)
-    cookie.setCas(value);
-    cookie.sendResponse(cb::mcbp::to_status(ret),
-                        {},
-                        {},
-                        {},
-                        cb::mcbp::Datatype::Raw,
-                        value);
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
 static void get_ctrl_token_executor(Cookie& cookie) {
-    cookie.sendResponse(cb::mcbp::Status::Success,
-                        {},
-                        {},
-                        {},
-                        cb::mcbp::Datatype::Raw,
-                        session_cas.getCasValue());
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
 static void ioctl_executor(Cookie& cookie) {

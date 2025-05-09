@@ -271,15 +271,6 @@ TEST_P(RegressionTest, MB_32081) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataView();
 }
 
-/// BinprotSetControlTokenCommand did not use the provided old token,
-/// but always used 0 (override)
-TEST_P(RegressionTest, SetCtrlToken) {
-    const auto rsp = adminConnection->execute(
-            BinprotSetControlTokenCommand{32, token - 10});
-    ASSERT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
-}
-
 /**
  * Increment should set the datatype to JSON
  */

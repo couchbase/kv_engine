@@ -74,18 +74,6 @@ void TestappXattrClientTest::setBodyAndXattr(
             value, xattrList, hasSnappySupport() == ClientSnappySupport::Yes);
 }
 
-void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
-    const auto response = adminConnection->execute(
-            BinprotSetControlTokenCommand{nval, token});
-
-    if (!response.isSuccess()) {
-        throw ConnectionError("TestappClientTest::setClusterSessionToken",
-                              response);
-    }
-    ASSERT_EQ(nval, response.getCas());
-    token = nval;
-}
-
 BinprotSubdocResponse TestappXattrClientTest::subdoc(
         cb::mcbp::ClientOpcode opcode,
         const std::string& key,

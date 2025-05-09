@@ -176,44 +176,13 @@ void MiscTest::testConfigDefaultThreads(
     EXPECT_EQ(defaultThreads, getPoolSize());
 }
 
+/// No longer supported
 TEST_P(MiscTest, SessionCtrlToken) {
-    // Validate that you may successfully set the token to a legal value
     auto rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
-    ASSERT_TRUE(rsp.isSuccess());
-
-    uint64_t old_token = rsp.getCas();
-    ASSERT_NE(0, old_token);
-    uint64_t new_token = 0x0102030405060708;
-
-    // Test that you can set it with the correct ctrl token
-    rsp = adminConnection->execute(
-            BinprotSetControlTokenCommand{new_token, old_token});
-    ASSERT_TRUE(rsp.isSuccess());
-    EXPECT_EQ(new_token, rsp.getCas());
-    old_token = new_token;
-
-    // Validate that you can't set 0 as the ctrl token
-    rsp = adminConnection->execute(
-            BinprotSetControlTokenCommand{0ull, old_token});
-    ASSERT_FALSE(rsp.isSuccess())
-            << "It shouldn't be possible to set token to 0";
-
-    // Validate that you can't set it by providing an incorrect cas
-    rsp = adminConnection->execute(
-            BinprotSetControlTokenCommand{1234ull, old_token - 1});
-    ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
-
-    // Validate that you can set it by providing the correct token
-    rsp = adminConnection->execute(
-            BinprotSetControlTokenCommand{0xdeadbeefull, old_token});
-    ASSERT_TRUE(rsp.isSuccess());
-    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
-
-    rsp = adminConnection->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
-    ASSERT_TRUE(rsp.isSuccess());
-    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
+    ASSERT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    rsp = adminConnection->execute(BinprotSetControlTokenCommand{1, 0});
+    ASSERT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }
 
 TEST_P(MiscTest, ExceedMaxPacketSize) {

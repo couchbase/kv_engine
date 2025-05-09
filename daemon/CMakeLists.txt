@@ -76,8 +76,6 @@ add_library(memcached_daemon STATIC
             server_api.cc
             server_socket.cc
             server_socket.h
-            session_cas.cc
-            session_cas.h
             settings.cc
             settings.h
             sloppy_gauge.cc

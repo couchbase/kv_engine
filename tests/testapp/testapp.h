@@ -342,7 +342,6 @@ protected:
     static nlohmann::json memcached_cfg;
     static nlohmann::json tls_properties;
     static ConnectionMap connectionMap;
-    static uint64_t token;
     static std::thread memcached_server_thread;
     /// The number of times we've started a memcached server
     static std::size_t num_server_starts;

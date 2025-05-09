@@ -1735,9 +1735,9 @@ TEST_P(SetCtrlTokenValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(SetCtrlTokenValidatorTest, Cas) {
+TEST_P(SetCtrlTokenValidatorTest, InvalidCas) {
     request.setCas(1);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidExtlen) {

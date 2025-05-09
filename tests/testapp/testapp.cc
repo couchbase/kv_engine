@@ -188,7 +188,6 @@ void TestappTest::SetUpTestCase() {
 
 void TestappTest::doSetUpTestCaseWithConfiguration(
         nlohmann::json config, const std::string& bucketConf) {
-    token = 0xdeadbeef;
     memcached_cfg = std::move(config);
     remove(mcd_env->getPortnumberFile());
     start_memcached_server();
@@ -1230,7 +1229,6 @@ static void dumpTotalSocketsCreated() {
 nlohmann::json TestappTest::memcached_cfg;
 nlohmann::json TestappTest::tls_properties;
 ConnectionMap TestappTest::connectionMap;
-uint64_t TestappTest::token;
 std::thread TestappTest::memcached_server_thread;
 std::size_t TestappTest::num_server_starts = 0;
 std::unique_ptr<MemcachedConnection> TestappTest::adminConnection;
