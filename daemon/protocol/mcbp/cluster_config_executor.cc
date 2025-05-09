@@ -10,15 +10,9 @@
 
 #include "executors.h"
 #include <daemon/buckets.h>
-#include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
-#include <daemon/session_cas.h>
 #include <executor/executorpool.h>
-#include <logger/logger.h>
-#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
 
