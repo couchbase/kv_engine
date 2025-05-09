@@ -2072,11 +2072,16 @@ cb::engine_errc EPBucket::loadVBucket_UNLOCKED(
             return cb::engine_errc::not_stored;
         }
         const auto& manifest = *maybeManifest;
-        paths.reserve(manifest.files.size());
-        for (const auto& file : manifest.files) {
+        if (getConfiguration().getBackendString() == "magma") {
             paths.push_back(
-                    snapshotCache.make_absolute(file.path, manifest.uuid)
-                            .string());
+                    snapshotCache.make_absolute({}, manifest.uuid).string());
+        } else {
+            paths.reserve(manifest.files.size());
+            for (const auto& file : manifest.files) {
+                paths.push_back(
+                        snapshotCache.make_absolute(file.path, manifest.uuid)
+                                .string());
+            }
         }
     }
     auto task =
