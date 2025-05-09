@@ -79,10 +79,3 @@ cb::engine_errc SetVbucketCommandContext::sessionLockedStep() {
 
     return bucket_set_vbucket(cookie, state, meta);
 }
-
-cb::engine_errc DeleteVbucketCommandContext::sessionLockedStep() {
-    const auto& req = cookie.getRequest();
-    auto value = req.getValue();
-    bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
-    return bucket_delete_vbucket(cookie, req.getVBucket(), sync);
-}

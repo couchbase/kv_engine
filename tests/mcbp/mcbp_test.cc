@@ -2759,9 +2759,9 @@ TEST_P(DelVBucketValidatorTest, InvalidDatatype) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(DelVBucketValidatorTest, Cas) {
+TEST_P(DelVBucketValidatorTest, InvalidCas) {
     req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DelVBucketValidatorTest, InvalidKey) {

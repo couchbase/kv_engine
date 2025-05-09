@@ -57,17 +57,6 @@ private:
     std::string error;
 };
 
-/// Class to implement the DelVBucket command
-class DeleteVbucketCommandContext : public SessionValidatedCommandContext {
-public:
-    explicit DeleteVbucketCommandContext(Cookie& cookie)
-        : SessionValidatedCommandContext(cookie) {
-    }
-
-protected:
-    cb::engine_errc sessionLockedStep() override;
-};
-
 /// Class to implement the GetVBucket command.
 ///
 /// The class don't really belong here as it don't need to lock the session

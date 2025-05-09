@@ -2220,7 +2220,7 @@ static Status del_vbucket_validator(Cookie& cookie) {
                                         0,
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Any,
-                                        ExpectedCas::Any,
+                                        ExpectedCas::NotSet,
                                         GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }

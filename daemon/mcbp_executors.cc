@@ -589,7 +589,13 @@ static void set_vbucket_executor(Cookie& cookie) {
 }
 
 static void delete_vbucket_executor(Cookie& cookie) {
-    cookie.obtainContext<DeleteVbucketCommandContext>(cookie).drive();
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              using namespace std::string_view_literals;
+              const auto& req = c.getRequest();
+              auto value = req.getValueString();
+              return bucket_delete_vbucket(
+                      c, req.getVBucket(), value == "async=0"sv);
+          }).drive();
 }
 
 static void compact_db_executor(Cookie& cookie) {
