@@ -60,6 +60,8 @@ add_library(memcached_daemon_mcbp OBJECT
         get_locked_context.h
         get_meta_context.cc
         get_meta_context.h
+        get_vbucket_command_context.cc
+        get_vbucket_command_context.h
         getex_context.cc
         getex_context.h
         hello_packet_executor.cc
@@ -98,8 +100,6 @@ add_library(memcached_daemon_mcbp OBJECT
         sasl_step_command_context.cc
         sasl_step_command_context.h
         select_bucket_executor.cc
-        session_validated_command_context.cc
-        session_validated_command_context.h
         set_active_encryption_keys_context.cc
         set_active_encryption_keys_context.h
         set_chronicle_auth_token_command_context.cc
