@@ -140,6 +140,9 @@ Options:
   --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
   --enable-change-streams        Turn on change-stream support
   --hang                         Create streams, but do not drain them.
+  --start-inside-snapshot        Start the stream inside of a snapshot. The
+                                 client will query vbucket-details and begin at
+                                 1/2 of each vbucket's high-seqno.
   --help                         This help text
 )";
 
@@ -153,8 +156,10 @@ class DcpConnection {
 public:
     DcpConnection(const std::string& hostname,
                   std::vector<uint16_t> v,
-                  std::shared_ptr<folly::EventBase> eb)
-        : vbuckets(std::move(v)) {
+                  std::shared_ptr<folly::EventBase> eb) {
+        for (auto vb : v) {
+            vbuckets.emplace_back(vb);
+        }
         auto [host, port, family] = cb::inet::parse_hostname(hostname, {});
         connection = std::make_unique<MemcachedConnection>(
                 host, port, family, tls, std::move(eb));
@@ -178,17 +183,17 @@ public:
         folly::IOBuf* tailp = nullptr;
 
         for (std::size_t ii = 0; ii < streamsPerVb; ++ii) {
-            for (auto vb : vbuckets) {
+            for (const auto& vb : vbuckets) {
                 totalStreams++;
                 BinprotDcpStreamRequestCommand streamRequestCommand;
                 streamRequestCommand.setDcpFlags(streamRequestFlags);
                 streamRequestCommand.setDcpReserved(0);
-                streamRequestCommand.setDcpStartSeqno(0);
+                streamRequestCommand.setDcpStartSeqno(vb.startSeqno);
                 streamRequestCommand.setDcpEndSeqno(~0);
-                streamRequestCommand.setDcpVbucketUuid(0);
-                streamRequestCommand.setDcpSnapStartSeqno(0);
-                streamRequestCommand.setDcpSnapEndSeqno(0);
-                streamRequestCommand.setVBucket(Vbid(vb));
+                streamRequestCommand.setDcpVbucketUuid(vb.vbucketUuid);
+                streamRequestCommand.setDcpSnapStartSeqno(vb.snapStartSeqno);
+                streamRequestCommand.setDcpSnapEndSeqno(vb.snapEndSeqno);
+                streamRequestCommand.setVBucket(Vbid(vb.vbucket));
 
                 if (!streamRequestValue.empty()) {
                     streamRequestCommand.setValue(streamRequestValue);
@@ -266,9 +271,27 @@ public:
                 cb::calculateThroughput(total_bytes, stop - start));
     }
 
+    /**
+     * For all of the vbuckets on this connection, override our default
+     * stream-request values. Instead use the vbuckets high-seqno as the end of
+     * the snapshot and choose 1/2 of that as the start.
+     *
+     * e.g. start=high-seqno/2, snapshot{0, high-seqno}
+     */
+    void queryServerAndSetupStreamRequestInsideSnapshot();
+
 protected:
     std::unique_ptr<MemcachedConnection> connection;
-    std::vector<uint16_t> vbuckets;
+    struct StreamRequestParams {
+        StreamRequestParams(uint16_t vbucket) : vbucket(vbucket) {
+        }
+        uint16_t vbucket{0};
+        uint64_t startSeqno{0};
+        uint64_t snapStartSeqno{0};
+        uint64_t snapEndSeqno{0};
+        uint64_t vbucketUuid{0};
+    };
+    std::vector<StreamRequestParams> vbuckets;
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point stop;
 
@@ -399,6 +422,24 @@ protected:
     size_t max_vbuckets = 0;
     size_t totalStreams = 0;
 };
+
+void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
+    // One stat call and then we'll find each of the vbuckets.
+    auto vbucketDetailsMap = getConnection().statsMap("vbucket-details");
+
+    for (auto& vb : vbuckets) {
+        std::string prefix = "vb_" + std::to_string(vb.vbucket);
+        std::string highSeqKey = prefix + ":high_seqno";
+        std::string uuidSeqKey = prefix + ":uuid";
+        Expects(vbucketDetailsMap.count(highSeqKey));
+        Expects(vbucketDetailsMap.count(uuidSeqKey));
+
+        vb.snapEndSeqno = std::stoull(vbucketDetailsMap[highSeqKey]);
+        vb.snapStartSeqno = 0;
+        vb.startSeqno = vb.snapEndSeqno / 2;
+        vb.vbucketUuid = std::stoull(vbucketDetailsMap[uuidSeqKey]);
+    }
+}
 
 static unsigned long strtoul(const char* arg) {
     try {
@@ -605,6 +646,7 @@ int main(int argc, char** argv) {
     bool enableFlatbufferSysEvents{false};
     bool enableChangeStreams{false};
     std::unordered_set<Vbid> vbuckets;
+    bool startInsideSnapshot{false};
 
     cb::net::initialize();
 
@@ -620,6 +662,7 @@ int main(int argc, char** argv) {
         EnableChangeStreams,
         VBuckets,
         Hang,
+        StartInsideSnapshot
     };
 
     std::vector<option> long_options = {
@@ -663,6 +706,10 @@ int main(int argc, char** argv) {
              nullptr,
              Options::EnableChangeStreams},
             {"hang", no_argument, nullptr, Options::Hang},
+            {"start-inside-snapshot",
+             no_argument,
+             nullptr,
+             Options::StartInsideSnapshot},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -768,6 +815,9 @@ int main(int argc, char** argv) {
             break;
         case Options::Hang:
             hang = true;
+            break;
+        case Options::StartInsideSnapshot:
+            startInsideSnapshot = true;
             break;
         default:
             usage();
@@ -883,6 +933,11 @@ int main(int argc, char** argv) {
 
                 c.setFeatures(features);
                 c.selectBucket(bucket);
+
+                if (startInsideSnapshot) {
+                    connections.back()
+                            ->queryServerAndSetupStreamRequestInsideSnapshot();
+                }
 
                 std::string nm = name + ":" + std::to_string(idx++);
                 auto rsp = c.execute(BinprotDcpOpenCommand{
