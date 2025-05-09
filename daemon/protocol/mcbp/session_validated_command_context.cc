@@ -53,29 +53,3 @@ cb::engine_errc GetVbucketCommandContext::step() {
     }
     return status;
 }
-
-SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)
-    : SessionValidatedCommandContext(cookie) {
-    const auto& req = cookie.getRequest();
-    const auto extras = req.getExtdata();
-    try {
-        state = vbucket_state_t(extras.front());
-        auto val = req.getValueString();
-        if (!val.empty()) {
-            meta = nlohmann::json::parse(val);
-        }
-    } catch (const std::exception& exception) {
-        error = exception.what();
-    }
-}
-
-cb::engine_errc SetVbucketCommandContext::sessionLockedStep() {
-    if (!error.empty()) {
-        cookie.setErrorContext(error);
-        cookie.sendResponse(cb::mcbp::Status::Einval);
-        // and complete the execution of the command
-        return cb::engine_errc::success;
-    }
-
-    return bucket_set_vbucket(cookie, state, meta);
-}

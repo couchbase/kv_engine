@@ -43,20 +43,6 @@ private:
     const bool valid;
 };
 
-/// Class to implement the SetVBucket command
-class SetVbucketCommandContext : public SessionValidatedCommandContext {
-public:
-    explicit SetVbucketCommandContext(Cookie& cookie);
-
-protected:
-    cb::engine_errc sessionLockedStep() override;
-
-private:
-    vbucket_state_t state;
-    nlohmann::json meta;
-    std::string error;
-};
-
 /// Class to implement the GetVBucket command.
 ///
 /// The class don't really belong here as it don't need to lock the session

@@ -2185,7 +2185,7 @@ static Status set_vbucket_validator(Cookie& cookie) {
             1,
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Any,
-            ExpectedCas::Any,
+            ExpectedCas::NotSet,
             GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {

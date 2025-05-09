@@ -72,9 +72,10 @@ TEST_P(SetVBucketValidatorTest, SetVbucketMessage) {
     state = uint8_t(vbucket_state_active);
     builder.setExtras({&state, sizeof(state)});
 
-    // CAS may be anything (0 == override, otherwise it is the session token
+    // CAS may only be 0
     builder.setCas(uint64_t(time(nullptr)));
-    EXPECT_EQ(Status::Success, validate());
+    EXPECT_EQ(Status::Einval, validate());
+    builder.setCas(0);
 
     // We might have a value, but ONLY if datatype is set to JSON
     builder.setValue(R"({"foo":"bar"})");

@@ -108,6 +108,8 @@ add_library(memcached_daemon_mcbp OBJECT
         set_cluster_config_command_context.h
         set_param_command_context.cc
         set_param_command_context.h
+        set_vbucket_command_context.cc
+        set_vbucket_command_context.h
         settings_reload_command_context.cc
         settings_reload_command_context.h
         single_state_steppable_context.cc

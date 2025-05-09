@@ -54,6 +54,7 @@
 #include "protocol/mcbp/set_chronicle_auth_token_command_context.h"
 #include "protocol/mcbp/set_cluster_config_command_context.h"
 #include "protocol/mcbp/set_param_command_context.h"
+#include "protocol/mcbp/set_vbucket_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/start_fusion_uploader_command_context.h"
