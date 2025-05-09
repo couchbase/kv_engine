@@ -1690,7 +1690,7 @@ static Status shutdown_validator(Cookie& cookie) {
                                         0,
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
-                                        ExpectedCas::Set,
+                                        ExpectedCas::NotSet,
                                         GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }

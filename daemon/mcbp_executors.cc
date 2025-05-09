@@ -432,15 +432,10 @@ static void get_errmap_executor(Cookie& cookie) {
 }
 
 static void shutdown_executor(Cookie& cookie) {
-    if (session_cas.increment_session_counter(cookie.getRequest().getCas())) {
-        session_cas.decrement_session_counter();
-        cookie.sendResponse(cb::mcbp::Status::Success);
-        LOG_INFO_CTX("Shutdown server requested",
-                     {"conn_id", cookie.getConnectionId()});
-        shutdown_server();
-    } else {
-        cookie.sendResponse(cb::mcbp::Status::KeyEexists);
-    }
+    cookie.sendResponse(cb::mcbp::Status::Success);
+    LOG_INFO_CTX("Shutdown server requested",
+                 {"conn_id", cookie.getConnectionId()});
+    shutdown_server();
 }
 
 static void set_bucket_throttle_properties_executor(Cookie& cookie) {

@@ -32,7 +32,6 @@ TEST_F(ShutdownTest, ShutdownAllowed) {
     expectMemcachedTermination.store(true);
     auto& conn = getAdminConnection();
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
-    cmd.setCas(token);
     conn.sendCommand(cmd);
 
     BinprotResponse rsp;

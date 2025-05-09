@@ -1453,7 +1453,6 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.setCas(1);
     }
 
 protected:
@@ -1485,7 +1484,7 @@ TEST_P(ShutdownValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(ShutdownValidatorTest, InvalidCas) {
-    request.setCas(0);
+    request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

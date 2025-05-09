@@ -70,7 +70,6 @@ protected:
             expectMemcachedTermination.store(true);
             auto& admin = getAdminConnection();
             BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
-            cmd.setCas(token);
             const auto rsp = admin.execute(cmd);
             EXPECT_TRUE(rsp.isSuccess());
             break;
