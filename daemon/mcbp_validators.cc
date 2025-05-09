@@ -1624,7 +1624,7 @@ static Status pause_bucket_validator(Cookie& cookie) {
                                         0,
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
-                                        ExpectedCas::Any,
+                                        ExpectedCas::NotSet,
                                         GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
@@ -1634,7 +1634,7 @@ static Status resume_bucket_validator(Cookie& cookie) {
                                         0,
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
-                                        ExpectedCas::Any,
+                                        ExpectedCas::NotSet,
                                         GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }

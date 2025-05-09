@@ -14,7 +14,6 @@
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
-#include <daemon/session_cas.h>
 #include <daemon/settings.h>
 #include <daemon/yielding_limited_concurrency_task.h>
 #include <executor/executorpool.h>
@@ -186,54 +185,42 @@ cb::engine_errc BucketManagementCommandContext::pause() {
     }
     // Run a background task to perform the actual pause() of the bucket, as
     // this can be long-running (need to wait for outstanding IO operations)
-    // and ns_server requires that the PauseBucket() command returns
-    // immediately.
-    auto pauseFunc = [client = &cookie, name]() {
-        ExecutorPool::get()->schedule(
-                std::make_shared<OneShotLimitedConcurrencyTask>(
-                        TaskId::Core_PauseBucketTask,
-                        "Pause bucket",
-                        [client, nm = std::move(name)]() {
-                            cb::engine_errc status;
-                            try {
-                                status = BucketManager::instance().pause(
-                                        *client, nm);
-                            } catch (const std::runtime_error& error) {
-                                LOG_WARNING_CTX(
-                                        "An error occurred while pausing "
-                                        "bucket",
-                                        {"conn_id", client->getConnectionId()},
-                                        {"bucket", nm},
-                                        {"error", error.what()});
-                                status = cb::engine_errc::failed;
-                            }
-                            client->notifyIoComplete(status);
-                        },
-                        ConcurrencySemaphores::instance().bucket_management,
-                        std::chrono::seconds(10)));
-    };
-    if (!session_cas.execute(request.getCas(), pauseFunc)) {
-        return cb::engine_errc::key_already_exists;
-    }
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_PauseBucketTask,
+                    "Pause bucket",
+                    [client = &cookie, nm = std::move(name)]() {
+                        cb::engine_errc status;
+                        try {
+                            status = BucketManager::instance().pause(*client,
+                                                                     nm);
+                        } catch (const std::runtime_error& error) {
+                            LOG_WARNING_CTX(
+                                    "An error occurred while pausing "
+                                    "bucket",
+                                    {"conn_id", client->getConnectionId()},
+                                    {"bucket", nm},
+                                    {"error", error.what()});
+                            status = cb::engine_errc::failed;
+                        }
+                        client->notifyIoComplete(status);
+                    },
+                    ConcurrencySemaphores::instance().bucket_management,
+                    std::chrono::seconds(10)));
     state = State::Done;
     return cb::engine_errc::would_block;
 }
 
 cb::engine_errc BucketManagementCommandContext::resume() {
     cb::engine_errc status = cb::engine_errc::failed;
-    auto resumeFunc =
-            [&status, client = &cookie, name = request.getKeyString()]() {
-                try {
-                    status = BucketManager::instance().resume(*client, name);
-                } catch (const std::runtime_error& error) {
-                    LOG_WARNING_CTX("An error occurred while resuming bucket",
-                                    {"conn_id", client->getConnectionId()},
-                                    {"bucket", name},
-                                    {"error", error.what()});
-                }
-            };
-    if (!session_cas.execute(request.getCas(), resumeFunc)) {
-        status = cb::engine_errc::key_already_exists;
+    try {
+        status = BucketManager::instance().resume(cookie,
+                                                  request.getKeyString());
+    } catch (const std::runtime_error& error) {
+        LOG_WARNING_CTX("An error occurred while resuming bucket",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"bucket", request.getKeyString()},
+                        {"error", error.what()});
     }
     state = State::Done;
     return status;
