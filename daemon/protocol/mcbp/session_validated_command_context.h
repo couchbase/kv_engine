@@ -43,18 +43,6 @@ private:
     const bool valid;
 };
 
-/// Class to implement the SetParam command
-class SetParameterCommandContext : public SessionValidatedCommandContext {
-public:
-    explicit SetParameterCommandContext(Cookie& cookie);
-
-protected:
-    cb::engine_errc sessionLockedStep() override;
-
-private:
-    const EngineParamCategory category;
-};
-
 /// Class to implement the CompactDB command
 class CompactDatabaseCommandContext : public SessionValidatedCommandContext {
 public:

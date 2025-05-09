@@ -40,41 +40,6 @@ cb::engine_errc SessionValidatedCommandContext::step() {
     return ret;
 }
 
-static EngineParamCategory getParamCategory(Cookie& cookie) {
-    const auto& req = cookie.getRequest();
-    using cb::mcbp::request::SetParamPayload;
-    const auto& payload = req.getCommandSpecifics<SetParamPayload>();
-    switch (payload.getParamType()) {
-    case SetParamPayload::Type::Flush:
-        return EngineParamCategory::Flush;
-    case SetParamPayload::Type::Checkpoint:
-        return EngineParamCategory::Checkpoint;
-    case SetParamPayload::Type::Dcp:
-        return EngineParamCategory::Dcp;
-    case SetParamPayload::Type::Vbucket:
-        return EngineParamCategory::Vbucket;
-    case SetParamPayload::Type::Replication:
-        Expects(false && "mcbp_validator should reject this group");
-    }
-    throw std::invalid_argument("getParamCategory(): Invalid param provided: " +
-                                std::to_string(int(payload.getParamType())));
-}
-
-SetParameterCommandContext::SetParameterCommandContext(Cookie& cookie)
-    : SessionValidatedCommandContext(cookie),
-      category(getParamCategory(cookie)) {
-}
-
-cb::engine_errc SetParameterCommandContext::sessionLockedStep() {
-    // We can't cache the key and value as a ewb would relocate them
-    const auto& req = cookie.getRequest();
-    return bucket_set_parameter(cookie,
-                                category,
-                                req.getKeyString(),
-                                req.getValueString(),
-                                req.getVBucket());
-}
-
 cb::engine_errc CompactDatabaseCommandContext::sessionLockedStep() {
     return bucket_compact_database(cookie);
 }

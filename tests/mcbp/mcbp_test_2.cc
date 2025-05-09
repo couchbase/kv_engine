@@ -405,9 +405,9 @@ TEST_P(SetParamValidatorTest, InvalidDatatype) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(SetParamValidatorTest, Cas) {
+TEST_P(SetParamValidatorTest, InvalidCas) {
     req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetParamValidatorTest, InvalidKey) {

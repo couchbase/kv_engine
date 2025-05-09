@@ -2353,7 +2353,7 @@ static Status set_param_validator(Cookie& cookie) {
                                                sizeof(SetParamPayload),
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::NonZero,
-                                               ExpectedCas::Any,
+                                               ExpectedCas::NotSet,
                                                GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
 

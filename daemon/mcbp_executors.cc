@@ -53,6 +53,7 @@
 #include "protocol/mcbp/set_active_encryption_keys_context.h"
 #include "protocol/mcbp/set_chronicle_auth_token_command_context.h"
 #include "protocol/mcbp/set_cluster_config_command_context.h"
+#include "protocol/mcbp/set_param_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/start_fusion_uploader_command_context.h"
@@ -576,7 +577,7 @@ static void update_user_permissions_executor(Cookie& cookie) {
 }
 
 static void set_param_executor(Cookie& cookie) {
-    cookie.obtainContext<SetParameterCommandContext>(cookie).drive();
+    cookie.obtainContext<SetParamCommandContext>(cookie).drive();
 }
 
 static void get_vbucket_executor(Cookie& cookie) {
