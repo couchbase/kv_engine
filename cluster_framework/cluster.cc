@@ -142,7 +142,7 @@ ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
                                  cb::mcbp::Feature::JSON,
                                  cb::mcbp::Feature::SNAPPY});
         auto rsp = connection->execute(BinprotSetClusterConfigCommand{
-                0, globalmap, epoch, revno.load(), {}});
+                globalmap, epoch, revno.load(), {}});
         if (!rsp.isSuccess()) {
             fmt::print(stderr,
                        "Failed to set global CCCP on node {}: {}",
@@ -268,8 +268,7 @@ void ClusterImpl::createBucketOnNode(const Node& node,
     }
 
     rsp = connection->execute(
-            BinprotSetClusterConfigCommand{0,
-                                           bucket.getManifest().dump(2),
+            BinprotSetClusterConfigCommand{bucket.getManifest().dump(2),
                                            epoch,
                                            revno.load(),
                                            bucket.getName()});

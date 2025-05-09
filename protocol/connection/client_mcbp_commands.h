@@ -1028,8 +1028,7 @@ protected:
 
 class BinprotSetClusterConfigCommand : public BinprotGenericCommand {
 public:
-    BinprotSetClusterConfigCommand(uint64_t token_,
-                                   std::string config,
+    BinprotSetClusterConfigCommand(std::string config,
                                    int64_t epoch,
                                    int64_t revision,
                                    std::string bucket);

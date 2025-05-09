@@ -16,9 +16,6 @@ class ClusterConfigTest : public TestappXattrClientTest {
 protected:
     void SetUp() override {
         TestappXattrClientTest::SetUp();
-        // Make sure we've specified a session token
-        setClusterSessionToken(0xdeadbeef);
-
         protocol_binary_datatype_t expected = 0;
         if (hasSnappySupport() == ClientSnappySupport::Everywhere) {
             expected |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
@@ -34,11 +31,10 @@ protected:
         userConnection.reset();
     }
 
-    BinprotResponse setClusterConfig(uint64_t token,
-                                     const std::string& config,
+    BinprotResponse setClusterConfig(const std::string& config,
                                      int64_t revision) {
         return adminConnection->execute(BinprotSetClusterConfigCommand{
-                token, config, 1, revision, bucketName});
+                config, 1, revision, bucketName});
     }
 
     void test_MB_17506(bool dedupe, bool client_setting);
@@ -85,7 +81,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe, bool client_setting) {
     const std::string clustermap{R"({"rev":100})"};
 
     // Make sure we have a cluster configuration installed
-    auto response = setClusterConfig(token, clustermap, 100);
+    auto response = setClusterConfig(clustermap, 100);
     EXPECT_TRUE(response.isSuccess());
 
     BinprotGetCommand command{"foo", Vbid{1}};
@@ -121,24 +117,9 @@ void ClusterConfigTest::test_MB_17506(bool dedupe, bool client_setting) {
     }
 }
 
-TEST_P(ClusterConfigTest, SetClusterConfigWithIncorrectSessionToken) {
-    auto response = setClusterConfig(0xcafebeef, R"({"rev":100})", 100);
-    EXPECT_FALSE(response.isSuccess()) << "Should not be allowed to set "
-                                          "cluster config with invalid session "
-                                          "token";
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, response.getStatus());
-}
-
-TEST_P(ClusterConfigTest, SetClusterConfigWithCorrectToken) {
-    auto response = setClusterConfig(token, R"({"rev":100})", 100);
-    EXPECT_TRUE(response.isSuccess()) << "Should be allowed to set cluster "
-                                         "config with the correct session "
-                                         "token";
-}
-
 TEST_P(ClusterConfigTest, GetClusterConfig) {
     const std::string config{R"({"rev":100})"};
-    ASSERT_TRUE(setClusterConfig(token, config, 100).isSuccess());
+    ASSERT_TRUE(setClusterConfig(config, 100).isSuccess());
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig};
     const auto response = userConnection->execute(cmd);
@@ -155,11 +136,10 @@ TEST_P(ClusterConfigTest, GetClusterConfig_ClusterCompat) {
     // version cluster.
     int64_t epoch = -1;
     const std::string config{R"({"rev":100})"};
-    ASSERT_TRUE(
-            adminConnection
-                    ->execute(BinprotSetClusterConfigCommand{
-                            token, config, epoch, 100 /*revision */, "default"})
-                    .isSuccess());
+    ASSERT_TRUE(adminConnection
+                        ->execute(BinprotSetClusterConfigCommand{
+                                config, epoch, 100 /*revision */, "default"})
+                        .isSuccess());
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig};
     const auto response = userConnection->execute(cmd);
@@ -235,16 +215,15 @@ void ClusterConfigTest::test_CccpPushNotification(bool global, bool brief) {
     if (global) {
         adminConnection->executeInBucket(bucketName, [&global_map](auto& c) {
             ASSERT_TRUE(c.execute(BinprotSetClusterConfigCommand{
-                                          token, global_map, 2, 532, {}})
+                                          global_map, 2, 532, {}})
 
                                 .isSuccess());
         });
     } else {
         adminConnection->executeInBucket(bucketName, [&bucket_map](auto& c) {
-            ASSERT_TRUE(
-                    c.execute(BinprotSetClusterConfigCommand{
-                                      token, bucket_map, 1, 666, bucketName})
-                            .isSuccess());
+            ASSERT_TRUE(c.execute(BinprotSetClusterConfigCommand{
+                                          bucket_map, 1, 666, bucketName})
+                                .isSuccess());
         });
     }
 
@@ -315,11 +294,11 @@ TEST_P(ClusterConfigTest, ClustermapChangeNotificationBrief_Global) {
 
 TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     // Set one for the default bucket
-    setClusterConfig(token, R"({"rev":1000})", 1000);
+    setClusterConfig(R"({"rev":1000})", 1000);
 
     // Set the global config
-    auto rsp = adminConnection->execute(BinprotSetClusterConfigCommand{
-            token, R"({"foo" : "bar"})", 1, 100, ""});
+    auto rsp = adminConnection->execute(
+            BinprotSetClusterConfigCommand{R"({"foo" : "bar"})", 1, 100, ""});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataView();
 
     rsp = adminConnection->execute(
@@ -339,7 +318,7 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
  * The bucket configuration was not reset as part of bucket deletion
  */
 TEST_P(ClusterConfigTest, MB35395) {
-    setClusterConfig(token, R"({"rev":1000})", 1000);
+    setClusterConfig(R"({"rev":1000})", 1000);
 
     // Recreate the bucket, and the cluster config should be gone!
     DeleteTestBucket();
@@ -354,7 +333,7 @@ TEST_P(ClusterConfigTest, MB35395) {
 }
 
 TEST_P(ClusterConfigTest, MB57311_RequestWithVersion) {
-    setClusterConfig(token, R"({"rev":1000})", 1000);
+    setClusterConfig(R"({"rev":1000})", 1000);
     auto validatePushedRevno = [](int64_t epoch, int64_t revno) {
         nlohmann::json json;
         userConnection->stats(

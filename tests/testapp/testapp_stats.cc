@@ -525,8 +525,8 @@ TEST_P(StatsTest, TestTasksAllInfo) {
     // Set up a config only bucket too to ensure that things work with that
     // present
     const std::string config = R"({"rev":1000})";
-    auto rsp = adminConnection->execute(BinprotSetClusterConfigCommand{
-            token, config, 1, 1000, "cluster-config"});
+    auto rsp = adminConnection->execute(
+            BinprotSetClusterConfigCommand{config, 1, 1000, "cluster-config"});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataJson();
 

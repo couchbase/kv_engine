@@ -190,9 +190,9 @@ TEST_P(SetClusterConfigValidatorTest, InvalidDatatype) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(SetClusterConfigValidatorTest, Cas) {
+TEST_P(SetClusterConfigValidatorTest, InvalidCas) {
     req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetClusterConfigValidatorTest, InvalidBodylen) {

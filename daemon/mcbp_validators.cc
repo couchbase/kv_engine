@@ -1171,7 +1171,7 @@ static Status set_cluster_config_validator(Cookie& cookie) {
             sizeof(SetClusterConfigPayload),
             ExpectedKeyLen::Any,
             ExpectedValueLen::NonZero,
-            ExpectedCas::Any,
+            ExpectedCas::NotSet,
             GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
 

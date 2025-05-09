@@ -1611,17 +1611,12 @@ void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
-        uint64_t token_,
-        std::string config,
-        int64_t epoch,
-        int64_t revision,
-        std::string bucket)
+        std::string config, int64_t epoch, int64_t revision, std::string bucket)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig,
                             std::move(bucket)),
       config(std::move(config)),
       epoch(epoch),
       revision(revision) {
-    setCas(token_);
 }
 
 BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid)

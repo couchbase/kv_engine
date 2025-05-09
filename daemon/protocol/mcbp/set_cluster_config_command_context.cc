@@ -10,7 +10,6 @@
 
 #include "set_cluster_config_command_context.h"
 #include "daemon/buckets.h"
-#include "daemon/session_cas.h"
 #include "mcbp/protocol/framebuilder.h"
 
 #include <cbsasl/mechanism.h>
@@ -94,15 +93,10 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     // session token.
     cb::engine_errc status;
     auto state = Bucket::State::None;
-    if (!session_cas.execute(
-                sessiontoken, [&status, &state, &configuration, this]() {
-                    auto [rv, st] = BucketManager::instance().setClusterConfig(
-                            bucketname, configuration);
-                    status = rv;
-                    state = st;
-                })) {
-        status = cb::engine_errc::key_already_exists;
-    }
+    auto [rv, st] = BucketManager::instance().setClusterConfig(bucketname,
+                                                               configuration);
+    status = rv;
+    state = st;
 
     if (status == cb::engine_errc::success) {
         return status;
