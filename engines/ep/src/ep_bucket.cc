@@ -3273,7 +3273,10 @@ cb::engine_errc EPBucket::doSnapshotStatus(const StatCollector& collector,
         }
         ids.emplace_back(vbucket_id);
     } else {
-        ids = vbMap.getBuckets();
+        // Populate for all possible vbuckets.
+        for (size_t i = 0; i < vbMap.getSize(); i++) {
+            ids.emplace_back(i);
+        }
     }
 
     // For each of the vbucket IDs produce a single status for the snapshot.
