@@ -1467,7 +1467,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
     hook_ctx->stats.pre =
             toFileInfo(cb::couchstore::getHeader(*sourceDb.getDb()));
 
-    couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
+    couchstore_compact_flags flags = COUCHSTORE_COMPACT_FLAG_UPGRADE_DB;
     /**
      * This flag disables IO buffering in couchstore which means
      * file operations will trigger syscalls immediately. This has
@@ -1475,7 +1475,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
      * for testing.
      */
     if (!configuration.getBuffered()) {
-        flags |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
+        flags |= COUCHSTORE_COMPACT_FLAG_UNBUFFERED;
     }
 
     // Should automatic fsync() be configured for compaction?
