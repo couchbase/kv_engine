@@ -23,6 +23,7 @@
 
 #include "testapp_subdoc_common.h"
 
+#include <daemon/settings.h>
 #include <folly/Portability.h>
 #include <unordered_map>
 
@@ -257,7 +258,8 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
-        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+        if (mutation.specs.size() ==
+            Settings::instance().getSubdocMultiMaxPaths()) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
@@ -284,7 +286,8 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
-        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+        if (mutation.specs.size() ==
+            Settings::instance().getSubdocMultiMaxPaths()) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
@@ -309,7 +312,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
         mutation.specs.push_back(
                 {cb::mcbp::ClientOpcode::SubdocReplace, {}, "[0]", "1"});
 
-        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+        if (mutation.specs.size() ==
+            Settings::instance().getSubdocMultiMaxPaths()) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
@@ -335,7 +339,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
         mutation.specs.push_back(
                 {cb::mcbp::ClientOpcode::SubdocReplace, {}, path, "1"});
 
-        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+        if (mutation.specs.size() ==
+            Settings::instance().getSubdocMultiMaxPaths()) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
@@ -363,7 +368,8 @@ TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
-        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+        if (mutation.specs.size() ==
+            Settings::instance().getSubdocMultiMaxPaths()) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }

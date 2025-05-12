@@ -20,6 +20,7 @@
 #include "mcbp_validators.h"
 #include "subdocument_parser.h"
 #include "subdocument_traits.h"
+#include <daemon/settings.h>
 #include <utilities/string_utilities.h>
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
@@ -559,9 +560,10 @@ static cb::mcbp::Status subdoc_multi_validator(
 
     bool body_commands_allowed = true;
 
+    const auto max_paths = Settings::instance().getSubdocMultiMaxPaths();
+
     for (path_index = 0;
-         (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&
-         (body_validated < value.size());
+         (path_index < max_paths) && (body_validated < value.size());
          path_index++) {
         if (!body_commands_allowed) {
             cookie.setErrorContext(
@@ -611,10 +613,8 @@ static cb::mcbp::Status subdoc_multi_validator(
         return cb::mcbp::Status::SubdocInvalidCombo;
     }
     if (body_validated != value.size()) {
-        cookie.setErrorContext(
-                "Request must contain at most " +
-                std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) +
-                " paths");
+        cookie.setErrorContext("Request must contain at most " +
+                               std::to_string(max_paths) + " paths");
         return cb::mcbp::Status::SubdocInvalidCombo;
     }
 

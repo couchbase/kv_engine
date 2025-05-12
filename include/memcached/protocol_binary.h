@@ -419,8 +419,8 @@ static_assert(sizeof(protocol_binary_request_subdocument) == 27);
  * contained in the body. This defines the opcode, path, and value
  * (for mutations).
  *
- * A maximum of MULTI_MAX_PATHS paths (operations) can be encoded in a
- * single multi-path command.
+ * A maximum of Setting::subdoc_multi_max_paths paths (operations) can be
+ * encoded in a single multi-path command.
  *
  *  SUBDOC_MULTI_LOOKUP:
  *    Header:                24 @0:  <cb::mcbp::Request>
@@ -429,7 +429,7 @@ static_assert(sizeof(protocol_binary_request_subdocument) == 27);
  *                                   section in the document.
  *    Body:         <variable>  @24:
  *        Key            keylen @24: <variable>
- *        1..MULTI_MAX_PATHS [Lookup Operation Spec]
+ *        1..Setting::subdoc_multi_max_paths [Lookup Operation Spec]
  *
  *        Lookup Operation Spec:
  *                            1 @0 : Opcode
@@ -437,7 +437,6 @@ static_assert(sizeof(protocol_binary_request_subdocument) == 27);
  *                            2 @2 : Path Length
  *                      pathlen @4 : Path
  */
-static const int PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS = 16;
 
 struct protocol_binary_subdoc_multi_lookup_spec {
     cb::mcbp::ClientOpcode opcode;

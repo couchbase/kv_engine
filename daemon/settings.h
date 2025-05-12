@@ -955,6 +955,12 @@ public:
     // Set from the JSON value, which is base64 encoded
     void setDcpDisconnectWhenStuckNameRegexFromBase64(const std::string& val);
 
+    size_t getSubdocMultiMaxPaths() const {
+        return subdoc_multi_max_paths.load(std::memory_order_acquire);
+    }
+
+    void setSubdocMultiMaxPaths(size_t val);
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1210,6 +1216,9 @@ protected:
     folly::Synchronized<std::string, std::mutex>
             dcp_disconnect_when_stuck_name_regex;
 
+    /// The maximum number of paths allowed in a subdoc multi-path operation
+    std::atomic<size_t> subdoc_multi_max_paths{16};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1284,5 +1293,6 @@ public:
         bool quota_sharing_pager_sleep_time_ms = false;
         bool dcp_disconnect_when_stuck_timeout_seconds = false;
         bool dcp_disconnect_when_stuck_name_regex = false;
+        bool subdoc_multi_max_paths = false;
     } has;
 };

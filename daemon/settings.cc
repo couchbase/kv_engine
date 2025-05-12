@@ -441,6 +441,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "dcp_disconnect_when_stuck_name_regex"sv) {
             setDcpDisconnectWhenStuckNameRegexFromBase64(
                     value.get<std::string>());
+        } else if (key == "subdoc_multi_max_paths"sv) {
+            setSubdocMultiMaxPaths(value.get<size_t>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1109,6 +1111,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setDcpDisconnectWhenStuckTimeout(newValue);
         }
     }
+
+    if (other.has.subdoc_multi_max_paths) {
+        if (other.getSubdocMultiMaxPaths() != getSubdocMultiMaxPaths()) {
+            LOG_INFO_CTX("Change subdoc_multi_max_paths",
+                         {"from", getSubdocMultiMaxPaths()},
+                         {"to", other.getSubdocMultiMaxPaths()});
+            setSubdocMultiMaxPaths(other.getSubdocMultiMaxPaths());
+        }
+    }
 }
 
 spdlog::level::level_enum Settings::getLogLevel() const {
@@ -1161,4 +1172,18 @@ void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
                                                  std::memory_order_release);
     has.max_concurrent_commands_per_connection = true;
     notify_changed("max_concurrent_commands_per_connection");
+}
+
+void Settings::setSubdocMultiMaxPaths(size_t val) {
+    // Can only change this for internal R&D, SDKs are generally hardcoded with
+    // the default so this would be pointless/dangerous to change outside of a
+    // controlled test.
+    if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
+        subdoc_multi_max_paths.store(val, std::memory_order_release);
+        has.subdoc_multi_max_paths = true;
+        notify_changed("subdoc_multi_max_paths");
+    } else {
+        LOG_WARNING_RAW(
+                "Settings::setSubdocMultiMaxPaths: ignoring request to change");
+    }
 }

@@ -15,6 +15,7 @@
 
 #include "testapp_subdoc_common.h"
 
+#include <daemon/settings.h>
 #include <nlohmann/json.hpp>
 
 // Test multi-path lookup command - simple single SUBDOC_GET
@@ -71,15 +72,16 @@ nlohmann::json make_flat_dict(int nelements) {
 }
 
 static void test_subdoc_multi_lookup_getmulti() {
-    auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
+    auto dict =
+            make_flat_dict(Settings::instance().getSubdocMultiMaxPaths() + 1);
     TestappTest::store_document("dict", dict.dump());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
     lookup.key = "dict";
     std::vector<SubdocMultiLookupResult> expected;
-    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++)
-    {
+    for (size_t ii = 0; ii < Settings::instance().getSubdocMultiMaxPaths();
+         ii++) {
         std::string key("key_" + std::to_string(ii));
         std::string value("\"value_" + std::to_string(ii) + '"');
         lookup.specs.push_back({cb::mcbp::ClientOpcode::SubdocGet, {}, key});
@@ -92,7 +94,8 @@ static void test_subdoc_multi_lookup_getmulti() {
     lookup.specs.push_back(
             {cb::mcbp::ClientOpcode::SubdocGet,
              {},
-             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
+             "key_" + std::to_string(
+                              Settings::instance().getSubdocMultiMaxPaths())});
     expected.clear();
     expect_subdoc_cmd(lookup, cb::mcbp::Status::SubdocInvalidCombo, expected);
     reconnect_to_server();
@@ -130,14 +133,16 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
 
 // Test multi-path lookup - multiple EXISTS lookups
 TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
-    auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
+    auto dict =
+            make_flat_dict(Settings::instance().getSubdocMultiMaxPaths() + 1);
     store_document("dict", dict.dump());
 
     // Lookup the maximum number of allowed paths - should succeed.
     SubdocMultiLookupCmd lookup;
     lookup.key = "dict";
     std::vector<SubdocMultiLookupResult> expected;
-    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+    for (size_t ii = 0; ii < Settings::instance().getSubdocMultiMaxPaths();
+         ii++) {
         std::string key("key_" + std::to_string(ii));
 
         lookup.specs.push_back({cb::mcbp::ClientOpcode::SubdocExists, {}, key});
@@ -149,7 +154,8 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
     lookup.specs.push_back(
             {cb::mcbp::ClientOpcode::SubdocExists,
              {},
-             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
+             "key_" + std::to_string(
+                              Settings::instance().getSubdocMultiMaxPaths())});
     expected.clear();
     expect_subdoc_cmd(lookup, cb::mcbp::Status::SubdocInvalidCombo, expected);
     reconnect_to_server();
@@ -202,7 +208,8 @@ static void test_subdoc_multi_mutation_dict_add_max() {
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
-    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+    for (size_t ii = 0; ii < Settings::instance().getSubdocMultiMaxPaths();
+         ii++) {
         std::string path("key_" + std::to_string(ii));
         std::string value("\"value_" + std::to_string(ii) + '"');
 
@@ -212,7 +219,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
-    auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
+    auto dict = make_flat_dict(Settings::instance().getSubdocMultiMaxPaths());
     TestappTest::validate_json_document("dict", dict.dump());
 
     TestappTest::delete_object("dict");
@@ -220,7 +227,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     // Try with one more mutation spec - should fail and document should be
     // unmodified.
     TestappTest::store_document("dict", "{}");
-    auto max_id = std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
+    auto max_id = std::to_string(Settings::instance().getSubdocMultiMaxPaths());
     mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDictAdd,
                               {},
                               "key_" + max_id,
@@ -502,10 +509,12 @@ TEST_P(SubdocTestappTest, SubdocStatsMultiMutation) {
 
 // Test support for multi-mutations returning values - maximum spec count
 TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
-    // Create an array of PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS counters.
+    // Create an array of Settings::instance().getSubdocMultiMaxPaths()
+    // counters.
     std::string input("[");
     std::string expected_json("[");
-    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+    for (size_t ii = 0; ii < Settings::instance().getSubdocMultiMaxPaths();
+         ii++) {
         input += "0,";
         expected_json += std::to_string(ii + 1) + ",";
     }
@@ -518,7 +527,8 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "array";
     std::vector<SubdocMultiMutationResult> expected_results;
-    for (uint8_t ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+    for (uint8_t ii = 0; ii < Settings::instance().getSubdocMultiMaxPaths();
+         ii++) {
         std::string value("[" + std::to_string(ii) + "]");
         mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocCounter,
                                   {},
