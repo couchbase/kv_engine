@@ -1550,15 +1550,19 @@ void ActiveStream::processItemsInner(
     //     successfully.
     // The covered scenario is quite complex; details in MB-65581 and in the
     // unit test included with the fix.
+    // MB-66612 switches from curChkSeqno to lastReplicateableSeqno as there are
+    // cases when curChkSeqno represents the next seqno (not assigned to any
+    // item yet). lastReplicateableSeqno will mean we enter this code block only
+    // when a non-meta item has been processed.
     if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_ &&
-        curChkSeqno >= snap_end_seqno_) {
+        lastReplicateableSeqno >= snap_end_seqno_) {
         // MB-47009: This first snapshot has been completely filtered
         // away. The remaining items must not of been for this client.
         // We must still send a snapshot marker so that the client is
         // moved to their end seqno - so a snapshot + seqno advance is
         // needed.
         sendSnapshotAndSeqnoAdvanced(
-                outstandingItemsResult, start_seqno_, curChkSeqno);
+                outstandingItemsResult, start_seqno_, lastReplicateableSeqno);
         firstMarkerSent = true;
     } else if (isSeqnoGapAtEndOfSnapshot(lastReplicateableSeqno)) {
         auto vb = engine->getVBucket(getVBucket());
@@ -1926,7 +1930,17 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
+
+        // Reset the vbucket takeover state
+        if (isTakeoverStream()) {
+            auto vb = engine->getVBucket(vb_);
+            if (vb) {
+                vb->setTakeoverBackedUpState(false);
+            }
+        }
+
         transitionState(StreamState::Dead);
+
         if (reason != cb::mcbp::DcpStreamEndStatus::Disconnected) {
             pushToReadyQ(std::make_unique<StreamEndResponse>(
                     opaque_, reason, vb_, sid));

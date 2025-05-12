@@ -1048,9 +1048,6 @@ void KVBucket::setVBucketState_UNLOCKED(
 
     if (to == vbucket_state_active) {
         continueToActive(oldstate, transfer, vb, vbStateLock);
-    } else if (to == vbucket_state_dead) {
-        // Reset takeover state (which sets vBucket to dead)
-        vb->setTakeoverBackedUpState(false);
     }
 
     scheduleVBStatePersist(vb->getId());

@@ -714,6 +714,12 @@ void VBucket::setState_UNLOCKED(
     }
     state = to;
 
+    if (state != vbucket_state_active) {
+        // Transition to !active, the vbucket should never be left in
+        // takeover-backup.
+        setTakeoverBackedUpState(false);
+    }
+
     setupSyncReplication(vbStateLock, meta ? &meta->at("topology") : nullptr);
 
     updateStatsForStateChange(oldstate, to);

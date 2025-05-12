@@ -554,6 +554,14 @@ public:
         return endSeqno;
     }
 
+    bool getNextSnapshotIsCheckpoint() const {
+        return nextSnapshotIsCheckpoint;
+    }
+
+    size_t getTakeoverSendMaxTime() const {
+        return takeoverSendMaxTime;
+    }
+
 protected:
     void clear_UNLOCKED();
 
@@ -973,6 +981,7 @@ private:
      * paused.
      */
     const size_t takeoverSendMaxTime;
+
     //! Last snapshot start seqno sent to the DCP client, this value isn't used
     //! directly (apart from logging) but helps us to ensure that our
     //! snapshot start seqno we send are monotonic.
