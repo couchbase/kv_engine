@@ -860,11 +860,9 @@ void Connection::tryToProgressDcpStream() {
             more = false;
         }
     }
-    // There is no need to try to request a "trigger" to continue the
-    // state machine because we would either have data in the send queue
-    // causing a callback to arrive (no matter if more is true or false)
-    // If numevents we would either have data in the output buffer or
-    // progressing the input stream would already have set up the callback
+    // There is no need to try to trigger a callback as we should
+    // have data in the output queue if we have more data to send (otherwise
+    // we would have tried to put it in the output queue).
 }
 
 void Connection::processBlockedSendQueue(
@@ -890,56 +888,13 @@ void Connection::processNotifiedCookie(
         Cookie& cookie,
         cb::engine_errc status,
         std::chrono::steady_clock::time_point scheduled) {
-    using std::chrono::duration_cast;
-    using std::chrono::microseconds;
-    using std::chrono::nanoseconds;
-
-    // Make sure any core dumps from this code contain the bucket name.
-    cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
-
-    const auto start = last_used_timestamp = std::chrono::steady_clock::now();
-    current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
-
-    processBlockedSendQueue(start);
-
-    try {
-        Expects(cookie.isEwouldblock());
-        cookie.getTracer().record(
-                cb::tracing::Code::Notified, scheduled, start);
-        cookie.setAiostat(status);
-        cookie.clearEwouldblock();
-        if (cookie.execute()) {
-            // completed!!! time to clean up after it and process the
-            // command pipeline? / schedule more?
-            if (cookies.front().get() == &cookie) {
-                cookies.front()->reset();
-            } else {
-                std::erase_if(cookies, [ptr = &cookie](const auto& cookie) {
-                    return ptr == cookie.get();
-                });
-            }
-
-            if (!isPacketAvailable()) {
-                enableReadEvent();
-            } else {
-                triggerCallback();
-            }
-        } else if (std::chrono::steady_clock::now() > current_timeslice_end) {
-            ++yields;
-        }
-    } catch (const std::exception& e) {
-        logExecutionException("processNotifiedCookie", e);
-        setTerminationReason("Exception occurred during command execution");
-        shutdown();
-        triggerCallback();
-    }
-
-    const auto stop = std::chrono::steady_clock::now();
-    const auto ns = duration_cast<nanoseconds>(stop - start);
-    scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
-    addCpuTime(ns);
-
-    updateBlockedSendQueue(stop);
+    Expects(cookie.isEwouldblock());
+    cookie.setAiostat(status);
+    cookie.clearEwouldblock();
+    triggerCallback();
+    cookie.getTracer().record(cb::tracing::Code::Notified,
+                              scheduled,
+                              std::chrono::steady_clock::now());
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
