@@ -136,6 +136,13 @@ protected:
                                    Xattrs xattrs,
                                    ExpiryPath path);
 
+    /**
+     * Moves the stream to running the first TakeoverSend phase in a
+     * configuration where the stream sets the VBucket::takeover_backed_up flag.
+     * Used by multiple takeover tests as baseline step.
+     */
+    void pushStreamToTakeoverBackupPhase();
+
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;
 };
