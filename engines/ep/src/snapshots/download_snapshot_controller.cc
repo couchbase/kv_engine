@@ -75,6 +75,35 @@ DownloadSnapshotController::createListener(Vbid vbid) {
     return ret;
 }
 
+void DownloadSnapshotController::removeListener(
+        std::variant<Vbid, std::string_view> snapshotToRelease) {
+    listeners.withLock([&snapshotToRelease](auto& map) {
+        if (std::holds_alternative<Vbid>(snapshotToRelease)) {
+            map.erase(std::get<Vbid>(snapshotToRelease));
+        } else {
+            // The uuid case requires a search through the map.
+            size_t count = 0;
+            for (auto itr = map.begin(); itr != map.end();) {
+                if (itr->second) {
+                    auto locked = itr->second->manifest.lock();
+                    if (locked->has_value() &&
+                        locked->value().uuid ==
+                                std::get<std::string_view>(snapshotToRelease)) {
+                        locked.unlock();
+                        itr = map.erase(itr);
+                    } else {
+                        ++itr;
+                    }
+                } else {
+                    ++itr;
+                }
+            }
+            // We should only find one match or none.
+            Expects(count <= 1);
+        }
+    });
+}
+
 void DownloadSnapshotController::addStats(
         const StatCollector& collector) const {
     listeners.withLock([&collector](auto& map) {

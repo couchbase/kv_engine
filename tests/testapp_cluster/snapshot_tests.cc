@@ -76,6 +76,13 @@ protected:
     void validate_snapshot(const std::filesystem::path& root,
                            const cb::snapshot::Manifest& manifest);
 
+    void do_snapshot_status(
+            Vbid vbid,
+            MemcachedConnection& requestConnection,
+            const std::vector<std::string_view>& failStates,
+            const std::vector<std::string_view>& successStates,
+            std::chrono::seconds waitFor = std::chrono::seconds(0));
+
     static std::unique_ptr<MemcachedConnection> source_node;
     static std::filesystem::path source_path;
     static std::unique_ptr<MemcachedConnection> destination_node;
@@ -185,6 +192,45 @@ void SnapshotClusterTest::validate_snapshot(
     }
 }
 
+void SnapshotClusterTest::do_snapshot_status(
+        Vbid vbid,
+        MemcachedConnection& requestConnection,
+        const std::vector<std::string_view>& failStates,
+        const std::vector<std::string_view>& successStates,
+        std::chrono::seconds waitFor) {
+    bool done = false;
+    const auto timeout = std::chrono::steady_clock::now() + waitFor;
+    std::string value = "unintialised";
+    do {
+        std::string key;
+        requestConnection.stats(
+                [&key, &value, vbid](auto k, auto v) {
+                    key = k;
+                    value = v;
+                },
+                "snapshot-status " + std::to_string(vbid.get()));
+
+        ASSERT_EQ(key, "vb_" + std::to_string(vbid.get()) + ":status");
+
+        if (std::find(failStates.begin(), failStates.end(), value) !=
+            failStates.end()) {
+            ASSERT_FALSE(true) << "snapshot-status returned a failing state "
+                               << key << " " << value;
+        }
+
+        if (std::find(successStates.begin(), successStates.end(), value) !=
+            successStates.end()) {
+            done = true;
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+    } while (!done && std::chrono::steady_clock::now() < timeout);
+    ASSERT_TRUE(done) << "Timeout waiting for snapshot-status to reach a "
+                         "desired state. waited for:"
+                      << waitFor.count()
+                      << "s with last observed state: " << value;
+}
+
 TEST_F(SnapshotClusterTest, Snapshots) {
     populate_docs_on_source();
     BinprotGenericCommand download(ClientOpcode::DownloadSnapshot,
@@ -200,30 +246,15 @@ TEST_F(SnapshotClusterTest, Snapshots) {
     // ns_server don't want a blocking call to download the snapshot so
     // we need to poll the state until it is done
     using namespace std::chrono_literals;
-    const auto timeout = std::chrono::steady_clock::now() + 30s;
-    bool done = false;
     std::optional<cb::snapshot::Manifest> manifest;
     std::string error;
-    do {
-        std::string key;
-        std::string value;
-        destination_node->stats(
-                [&key, &value](auto k, auto v) {
-                    key = k;
-                    value = v;
-                },
-                "snapshot-status 0");
 
-        ASSERT_EQ(key, "vb_0:status");
-        ASSERT_NE(value, "failed");
-        ASSERT_NE(value, "none");
-        if (value == "available") {
-            done = true;
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-    } while (!done && std::chrono::steady_clock::now() < timeout);
-    ASSERT_TRUE(done) << "Timeout waiting for snapshot to be available";
+    // check but with a timeout as we're downloading on this node
+    do_snapshot_status(Vbid{0},
+                       *destination_node,
+                       {"failed", "incomplete", "none"},
+                       {"available"},
+                       30s);
     destination_node->stats(
             [&manifest, &error](auto k, auto v) {
                 if (k == "vb_0:download") {
@@ -249,11 +280,23 @@ TEST_F(SnapshotClusterTest, Snapshots) {
             *manifest);
 
     // Release the snapshot on the source node (not needed anymore)
+    do_snapshot_status(Vbid{0},
+                       *source_node,
+                       {"failed", "running", "none", "incomplete"},
+                       {"available"});
+    EXPECT_TRUE(
+            exists(source_path / bucket_name / "snapshots" / manifest->uuid));
     rsp = source_node->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest->uuid});
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
             << "Failed to release on source node";
-    remove_all(source_path / bucket_name / "snapshots" / manifest->uuid);
+    // Expect immediate "none"
+    do_snapshot_status(Vbid{0},
+                       *source_node,
+                       {"failed", "running", "available", "incomplete"},
+                       {"none"});
+    EXPECT_FALSE(
+            exists(source_path / bucket_name / "snapshots" / manifest->uuid));
 
     // Install the deks in the snapshot on the destination node
     cb::crypto::KeyStore keystore;
@@ -291,11 +334,23 @@ TEST_F(SnapshotClusterTest, Snapshots) {
                                  nlohmann::json{{"use_snapshot", "fbr"}});
 
     // Release and delete the snapshot on the destination node
+    do_snapshot_status(Vbid{0},
+                       *destination_node,
+                       {"failed", "running", "none", "incomplete"},
+                       {"available"});
+    EXPECT_TRUE(exists(destination_path / bucket_name / "snapshots" /
+                       manifest->uuid));
     rsp = destination_node->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest->uuid});
+
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
             << "Failed to release on destination node";
-    remove_all(destination_path / bucket_name / "snapshots" / manifest->uuid);
+    do_snapshot_status(Vbid{0},
+                       *destination_node,
+                       {"failed", "running", "available", "incomplete"},
+                       {"none"});
+    EXPECT_FALSE(exists(destination_path / bucket_name / "snapshots" /
+                        manifest->uuid));
 
     // We should be able to retrieve the same documents on the destination
     // node

@@ -139,11 +139,13 @@ bool DownloadSnapshotTask::run() {
                 vbid,
                 [this]() { return doDownloadManifest(); },
                 [this](const auto& dir, auto& manifest) {
-                    doDownloadFiles(dir, manifest);
-                    return cb::engine_errc::success;
+                    return doDownloadFiles(dir, manifest);
                 });
         if (std::holds_alternative<Manifest>(rv)) {
             listener->stateChanged(DownloadSnapshotTaskState::Finished);
+        } else {
+            listener->failed(fmt::format("Failed to download snapshot: {}",
+                                         std::get<cb::engine_errc>(rv)));
         }
     } catch (const std::exception& e) {
         listener->failed(fmt::format("Received exception: {}", e.what()));

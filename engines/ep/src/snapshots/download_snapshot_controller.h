@@ -38,6 +38,12 @@ public:
     std::shared_ptr<DownloadSnapshotTaskListener> createListener(Vbid vbid);
 
     /**
+     * Remove the listener for the given vbucket or uuid (dependend upon the
+     * variant of releaseSnapshot calling this method).
+     */
+    void removeListener(std::variant<Vbid, std::string_view> snapshotToRelease);
+
+    /**
      * Add statistics information about the current registered snapshot
      * downloads.
      */

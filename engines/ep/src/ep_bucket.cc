@@ -3245,6 +3245,10 @@ cb::engine_errc EPBucket::getSnapshotFileInfo(
 cb::engine_errc EPBucket::releaseSnapshot(
         CookieIface& cookie,
         std::variant<Vbid, std::string_view> snapshotToRelease) {
+    // It's not an error if there is no listener for the given vbucket or uuid.
+    // We may have restarted, so have located a snapshot but no controller. The
+    // remove will remove if found.
+    snapshotController.removeListener(snapshotToRelease);
     if (std::holds_alternative<Vbid>(snapshotToRelease)) {
         return snapshotCache.release(std::get<Vbid>(snapshotToRelease));
     }
