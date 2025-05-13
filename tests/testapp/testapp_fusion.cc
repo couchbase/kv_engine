@@ -16,52 +16,58 @@
 
 class FusionTest : public TestappClientTest {
 protected:
-    static void SetUpTestCase() {
-        const std::string dbPath = mcd_env->getDbPath();
-        const auto bucketConfig = fmt::format(
-                "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
-                "};chronicle_auth_token={}",
-                "local://" + dbPath + "/logstore",
-                "local://" + dbPath + "/metadatastore",
-                chronicleAuthToken);
-        doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
+    static void SetUpTestCase();
+    void SetUp() override;
 
-        // Note: magma KVStore creation executes at the first flusher path run,
-        // which is asynchronous.
-        // We need to ensure that the KVStore is successfully created before
-        // executing and Fusion API against it in the various test cases. We
-        // would hit sporadic failures by "kvstore invalid" otherwise.
-        adminConnection->selectBucket(bucketName);
-        adminConnection->store("bump-vb-high-seqno", Vbid(0), {});
-        adminConnection->waitForSeqnoToPersist(Vbid(0), 1);
-    }
-
-    void SetUp() override {
-        rebuildUserConnection(false);
-        if (userConnection->statsMap("")["ep_backend"] != "magma") {
-            GTEST_SKIP();
-        }
-    }
-
-    BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes) {
-        BinprotResponse resp;
-        adminConnection->executeInBucket(
-                bucketName, [&resp, vbid, &volumes](auto& conn) {
-                    auto cmd = BinprotGenericCommand{
-                            cb::mcbp::ClientOpcode::MountFusionVbucket};
-                    cmd.setVBucket(vbid);
-                    nlohmann::json json;
-                    json["mountPaths"] = volumes;
-                    cmd.setValue(json.dump());
-                    cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                    resp = conn.execute(cmd);
-                });
-        return resp;
-    }
+    BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes);
 
 public:
     static constexpr auto chronicleAuthToken = "some-token1!";
 };
+
+void FusionTest::SetUpTestCase() {
+    const std::string dbPath = mcd_env->getDbPath();
+    const auto bucketConfig = fmt::format(
+            "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
+            "};chronicle_auth_token={}",
+            "local://" + dbPath + "/logstore",
+            "local://" + dbPath + "/metadatastore",
+            chronicleAuthToken);
+    doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
+
+    // Note: magma KVStore creation executes at the first flusher path run,
+    // which is asynchronous.
+    // We need to ensure that the KVStore is successfully created before
+    // executing and Fusion API against it in the various test cases. We would
+    // hit sporadic failures by "kvstore invalid" otherwise.
+    adminConnection->selectBucket(bucketName);
+    adminConnection->store("bump-vb-high-seqno", Vbid(0), {});
+    adminConnection->waitForSeqnoToPersist(Vbid(0), 1);
+}
+
+void FusionTest::SetUp() {
+    rebuildUserConnection(false);
+    if (userConnection->statsMap("")["ep_backend"] != "magma") {
+        GTEST_SKIP();
+    }
+}
+
+BinprotResponse FusionTest::mountVbucket(Vbid vbid,
+                                         const nlohmann::json& volumes) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(
+            bucketName, [&resp, vbid, &volumes](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::MountFusionVbucket};
+                cmd.setVBucket(vbid);
+                nlohmann::json json;
+                json["mountPaths"] = volumes;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+    return resp;
+}
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          FusionTest,
