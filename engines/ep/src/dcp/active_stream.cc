@@ -24,7 +24,10 @@
 
 #include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
+#include <logger/logger.h>
 #include <memcached/protocol_binary.h>
+#include <platform/backtrace.h>
+#include <platform/exceptions.h>
 #include <platform/optional.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
@@ -504,7 +507,8 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         return false;
     }
 
-    {
+    try {
+        backfillReceivedHook();
         // Locked scope for ActiveStream state reads / writes. Note
         // streamMutex is heavily contended - frontend thread must acquire it
         // to consume data from ActiveStream::readyQ so try to minimise work
@@ -551,6 +555,9 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         lastBackfilledSeqno = std::max<uint64_t>(lastBackfilledSeqno,
                                                  uint64_t(*resp->getBySeqno()));
         pushToReadyQ(std::move(resp));
+    } catch (const std::exception& e) {
+        handleDcpProducerException(e);
+        return false;
     }
 
     notifyStreamReady(false /*force*/, producer.get());
@@ -977,9 +984,13 @@ bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
 }
 
 void ActiveStream::nextCheckpointItemTask() {
-    // MB-29369: Obtain stream mutex here
-    std::lock_guard<std::mutex> lh(streamMutex);
-    nextCheckpointItemTask(lh);
+    try {
+        // MB-29369: Obtain stream mutex here
+        std::lock_guard<std::mutex> lh(streamMutex);
+        nextCheckpointItemTask(lh);
+    } catch (const std::exception& e) {
+        handleDcpProducerException(e);
+    }
 }
 
 void ActiveStream::nextCheckpointItemTask(
@@ -1275,6 +1286,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
 void ActiveStream::processItems(
         OutstandingItemsResult& outstandingItemsResult,
         const std::lock_guard<std::mutex>& streamMutex) {
+    processItemsHook();
     if (!outstandingItemsResult.items.empty()) {
         // Transform the sequence of items from the CheckpointManager into
         // a sequence of DCP messages which this stream should receive. There
@@ -2217,6 +2229,43 @@ bool ActiveStream::handleSlowStream() {
     }
     }
     return false;
+}
+
+void ActiveStream::handleDcpProducerException(const std::exception& exception) {
+    auto callstack = nlohmann::json::array();
+    if (const auto* backtrace = cb::getBacktrace(exception)) {
+        print_backtrace_frames(*backtrace, [&callstack](const char* frame) {
+            callstack.emplace_back(frame);
+        });
+        log(spdlog::level::debug,
+            "{} ActiveStream::handleDcpProducerException: Caught exception "
+            "last_sent_seqno: {} error: {}, backtrace: {}",
+            logPrefix,
+            getLastSentSeqno(),
+            exception.what(),
+            callstack.dump());
+    } else {
+        log(spdlog::level::debug,
+            "{} ActiveStream::handleDcpProducerException: Caught exception "
+            "last_sent_seqno: {} error: {}",
+            logPrefix,
+            getLastSentSeqno(),
+            exception.what());
+    }
+
+    if (engine->getConfiguration().isDcpProducerCatchExceptions()) {
+        setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
+        // Disconnect the connection
+        auto producer = producerPtr.lock();
+        if (producer) {
+            producer->flagDisconnect();
+            // Notify producer to close front-end connection and
+            // remaining streams.
+            producer->scheduleNotify();
+        }
+    } else {
+        throw;
+    }
 }
 
 std::string ActiveStream::getStreamTypeName() const {

@@ -465,6 +465,10 @@ public:
 
     bool areChangeStreamsEnabled() const;
 
+    TestingHook<> processItemsHook;
+
+    TestingHook<> backfillReceivedHook;
+
     bool isFlatBuffersSystemEventEnabled() const;
 
     /**
@@ -817,6 +821,14 @@ private:
      */
     uint64_t adjustStartIfFirstSnapshot(uint64_t start,
                                         bool isCompleteSnapshot);
+
+    /**
+     * Handle exceptions thrown during item processing. The exception is logged
+     * and the stream along with its connection is disconnected.
+     *
+     * @param exception The exception to handle
+     */
+    void handleDcpProducerException(const std::exception& exception);
 
     /**
      * Encodes the marker flags based on the stream state and the snapshot meta

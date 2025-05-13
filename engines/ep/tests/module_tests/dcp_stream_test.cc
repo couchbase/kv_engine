@@ -5566,6 +5566,144 @@ TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
     EXPECT_FALSE(stream->isBackfilling());
 }
 
+TEST_P(SingleThreadedActiveStreamTest,
+       ProcessStreamsExceptionDisconnectsConnection) {
+    // Set the producer to catch exceptions - new behaviour
+    engine->getConfiguration().setDcpProducerCatchExceptions(true);
+
+    // Recreate stream
+    auto& vb = *store->getVBucket(vbid);
+    MockDcpMessageProducers producers;
+    recreateStream(vb, false);
+
+    // Add an item
+    store_item(vbid, makeStoredDocKey("key"), "value");
+
+    // Confirm ActiveStream::processItems will throw an exception
+    stream->processItemsHook = []() {
+        throw std::runtime_error("processItemsHook throw");
+    };
+    auto items = stream->public_getOutstandingItems(vb);
+    EXPECT_THROW(stream->public_processItems(items), std::exception);
+
+    // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
+    // which will catch the exception thrown by processItems().
+    ASSERT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    EXPECT_NO_THROW(runNextTask(nonIO,
+                                "Process checkpoint(s) for DCP producer "
+                                "test_producer->test_consumer"));
+
+    // Producer should disconnect connection now
+    EXPECT_EQ(cb::engine_errc::disconnect, producer->step(producers));
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ProcessStreamsExceptionCrashes) {
+    // Set the producer to crash on failure - old behaviour
+    engine->getConfiguration().setDcpProducerCatchExceptions(false);
+
+    // Add an item
+    store_item(vbid, makeStoredDocKey("key"), "value");
+
+    // Create stream
+    auto& vb = *store->getVBucket(vbid);
+    MockDcpMessageProducers producers;
+    recreateStream(vb, false);
+
+    // Confirm ActiveStream::processItems will throw an exception
+    stream->processItemsHook = []() {
+        throw std::runtime_error("processItemsHook throw");
+    };
+    auto items = stream->public_getOutstandingItems(vb);
+    EXPECT_THROW(stream->public_processItems(items), std::exception);
+
+    // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
+    // Exception will not be caught
+    ASSERT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    EXPECT_THROW(runNextTask(nonIO,
+                             "Process checkpoint(s) for DCP producer "
+                             "test_producer->test_consumer"),
+                 std::exception);
+
+    // Producer should NOT disconnect connection
+    EXPECT_NE(cb::engine_errc::disconnect, producer->step(producers));
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       backfillReceivedExceptionDisconnectsConnection) {
+    engine->getConfiguration().setDcpProducerCatchExceptions(true);
+    stream.reset();
+
+    // Add an item and flush to disk
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushAndRemoveCheckpoints(vbid);
+
+    // Create stream
+    auto& vb = *store->getVBucket(vbid);
+    MockDcpMessageProducers producers;
+    recreateStream(vb, false);
+
+    // Set the backfillReceivedHook to throw an exception
+    stream->backfillReceivedHook = []() {
+        throw std::runtime_error("backfillReceivedHook throw");
+    };
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill task once to get initial item counts.
+    producer->getBFM().backfill();
+
+    // Perform backfill - which will throw an exception
+    // Exception will be caught and connection will be disconnected
+    EXPECT_NO_THROW(producer->getBFM().backfill());
+
+    // Producer should disconnect connection now
+    EXPECT_EQ(cb::engine_errc::disconnect, producer->step(producers));
+}
+
+TEST_P(SingleThreadedActiveStreamTest, backfillReceivedExceptionCrashes) {
+    // This test has a memory leak on couchstore - test only issue
+    // AS::BackfillReceivedHook is called from backfillCallback()
+    // When we EXPECT_THROW, we will continue running even after the exception
+    // has not been handled and so couchstore has remaining memory allocated
+    // that is not released. In GA memcached will crash and so this allocation
+    // will not be the major issue...
+    if (isCouchstore() || isNexus()) {
+        GTEST_SKIP();
+    }
+
+    engine->getConfiguration().setDcpProducerCatchExceptions(false);
+    stream.reset();
+
+    // Add an item and flush to disk
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushAndRemoveCheckpoints(vbid);
+
+    // Create stream
+    auto& vb = *store->getVBucket(vbid);
+    MockDcpMessageProducers producers;
+    recreateStream(vb, false);
+
+    // Set the backfillReceivedHook to throw an exception
+    stream->backfillReceivedHook = []() {
+        throw std::runtime_error("backfillReceivedHook throw");
+    };
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill task once to get initial item counts.
+    producer->getBFM().backfill();
+
+    // Perform backfill - which will throw an exception
+    EXPECT_THROW(producer->getBFM().backfill(), std::exception);
+
+    // Producer will NOT disconnect connection
+    EXPECT_NE(cb::engine_errc::disconnect, producer->step(producers));
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),

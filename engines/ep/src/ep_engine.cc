@@ -960,6 +960,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
         } else if (key == "dcp_producer_processor_run_duration_us") {
             getConfiguration().setDcpProducerProcessorRunDurationUs(
                     std::stoull(val));
+        } else if (key == "dcp_producer_catch_exceptions") {
+            getConfiguration().setDcpProducerCatchExceptions(cb_stob(val));
         } else if (key == "dcp_takeover_max_time") {
             getConfiguration().setDcpTakeoverMaxTime(std::stoull(val));
         } else {
