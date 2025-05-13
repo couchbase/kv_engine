@@ -372,6 +372,10 @@ void MagmaKVStoreConfig::setMakeDirectoryFn(magma::DirectoryConstructor fn) {
     magmaCfg.FS.MakeDirectory = fn;
 }
 
+void MagmaKVStoreConfig::setDefaultFS() {
+    magmaCfg.FS = magma::DefaultFileSystem();
+}
+
 void MagmaKVStoreConfig::setReadOnly(bool readOnly) {
     setReadOnlyHook();
     magmaCfg.ReadOnly = readOnly;

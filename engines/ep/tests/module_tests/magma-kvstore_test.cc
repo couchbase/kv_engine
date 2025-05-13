@@ -827,6 +827,8 @@ TEST_F(MagmaKVStoreTest, readOnlyMode) {
 
     kvstore.reset();
 
+    kvstoreConfig->setDefaultFS();
+
     // Invoked on first attempt to open magma
     kvstoreConfig->setMakeDirectoryFn(
             [](const std::string& path) -> std::unique_ptr<MockDirectory> {

@@ -223,6 +223,8 @@ public:
 
     void setMakeDirectoryFn(magma::DirectoryConstructor fn);
 
+    void setDefaultFS();
+
     void setReadOnly(bool readOnly);
 
     bool isReadOnly() const {
