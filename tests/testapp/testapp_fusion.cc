@@ -24,6 +24,8 @@ protected:
     BinprotResponse releaseFusionStorageSnapshot(Vbid vbid,
                                                  std::string_view snapshotUuid);
 
+    BinprotResponse startFusionUploader(Vbid vbid, const nlohmann::json& term);
+
 public:
     static constexpr auto chronicleAuthToken = "some-token1!";
 };
@@ -82,6 +84,23 @@ BinprotResponse FusionTest::releaseFusionStorageSnapshot(
                 cmd.setVBucket(vbid);
                 nlohmann::json json;
                 json["snapshotUuid"] = snapshotUuid;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+    return resp;
+}
+
+BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
+                                                const nlohmann::json& term) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(
+            bucketName, [&resp, vbid, &term](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::StartFusionUploader};
+                cmd.setVBucket(vbid);
+                nlohmann::json json;
+                json["term"] = term;
                 cmd.setValue(json.dump());
                 cmd.setDatatype(cb::mcbp::Datatype::JSON);
                 resp = conn.execute(cmd);
@@ -297,17 +316,9 @@ TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
 }
 
 TEST_P(FusionTest, SyncFusionLogstore) {
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = "1";
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    const auto vbid = Vbid(0);
+    const auto res = startFusionUploader(vbid, "1");
+    EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
 
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
         auto cmd = BinprotGenericCommand{
@@ -320,69 +331,25 @@ TEST_P(FusionTest, SyncFusionLogstore) {
 
 TEST_P(FusionTest, StartFusionUploader) {
     // arg invalid (not string)
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = 1234;
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
-    });
+    const auto vbid = Vbid(0);
+    auto resp = startFusionUploader(vbid, 1234);
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
     // arg invalid (not numeric string)
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = "abc123";
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
-    });
+    resp = startFusionUploader(vbid, "abc123");
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
     // arg invalid (too large numeric string)
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = std::string(100, '1');
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
-    });
+    resp = startFusionUploader(vbid, std::string(100, '1'));
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
     // arg invalid (negative numeric string)
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = "-1";
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
-    });
+    resp = startFusionUploader(vbid, "-1");
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
     // arg valid
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = "123";
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    resp = startFusionUploader(vbid, "123");
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 TEST_P(FusionTest, StopFusionUploader) {
@@ -412,17 +379,8 @@ TEST_P(FusionTest, Stat_UploaderState) {
     });
 
     // Start uploader
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StartFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        json["term"] = "123";
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    const auto resp = startFusionUploader(Vbid(0), "123");
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // verify stat
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
@@ -444,8 +402,8 @@ TEST_P(FusionTest, Stat_UploaderState) {
         auto cmd = BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::StopFusionUploader};
         cmd.setVBucket(Vbid(0));
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        const auto res = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
     });
 
     // verify stat
