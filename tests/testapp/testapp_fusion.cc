@@ -21,6 +21,9 @@ protected:
 
     BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes);
 
+    BinprotResponse releaseFusionStorageSnapshot(Vbid vbid,
+                                                 std::string_view snapshotUuid);
+
 public:
     static constexpr auto chronicleAuthToken = "some-token1!";
 };
@@ -62,6 +65,23 @@ BinprotResponse FusionTest::mountVbucket(Vbid vbid,
                 cmd.setVBucket(vbid);
                 nlohmann::json json;
                 json["mountPaths"] = volumes;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+    return resp;
+}
+
+BinprotResponse FusionTest::releaseFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(
+            bucketName, [&resp, vbid, &snapshotUuid](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
+                cmd.setVBucket(vbid);
+                nlohmann::json json;
+                json["snapshotUuid"] = snapshotUuid;
                 cmd.setValue(json.dump());
                 cmd.setDatatype(cb::mcbp::Datatype::JSON);
                 resp = conn.execute(cmd);
@@ -177,36 +197,30 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
         ASSERT_TRUE(res.is_array());
     });
 }
+TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
+    // MB-64494: snapshot uuid reported in the error message allocated by
+    // magma. Here big-enough for preventing SSO that hides memory domain
+    // alloc issues.
+    const auto nonexistentUuid = std::string(1024, 'u');
+    auto resp = releaseFusionStorageSnapshot(Vbid(0), nonexistentUuid);
+    // @todo MB-66688: Return less generic error
+    EXPECT_EQ(cb::mcbp::Status::Einternal, resp.getStatus());
+}
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
-    // Negative test: try to release a non-existent snapshot
-    BinprotResponse resp;
-    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
-        cmd.setVBucket(Vbid(0));
-        nlohmann::json json;
-        // MB-64494: snapshot uuid reported in the error message allocated by
-        // magma. Here big-enough for preventing SSO that hides memory domain
-        // alloc issues.
-        json["snapshotUuid"] = std::string(1024, 'u');
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        resp = conn.execute(cmd);
-    });
-    EXPECT_EQ(cb::mcbp::Status::Einternal, resp.getStatus());
-
     // Create a snapshot
+    const auto vbid = Vbid(0);
     const auto snapshotUuid = "some-snapshot-uuid";
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
     const auto validity = secs.time_since_epoch().count();
 
+    BinprotResponse resp;
     adminConnection->executeInBucket(
-            bucketName, [&resp, &snapshotUuid, validity](auto& conn) {
+            bucketName, [&resp, vbid, &snapshotUuid, validity](auto& conn) {
                 auto cmd = BinprotGenericCommand{
                         cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
-                cmd.setVBucket(Vbid(0));
+                cmd.setVBucket(vbid);
                 nlohmann::json json;
                 json["snapshotUuid"] = snapshotUuid;
                 json["validity"] = validity;
@@ -232,19 +246,8 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     EXPECT_FALSE(res["volumeID"].empty());
 
     // Then release it
-    adminConnection->executeInBucket(
-            bucketName, [&resp, &snapshotUuid](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
-                cmd.setVBucket(Vbid(0));
-                nlohmann::json json;
-                json["snapshotUuid"] = snapshotUuid;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-
-    EXPECT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    resp = releaseFusionStorageSnapshot(vbid, snapshotUuid);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 TEST_P(FusionTest, MountFusionVbucket_InvalidArgs) {
