@@ -59,10 +59,6 @@ SET(EP_ENGINE_VERSION "${MEMCACHED_VERSION}")
 # Build Python tools
 ADD_SUBDIRECTORY(management)
 
-IF (WIN32)
-   INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
-ENDIF (WIN32)
-
 add_executable(gencode tools/gencode.cc)
 target_link_libraries(gencode PRIVATE nlohmann_json::nlohmann_json)
 add_executable(genconfig tools/genconfig.cc)
