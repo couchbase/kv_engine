@@ -38,6 +38,17 @@ protected:
 
     BinprotResponse syncFusionLogstore(Vbid vbid);
 
+    /**
+     * Issues a STAT("fusion <subGroup> <vbid>") call to memcached.
+     *
+     * @param subGroup
+     * @param vbid Note: string type as this function is used for invalid vbid
+     *             string (eg non numeric) tests
+     * @return The payload, which is always a in json format
+     */
+    nlohmann::json fusionStats(std::optional<std::string_view> subGroup,
+                               std::optional<std::string_view> vbid);
+
 public:
     static constexpr auto chronicleAuthToken = "some-token1!";
 };
@@ -149,73 +160,72 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
     return resp;
 }
 
+nlohmann::json FusionTest::fusionStats(std::optional<std::string_view> subGroup,
+                                       std::optional<std::string_view> vbid) {
+    nlohmann::json res;
+    adminConnection->executeInBucket(
+            bucketName, [&res, &subGroup, &vbid](auto& conn) {
+                // Note: subGroup and vbid are optional so the final command
+                // might be just "fusion" followed by some space. Memcached is
+                // expected to be resilient to that, so I don't trim the cmd
+                // string here on purpose for stressing the validation code out.
+                const auto statCmd = fmt::format("fusion {} {}",
+                                                 subGroup ? *subGroup : "",
+                                                 vbid ? *vbid : "");
+                conn.stats([&res](auto& k,
+                                  auto& v) { res = nlohmann::json::parse(v); },
+                           statCmd);
+            });
+    return res;
+}
+
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          FusionTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
 TEST_P(FusionTest, AggregatedStats) {
-    nlohmann::json res;
     try {
-        adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion");
-        });
+        fusionStats({}, {});
         FAIL();
     } catch (const ConnectionError& e) {
-        EXPECT_TRUE(e.isNotSupported());
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, e.getReason());
     }
 }
 
 TEST_P(FusionTest, InvalidStat) {
-    nlohmann::json res;
     try {
-        adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion someInvalidStat 0");
-        });
+        fusionStats("someInvalidStat", "0");
         FAIL();
     } catch (const ConnectionError& e) {
-        EXPECT_TRUE(e.isInvalidArguments());
+        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
     }
 }
 
 TEST_P(FusionTest, Stat_SyncInfo) {
-    nlohmann::json res;
+    const auto json = fusionStats("sync_info", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.contains("logSeqno"));
+    EXPECT_EQ(0, json["logSeqno"]);
+    ASSERT_TRUE(json.contains("logTerm"));
+    EXPECT_EQ(0, json["logTerm"]);
+    ASSERT_TRUE(json.contains("version"));
+    EXPECT_EQ(1, json["version"]);
+}
+
+TEST_P(FusionTest, Stat_SyncInfo_VbidInvalid) {
     try {
-        adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion sync_info a");
-        });
+        fusionStats("sync_info", "a");
         FAIL();
     } catch (const ConnectionError& e) {
-        EXPECT_TRUE(e.isInvalidArguments());
+        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
     }
-
-    adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion sync_info 0");
-    });
-    ASSERT_FALSE(res.empty());
-    ASSERT_TRUE(res.contains("logSeqno"));
-    EXPECT_EQ(0, res["logSeqno"]);
-    ASSERT_TRUE(res.contains("logTerm"));
-    EXPECT_EQ(0, res["logTerm"]);
-    ASSERT_TRUE(res.contains("version"));
-    EXPECT_EQ(1, res["version"]);
 }
 
 TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
+    // Note: vbid:1 doesn't exist
     try {
-        adminConnection->executeInBucket(bucketName, [](auto& conn) {
-            nlohmann::json res;
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion sync_info 1");
-        });
+        fusionStats("sync_info", "1");
         FAIL();
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
@@ -223,40 +233,31 @@ TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
-    nlohmann::json res;
-    adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion active_guest_volumes 0");
-    });
+    const auto json = fusionStats("active_guest_volumes", "0");
 
     // @todo MB-63679: Actual values will be populated once we have MountKVStore
     // + SetVBstate(open_snapshot=true). At the time of writing MountKVStore is
     // ready, we need the latter.
-    ASSERT_TRUE(res.is_array());
+    ASSERT_TRUE(json.is_array());
+}
+
+TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
+    const auto json = fusionStats("active_guest_volumes", {});
+
+    // @todo MB-63679: same as above
+    ASSERT_TRUE(json.is_array());
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_KVStoreInvalid) {
+    // Note: vbid:1 doesn't exist
     try {
-        adminConnection->executeInBucket(bucketName, [](auto& conn) {
-            nlohmann::json res;
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion active_guest_volumes 1");
-        });
+        fusionStats("active_guest_volumes", "1");
         FAIL();
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
     }
 }
 
-TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        nlohmann::json res;
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion active_guest_volumes");
-        ASSERT_TRUE(res.is_array());
-    });
-}
 TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
     // MB-64494: snapshot uuid reported in the error message allocated by
     // magma. Here big-enough for preventing SSO that hides memory domain
@@ -385,38 +386,30 @@ TEST_P(FusionTest, StopFusionUploader) {
 
 TEST_P(FusionTest, Stat_UploaderState) {
     // Uploader disabled at start
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        nlohmann::json res;
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion uploader_state 0");
-        ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_object());
-        ASSERT_TRUE(res.contains("state"));
-        ASSERT_TRUE(res["state"].is_string());
-        EXPECT_EQ("disabled", res["state"]);
-        ASSERT_TRUE(res.contains("term"));
-        ASSERT_TRUE(res["term"].is_number_integer());
-        EXPECT_EQ(0, res["term"]);
-    });
+    auto json = fusionStats("uploader_state", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("state"));
+    ASSERT_TRUE(json["state"].is_string());
+    EXPECT_EQ("disabled", json["state"]);
+    ASSERT_TRUE(json.contains("term"));
+    ASSERT_TRUE(json["term"].is_number_integer());
+    EXPECT_EQ(0, json["term"]);
 
     // Start uploader
-    const auto resp = startFusionUploader(Vbid(0), "123");
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(Vbid(0), "123").getStatus());
 
     // verify stat
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        nlohmann::json res;
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion uploader_state 0");
-        ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_object());
-        ASSERT_TRUE(res.contains("state"));
-        ASSERT_TRUE(res["state"].is_string());
-        EXPECT_EQ("enabled", res["state"]);
-        ASSERT_TRUE(res.contains("term"));
-        ASSERT_TRUE(res["term"].is_number_integer());
-        EXPECT_EQ(123, res["term"]);
-    });
+    json = fusionStats("uploader_state", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("state"));
+    ASSERT_TRUE(json["state"].is_string());
+    EXPECT_EQ("enabled", json["state"]);
+    ASSERT_TRUE(json.contains("term"));
+    ASSERT_TRUE(json["term"].is_number_integer());
+    EXPECT_EQ(123, json["term"]);
 
     // Stop uploader
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
@@ -428,29 +421,21 @@ TEST_P(FusionTest, Stat_UploaderState) {
     });
 
     // verify stat
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        nlohmann::json res;
-        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
-                   "fusion uploader_state 0");
-        ASSERT_FALSE(res.empty());
-        ASSERT_TRUE(res.is_object());
-        ASSERT_TRUE(res.contains("state"));
-        ASSERT_TRUE(res["state"].is_string());
-        EXPECT_EQ("disabled", res["state"]);
-        ASSERT_TRUE(res.contains("term"));
-        ASSERT_TRUE(res["term"].is_number_integer());
-        EXPECT_EQ(0, res["term"]);
-    });
+    json = fusionStats("uploader_state", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("state"));
+    ASSERT_TRUE(json["state"].is_string());
+    EXPECT_EQ("disabled", json["state"]);
+    ASSERT_TRUE(json.contains("term"));
+    ASSERT_TRUE(json["term"].is_number_integer());
+    EXPECT_EQ(0, json["term"]);
 }
 
 TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
+    // Note: vbid:1 doesn't exist
     try {
-        adminConnection->executeInBucket(bucketName, [](auto& conn) {
-            nlohmann::json res;
-            conn.stats([&res](auto& k,
-                              auto& v) { res = nlohmann::json::parse(v); },
-                       "fusion uploader_state 1");
-        });
+        fusionStats("uploader_state", "1");
         FAIL();
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
