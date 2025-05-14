@@ -21,6 +21,16 @@ protected:
 
     BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes);
 
+    /**
+     * @param vbid
+     * @param snapshotUuid
+     * @param validity Timestamp in seconds
+     * @return BinprotResponse
+     */
+    BinprotResponse getFusionStorageSnapshot(Vbid vbid,
+                                             std::string_view snapshotUuid,
+                                             size_t validity);
+
     BinprotResponse releaseFusionStorageSnapshot(Vbid vbid,
                                                  std::string_view snapshotUuid);
 
@@ -69,6 +79,24 @@ BinprotResponse FusionTest::mountVbucket(Vbid vbid,
                 cmd.setVBucket(vbid);
                 nlohmann::json json;
                 json["mountPaths"] = volumes;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+    return resp;
+}
+
+BinprotResponse FusionTest::getFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid, size_t validity) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(
+            bucketName, [&resp, vbid, &snapshotUuid, validity](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
+                cmd.setVBucket(vbid);
+                nlohmann::json json;
+                json["snapshotUuid"] = snapshotUuid;
+                json["validity"] = validity;
                 cmd.setValue(json.dump());
                 cmd.setDatatype(cb::mcbp::Datatype::JSON);
                 resp = conn.execute(cmd);
@@ -247,39 +275,26 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
     const auto validity = secs.time_since_epoch().count();
 
-    BinprotResponse resp;
-    adminConnection->executeInBucket(
-            bucketName, [&resp, vbid, &snapshotUuid, validity](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
-                cmd.setVBucket(vbid);
-                nlohmann::json json;
-                json["snapshotUuid"] = snapshotUuid;
-                json["validity"] = validity;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-
+    const auto resp = getFusionStorageSnapshot(vbid, snapshotUuid, validity);
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
-    const auto& res = resp.getDataJson();
-    ASSERT_FALSE(res.empty());
-    ASSERT_TRUE(res.contains("createdAt"));
-    EXPECT_NE(0, res["createdAt"]);
-    ASSERT_TRUE(res.contains("logFiles"));
-    ASSERT_TRUE(res["logFiles"].is_array());
-    ASSERT_TRUE(res.contains("logManifestName"));
-    ASSERT_TRUE(res.contains("snapshotUUID"));
-    EXPECT_EQ(snapshotUuid, res["snapshotUUID"].get<std::string>());
-    ASSERT_TRUE(res.contains("validTill"));
-    ASSERT_TRUE(res.contains("version"));
-    EXPECT_EQ(1, res["version"]);
-    ASSERT_TRUE(res.contains("volumeID"));
-    EXPECT_FALSE(res["volumeID"].empty());
+    const auto& json = resp.getDataJson();
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.contains("createdAt"));
+    EXPECT_NE(0, json["createdAt"]);
+    ASSERT_TRUE(json.contains("logFiles"));
+    ASSERT_TRUE(json["logFiles"].is_array());
+    ASSERT_TRUE(json.contains("logManifestName"));
+    ASSERT_TRUE(json.contains("snapshotUUID"));
+    EXPECT_EQ(snapshotUuid, json["snapshotUUID"].get<std::string>());
+    ASSERT_TRUE(json.contains("validTill"));
+    ASSERT_TRUE(json.contains("version"));
+    EXPECT_EQ(1, json["version"]);
+    ASSERT_TRUE(json.contains("volumeID"));
+    EXPECT_FALSE(json["volumeID"].empty());
 
     // Then release it
-    resp = releaseFusionStorageSnapshot(vbid, snapshotUuid);
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              releaseFusionStorageSnapshot(vbid, snapshotUuid).getStatus());
 }
 
 TEST_P(FusionTest, MountFusionVbucket_InvalidArgs) {
