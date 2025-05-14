@@ -35,6 +35,14 @@ IF (EP_USE_MAGMA)
             src/kvstore/magma-kvstore/magma-kvstore_fs.cc
             src/kvstore/magma-kvstore/magma-memory-tracking-proxy.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
+    # AppleClang 15 fails with C++23 as part of unity build for the memory
+    # tracking proxy. Just compile it on its own until we can upgrade
+    # the compiler
+    set_source_files_properties(
+            src/kvstore/magma-kvstore/magma-memory-tracking-proxy.cc
+            PROPERTIES
+            SKIP_UNITY_BUILD_INCLUSION ON)
+
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
 
     add_library(ep-engine_magma_common STATIC
