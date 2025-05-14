@@ -49,18 +49,23 @@ protected:
     nlohmann::json fusionStats(std::optional<std::string_view> subGroup,
                                std::optional<std::string_view> vbid);
 
+    void setMigrationRateLimit(size_t bytes);
+
 public:
+    static constexpr auto logstoreRelativePath = "logstore";
     static constexpr auto chronicleAuthToken = "some-token1!";
+    static constexpr auto bucketUuid = "uuid-123";
 };
 
 void FusionTest::SetUpTestCase() {
     const std::string dbPath = mcd_env->getDbPath();
     const auto bucketConfig = fmt::format(
             "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
-            "};chronicle_auth_token={}",
-            "local://" + dbPath + "/logstore",
+            "};chronicle_auth_token={};uuid={}",
+            "local://" + dbPath + "/" + logstoreRelativePath,
             "local://" + dbPath + "/metadatastore",
-            chronicleAuthToken);
+            chronicleAuthToken,
+            bucketUuid);
     doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
 
     // Note: magma KVStore creation executes at the first flusher path run,
@@ -179,6 +184,17 @@ nlohmann::json FusionTest::fusionStats(std::optional<std::string_view> subGroup,
     return res;
 }
 
+void FusionTest::setMigrationRateLimit(size_t bytes) {
+    adminConnection->executeInBucket(bucketName, [bytes](auto& conn) {
+        const auto cmd = BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "magma_fusion_migration_rate_limit",
+                std::to_string(bytes));
+        const auto resp = BinprotMutationResponse(conn.execute(cmd));
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          FusionTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
@@ -232,19 +248,118 @@ TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
     }
 }
 
+/**
+ * Active guest volumes are volumes involved in a "migration" process in fusion.
+ * "migration" is the process of loading some previously mounted volume's data
+ * when a VBucket is created by SetVBucketState(use_snapshot).
+ *
+ * So for testing out the "active_guest_volumes" stat we do:
+ *  - Create a vbucket and store some data into it
+ *  - Sync that data to the fusion logstore
+ *  - Prepare a "volume" and copy the fusion logstore data to it
+ *  - NOTE: Steps so far are just preliminary steps for ending up with some
+ *          magma data files on a volume. That volume is used in the next steps
+ *          for initiating a migration process. As "volume" we use just a local
+ *          directory in the local filesystem.
+ *  - Delete the vbucket
+ *  - MountVBucket(volume)
+ *  - Recreate the vbucket by SetVBucketState(use_snapshot). That initiates the
+ *    migration process.
+ *  - Verify that STAT("active_guest_volumes") returns the volume involved in
+ *    the migration process.
+ */
 TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
-    const auto json = fusionStats("active_guest_volumes", "0");
+    // We need to read back "active guest volumes" during a data migration
+    // triggered by mountVBucket(volumes). Volumes are considered "active" only
+    // during the transfer, so we need to start and "stall" the migration for
+    // reading that information back.
+    setMigrationRateLimit(0);
 
-    // @todo MB-63679: Actual values will be populated once we have MountKVStore
-    // + SetVBstate(open_snapshot=true). At the time of writing MountKVStore is
-    // ready, we need the latter.
-    ASSERT_TRUE(json.is_array());
+    // Start uploader (necessary before SyncFusionLogstore)
+    const auto vbid = Vbid(0);
+    const auto term = "1";
+    ASSERT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, term).getStatus());
+
+    // Store some data
+    adminConnection->selectBucket(bucketName);
+    adminConnection->store("bump-vb-high-seqno", vbid, {});
+    adminConnection->waitForSeqnoToPersist(vbid, 1);
+    // And SyncFusionLogstore. That creates the log-<term>.1 file in the
+    // logstore.
+    syncFusionLogstore(vbid);
+
+    // Create a snapshot - That returns the volumeID
+    const auto snapshotUuid = "some-snapshot-uuid";
+    const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
+    const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
+    const auto validity = secs.time_since_epoch().count();
+    const auto resp = getFusionStorageSnapshot(vbid, snapshotUuid, validity);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    const auto& snapshotData = resp.getDataJson();
+    ASSERT_FALSE(snapshotData.empty());
+    ASSERT_TRUE(snapshotData.contains("volumeID"));
+    const auto volumeId = snapshotData["volumeID"].get<std::string>();
+    ASSERT_EQ("kv/" + bucketName + "/" + bucketUuid + "/kvstore-" +
+                      std::to_string(vbid.get()),
+              volumeId);
+
+    // In the next few steps we set up a fake "volume" with some magma data that
+    // we'll use later for creating a vbucket by MountVbucket(volume) +
+    // SetVBucketState(use_snapshot)
+
+    const std::string dbPath = mcd_env->getDbPath();
+    ASSERT_TRUE(std::filesystem::exists(dbPath));
+
+    // Create guest volumes (just using a folder within the test path)
+    const std::string guestVolume = dbPath + "/guest_volume";
+    ASSERT_TRUE(std::filesystem::create_directory(guestVolume));
+
+    // Create guest volume directory
+    const std::string guestVolumePath = guestVolume + "/" + volumeId;
+    ASSERT_TRUE(std::filesystem::create_directories(guestVolumePath));
+
+    // Copy data from the fusion logstore to the guest volume directory
+    const auto volumeIdPathInLogstore =
+            dbPath + "/" + logstoreRelativePath + "/" + volumeId;
+    ASSERT_TRUE(std::filesystem::exists(volumeIdPathInLogstore));
+    std::filesystem::copy(volumeIdPathInLogstore,
+                          guestVolumePath,
+                          std::filesystem::copy_options::recursive);
+
+    // Delete vbucket (mount fails by EExists otherwise)
+    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
+        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+        cmd.setVBucket(vbid);
+        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+    });
+
+    // Mount by providing the given volume
+    ASSERT_EQ(cb::mcbp::Status::Success,
+              mountVbucket(vbid, {guestVolume}).getStatus());
+
+    // Create vbucket from volume data
+    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
+        const nlohmann::json meta{{"use_snapshot", "fusion"}};
+        conn.setVbucket(vbid, vbucket_state_active, meta);
+    });
+
+    // Verify active_guest_volumes stat
+    // Note: Implicit format check, this throws if json isn't list of strings
+    const std::vector<std::string> expectedVolumes =
+            fusionStats("active_guest_volumes", std::to_string(vbid.get()));
+    ASSERT_EQ(1, expectedVolumes.size());
+    EXPECT_EQ(guestVolume, expectedVolumes.at(0));
+
+    // All done, unblock the data migration. The test process would get stuck
+    // otherwise.
+    setMigrationRateLimit(1024 * 1024 * 75);
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
     const auto json = fusionStats("active_guest_volumes", {});
 
-    // @todo MB-63679: same as above
+    // @todo MB-63679: Implement test with multiple vbuckets in place
     ASSERT_TRUE(json.is_array());
 }
 
