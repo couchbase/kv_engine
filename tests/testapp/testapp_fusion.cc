@@ -26,6 +26,8 @@ protected:
 
     BinprotResponse startFusionUploader(Vbid vbid, const nlohmann::json& term);
 
+    BinprotResponse syncFusionLogstore(Vbid vbid);
+
 public:
     static constexpr auto chronicleAuthToken = "some-token1!";
 };
@@ -105,6 +107,17 @@ BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
                 cmd.setDatatype(cb::mcbp::Datatype::JSON);
                 resp = conn.execute(cmd);
             });
+    return resp;
+}
+
+BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(bucketName, [&resp, vbid](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SyncFusionLogstore};
+        cmd.setVBucket(vbid);
+        resp = conn.execute(cmd);
+    });
     return resp;
 }
 
@@ -317,16 +330,9 @@ TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
 
 TEST_P(FusionTest, SyncFusionLogstore) {
     const auto vbid = Vbid(0);
-    const auto res = startFusionUploader(vbid, "1");
-    EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
-
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::SyncFusionLogstore};
-        cmd.setVBucket(Vbid(0));
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    ASSERT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, "1").getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, syncFusionLogstore(vbid).getStatus());
 }
 
 TEST_P(FusionTest, StartFusionUploader) {
