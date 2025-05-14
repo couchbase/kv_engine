@@ -1154,7 +1154,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     ::to_string_or_none(itemsForCursor.highPreparedSeqno),
                     itemsForCursor.visibleSeqno,
                     result.items.size());
-            throw std::logic_error(msg);
+            cb::throwWithTrace(std::logic_error(msg));
         }
 
         const auto& range = itemsForCursor.ranges.front();
@@ -1169,7 +1169,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     ::to_string(itemsForCursor.historical),
                     range.getStart(),
                     range.getEnd());
-            throw std::logic_error(msg);
+            cb::throwWithTrace(std::logic_error(msg));
         }
 
         if (!itemsForCursor.highPreparedSeqno) {
@@ -1183,7 +1183,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     ::to_string(itemsForCursor.historical),
                     range.getStart(),
                     range.getEnd());
-            throw std::logic_error(msg);
+            cb::throwWithTrace(std::logic_error(msg));
         }
 
         result.diskCheckpointState =
@@ -1469,11 +1469,11 @@ void ActiveStream::processItemsInner(
             }
 
             if (outstandingItemsResult.ranges.empty()) {
-                throw std::logic_error(
-                        "ActiveStream::processItems: found "
-                        "no snapshot ranges but we have a "
-                        "checkpoint start with seqno:" +
-                        std::to_string(qi->getBySeqno()));
+                cb::throwWithTrace(
+                        std::logic_error("ActiveStream::processItems: found "
+                                         "no snapshot ranges but we have a "
+                                         "checkpoint start with seqno:" +
+                                         std::to_string(qi->getBySeqno())));
             }
 
             /* mark true as it indicates a new checkpoint snapshot */
@@ -1693,12 +1693,12 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();
         if (!seqnoStart || !seqnoEnd) {
-            throw std::logic_error(
+            cb::throwWithTrace(std::logic_error(
                     logPrefix +
                     "ActiveStream::snapshot incorrect DcpEvent, missing a "
                     "seqno " +
                     std::string(items.front()->to_string()) + " " +
-                    std::string(items.back()->to_string()) + " " + logPrefix);
+                    std::string(items.back()->to_string()) + " " + logPrefix));
         }
 
         uint64_t snapStart = *seqnoStart;
@@ -1820,7 +1820,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                     getName(),
                     lastReadSeqno.load(),
                     curChkSeqno.load());
-            throw std::logic_error(msg);
+            cb::throwWithTrace(std::logic_error(msg));
         }
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
 
@@ -2866,7 +2866,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
                 getName(),
                 lastReadSeqno.load(),
                 curChkSeqno.load());
-        throw std::logic_error(msg);
+        cb::throwWithTrace(std::logic_error(msg));
     }
 
     lastSentSnapEndSeqno.store(end, std::memory_order_relaxed);
