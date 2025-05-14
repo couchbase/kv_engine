@@ -12,8 +12,6 @@ CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
 
 INCLUDE_DIRECTORIES(BEFORE SYSTEM
                            ${SNAPPY_INCLUDE_DIR}
-                           ${Platform_SOURCE_DIR}/include
-                           ${Platform_SOURCE_DIR}/external
                            ${Couchstore_SOURCE_DIR}/include
                            ${Couchstore_BINARY_DIR}/include)
 
@@ -60,14 +58,9 @@ SET(EP_ENGINE_VERSION "${MEMCACHED_VERSION}")
 ADD_SUBDIRECTORY(management)
 
 add_executable(gencode tools/gencode.cc)
-target_link_libraries(gencode PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(gencode PRIVATE nlohmann_json::nlohmann_json platform)
 add_executable(genconfig tools/genconfig.cc)
-target_link_libraries(genconfig PRIVATE fmt::fmt nlohmann_json::nlohmann_json)
-if (WIN32)
-    # windows need getopt
-    target_link_libraries(gencode PRIVATE platform)
-    target_link_libraries(genconfig PRIVATE platform)
-endif()
+target_link_libraries(genconfig PRIVATE fmt::fmt nlohmann_json::nlohmann_json platform)
 add_sanitizers(genconfig)
 
 add_executable(pid_runner tools/pid_runner.cc)
