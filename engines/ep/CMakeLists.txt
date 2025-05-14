@@ -1,9 +1,5 @@
 PROJECT(EventuallyPersistentEngine LANGUAGES CXX)
 
-INCLUDE(CheckFunctionExists)
-INCLUDE(CheckLibraryExists)
-INCLUDE(CheckSymbolExists)
-INCLUDE(CheckTypeSize)
 INCLUDE(CMakeDependentOption)
 INCLUDE(CTest)
 
