@@ -275,42 +275,40 @@ ADD_LIBRARY(ep STATIC
             src/checkpoint_manager.cc
             src/checkpoint_remover.cc
             src/conflict_resolution.cc
+            src/conn_store.cc
             src/connhandler.cc
             src/connmap.cc
-            src/conn_store.cc
             src/crc32.c
             src/cross_bucket_visitor_adapter.cc
             src/dcp/active_stream.cc
             src/dcp/active_stream.h
             src/dcp/active_stream_checkpoint_processor_task.cc
             src/dcp/active_stream_checkpoint_processor_task.h
+            src/dcp/backfill-manager.cc
             src/dcp/backfill.cc
             src/dcp/backfill_by_id_disk.cc
             src/dcp/backfill_by_seqno_disk.cc
             src/dcp/backfill_disk.cc
             src/dcp/backfill_disk_to_stream.cc
-            src/dcp/backfill-manager.cc
             src/dcp/backfill_memory.cc
             src/dcp/backfill_to_stream.cc
             src/dcp/consumer.cc
-            src/dcp/dcpconnmap.cc
             src/dcp/dcp-types.cc
-            src/dcp/flow-control.cc
+            src/dcp/dcpconnmap.cc
             src/dcp/flow-control-manager.cc
+            src/dcp/flow-control.cc
             src/dcp/msg_producers_border_guard.cc
             src/dcp/passive_stream.cc
             src/dcp/passive_stream.h
             src/dcp/producer.cc
-            src/vb_ready_queue.cc
-            src/vb_ready_queue.h
             src/dcp/response.cc
             src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
             src/diskdockey.cc
-            src/dockey_validator.cc
             src/doc_pre_expiry.cc
             src/doc_pre_expiry.h
+            src/dockey_validator.cc
             src/durability/active_durability_monitor.cc
             src/durability/dead_durability_monitor.cc
             src/durability/durability_completion_task.cc
@@ -319,32 +317,31 @@ ADD_LIBRARY(ep STATIC
             src/durability/passive_durability_monitor.cc
             src/durability_timeout_task.cc
             src/encryption_key_provider.cc
+            src/environment.cc
             src/ep_bucket.cc
-            src/ep_vb.cc
             src/ep_engine.cc
             src/ep_engine_group.cc
             src/ep_engine_storage.cc
             src/ep_task.cc
             src/ep_time.cc
             src/ep_types.cc
+            src/ep_vb.cc
             src/ephemeral_bucket.cc
             src/ephemeral_mem_recovery.cc
             src/ephemeral_tombstone_purger.cc
             src/ephemeral_vb.cc
             src/ephemeral_vb_count_visitor.cc
             src/error_handler.cc
-            src/environment.cc
+            src/event_driven_timeout_task.cc
             src/eviction_ratios.cc
             src/eviction_utils.cc
             src/ext_meta_parser.cc
-            src/event_driven_timeout_task.cc
             src/failover-table.cc
             src/file_ops_tracker.cc
             src/flusher.cc
             src/getkeys.cc
             src/hash_table.cc
             src/hlc.cc
-            src/mfu_only_item_eviction.cc
             src/htresizer.cc
             src/initial_mfu_task.cc
             src/item.cc
@@ -354,28 +351,29 @@ ADD_LIBRARY(ep STATIC
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
             src/item_pager.cc
-            src/kvstore/nexus-kvstore/nexus-kvstore.cc
-            src/kvstore/nexus-kvstore/nexus-kvstore-config.cc
+            src/kv_bucket.cc
+            src/kvshard.cc
             src/kvstore/kvstore.cc
             src/kvstore/kvstore_config.cc
             src/kvstore/kvstore_iface.cc
-            src/kv_bucket.cc
-            src/kvshard.cc
+            src/kvstore/nexus-kvstore/nexus-kvstore-config.cc
+            src/kvstore/nexus-kvstore/nexus-kvstore.cc
+            src/kvstore/persistence_callback.cc
+            src/kvstore/rollback_callback.cc
             src/learning_age_and_mfu_based_eviction.cc
-            src/memory_tracker.cc
+            src/linked_list.cc
             src/locked_vbucket_ptr.cc
+            src/memory_tracker.cc
+            src/mfu_only_item_eviction.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc
-            src/kvstore/persistence_callback.cc
-            src/kvstore/rollback_callback.cc
             src/pid_controller.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
             src/probabilistic_counter.cc
             src/progress_tracker.cc
             src/quota_sharing_item_pager.cc
-            src/linked_list.cc
             src/range_lock_manager.cc
             src/range_scans/range_scan.cc
             src/range_scans/range_scan_callbacks.cc
@@ -396,26 +394,28 @@ ADD_LIBRARY(ep STATIC
             src/snapshots/download_snapshot_task_listener.cc
             src/snapshots/download_snapshot_task_listener.h
             src/stats.cc
-            src/string_utils.cc
             src/stored-value.cc
             src/stored_value_factories.cc
             src/stored_value_factories.h
+            src/string_utils.cc
             src/systemevent_factory.cc
             src/tasks.cc
             src/vb_adapters.cc
             src/vb_commit.cc
             src/vb_count_visitor.cc
             src/vb_notifiable_task.cc
-            src/work_sharding.cc
+            src/vb_ready_queue.cc
+            src/vb_ready_queue.h
             src/vb_visitors.cc
             src/vbucket.cc
             src/vbucket_bgfetch_item.cc
             src/vbucket_loader.cc
             src/vbucket_loading_task.cc
             src/vbucket_state.cc
-            src/vbucketmap.cc
             src/vbucketdeletiontask.cc
+            src/vbucketmap.cc
             src/warmup.cc
+            src/work_sharding.cc
             ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
