@@ -216,38 +216,6 @@ target_link_libraries(ep-engine_storage_common PRIVATE
 target_include_directories(ep-engine_storage_common PUBLIC
                            src/kvstore/storage_common)
 
-SET(COUCH_KVSTORE_SOURCE
-        src/kvstore/couch-kvstore/couch-fs-stats.cc
-        src/kvstore/couch-kvstore/couch-kvstore.cc
-        src/kvstore/couch-kvstore/couch-kvstore-config.cc
-        src/kvstore/couch-kvstore/couch-kvstore-db-holder.cc
-        src/kvstore/couch-kvstore/couch-kvstore-file-cache.cc
-        src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.cc
-        src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.h)
-SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
-SET(CONFIG_SOURCE src/configuration.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_enums.cc)
-
-SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
-                       src/collections/eraser_context.cc
-                       src/collections/flush.cc
-                       src/collections/flush_accounting.cc
-                       src/collections/kvstore.cc
-                       src/collections/manager.cc
-                       src/collections/manifest.cc
-                       src/collections/persist_manifest_task.cc
-                       ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
-                       ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
-                       ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
-                       src/collections/scan_context.cc
-                       src/collections/system_event_types.cc
-                       src/collections/vbucket_filter.cc
-                       src/collections/vbucket_manifest.cc
-                       src/collections/vbucket_manifest_entry.cc
-                       src/collections/vbucket_manifest_handles.cc
-                       src/collections/vbucket_manifest_scope_entry.cc)
-
 # Skip precompiled headers for the (tiny minority) of C source files.
 # This is to avoid adding complexity to precompiled_headers.h to handle C & C++
 # includes differently. In addition to skipping the precompiled headers we also
@@ -274,6 +242,22 @@ ADD_LIBRARY(ep STATIC
             src/checkpoint_cursor.cc
             src/checkpoint_manager.cc
             src/checkpoint_remover.cc
+            src/collections/collections_types.cc
+            src/collections/eraser_context.cc
+            src/collections/flush.cc
+            src/collections/flush_accounting.cc
+            src/collections/kvstore.cc
+            src/collections/manager.cc
+            src/collections/manifest.cc
+            src/collections/persist_manifest_task.cc
+            src/collections/scan_context.cc
+            src/collections/system_event_types.cc
+            src/collections/vbucket_filter.cc
+            src/collections/vbucket_manifest.cc
+            src/collections/vbucket_manifest_entry.cc
+            src/collections/vbucket_manifest_handles.cc
+            src/collections/vbucket_manifest_scope_entry.cc
+            src/configuration.cc
             src/conflict_resolution.cc
             src/conn_store.cc
             src/connhandler.cc
@@ -353,6 +337,13 @@ ADD_LIBRARY(ep STATIC
             src/item_pager.cc
             src/kv_bucket.cc
             src/kvshard.cc
+            src/kvstore/couch-kvstore/couch-fs-stats.cc
+            src/kvstore/couch-kvstore/couch-kvstore-config.cc
+            src/kvstore/couch-kvstore/couch-kvstore-db-holder.cc
+            src/kvstore/couch-kvstore/couch-kvstore-file-cache.cc
+            src/kvstore/couch-kvstore/couch-kvstore.cc
+            src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.cc
+            src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.h
             src/kvstore/kvstore.cc
             src/kvstore/kvstore_config.cc
             src/kvstore/kvstore_iface.cc
@@ -367,6 +358,7 @@ ADD_LIBRARY(ep STATIC
             src/mfu_only_item_eviction.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
+            src/objectregistry.cc
             src/paging_visitor.cc
             src/pid_controller.cc
             src/pre_link_document_context.cc
@@ -416,13 +408,14 @@ ADD_LIBRARY(ep STATIC
             src/vbucketmap.cc
             src/warmup.cc
             src/work_sharding.cc
-            ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_enums.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
-            ${CONFIG_SOURCE}
-            ${COUCH_KVSTORE_SOURCE}
-            ${MAGMA_KVSTORE_SOURCE}
-            ${COLLECTIONS_SOURCE})
+            ${MAGMA_KVSTORE_SOURCE})
 SET_PROPERTY(TARGET ep PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(ep)
 add_sanitizers(ep)
