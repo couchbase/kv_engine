@@ -7,7 +7,6 @@ CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
     "MAGMA_INCLUDE_DIR" OFF)
 
 INCLUDE_DIRECTORIES(BEFORE SYSTEM
-                           ${SNAPPY_INCLUDE_DIR}
                            ${Couchstore_SOURCE_DIR}/include
                            ${Couchstore_BINARY_DIR}/include)
 
@@ -436,6 +435,7 @@ target_link_libraries(ep
         snapshot
         xattr)
 kv_enable_pch(ep)
+target_include_directories(ep SYSTEM PRIVATE ${SNAPPY_INCLUDE_DIR})
 
 if (NOT WIN32)
   # Enable the more efficient ThreadLocalStorage model
