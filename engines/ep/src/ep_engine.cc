@@ -3359,9 +3359,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_migration_failures, "fusion_NumMigrationFailures");
 
     // Additional Fusion Stats
-    collector.addStat(Key::ep_fusion_namespace,
-                      configuration.getMagmaFusionNamespacePrefix() + "/" +
-                              name + "/" + configuration.getUuid());
+    collector.addStat(Key::ep_fusion_namespace, getFusionNamespace());
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(
@@ -8045,10 +8043,7 @@ EventuallyPersistentEngine::getFusionStorageSnapshotInner(
         return {cb::engine_errc::not_supported, {}};
     }
 
-    const auto fusionNamespace = configuration.getMagmaFusionNamespacePrefix() +
-                                 "/" + configuration.getCouchBucket() + "/" +
-                                 configuration.getUuid();
-
+    const auto fusionNamespace = getFusionNamespace();
     return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid, validity);
 }
@@ -8060,9 +8055,7 @@ cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshotInner(
         return cb::engine_errc::not_supported;
     }
 
-    const auto fusionNamespace = configuration.getMagmaFusionNamespacePrefix() +
-                                 "/" + configuration.getCouchBucket() + "/" +
-                                 configuration.getUuid();
+    const auto fusionNamespace = getFusionNamespace();
     return kvBucket->getRWUnderlying(vbid)->releaseFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid);
 }
@@ -8085,6 +8078,13 @@ cb::engine_errc EventuallyPersistentEngine::setChronicleAuthToken(
 
 std::string EventuallyPersistentEngine::getCachedChronicleAuthToken() const {
     return *chronicleAuthToken.rlock();
+}
+
+std::string EventuallyPersistentEngine::getFusionNamespace() const {
+    // FusionNamespace is in the form:
+    // <service_prefix>/<bucket_name>/<bucket_uuid>.
+    return configuration.getMagmaFusionNamespacePrefix() + "/" +
+           configuration.getCouchBucket() + "/" + configuration.getUuid();
 }
 
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(Vbid vbid) {

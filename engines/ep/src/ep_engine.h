@@ -1127,6 +1127,14 @@ public:
     std::string getCachedChronicleAuthToken() const;
 
     /**
+     * Get the fusion namespace which is in the format
+     * <service_prefix>/<bucket_name>/<bucket_uuid>.
+     *
+     * @return the fusion namespace
+     */
+    std::string getFusionNamespace() const;
+
+    /**
      * Set the setting for returning tmpfail instead of not_locked when
      * unlocking an item that is not locked.
      *
