@@ -75,7 +75,7 @@ public:
      * Validates the json as per SET_COLLECTIONS rules.
      * @param json a buffer containing the JSON manifest data
      */
-    explicit Manifest(std::string_view json, size_t numVbuckets = 1024);
+    explicit Manifest(std::string_view json);
 
     struct FlatBuffers {};
     explicit Manifest(std::string_view flatbufferData, FlatBuffers tag);

@@ -76,8 +76,7 @@ cb::engine_error Collections::Manager::update(
     // Construct a new Manifest (ctor will throw if JSON was illegal)
     Manifest newManifest;
     try {
-        newManifest = Manifest(manifestString,
-                               bucket.getConfiguration().getMaxVbuckets());
+        newManifest = Manifest(manifestString);
     } catch (std::exception& e) {
         EP_LOG_WARN(
                 "Collections::Manager::update can't construct manifest "
@@ -355,7 +354,23 @@ void Collections::Manager::addScopeStats(
     currentManifest.rlock()->addScopeStats(bucket, collector);
 }
 
+void Collections::Manager::setInitialCollectionManifest(
+        const nlohmann::json& payload) {
+    Manifest manifest(payload.dump());
+    EP_LOG_INFO(
+            "Collections::Manager::setInitialCollectionManifest: starting at "
+            "uid:{:#x}",
+            manifest.getUid());
+    *currentManifest.wlock() = std::move(manifest);
+}
+
 bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
+    if (currentManifest.rlock()->getUid() != 0) {
+        // Manifest set by ns_server through create_bucket and the method
+        // will be removed once ns_server merged the change to do so
+        return true;
+    }
+
     auto rv = Collections::PersistManifestTask::tryAndLoad(dbpath);
     if (rv.has_value()) {
         EP_LOG_INFO(

@@ -24,6 +24,7 @@
 #include <memcached/config_parser.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <platform/base64.h>
 #include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
@@ -603,14 +604,29 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     // avoid that being logged
     nlohmann::json encryption;
     std::string chronicleAuthToken;
+    nlohmann::json collectionManifest;
     const auto stripped = cb::config::filter(
-            config, [&encryption, &chronicleAuthToken](auto k, auto v) -> bool {
+            config,
+            [&encryption, &chronicleAuthToken, &collectionManifest](
+                    auto k, auto v) -> bool {
                 if (k == "encryption") {
                     encryption = nlohmann::json::parse(v);
                     return false;
                 }
                 if (k == "chronicle_auth_token") {
                     chronicleAuthToken = v;
+                    return false;
+                }
+                if (k == "collection_manifest") {
+                    if (v.empty()) {
+                        return false;
+                    }
+                    if (v.front() == '{') {
+                        collectionManifest = nlohmann::json::parse(v);
+                    } else {
+                        auto decoded = cb::base64url::decode(v);
+                        collectionManifest = nlohmann::json::parse(decoded);
+                    }
                     return false;
                 }
                 return true;
@@ -628,11 +644,13 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     details["chronicle_auth_token"] =
             chronicleAuthToken.empty() ? "not-set" : "set";
     details["configuration"] = stripped;
+    details["collection_manifest"] =
+            collectionManifest.empty() ? "not-set" : "present";
     LOG_INFO_CTX("Initialize bucket", std::move(details));
 
     start = std::chrono::steady_clock::now();
     auto result = bucket.getEngine().initialize(
-            stripped, encryption, chronicleAuthToken);
+            stripped, encryption, chronicleAuthToken, collectionManifest);
     if (result != cb::engine_errc::success) {
         throw cb::engine_error(result, "initializeEngineInstance failed");
     }

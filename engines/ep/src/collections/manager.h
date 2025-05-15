@@ -217,6 +217,8 @@ public:
     void addScopeStats(KVBucket& bucket,
                        const BucketStatCollector& collector) const;
 
+    void setInitialCollectionManifest(const nlohmann::json& payload);
+
     /**
      * Called from bucket warmup - see if we have a manifest to resume from
      *

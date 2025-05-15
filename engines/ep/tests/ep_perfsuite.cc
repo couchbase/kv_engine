@@ -1556,7 +1556,8 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
         // initialise, and time how long it takes to complete warmup.
         const auto start = cb::time::steady_clock::now();
         checkeq(cb::engine_errc::success,
-                h->initialize(testHarness->get_current_testcase()->cfg, {}, {}),
+                h->initialize(
+                        testHarness->get_current_testcase()->cfg, {}, {}, {}),
                 "Failed to initialize engine");
         wait_for_warmup_complete(h);
         const auto end = cb::time::steady_clock::now();

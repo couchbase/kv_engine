@@ -57,7 +57,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
 
 void create_crash_instance() {
     auto engine = create_crash_engine_instance();
-    (void)engine->initialize({}, {}, {});
+    (void)engine->initialize({}, {}, {}, {});
     folly::assume_unreachable();
 }
 

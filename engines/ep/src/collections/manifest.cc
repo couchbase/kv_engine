@@ -100,7 +100,7 @@ Manifest::Manifest(Manifest&& other)
       uid(other.uid) {
 }
 
-Manifest::Manifest(std::string_view json, size_t numVbuckets)
+Manifest::Manifest(std::string_view json)
     : defaultCollectionExists(false), scopes(), collections(), uid(0) {
     auto throwInvalid = [](const std::string& detail) {
         throw std::invalid_argument("Manifest::Manifest: " + detail);

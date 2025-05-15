@@ -93,9 +93,11 @@ public:
     /* Implementation of all the engine functions. ***************************/
     void initiate_shutdown() override;
     void disconnect(CookieIface& cookie) override;
-    cb::engine_errc initialize(std::string_view config_str,
-                               const nlohmann::json& encryption,
-                               std::string_view chronicleAuthToken) override;
+    cb::engine_errc initialize(
+            std::string_view config_str,
+            const nlohmann::json& encryption,
+            std::string_view chronicleAuthToken,
+            const ::nlohmann::json& collectionManifest) override;
     void destroy(bool force) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
@@ -919,9 +921,11 @@ bool EWB_Engine::should_inject_error(Cmd cmd,
     });
 }
 
-cb::engine_errc EWB_Engine::initialize(std::string_view config_str,
-                                       const nlohmann::json& encryption,
-                                       std::string_view chronicleAuthToken) {
+cb::engine_errc EWB_Engine::initialize(
+        std::string_view config_str,
+        const nlohmann::json& encryption,
+        std::string_view chronicleAuthToken,
+        const ::nlohmann::json& collectionManifest) {
     std::string real_engine_name;
     auto engine_config = cb::config::filter(
             config_str, [&real_engine_name](auto k, auto v) -> bool {
@@ -943,7 +947,7 @@ cb::engine_errc EWB_Engine::initialize(std::string_view config_str,
 
     real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
     return real_engine->initialize(
-            engine_config, encryption, chronicleAuthToken);
+            engine_config, encryption, chronicleAuthToken, collectionManifest);
 }
 
 void EWB_Engine::destroy(bool force) {

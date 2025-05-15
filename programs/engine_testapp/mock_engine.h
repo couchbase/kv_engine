@@ -20,7 +20,8 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc initialize(std::string_view config_str,
                                const nlohmann::json&,
-                               std::string_view) override;
+                               std::string_view,
+                               const nlohmann::json&) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
     void initiate_shutdown() override;

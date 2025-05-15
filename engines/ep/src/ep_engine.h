@@ -147,7 +147,8 @@ public:
     /////////////////////////////////////////////////////////////
     cb::engine_errc initialize(std::string_view config,
                                const nlohmann::json&,
-                               std::string_view) override;
+                               std::string_view,
+                               const nlohmann::json&) override;
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,

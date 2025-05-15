@@ -2232,7 +2232,8 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
 cb::engine_errc EventuallyPersistentEngine::initialize(
         std::string_view config,
         const nlohmann::json& encryption,
-        std::string_view chronicleAuthToken) {
+        std::string_view chronicleAuthToken,
+        const nlohmann::json& collectionManifest) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }
@@ -2363,6 +2364,11 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     stats.setHighWaterMarkPercent(configuration.getMemHighWatPercent());
 
     setMaxDataSize(configuration.getMaxSize());
+
+    if (!collectionManifest.empty()) {
+        kvBucket->getCollectionsManager().setInitialCollectionManifest(
+                collectionManifest);
+    }
 
     // Complete the initialization of the ep-store
     if (!kvBucket->initialize()) {

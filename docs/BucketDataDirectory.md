@@ -15,7 +15,6 @@ If teams wish to create files under the bucket directory, they should
 | Kind of file              | File Name Pattern      | Owner / Team |
 |---------------------------|------------------------|--------------|
 | Couchstore files          | `n.couch.m`            | KV           |
-| Collections manifest      | `collections.manifest` | KV           |
 | Views Definitions         | `master.couch.m`       | Views        |
 | Flush sequence # file     | `flushseq`             | NS-Server    |
 | Magma files / directories | `magma*`               | Storage      |

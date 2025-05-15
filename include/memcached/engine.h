@@ -181,11 +181,13 @@ struct EngineIface {
      * @param config_str Configuration this engine needs to initialize itself.
      * @param encryption Data files encryption keys
      * @param chronicleAuthToken Chronicle auth token
+     * @param collectionManifest The collection manifest to use
      */
     [[nodiscard]] virtual cb::engine_errc initialize(
             std::string_view config_str,
             const nlohmann::json& encryption,
-            std::string_view chronicleAuthToken) {
+            std::string_view chronicleAuthToken,
+            const nlohmann::json& collectionManifest) {
         return cb::engine_errc::success;
     }
 

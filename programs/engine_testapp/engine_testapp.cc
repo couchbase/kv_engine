@@ -203,7 +203,7 @@ public:
                 BucketType::Couchbase, &get_mock_server_api));
         if (me) {
             if (initialize) {
-                const auto error = me->the_engine->initialize(cfg, {}, {});
+                const auto error = me->the_engine->initialize(cfg, {}, {}, {});
                 if (error != cb::engine_errc::success) {
                     throw cb::engine_error{error,
                                            "Failed to initialize instance"};
