@@ -46,23 +46,6 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
-                                       const void* buf,
-                                       size_t nbyte,
-                                       uint64_t offset) {
-    DWORD byteswritten;
-    OVERLAPPED winoffs;
-    memset(&winoffs, 0, sizeof(winoffs));
-    winoffs.Offset = offset & 0xFFFFFFFF;
-    winoffs.OffsetHigh = (offset >> 32) & 0x7FFFFFFF;
-    if (!WriteFile(fd, buf, nbyte, &byteswritten, &winoffs)) {
-        /* luckily we don't check errno so we don't need to care about that */
-        return -1;
-    }
-
-    return byteswritten;
-}
-
 ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
                                         const uint8_t* buf,
                                         size_t nbytes) {
@@ -149,13 +132,6 @@ int64_t getFileSize(file_handle_t fd) {
 }
 
 #else
-
-ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
-                                       const void* buf,
-                                       size_t nbyte,
-                                       uint64_t offset) {
-    return ::pwrite(fd, buf, nbyte, offset);
-}
 
 ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
                                         const uint8_t* buf,
@@ -459,26 +435,6 @@ void MutationLog::readInitialBlock() {
     blockSize = headerBlock.blockSize();
 }
 
-void MutationLog::updateInitialBlock() {
-    if (readOnly) {
-        throw std::logic_error("MutationLog::updateInitialBlock: Not valid on "
-                               "a read-only log");
-    }
-    if (!isOpen()) {
-        throw std::logic_error("MutationLog::updateInitialBlock: Not valid on "
-                               "a closed log");
-    }
-    needWriteAccess();
-
-    std::vector<uint8_t> buf(MIN_LOG_HEADER_SIZE);
-    memcpy(buf.data(), &headerBlock, sizeof(headerBlock));
-
-    ssize_t byteswritten = fileIface->pwrite(file, buf.data(), buf.size(), 0);
-    if (byteswritten != ssize_t(buf.size())) {
-        throw WriteException("Failed to update header block");
-    }
-}
-
 bool MutationLog::prepareWrites() {
     if (isEnabled()) {
         if (!isOpen()) {
@@ -601,17 +557,11 @@ void MutationLog::open(bool _readOnly) {
             disabled = true;
             throw ShortReadException();
         }
-
-        if (!readOnly) {
-            headerBlock.setRdwr(1);
-            updateInitialBlock();
-        }
     }
 
     if (!prepareWrites()) {
         close();
         disabled = true;
-        return;
     }
 }
 
@@ -629,8 +579,6 @@ void MutationLog::close() {
     if (!readOnly) {
         flush();
         sync();
-        headerBlock.setRdwr(0);
-        updateInitialBlock();
     }
 
     doClose(file);

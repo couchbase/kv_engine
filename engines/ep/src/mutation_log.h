@@ -89,15 +89,6 @@ struct FileIface {
     virtual ~FileIface() = default;
 
     /**
-     * Write `nbytes` of data from `buf` to the specified fd at position
-     * `offset`.
-     */
-    virtual ssize_t pwrite(file_handle_t fd,
-                           const void* buf,
-                           size_t nbyte,
-                           uint64_t offset) = 0;
-
-    /**
      * Write `nbytes` of data from `buf` to the specified 'fd' at the current
      * offset.
      */
@@ -112,10 +103,6 @@ struct FileIface {
  *
  */
 struct DefaultFileIface : public FileIface {
-    ssize_t pwrite(file_handle_t fd,
-                   const void* buf,
-                   size_t nbyte,
-                   uint64_t offset) override;
     ssize_t doWrite(file_handle_t fd,
                     const uint8_t* buf,
                     size_t nbytes) override;
@@ -134,9 +121,9 @@ public:
         : _version(htonl(int(version))) {
     }
 
-    void set(uint32_t bs, uint32_t bc=1) {
+    void set(uint32_t bs) {
         _blockSize = htonl(bs);
-        _blockCount = htonl(bc);
+        _blockCount = htonl(1);
     }
 
     void set(const std::array<uint8_t, MIN_LOG_HEADER_SIZE>& buf) {
@@ -170,16 +157,12 @@ public:
         return ntohl(_rdwr);
     }
 
-    void setRdwr(uint32_t nval) {
-        _rdwr = htonl(nval);
-    }
-
 private:
 
     uint32_t _version;
     uint32_t _blockSize = 0;
     uint32_t _blockCount = 0;
-    uint32_t _rdwr = 1;
+    uint32_t _rdwr = 0;
 };
 
 /**
@@ -495,7 +478,6 @@ protected:
 
     bool writeInitialBlock();
     void readInitialBlock();
-    void updateInitialBlock();
 
     bool prepareWrites();
 

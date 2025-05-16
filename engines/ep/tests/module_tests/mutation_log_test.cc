@@ -400,11 +400,10 @@ TEST_F(MutationLogTest, YUNOOPEN) {
 
 class MockFileIface : public mlog::DefaultFileIface {
 public:
-    MOCK_METHOD(
-            ssize_t,
-            pwrite,
-            (file_handle_t fd, const void* buf, size_t nbyte, uint64_t offset),
-            (override));
+    MOCK_METHOD(ssize_t,
+                doWrite,
+                (file_handle_t fd, const uint8_t* buf, size_t nbyte),
+                (override));
 };
 
 // MB-55939: Test behaviour when the mutation log cannot be written to disk
@@ -414,20 +413,17 @@ TEST_F(MutationLogTest, WriteFail) {
     // than requested and set errno to ENOSPC.
     using namespace ::testing;
     auto mockFileIface = std::make_unique<MockFileIface>();
-    EXPECT_CALL(*mockFileIface, pwrite(_, _, _, _))
-            .WillOnce([](file_handle_t, const void*, size_t nbytes, uint64_t) {
-                errno = ENOSPC;
-                return nbytes - 1;
+    EXPECT_CALL(*mockFileIface, doWrite(_, _, _))
+            .WillOnce([](file_handle_t, const uint8_t*, size_t) -> ssize_t {
+                throw std::system_error(
+                        ENOSPC, std::system_category(), "disk full");
             });
 
     // Test: Create and open a MutationLog; on destruction we should not see
     // an exception thrown.
-    EXPECT_NO_THROW({
-        MutationLog ml(tmp_log_filename,
-                       MIN_LOG_HEADER_SIZE,
-                       std::move(mockFileIface));
-        ml.open();
-    });
+    MutationLog ml(
+            tmp_log_filename, MIN_LOG_HEADER_SIZE, std::move(mockFileIface));
+    ml.open();
 }
 
 // Test that the MutationLog::iterator class obeys expected iterator behaviour.
