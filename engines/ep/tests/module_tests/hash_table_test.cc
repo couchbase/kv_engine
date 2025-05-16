@@ -1674,7 +1674,7 @@ TEST_F(HashTableTest, reallocateStoredValue) {
                                            std::forward<StoredValue>(*v2)));
 }
 
-// MB-33944: Test that calling HashTable::insertFromWarmup() doesn't fail
+// MB-33944: Test that calling HashTable::upsertItem() doesn't fail
 // of the given key is already resident (for example if a BG load already
 // loaded it).
 TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
@@ -1694,12 +1694,12 @@ TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
         ASSERT_TRUE(res.storedValue->isResident());
     }
 
-    // Test - insertFromWarmup should succesfully skip (re)adding this item.
+    // Test - upsertItem should succesfully skip (re)adding this item.
     EXPECT_EQ(MutationStatus::NotFound,
-              ht.insertFromWarmup(item,
-                                  /*eject*/ false,
-                                  /*keyMetaOnly*/ false,
-                                  EvictionPolicy::Full));
+              ht.upsertItem(item,
+                            /*eject*/ false,
+                            /*keyMetaOnly*/ false,
+                            EvictionPolicy::Full));
 }
 
 TEST_F(HashTableTest, ReplaceValueAndDatatype) {

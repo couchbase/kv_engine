@@ -138,15 +138,13 @@ TEST_P(HashTablePerspectiveTest, WarmupPendingAddedBeforeCommited) {
     // Setup - Insert pending then committed.
     auto pending = makePendingItem(key, "pending"s);
     pending->setBySeqno(2);
-    ASSERT_EQ(
-            MutationStatus::NotFound,
-            ht.insertFromWarmup(*pending, false, false, EvictionPolicy::Value));
+    ASSERT_EQ(MutationStatus::NotFound,
+              ht.upsertItem(*pending, false, false, EvictionPolicy::Value));
 
     auto committed = makeCommittedItem(key, "previous committed"s);
     committed->setBySeqno(1);
     ASSERT_EQ(MutationStatus::NotFound,
-              ht.insertFromWarmup(
-                      *committed, false, false, EvictionPolicy::Value));
+              ht.upsertItem(*committed, false, false, EvictionPolicy::Value));
 
     // Test - check that findForRead finds the committed one, and findForWrite
     // the pending one.

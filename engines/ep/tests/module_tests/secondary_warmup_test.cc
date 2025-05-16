@@ -268,10 +268,10 @@ TEST_P(SecondaryWarmupTest, WarmingAndDeleting) {
                 << "Expected delete to be persisted and clean.";
     }
     EXPECT_EQ(MutationStatus::InvalidCas,
-              vb->ht.insertFromWarmup(make_item(vbid, key, "value"),
-                                      false,
-                                      false,
-                                      store->getItemEvictionPolicy()));
+              vb->ht.upsertItem(make_item(vbid, key, "value"),
+                                false,
+                                false,
+                                store->getItemEvictionPolicy()));
 }
 
 auto testConfig =

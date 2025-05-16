@@ -1108,7 +1108,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     }
 
     auto& epVb = dynamic_cast<EPVBucket&>(vb);
-    const auto res = epVb.insertFromWarmup(
+    const auto res = epVb.upsertToHashTable(
             *i, shouldEject(), val.isPartial(), true /*check mem_used*/);
     switch (res) {
     case MutationStatus::NoMem:
@@ -1152,7 +1152,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         }
 
         // Even if stopping, a key may of loaded on this shard, check the
-        // insertFromWarmup result
+        // upsertItem result
         if (res == MutationStatus::NotFound) {
             warmup.incrementKeys();
         }

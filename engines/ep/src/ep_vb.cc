@@ -947,15 +947,15 @@ void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
     ExecutorPool::get()->schedule(task);
 }
 
-MutationStatus EPVBucket::insertFromWarmup(Item& itm,
-                                           bool eject,
-                                           bool keyMetaDataOnly,
-                                           bool checkMemUsed) {
+MutationStatus EPVBucket::upsertToHashTable(Item& itm,
+                                            bool eject,
+                                            bool keyMetaDataOnly,
+                                            bool checkMemUsed) {
     if (checkMemUsed && !hasMemoryForStoredValue(itm)) {
         return MutationStatus::NoMem;
     }
 
-    return ht.insertFromWarmup(itm, eject, keyMetaDataOnly, eviction);
+    return ht.upsertItem(itm, eject, keyMetaDataOnly, eviction);
 }
 
 void EPVBucket::loadOutstandingPrepares(
@@ -973,10 +973,10 @@ void EPVBucket::loadOutstandingPrepares(
         // In either case of warmup or rollback, we cannot tolerate having less
         // than 100% of the prepares loaded for correct functionality, even in
         // full-eviction mode.
-        auto res = insertFromWarmup(*prepare,
-                                    /*shouldEject*/ false,
-                                    /*metadataOnly*/ false,
-                                    /*checkMemUsed*/ false);
+        auto res = upsertToHashTable(*prepare,
+                                     /*shouldEject*/ false,
+                                     /*metadataOnly*/ false,
+                                     /*checkMemUsed*/ false);
         Expects(res == MutationStatus::NotFound);
     }
 

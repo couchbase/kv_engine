@@ -1532,7 +1532,10 @@ public:
                                             const StoredValue& valueToRelease);
 
     /**
-     * Insert an item during Warmup into the HashTable.
+     * Update or insert an item into the HashTable.
+     * If an update occurs, the update can only succeed if the new item has a
+     * different cas value to the existing item.
+     *
      * TODO: Consider splitting into the different primitive operations
      * occuring,
      * and exposing those methods individually. It is likely that will reduce
@@ -1544,10 +1547,10 @@ public:
      * @param evictionPolicy What eviction policy should be used if eject is
      * true?
      */
-    MutationStatus insertFromWarmup(const Item& itm,
-                                    bool eject,
-                                    bool keyMetaDataOnly,
-                                    EvictionPolicy evictionPolicy);
+    MutationStatus upsertItem(const Item& itm,
+                              bool eject,
+                              bool keyMetaDataOnly,
+                              EvictionPolicy evictionPolicy);
 
     /**
      * 'Defragment' the StoredValue, this really means reallocate the object

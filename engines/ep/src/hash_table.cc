@@ -1356,10 +1356,10 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     return released;
 }
 
-MutationStatus HashTable::insertFromWarmup(const Item& itm,
-                                           bool eject,
-                                           bool keyMetaDataOnly,
-                                           EvictionPolicy evictionPolicy) {
+MutationStatus HashTable::upsertItem(const Item& itm,
+                                     bool eject,
+                                     bool keyMetaDataOnly,
+                                     EvictionPolicy evictionPolicy) {
     auto htRes = findInner(itm.getKey());
     auto* v = (itm.isCommitted() ? htRes.committedSV : htRes.pendingSV);
     auto& hbl = htRes.lock;

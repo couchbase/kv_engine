@@ -181,8 +181,8 @@ public:
     void scheduleDeferredDeletion(EventuallyPersistentEngine& engine) override;
 
     /**
-     * Insert an item into the VBucket during warmup. If we're trying to insert
-     * a partial item we mark it as nonResident
+     * Upsert an item into the VBucket's hash-table, no flush to disk occurs.
+     * If we're trying to insert a partial item we mark it as not-resident
      *
      * @param itm Item to insert. itm is not modified. But cannot be passed as
      *            const because it is passed to functions that can generally
@@ -195,10 +195,10 @@ public:
      *
      * @return the result of the operation
      */
-    MutationStatus insertFromWarmup(Item& itm,
-                                    bool eject,
-                                    bool keyMetaDataOnly,
-                                    bool checkMemUsed);
+    MutationStatus upsertToHashTable(Item& itm,
+                                     bool eject,
+                                     bool keyMetaDataOnly,
+                                     bool checkMemUsed);
 
     /**
      * Restores the state of outstanding Prepared SyncWrites during warmup.
