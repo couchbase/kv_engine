@@ -184,6 +184,31 @@ TEST_F(MutationLogTest, Logging) {
     }
 }
 
+TEST_F(MutationLogTest, SmallerBlockSize) {
+    {
+        MutationLog ml(tmp_log_filename, 512);
+        ml.open();
+
+        ml.newItem(Vbid(2), makeStoredDocKey("key1"));
+        ml.commit1();
+        ml.commit2();
+        ml.close();
+    }
+
+    {
+        MutationLog ml(tmp_log_filename);
+        ml.open(true);
+        MutationLogHarvester h(ml);
+        h.setVBucket(Vbid(2));
+
+        EXPECT_TRUE(h.load());
+
+        EXPECT_EQ(1, h.getItemsSeen()[int(MutationLogType::New)]);
+        EXPECT_EQ(1, h.getItemsSeen()[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, h.getItemsSeen()[int(MutationLogType::Commit2)]);
+    }
+}
+
 TEST_F(MutationLogTest, LoggingDirty) {
 
     {
@@ -342,7 +367,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     // Break the log harder (can't read even the initial block)
     // This should succeed as open() will call reset() to give us a usable
     // mutation log.
-    EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 4000));
+    EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 8));
 
     {
         MutationLog ml(tmp_log_filename);

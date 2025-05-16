@@ -368,25 +368,15 @@ bool MutationLog::writeInitialBlock() {
     }
     headerBlock.set(blockSize);
 
-    if (!writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock))) {
+    std::vector<uint8_t> block(headerBlock.blockSize());
+    std::copy_n(reinterpret_cast<uint8_t*>(&headerBlock),
+                sizeof(headerBlock),
+                block.data());
+
+    if (!writeFully(file, block.data(), block.size())) {
         return false;
     }
 
-    int64_t seek_result = SeekFile(file, getLogFile(),
-                            std::max(
-                            static_cast<uint32_t>(MIN_LOG_HEADER_SIZE),
-                            headerBlock.blockSize() * headerBlock.blockCount())
-                             - 1, false);
-    if (seek_result < 0) {
-        EP_LOG_WARN(
-                "FATAL: lseek failed '{}': {}", getLogFile(), strerror(errno));
-        return false;
-    }
-
-    uint8_t zero(0);
-    if (!writeFully(file, &zero, sizeof(zero))) {
-        return false;
-    }
     return true;
 }
 
@@ -399,7 +389,7 @@ void MutationLog::readInitialBlock() {
         throw std::logic_error("MutationLog::readInitialBlock: Not valid on "
                                "a closed log");
     }
-    std::array<uint8_t, MIN_LOG_HEADER_SIZE> buf;
+    std::array<uint8_t, LogHeaderBlock::HeaderSize> buf;
     ssize_t bytesread = pread(file, buf.data(), sizeof(buf), 0);
 
     if (bytesread != sizeof(buf)) {
@@ -522,7 +512,7 @@ void MutationLog::open(bool _readOnly) {
     } catch (std::system_error& e) {
         throw ReadException(e.what());
     }
-    if (size && size < static_cast<int64_t>(MIN_LOG_HEADER_SIZE)) {
+    if (size && size < static_cast<int64_t>(sizeof(LogHeaderBlock))) {
         try {
             EP_LOG_WARN("WARNING: Corrupted access log '{}'", getLogFile());
             reset();

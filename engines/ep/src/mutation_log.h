@@ -116,6 +116,7 @@ struct DefaultFileIface : public FileIface {
  */
 class LogHeaderBlock {
 public:
+    static constexpr size_t HeaderSize = 16;
     explicit LogHeaderBlock(
             MutationLogVersion version = MutationLogVersion::Current)
         : _version(htonl(int(version))) {
@@ -126,7 +127,7 @@ public:
         _blockCount = htonl(1);
     }
 
-    void set(const std::array<uint8_t, MIN_LOG_HEADER_SIZE>& buf) {
+    void set(const std::array<uint8_t, HeaderSize>& buf) {
         int offset(0);
         memcpy(&_version, buf.data() + offset, sizeof(_version));
         offset += sizeof(_version);
@@ -164,6 +165,8 @@ private:
     uint32_t _blockCount = 0;
     uint32_t _rdwr = 0;
 };
+static_assert(LogHeaderBlock::HeaderSize == sizeof(LogHeaderBlock),
+              "Unexpected struct size");
 
 /**
  * The MutationLog records major key events to allow ep-engine to more

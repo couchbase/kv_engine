@@ -13,6 +13,12 @@
             "type": "size_t",
             "requires": {
                 "bucket_type": "persistent"
+            },
+            "validator": {
+                "range": {
+                    "max": 1048576,
+                    "min": 512
+                }
             }
         },
         "alog_path": {
