@@ -719,6 +719,8 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
     // has a complete set). First one will be valid, second one will be
     // corrupted.
     ASSERT_EQ(2, engine->getWorkLoadPolicy().getNumShards());
+    std::filesystem::remove_all("access_log.0");
+    std::filesystem::remove_all("access_log.1");
     {
         MutationLog mlog("access_log.0");
         mlog.open();

@@ -190,7 +190,7 @@ TEST_F(MutationLogTest, Logging) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -245,7 +245,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -311,7 +311,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -369,7 +369,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     {
         MutationLog ml(tmp_log_filename);
 
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -385,7 +385,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
     }
 }
 
@@ -449,7 +449,7 @@ TEST_F(MutationLogTest, Iterator) {
 
     // Now check the iterators.
     MutationLog ml(tmp_log_filename);
-    ml.open();
+    ml.open(true);
 
     // Can copy-construct.
     auto iter = ml.begin();
@@ -489,7 +489,7 @@ TEST_F(MutationLogTest, BatchLoad) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(0));
         h.setVBucket(Vbid(1));
@@ -628,7 +628,7 @@ TEST_F(MutationLogTest, upgrade) {
 
     {
         MutationLog ml(tmp_log_filename);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml);
         h.setVBucket(vbid);
 

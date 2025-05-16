@@ -190,7 +190,7 @@ TEST_F(MutationLogApplyTest, Apply) {
     // Apply the log and ask for non-existent keys to get removed
     {
         MutationLog ml(logName);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml, engine.get());
         h.setVBucket(vbid0);
         h.setVBucket(vbid1);
@@ -210,7 +210,7 @@ TEST_F(MutationLogApplyTest, Apply) {
     // Apply the log and all keys should be applied
     {
         MutationLog ml(logName);
-        ml.open();
+        ml.open(true);
         MutationLogHarvester h(ml, engine.get());
         h.setVBucket(vbid0);
         h.setVBucket(vbid1);

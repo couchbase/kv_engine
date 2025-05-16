@@ -1843,7 +1843,7 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
 Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
                                                        uint16_t shardId) {
     if (!log.isOpen()) {
-        log.open();
+        log.open(true);
     }
 
     try {
