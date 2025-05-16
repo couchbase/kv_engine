@@ -482,8 +482,6 @@ protected:
     bool writeInitialBlock();
     void readInitialBlock();
 
-    bool prepareWrites();
-
     file_handle_t fd() const { return file; }
 
     LogHeaderBlock     headerBlock;

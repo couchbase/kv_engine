@@ -69,28 +69,6 @@ static inline void doFsync(file_handle_t fd) {
     }
 }
 
-static int64_t SeekFile(file_handle_t fd, const std::string &fname,
-                        uint64_t offset, bool end)
-{
-    LARGE_INTEGER li;
-    li.QuadPart = offset;
-
-    if (end) {
-        li.LowPart = SetFilePointer(fd, li.LowPart, &li.HighPart, FILE_END);
-    } else {
-        li.LowPart = SetFilePointer(fd, li.LowPart, &li.HighPart, FILE_BEGIN);
-    }
-
-    if (li.LowPart == INVALID_SET_FILE_POINTER &&
-        GetLastError() != ERROR_SUCCESS) {
-        EP_LOG_WARN(
-                "FATAL: SetFilePointer failed {}: {}", fname, cb_strerror());
-        li.QuadPart = -1;
-    }
-
-    return li.QuadPart;
-}
-
 file_handle_t OpenFile(const std::string &fname, std::string &error,
                        bool rdonly) {
     file_handle_t fd;
@@ -167,22 +145,6 @@ static void doFsync(file_handle_t fd) {
         throw std::system_error(errno, std::system_category(),
                                 "doFsync: failed");
     }
-}
-
-static int64_t SeekFile(file_handle_t fd, const std::string &fname,
-                        uint64_t offset, bool end)
-{
-    int64_t ret;
-    if (end) {
-        ret = lseek(fd, offset, SEEK_END);
-    } else {
-        ret = lseek(fd, offset, SEEK_SET);
-    }
-
-    if (ret < 0) {
-        EP_LOG_WARN("FATAL: lseek failed '{}': {}", fname, strerror(errno));
-    }
-    return ret;
 }
 
 file_handle_t OpenFile(const std::string &fname, std::string &error,
@@ -377,6 +339,7 @@ bool MutationLog::writeInitialBlock() {
         return false;
     }
 
+    logSize = block.size();
     return true;
 }
 
@@ -413,39 +376,6 @@ void MutationLog::readInitialBlock() {
     }
 
     blockSize = headerBlock.blockSize();
-}
-
-bool MutationLog::prepareWrites() {
-    if (isEnabled()) {
-        if (!isOpen()) {
-            throw std::logic_error("MutationLog::prepareWrites: Not valid on "
-                                   "a closed log");
-        }
-        int64_t seek_result = SeekFile(file, getLogFile(), 0, true);
-        if (seek_result < 0) {
-            return false;
-        }
-        int64_t unaligned_bytes = seek_result % blockSize;
-        if (unaligned_bytes != 0) {
-            EP_LOG_WARN("WARNING: filesize {} not block aligned '{}': {}",
-                        seek_result,
-                        getLogFile(),
-                        strerror(errno));
-            if (blockSize < (size_t)seek_result) {
-                if (SeekFile(file, getLogFile(),
-                    seek_result - unaligned_bytes, false) < 0) {
-                    EP_LOG_WARN("FATAL: lseek failed '{}': {}",
-                                getLogFile(),
-                                strerror(errno));
-                    return false;
-                }
-            } else {
-                throw ShortReadException();
-            }
-        }
-        logSize = static_cast<size_t>(seek_result);
-    }
-    return true;
 }
 
 static uint8_t parseConfigString(const std::string &s) {
@@ -512,24 +442,19 @@ void MutationLog::open(bool _readOnly) {
     } catch (std::system_error& e) {
         throw ReadException(e.what());
     }
-    if (size && size < static_cast<int64_t>(sizeof(LogHeaderBlock))) {
-        try {
-            EP_LOG_WARN("WARNING: Corrupted access log '{}'", getLogFile());
-            reset();
-            return;
-        } catch (ShortReadException &) {
-            close();
-            disabled = true;
-            throw ShortReadException();
+
+    if (readOnly) {
+        if (size < static_cast<int64_t>(sizeof(LogHeaderBlock))) {
+            try {
+                EP_LOG_WARN("WARNING: Corrupted access log '{}'", getLogFile());
+                reset();
+                return;
+            } catch (ShortReadException&) {
+                close();
+                disabled = true;
+                throw ShortReadException();
+            }
         }
-    }
-    if (size == 0) {
-        if (!writeInitialBlock()) {
-            close();
-            disabled = true;
-            return;
-        }
-    } else {
         try {
             readInitialBlock();
         } catch (ShortReadException &) {
@@ -537,11 +462,14 @@ void MutationLog::open(bool _readOnly) {
             disabled = true;
             throw ShortReadException();
         }
-    }
-
-    if (!prepareWrites()) {
-        close();
-        disabled = true;
+    } else {
+        if (size != 0) {
+            throw std::runtime_error("Can't append to an existing file");
+        }
+        if (!writeInitialBlock()) {
+            close();
+            disabled = true;
+        }
     }
 }
 
