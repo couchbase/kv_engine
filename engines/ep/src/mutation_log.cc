@@ -207,7 +207,6 @@ MutationLog::MutationLog(std::string path,
       entries(0),
       entryBuffer(MutationLogEntry::len(256)),
       blockBuffer(bs),
-      syncConfig(DEFAULT_SYNC_CONF),
       readOnly(false),
       resumeItr(end()) {
     for (auto& ii : itemsLogged) {
@@ -290,13 +289,6 @@ void MutationLog::commit1() {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
                 entryBuffer.data(), MutationLogType::Commit1, Vbid(0));
         writeEntry(mle);
-
-        if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
-            flush();
-        }
-        if ((getSyncConfig() & SYNC_COMMIT_1) != 0) {
-            sync();
-        }
     }
 }
 
@@ -305,13 +297,8 @@ void MutationLog::commit2() {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
                 entryBuffer.data(), MutationLogType::Commit2, Vbid(0));
         writeEntry(mle);
-
-        if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
-            flush();
-        }
-        if ((getSyncConfig() & SYNC_COMMIT_2) != 0) {
-            sync();
-        }
+        flush();
+        sync();
     }
 }
 
@@ -376,38 +363,6 @@ void MutationLog::readInitialBlock() {
     }
 
     blockSize = headerBlock.blockSize();
-}
-
-static uint8_t parseConfigString(const std::string &s) {
-    uint8_t rv(0);
-    if (s == "off") {
-        rv = 0;
-    } else if (s == "commit1") {
-        rv = 1;
-    } else if (s == "commit2") {
-        rv = 2;
-    } else if (s == "full") {
-        rv = 3;
-    } else {
-        rv = 0xff;
-    }
-    return rv;
-}
-
-bool MutationLog::setSyncConfig(const std::string &s) {
-    uint8_t v(parseConfigString(s));
-    if (v != 0xff) {
-        syncConfig = (syncConfig & ~SYNC_FULL) | v;
-    }
-    return v != 0xff;
-}
-
-bool MutationLog::setFlushConfig(const std::string &s) {
-    uint8_t v(parseConfigString(s));
-    if (v != 0xff) {
-        syncConfig = (syncConfig & ~FLUSH_FULL) | (v << 2);
-    }
-    return v != 0xff;
 }
 
 bool MutationLog::exists() const {
@@ -867,7 +822,6 @@ std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
         << reinterpret_cast<const void*>(mlog.entryBuffer.data()) << ", "
         << "blockBuffer:"
         << reinterpret_cast<const void*>(mlog.blockBuffer.data()) << ", "
-        << "syncConfig:" << int(mlog.syncConfig) << ", "
         << "readOnly:" << mlog.readOnly << "}";
     return out;
 }

@@ -69,15 +69,6 @@ enum class MutationLogVersion { V1 = 1, V2 = 2, V3 = 3, V4 = 4, Current = V4 };
 
 const size_t LOG_ENTRY_BUF_SIZE(512);
 
-const uint8_t SYNC_COMMIT_1(1);
-const uint8_t SYNC_COMMIT_2(2);
-const uint8_t SYNC_FULL(SYNC_COMMIT_1 | SYNC_COMMIT_2);
-const uint8_t FLUSH_COMMIT_1(4);
-const uint8_t FLUSH_COMMIT_2(8);
-const uint8_t FLUSH_FULL(FLUSH_COMMIT_1 | FLUSH_COMMIT_2);
-
-const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
-
 namespace mlog {
 /**
  * Interface for file IO operations. Exists to allow testing of MutationLog
@@ -207,18 +198,6 @@ public:
         return headerBlock;
     }
 
-    void setSyncConfig(uint8_t sconf) {
-        syncConfig = sconf;
-    }
-
-    uint8_t getSyncConfig() const {
-        return syncConfig & SYNC_FULL;
-    }
-
-    uint8_t getFlushConfig() const {
-        return syncConfig & FLUSH_FULL;
-    }
-
     bool exists() const;
 
     const std::string &getLogFile() const { return logPath; }
@@ -239,9 +218,6 @@ public:
      * Reset the log.
      */
     bool reset();
-
-    bool setSyncConfig(const std::string &s);
-    bool setFlushConfig(const std::string &s);
 
     /**
      * Reset the item type counts to the given values.
@@ -495,7 +471,6 @@ protected:
     uint16_t           entries;
     std::vector<uint8_t> entryBuffer;
     std::vector<uint8_t> blockBuffer;
-    uint8_t            syncConfig;
     bool               readOnly;
     iterator resumeItr;
     cb::time::steady_clock::time_point openTimePoint;
