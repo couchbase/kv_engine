@@ -50,6 +50,16 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
     prev = name + ".old";
     next = name + ".next";
 
+    try {
+        // Remove the file if one exists from a previous partial run
+        std::filesystem::remove_all(next);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("Failed to remove existing access log",
+                        {"path", next},
+                        {"error", e.what()});
+        throw;
+    }
+
     log = std::make_unique<MutationLog>(
             next, conf.getAlogBlockSize(), std::move(fileIface));
     log->open();
