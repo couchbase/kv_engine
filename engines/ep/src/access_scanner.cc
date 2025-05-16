@@ -61,14 +61,8 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
         throw;
     }
 
-    log = std::make_unique<MutationLog>(
+    log = std::make_unique<MutationLogWriter>(
             next, conf.getAlogBlockSize(), std::move(fileIface));
-    log->open();
-    if (!log->isOpen()) {
-        EP_LOG_WARN_CTX("Failed to open access log", {"path", next});
-        throw std::runtime_error(
-                fmt::format("ItemAccessVisitor failed log->isOpen {}", next));
-    }
     EP_LOG_INFO_CTX("Attempting to generate new access file", {"path", next});
 }
 
@@ -122,7 +116,7 @@ void ItemAccessVisitor::visitBucket(VBucket& vb) {
 }
 
 void ItemAccessVisitor::complete() {
-    size_t num_items = log->itemsLogged[int(MutationLogType::New)];
+    const auto num_items = log->getItemsLogged(MutationLogType::New);
     try {
         log->commit1();
         log->commit2();

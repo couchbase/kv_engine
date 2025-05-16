@@ -433,6 +433,10 @@ public:
         return cb::time::steady_clock::now() - openTimePoint;
     }
 
+    std::size_t getItemsLogged(MutationLogType type) const {
+        return itemsLogged[static_cast<int>(type)].load();
+    }
+
     //! Items logged by type.
     std::array<std::atomic<size_t>, size_t(MutationLogType::NumberOfTypes)>
             itemsLogged;
@@ -589,3 +593,48 @@ private:
 
 template <>
 struct fmt::formatter<MutationLog> : ostream_formatter {};
+
+/**
+ * A class used to write the mutation log
+ *
+ * Currenlty it wraps all methods used from the write path into the
+ * existing MutationLog class, but the plan is to move the implementation
+ * into this class and remove the code from the MutationLog and rename
+ * that to MutationLogReader
+ *
+ * The MutationLogWriter class differs from MutationLog that it use RAII style
+ * and throws exceptions to the caller to allow the caller to properly deal
+ * with the error (log all details etc)
+ */
+class MutationLogWriter {
+public:
+    explicit MutationLogWriter(
+            std::string path,
+            size_t blocksize,
+            std::unique_ptr<mlog::FileIface> fileIface =
+                    std::make_unique<mlog::DefaultFileIface>());
+
+    MutationLogWriter(const MutationLogWriter&) = delete;
+    const MutationLogWriter& operator=(const MutationLogWriter&) = delete;
+
+    void newItem(Vbid vbucket, const StoredDocKey& key);
+
+    void commit1();
+
+    void commit2();
+
+    bool flush();
+
+    void sync();
+
+    void disable();
+
+    bool isEnabled() const;
+
+    std::size_t getItemsLogged(MutationLogType type) const;
+
+    void close();
+
+protected:
+    MutationLog instance;
+};

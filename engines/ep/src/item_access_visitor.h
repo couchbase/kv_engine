@@ -58,7 +58,7 @@ private:
 
     std::vector<StoredDocKey> accessed;
 
-    std::unique_ptr<MutationLog> log;
+    std::unique_ptr<MutationLogWriter> log;
     /**
      * The parent AccessScanner is tracking how many visitors exist, this
      * guard will update the parent when the visitor destructs.

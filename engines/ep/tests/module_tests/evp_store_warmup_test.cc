@@ -722,8 +722,7 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
     std::filesystem::remove_all("access_log.0");
     std::filesystem::remove_all("access_log.1");
     {
-        MutationLog mlog("access_log.0");
-        mlog.open();
+        MutationLogWriter mlog("access_log.0", MIN_LOG_HEADER_SIZE);
         mlog.newItem(vbid, key);
     }
     {

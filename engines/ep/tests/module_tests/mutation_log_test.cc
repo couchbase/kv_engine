@@ -60,8 +60,7 @@ static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
 TEST_F(MutationLogTest, Logging) {
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -71,9 +70,9 @@ TEST_F(MutationLogTest, Logging) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     {
@@ -93,9 +92,9 @@ TEST_F(MutationLogTest, Logging) {
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit2));
 
         // See if we got what we expect.
         std::set<StoredDocKey> maps[4];
@@ -113,8 +112,7 @@ TEST_F(MutationLogTest, Logging) {
 
 TEST_F(MutationLogTest, SmallerBlockSize) {
     {
-        MutationLog ml(tmp_log_filename, 512);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, 512);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -139,8 +137,7 @@ TEST_F(MutationLogTest, SmallerBlockSize) {
 TEST_F(MutationLogTest, LoggingDirty) {
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
 
         ml.newItem(Vbid(3), makeStoredDocKey("key1"));
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
@@ -151,9 +148,9 @@ TEST_F(MutationLogTest, LoggingDirty) {
         ml.newItem(Vbid(3), makeStoredDocKey("key2"));
         // Remaining:   3:key1, 2:key1
 
-        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(3, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     {
@@ -173,9 +170,9 @@ TEST_F(MutationLogTest, LoggingDirty) {
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(3, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
 
         // See if we got what we expect.
         std::set<StoredDocKey> maps[4];
@@ -196,8 +193,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
 TEST_F(MutationLogTest, LoggingBadCRC) {
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -207,9 +203,9 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     // Break the log
@@ -239,9 +235,9 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(0, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(0, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(0, ml.getItemsLogged(MutationLogType::Commit2));
 
         // See if we got what we expect.
         std::set<std::string> maps[4];
@@ -260,8 +256,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
 TEST_F(MutationLogTest, LoggingShortRead) {
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -271,9 +266,9 @@ TEST_F(MutationLogTest, LoggingShortRead) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(2, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     // Break the log
@@ -346,17 +341,16 @@ TEST_F(MutationLogTest, WriteFail) {
 TEST_F(MutationLogTest, Iterator) {
     // Create a simple mutation log to work on.
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
         ml.newItem(Vbid(0), makeStoredDocKey("key1"));
         ml.newItem(Vbid(0), makeStoredDocKey("key2"));
         ml.newItem(Vbid(0), makeStoredDocKey("key3"));
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(3, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     // Now check the iterators.
@@ -382,8 +376,7 @@ TEST_F(MutationLogTest, Iterator) {
 TEST_F(MutationLogTest, BatchLoad) {
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open();
+        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
 
         // Add a number of items, then check that batch load only returns
         // the requested number.
@@ -394,9 +387,9 @@ TEST_F(MutationLogTest, BatchLoad) {
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(10, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(10, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     {

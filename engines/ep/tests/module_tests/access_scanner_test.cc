@@ -163,8 +163,7 @@ TEST_F(MutationLogApplyTest, Apply) {
     std::unordered_set<StoredDocKey> vb0Keys, vb1Keys;
 
     {
-        MutationLog ml(logName);
-        ml.open();
+        MutationLogWriter ml(logName, MIN_LOG_HEADER_SIZE);
 
         // Place vb0 items in the log
         for (size_t ii = 0; ii < 3; ii++) {
@@ -182,9 +181,9 @@ TEST_F(MutationLogApplyTest, Apply) {
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(6, ml.itemsLogged[int(MutationLogType::New)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
-        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
+        EXPECT_EQ(6, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
+        EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
     }
 
     // Apply the log and ask for non-existent keys to get removed

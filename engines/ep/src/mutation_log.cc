@@ -825,3 +825,50 @@ std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
         << "readOnly:" << mlog.readOnly << "}";
     return out;
 }
+
+MutationLogWriter::MutationLogWriter(std::string path,
+                                     const size_t bs,
+                                     std::unique_ptr<mlog::FileIface> fileIface)
+    : instance(std::move(path), bs, std::move(fileIface)) {
+    instance.open();
+    if (!instance.isOpen()) {
+        throw std::runtime_error(fmt::format(
+                "Failed to open mutation log file: {}", instance.getLogFile()));
+    }
+}
+
+void MutationLogWriter::newItem(Vbid vbucket, const StoredDocKey& key) {
+    instance.newItem(vbucket, key);
+}
+
+void MutationLogWriter::commit1() {
+    instance.commit1();
+}
+
+void MutationLogWriter::commit2() {
+    instance.commit2();
+}
+
+bool MutationLogWriter::flush() {
+    return instance.flush();
+}
+
+void MutationLogWriter::sync() {
+    instance.sync();
+}
+
+void MutationLogWriter::disable() {
+    instance.disable();
+}
+
+bool MutationLogWriter::isEnabled() const {
+    return instance.isEnabled();
+}
+
+std::size_t MutationLogWriter::getItemsLogged(MutationLogType type) const {
+    return instance.getItemsLogged(type);
+}
+
+void MutationLogWriter::close() {
+    instance.close();
+}
