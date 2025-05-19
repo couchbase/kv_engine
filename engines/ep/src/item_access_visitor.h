@@ -13,7 +13,7 @@
 
 #include "hash_table.h"
 #include "kv_bucket.h"
-#include "mutation_log.h"
+#include "mutation_log_writer.h"
 #include "stats.h"
 #include "vb_visitors.h"
 
@@ -29,14 +29,15 @@ class VBucketFilter;
 class ItemAccessVisitor : public CappedDurationVBucketVisitor,
                           public HashTableVisitor {
 public:
-    ItemAccessVisitor(KVBucket& _store,
-                      Configuration& conf,
-                      EPStats& _stats,
-                      uint16_t sh,
-                      cb::SemaphoreGuard<> guard,
-                      uint64_t items_to_scan,
-                      std::unique_ptr<mlog::FileIface> fileIface =
-                              std::make_unique<mlog::DefaultFileIface>());
+    ItemAccessVisitor(
+            KVBucket& _store,
+            Configuration& conf,
+            EPStats& _stats,
+            uint16_t sh,
+            cb::SemaphoreGuard<> guard,
+            uint64_t items_to_scan,
+            std::function<void(std::string_view)> fileWriteTestHook = [](auto) {
+            });
     ~ItemAccessVisitor() override;
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
     void visitBucket(VBucket& vb) override;

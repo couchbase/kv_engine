@@ -10,18 +10,13 @@
 
 #pragma once
 
-#include "mutation_log.h"
+#include "mutation_log_writer.h"
 
-class MockMutationLog : public MutationLog {
+class MockMutationLogWriter : public MutationLogWriter {
 public:
-    using MutationLog::MutationLog;
+    using MutationLogWriter::MutationLogWriter;
 
-    /* NOLINTNEXTLINE(modernize-avoid-c-arrays) */
-    std::vector<uint8_t>& public_getBlockBuffer() {
-        return blockBuffer;
-    }
-
-    size_t public_getBlockPos() {
-        return blockPos;
+    folly::IOBuf& public_getBlockBuffer() {
+        return *block;
     }
 };

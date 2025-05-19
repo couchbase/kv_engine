@@ -725,14 +725,15 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
         MutationLogWriter mlog("access_log.0", MIN_LOG_HEADER_SIZE);
         mlog.newItem(vbid, key);
     }
+
     {
-        MockMutationLog mlog("access_log.1");
-        mlog.open();
+        MockMutationLogWriter mlog("access_log.1", MIN_LOG_HEADER_SIZE);
         mlog.newItem(vbid, key);
         bool modified = false;
-        for (size_t i = 0; i < mlog.public_getBlockPos(); i++) {
+        auto& block = mlog.public_getBlockBuffer();
+        for (size_t i = 0; i < block.length(); i++) {
             // Corrupt the magic
-            auto& c = mlog.public_getBlockBuffer()[i];
+            auto& c = *(block.writableData() + i);
             if (c == MutationLogEntry::MagicMarker) {
                 c = 0xff;
                 modified = true;
@@ -740,6 +741,7 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
         }
         ASSERT_TRUE(modified);
     }
+
     // Copy corrupted access log to .old so we check both
     // code paths (warmup will fallback to .old if the main one cannot be read).
     namespace fs = std::filesystem;

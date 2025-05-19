@@ -35,7 +35,9 @@
 #include "mutation_log_entry.h"
 
 #include "utility.h"
+#include <cbcrypto/file_writer.h>
 #include <fmt/ostream.h>
+#include <folly/io/IOBuf.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
@@ -68,38 +70,6 @@ const size_t HEADER_RESERVED(4);
 enum class MutationLogVersion { V1 = 1, V2 = 2, V3 = 3, V4 = 4, Current = V4 };
 
 const size_t LOG_ENTRY_BUF_SIZE(512);
-
-namespace mlog {
-/**
- * Interface for file IO operations. Exists to allow testing of MutationLog
- * behaviour related to file I/O.
- * TODO: Expand to additional file functions as and when we expand test
- *       coverage.
- */
-struct FileIface {
-    virtual ~FileIface() = default;
-
-    /**
-     * Write `nbytes` of data from `buf` to the specified 'fd' at the current
-     * offset.
-     */
-    virtual ssize_t doWrite(file_handle_t fd,
-                            const uint8_t* buf,
-                            size_t nbytes) = 0;
-};
-
-/**
- * Default implementation of FileInterface - uses the standard C library
- * IO functions from unistd.h of the same name.
- *
- */
-struct DefaultFileIface : public FileIface {
-    ssize_t doWrite(file_handle_t fd,
-                    const uint8_t* buf,
-                    size_t nbytes) override;
-};
-
-} // namespace mlog
 
 /**
  * The header block representing the first 4k (or so) of a MutationLog
@@ -165,10 +135,10 @@ static_assert(LogHeaderBlock::HeaderSize == sizeof(LogHeaderBlock),
  */
 class MutationLog {
 public:
-    explicit MutationLog(std::string path,
-                         const size_t bs = MIN_LOG_HEADER_SIZE,
-                         std::unique_ptr<mlog::FileIface> fileIface =
-                                 std::make_unique<mlog::DefaultFileIface>());
+    explicit MutationLog(
+            std::string path,
+            const size_t bs = MIN_LOG_HEADER_SIZE,
+            std::function<void()> fileIoTestingHook = []() {});
 
     ~MutationLog();
     MutationLog(const MutationLog&) = delete;
@@ -464,9 +434,9 @@ protected:
 
     file_handle_t fd() const { return file; }
 
-    LogHeaderBlock     headerBlock;
-    /// IO interface for accessing mutation log file.
-    std::unique_ptr<mlog::FileIface> fileIface;
+    std::function<void()> fileIoTestingHook;
+
+    LogHeaderBlock headerBlock;
     const std::string  logPath;
     size_t             blockSize;
     size_t             blockPos;
@@ -593,48 +563,3 @@ private:
 
 template <>
 struct fmt::formatter<MutationLog> : ostream_formatter {};
-
-/**
- * A class used to write the mutation log
- *
- * Currenlty it wraps all methods used from the write path into the
- * existing MutationLog class, but the plan is to move the implementation
- * into this class and remove the code from the MutationLog and rename
- * that to MutationLogReader
- *
- * The MutationLogWriter class differs from MutationLog that it use RAII style
- * and throws exceptions to the caller to allow the caller to properly deal
- * with the error (log all details etc)
- */
-class MutationLogWriter {
-public:
-    explicit MutationLogWriter(
-            std::string path,
-            size_t blocksize,
-            std::unique_ptr<mlog::FileIface> fileIface =
-                    std::make_unique<mlog::DefaultFileIface>());
-
-    MutationLogWriter(const MutationLogWriter&) = delete;
-    const MutationLogWriter& operator=(const MutationLogWriter&) = delete;
-
-    void newItem(Vbid vbucket, const StoredDocKey& key);
-
-    void commit1();
-
-    void commit2();
-
-    bool flush();
-
-    void sync();
-
-    void disable();
-
-    bool isEnabled() const;
-
-    std::size_t getItemsLogged(MutationLogType type) const;
-
-    void close();
-
-protected:
-    MutationLog instance;
-};

@@ -29,13 +29,14 @@
 #include <memory>
 #include <numeric>
 
-ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
-                                     Configuration& conf,
-                                     EPStats& _stats,
-                                     uint16_t sh,
-                                     cb::SemaphoreGuard<> guard,
-                                     uint64_t items_to_scan,
-                                     std::unique_ptr<mlog::FileIface> fileIface)
+ItemAccessVisitor::ItemAccessVisitor(
+        KVBucket& _store,
+        Configuration& conf,
+        EPStats& _stats,
+        uint16_t sh,
+        cb::SemaphoreGuard<> guard,
+        uint64_t items_to_scan,
+        std::function<void(std::string_view)> fileWriteTestHook)
     : stats(_stats),
       startTime(ep_real_time()),
       taskStart(cb::time::steady_clock::now()),
@@ -62,7 +63,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
     }
 
     log = std::make_unique<MutationLogWriter>(
-            next, conf.getAlogBlockSize(), std::move(fileIface));
+            next, conf.getAlogBlockSize(), std::move(fileWriteTestHook));
     EP_LOG_INFO_CTX("Attempting to generate new access file", {"path", next});
 }
 
@@ -86,10 +87,17 @@ bool ItemAccessVisitor::visit(const HashTable::HashBucketLock& lh,
 }
 
 void ItemAccessVisitor::update(Vbid vbid) {
-    for (auto& it : accessed) {
-        log->newItem(vbid, it);
+    try {
+        for (auto& it : accessed) {
+            log->newItem(vbid, it);
+        }
+        accessed.clear();
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("update(): Failed to update access log",
+                        {"path", next},
+                        {"error", e.what()});
+        log->disable();
     }
-    accessed.clear();
 }
 
 void ItemAccessVisitor::visitBucket(VBucket& vb) {
@@ -106,8 +114,9 @@ void ItemAccessVisitor::visitBucket(VBucket& vb) {
                 items_scanned = 0;
             }
         }
-    } catch (const MutationLog::WriteException& e) {
-        EP_LOG_WARN_CTX("Failed to write new access log to disk",
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("visitBucket(): Failed to write new access log to disk",
+                        {"vb", vb.getId()},
                         {"path", next},
                         {"error", e.what()});
         writeFailed = true;
@@ -120,13 +129,14 @@ void ItemAccessVisitor::complete() {
     try {
         log->commit1();
         log->commit2();
+        log->close();
         log.reset();
-    } catch (const MutationLog::WriteException& e) {
-        EP_LOG_WARN_CTX("Failed to write new access log to disk",
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("complete(). Failed to write new access log to disk",
                         {"path", next},
                         {"error", e.what()});
         writeFailed = true;
-        log->disable();
+        log.reset();
     }
 
     // Writing the new access log to disk failed, skip replacing the current

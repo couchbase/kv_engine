@@ -2085,38 +2085,6 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
     cb::Semaphore semaphore(1);
     cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
 
-    class MockFileIface : public mlog::DefaultFileIface {
-    public:
-        MOCK_METHOD(ssize_t,
-                    doWrite,
-                    (file_handle_t fd, const uint8_t* buf, size_t nbytes),
-                    (override));
-    };
-
-    auto mockFileIface = std::make_unique<MockFileIface>();
-
-    using namespace ::testing;
-    EXPECT_CALL(*mockFileIface, doWrite(_, _, _))
-            .WillOnce([mockFileIface = mockFileIface.get()](file_handle_t fd,
-                                                            const uint8_t* buf,
-                                                            size_t nbytes) {
-                return mockFileIface->DefaultFileIface::doWrite(
-                        fd, buf, nbytes);
-            })
-            .WillOnce([mockFileIface = mockFileIface.get()](file_handle_t fd,
-                                                            const uint8_t* buf,
-                                                            size_t nbytes) {
-                return mockFileIface->DefaultFileIface::doWrite(
-                        fd, buf, nbytes);
-            })
-            .WillRepeatedly(
-                    [](file_handle_t fd, const uint8_t* buf, size_t nbytes) {
-                        throw std::system_error(errno,
-                                                std::system_category(),
-                                                "doWrite: failed");
-                        return 0;
-                    });
-
     // Create the access log in a file in the database namespace to ensure
     // it won't affect other tests (the test did not have any filename
     // assigned causing a file named '.0 to be created which was later
@@ -2124,14 +2092,22 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
     auto& config = engine->getConfiguration();
     auto alog_file = std::filesystem::path(config.getDbname()) / "access.log";
     config.setAlogPath(alog_file.string());
-    auto pv =
-            std::make_unique<ItemAccessVisitor>(*store,
-                                                config,
-                                                engine->getEpStats(),
-                                                shard,
-                                                std::move(semaphoreGuard),
-                                                config.getAlogMaxStoredItems(),
-                                                std::move(mockFileIface));
+    bool exceptionThrown = false;
+    auto pv = std::make_unique<ItemAccessVisitor>(
+            *store,
+            config,
+            engine->getEpStats(),
+            shard,
+            std::move(semaphoreGuard),
+            config.getAlogMaxStoredItems(),
+            [&exceptionThrown](auto method) {
+                if (method == "flush") {
+                    exceptionThrown = true;
+                    throw std::system_error(EIO,
+                                            std::system_category(),
+                                            "MutationLogFailedWrite: failed");
+                }
+            });
 
     store->visitAsync(std::move(pv),
                       "Item Access Scanner",
@@ -2141,6 +2117,7 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
     auto& auxioQueue = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_NO_THROW(
             runNextTask(auxioQueue, "Item Access Scanner no vbucket assigned"));
+    EXPECT_TRUE(exceptionThrown);
 }
 
 // Check that getRandomKey works correctly when given a random value of zero

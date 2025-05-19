@@ -22,6 +22,7 @@
 #include <stdexcept>
 
 #include "mutation_log.h"
+#include "mutation_log_writer.h"
 #include "tests/module_tests/test_helpers.h"
 
 class MutationLogTest : public ::testing::Test {
@@ -297,32 +298,26 @@ TEST_F(MutationLogTest, YUNOOPEN) {
                                          std::filesystem::perms::owner_write);
 }
 
-class MockFileIface : public mlog::DefaultFileIface {
-public:
-    MOCK_METHOD(ssize_t,
-                doWrite,
-                (file_handle_t fd, const uint8_t* buf, size_t nbyte),
-                (override));
-};
-
 // MB-55939: Test behaviour when the mutation log cannot be written to disk
 // (e.g. disk full).
 TEST_F(MutationLogTest, WriteFail) {
-    // Setup a Mock FileIface which will return one less byte from pwrite()
-    // than requested and set errno to ENOSPC.
-    using namespace ::testing;
-    auto mockFileIface = std::make_unique<MockFileIface>();
-    EXPECT_CALL(*mockFileIface, doWrite(_, _, _))
-            .WillOnce([](file_handle_t, const uint8_t*, size_t) -> ssize_t {
-                throw std::system_error(
-                        ENOSPC, std::system_category(), "disk full");
-            });
-
     // Test: Create and open a MutationLog; on destruction we should not see
     // an exception thrown.
-    MutationLog ml(
-            tmp_log_filename, MIN_LOG_HEADER_SIZE, std::move(mockFileIface));
-    ml.open();
+    bool hookCalled = false;
+    {
+        MutationLogWriter ml(tmp_log_filename,
+                             MIN_LOG_HEADER_SIZE,
+                             [&hookCalled](auto method) {
+                                 if (method == "~MutationLogWriter") {
+                                     hookCalled = true;
+                                     throw std::system_error(
+                                             ENOSPC,
+                                             std::system_category(),
+                                             "~MutationLogWriter");
+                                 }
+                             });
+    }
+    EXPECT_TRUE(hookCalled);
 }
 
 // Test that the MutationLog::iterator class obeys expected iterator behaviour.

@@ -43,9 +43,7 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
-                                        const uint8_t* buf,
-                                        size_t nbytes) {
+ssize_t doWrite(file_handle_t fd, const uint8_t* buf, size_t nbytes) {
     DWORD byteswritten;
     if (!WriteFile(fd, buf, nbytes, &byteswritten, NULL)) {
         /* luckily we don't check errno so we don't need to care about that */
@@ -108,9 +106,7 @@ int64_t getFileSize(file_handle_t fd) {
 
 #else
 
-ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
-                                        const uint8_t* buf,
-                                        size_t nbytes) {
+ssize_t doWrite(file_handle_t fd, const uint8_t* buf, size_t nbytes) {
     ssize_t ret;
     while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -179,7 +175,7 @@ bool MutationLog::writeFully(file_handle_t fd,
                              size_t nbytes) {
     while (nbytes > 0) {
         try {
-            ssize_t written = fileIface->doWrite(fd, buf, nbytes);
+            ssize_t written = doWrite(fd, buf, nbytes);
             nbytes -= written;
             buf += written;
         } catch (std::system_error&) {
@@ -197,8 +193,8 @@ bool MutationLog::writeFully(file_handle_t fd,
 
 MutationLog::MutationLog(std::string path,
                          const size_t bs,
-                         std::unique_ptr<mlog::FileIface> fileIface)
-    : fileIface(std::move(fileIface)),
+                         std::function<void()> fileIoTestingHook)
+    : fileIoTestingHook(std::move(fileIoTestingHook)),
       logPath(std::move(path)),
       blockSize(bs),
       blockPos(HEADER_RESERVED),
@@ -824,51 +820,4 @@ std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
         << reinterpret_cast<const void*>(mlog.blockBuffer.data()) << ", "
         << "readOnly:" << mlog.readOnly << "}";
     return out;
-}
-
-MutationLogWriter::MutationLogWriter(std::string path,
-                                     const size_t bs,
-                                     std::unique_ptr<mlog::FileIface> fileIface)
-    : instance(std::move(path), bs, std::move(fileIface)) {
-    instance.open();
-    if (!instance.isOpen()) {
-        throw std::runtime_error(fmt::format(
-                "Failed to open mutation log file: {}", instance.getLogFile()));
-    }
-}
-
-void MutationLogWriter::newItem(Vbid vbucket, const StoredDocKey& key) {
-    instance.newItem(vbucket, key);
-}
-
-void MutationLogWriter::commit1() {
-    instance.commit1();
-}
-
-void MutationLogWriter::commit2() {
-    instance.commit2();
-}
-
-bool MutationLogWriter::flush() {
-    return instance.flush();
-}
-
-void MutationLogWriter::sync() {
-    instance.sync();
-}
-
-void MutationLogWriter::disable() {
-    instance.disable();
-}
-
-bool MutationLogWriter::isEnabled() const {
-    return instance.isEnabled();
-}
-
-std::size_t MutationLogWriter::getItemsLogged(MutationLogType type) const {
-    return instance.getItemsLogged(type);
-}
-
-void MutationLogWriter::close() {
-    instance.close();
 }

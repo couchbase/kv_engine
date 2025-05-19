@@ -352,6 +352,8 @@ ADD_LIBRARY(ep STATIC
             src/mfu_only_item_eviction.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
+            src/mutation_log_writer.cc
+            src/mutation_log_writer.h
             src/objectregistry.cc
             src/paging_visitor.cc
             src/pid_controller.cc
