@@ -290,13 +290,18 @@ public:
 
     template <class T>
     void public_addParameter(std::string_view key,
-                             T defaultOnPrem,
-                             T defaultServerless,
+                             T defaultVal,
+                             std::optional<T> defaultServerless,
                              std::optional<T> defaultTSAN,
+                             std::optional<T> defaultDevAssert,
                              bool dynamic) {
         initialized = false;
-        Configuration::addParameter(
-                key, defaultOnPrem, defaultServerless, defaultTSAN, dynamic);
+        Configuration::addParameter(key,
+                                    defaultVal,
+                                    defaultServerless,
+                                    defaultTSAN,
+                                    defaultDevAssert,
+                                    dynamic);
         initialized = true;
     }
 
@@ -486,13 +491,35 @@ TEST(ChangeListenerTest, CallbackProvidedCurrentValueNonDefault) {
 TEST(ConfigurationTest, TsanOverride) {
     for (bool serverless : {false, true}) {
         ConfigurationShim config(serverless);
-        config.public_addParameter(
-                "param", size_t(3), size_t(2), {size_t(1)}, false);
+        config.public_addParameter("param",
+                                   size_t(3),
+                                   {size_t(2)},
+                                   {size_t(1)},
+                                   {size_t(0)},
+                                   false);
         auto value = config.getParameter<size_t>("param");
         if (folly::kIsSanitizeThread) {
             EXPECT_EQ(1, value);
         } else {
             EXPECT_EQ((serverless ? 2 : 3), value);
+        }
+    }
+}
+
+TEST(ConfigurationTest, DevAssertOverride) {
+    for (bool devAssertEnabled : {false, true}) {
+        ConfigurationShim config(false /* serverless */, devAssertEnabled);
+        config.public_addParameter("param",
+                                   size_t(3),
+                                   {size_t(2)},
+                                   {size_t(1)},
+                                   {size_t(0)},
+                                   false);
+        auto value = config.getParameter<size_t>("param");
+        if (folly::kIsSanitizeThread) {
+            EXPECT_EQ(1, value);
+        } else {
+            EXPECT_EQ(devAssertEnabled ? 0 : 3, value);
         }
     }
 }

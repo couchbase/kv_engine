@@ -565,26 +565,33 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     auto defaultVal = json["default"];
 
     std::string defaultValStr;
-    std::string defaultValServerless;
+    std::optional<std::string> defaultValServerless;
     std::optional<std::string> defaultValTSAN;
+    std::optional<std::string> defaultValDevAssert;
     std::optional<ConditionalDefault> conditionalDefault;
     if (defaultVal.is_object()) {
         if (auto tsanFound = defaultVal.find("tsan");
             tsanFound != defaultVal.end()) {
             defaultValTSAN = tsanFound->get<std::string>();
         }
+        if (auto devAssertFound = defaultVal.find("dev-assert-enabled");
+            devAssertFound != defaultVal.end()) {
+            defaultValStr = defaultVal["default"].get<std::string>();
+            defaultValDevAssert = devAssertFound->get<std::string>();
+        }
         if (isOnPremOrServerless(defaultVal)) {
             defaultValStr = defaultVal["on-prem"].get<std::string>();
             defaultValServerless = defaultVal["serverless"].get<std::string>();
         }
         if (defaultVal.count("if")) {
-            // Either a conditional if or serverless/tsan
-            if (defaultValTSAN || defaultValStr.size() ||
-                defaultValServerless.size()) {
-                fmt::println(stderr,
-                             "Error: if condition with tsan/server/on-prem "
-                             "keys not supported {}",
-                             defaultVal.dump());
+            // Either a conditional if or serverless/tsan/dev-assert.
+            if (defaultValTSAN || defaultValDevAssert || defaultValServerless ||
+                defaultValStr.size()) {
+                fmt::println(
+                        stderr,
+                        "Error: if condition with "
+                        "tsan/dev-assert/server/on-prem keys not supported {}",
+                        defaultVal.dump());
                 exit(EXIT_FAILURE);
             }
             conditionalDefault = getConditionalDefault(params, defaultVal);
@@ -598,15 +605,23 @@ static void generate(const nlohmann::json& params, const std::string& key) {
             defaultValStr = fmt::format(
                     "std::numeric_limits<{}>::{}()", type, defaultValStr);
         }
-        if (defaultValServerless == "max" || defaultValServerless == "min") {
+        if (defaultValServerless.has_value() &&
+            (*defaultValServerless == "max" ||
+             *defaultValServerless == "min")) {
             defaultValServerless = fmt::format("std::numeric_limits<{}>::{}()",
                                                type,
-                                               defaultValServerless);
+                                               *defaultValServerless);
         }
         if (defaultValTSAN.has_value() &&
             (*defaultValTSAN == "max" || *defaultValTSAN == "min")) {
             defaultValTSAN = fmt::format(
                     "std::numeric_limits<{}>::{}()", type, *defaultValTSAN);
+        }
+        if (defaultValDevAssert.has_value() &&
+            (*defaultValDevAssert == "max" || *defaultValDevAssert == "min")) {
+            defaultValDevAssert = fmt::format("std::numeric_limits<{}>::{}()",
+                                              type,
+                                              *defaultValDevAssert);
         }
     }
 
@@ -696,11 +711,14 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     } else if (defaultVal.is_object()) {
         initialization += fmt::format(
-                "    addParameter(\"{}\", {}, {}, {{{}}}, {});\n",
+                "    addParameter(\"{}\", {}, {{{}}}, {{{}}}, {{{}}}, {});\n",
                 key,
                 formatValue(defaultValStr, type),
-                formatValue(defaultValServerless, type),
+                (defaultValServerless ? formatValue(*defaultValServerless, type)
+                                      : ""),
                 (defaultValTSAN ? formatValue(*defaultValTSAN, type) : ""),
+                (defaultValDevAssert ? formatValue(*defaultValDevAssert, type)
+                                     : ""),
                 dynamic);
     } else {
         initialization += fmt::format("    addParameter(\"{}\", {}, {});\n",

@@ -2010,7 +2010,11 @@ std::optional<cb::HlcTime> EventuallyPersistentEngine::getVBucketHlcNow(
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
     : arenaHelper(*this, arena),
-      configuration(cb::serverless::isEnabled()),
+#ifdef CB_DEVELOPMENT_ASSERTS
+      configuration(cb::serverless::isEnabled(), true),
+#else
+      configuration(cb::serverless::isEnabled(), false),
+#endif
       kvBucket(nullptr),
       workload(nullptr),
       workloadPriority(NO_BUCKET_PRIORITY),

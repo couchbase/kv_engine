@@ -118,7 +118,8 @@ void ValueChangedValidator::validateString(std::string_view key, const char*) {
     throw std::runtime_error(error);
 }
 
-Configuration::Configuration(bool isServerless) : isServerless(isServerless) {
+Configuration::Configuration(bool isServerless, bool isDevAssertEnabled)
+    : isServerless(isServerless), isDevAssertEnabled(isDevAssertEnabled) {
     initialize();
     initialized = true;
 }
@@ -178,14 +179,16 @@ private:
 template <class T>
 void Configuration::addParameter(std::string_view key, T value, bool dynamic) {
     Expects(!initialized);
-    addParameter<T>(key, value, value, std::nullopt, dynamic);
+    addParameter<T>(
+            key, value, std::nullopt, std::nullopt, std::nullopt, dynamic);
 }
 
 template <class T>
 void Configuration::addParameter(std::string_view key,
-                                 T defaultOnPrem,
-                                 T defaultServerless,
+                                 T defaultVal,
+                                 std::optional<T> defaultServerless,
                                  std::optional<T> defaultTSAN,
+                                 std::optional<T> defaultDevAssert,
                                  bool dynamic) {
     Expects(!initialized);
     auto [itr, success] = attributes.insert(
@@ -196,9 +199,12 @@ void Configuration::addParameter(std::string_view key,
     }
     if (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
         (void)itr->second->setValue(*defaultTSAN);
+    } else if (isDevAssertEnabled && defaultDevAssert.has_value()) {
+        (void)itr->second->setValue(*defaultDevAssert);
+    } else if (isServerless && defaultServerless.has_value()) {
+        (void)itr->second->setValue(*defaultServerless);
     } else {
-        (void)itr->second->setValue(isServerless ? defaultServerless
-                                                 : defaultOnPrem);
+        (void)itr->second->setValue(defaultVal);
     }
 }
 
@@ -561,9 +567,13 @@ template void Configuration::addValueChangedFunc(
         std::string_view, std::function<void(std::string_view)>);
 
 // Explicit instantiations for addParameter for supported types.
-#define INSTANTIATE_TEMPLATES(T)                             \
-    template void Configuration::addParameter(               \
-            std::string_view, T, T, std::optional<T>, bool); \
+#define INSTANTIATE_TEMPLATES(T)                                \
+    template void Configuration::addParameter(std::string_view, \
+                                              T,                \
+                                              std::optional<T>, \
+                                              std::optional<T>, \
+                                              std::optional<T>, \
+                                              bool);            \
     template void Configuration::addParameter(std::string_view, T, bool)
 
 INSTANTIATE_TEMPLATES(bool);

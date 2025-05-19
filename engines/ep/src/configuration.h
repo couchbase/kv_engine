@@ -186,7 +186,8 @@ public:
      * @param isServerless if true serverless default parameters will be stored
      * instead of on-prem default parameters
      */
-    explicit Configuration(bool isServerless = false);
+    explicit Configuration(bool isServerless = false,
+                           bool isDevAssertEnabled = false);
     ~Configuration();
 
     // Include the generated prototypes for the member functions
@@ -266,6 +267,8 @@ public:
 
     const bool isServerless;
 
+    const bool isDevAssertEnabled = false;
+
 protected:
     /**
      * Set a validator for a specific key. The configuration class
@@ -318,18 +321,21 @@ protected:
      * Add a new configuration parameter that has different defaults values for
      * on-prem and serverless (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
-     * @param defaultOnPrem default value if we're running in an on-prem context
+     * @param defaultVal default value - if no other defaults are specified
      * @param defaultServerless default value if we're running in an serverless
      *        context
      * @param defaultTSAN optional override if compiled with thread-sanitizer
+     * @param defaultDevAssert optional override if compiled with
+     * CB_DEVELOPMENT_ASSERTS
      * @param dynamic True if this parameter can be changed at runtime,
      *        False if the value cannot be changed once object is constructed.
      */
     template <class T>
     void addParameter(std::string_view key,
-                      T defaultOnPrem,
-                      T defaultServerless,
+                      T defaultVal,
+                      std::optional<T> defaultServerless,
                       std::optional<T> defaultTSAN,
+                      std::optional<T> defaultDevAssert,
                       bool dynamic);
 
     /**

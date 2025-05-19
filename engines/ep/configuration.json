@@ -1358,7 +1358,10 @@
             "type": "size_t"
         },
         "dcp_producer_catch_exceptions": {
-            "default": "true",
+            "default": {
+                "default": "true",
+                "dev-assert-enabled": "false"
+            },
             "descr": "If true, ActiveStream will catch exceptions during item processing and close the stream's related connection (and thus all streams for that connection). If false, exception will be re-thrown.",
             "dynamic": true,
             "type": "bool"
