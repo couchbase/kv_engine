@@ -20,6 +20,7 @@
 #include "hash_table.h"
 #include "objectregistry.h"
 #include "stored_value_factories.h"
+#include "tests/mock/mock_stream.h"
 
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
@@ -295,6 +296,12 @@ StoredValue* forceInsert(HashTable& ht,
 void removeIfExists(HashTable& ht,
                     const HashTable::HashBucketLock& hbl,
                     const DocKeyView& value);
+
+/**
+ * Drives the ActiveStream, until no progress is made.
+ */
+void driveActiveStream(std::shared_ptr<MockDcpProducer> producer,
+                       std::shared_ptr<MockActiveStream> stream);
 
 namespace cb::testing::sv {
 

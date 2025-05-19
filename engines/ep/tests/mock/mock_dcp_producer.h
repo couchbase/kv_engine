@@ -146,6 +146,8 @@ public:
 
     UniqueDCPBackfillPtr public_dequeueNextBackfill();
 
+    backfill_status_t public_backfill();
+
     BackfillManager& getBFM() {
         return *backfillMgr;
     }

@@ -13,8 +13,12 @@
 
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "dcp/response.h"
 #include "item.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
+#include "logger/logger.h"
+#include "tests/mock/mock_dcp_producer.h"
+#include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
 #include <boost/algorithm/string/replace.hpp>
@@ -407,6 +411,38 @@ void removeIfExists(HashTable& ht,
     }
     if (pend) {
         ht.unlocked_release(hbl, *pend);
+    }
+}
+
+void driveActiveStream(std::shared_ptr<MockDcpProducer> producer,
+                       std::shared_ptr<MockActiveStream> stream) {
+    auto logger = cb::logger::get();
+
+    int noopCount = 0;
+    auto readyQ = stream->public_readyQSize();
+    while (stream->isActive()) {
+        if (readyQ == stream->public_readyQSize()) {
+            noopCount++;
+        } else {
+            noopCount = 0;
+        }
+        if (noopCount > 3) {
+            break;
+        }
+
+        if (stream->isInMemory()) {
+            logger->info("driveActiveStream: Processing checkpoints");
+            stream->public_nextCheckpointItemTask();
+        } else if (stream->isBackfilling()) {
+            logger->info("driveActiveStream: Backfilling");
+            producer->public_backfill();
+        }
+
+        auto response = stream->next(*producer);
+        if (response) {
+            logger->infoWithContext("driveActiveStream: DcpResponse",
+                                    {{"response", response->to_string()}});
+        }
     }
 }
 

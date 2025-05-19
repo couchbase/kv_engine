@@ -68,6 +68,12 @@ public:
     void runNextTask(TaskType t, std::string_view expectedTaskName);
 
     /*
+     * Run all ready tasks of the given type
+     * @return the wake time of the next task
+     */
+    cb::time::steady_clock::time_point runReadyTasks(TaskType t);
+
+    /*
      * DCP helper. Create a MockDcpProducer configured with (or without)
      * collections and/or delete_times enabled
      * @param cookie cookie to associate with the new producer

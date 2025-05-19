@@ -51,5 +51,6 @@ public:
         return dequeueNextBackfill(lh).first;
     }
 
+    using BackfillManager::backfill;
     using BackfillManager::getNumBackfills;
 };

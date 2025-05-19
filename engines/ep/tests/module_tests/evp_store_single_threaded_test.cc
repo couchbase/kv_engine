@@ -103,6 +103,23 @@ void SingleThreadedKVBucketTest::runNextTask(
     runNextTask(taskQueue, expectedTaskName);
 }
 
+cb::time::steady_clock::time_point SingleThreadedKVBucketTest::runReadyTasks(
+        TaskType t) {
+    cb::time::steady_clock::time_point waketime{};
+    do {
+        try {
+            CheckedExecutor executor(task_executor,
+                                     *task_executor->getLpTaskQ(t));
+            executor.runCurrentTask();
+            waketime = executor.completeCurrentTask();
+        } catch (const std::logic_error&) {
+            // Error thrown when we cannot find next task.
+            return cb::time::steady_clock::time_point::min();
+        }
+    } while (waketime < cb::time::steady_clock::now());
+    return waketime;
+}
+
 void SingleThreadedKVBucketTest::SetUp() {
     {
         NonBucketAllocationGuard guard;

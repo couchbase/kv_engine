@@ -301,6 +301,11 @@ UniqueDCPBackfillPtr MockDcpProducer::public_dequeueNextBackfill() {
             ->public_dequeueNextBackfill();
 }
 
+backfill_status_t MockDcpProducer::public_backfill() {
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
+            ->backfill();
+}
+
 void MockDcpProducer::setupMockLogger() {
     logger = std::make_shared<::testing::NiceMock<MockBucketLogger>>("prod");
 }
