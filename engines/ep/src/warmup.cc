@@ -1760,7 +1760,7 @@ void Warmup::checkForAccessLog() {
     }
 
     size_t accesslogs = 0;
-    if (config.isAccessScannerEnabled()) {
+    if (config.isAccessScannerEnabled() && !config.getAlogPath().empty()) {
         accessLog.resize(getNumShards());
         for (uint16_t i = 0; i < accessLog.size(); i++) {
             std::string file = config.getAlogPath() + "." + std::to_string(i);

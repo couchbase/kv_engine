@@ -2117,14 +2117,21 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
                         return 0;
                     });
 
-    auto pv = std::make_unique<ItemAccessVisitor>(
-            *store,
-            engine->getConfiguration(),
-            engine->getEpStats(),
-            shard,
-            std::move(semaphoreGuard),
-            engine->getConfiguration().getAlogMaxStoredItems(),
-            std::move(mockFileIface));
+    // Create the access log in a file in the database namespace to ensure
+    // it won't affect other tests (the test did not have any filename
+    // assigned causing a file named '.0 to be created which was later
+    // read by a different test causing that to fail)
+    auto& config = engine->getConfiguration();
+    auto alog_file = std::filesystem::path(config.getDbname()) / "access.log";
+    config.setAlogPath(alog_file.string());
+    auto pv =
+            std::make_unique<ItemAccessVisitor>(*store,
+                                                config,
+                                                engine->getEpStats(),
+                                                shard,
+                                                std::move(semaphoreGuard),
+                                                config.getAlogMaxStoredItems(),
+                                                std::move(mockFileIface));
 
     store->visitAsync(std::move(pv),
                       "Item Access Scanner",

@@ -45,6 +45,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
     Expects(semaphoreGuard.valid());
     setVBucketFilter(
             VBucketFilter(_store.getVBuckets().getShard(sh)->getVBuckets()));
+    Expects(!conf.getAlogPath().empty() && "No filename set");
     name = conf.getAlogPath();
     name = name + "." + std::to_string(shardID);
     prev = name + ".old";
