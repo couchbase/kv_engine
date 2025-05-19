@@ -627,12 +627,11 @@ protected:
     cb::engine_errc doFusionAggregatedStats(CookieIface& cookie,
                                             const AddStatFn& add_stat,
                                             FusionStat stat);
-
+    cb::engine_errc doFusionAggregatedStatGroup(FusionStat statGroup,
+                                                CookieIface& cookie,
+                                                const AddStatFn& add_stat);
     cb::engine_errc doFusionAggregatedGuestVolumesStats(
             CookieIface& cookie, const AddStatFn& add_stat);
-
-    cb::engine_errc doFusionAggregatedUploaderStats(CookieIface& cookie,
-                                                    const AddStatFn& add_stat);
 
     /**
      * Max number of backill items in a single flusher batch before we split

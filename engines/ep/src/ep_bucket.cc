@@ -3420,7 +3420,8 @@ cb::engine_errc EPBucket::doFusionAggregatedStats(CookieIface& cookie,
     case FusionStat::ActiveGuestVolumes:
         return doFusionAggregatedGuestVolumesStats(cookie, add_stat);
     case FusionStat::Uploader:
-        return doFusionAggregatedUploaderStats(cookie, add_stat);
+    case FusionStat::Migration:
+        return doFusionAggregatedStatGroup(stat, cookie, add_stat);
     case FusionStat::SyncInfo:
     case FusionStat::Invalid: {
         EP_LOG_WARN_CTX("EPBucket::doFusionAggregatedStats: Not supported",
@@ -3471,14 +3472,13 @@ cb::engine_errc EPBucket::doFusionAggregatedGuestVolumesStats(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::doFusionAggregatedUploaderStats(
-        CookieIface& cookie, const AddStatFn& add_stat) {
+cb::engine_errc EPBucket::doFusionAggregatedStatGroup(
+        FusionStat statGroup, CookieIface& cookie, const AddStatFn& add_stat) {
     const auto vbuckets = vbMap.getBuckets();
     nlohmann::json json;
-
     for (const auto vbid : vbuckets) {
-        const auto [errc, stats] = getRWUnderlying(vbid)->getFusionStats(
-                FusionStat::Uploader, vbid);
+        const auto [errc, stats] =
+                getRWUnderlying(vbid)->getFusionStats(statGroup, vbid);
         if (errc != cb::engine_errc::success) {
             // Details logged at KVStore level
             return errc;

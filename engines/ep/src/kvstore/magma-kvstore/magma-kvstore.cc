@@ -4680,6 +4680,19 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         // is done, we can add them here.
         return {cb::engine_errc::success, json};
     }
+    case FusionStat::Migration: {
+        const auto id = Magma::KVStoreID(vbid.get());
+        nlohmann::json json;
+        {
+            const auto [status, stats] = magma->GetFusionMigrationStats(id);
+            if (const auto errc = checkStatus(status);
+                errc != cb::engine_errc::success) {
+                return {errc, {}};
+            }
+            json.update(stats);
+        }
+        return {cb::engine_errc::success, json};
+    }
     }
 
     folly::assume_unreachable();

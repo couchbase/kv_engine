@@ -160,12 +160,14 @@ static const std::unordered_map<std::string, FusionStat>
         fusionStatsStringToEnum = {
                 {"sync_info", FusionStat::SyncInfo},
                 {"active_guest_volumes", FusionStat::ActiveGuestVolumes},
-                {"uploader", FusionStat::Uploader}};
+                {"uploader", FusionStat::Uploader},
+                {"migration", FusionStat::Migration}};
 static const std::unordered_map<FusionStat, std::string>
         fusionStatsEnumToString = {
                 {FusionStat::SyncInfo, "sync_info"},
                 {FusionStat::ActiveGuestVolumes, "active_guest_volumes"},
-                {FusionStat::Uploader, "uploader"}};
+                {FusionStat::Uploader, "uploader"},
+                {FusionStat::Migration, "migration"}};
 
 FusionStat toFusionStat(const std::string& str) {
     const auto it = fusionStatsStringToEnum.find(str);

@@ -649,6 +649,64 @@ TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
     }
 }
 
+TEST_P(FusionTest, Stat_Migration) {
+    auto json = fusionStats("migration", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("completed_bytes"));
+    ASSERT_TRUE(json["completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["completed_bytes"]);
+    ASSERT_TRUE(json.contains("total_bytes"));
+    ASSERT_TRUE(json["total_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["total_bytes"]);
+}
+
+TEST_P(FusionTest, Stat_Migration_Aggregate) {
+    // Create second vbucket
+    adminConnection->selectBucket(bucketName);
+    const auto vb1 = Vbid(1);
+    adminConnection->setVbucket(vb1, vbucket_state_active, {});
+    adminConnection->store("bump-vb-high-seqno", vb1, {});
+    adminConnection->waitForSeqnoToPersist(Vbid(1), 1);
+
+    const auto res = fusionStats("migration", {});
+    ASSERT_FALSE(res.empty());
+    ASSERT_TRUE(res.is_object());
+    ASSERT_TRUE(res.contains("vb_0"));
+    ASSERT_TRUE(res.contains("vb_1"));
+
+    // Verify vb_0 stats
+    const auto vb_0 = res["vb_0"];
+    ASSERT_FALSE(vb_0.empty());
+    ASSERT_TRUE(vb_0.is_object());
+
+    ASSERT_TRUE(vb_0.contains("completed_bytes"));
+    ASSERT_TRUE(vb_0["completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["completed_bytes"]);
+    ASSERT_TRUE(vb_0.contains("total_bytes"));
+    ASSERT_TRUE(vb_0["total_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["total_bytes"]);
+
+    // Verify vb_1 stats
+    const auto vb_1 = res["vb_0"];
+    ASSERT_FALSE(vb_1.empty());
+    ASSERT_TRUE(vb_1.is_object());
+
+    ASSERT_TRUE(vb_1.contains("completed_bytes"));
+    ASSERT_TRUE(vb_1["completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["completed_bytes"]);
+    ASSERT_TRUE(vb_1.contains("total_bytes"));
+    ASSERT_TRUE(vb_1["total_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["total_bytes"]);
+
+    // Delete vb_1
+    adminConnection->executeInBucket(bucketName, [vb1](auto& conn) {
+        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+        cmd.setVBucket(vb1);
+        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+    });
+}
+
 TEST_P(FusionTest, GetPrometheusFusionStats) {
     std::array<std::string_view, 18> statKeysExpected = {
             "ep_fusion_namespace",

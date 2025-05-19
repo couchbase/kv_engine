@@ -714,6 +714,22 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
     return {status, json};
 }
 
+std::tuple<magma::Status, nlohmann::json>
+MagmaMemoryTrackingProxy::GetFusionMigrationStats(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    nlohmann::json json;
+    // @TODO MB-65656: Magma currently have an incomplete implementation for
+    // the following stats. Once the implementation is done, we should call
+    // down to magma to retrieve these stats. For now, we return 0.
+    const auto [status, stats] = magma->GetKVStoreStats(kvID);
+    if (status) {
+        json["completed_bytes"] = 0;
+        json["total_bytes"] = 0;
+    }
+    return {status, json};
+}
+
 std::tuple<magma::Status, std::vector<std::string>>
 MagmaMemoryTrackingProxy::GetActiveFusionGuestVolumes(
         const magma::Magma::KVStoreID kvID) {
