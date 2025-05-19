@@ -39,18 +39,6 @@ protected:
     std::string tmp_log_filename;
 };
 
-TEST_F(MutationLogTest, Unconfigured) {
-    MutationLog ml("");
-    ml.open();
-    ASSERT_FALSE(ml.isEnabled());
-    ml.newItem(Vbid(3), makeStoredDocKey("somekey"));
-    ml.commit1();
-    ml.commit2();
-    ml.flush();
-
-    EXPECT_EQ(ml.begin(), ml.end());
-}
-
 static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
     auto* sets = reinterpret_cast<std::set<StoredDocKey> *>(arg);
     sets[vb.get()].insert(StoredDocKey(k));

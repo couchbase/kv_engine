@@ -215,7 +215,7 @@ MutationLog::MutationLog(std::string path,
     logSize.store(0);
 
     if (logPath.empty()) {
-        disabled = true;
+        throw std::invalid_argument("MutationLog: empty path");
     }
 }
 
