@@ -21,9 +21,6 @@
 #include <system_error>
 #include <utility>
 
-extern "C" {
-#include "crc32.h"
-}
 #include "bucket_logger.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
@@ -394,14 +391,7 @@ bool MutationLog::writeInitialBlock() {
 }
 
 static bool validateHeaderBlockVersion(MutationLogVersion version) {
-    switch (version) {
-    case MutationLogVersion::V1:
-    case MutationLogVersion::V2:
-    case MutationLogVersion::V3:
-    case MutationLogVersion::V4:
-        return true;
-    }
-    return false;
+    return version == MutationLogVersion::V4;
 }
 
 void MutationLog::readInitialBlock() {
@@ -713,48 +703,16 @@ MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::itera
 MutationLog::iterator::~iterator() = default;
 
 void MutationLog::iterator::prepItem() {
-    size_t copyLen = 0;
-    // Determine which version we are reading and use that versions newEntry
-    // to obtain the copy length. newEntry also validates magic is valid and
-    // the length doesn't overflow bufferBytesRemaining()
-    switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1:
-        copyLen =
-                MutationLogEntryV1::newEntry(p, bufferBytesRemaining())->len();
-        break;
-    case MutationLogVersion::V2:
-        copyLen =
-                MutationLogEntryV2::newEntry(p, bufferBytesRemaining())->len();
-        break;
-        // V3 and V4 use the same on-disk format (just use different CRC)
-    case MutationLogVersion::V3:
-    case MutationLogVersion::V4:
-        copyLen =
-                MutationLogEntryV3::newEntry(p, bufferBytesRemaining())->len();
-        break;
-    }
-
+    const auto copyLen =
+            MutationLogEntry::newEntry(p, bufferBytesRemaining())->len();
+    Expects(copyLen <= LOG_ENTRY_BUF_SIZE);
     entryBuf.resize(LOG_ENTRY_BUF_SIZE);
     std::copy_n(p, copyLen, entryBuf.begin());
 }
 
 size_t MutationLog::iterator::getCurrentEntryLen() const {
-    switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1:
-        return MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size())
-                ->len();
-    case MutationLogVersion::V2:
-        return MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size())
-                ->len();
-        // V3 and V4 use the same format (just use different CRC calculation)
-    case MutationLogVersion::V3:
-    case MutationLogVersion::V4:
-        return MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size())
-                ->len();
-    }
-    throw std::logic_error(
-            "MutationLog::iterator::getCurrentEntryLen unknown version " +
-            std::to_string(int(log->headerBlock.version())));
+    Expects(log->headerBlock.version() == MutationLogVersion::V4);
+    return MutationLogEntry::newEntry(entryBuf.begin(), entryBuf.size())->len();
 }
 
 MutationLog::iterator& MutationLog::iterator::operator++() {
@@ -780,119 +738,9 @@ bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
     return ! operator==(rhs);
 }
 
-/**
- * Return a MutationLogEntryHolder which is built from a down-level entry
- * The upgrade technique is to upgrade from n to n+1 without any skips, this
- * simplifies each upgrade step, but may have a cost if many steps exist.
- *
- * git blame on the addition of MutationLogEntryV3 to see how V4 can be reached
- *
- */
-MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
-        const {
-    // The addition of more source versions would mean adding more const
-    // pointers and unique_ptr for temp storage.
-    const MutationLogEntryV1* mleV1 = nullptr;
-    const MutationLogEntryV2* mleV2 = nullptr;
-    std::unique_ptr<uint8_t[]> allocatedV2;
-    std::unique_ptr<uint8_t[]> allocated;
-
-    static_assert(MutationLogVersion::Current == MutationLogVersion::V4,
-                  "The difference between V3 and V4 is the CRC used on disk so "
-                  "there isn't a upgrade from V3 to V4");
-
-    // With only two versions this code is a little unnecessary but will
-    // cause the addition of V4 to fail compile. The aim is that the addition of
-    // V4 should now be obvious. I.e. we can step V1->V2->V3->V4 or V2->V3->V4
-    switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1:
-        mleV1 = MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size());
-        break;
-    case MutationLogVersion::V2:
-        mleV2 = MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size());
-        break;
-    case MutationLogVersion::V3:
-        // V3 == V4 with a different CRC (which we've already checked) so we
-        // can treat it as upgraded.
-        return {entryBuf.data(), false /*not allocated*/};
-
-    /* If V4 exists then add a case for V3, for example:
-    case MutationLogVersion::V3: {
-        mleV3 = MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size());
-        break;
-    }
-    */
-    case MutationLogVersion::Current:
-        throw std::invalid_argument(
-                "MutationLog::iterator::upgradeEntry cannot"
-                " upgrade if version == current");
-    }
-
-    // Next switch runs the upgrade. Each version must be constructable from
-    // its parent. This means each step is much simpler and only needs to
-    // consider a single parent and there's no complexity of trying to jump
-    // versions.
-    // We start the upgrade at version + 1
-    switch (MutationLogVersion(int(log->headerBlock.version()) + 1)) {
-    case MutationLogVersion::V1:
-        // fall through
-    case MutationLogVersion::V2:
-        if (!mleV1) {
-            throw std::logic_error(
-                    "MutationLog::iterator::upgradeEntry mleV1 is null");
-        }
-        // Upgrade V1 to V2.
-        // Alloc a buffer using the length read from V1 as input to V2::len
-        allocatedV2 = std::make_unique<uint8_t[]>(
-                MutationLogEntryV2::len(mleV1->getKeylen()));
-
-        // Now in-place construct into the buffer
-        mleV2 = new (allocatedV2.get()) MutationLogEntryV2(*mleV1);
-
-        // fall through
-    case MutationLogVersion::V3:
-    case MutationLogVersion::V4:
-        if (!mleV2) {
-            throw std::logic_error(
-                    "MutationLog::iterator::upgradeEntry mleV2 is null");
-        }
-        // Upgrade V2 to V3
-        // Alloc a buffer using the length read from V2 as input to V3::len
-        allocated =
-                std::make_unique<uint8_t[]>(MutationLogEntryV3::len(*mleV2));
-
-        // Now in-place construct into the new buffer and assign to mleV3
-        (void)new (allocated.get()) MutationLogEntryV3(*mleV2);
-        // If adding more cases, we should assign the above "new" pointer to a
-        // mleV3 and allow the next case to read it.
-
-        // fall through
-
-        /* If V4 exists then add a case (which is hit by V3 falling through)
-        case MutationLogVersion::V4: {
-            // Upgrade V3 to V4
-            // Alloc a buffer using the length read from V3 as input to V4::len
-            allocated = std::make_unique<uint8_t[]>(
-                    MutationLogEntryV4::len(mleV3->getKeylen()));
-
-            // Now in-place construct into the new buffer and assign to mleV4
-            mleV4 = new (allocated.get()) MutationLogEntryV3(*mleV3);
-            // fall through
-        }
-        */
-    }
-
-    // transfer ownership to the MutationLogEntryHolder and mark that it's
-    // allocated requiring deletion once the holder is destructed
-    return {allocated.release(), true /*allocated*/};
-}
-
 MutationLog::MutationLogEntryHolder MutationLog::iterator::operator*() {
-    // If the file version is down-level return an upgraded entry
-    if (log->headerBlock.version() == MutationLogVersion::Current) {
-        return {entryBuf.data(), false /*not allocated*/};
-    }
-    return upgradeEntry();
+    Expects(log->headerBlock.version() == MutationLogVersion::Current);
+    return {entryBuf.data(), false /*not allocated*/};
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {
@@ -900,22 +748,8 @@ size_t MutationLog::iterator::bufferBytesRemaining() {
 }
 
 uint16_t MutationLog::calculateCrc(cb::const_byte_buffer data) const {
-    uint32_t crc32 = 0;
-    // Note: The header block version was checked as part of opening
-    //       the file (for reading) and initialized to current version
-    //       when writing so we don't need to worry about "illegal"
-    //       enum values
-    switch (headerBlock.version()) {
-    case MutationLogVersion::V1:
-    case MutationLogVersion::V2:
-    case MutationLogVersion::V3:
-        crc32 = crc32buf(data.data(), data.size());
-        break;
-    case MutationLogVersion::V4:
-        crc32 = crc32c(data.data(), data.size(), 0);
-        break;
-    }
-
+    Expects(headerBlock.version() == MutationLogVersion::V4);
+    const auto crc32 = crc32c(data.data(), data.size(), 0);
     const uint16_t computed_crc16(crc32 & 0xffff);
     return computed_crc16;
 }

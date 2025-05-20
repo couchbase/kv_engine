@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2011-Present Couchbase, Inc.
  *
@@ -9,27 +8,18 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "test_file_helper.h"
-
 #include "../mock/mock_function_helper.h"
 
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
-#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <sys/stat.h>
 #include <algorithm>
 #include <fstream>
-#include <map>
 #include <set>
 #include <stdexcept>
-#include <vector>
-
-extern "C" {
-#include "crc32.h"
-}
 
 #include "mutation_log.h"
 #include "tests/module_tests/test_helpers.h"
@@ -505,213 +495,4 @@ TEST_F(MutationLogTest, ReadOnly) {
     // But we should not be able to add items to a read only stream
     EXPECT_THROW(ml.newItem(Vbid(4), makeStoredDocKey("key2")),
                  MutationLog::WriteException);
-}
-
-class MockMutationLogEntryV1 : public MutationLogEntryV1 {
-public:
-    /**
-     * Initialize a new entry inside the given buffer.
-     *
-     * @param r the rowid
-     * @param t the type of log entry
-     * @param vb the vbucket
-     * @param k the key
-     */
-    static MockMutationLogEntryV1* newEntry(uint8_t* buf,
-                                            uint64_t r,
-                                            MutationLogType t,
-                                            Vbid vb,
-                                            const std::string& k) {
-        return new (buf) MockMutationLogEntryV1(r, t, vb, k);
-    }
-
-    MockMutationLogEntryV1(uint64_t r,
-                           MutationLogType t,
-                           Vbid vb,
-                           const std::string& k)
-        : MutationLogEntryV1(r, t, vb, k) {
-    }
-};
-
-TEST_F(MutationLogTest, upgrade) {
-    // Craft a V1 format file
-    LogHeaderBlock headerBlock(MutationLogVersion::V1);
-    headerBlock.set(MIN_LOG_HEADER_SIZE);
-    const auto* ptr = reinterpret_cast<uint8_t*>(&headerBlock);
-
-    std::vector<uint8_t> toWrite(ptr, ptr + sizeof(LogHeaderBlock));
-    toWrite.resize(MIN_LOG_HEADER_SIZE);
-
-    // Make space for 2 byte CRC
-    uint16_t zero = 0x2233;
-    toWrite.insert(toWrite.end(),
-                   reinterpret_cast<uint8_t*>(&zero),
-                   reinterpret_cast<uint8_t*>(&zero) + sizeof(uint16_t));
-
-    // Add items
-    uint16_t items = 10;
-    uint16_t swapped = htons(items);
-    toWrite.insert(toWrite.end(),
-                   reinterpret_cast<uint8_t*>(&swapped),
-                   reinterpret_cast<uint8_t*>(&swapped) + sizeof(uint16_t));
-
-    const Vbid vbid = Vbid(3);
-    std::vector<std::string> keys;
-    for (int ii = 0; ii < items; ii++) {
-        keys.push_back({"mykey" + std::to_string(ii)});
-        std::vector<uint8_t> bytes(
-                MockMutationLogEntryV1::len(keys.back().size()));
-        (void)MockMutationLogEntryV1::newEntry(
-                bytes.data(), 0, MutationLogType::New, vbid, keys.back());
-        toWrite.insert(toWrite.end(), bytes.begin(), bytes.end());
-    }
-
-    // Now commit1 and commit2
-    std::array<MutationLogType, 2> types = {
-            {MutationLogType::Commit1, MutationLogType::Commit2}};
-    for (auto t : types) {
-        std::string key;
-        std::vector<uint8_t> bytes(MockMutationLogEntryV1::len(key.size()));
-        (void)MockMutationLogEntryV1::newEntry(bytes.data(), 0, t, vbid, key);
-        toWrite.insert(toWrite.end(), bytes.begin(), bytes.end());
-    }
-
-    // Not handling multiple blocks, so check we're below 2x
-    ASSERT_LT(toWrite.size(), MIN_LOG_HEADER_SIZE * 2);
-    toWrite.resize(MIN_LOG_HEADER_SIZE * 2);
-
-    // Now calc the CRC and copy into the CRC location
-    // it (goes in the start of each block)
-    uint32_t crc32(crc32buf(&toWrite[MIN_LOG_HEADER_SIZE + 2],
-                            MIN_LOG_HEADER_SIZE - 2));
-    uint16_t crc16(htons(crc32 & 0xffff));
-    std::copy_n(reinterpret_cast<uint8_t*>(&crc16),
-                sizeof(uint16_t),
-                toWrite.begin() + MIN_LOG_HEADER_SIZE);
-
-    // Now write the file
-    {
-        std::ofstream logFile(tmp_log_filename,
-                              std::ios::out | std::ofstream::binary);
-        std::ranges::copy(toWrite, std::ostreambuf_iterator<char>(logFile));
-    }
-
-    {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
-        MutationLogHarvester h(ml);
-        h.setVBucket(vbid);
-
-        // Ask for 2 items, ensure we get just two.
-        EXPECT_TRUE(h.loadBatch(2));
-
-        std::set<StoredDocKey> maps[4]; // 4 <- vbid.get() + 1
-        h.apply(&maps, loaderFun);
-        for (int i = 0; i < 2; i++) {
-            EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
-        }
-
-        // Ask for the remainder
-        EXPECT_FALSE(h.loadBatch(items - 2));
-
-        h.apply(&maps, loaderFun);
-        for (int i = 2; i < items; i++) {
-            EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
-        }
-    }
-}
-
-TEST_F(MutationLogTest, upgradeV3toV4) {
-    // V3 and V4 use the same format for the various entries, but use
-    // a different CRC version
-    class MockMutationLog : public MutationLog {
-    public:
-        MockMutationLog(std::string path, MutationLogVersion version)
-            : MutationLog(path) {
-            headerBlock.setVersion(version);
-        }
-    };
-
-    {
-        MockMutationLog ml(tmp_log_filename, MutationLogVersion::V3);
-        ml.open();
-        ml.newItem(Vbid(3), makeStoredDocKey("somekey"));
-        ml.commit1();
-        ml.commit2();
-        ml.flush();
-        ml.close();
-    }
-
-    {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
-        ASSERT_EQ(MutationLogVersion::V3, ml.header().version());
-        auto iter = ml.begin();
-        EXPECT_EQ(MutationLogType::New, (*iter)->type());
-        EXPECT_EQ((*iter)->key(), makeStoredDocKey("somekey"));
-        ++iter;
-        EXPECT_EQ(MutationLogType::Commit1, (*iter)->type());
-        ++iter;
-        EXPECT_EQ(MutationLogType::Commit2, (*iter)->type());
-    }
-}
-
-// matcher testing a DocKey against an expected key (std::string)
-MATCHER_P(_key, expected, "") {
-    auto key =
-            std::string(reinterpret_cast<const char*>(arg.data()), arg.size());
-    return key == expected;
-}
-
-// helper to call a std::function passed in arg for each mutation log entry.
-bool mutationLogCB(void* arg, Vbid vbid, const DocKeyView& key) {
-    const auto& func =
-            *reinterpret_cast<std::function<bool(Vbid, const DocKeyView&)>*>(
-                    arg);
-    return func(vbid, key);
-}
-
-TEST_F(MutationLogTest, readPreMadHatterAccessLog) {
-    /* read an access log written by spock code to confirm
-     * the upgrade path can correctly parse what was written.
-     * File contains:
-     * - 10 mutations (all for vbid 3)
-     *    New: mykey0
-     *    New: mykey1
-     *    ...
-     *    New: mykey10
-     * - commit1
-     * - commit2
-     */
-
-    auto vbid = Vbid(3);
-
-    MutationLog ml(std::string(testsSourceDir) +
-                   "/pre-mad-hatter_access_log.bin");
-    ml.open(true);
-    MutationLogHarvester h(ml);
-    h.setVBucket(vbid);
-
-    // False means no more data available.
-    EXPECT_FALSE(h.loadBatch(std::numeric_limits<size_t>::max()));
-
-    using namespace testing;
-    // mutation log callback - called for each entry read.
-    StrictMock<MockFunction<bool(Vbid, const DocKeyView&)>> cb;
-
-    {
-        // mark that the following EXPECT_CALLs must be triggered in order.
-        InSequence s;
-
-        // expect the callback to be called for every key known to be in the
-        // "blessed input" in order, and not be called for anything else.
-        for (int keyNum = 0; keyNum < 10; keyNum++) {
-            using namespace std::literals;
-            auto expected = "\0mykey"s + std::to_string(keyNum);
-            EXPECT_CALL(cb, Call(vbid, _key(expected))).WillOnce(Return(true));
-        }
-    }
-
-    auto mlcb = asStdFunction(cb);
-    h.apply(&mlcb, mutationLogCB);
 }

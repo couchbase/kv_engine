@@ -119,8 +119,7 @@ protected:
      * These following classes are "white-listed". They know how to allocate
      * and construct this object so are allowed access to the constructor.
      */
-    friend class MutationLogEntryV2;
-    friend class MutationLogEntryV3;
+    friend class MutationLogEntry;
     friend class StoredValue;
 
     SerialisedDocKey() = default;

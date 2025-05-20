@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -35,25 +34,8 @@ std::string to_string(MutationLogType t) {
 // ----------------------------------------------------------------------
 // Output of entries
 // ----------------------------------------------------------------------
-std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle) {
-    out << "{MutationLogEntryV1 rowid=" << mle.rowid()
-        << ", vbucket=" << mle.vbucket().get() << ", magic=0x" << std::hex
-        << static_cast<uint16_t>(mle.magic) << std::dec
-        << ", type=" << to_string(mle.type()) << ", key=``" << mle.key()
-        << "''";
-    return out;
-}
-
-std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle) {
-    out << "{MutationLogEntryV2 vbucket=" << mle.vbucket().get() << ", magic=0x"
-        << std::hex << static_cast<uint16_t>(mle.magic) << std::dec
-        << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
-        << "''";
-    return out;
-}
-
-std::ostream& operator<<(std::ostream& out, const MutationLogEntryV3& mle) {
-    out << "{MutationLogEntryV3 vbucket=" << mle.vbucket().get() << ", magic=0x"
+std::ostream& operator<<(std::ostream& out, const MutationLogEntry& mle) {
+    out << "{MutationLogEntry vbucket=" << mle.vbucket().get() << ", magic=0x"
         << std::hex << static_cast<uint16_t>(mle.magic) << std::dec
         << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
         << "''";

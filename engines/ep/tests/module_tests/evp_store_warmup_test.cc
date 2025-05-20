@@ -734,7 +734,7 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
         for (size_t i = 0; i < mlog.public_getBlockPos(); i++) {
             // Corrupt the magic
             auto& c = mlog.public_getBlockBuffer()[i];
-            if (c == MutationLogEntryV3::MagicMarker) {
+            if (c == MutationLogEntry::MagicMarker) {
                 c = 0xff;
                 modified = true;
             }
