@@ -675,7 +675,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "getl_max_timeout") {
             configuration.setGetlMaxTimeout(std::stoull(val));
         } else if (key == "ht_resize_interval") {
-            configuration.setHtResizeInterval(std::stoull(val));
+            configuration.setHtResizeInterval(std::stof(val));
         } else if (key == "ht_resize_algo") {
             configuration.setHtResizeAlgo(val);
         } else if (key == "ht_size") {
@@ -855,8 +855,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "range_scan_max_continue_tasks") {
             configuration.setRangeScanMaxContinueTasks(std::stoul(val));
         } else if (key == "bucket_quota_change_task_poll_interval") {
-            configuration.setBucketQuotaChangeTaskPollInterval(std::stoul
-                                                                (val));
+            configuration.setBucketQuotaChangeTaskPollInterval(std::stof(val));
         } else if (key == "range_scan_read_buffer_send_size") {
             configuration.setRangeScanReadBufferSendSize(std::stoull(val));
         } else if (key == "range_scan_max_lifetime") {

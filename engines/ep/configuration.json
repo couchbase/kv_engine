@@ -171,7 +171,7 @@
             "default": "30",
             "descr": "Time in seconds between the BucketQuotaChangeTask polling memory usage to attempt to reduce the bucket quota",
             "dynamic": true,
-            "type": "size_t"
+            "type": "float"
         },
         "compaction_expire_from_start": {
             "default": "true",
@@ -682,7 +682,7 @@
             "default": "1",
             "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
             "dynamic": true,
-            "type": "size_t"
+            "type": "float"
         },
         "ht_size": {
             "default": "47",
