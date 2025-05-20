@@ -62,7 +62,8 @@ public:
     ~NonBucketAllocationGuard();
 
 private:
-    EventuallyPersistentEngine* engine = nullptr;
+    std::pair<EventuallyPersistentEngine*, cb::MemoryDomain> engineDomainPair{
+            nullptr, cb::MemoryDomain::None};
 };
 
 /**

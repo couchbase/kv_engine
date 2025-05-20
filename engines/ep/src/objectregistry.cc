@@ -137,11 +137,21 @@ EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
 }
 
 NonBucketAllocationGuard::NonBucketAllocationGuard()
-    : engine(ObjectRegistry::onSwitchThread(nullptr, true)) {
+    : engineDomainPair(ObjectRegistry::switchToEngine(
+              nullptr, true, cb::MemoryDomain::None)) {
 }
 
 NonBucketAllocationGuard::~NonBucketAllocationGuard() {
-    ObjectRegistry::onSwitchThread(engine);
+    // Note: Some unit tests (eg KVBucketTest) just run under domain:None.
+    // Switching to domain:None fails by
+    //     std::out_of_range: array::at
+    // (see JEArenaMalloc::switchToClient() implementation for details).
+    const auto [engine, domain] = engineDomainPair;
+    ObjectRegistry::onSwitchThread(engine,
+                                   false,
+                                   domain != cb::MemoryDomain::None
+                                           ? domain
+                                           : cb::MemoryDomain::Primary);
 }
 
 BucketAllocationGuard::BucketAllocationGuard(EventuallyPersistentEngine* engine)
