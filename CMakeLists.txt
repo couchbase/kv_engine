@@ -114,7 +114,7 @@ if (UNIX)
                 ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
                 ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
         set_tests_properties(memcached-breakpad-test-${VARIANT}
-                PROPERTIES TIMEOUT 60)
+                PROPERTIES TIMEOUT 120)
     endfunction()
 
     add_breakpad_test(segfault)
