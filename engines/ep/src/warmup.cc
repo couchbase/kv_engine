@@ -48,12 +48,12 @@
 #include <folly/lang/Assume.h>
 
 struct WarmupCookie {
-    WarmupCookie(EPBucket& s, Warmup& warmup, MutationLog& log)
+    WarmupCookie(EPBucket& s, Warmup& warmup, MutationLogReader& log)
         : epstore(s), warmup(warmup), log(log) {
     }
     EPBucket& epstore;
     Warmup& warmup;
-    MutationLog& log;
+    MutationLogReader& log;
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1760,13 +1760,25 @@ void Warmup::checkForAccessLog() {
             // The order here is important as the load phase will work from back
             // so will use the current file before trying .old
             if (cb::io::isFile(file + ".old")) {
-                shardLogs.emplace_back(
-                        std::make_unique<MutationLog>(file + ".old"));
+                try {
+                    shardLogs.emplace_back(
+                            std::make_unique<MutationLogReader>(file + ".old"));
+                } catch (const std::exception& e) {
+                    EP_LOG_WARN_CTX("Failed to open old mutation log",
+                                    {"path", file + ".old"},
+                                    {"error", e.what()});
+                }
             }
 
             if (cb::io::isFile(file)) {
-                shardLogs.emplace_back(std::make_unique<MutationLog>(
-                        file, config.getAlogBlockSize()));
+                try {
+                    shardLogs.emplace_back(
+                            std::make_unique<MutationLogReader>(file));
+                } catch (const std::exception& e) {
+                    EP_LOG_WARN_CTX("Failed to open mutation log",
+                                    {"path", file},
+                                    {"error", e.what()});
+                }
             }
 
             if (!shardLogs.empty()) {
@@ -1802,11 +1814,11 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
         return true;
     case WarmupAccessLogState::Failed:
         syncData.lock()->corruptAccessLog = true;
-        // Get rid of the current MutationLog object
+        // Get rid of the current MutationLogReader object
         accessLog[shardId].pop_back();
         break;
     case WarmupAccessLogState::Done:
-        // Get rid of all MutationLog objects for the shard
+        // Get rid of all MutationLogReader objects for the shard
         accessLog[shardId].clear();
         break;
     }
@@ -1831,12 +1843,8 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
     return false;
 }
 
-Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
+Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLogReader& log,
                                                        uint16_t shardId) {
-    if (!log.isOpen()) {
-        log.open(true);
-    }
-
     try {
         return tryLoadFromAccessLog(log, shardId);
     } catch (const std::exception& e) {
@@ -1848,7 +1856,7 @@ Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
     return WarmupAccessLogState::Failed;
 }
 
-Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
+Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLogReader& lf,
                                                           uint16_t shardId) {
     MutationLogHarvester harvester(lf, &store.getEPEngine());
     for (const auto& entry : shardVBData[shardId]) {

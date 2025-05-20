@@ -43,16 +43,6 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t doWrite(file_handle_t fd, const uint8_t* buf, size_t nbytes) {
-    DWORD byteswritten;
-    if (!WriteFile(fd, buf, nbytes, &byteswritten, NULL)) {
-        /* luckily we don't check errno so we don't need to care about that */
-        throw std::system_error(GetLastError(), std::system_category(),
-                                "doWrite: failed");
-    }
-    return byteswritten;
-}
-
 static inline void doClose(file_handle_t fd) {
     if (!CloseHandle(fd)) {
         throw std::system_error(GetLastError(), std::system_category(),
@@ -60,64 +50,26 @@ static inline void doClose(file_handle_t fd) {
     }
 }
 
-static inline void doFsync(file_handle_t fd) {
-    if (!FlushFileBuffers(fd)) {
-        throw std::system_error(GetLastError(), std::system_category(),
-                                "doFsync: failed");
-    }
-}
-
-file_handle_t OpenFile(const std::string &fname, std::string &error,
-                       bool rdonly) {
+file_handle_t OpenFile(const std::string& fname) {
     file_handle_t fd;
-    if (rdonly) {
-        fd = CreateFile(const_cast<char*>(fname.c_str()),
-            GENERIC_READ,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            NULL,
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            NULL);
-    } else {
-        fd = CreateFile(const_cast<char*>(fname.c_str()),
-            GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            NULL,
-            OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL,
-            NULL);
-    }
+    fd = CreateFile(const_cast<char*>(fname.c_str()),
+                    GENERIC_READ,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    NULL,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL);
 
     if (fd == INVALID_FILE_VALUE) {
-        error.assign(cb_strerror());
+        throw std::system_error(GetLastError(),
+                                std::system_category(),
+                                fmt::format("Failed to open file '{}'", fname));
     }
 
     return fd;
 }
 
-int64_t getFileSize(file_handle_t fd) {
-    LARGE_INTEGER li;
-    if (GetFileSizeEx(fd, &li)) {
-        return li.QuadPart;
-    }
-    throw std::system_error(GetLastError(), std::system_category(),
-                            "getFileSize: failed");
-}
-
 #else
-
-ssize_t doWrite(file_handle_t fd, const uint8_t* buf, size_t nbytes) {
-    ssize_t ret;
-    while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
-        /* Retry */
-    }
-    if (ret == -1) {
-        // Non EINTR error
-        throw std::system_error(errno, std::system_category(),
-                                "doWrite: failed");
-    }
-    return ret;
-}
 
 static void doClose(file_handle_t fd) {
     int ret;
@@ -131,108 +83,50 @@ static void doClose(file_handle_t fd) {
     }
 }
 
-static void doFsync(file_handle_t fd) {
-    int ret;
-    while ((ret = fsync(fd)) == -1 && (errno == EINTR)) {
-        /* Retry */
-    }
-    if (ret == -1) {
-        // Non EINTR error
-        throw std::system_error(errno, std::system_category(),
-                                "doFsync: failed");
-    }
-}
-
-file_handle_t OpenFile(const std::string &fname, std::string &error,
-                       bool rdonly) {
+file_handle_t OpenFile(const std::string& fname) {
     file_handle_t fd;
-    if (rdonly) {
-        fd = ::open(const_cast<char*>(fname.c_str()), O_RDONLY);
-    } else {
-        fd = ::open(const_cast<char*>(fname.c_str()), O_RDWR | O_CREAT, 0666);
-    }
+    fd = ::open(const_cast<char*>(fname.c_str()), O_RDONLY);
 
     if (fd < 0) {
-        error.assign(strerror(errno));
+        throw std::system_error(errno,
+                                std::system_category(),
+                                fmt::format("Failed to open file '{}'", fname));
     }
 
     return fd;
 }
 
-int64_t getFileSize(file_handle_t fd) {
-    struct stat st;
-    int stat_result = fstat(fd, &st);
-    if (stat_result != 0) {
-        throw std::system_error(errno, std::system_category(),
-                                "getFileSize: failed");
-    }
-    return st.st_size;
-}
 #endif
 
-bool MutationLog::writeFully(file_handle_t fd,
-                             const uint8_t* buf,
-                             size_t nbytes) {
-    while (nbytes > 0) {
-        try {
-            ssize_t written = doWrite(fd, buf, nbytes);
-            nbytes -= written;
-            buf += written;
-        } catch (std::system_error&) {
-            EP_LOG_WARN(
-                    "writeFully: Failed to write to mutation log with error: "
-                    "{}",
-                    cb_strerror());
-
-            return false;
-        }
-    }
-
-    return true;
-}
-
-MutationLog::MutationLog(std::string path,
-                         const size_t bs,
-                         std::function<void()> fileIoTestingHook)
+MutationLogReader::MutationLogReader(std::string path,
+                                     std::function<void()> fileIoTestingHook)
     : fileIoTestingHook(std::move(fileIoTestingHook)),
       logPath(std::move(path)),
-      blockSize(bs),
-      blockPos(HEADER_RESERVED),
-      file(INVALID_FILE_VALUE),
-      disabled(false),
-      entries(0),
-      entryBuffer(MutationLogEntry::len(256)),
-      blockBuffer(bs),
-      readOnly(false),
+      openTimePoint(cb::time::steady_clock::now()),
+      file(OpenFile(this->logPath)),
+      blockSize(0),
       resumeItr(end()) {
     for (auto& ii : itemsLogged) {
         ii.store(0);
     }
     logSize.store(0);
 
-    if (logPath.empty()) {
-        throw std::invalid_argument("MutationLog: empty path");
+    try {
+        readInitialBlock();
+    } catch (ShortReadException&) {
+        close();
+        throw;
     }
 }
 
-MutationLog::~MutationLog() {
+MutationLogReader::~MutationLogReader() {
     EP_LOG_INFO("{}", *this);
-    auto doLog = entries > 0;
     try {
-        if (doLog) {
-            EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
-        }
-        flush();
-        if (doLog) {
-            EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
-        }
         close();
-        if (doLog) {
-            EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
-        }
     } catch (const std::exception& e) {
         EP_LOG_ERR(
-                "MutationLog::~MutationLog: Exception thrown during "
+                "MutationLogReader::~MutationLogReader: Exception thrown "
+                "during "
                 "destruction: '{}' - forcefully closing file",
                 e.what());
         // We need to close() the underlying FD to ensure we don't leak FDs;
@@ -245,105 +139,28 @@ MutationLog::~MutationLog() {
             // than report the error and leave the file in whatever state it
             // is in...
             EP_LOG_ERR(
-                    "MutationLog::~MutationLog: Exception thrown during "
+                    "MutationLogReader::~MutationLogReader: Exception thrown "
+                    "during "
                     "forceful close of file: '{}' - leaving file as-is.",
                     ee.what());
         }
     }
 }
 
-void MutationLog::disable() {
-    if (isOpen()) {
-        close();
-    }
-    disabled = true;
-}
-
-void MutationLog::newItem(Vbid vbucket, const StoredDocKey& key) {
-    if (isEnabled()) {
-        MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.data(), MutationLogType::New, vbucket, key);
-        writeEntry(mle);
-    }
-}
-
-void MutationLog::sync() {
-    if (!isOpen()) {
-        throw std::logic_error("MutationLog::sync: Not valid on a closed log");
-    }
-
-    HdrMicroSecBlockTimer timer(&syncTimeHisto);
-    try {
-        doFsync(file);
-    } catch (std::system_error& e) {
-        throw WriteException(e.what());
-    }
-}
-
-void MutationLog::commit1() {
-    if (isEnabled()) {
-        MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.data(), MutationLogType::Commit1, Vbid(0));
-        writeEntry(mle);
-    }
-}
-
-void MutationLog::commit2() {
-    if (isEnabled()) {
-        MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.data(), MutationLogType::Commit2, Vbid(0));
-        writeEntry(mle);
-        flush();
-        sync();
-    }
-}
-
-bool MutationLog::writeInitialBlock() {
-    if (readOnly) {
-        throw std::logic_error("MutationLog::writeInitialBlock: Not valid on "
-                               "a read-only log");
-    }
-    if (!isEnabled()) {
-        throw std::logic_error("MutationLog::writeInitialBlock: Not valid on "
-                               "a disabled log");
-    }
-    if (!isOpen()) {
-        throw std::logic_error("MutationLog::writeInitialBlock: Not valid on "
-                               "a closed log");
-    }
-    headerBlock.set(blockSize);
-
-    std::vector<uint8_t> block(headerBlock.blockSize());
-    std::copy_n(reinterpret_cast<uint8_t*>(&headerBlock),
-                sizeof(headerBlock),
-                block.data());
-
-    if (!writeFully(file, block.data(), block.size())) {
-        return false;
-    }
-
-    logSize = block.size();
-    return true;
-}
-
 static bool validateHeaderBlockVersion(MutationLogVersion version) {
     return version == MutationLogVersion::V4;
 }
 
-void MutationLog::readInitialBlock() {
-    if (!isOpen()) {
-        throw std::logic_error("MutationLog::readInitialBlock: Not valid on "
-                               "a closed log");
-    }
+void MutationLogReader::readInitialBlock() {
     std::array<uint8_t, LogHeaderBlock::HeaderSize> buf;
     ssize_t bytesread = pread(file, buf.data(), sizeof(buf), 0);
 
     if (bytesread != sizeof(buf)) {
-        EP_LOG_WARN(
-                "FATAL: initial block read failed"
-                "'{}': {}",
-                getLogFile(),
-                strerror(errno));
+        EP_LOG_WARN_CTX(
+                "MutationLogReader::readInitialBlock: Failed to read initial "
+                "block",
+                {"path", getLogFile()},
+                {"error", strerror(errno)});
         throw ShortReadException();
     }
 
@@ -361,181 +178,20 @@ void MutationLog::readInitialBlock() {
     blockSize = headerBlock.blockSize();
 }
 
-bool MutationLog::exists() const {
-    return cb::io::isFile(logPath);
-}
-
-void MutationLog::open(bool _readOnly) {
-    if (!isEnabled()) {
-        return;
-    }
-    openTimePoint = cb::time::steady_clock::now();
-    readOnly = _readOnly;
-    std::string error;
-    if (readOnly) {
-        if (!exists()) {
-            throw FileNotFoundException(logPath);
-        }
-        file = OpenFile(logPath, error, true);
-    } else {
-        file = OpenFile(logPath, error, false);
-    }
-
-    if (file == INVALID_FILE_VALUE) {
-        std::stringstream ss;
-        ss << "Unable to open log file: " << error; // strerror(errno);
-        throw ReadException(ss.str());
-    }
-
-    int64_t size;
-    try {
-         size = getFileSize(file);
-    } catch (std::system_error& e) {
-        throw ReadException(e.what());
-    }
-
-    if (readOnly) {
-        if (size < static_cast<int64_t>(sizeof(LogHeaderBlock))) {
-            try {
-                EP_LOG_WARN("WARNING: Corrupted access log '{}'", getLogFile());
-                reset();
-                return;
-            } catch (ShortReadException&) {
-                close();
-                disabled = true;
-                throw ShortReadException();
-            }
-        }
-        try {
-            readInitialBlock();
-        } catch (ShortReadException &) {
-            close();
-            disabled = true;
-            throw ShortReadException();
-        }
-    } else {
-        if (size != 0) {
-            throw std::runtime_error("Can't append to an existing file");
-        }
-        if (!writeInitialBlock()) {
-            close();
-            disabled = true;
-        }
-    }
-}
-
-void MutationLog::close() {
+void MutationLogReader::close() {
     if (!isOpen()) {
         return;
-    }
-
-    if (!isEnabled()) {
-        doClose(file);
-        file = INVALID_FILE_VALUE;
-        return;
-    }
-
-    if (!readOnly) {
-        flush();
-        sync();
     }
 
     doClose(file);
     file = INVALID_FILE_VALUE;
 }
 
-bool MutationLog::reset() {
-    if (!isEnabled()) {
-        return false;
-    }
-    close();
-
-    if (remove(getLogFile().c_str()) == -1) {
-        EP_LOG_WARN("FATAL: Failed to remove '{}': {}",
-                    getLogFile(),
-                    strerror(errno));
-        return false;
-    }
-
-    open();
-    EP_LOG_DEBUG("Reset a mutation log '{}' successfully.", getLogFile());
-    return true;
-}
-
-bool MutationLog::flush() {
-    if (isEnabled() && blockPos > HEADER_RESERVED) {
-        if (!isOpen()) {
-            throw std::logic_error("MutationLog::flush: "
-                                   "Not valid on a closed log");
-        }
-        needWriteAccess();
-        HdrMicroSecBlockTimer timer(&flushTimeHisto);
-
-        if (blockPos < blockSize) {
-            size_t padding(blockSize - blockPos);
-            memset(blockBuffer.data() + blockPos, 0x00, padding);
-        }
-
-        entries = htons(entries);
-        memcpy(blockBuffer.data() + 2, &entries, sizeof(entries));
-
-        uint16_t crc16(
-                htons(calculateCrc({blockBuffer.data() + 2, blockSize - 2})));
-        memcpy(blockBuffer.data(), &crc16, sizeof(crc16));
-
-        if (writeFully(file, blockBuffer.data(), blockSize)) {
-            logSize.fetch_add(blockSize);
-            blockPos = HEADER_RESERVED;
-            entries = 0;
-        } else {
-            /* write to the mutation log failed. Disable the log */
-            disabled = true;
-            EP_LOG_WARN_RAW("Disabling access log due to write failures");
-            return false;
-        }
-    }
-
-    return true;
-}
-
-void MutationLog::writeEntry(MutationLogEntry *mle) {
-    if (mle->len() >= blockSize) {
-        throw std::invalid_argument("MutationLog::writeEntry: argument mle "
-                "has length (which is " + std::to_string(mle->len()) +
-                ") greater than or equal to blockSize (which is" +
-                std::to_string(blockSize) + ")");
-    }
-    if (!isEnabled()) {
-        throw std::logic_error("MutationLog::writeEntry: Not valid on "
-                "a disabled log");
-    }
-    if (!isOpen()) {
-        throw std::logic_error("MutationLog::writeEntry: Not valid on "
-                "a closed log");
-    }
-    needWriteAccess();
-
-    size_t len(mle->len());
-    if (blockPos + len > blockSize) {
-        if (!flush()) {
-            throw WriteException(
-                    "MutationLog::writeEntry - Failed flushing mutation log "
-                    "buffer to disk");
-        }
-    }
-
-    memcpy(blockBuffer.data() + blockPos, mle, len);
-    blockPos += len;
-    ++entries;
-
-    ++itemsLogged[int(mle->type())];
-}
-
 // ----------------------------------------------------------------------
 // Mutation log iterator
 // ----------------------------------------------------------------------
 
-MutationLog::iterator::iterator(const MutationLog* l, bool e)
+MutationLogReader::iterator::iterator(const MutationLogReader* l, bool e)
     : log(l),
       p(buf.begin()),
       offset(l->header().blockSize() * l->header().blockCount()),
@@ -543,7 +199,7 @@ MutationLog::iterator::iterator(const MutationLog* l, bool e)
       isEnd(e) {
 }
 
-MutationLog::iterator::iterator(const MutationLog::iterator& mit)
+MutationLogReader::iterator::iterator(const MutationLogReader::iterator& mit)
     : log(mit.log),
       entryBuf(mit.entryBuf),
       buf(mit.buf),
@@ -553,8 +209,8 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
       isEnd(mit.isEnd) {
 }
 
-MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::iterator& other)
-{
+MutationLogReader::iterator& MutationLogReader::iterator::operator=(
+        const MutationLogReader::iterator& other) {
     if (this == &other) {
         return *this;
     }
@@ -569,9 +225,9 @@ MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::itera
     return *this;
 }
 
-MutationLog::iterator::~iterator() = default;
+MutationLogReader::iterator::~iterator() = default;
 
-void MutationLog::iterator::prepItem() {
+void MutationLogReader::iterator::prepItem() {
     const auto copyLen =
             MutationLogEntry::newEntry(p, bufferBytesRemaining())->len();
     Expects(copyLen <= LOG_ENTRY_BUF_SIZE);
@@ -579,12 +235,12 @@ void MutationLog::iterator::prepItem() {
     std::copy_n(p, copyLen, entryBuf.begin());
 }
 
-size_t MutationLog::iterator::getCurrentEntryLen() const {
+size_t MutationLogReader::iterator::getCurrentEntryLen() const {
     Expects(log->headerBlock.version() == MutationLogVersion::V4);
     return MutationLogEntry::newEntry(entryBuf.begin(), entryBuf.size())->len();
 }
 
-MutationLog::iterator& MutationLog::iterator::operator++() {
+MutationLogReader::iterator& MutationLogReader::iterator::operator++() {
     if (--items == 0) {
         nextBlock();
     } else {
@@ -595,7 +251,8 @@ MutationLog::iterator& MutationLog::iterator::operator++() {
     return *this;
 }
 
-bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) const {
+bool MutationLogReader::iterator::operator==(
+        const MutationLogReader::iterator& rhs) const {
     return log->fd() == rhs.log->fd()
         && (
             (isEnd == rhs.isEnd)
@@ -603,30 +260,31 @@ bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) const {
                 && items == rhs.items));
 }
 
-bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
+bool MutationLogReader::iterator::operator!=(
+        const MutationLogReader::iterator& rhs) const {
     return ! operator==(rhs);
 }
 
-MutationLog::MutationLogEntryHolder MutationLog::iterator::operator*() {
+MutationLogReader::MutationLogEntryHolder MutationLogReader::iterator::operator*() {
     Expects(log->headerBlock.version() == MutationLogVersion::Current);
     return {entryBuf.data(), false /*not allocated*/};
 }
 
-size_t MutationLog::iterator::bufferBytesRemaining() {
+size_t MutationLogReader::iterator::bufferBytesRemaining() {
     return buf.size() - (p - buf.begin());
 }
 
-uint16_t MutationLog::calculateCrc(cb::const_byte_buffer data) const {
+uint16_t MutationLogReader::calculateCrc(cb::const_byte_buffer data) const {
     Expects(headerBlock.version() == MutationLogVersion::V4);
     const auto crc32 = crc32c(data.data(), data.size(), 0);
     const uint16_t computed_crc16(crc32 & 0xffff);
     return computed_crc16;
 }
 
-void MutationLog::iterator::nextBlock() {
-    if (log->isEnabled() && !log->isOpen()) {
-        throw std::logic_error("MutationLog::iterator::nextBlock: "
-                "log is enabled and not open");
+void MutationLogReader::iterator::nextBlock() {
+    if (!log->isOpen()) {
+        throw std::logic_error(
+                "MutationLogReader::iterator::nextBlock: log is not open");
     }
 
     buf.resize(log->header().blockSize());
@@ -668,7 +326,7 @@ void MutationLog::iterator::nextBlock() {
     prepItem();
 }
 
-void MutationLog::resetCounts(size_t *items) {
+void MutationLogReader::resetCounts(size_t* items) {
     for (int i(0); i < int(MutationLogType::NumberOfTypes); ++i) {
         itemsLogged[i] = items[i];
     }
@@ -807,17 +465,9 @@ size_t MutationLogHarvester::total() {
     return rv;
 }
 
-std::ostream& operator<<(std::ostream& out, const MutationLog& mlog) {
-    out << "MutationLog{logPath:" << mlog.logPath << ", "
+std::ostream& operator<<(std::ostream& out, const MutationLogReader& mlog) {
+    out << "MutationLogReader{logPath:" << mlog.logPath << ", "
         << "blockSize:" << mlog.blockSize << ", "
-        << "blockPos:" << mlog.blockPos << ", "
-        << "file:" << mlog.file << ", "
-        << "disabled:" << mlog.disabled << ", "
-        << "entries:" << mlog.entries << ", "
-        << "entryBuffer:"
-        << reinterpret_cast<const void*>(mlog.entryBuffer.data()) << ", "
-        << "blockBuffer:"
-        << reinterpret_cast<const void*>(mlog.blockBuffer.data()) << ", "
-        << "readOnly:" << mlog.readOnly << "}";
+        << "file:" << mlog.file << "}";
     return out;
 }

@@ -41,7 +41,7 @@ class ItemMetaData;
 class KVBucket;
 class KVShard;
 class KVStoreIface;
-class MutationLog;
+class MutationLogReader;
 class PauseResumeVBVisitor;
 class PersistenceCallback;
 class VBucketMap;

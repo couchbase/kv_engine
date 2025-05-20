@@ -65,8 +65,7 @@ TEST_F(MutationLogTest, Logging) {
     }
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -110,8 +109,7 @@ TEST_F(MutationLogTest, SmallerBlockSize) {
     }
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(2));
 
@@ -143,8 +141,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
     }
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -208,14 +205,13 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
     close(file);
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
         h.setVBucket(Vbid(3));
 
-        EXPECT_THROW(h.load(), MutationLog::CRCReadException);
+        EXPECT_THROW(h.load(), MutationLogReader::CRCReadException);
 
         EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::New)]);
         EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::Commit1)]);
@@ -264,15 +260,13 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 5000));
 
     {
-        MutationLog ml(tmp_log_filename);
-
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
         h.setVBucket(Vbid(3));
 
-        EXPECT_THROW(h.load(), MutationLog::ShortReadException);
+        EXPECT_THROW(h.load(), MutationLogReader::ShortReadException);
     }
 
     // Break the log harder (can't read even the initial block)
@@ -281,8 +275,8 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 8));
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        EXPECT_THROW(MutationLogReader ml(tmp_log_filename),
+                     MutationLogReader::ShortReadException);
     }
 }
 
@@ -290,8 +284,16 @@ TEST_F(MutationLogTest, YUNOOPEN) {
     // Make file unreadable
     std::filesystem::permissions(tmp_log_filename,
                                  std::filesystem::perms::none);
-    MutationLog ml(tmp_log_filename);
-    EXPECT_THROW(ml.open(), MutationLog::ReadException);
+    try {
+        MutationLogReader ml(tmp_log_filename);
+        FAIL() << "Should not have access to logfile; ";
+#ifdef WIN32
+    } catch (const MutationLogReader::ReadException&) {
+#else
+    } catch (const std::system_error& error) {
+        EXPECT_EQ(EACCES, error.code().value());
+#endif
+    }
     // Restore permissions to be able to delete file.
     std::filesystem::permissions(tmp_log_filename,
                                  std::filesystem::perms::owner_read |
@@ -301,8 +303,8 @@ TEST_F(MutationLogTest, YUNOOPEN) {
 // MB-55939: Test behaviour when the mutation log cannot be written to disk
 // (e.g. disk full).
 TEST_F(MutationLogTest, WriteFail) {
-    // Test: Create and open a MutationLog; on destruction we should not see
-    // an exception thrown.
+    // Test: Create and open a MutationLogReader; on destruction we should not
+    // see an exception thrown.
     bool hookCalled = false;
     {
         MutationLogWriter ml(tmp_log_filename,
@@ -320,7 +322,8 @@ TEST_F(MutationLogTest, WriteFail) {
     EXPECT_TRUE(hookCalled);
 }
 
-// Test that the MutationLog::iterator class obeys expected iterator behaviour.
+// Test that the MutationLogReader::iterator class obeys expected iterator
+// behaviour.
 TEST_F(MutationLogTest, Iterator) {
     // Create a simple mutation log to work on.
     {
@@ -337,8 +340,7 @@ TEST_F(MutationLogTest, Iterator) {
     }
 
     // Now check the iterators.
-    MutationLog ml(tmp_log_filename);
-    ml.open(true);
+    MutationLogReader ml(tmp_log_filename);
 
     // Can copy-construct.
     auto iter = ml.begin();
@@ -376,8 +378,7 @@ TEST_F(MutationLogTest, BatchLoad) {
     }
 
     {
-        MutationLog ml(tmp_log_filename);
-        ml.open(true);
+        MutationLogReader ml(tmp_log_filename);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(0));
         h.setVBucket(Vbid(1));
@@ -399,28 +400,4 @@ TEST_F(MutationLogTest, BatchLoad) {
         h.apply(&maps, loaderFun);
         EXPECT_EQ(8, maps[0].size() + maps[1].size());
     }
-}
-
-// @todo
-//   Test Read Only log
-//   Test close / open / close / open
-//   Fix copy constructor bug
-//
-
-TEST_F(MutationLogTest, ReadOnly) {
-    remove(tmp_log_filename.c_str());
-    MutationLog ml(tmp_log_filename);
-    EXPECT_THROW(ml.open(true), MutationLog::FileNotFoundException);
-
-    MutationLog m2(tmp_log_filename);
-    m2.open();
-    m2.newItem(Vbid(3), makeStoredDocKey("key1"));
-    m2.close();
-
-    // We should be able to open the file now
-    ml.open(true);
-
-    // But we should not be able to add items to a read only stream
-    EXPECT_THROW(ml.newItem(Vbid(4), makeStoredDocKey("key2")),
-                 MutationLog::WriteException);
 }

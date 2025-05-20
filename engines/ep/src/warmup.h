@@ -35,7 +35,7 @@ class Configuration;
 class EPStats;
 class EPBucket;
 class GetValue;
-class MutationLog;
+class MutationLogReader;
 class StatCollector;
 class VBucketMap;
 class Vbid;
@@ -328,7 +328,7 @@ public:
     }
 
     enum class WarmupAccessLogState { Yield, Done, Failed };
-    WarmupAccessLogState tryLoadFromAccessLog(MutationLog& lf,
+    WarmupAccessLogState tryLoadFromAccessLog(MutationLogReader& lf,
                                               uint16_t shardId);
 
     bool isComplete() const {
@@ -602,7 +602,8 @@ private:
      *
      * @return The state of loading required to determine the next warm-up phase
      */
-    WarmupAccessLogState loadFromAccessLog(MutationLog& log, uint16_t shardId);
+    WarmupAccessLogState loadFromAccessLog(MutationLogReader& log,
+                                           uint16_t shardId);
 
     /* Terminal state of warmup. Updates statistics and marks warmup as
      * completed
@@ -739,7 +740,7 @@ private:
     std::atomic<size_t> estimatedKeyCount{std::numeric_limits<size_t>::max()};
     std::atomic<size_t> estimatedValueCount{std::numeric_limits<size_t>::max()};
 
-    std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
+    std::vector<std::vector<std::unique_ptr<MutationLogReader>>> accessLog;
 
     /**
      * A scale factor for computing how much memory can be consumed during

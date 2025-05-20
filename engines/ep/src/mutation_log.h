@@ -60,7 +60,6 @@ using file_handle_t = int;
 #endif
 
 const size_t MIN_LOG_HEADER_SIZE(4096);
-const size_t HEADER_RESERVED(4);
 
 /**
  * The versions of the layout for the mutation log
@@ -133,32 +132,15 @@ static_assert(LogHeaderBlock::HeaderSize == sizeof(LogHeaderBlock),
  * The MutationLog records major key events to allow ep-engine to more
  * quickly restore the server to its previous state upon restart.
  */
-class MutationLog {
+class MutationLogReader {
 public:
-    explicit MutationLog(
+    explicit MutationLogReader(
             std::string path,
-            const size_t bs = MIN_LOG_HEADER_SIZE,
             std::function<void()> fileIoTestingHook = []() {});
 
-    ~MutationLog();
-    MutationLog(const MutationLog&) = delete;
-    const MutationLog& operator=(const MutationLog&) = delete;
-
-    void newItem(Vbid vbucket, const StoredDocKey& key);
-
-    void commit1();
-
-    void commit2();
-
-    bool flush();
-
-    void sync();
-
-    void disable();
-
-    bool isEnabled() const {
-        return !disabled;
-    }
+    ~MutationLogReader();
+    MutationLogReader(const MutationLogReader&) = delete;
+    const MutationLogReader& operator=(const MutationLogReader&) = delete;
 
     bool isOpen() const {
         return file != INVALID_FILE_VALUE;
@@ -168,26 +150,12 @@ public:
         return headerBlock;
     }
 
-    bool exists() const;
-
     const std::string &getLogFile() const { return logPath; }
-
-    /**
-     * Open and initialize the log.
-     *
-     * This typically happens automatically.
-     */
-    void open(bool _readOnly = false);
 
     /**
      * Close the log file.
      */
     void close();
-
-    /**
-     * Reset the log.
-     */
-    bool reset();
 
     /**
      * Reset the item type counts to the given values.
@@ -197,34 +165,11 @@ public:
     void resetCounts(size_t *);
 
     /**
-     * Write `nbytes` of data from `buf` to the specified 'fd' at the current
-     * offset.
-     */
-
-    bool writeFully(file_handle_t fd, const uint8_t* buf, size_t nbytes);
-
-    /**
-     * Exception thrown upon failure to write a mutation log.
-     */
-    class WriteException : public std::runtime_error {
-    public:
-        explicit WriteException(const std::string& s) : std::runtime_error(s) {
-        }
-    };
-
-    /**
      * Exception thrown upon failure to read a mutation log.
      */
     class ReadException : public std::runtime_error {
     public:
         explicit ReadException(const std::string& s) : std::runtime_error(s) {
-        }
-    };
-
-    class FileNotFoundException : public ReadException {
-    public:
-        explicit FileNotFoundException(const std::string& s)
-            : ReadException(s) {
         }
     };
 
@@ -262,7 +207,7 @@ public:
             : mle(_mle), destroy(_destroy) {
         }
 
-        MutationLogEntryHolder(MutationLogEntryHolder&& rhs)
+        MutationLogEntryHolder(MutationLogEntryHolder&& rhs) noexcept
             : mle(rhs.mle), destroy(rhs.destroy) {
             rhs.mle = nullptr;
         }
@@ -316,10 +261,9 @@ public:
         MutationLogEntryHolder operator*();
 
     private:
+        friend class MutationLogReader;
 
-        friend class MutationLog;
-
-        explicit iterator(const MutationLog* l, bool e = false);
+        explicit iterator(const MutationLogReader* l, bool e = false);
 
         /// @returns the length of the entry the iterator is currently at
         size_t getCurrentEntryLen() const;
@@ -333,7 +277,7 @@ public:
          */
         MutationLogEntryHolder upgradeEntry() const;
 
-        const MutationLog* log;
+        const MutationLogReader* log;
         std::vector<uint8_t> entryBuf;
         std::vector<uint8_t> buf;
         std::vector<uint8_t>::const_iterator p;
@@ -422,41 +366,26 @@ protected:
     /// number set in the header
     uint16_t calculateCrc(cb::const_byte_buffer data) const;
 
-    void needWriteAccess() {
-        if (readOnly) {
-            throw WriteException("Invalid access (file opened read only)");
-        }
-    }
-    void writeEntry(MutationLogEntry *mle);
-
-    bool writeInitialBlock();
     void readInitialBlock();
 
     file_handle_t fd() const { return file; }
 
     std::function<void()> fileIoTestingHook;
-
+    const std::string logPath;
+    const cb::time::steady_clock::time_point openTimePoint;
+    file_handle_t file;
     LogHeaderBlock headerBlock;
-    const std::string  logPath;
-    size_t             blockSize;
-    size_t             blockPos;
-    file_handle_t      file;
-    bool               disabled;
-    uint16_t           entries;
-    std::vector<uint8_t> entryBuffer;
-    std::vector<uint8_t> blockBuffer;
-    bool               readOnly;
+    size_t blockSize;
     iterator resumeItr;
-    cb::time::steady_clock::time_point openTimePoint;
     size_t keyLoaded{0};
     size_t keySkipped{0};
     size_t keyError{0};
 
-    friend std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
-
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const MutationLogReader& mlog);
 };
 
-std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
+std::ostream& operator<<(std::ostream& os, const MutationLogReader& mlog);
 
 /**
  * MutationLogHarvester::apply callback type.
@@ -473,7 +402,7 @@ class EventuallyPersistentEngine;
  */
 class MutationLogHarvester {
 public:
-    explicit MutationLogHarvester(MutationLog& ml,
+    explicit MutationLogHarvester(MutationLogReader& ml,
                                   EventuallyPersistentEngine* e = nullptr)
         : mlog(ml), engine(e), itemsSeen() {
     }
@@ -552,7 +481,7 @@ private:
      */
     void removeNonExistentKeys(Vbid vb);
 
-    MutationLog &mlog;
+    MutationLogReader& mlog;
     EventuallyPersistentEngine *engine;
     std::set<Vbid> vbid_set;
 
@@ -562,4 +491,4 @@ private:
 };
 
 template <>
-struct fmt::formatter<MutationLog> : ostream_formatter {};
+struct fmt::formatter<MutationLogReader> : ostream_formatter {};
