@@ -28,6 +28,7 @@ release mirror for GA builds, as it is faster.
 """
 
 
+import os
 import argparse
 import itertools
 import re
@@ -37,6 +38,7 @@ parser = argparse.ArgumentParser(
     prog='docker_repro_env.py',
     description='Builds a Docker image with GDB matching the environment described in a couchbase.log.')
 parser.add_argument('logfile', type=argparse.FileType('r'))
+parser.add_argument('--dockerfile', type=argparse.FileType('w'), default='Dockerfile')
 parser.parse_args()
 
 SEPARATOR = '=' * 78 + '\n'
@@ -282,7 +284,7 @@ def fetch_latestbuilds_lists(release_name, build_number):
     return package_base_url, set(pkg[1:-1] for pkg in packages)
 
 
-def main(logfile):
+def write_dockerfile(logfile, dockerfile):
     # Search the log file for matching blocks.
     interesting_blocks = {
         'os_info': 'cat /etc/os-release',
@@ -403,7 +405,7 @@ def main(logfile):
         raise NotImplementedError(f'Support for {pkg_manager} not implemented')
 
     # First line in Dockerfile
-    print(f'FROM --platform=linux/{platform} {image}:{tag}')
+    print(f'FROM --platform=linux/{platform} {image}:{tag}', file=dockerfile)
 
     important_packages = [
         'libc6',
@@ -430,35 +432,35 @@ def main(logfile):
     if pkg_manager == 'dpkg':
         print(
             'RUN apt-get update', command_separator,
-            end='')
+            end='', file=dockerfile)
         for pkg, version in packages_to_install:
             if version:
                 print(
                     f'(apt-get -y -f install --no-install-recommends \'{pkg}={version}\' || apt-get -y install --no-install-recommends \'{pkg}\')',
                     command_separator,
-                    end='')
+                    end='', file=dockerfile)
             else:
                 print(
                     f'(apt-get -y -f install --no-install-recommends \'{pkg}\')',
                     command_separator,
-                    end='')
-        print('true')
+                    end='', file=dockerfile)
+        print('true', file=dockerfile)
     elif pkg_manager == 'rpm':
         # check-update retuns 100 on success, so use an OR.
         print(
             'RUN yum check-update || ',
-            end='')
+            end='', file=dockerfile)
         for pkg, version in packages_to_install:
             if version:
                 print(
                     f'(yum install -y \'{pkg}-{version}\' || yum install -y \'{pkg}\')',
                     command_separator,
-                    end='')
+                    end='', file=dockerfile)
             else:
                 print(
                     f'(yum install -y \'{pkg}\')',
                     command_separator,
-                    end='')
+                    end='', file=dockerfile)
         print('true')
 
     # Use a cache for the CB Server package downloads.
@@ -467,25 +469,70 @@ def main(logfile):
         command_separator))
     # Fetch packages (in parallel)
     print(run_package_cache_command,
-          f'(wget -c -nc \'{server_pkg}\' & wget -c -nc \'{symbols_pkg}\')',
-          command_separator, 'wait')
+          f'(wget -c -nc --progress=dot:mega \'{server_pkg}\' & wget -c -nc --progress=dot:mega \'{symbols_pkg}\')',
+          command_separator, 'wait', file=dockerfile)
 
     if pkg_manager == 'dpkg':
         # Install packages and cleanup
         print(run_package_cache_command,
-              f'dpkg -i \'{server_pkg_name}\'')
+              f'dpkg -i --force-all \'{server_pkg_name}\'', file=dockerfile)
         print(run_package_cache_command,
-              f'dpkg -i \'{symbols_pkg_name}\'')
+              f'dpkg -i --force-all \'{symbols_pkg_name}\'', file=dockerfile)
     elif pkg_manager == 'rpm':
         # Fetch packages (in parallel), install and cleanup
         print(run_package_cache_command,
-              f'rpm -i --nodeps \'{server_pkg_name}\'')
+              f'rpm -i --nodeps \'{server_pkg_name}\'', file=dockerfile)
         print(run_package_cache_command,
-              f'rpm -i --nodeps \'{symbols_pkg_name}\'')
+              f'rpm -i --nodeps \'{symbols_pkg_name}\'', file=dockerfile)
 
-    dbg('\nDone! Run:\n  docker build -t docker_repro_env - < Dockerfile && docker run --rm -it -v $PWD:/media docker_repro_env')
+    dockerfile_name = dockerfile.name
+    # Check if output is file or <stdout>
+    dockerfile_is_file = os.path.isfile(dockerfile_name)
+    if not dockerfile_is_file:
+        dockerfile_name = 'Dockerfile'
+    # We can close the file now
+    dockerfile.close()
+
+def main(logfile, dockerfile):
+    write_dockerfile(logfile, dockerfile)
+    dockerfile_name = dockerfile.name
+    # Check if output is file or <stdout>
+    dockerfile_is_file = os.path.isfile(dockerfile_name)
+    if not dockerfile_is_file:
+        dockerfile_name = 'Dockerfile'
+    # We can close the file now
+    dockerfile.close()
+
+    # Commands to build and run the image with /media as the working directory
+    build_command = f'docker build -t docker_repro_env - < {dockerfile_name}'
+    run_command = f'docker run --rm -it -v $PWD:/media docker_repro_env'
+
     dbg('If the image architecture does not match your host, you may need to install '
         'emulation support:\n  docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64')
+
+    # If not a file, just print the commands and exit (we cannot build)
+    if not dockerfile_is_file:
+        dbg(f'Run:\n  {build_command} && {run_command}')
+        return
+
+    # If a file, ask if we should build and run
+    if input('Do you want to build the image? (y/n): ') != 'y':
+        dbg(f'Aborted! Run:\n  {build_command} && {run_command}')
+        return
+
+    dbg(f'Running: {build_command}')
+    if os.system(build_command) != 0:
+        raise ValueError('Build failed')
+
+    if input('Do you want to run the image and mount the current directory? (y/n): ') != 'y':
+        dbg(f'Aborted! Run:\n  {run_command}')
+        return
+
+    dbg(f'Running: {run_command}')
+    if os.system(run_command) != 0:
+        raise ValueError('Run failed')
+
+    dbg('Done!')
 
 
 if __name__ == '__main__':
