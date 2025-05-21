@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -27,85 +26,63 @@
 #include "mutation_log.h"
 #include "vbucket.h"
 
-#ifdef WIN32
-ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
-{
-    DWORD bytesread;
-    OVERLAPPED winoffs;
-    memset(&winoffs, 0, sizeof(winoffs));
-    winoffs.Offset = offset & 0xFFFFFFFF;
-    winoffs.OffsetHigh = (offset >> 32) & 0x7FFFFFFF;
-    if (!ReadFile(fd, buf, nbyte, &bytesread, &winoffs)) {
-        /* luckily we don't check errno so we don't need to care about that */
+#include <cbcrypto/file_reader.h>
+
+/**
+ * A class to allow for random access to the cb::crypto::FileReader (which
+ * only support sequential read). In the initial version we read the entire
+ * file in memory (as the underlying file reader does that). In a later patch
+ * we'll replace this by reopening the file if access to an earlier block
+ * is needed (which we cannot do as the underlying "file" may be both
+ * compressed and encrypted)
+ */
+class RandomIoFileReader {
+public:
+    RandomIoFileReader(std::filesystem::path path) : path(std::move(path)) {
+        open();
+        current_block = fileReader->read();
+    }
+
+    ssize_t pread(void* data, size_t nbytes, uint64_t offset);
+
+protected:
+    void open() {
+        current_block.clear();
+        current_offset = 0;
+        fileReader = cb::crypto::FileReader::create(
+                path,
+                [](auto) -> cb::crypto::SharedEncryptionKey { return {}; },
+                {});
+    }
+
+    std::filesystem::path path;
+    uint64_t current_offset = 0;
+    std::string current_block;
+    std::unique_ptr<cb::crypto::FileReader> fileReader;
+};
+
+ssize_t RandomIoFileReader::pread(void* data, size_t nbytes, uint64_t offset) {
+    if (offset > current_block.size()) {
+        // eof
         return -1;
     }
 
-    return bytesread;
+    nbytes = std::min(static_cast<uint64_t>(nbytes),
+                      current_block.size() - offset);
+
+    std::copy_n(
+            current_block.data() + offset, nbytes, static_cast<char*>(data));
+    return nbytes;
 }
-
-static inline void doClose(file_handle_t fd) {
-    if (!CloseHandle(fd)) {
-        throw std::system_error(GetLastError(), std::system_category(),
-                                "doClose: failed");
-    }
-}
-
-file_handle_t OpenFile(const std::string& fname) {
-    file_handle_t fd;
-    fd = CreateFile(const_cast<char*>(fname.c_str()),
-                    GENERIC_READ,
-                    FILE_SHARE_READ | FILE_SHARE_WRITE,
-                    NULL,
-                    OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
-                    NULL);
-
-    if (fd == INVALID_FILE_VALUE) {
-        throw std::system_error(GetLastError(),
-                                std::system_category(),
-                                fmt::format("Failed to open file '{}'", fname));
-    }
-
-    return fd;
-}
-
-#else
-
-static void doClose(file_handle_t fd) {
-    int ret;
-    while ((ret = close(fd)) == -1 && (errno == EINTR)) {
-        /* Retry */
-    }
-    if (ret == -1) {
-        // Non EINTR error
-        throw std::system_error(errno, std::system_category(),
-                                "doClose: failed");
-    }
-}
-
-file_handle_t OpenFile(const std::string& fname) {
-    file_handle_t fd;
-    fd = ::open(const_cast<char*>(fname.c_str()), O_RDONLY);
-
-    if (fd < 0) {
-        throw std::system_error(errno,
-                                std::system_category(),
-                                fmt::format("Failed to open file '{}'", fname));
-    }
-
-    return fd;
-}
-
-#endif
 
 MutationLogReader::MutationLogReader(std::string path,
                                      std::function<void()> fileIoTestingHook)
     : fileIoTestingHook(std::move(fileIoTestingHook)),
       logPath(std::move(path)),
       openTimePoint(cb::time::steady_clock::now()),
-      file(OpenFile(this->logPath)),
       blockSize(0),
-      resumeItr(end()) {
+      resumeItr(end()),
+      random_io_reader(std::make_unique<RandomIoFileReader>(this->logPath)) {
     for (auto& ii : itemsLogged) {
         ii.store(0);
     }
@@ -121,30 +98,7 @@ MutationLogReader::MutationLogReader(std::string path,
 
 MutationLogReader::~MutationLogReader() {
     EP_LOG_INFO("{}", *this);
-    try {
-        close();
-    } catch (const std::exception& e) {
-        EP_LOG_ERR(
-                "MutationLogReader::~MutationLogReader: Exception thrown "
-                "during "
-                "destruction: '{}' - forcefully closing file",
-                e.what());
-        // We need to close() the underlying FD to ensure we don't leak FDs;
-        // on Windows this is particulary problematic as one cannot delete
-        // the file if there's still a handle open.
-        try {
-            doClose(file);
-        } catch (const std::exception& ee) {
-            // If doClose fails then there's not much more we can do other
-            // than report the error and leave the file in whatever state it
-            // is in...
-            EP_LOG_ERR(
-                    "MutationLogReader::~MutationLogReader: Exception thrown "
-                    "during "
-                    "forceful close of file: '{}' - leaving file as-is.",
-                    ee.what());
-        }
-    }
+    close();
 }
 
 static bool validateHeaderBlockVersion(MutationLogVersion version) {
@@ -153,8 +107,7 @@ static bool validateHeaderBlockVersion(MutationLogVersion version) {
 
 void MutationLogReader::readInitialBlock() {
     std::array<uint8_t, LogHeaderBlock::HeaderSize> buf;
-    ssize_t bytesread = pread(file, buf.data(), sizeof(buf), 0);
-
+    const auto bytesread = random_io_reader->pread(buf.data(), sizeof(buf), 0);
     if (bytesread != sizeof(buf)) {
         EP_LOG_WARN_CTX(
                 "MutationLogReader::readInitialBlock: Failed to read initial "
@@ -178,13 +131,15 @@ void MutationLogReader::readInitialBlock() {
     blockSize = headerBlock.blockSize();
 }
 
-void MutationLogReader::close() {
-    if (!isOpen()) {
-        return;
+bool MutationLogReader::isOpen() const {
+    if (random_io_reader) {
+        return true;
     }
+    return false;
+}
 
-    doClose(file);
-    file = INVALID_FILE_VALUE;
+void MutationLogReader::close() {
+    random_io_reader.reset();
 }
 
 // ----------------------------------------------------------------------
@@ -253,11 +208,9 @@ MutationLogReader::iterator& MutationLogReader::iterator::operator++() {
 
 bool MutationLogReader::iterator::operator==(
         const MutationLogReader::iterator& rhs) const {
-    return log->fd() == rhs.log->fd()
-        && (
-            (isEnd == rhs.isEnd)
-            || (offset == rhs.offset
-                && items == rhs.items));
+    return log->random_io_reader == rhs.log->random_io_reader &&
+           ((isEnd == rhs.isEnd) ||
+            (offset == rhs.offset && items == rhs.items));
 }
 
 bool MutationLogReader::iterator::operator!=(
@@ -288,7 +241,8 @@ void MutationLogReader::iterator::nextBlock() {
     }
 
     buf.resize(log->header().blockSize());
-    ssize_t bytesread = pread(log->fd(), buf.data(), buf.size(), offset);
+    ssize_t bytesread =
+            log->random_io_reader->pread(buf.data(), buf.size(), offset);
     if (bytesread < 1) {
         isEnd = true;
         return;
@@ -467,7 +421,6 @@ size_t MutationLogHarvester::total() {
 
 std::ostream& operator<<(std::ostream& out, const MutationLogReader& mlog) {
     out << "MutationLogReader{logPath:" << mlog.logPath << ", "
-        << "blockSize:" << mlog.blockSize << ", "
-        << "file:" << mlog.file << "}";
+        << "blockSize:" << mlog.blockSize << "}";
     return out;
 }

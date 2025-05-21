@@ -51,14 +51,6 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef WIN32
-using file_handle_t = HANDLE;
-#define INVALID_FILE_VALUE INVALID_HANDLE_VALUE
-#else
-using file_handle_t = int;
-#define INVALID_FILE_VALUE -1
-#endif
-
 const size_t MIN_LOG_HEADER_SIZE(4096);
 
 /**
@@ -128,6 +120,8 @@ private:
 static_assert(LogHeaderBlock::HeaderSize == sizeof(LogHeaderBlock),
               "Unexpected struct size");
 
+class RandomIoFileReader;
+
 /**
  * The MutationLog records major key events to allow ep-engine to more
  * quickly restore the server to its previous state upon restart.
@@ -142,9 +136,7 @@ public:
     MutationLogReader(const MutationLogReader&) = delete;
     const MutationLogReader& operator=(const MutationLogReader&) = delete;
 
-    bool isOpen() const {
-        return file != INVALID_FILE_VALUE;
-    }
+    bool isOpen() const;
 
     LogHeaderBlock header() const {
         return headerBlock;
@@ -362,24 +354,25 @@ public:
     std::atomic<size_t> logSize;
 
 protected:
+    friend class iterator;
+
     /// Calculate the CRC for the provided data according to the version
     /// number set in the header
     uint16_t calculateCrc(cb::const_byte_buffer data) const;
 
     void readInitialBlock();
 
-    file_handle_t fd() const { return file; }
-
     std::function<void()> fileIoTestingHook;
     const std::string logPath;
     const cb::time::steady_clock::time_point openTimePoint;
-    file_handle_t file;
     LogHeaderBlock headerBlock;
     size_t blockSize;
     iterator resumeItr;
     size_t keyLoaded{0};
     size_t keySkipped{0};
     size_t keyError{0};
+
+    std::unique_ptr<RandomIoFileReader> random_io_reader;
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const MutationLogReader& mlog);
