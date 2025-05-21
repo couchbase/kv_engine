@@ -249,19 +249,19 @@ TEST_P(CollectionsLegacyDcpTest,
     // between the stream request being successful and the stream setting up
     // the backfill
     auto mockStream =
-            producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::None,
-                                              /*opaque*/ 0,
-                                              *vb,
-                                              /*st_seqno*/ 0,
-                                              /*en_seqno*/ ~0,
-                                              /*vb_uuid*/ 0xabcd,
-                                              /*snap_start_seqno*/ 0,
-                                              /*snap_end_seqno*/ ~0,
-                                              IncludeValue::Yes,
-                                              IncludeXattrs::Yes,
-                                              IncludeDeletedUserXattrs::No,
-                                              {},
-                                              dropDefault);
+            producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
+                                          /*opaque*/ 0,
+                                          *vb,
+                                          /*st_seqno*/ 0,
+                                          /*en_seqno*/ ~0,
+                                          /*vb_uuid*/ 0xabcd,
+                                          /*snap_start_seqno*/ 0,
+                                          /*snap_end_seqno*/ ~0,
+                                          IncludeValue::Yes,
+                                          IncludeXattrs::Yes,
+                                          IncludeDeletedUserXattrs::No,
+                                          {},
+                                          dropDefault);
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 

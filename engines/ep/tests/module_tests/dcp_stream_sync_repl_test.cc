@@ -810,14 +810,14 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
             IncludeXattrs::Yes,
             {{"enable_sync_writes", "true"}, {"consumer_name", "replica1"}});
 
-    stream = producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::None,
-                                               /*opaque*/ 0,
-                                               *vb0,
-                                               /*st_seqno*/ 0,
-                                               /*en_seqno*/ ~0,
-                                               /*vb_uuid*/ 0xabcd,
-                                               /*snap_start_seqno*/ 0,
-                                               /*snap_end_seqno*/ ~0);
+    stream = producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
+                                           /*opaque*/ 0,
+                                           *vb0,
+                                           /*st_seqno*/ 0,
+                                           /*en_seqno*/ ~0,
+                                           /*vb_uuid*/ 0xabcd,
+                                           /*snap_start_seqno*/ 0,
+                                           /*snap_end_seqno*/ ~0);
 
     // Setup - put a single checkpoint_start item into a vector to be passed
     // to ActiveStream::processItems()

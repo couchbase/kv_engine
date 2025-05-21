@@ -23,6 +23,9 @@ class MockDcpProducer;
  */
 class MockActiveStream : public ActiveStream {
 public:
+    // Bring in the constructor from ActiveStream.
+    using ActiveStream::ActiveStream;
+
     MockActiveStream(
             EventuallyPersistentEngine* e,
             std::shared_ptr<MockDcpProducer> p,

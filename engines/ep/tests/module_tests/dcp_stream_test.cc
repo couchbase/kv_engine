@@ -1722,7 +1722,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
         std::optional<std::string_view> jsonFilter,
         cb::mcbp::DcpAddStreamFlag flags) {
     if (enforceProducerFlags) {
-        stream = producer->mockActiveStreamRequest(
+        stream = producer->addMockActiveStream(
                 flags,
                 0 /*opaque*/,
                 vb,
@@ -1737,14 +1737,14 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getMaxMarkerVersion(),
                 jsonFilter);
     } else {
-        stream = producer->mockActiveStreamRequest(flags,
-                                                   0 /*opaque*/,
-                                                   vb,
-                                                   0 /*st_seqno*/,
-                                                   ~0 /*en_seqno*/,
-                                                   0x0 /*vb_uuid*/,
-                                                   0 /*snap_start_seqno*/,
-                                                   ~0 /*snap_end_seqno*/);
+        stream = producer->addMockActiveStream(flags,
+                                               0 /*opaque*/,
+                                               vb,
+                                               0 /*st_seqno*/,
+                                               ~0 /*en_seqno*/,
+                                               0x0 /*vb_uuid*/,
+                                               0 /*snap_start_seqno*/,
+                                               ~0 /*snap_end_seqno*/);
     }
 }
 
@@ -3539,7 +3539,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     store_item(vbid, makeStoredDocKey("item 4"), "value"); // seqno 4
     cm.createNewCheckpoint();
 
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             {},
             /*opaque*/ 0,
             vb,
@@ -3645,14 +3645,14 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     producer->createCheckpointProcessorTask();
 
-    stream = producer->mockActiveStreamRequest({},
-                                               /*opaque*/ 0,
-                                               vb,
-                                               /*st_seqno*/ 0,
-                                               /*en_seqno*/ ~0,
-                                               /*vb_uuid*/ 0xabcd,
-                                               /*snap_start_seqno*/ 0,
-                                               /*snap_end_seqno*/ ~0);
+    stream = producer->addMockActiveStream({},
+                                           /*opaque*/ 0,
+                                           vb,
+                                           /*st_seqno*/ 0,
+                                           /*en_seqno*/ ~0,
+                                           /*vb_uuid*/ 0xabcd,
+                                           /*snap_start_seqno*/ 0,
+                                           /*snap_end_seqno*/ ~0);
 
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
@@ -3882,14 +3882,14 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     // Re-create producer now we have items only on disk. We want to stream up
     // to seqno 1 (our only item) to test that we get the StreamEnd message.
-    stream = producer->mockActiveStreamRequest({} /*flags*/,
-                                               0 /*opaque*/,
-                                               *vb,
-                                               0 /*st_seqno*/,
-                                               1 /*en_seqno*/,
-                                               0x0 /*vb_uuid*/,
-                                               0 /*snap_start_seqno*/,
-                                               ~0 /*snap_end_seqno*/);
+    stream = producer->addMockActiveStream({} /*flags*/,
+                                           0 /*opaque*/,
+                                           *vb,
+                                           0 /*st_seqno*/,
+                                           1 /*en_seqno*/,
+                                           0x0 /*vb_uuid*/,
+                                           0 /*snap_start_seqno*/,
+                                           ~0 /*snap_end_seqno*/);
     ASSERT_TRUE(stream->isBackfilling());
 
     MockDcpMessageProducers producers;
@@ -3971,14 +3971,14 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 TEST_P(SingleThreadedActiveStreamTest,
        RaceBetweenNotifyAndProcessingExistingItems) {
     auto vb = engine->getVBucket(vbid);
-    stream = producer->mockActiveStreamRequest({},
-                                               /*opaque*/ 0,
-                                               *vb,
-                                               /*st_seqno*/ 0,
-                                               /*en_seqno*/ ~0,
-                                               /*vb_uuid*/ 0xabcd,
-                                               /*snap_start_seqno*/ 0,
-                                               /*snap_end_seqno*/ ~0);
+    stream = producer->addMockActiveStream({},
+                                           /*opaque*/ 0,
+                                           *vb,
+                                           /*st_seqno*/ 0,
+                                           /*en_seqno*/ ~0,
+                                           /*vb_uuid*/ 0xabcd,
+                                           /*snap_start_seqno*/ 0,
+                                           /*snap_end_seqno*/ ~0);
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     connMap.addConn(cookie, producer);
     connMap.addVBConnByVBId(*producer, vbid);
@@ -4729,14 +4729,14 @@ TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
     ASSERT_EQ(checkpoint.getNumberOfElements(), 4);
 
     // Simulate client reconnecting at seqno:3.
-    stream = producer->mockActiveStreamRequest({} /*flags*/,
-                                               0 /*opaque*/,
-                                               vb,
-                                               3 /*st_seqno*/,
-                                               ~0 /*en_seqno*/,
-                                               vb.failovers->getLatestUUID(),
-                                               3 /*snap_start_seqno*/,
-                                               3 /*snap_end_seqno*/);
+    stream = producer->addMockActiveStream({} /*flags*/,
+                                           0 /*opaque*/,
+                                           vb,
+                                           3 /*st_seqno*/,
+                                           ~0 /*en_seqno*/,
+                                           vb.failovers->getLatestUUID(),
+                                           3 /*snap_start_seqno*/,
+                                           3 /*snap_end_seqno*/);
     EXPECT_EQ(3, stream->getItemsRemaining());
 
     auto outstandingItems = stream->public_getOutstandingItems(vb);
@@ -4864,14 +4864,14 @@ protected:
         ASSERT_EQ(ephemeral() ? 5 : 6, stats.itemsRemovedFromCheckpoints);
 
         // Re-create the stream now we have items only on disk.
-        stream = producer->mockActiveStreamRequest({} /*flags*/,
-                                                   0 /*opaque*/,
-                                                   *vb,
-                                                   0 /*st_seqno*/,
-                                                   ~0 /*en_seqno*/,
-                                                   0x0 /*vb_uuid*/,
-                                                   0 /*snap_start_seqno*/,
-                                                   ~0 /*snap_end_seqno*/);
+        stream = producer->addMockActiveStream({} /*flags*/,
+                                               0 /*opaque*/,
+                                               *vb,
+                                               0 /*st_seqno*/,
+                                               ~0 /*en_seqno*/,
+                                               0x0 /*vb_uuid*/,
+                                               0 /*snap_start_seqno*/,
+                                               ~0 /*snap_end_seqno*/);
         ASSERT_TRUE(stream->isBackfilling());
 
         // Should report empty itemsRemaining as that would mislead
@@ -5700,7 +5700,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
     producer->scheduleCheckpointProcessorTask();
 
     auto activeStream =
-            producer->mockActiveStreamRequest({}, 0, vb, 0, ~0, 0xabcd, 0, ~0);
+            producer->addMockActiveStream({}, 0, vb, 0, ~0, 0xabcd, 0, ~0);
 
     ASSERT_TRUE(activeStream->isInMemory());
     auto& readyQ = activeStream->public_readyQ();
@@ -5876,14 +5876,14 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     newProd->createCheckpointProcessorTask();
     // StreamReq from the client on the same vbucket -> This stream has the same
     // name as the one that is transitioning to dead in threadCrash
-    auto newStream = newProd->mockActiveStreamRequest({} /*flags*/,
-                                                      0 /*opaque*/,
-                                                      vb,
-                                                      0 /*st_seqno*/,
-                                                      ~0 /*en_seqno*/,
-                                                      0x0 /*vb_uuid*/,
-                                                      0 /*snap_start_seqno*/,
-                                                      ~0 /*snap_end_seqno*/);
+    auto newStream = newProd->addMockActiveStream({} /*flags*/,
+                                                  0 /*opaque*/,
+                                                  vb,
+                                                  0 /*st_seqno*/,
+                                                  ~0 /*en_seqno*/,
+                                                  0x0 /*vb_uuid*/,
+                                                  0 /*snap_start_seqno*/,
+                                                  ~0 /*snap_end_seqno*/);
     ASSERT_TRUE(newStream);
     ASSERT_TRUE(newStream->isBackfilling());
 
@@ -6172,7 +6172,7 @@ TEST_P(SingleThreadedActiveStreamTest,
         throw TestException("Injecting exception");
     };
     try {
-        stream = producer->mockActiveStreamRequest(
+        stream = producer->addMockActiveStream(
                 {},
                 0,
                 vb,
@@ -6202,7 +6202,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     }
 
     FAIL() << "Expected TestException to be thrown during "
-              "mockActiveStreamRequest";
+              "addMockActiveStream";
 }
 
 // Each cycle of stream create/stream closed (when the stream needs a backfill)
@@ -6638,7 +6638,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! 1. Test the snapshot marker does not include the purgeSeqno & advance
     //! seqno message is sent. All the mutations are filtered out.
     recreateProducer(vb, cb::mcbp::DcpOpenFlag::None);
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::None,
             0 /*opaque*/,
             vb,
@@ -6681,7 +6681,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! message is sent. All the mutations are filtered out.
     recreateProducer(
             vb, cb::mcbp::DcpOpenFlag::None, {{"max_marker_version", "2.2"}});
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::None,
             0 /*opaque*/,
             vb,
@@ -7019,7 +7019,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     flushAndRemoveCheckpoints(vbid);
 
     // Request end seqno below what is relevant to the stream.
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::ActiveVbOnly,
             0 /*opaque*/,
             vb,
@@ -7082,7 +7082,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     // Request stream with start seqno 0 and collection filter for vegetable
     // Backfill startSeqno should be adjusted to 2 due to collection filter
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::ActiveVbOnly,
             0 /*opaque*/,
             vb,
@@ -7219,7 +7219,7 @@ TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
-    const auto& activeStream = producer->mockActiveStreamRequest(
+    const auto& activeStream = producer->addMockActiveStream(
             {},
             0 /*opaque*/,
             vb,
@@ -7317,7 +7317,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     producer->setSyncReplication(SyncReplication::SyncReplication);
     producer->setMaxMarkerVersion(MarkerVersion::V2_2);
 
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             {} /*flags*/,
             0 /*opaque*/,
             vb,
@@ -7355,7 +7355,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
 
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             {} /*flags*/,
             0 /*opaque*/,
             vb,
@@ -7487,7 +7487,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_65581) {
     // At reconnecting that DCP client will issue a
     // StreamReq(start:2, snap:[1, 6])
 
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::None,
             0 /*opaque*/,
             vb,
@@ -8738,7 +8738,7 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
 
     // Open a stream directly in a in-memory state
     const auto highSeqno = vb.getHighSeqno();
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             {} /*flags*/,
             0 /*opaque*/,
             vb,
@@ -10167,7 +10167,7 @@ TEST_P(TestStuckProducer, producerDisconnected) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
 
-    producer->mockActiveStreamRequest(
+    producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
             ->setActive();
 
@@ -10207,7 +10207,7 @@ TEST_P(TestStuckProducer, producerNotDisconnected) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
 
-    producer->mockActiveStreamRequest(
+    producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
             ->setActive();
 
@@ -10250,7 +10250,7 @@ TEST_P(TestStuckProducer, producerNotDisconnectedClientAcked) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
 
-    producer->mockActiveStreamRequest(
+    producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
             ->setActive();
 

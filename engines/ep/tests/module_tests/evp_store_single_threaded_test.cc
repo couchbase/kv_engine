@@ -1251,16 +1251,16 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     producer->scheduleCheckpointProcessorTask();
 
     // Create a Mock Active Stream
-    auto mock_stream = producer->mockActiveStreamRequest(/*flags*/ {},
-                                                         /*opaque*/ 0,
-                                                         *vb,
-                                                         /*st_seqno*/ 1,
-                                                         /*en_seqno*/ ~0,
-                                                         /*vb_uuid*/ 0xabcd,
-                                                         /*snap_start_seqno*/ 0,
-                                                         /*snap_end_seqno*/ ~0,
-                                                         IncludeValue::Yes,
-                                                         IncludeXattrs::Yes);
+    auto mock_stream = producer->addMockActiveStream(/*flags*/ {},
+                                                     /*opaque*/ 0,
+                                                     *vb,
+                                                     /*st_seqno*/ 1,
+                                                     /*en_seqno*/ ~0,
+                                                     /*vb_uuid*/ 0xabcd,
+                                                     /*snap_start_seqno*/ 0,
+                                                     /*snap_end_seqno*/ ~0,
+                                                     IncludeValue::Yes,
+                                                     IncludeXattrs::Yes);
 
     ASSERT_TRUE(mock_stream->isInMemory())
     << "stream state should have transitioned to InMemory";
@@ -1363,14 +1363,14 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
         Vbid vbid = Vbid(id);
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         auto vb = store->getVBucket(vbid);
-        stream = producer->mockActiveStreamRequest(/*flags*/ {},
-                                                   /*opaque*/ 0,
-                                                   *vb,
-                                                   /*st_seqno*/ 0,
-                                                   /*en_seqno*/ ~0,
-                                                   /*vb_uuid*/ 0xabcd,
-                                                   /*snap_start_seqno*/ 0,
-                                                   /*snap_end_seqno*/ ~0);
+        stream = producer->addMockActiveStream(/*flags*/ {},
+                                               /*opaque*/ 0,
+                                               *vb,
+                                               /*st_seqno*/ 0,
+                                               /*en_seqno*/ ~0,
+                                               /*vb_uuid*/ 0xabcd,
+                                               /*snap_start_seqno*/ 0,
+                                               /*snap_end_seqno*/ ~0);
 
         // Request an item from each stream, so they all advance from
         // backfilling to in-memory
@@ -1532,14 +1532,14 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Create first stream
     auto vb = store->getVBucket(vbid);
-    auto stream = producer->mockActiveStreamRequest(/*flags*/ {},
-                                                    /*opaque*/ 0,
-                                                    *vb,
-                                                    /*st_seqno*/ 0,
-                                                    /*en_seqno*/ ~0,
-                                                    /*vb_uuid*/ 0xabcd,
-                                                    /*snap_start_seqno*/ 0,
-                                                    /*snap_end_seqno*/ ~0);
+    auto stream = producer->addMockActiveStream(/*flags*/ {},
+                                                /*opaque*/ 0,
+                                                *vb,
+                                                /*st_seqno*/ 0,
+                                                /*en_seqno*/ ~0,
+                                                /*vb_uuid*/ 0xabcd,
+                                                /*snap_start_seqno*/ 0,
+                                                /*snap_end_seqno*/ ~0);
 
     // Write an item
     auto key1 = makeStoredDocKey("key1");
@@ -1582,14 +1582,14 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     store_item(vbid, key3, "value");
 
     // Re-create the new stream
-    stream = producer->mockActiveStreamRequest(/*flags*/ {},
-                                               /*opaque*/ 0,
-                                               *vb,
-                                               /*st_seqno*/ 0,
-                                               /*en_seqno*/ ~0,
-                                               /*vb_uuid*/ 0xabcd,
-                                               /*snap_start_seqno*/ 0,
-                                               /*snap_end_seqno*/ ~0);
+    stream = producer->addMockActiveStream(/*flags*/ {},
+                                           /*opaque*/ 0,
+                                           *vb,
+                                           /*st_seqno*/ 0,
+                                           /*en_seqno*/ ~0,
+                                           /*vb_uuid*/ 0xabcd,
+                                           /*snap_start_seqno*/ 0,
+                                           /*snap_end_seqno*/ ~0);
 
     // Step the stream which will now schedule a backfill
     result = stream->next(*producer);
@@ -3175,14 +3175,14 @@ public:
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
         // 2. Mock active stream
-        producer->mockActiveStreamRequest({}, // flags
-                                          1, // opaque
-                                          *vb,
-                                          0, // start_seqno
-                                          ~0, // end_seqno
-                                          0, // vbucket_uuid,
-                                          0, // snap_start_seqno,
-                                          0); // snap_end_seqno,
+        producer->addMockActiveStream({}, // flags
+                                      1, // opaque
+                                      *vb,
+                                      0, // start_seqno
+                                      ~0, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0); // snap_end_seqno,
 
         store_item(vbid, makeStoredDocKey("1"), "value1");
         store_item(vbid, makeStoredDocKey("2"), "value2");
@@ -3227,14 +3227,14 @@ public:
         producer->closeStream(1, Vbid(0));
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
-        producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::TakeOver,
-                                          1, // opaque
-                                          *vb,
-                                          3, // start_seqno
-                                          ~0, // end_seqno
-                                          vb->failovers->getLatestUUID(),
-                                          3, // snap_start_seqno
-                                          ~0); // snap_end_seqno
+        producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::TakeOver,
+                                      1, // opaque
+                                      *vb,
+                                      3, // start_seqno
+                                      ~0, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      3, // snap_start_seqno
+                                      ~0); // snap_end_seqno
     }
 
     CookieIface* cookie = nullptr;
@@ -3543,14 +3543,14 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
     MockDcpMessageProducers producers;
 
-    producer->mockActiveStreamRequest({}, // flags
-                                      1, // opaque
-                                      *vb,
-                                      0, // start_seqno
-                                      ~0, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0); // snap_end_seqno,
+    producer->addMockActiveStream({}, // flags
+                                  1, // opaque
+                                  *vb,
+                                  0, // start_seqno
+                                  ~0, // end_seqno
+                                  0, // vbucket_uuid,
+                                  0, // snap_start_seqno,
+                                  0); // snap_end_seqno,
 
     // 1) First store 5 keys
     std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
@@ -5386,14 +5386,14 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
             *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     MockDcpMessageProducers producers;
-    producer->mockActiveStreamRequest({}, // flags
-                                      1, // opaque
-                                      *vb,
-                                      0, // start_seqno
-                                      ~0, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0); // snap_end_seqno,
+    producer->addMockActiveStream({}, // flags
+                                  1, // opaque
+                                  *vb,
+                                  0, // start_seqno
+                                  ~0, // end_seqno
+                                  0, // vbucket_uuid,
+                                  0, // snap_start_seqno,
+                                  0); // snap_end_seqno,
 
     // This will schedule the backfill
     auto stream = producer->findStream(vbid);

@@ -56,7 +56,7 @@ void MockDcpProducer::setNoopEnabled(MockDcpProducer::NoopMode mode) {
     }
 }
 
-std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
+std::shared_ptr<MockActiveStream> MockDcpProducer::addMockActiveStream(
         cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         VBucket& vb,
@@ -70,23 +70,23 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         std::optional<std::string_view> jsonFilter,
         std::function<void(MockActiveStream&)> preSetActiveHook) {
-    return mockActiveStreamRequest(flags,
-                                   opaque,
-                                   vb,
-                                   start_seqno,
-                                   end_seqno,
-                                   vbucket_uuid,
-                                   snap_start_seqno,
-                                   snap_end_seqno,
-                                   includeValue,
-                                   includeXattrs,
-                                   includeDeletedUserXattrs,
-                                   MarkerVersion::V2_0,
-                                   jsonFilter,
-                                   preSetActiveHook);
+    return addMockActiveStream(flags,
+                               opaque,
+                               vb,
+                               start_seqno,
+                               end_seqno,
+                               vbucket_uuid,
+                               snap_start_seqno,
+                               snap_end_seqno,
+                               includeValue,
+                               includeXattrs,
+                               includeDeletedUserXattrs,
+                               MarkerVersion::V2_0,
+                               jsonFilter,
+                               preSetActiveHook);
 }
 
-std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
+std::shared_ptr<MockActiveStream> MockDcpProducer::addMockActiveStream(
         cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         VBucket& vb,
@@ -131,7 +131,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
     auto found = streams->find(vb.getId().get());
     if (found == streams->end()) {
         throw std::logic_error(
-                "MockDcpProducer::mockActiveStreamRequest "
+                "MockDcpProducer::addMockActiveStream "
                 "failed to insert requested stream");
     }
     notifyStreamReady(vb.getId());
@@ -153,6 +153,67 @@ MockDcpProducer::mockCacheTransferStreamRequest(uint32_t opaque,
             engine_,
             includeValue);
     return stream;
+}
+
+std::shared_ptr<ActiveStream> MockDcpProducer::makeStream(
+        uint32_t opaque,
+        StreamRequestInfo& req,
+        VBucketPtr vb,
+        Collections::VB::Filter filter) {
+    return std::make_shared<MockActiveStream>(&engine_,
+                                              shared_from_base<DcpProducer>(),
+                                              getName(),
+                                              req.flags,
+                                              opaque,
+                                              *vb,
+                                              req.start_seqno,
+                                              req.end_seqno,
+                                              req.vbucket_uuid,
+                                              req.snap_start_seqno,
+                                              req.snap_end_seqno,
+                                              includeValue,
+                                              includeXattrs,
+                                              includeDeleteTime,
+                                              includeDeletedUserXattrs,
+                                              maxMarkerVersion,
+                                              std::move(filter));
+}
+
+std::shared_ptr<MockActiveStream> MockDcpProducer::mockStreamRequest(
+        cb::mcbp::DcpAddStreamFlag flags,
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t* rollback_seqno,
+        dcp_add_failover_log callback,
+        std::optional<std::string_view> json) {
+    auto ret = streamRequest(flags,
+                             opaque,
+                             vbucket,
+                             start_seqno,
+                             end_seqno,
+                             vbucket_uuid,
+                             snap_start_seqno,
+                             snap_end_seqno,
+                             rollback_seqno,
+                             callback,
+                             json);
+    if (ret != cb::engine_errc::success) {
+        throw cb::engine_error(ret, "streamRequest failed");
+    }
+
+    // Now we need to find the stream and return it.
+    auto stream = findStream(vbucket);
+    if (!stream) {
+        throw std::logic_error(
+                "MockDcpProducer::mockStreamRequest "
+                "failed to find stream");
+    }
+    return std::dynamic_pointer_cast<MockActiveStream>(stream);
 }
 
 cb::engine_errc MockDcpProducer::stepAndExpect(

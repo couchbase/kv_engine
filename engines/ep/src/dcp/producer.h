@@ -88,8 +88,8 @@ public:
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
-            uint64_t last_seqno,
-            uint64_t next_seqno,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) override;
@@ -483,17 +483,18 @@ protected:
             VBucket& vb,
             const Collections::VB::Filter& filter);
 
-    cb::engine_errc scheduleTasksForStreamRequest(
+    virtual cb::engine_errc scheduleTasksForStreamRequest(
             std::shared_ptr<ActiveStream> s,
             VBucket& vb,
             cb::mcbp::DcpStreamId streamID,
             dcp_add_failover_log callback,
             bool callAddVBConnByVBId);
 
-    std::shared_ptr<ActiveStream> makeStream(uint32_t opaque,
-                                             StreamRequestInfo& req,
-                                             VBucketPtr vb,
-                                             Collections::VB::Filter filter);
+    virtual std::shared_ptr<ActiveStream> makeStream(
+            uint32_t opaque,
+            StreamRequestInfo& req,
+            VBucketPtr vb,
+            Collections::VB::Filter filter);
 
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of

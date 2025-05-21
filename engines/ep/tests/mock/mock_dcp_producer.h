@@ -169,7 +169,7 @@ public:
     /**
      * Place a mock active stream into the producer
      */
-    std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
+    std::shared_ptr<MockActiveStream> addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             VBucket& vb,
@@ -185,7 +185,7 @@ public:
             std::optional<std::string_view> jsonFilter = {},
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
-    std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
+    std::shared_ptr<MockActiveStream> addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             VBucket& vb,
@@ -200,6 +200,30 @@ public:
             MarkerVersion maxMarkerVersion,
             std::optional<std::string_view> jsonFilter,
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
+
+    std::shared_ptr<ActiveStream> makeStream(
+            uint32_t opaque,
+            StreamRequestInfo& req,
+            VBucketPtr vb,
+            Collections::VB::Filter filter) override;
+
+    /**
+     * Creates a mock active stream and returns it.
+     * @throws cb::engine_error if the streamRequest fails.
+     * @returns a pointer to the mock active stream
+     */
+    std::shared_ptr<MockActiveStream> mockStreamRequest(
+            cb::mcbp::DcpAddStreamFlag flags,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            std::optional<std::string_view> json);
 
     /**
      * Create a mock cache transfer stream.

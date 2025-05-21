@@ -157,14 +157,14 @@ TEST_F(StatTest, VBTakeoverStats) {
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb = store->getVBucket(vbid));
 
-    producer->mockActiveStreamRequest({}, // flags
-                                      1, // opaque
-                                      *vb,
-                                      0, // start_seqno
-                                      ~0ull, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0); // snap_end_seqno
+    producer->addMockActiveStream({}, // flags
+                                  1, // opaque
+                                  *vb,
+                                  0, // start_seqno
+                                  ~0ull, // end_seqno
+                                  0, // vbucket_uuid,
+                                  0, // snap_start_seqno,
+                                  0); // snap_end_seqno
 
     vals = get_stat(stat);
     EXPECT_EQ("in-memory", vals["status"]);
@@ -232,14 +232,14 @@ TEST_F(StatTest, DcpStreamStatFormatTest) {
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
 
-    auto stream = producer->mockActiveStreamRequest({}, // flags
-                                                    1, // opaque
-                                                    *vb,
-                                                    0, // start_seqno
-                                                    ~0ull, // end_seqno
-                                                    0, // vbucket_uuid,
-                                                    0, // snap_start_seqno,
-                                                    0); // snap_end_seqno
+    auto stream = producer->addMockActiveStream({}, // flags
+                                                1, // opaque
+                                                *vb,
+                                                0, // start_seqno
+                                                ~0ull, // end_seqno
+                                                0, // vbucket_uuid,
+                                                0, // snap_start_seqno,
+                                                0); // snap_end_seqno
 
     {
         // "legacy" contains multiple stat keys per stream

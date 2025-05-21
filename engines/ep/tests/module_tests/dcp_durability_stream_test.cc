@@ -5847,7 +5847,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
-    stream = producer->mockActiveStreamRequest(
+    stream = producer->addMockActiveStream(
             /* flags */ {},
             /*opaque*/ 0,
             *vb,
@@ -5964,7 +5964,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
-    auto stream = producer->mockActiveStreamRequest(
+    auto stream = producer->addMockActiveStream(
             /* flags */ {},
             /*opaque*/ 0,
             *vb,
@@ -6062,7 +6062,7 @@ void DurabilityActiveStreamTest::
     removeCheckpoint(*vb);
 
     // Create NON sync repl DCP stream
-    auto stream = producer->mockActiveStreamRequest(
+    auto stream = producer->addMockActiveStream(
             /* flags */ {},
             /*opaque*/ 0,
             *vb,

@@ -494,16 +494,16 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
 
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto mockStream = producer->mockActiveStreamRequest(
-            cb::mcbp::DcpAddStreamFlag::TakeOver,
-            1, // opaque
-            *vb,
-            0, // start_seqno
-            vb->getHighSeqno(), // end_seqno
-            vb->failovers->getLatestUUID(),
-            0, // snap_start_seqno
-            vb->getHighSeqno() // snap_end_seqno
-    );
+    auto mockStream =
+            producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::TakeOver,
+                                          1, // opaque
+                                          *vb,
+                                          0, // start_seqno
+                                          vb->getHighSeqno(), // end_seqno
+                                          vb->failovers->getLatestUUID(),
+                                          0, // snap_start_seqno
+                                          vb->getHighSeqno() // snap_end_seqno
+            );
 
     // Manually drive the backfill (not using notifyAndStepToCheckpoint)
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
