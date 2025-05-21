@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cbcrypto/common.h>
 #include <cbcrypto/file_writer.h>
 #include <folly/io/IOBuf.h>
 #include <memcached/storeddockey_fwd.h>
@@ -26,9 +27,11 @@
  */
 class MutationLogWriter {
 public:
-    explicit MutationLogWriter(
+    MutationLogWriter(
             std::string path,
             size_t blocksize,
+            cb::crypto::SharedEncryptionKey encryption_key = {},
+            cb::crypto::Compression compression = cb::crypto::Compression::None,
             std::function<void(std::string_view)> fileWriteTestHook = [](auto) {
             });
     ~MutationLogWriter();

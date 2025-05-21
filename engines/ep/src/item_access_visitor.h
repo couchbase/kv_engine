@@ -46,12 +46,16 @@ public:
 protected:
     void update(Vbid vbid);
 
+    bool removeFile(const std::filesystem::path& path);
+    bool cycleFile();
+
 private:
     VBucketFilter vBucketFilter;
 
     EPStats& stats;
     rel_time_t startTime;
     cb::time::steady_clock::time_point taskStart;
+    cb::crypto::SharedEncryptionKey encryptionKey;
     std::string prev;
     std::string next;
     std::string name;

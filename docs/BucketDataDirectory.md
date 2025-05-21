@@ -12,14 +12,14 @@ If teams wish to create files under the bucket directory, they should
 
 ## Existing files
 
-| Kind of file              | File Name Pattern      | Owner / Team |
-|---------------------------|------------------------|--------------|
-| Couchstore files          | `n.couch.m`            | KV           |
-| Views Definitions         | `master.couch.m`       | Views        |
-| Flush sequence # file     | `flushseq`             | NS-Server    |
-| Magma files / directories | `magma*`               | Storage      |
-| Stats.json                | `stats.json*`          | KV           |
-| Data Encryption Keys      | `deks/`                | NS-Server    |
-| Access log                | `access.log.n[.old]`   | KV           |
-| Cluster management        | `cm/`                  | NS-Server    |
-| Snapshots                 | `snapshots/`           | KV           |
+| Kind of file              | File Name Pattern          | Owner / Team |
+|---------------------------|----------------------------|--------------|
+| Couchstore files          | `n.couch.m`                | KV           |
+| Views Definitions         | `master.couch.m`           | Views        |
+| Flush sequence # file     | `flushseq`                 | NS-Server    |
+| Magma files / directories | `magma*`                   | Storage      |
+| Stats.json                | `stats.json*`              | KV           |
+| Data Encryption Keys      | `deks/`                    | NS-Server    |
+| Access log                | `access.log.n[.old][.cef]` | KV           |
+| Cluster management        | `cm/`                      | NS-Server    |
+| Snapshots                 | `snapshots/`               | KV           |

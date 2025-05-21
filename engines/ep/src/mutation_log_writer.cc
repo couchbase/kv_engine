@@ -18,10 +18,13 @@
 MutationLogWriter::MutationLogWriter(
         std::string path,
         const size_t bs,
+        cb::crypto::SharedEncryptionKey encryption_key,
+        cb::crypto::Compression compression,
         std::function<void(std::string_view)> fileWriteTestHook)
     : fileWriteTestHook(std::move(fileWriteTestHook)),
       block(folly::IOBuf::createCombined(bs)),
-      fileWriter(cb::crypto::FileWriter::create({}, path)),
+      fileWriter(cb::crypto::FileWriter::create(
+              encryption_key, path, 16 * 1024, compression)),
       entryBuffer(bs) {
     // Write the initial file header!
     LogHeaderBlock header;

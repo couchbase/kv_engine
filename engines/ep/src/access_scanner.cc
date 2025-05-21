@@ -12,6 +12,7 @@
 #include "access_scanner.h"
 #include "bucket_logger.h"
 #include "configuration.h"
+#include "ep_engine.h"
 #include "ep_time.h"
 #include "hash_table.h"
 #include "item_access_visitor.h"
@@ -40,6 +41,8 @@ ItemAccessVisitor::ItemAccessVisitor(
     : stats(_stats),
       startTime(ep_real_time()),
       taskStart(cb::time::steady_clock::now()),
+      encryptionKey(
+              _store.getEPEngine().getEncryptionKeyProvider()->lookup({})),
       shardID(sh),
       semaphoreGuard(std::move(guard)),
       items_to_scan(items_to_scan) {
@@ -62,13 +65,22 @@ ItemAccessVisitor::ItemAccessVisitor(
         throw;
     }
 
-    log = std::make_unique<MutationLogWriter>(
-            next, conf.getAlogBlockSize(), std::move(fileWriteTestHook));
-    EP_LOG_INFO_CTX("Attempting to generate new access file", {"path", next});
+    log = std::make_unique<MutationLogWriter>(next,
+                                              conf.getAlogBlockSize(),
+                                              encryptionKey,
+                                              cb::crypto::Compression::None,
+                                              std::move(fileWriteTestHook));
+    EP_LOG_INFO_CTX(
+            "Attempting to generate new access file",
+            {"path", next},
+            {"encryption_key",
+             encryptionKey ? encryptionKey->getId()
+                           : cb::crypto::DataEncryptionKey::UnencryptedKeyId});
 }
 
 ItemAccessVisitor::~ItemAccessVisitor() {
     ++stats.alogRuns;
+    removeFile(next);
 }
 
 bool ItemAccessVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -124,6 +136,47 @@ void ItemAccessVisitor::visitBucket(VBucket& vb) {
     }
 }
 
+bool ItemAccessVisitor::removeFile(const std::filesystem::path& path) {
+    std::error_code ec;
+    remove(path, ec);
+    if (ec) {
+        EP_LOG_WARN_CTX("Failed to remove access log file",
+                        {"path", next},
+                        {"error", ec.message()});
+        return false;
+    }
+    return true;
+}
+
+bool ItemAccessVisitor::cycleFile() {
+    std::error_code ec;
+    std::filesystem::rename(name + ".cef", name + ".old.cef", ec);
+    if (!ec) {
+        // Success
+        return true;
+    }
+    if (ec.value() != ENOENT) {
+        EP_LOG_WARN_CTX("Failed to rename access log file",
+                        {"from", name + ".cef"},
+                        {"to", name + ".old.cef"},
+                        {"error", ec.message()});
+        return false;
+    }
+    std::filesystem::rename(name, name + ".old", ec);
+    if (!ec) {
+        // Success
+        return true;
+    }
+    if (ec.value() != ENOENT) {
+        EP_LOG_WARN_CTX("Failed to rename access log file",
+                        {"from", name},
+                        {"to", name + ".old"},
+                        {"error", ec.message()});
+        return false;
+    }
+    return true;
+}
+
 void ItemAccessVisitor::complete() {
     const auto num_items = log->getItemsLogged(MutationLogType::New);
     try {
@@ -142,7 +195,6 @@ void ItemAccessVisitor::complete() {
     // Writing the new access log to disk failed, skip replacing the current
     // access log.
     if (writeFailed) {
-        remove(next.c_str());
         return;
     }
 
@@ -154,40 +206,32 @@ void ItemAccessVisitor::complete() {
 
     if (num_items == 0) {
         EP_LOG_INFO_RAW(
-                "The new access log file is empty. "
-                "Delete it without replacing the current access "
-                "log...");
-        remove(next.c_str());
+                "The new access log file is empty. Leave the existing one in "
+                "place");
         return;
     }
 
-    if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
-        EP_LOG_WARN_CTX("Failed to remove access log file",
-                        {"path", prev},
-                        {"error", strerror(errno)});
-        remove(next.c_str());
+    // Try to rotate the "current" to ".old[.cef]"
+    if (!removeFile(name + ".old") || !removeFile(name + ".old.cef") ||
+        !cycleFile()) {
         return;
     }
-    EP_LOG_INFO_CTX("Removed old access log file", {"prev", prev});
-    if (cb::io::isFile(name) && rename(name.c_str(), prev.c_str()) == -1) {
-        EP_LOG_WARN_CTX("Failed to rename access log file",
-                        {"from", name},
-                        {"to", prev},
-                        {"error", strerror(errno)});
-        remove(next.c_str());
-        return;
+
+    std::error_code ec;
+    if (encryptionKey) {
+        std::filesystem::rename(next, name + ".cef", ec);
+    } else {
+        std::filesystem::rename(next, name, ec);
     }
-    EP_LOG_INFO_CTX("Renamed access log file", {"from", name}, {"to", prev});
-    if (rename(next.c_str(), name.c_str()) == -1) {
+    if (ec) {
         EP_LOG_WARN_CTX("Failed to rename access log file",
                         {"from", next},
-                        {"to", name},
+                        {"to", encryptionKey ? name + ".cef" : name},
                         {"error", strerror(errno)});
-        remove(next.c_str());
         return;
     }
     EP_LOG_INFO_CTX("New access log file created",
-                    {"name", name},
+                    {"name", encryptionKey ? name + ".cef" : name},
                     {"num_items", static_cast<uint64_t>(num_items)});
 }
 

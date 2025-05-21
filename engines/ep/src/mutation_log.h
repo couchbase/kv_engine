@@ -130,6 +130,9 @@ class MutationLogReader {
 public:
     explicit MutationLogReader(
             std::string path,
+            std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+                    keyLookupFunction = [](auto)
+                    -> cb::crypto::SharedEncryptionKey { return {}; },
             std::function<void()> fileIoTestingHook = []() {});
 
     ~MutationLogReader();

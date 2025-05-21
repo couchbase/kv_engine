@@ -1750,6 +1750,30 @@ void Warmup::checkForAccessLog() {
         setEstimatedValueCount(getEstimatedKeyCount());
     }
 
+    auto keyLookupFunction =
+            [provider = store.getEPEngine().getEncryptionKeyProvider()](
+                    auto key) { return provider->lookup(key); };
+
+    auto addExistingMutationLog = [this, &keyLookupFunction](auto& shardlogs,
+                                                             auto path) {
+        if (cb::io::isFile(path)) {
+            try {
+                shardlogs.emplace_back(std::make_unique<MutationLogReader>(
+                        path, keyLookupFunction));
+            } catch (const std::exception& e) {
+                if (path.find(".old") == std::string::npos) {
+                    EP_LOG_WARN_CTX("Failed to open mutation log",
+                                    {"path", path},
+                                    {"error", e.what()});
+                } else {
+                    EP_LOG_WARN_CTX("Failed to open old mutation log",
+                                    {"path", path},
+                                    {"error", e.what()});
+                }
+            }
+        }
+    };
+
     size_t accesslogs = 0;
     if (config.isAccessScannerEnabled() && !config.getAlogPath().empty()) {
         accessLog.resize(getNumShards());
@@ -1759,27 +1783,10 @@ void Warmup::checkForAccessLog() {
 
             // The order here is important as the load phase will work from back
             // so will use the current file before trying .old
-            if (cb::io::isFile(file + ".old")) {
-                try {
-                    shardLogs.emplace_back(
-                            std::make_unique<MutationLogReader>(file + ".old"));
-                } catch (const std::exception& e) {
-                    EP_LOG_WARN_CTX("Failed to open old mutation log",
-                                    {"path", file + ".old"},
-                                    {"error", e.what()});
-                }
-            }
-
-            if (cb::io::isFile(file)) {
-                try {
-                    shardLogs.emplace_back(
-                            std::make_unique<MutationLogReader>(file));
-                } catch (const std::exception& e) {
-                    EP_LOG_WARN_CTX("Failed to open mutation log",
-                                    {"path", file},
-                                    {"error", e.what()});
-                }
-            }
+            addExistingMutationLog(shardLogs, file + ".old.cef");
+            addExistingMutationLog(shardLogs, file + ".old");
+            addExistingMutationLog(shardLogs, file + ".cef");
+            addExistingMutationLog(shardLogs, file);
 
             if (!shardLogs.empty()) {
                 // If we found any access log, increase this counter by 1

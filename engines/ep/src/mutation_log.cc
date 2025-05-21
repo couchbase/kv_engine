@@ -30,59 +30,73 @@
 
 /**
  * A class to allow for random access to the cb::crypto::FileReader (which
- * only support sequential read). In the initial version we read the entire
- * file in memory (as the underlying file reader does that). In a later patch
- * we'll replace this by reopening the file if access to an earlier block
- * is needed (which we cannot do as the underlying "file" may be both
- * compressed and encrypted)
+ * only support sequential read). If the caller tries to read a block
+ * earlier than the current block we need to reopen the file and seek
+ * to the required block. Luckily for us the primary use case is
+ * sequential reads.
  */
 class RandomIoFileReader {
 public:
-    RandomIoFileReader(std::filesystem::path path) : path(std::move(path)) {
+    RandomIoFileReader(
+            std::filesystem::path path,
+            std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+                    keyLookupFunction)
+        : path(std::move(path)), lookupFunction(std::move(keyLookupFunction)) {
         open();
-        current_block = fileReader->read();
     }
 
-    ssize_t pread(void* data, size_t nbytes, uint64_t offset);
+    std::size_t pread(std::span<uint8_t> blob, uint64_t offset);
 
 protected:
     void open() {
         current_block.clear();
         current_offset = 0;
-        fileReader = cb::crypto::FileReader::create(
-                path,
-                [](auto) -> cb::crypto::SharedEncryptionKey { return {}; },
-                {});
+        fileReader = cb::crypto::FileReader::create(path, lookupFunction);
     }
 
     std::filesystem::path path;
+    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+            lookupFunction;
     uint64_t current_offset = 0;
     std::string current_block;
     std::unique_ptr<cb::crypto::FileReader> fileReader;
 };
 
-ssize_t RandomIoFileReader::pread(void* data, size_t nbytes, uint64_t offset) {
-    if (offset > current_block.size()) {
-        // eof
-        return -1;
+std::size_t RandomIoFileReader::pread(std::span<uint8_t> blob,
+                                      uint64_t offset) {
+    if (offset < current_offset) {
+        // we can't rewind the buffer
+        EP_LOG_INFO("Trying to read from offset before current offset for {}",
+                    path.string());
+        open();
     }
 
-    nbytes = std::min(static_cast<uint64_t>(nbytes),
-                      current_block.size() - offset);
+    // We need to seek the file up to the current block
+    if (offset != current_offset) {
+        std::vector<uint8_t> buffer(offset - current_offset);
+        current_offset += fileReader->read(buffer);
+        if (offset != current_offset) {
+            throw std::runtime_error("Short read!!");
+        }
+    }
 
-    std::copy_n(
-            current_block.data() + offset, nbytes, static_cast<char*>(data));
-    return nbytes;
+    auto nr = fileReader->read(blob);
+    current_offset += nr;
+    return nr;
 }
 
-MutationLogReader::MutationLogReader(std::string path,
-                                     std::function<void()> fileIoTestingHook)
+MutationLogReader::MutationLogReader(
+        std::string path,
+        std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+                keyLookupFunction,
+        std::function<void()> fileIoTestingHook)
     : fileIoTestingHook(std::move(fileIoTestingHook)),
       logPath(std::move(path)),
       openTimePoint(cb::time::steady_clock::now()),
       blockSize(0),
       resumeItr(end()),
-      random_io_reader(std::make_unique<RandomIoFileReader>(this->logPath)) {
+      random_io_reader(std::make_unique<RandomIoFileReader>(
+              this->logPath, std::move(keyLookupFunction))) {
     for (auto& ii : itemsLogged) {
         ii.store(0);
     }
@@ -107,7 +121,7 @@ static bool validateHeaderBlockVersion(MutationLogVersion version) {
 
 void MutationLogReader::readInitialBlock() {
     std::array<uint8_t, LogHeaderBlock::HeaderSize> buf;
-    const auto bytesread = random_io_reader->pread(buf.data(), sizeof(buf), 0);
+    const auto bytesread = random_io_reader->pread(buf, 0);
     if (bytesread != sizeof(buf)) {
         EP_LOG_WARN_CTX(
                 "MutationLogReader::readInitialBlock: Failed to read initial "
@@ -241,18 +255,15 @@ void MutationLogReader::iterator::nextBlock() {
     }
 
     buf.resize(log->header().blockSize());
-    ssize_t bytesread =
-            log->random_io_reader->pread(buf.data(), buf.size(), offset);
-    if (bytesread < 1) {
+    const auto bytesread = log->random_io_reader->pread(buf, offset);
+    if (bytesread == 0) {
         isEnd = true;
         return;
     }
-    if (bytesread != (ssize_t)(log->header().blockSize())) {
-        EP_LOG_WARN(
-                "FATAL: too few bytes read in access log"
-                "'{}': {}",
-                log->getLogFile(),
-                strerror(errno));
+    if (bytesread != buf.size()) {
+        EP_LOG_WARN("FATAL: too few bytes read in access log '{}': {}",
+                    log->getLogFile(),
+                    strerror(errno));
         throw ShortReadException();
     }
     offset += bytesread;

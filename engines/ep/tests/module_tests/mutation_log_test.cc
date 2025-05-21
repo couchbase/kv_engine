@@ -10,11 +10,11 @@
 
 #include "../mock/mock_function_helper.h"
 
+#include <cbcrypto/symmetric.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
-#include <platform/strerror.h>
 #include <sys/stat.h>
 #include <algorithm>
 #include <fstream>
@@ -25,11 +25,15 @@
 #include "mutation_log_writer.h"
 #include "tests/module_tests/test_helpers.h"
 
-class MutationLogTest : public ::testing::Test {
+class MutationLogTest : public ::testing::Test,
+                        public ::testing::WithParamInterface<bool> {
 protected:
     void SetUp() override {
         // Generate a temporary log filename.
         tmp_log_filename = cb::io::mktemp("mlt_test");
+        if (GetParam()) {
+            encryption_key = cb::crypto::DataEncryptionKey::generate();
+        }
     }
 
     void TearDown() override {
@@ -38,6 +42,14 @@ protected:
 
     // Storage for temporary log filename
     std::string tmp_log_filename;
+    cb::crypto::SharedEncryptionKey encryption_key;
+    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+            key_lookup_function = [this](std::string_view key) {
+                if (encryption_key && key == encryption_key->getId()) {
+                    return encryption_key;
+                }
+                return cb::crypto::SharedEncryptionKey{};
+            };
 };
 
 static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
@@ -46,10 +58,10 @@ static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
     return true;
 }
 
-TEST_F(MutationLogTest, Logging) {
-
+TEST_P(MutationLogTest, Logging) {
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
+        MutationLogWriter ml(
+                tmp_log_filename, MIN_LOG_HEADER_SIZE, encryption_key);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -65,7 +77,7 @@ TEST_F(MutationLogTest, Logging) {
     }
 
     {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -98,7 +110,7 @@ TEST_F(MutationLogTest, Logging) {
     }
 }
 
-TEST_F(MutationLogTest, SmallerBlockSize) {
+TEST_P(MutationLogTest, SmallerBlockSize) {
     {
         MutationLogWriter ml(tmp_log_filename, 512);
 
@@ -121,10 +133,10 @@ TEST_F(MutationLogTest, SmallerBlockSize) {
     }
 }
 
-TEST_F(MutationLogTest, LoggingDirty) {
-
+TEST_P(MutationLogTest, LoggingDirty) {
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
+        MutationLogWriter ml(
+                tmp_log_filename, MIN_LOG_HEADER_SIZE, encryption_key);
 
         ml.newItem(Vbid(3), makeStoredDocKey("key1"));
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
@@ -141,7 +153,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
     }
 
     {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
@@ -176,10 +188,10 @@ TEST_F(MutationLogTest, LoggingDirty) {
     }
 }
 
-TEST_F(MutationLogTest, LoggingBadCRC) {
-
+TEST_P(MutationLogTest, LoggingBadCRC) {
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
+        MutationLogWriter ml(
+                tmp_log_filename, MIN_LOG_HEADER_SIZE, encryption_key);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -205,13 +217,18 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
     close(file);
 
     {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
         h.setVBucket(Vbid(3));
 
-        EXPECT_THROW(h.load(), MutationLogReader::CRCReadException);
+        if (GetParam()) {
+            //
+            EXPECT_THROW(h.load(), cb::crypto::MacVerificationError);
+        } else {
+            EXPECT_THROW(h.load(), MutationLogReader::CRCReadException);
+        }
 
         EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::New)]);
         EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::Commit1)]);
@@ -238,10 +255,10 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
     }
 }
 
-TEST_F(MutationLogTest, LoggingShortRead) {
-
+TEST_P(MutationLogTest, LoggingShortRead) {
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
+        MutationLogWriter ml(
+                tmp_log_filename, MIN_LOG_HEADER_SIZE, encryption_key);
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
@@ -260,32 +277,44 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 5000));
 
     {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
         h.setVBucket(Vbid(2));
         h.setVBucket(Vbid(3));
 
-        EXPECT_THROW(h.load(), MutationLogReader::ShortReadException);
+        if (GetParam()) {
+            EXPECT_THROW(h.load(), std::underflow_error);
+        } else {
+            EXPECT_THROW(h.load(), MutationLogReader::ShortReadException);
+        }
     }
 
     // Break the log harder (can't read even the initial block)
     // This should succeed as open() will call reset() to give us a usable
     // mutation log.
-    EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 8));
 
-    {
-        EXPECT_THROW(MutationLogReader ml(tmp_log_filename),
-                     MutationLogReader::ShortReadException);
+    if (GetParam()) {
+        EXPECT_EQ(0,
+                  truncate(tmp_log_filename.c_str(),
+                           sizeof(cb::crypto::EncryptedFileHeader) + 8));
+        EXPECT_THROW(
+                MutationLogReader ml(tmp_log_filename, key_lookup_function),
+                std::underflow_error);
+    } else {
+        EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 8));
+        EXPECT_THROW(
+                MutationLogReader ml(tmp_log_filename, key_lookup_function),
+                MutationLogReader::ShortReadException);
     }
 }
 
-TEST_F(MutationLogTest, YUNOOPEN) {
+TEST_P(MutationLogTest, YUNOOPEN) {
     // Make file unreadable
     std::filesystem::permissions(tmp_log_filename,
                                  std::filesystem::perms::none);
     try {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         FAIL() << "Should not have access to logfile; ";
 #ifdef WIN32
     } catch (const MutationLogReader::ReadException&) {
@@ -302,13 +331,15 @@ TEST_F(MutationLogTest, YUNOOPEN) {
 
 // MB-55939: Test behaviour when the mutation log cannot be written to disk
 // (e.g. disk full).
-TEST_F(MutationLogTest, WriteFail) {
+TEST_P(MutationLogTest, WriteFail) {
     // Test: Create and open a MutationLogReader; on destruction we should not
     // see an exception thrown.
     bool hookCalled = false;
     {
         MutationLogWriter ml(tmp_log_filename,
                              MIN_LOG_HEADER_SIZE,
+                             encryption_key,
+                             cb::crypto::Compression::None,
                              [&hookCalled](auto method) {
                                  if (method == "~MutationLogWriter") {
                                      hookCalled = true;
@@ -324,23 +355,28 @@ TEST_F(MutationLogTest, WriteFail) {
 
 // Test that the MutationLogReader::iterator class obeys expected iterator
 // behaviour.
-TEST_F(MutationLogTest, Iterator) {
+TEST_P(MutationLogTest, Iterator) {
     // Create a simple mutation log to work on.
+    constexpr std::size_t num_items = 10000;
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
-        ml.newItem(Vbid(0), makeStoredDocKey("key1"));
-        ml.newItem(Vbid(0), makeStoredDocKey("key2"));
-        ml.newItem(Vbid(0), makeStoredDocKey("key3"));
+        MutationLogWriter ml(tmp_log_filename,
+                             MIN_LOG_HEADER_SIZE,
+                             encryption_key,
+                             cb::crypto::Compression::ZLIB);
+        for (std::size_t ii = 0; ii < num_items; ++ii) {
+            ml.newItem(Vbid(0), makeStoredDocKey(fmt::format("key{}", ii)));
+        }
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(3, ml.getItemsLogged(MutationLogType::New));
+        EXPECT_EQ(num_items, ml.getItemsLogged(MutationLogType::New));
         EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit1));
         EXPECT_EQ(1, ml.getItemsLogged(MutationLogType::Commit2));
+        ml.close();
     }
 
     // Now check the iterators.
-    MutationLogReader ml(tmp_log_filename);
+    MutationLogReader ml(tmp_log_filename, key_lookup_function);
 
     // Can copy-construct.
     auto iter = ml.begin();
@@ -355,13 +391,13 @@ TEST_F(MutationLogTest, Iterator) {
     for (auto iter2 = ml.begin(); iter2 != ml.end(); ++iter2) {
         count++;
     }
-    EXPECT_EQ(5, count);
+    EXPECT_EQ(num_items + 2, count);
 }
 
-TEST_F(MutationLogTest, BatchLoad) {
-
+TEST_P(MutationLogTest, BatchLoad) {
     {
-        MutationLogWriter ml(tmp_log_filename, MIN_LOG_HEADER_SIZE);
+        MutationLogWriter ml(
+                tmp_log_filename, MIN_LOG_HEADER_SIZE, encryption_key);
 
         // Add a number of items, then check that batch load only returns
         // the requested number.
@@ -378,7 +414,7 @@ TEST_F(MutationLogTest, BatchLoad) {
     }
 
     {
-        MutationLogReader ml(tmp_log_filename);
+        MutationLogReader ml(tmp_log_filename, key_lookup_function);
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(0));
         h.setVBucket(Vbid(1));
@@ -401,3 +437,8 @@ TEST_F(MutationLogTest, BatchLoad) {
         EXPECT_EQ(8, maps[0].size() + maps[1].size());
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(EncryptionOnOff,
+                         MutationLogTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
