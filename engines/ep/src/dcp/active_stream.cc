@@ -389,22 +389,34 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
         auto sendHCS = supportSyncReplication() && highCompletedSeqno;
         auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
 
-        const auto sendHPS = supportSyncReplication() &&
-                             (maxMarkerVersion == MarkerVersion::V2_2);
-        auto hpsToSend = sendHPS ? highPreparedSeqno : std::nullopt;
+        // A consumer might have previously receive a snapshot marker from a
+        // lower version node & the HPS on the replica could have already been
+        // bumped to the snapEnd of the previous disk snapshot. When this node
+        // become active & resumes DCP replication the HPS we could send could
+        // be lower than the last send snapEnd. Make sure to pack the HPS in the
+        // snapshot marker only if it is in the snapshot range.
 
-        auto mvsToSend = supportSyncReplication()
-                                 ? std::make_optional(maxVisibleSeqno)
-                                 : std::nullopt;
+        auto hpsInSnapshotRange = highPreparedSeqno &&
+                                  highPreparedSeqno >= diskStartSeqno &&
+                                  highPreparedSeqno <= diskEndSeqno;
+
+        auto sendMarkerV2_2 =
+                hpsInSnapshotRange && (maxMarkerVersion == MarkerVersion::V2_2);
+
+        const auto sendHPS = supportSyncReplication() && sendMarkerV2_2;
+        auto hpsToSend = sendHPS ? highPreparedSeqno : std::nullopt;
 
         // The diskEndSeqno & purgeSeqno are derived from the same
         // BySeqnoScanContext and therefore purge seqno will always be <= end
         // seqno. Expect the same to true.
         Expects(purgeSeqno <= diskEndSeqno);
 
-        auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
-                                ? std::make_optional(purgeSeqno)
-                                : std::nullopt;
+        auto psToSend =
+                sendMarkerV2_2 ? std::make_optional(purgeSeqno) : std::nullopt;
+
+        auto mvsToSend = supportSyncReplication()
+                                 ? std::make_optional(maxVisibleSeqno)
+                                 : std::nullopt;
 
         auto flags =
                 DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint;
