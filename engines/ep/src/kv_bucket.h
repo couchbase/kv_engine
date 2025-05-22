@@ -486,10 +486,6 @@ public:
 
     const StorageProperties getStorageProperties() const override;
 
-    void scheduleVBStatePersist() override;
-
-    void scheduleVBStatePersist(Vbid vbid) override;
-
     const VBucketMap& getVBuckets() const override {
         return vbMap;
     }

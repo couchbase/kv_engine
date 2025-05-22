@@ -161,8 +161,15 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
                     "Failed to store an item.");
         }
     }
-    // 4500 keys + 1x checkpoint_start + 1x set_vbucket_state.
-    wait_for_stat_to_be(h, "vb_0:num_checkpoint_items", 4502, "checkpoint");
+    int setVbucketState = 0;
+    if (isPersistentBucket(h)) {
+        setVbucketState = 1;
+    }
+    // 4500 keys + 1x checkpoint_start + 1x/0x set_vb_state (cfg dependent).
+    wait_for_stat_to_be(h,
+                        "vb_0:num_checkpoint_items",
+                        4501 + setVbucketState,
+                        "checkpoint");
     return SUCCESS;
 }
 

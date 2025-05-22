@@ -169,6 +169,10 @@ public:
         return true;
     }
 
+    void persistVBState(Vbid vbid) override {
+        // No flusher - no-op
+    }
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;

@@ -991,7 +991,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(1, ckptMgr.getOpenCheckpointId());
     // cs, vbs, pre, commit
-    ASSERT_EQ(4, ckptList.back()->getNumItems());
+    ASSERT_EQ(ephemeral() ? 3 : 4, ckptList.back()->getNumItems());
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
@@ -1145,8 +1145,8 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
                     ckptMgr);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(1, ckptMgr.getOpenCheckpointId());
-    // cs, vbs, pre, commit
-    ASSERT_EQ(4, ckptList.back()->getNumItems());
+    // cs, vbs(persistent bucket), pre, commit
+    ASSERT_EQ(ephemeral() ? 3 : 4, ckptList.back()->getNumItems());
 
     // Note: Prepare and Commit are not in the same key-space and hence are not
     //       deduplicated at Flush.
@@ -4849,13 +4849,16 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
     ASSERT_EQ(1, ckptList.size());
     const auto& ckpt = *ckptList.front();
     const auto expectedNumMutations = engineOp != EngineOp::Remove ? 1 : 2;
+    const auto expectedNumMetaItems = ephemeral() ? 1 : 2;
     // cs + vbs + 1 or 2 mutations
-    ASSERT_EQ(2 + expectedNumMutations, ckpt.getNumItems());
+    ASSERT_EQ(expectedNumMetaItems + expectedNumMutations, ckpt.getNumItems());
     // Skip empty-item, checkpoint-start and set-vbstate
     auto it = ckpt.begin();
     it++;
     it++;
-    it++;
+    if (!ephemeral()) {
+        it++;
+    }
     // We must have the committed from the insert if we are testing a deletion
     if (engineOp == EngineOp::Remove) {
         EXPECT_EQ(queue_op::mutation, (*it)->getOperation());

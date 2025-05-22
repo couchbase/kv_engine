@@ -680,7 +680,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     auto& manager =
             *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
     // cs, vbs
-    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 1 : 2, manager.getNumOpenChkItems());
 
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
@@ -690,14 +690,14 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
         store_item(vbid, "key", "value");
     }
 
-    ASSERT_EQ(3, manager.getNumOpenChkItems())
-            << "Expected 3 items after population (cs, vbs, set)";
+    ASSERT_EQ(ephemeral() ? 2 : 3, manager.getNumOpenChkItems())
+            << "Incorrect items after population";
 
     setup_dcp_stream();
 
     ASSERT_TRUE(stream->isInMemory());
 
-    EXPECT_EQ(3, stream->getItemsRemaining())
+    EXPECT_EQ(ephemeral() ? 2 : 3, stream->getItemsRemaining())
             << "Unexpected initial stream item count";
 
     // Populate the streams' ready queue with items from the checkpoint,
@@ -1308,10 +1308,14 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
                    std::back_inserter(items),
                    [](const auto& rcptr) { return *rcptr; });
 
-    EXPECT_THAT(items,
-                ElementsAre(HasOperation(queue_op::checkpoint_start),
-                            HasOperation(queue_op::set_vbucket_state)));
-
+    if (ephemeral()) {
+        EXPECT_THAT(items,
+                    ElementsAre(HasOperation(queue_op::checkpoint_start)));
+    } else {
+        EXPECT_THAT(items,
+                    ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                HasOperation(queue_op::set_vbucket_state)));
+    }
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
@@ -1729,7 +1733,8 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     const auto openId = ckptMgr.getOpenCheckpointId();
     ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 3 /*expected_num_flushed*/);
-    ASSERT_EQ(6, ckptMgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(ephemeral() ? 5 : 6,
+              ckptMgr.removeClosedUnrefCheckpoints().count);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
 
@@ -1816,7 +1821,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
         ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         // Close the now unreferenced checkpoint so DCP stream must go to disk.
-        ASSERT_EQ(5, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(ephemeral() ? 4 : 5,
+                  ckptMgr.removeClosedUnrefCheckpoints().count);
         ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
         ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
     }
@@ -1891,7 +1897,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         const auto openId = ckptMgr.getOpenCheckpointId();
         ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
-        ASSERT_EQ(5, ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(ephemeral() ? 4 : 5,
+                  ckptMgr.removeClosedUnrefCheckpoints().count);
         ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
         ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
     }
@@ -2027,7 +2034,8 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
 
     ckptMgr.runGetItemsHook = [this, &ckptMgr](const CheckpointCursor* cursor,
                                                Vbid vbid) {
-        EXPECT_EQ(4, ckptMgr.removeClosedUnrefCheckpoints().count);
+        EXPECT_EQ(ephemeral() ? 3 : 4,
+                  ckptMgr.removeClosedUnrefCheckpoints().count);
         size_t numberOfItemsInCursor = 0;
         EXPECT_NO_THROW(numberOfItemsInCursor =
                                 ckptMgr.getNumItemsForCursor(cursor));
@@ -3359,7 +3367,8 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     const auto openId = ckptMgr.getOpenCheckpointId();
     ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1);
-    ASSERT_EQ(4, ckptMgr.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(ephemeral() ? 3 : 4,
+              ckptMgr.removeClosedUnrefCheckpoints().count);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
 
@@ -3786,7 +3795,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     // Verfies that the payload pointed by the item in CM is the same as the
     // original one
     const auto checkPayloadInCM =
-            [&vb, &originalValue, &originalSizes, &durReqs]() -> void {
+            [&vb, &originalValue, &originalSizes, &durReqs, this]() -> void {
         const auto& manager = *vb.checkpointManager;
         const auto& ckptList =
                 CheckpointManagerTestIntrospector::public_getCheckpointList(
@@ -3800,12 +3809,14 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         ASSERT_EQ(queue_op::empty, (*it)->getOperation());
         // 1 metaitem (checkpoint-start)
         it++;
-        ASSERT_EQ(4, ckpt->getNumItems());
+        ASSERT_EQ(ephemeral() ? 2 : 4, ckpt->getNumItems());
         EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
-        it++;
-        EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
-        it++;
-        EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
+        if (!ephemeral()) {
+            it++;
+            EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
+            it++;
+            EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
+        }
         // 1 non-metaitem is our deletion
         it++;
         ASSERT_TRUE((*it)->isDeleted());
@@ -4014,10 +4025,12 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
     ASSERT_EQ(1, list.size());
     auto* ckpt = list.front().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
-    ASSERT_EQ(3, ckpt->getNumItems());
+    ASSERT_EQ(ephemeral() ? 2 : 3, ckpt->getNumItems());
     auto it = ckpt->begin(); // empty-item
     it++; // checkpoint-start
-    it++; // set-vbstate
+    if (!ephemeral()) {
+        ++it; // set-vbstate
+    }
     it++;
     EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
     EXPECT_FALSE((*it)->isDeleted());
@@ -4206,7 +4219,8 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     const auto openId = manager.getOpenCheckpointId();
     ASSERT_GT(manager.createNewCheckpoint(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2);
-    EXPECT_EQ(7, manager.removeClosedUnrefCheckpoints().count);
+    EXPECT_EQ(ephemeral() ? 6 : 7,
+              manager.removeClosedUnrefCheckpoints().count);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
@@ -4274,8 +4288,9 @@ protected:
             flushVBucketToDiskIfPersistent(vbid, 3);
         }
         // cs, vbs, 3 mut(s), ce
-        ASSERT_EQ(6, ckptMgr.removeClosedUnrefCheckpoints().count);
-        ASSERT_EQ(6, stats.itemsRemovedFromCheckpoints);
+        ASSERT_EQ(ephemeral() ? 5 : 6,
+                  ckptMgr.removeClosedUnrefCheckpoints().count);
+        ASSERT_EQ(ephemeral() ? 5 : 6, stats.itemsRemovedFromCheckpoints);
 
         // Re-create the stream now we have items only on disk.
         stream = producer->mockActiveStreamRequest(0 /*flags*/,
@@ -5135,7 +5150,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(5, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(ephemeral() ? 4 : 5,
+              manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
@@ -5235,7 +5251,8 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(2, list.size());
     const auto openCkptId = manager.getOpenCheckpointId();
-    ASSERT_EQ(4, manager.removeClosedUnrefCheckpoints().count);
+    ASSERT_EQ(ephemeral() ? 3 : 4,
+              manager.removeClosedUnrefCheckpoints().count);
     // No new checkpoint created
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
     ASSERT_EQ(1, list.size());
@@ -5363,7 +5380,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     manager);
     ASSERT_EQ(1, list.size());
-    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+    ASSERT_EQ(ephemeral() ? 1 : 2, manager.getNumOpenChkItems()); // cs, vbs
 
     // Note: The first in-memory snapshot is special with regard to the CHK
     // flag. We force nextSnapshotIsCheckpoint=true at (some) state transition
@@ -7373,7 +7390,8 @@ TEST_P(SingleThreadedPassiveStreamTestEagerCP, MB_64246) {
     // removed by cursor move)
     ASSERT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(ckptId + 1, manager.getOpenCheckpointId());
-    EXPECT_EQ(3, manager.getNumOpenChkItems()); // cs + vbs(a) + vbs(r)
+    // cs + vbs(a) + vbs(r)  (no vbs on ephemeral)
+    EXPECT_EQ(ephemeral() ? 2 : 3, manager.getNumOpenChkItems());
     EXPECT_EQ(10, manager.getHighSeqno());
     checkpointSnap = manager.getSnapshotInfo();
     EXPECT_EQ(10, checkpointSnap.range.getStart());
@@ -7420,6 +7438,11 @@ TEST_P(SingleThreadedPassiveStreamTestEagerCP, MB_64246) {
 
 // MB-62847
 TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
+    if (ephemeral()) {
+        // Skip this test for ephemeral buckets as the vbucket state is not
+        // created on ephemeral buckets.
+        return;
+    }
     // Begin with an active vbucket and do some work to ensure that DCP will
     // backfill when we start it.
     store->setVBucketState(vbid, vbucket_state_active);

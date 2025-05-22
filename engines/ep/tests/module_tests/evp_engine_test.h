@@ -32,6 +32,10 @@ class EventuallyPersistentEngineTest : virtual public ::testing::Test {
 public:
     EventuallyPersistentEngineTest();
 
+    bool ephemeral() const {
+        return bucketType == "ephemeral";
+    }
+
 protected:
     void SetUp() override;
 

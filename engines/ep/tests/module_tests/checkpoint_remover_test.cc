@@ -952,7 +952,9 @@ TEST_P(CheckpointRemoverTest, BackgroundCheckpointRemovalWakesDestroyer) {
     auto initialMemUsed = epstats.getCheckpointManagerEstimatedMemUsage();
     auto initialMemUsedCM = cm.getMemUsage();
 
-    ASSERT_EQ(2, cm.getNumOpenChkItems()); // cs + vbs
+    // cs + vbs for persistent buckets
+    ASSERT_EQ(ephemeral() ? 1 : 2,
+              cm.getNumOpenChkItems()); // 1 for the dummy item
     // Add items to the initial (open) checkpoint until they exceed the
     // permitted memory usage
     auto value = std::string(20 * 1024, 'x');

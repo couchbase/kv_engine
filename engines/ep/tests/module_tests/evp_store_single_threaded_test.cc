@@ -3669,7 +3669,8 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     store_item(vbid, makeStoredDocKey("k3"), "k3");
     flushVBucketToDiskIfPersistent(vbid, 1);
     // cs, vbs, del, del, ce
-    EXPECT_EQ(5, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
+    EXPECT_EQ(ephemeral() ? 4 : 5,
+              vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // 4) Stream request picking up where we left off.
     const uint32_t flags =

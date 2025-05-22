@@ -2436,3 +2436,14 @@ void EPBucket::releaseBlockedCookies() {
         }
     }
 }
+
+void EPBucket::persistVBState(Vbid vbid) {
+    VBucketPtr vb = getVBucket(vbid);
+
+    if (!vb) {
+        EP_LOG_WARN("EPBucket::persistVBState: {} does not not exist.", vbid);
+        return;
+    }
+
+    vb->checkpointManager->queueSetVBState();
+}
