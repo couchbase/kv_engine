@@ -3419,7 +3419,8 @@ cb::engine_errc EPBucket::doFusionAggregatedStats(CookieIface& cookie,
     switch (stat) {
     case FusionStat::ActiveGuestVolumes:
         return doFusionAggregatedGuestVolumesStats(cookie, add_stat);
-    case FusionStat::UploaderState:
+    case FusionStat::Uploader:
+        return doFusionAggregatedUploaderStats(cookie, add_stat);
     case FusionStat::SyncInfo:
     case FusionStat::Invalid: {
         EP_LOG_WARN_CTX("EPBucket::doFusionAggregatedStats: Not supported",
@@ -3467,6 +3468,25 @@ cb::engine_errc EPBucket::doFusionAggregatedGuestVolumesStats(
     nlohmann::json ret;
     ret = volumes;
     add_stat("fusion", ret.dump(), cookie);
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::doFusionAggregatedUploaderStats(
+        CookieIface& cookie, const AddStatFn& add_stat) {
+    const auto vbuckets = vbMap.getBuckets();
+    nlohmann::json json;
+
+    for (const auto vbid : vbuckets) {
+        const auto [errc, stats] = getRWUnderlying(vbid)->getFusionStats(
+                FusionStat::Uploader, vbid);
+        if (errc != cb::engine_errc::success) {
+            // Details logged at KVStore level
+            return errc;
+        }
+        const auto vb = "vb_" + std::to_string(vbid.get());
+        json[vb] = stats;
+    }
+    add_stat("fusion", json.dump(), cookie);
     return cb::engine_errc::success;
 }
 

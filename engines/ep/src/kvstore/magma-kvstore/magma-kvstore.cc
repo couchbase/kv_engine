@@ -4648,7 +4648,7 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
                 Magma::KVStoreID(vbid.get()));
         return {checkStatus(status), data};
     }
-    case FusionStat::UploaderState: {
+    case FusionStat::Uploader: {
         const auto id = Magma::KVStoreID(vbid.get());
         nlohmann::json json;
         {
@@ -4667,6 +4667,17 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
             }
             json["term"] = data;
         }
+        {
+            const auto [status, stats] = magma->GetFusionUploaderStats(id);
+            if (const auto errc = checkStatus(status);
+                errc != cb::engine_errc::success) {
+                return {errc, {}};
+            }
+            json.update(stats);
+        }
+        // @TODO MB-65656: Magma is currently missing the implementation for
+        // last_sync_log_seqno and last_sync_log_term. Once the implementation
+        // is done, we can add them here.
         return {cb::engine_errc::success, json};
     }
     }

@@ -631,6 +631,9 @@ protected:
     cb::engine_errc doFusionAggregatedGuestVolumesStats(
             CookieIface& cookie, const AddStatFn& add_stat);
 
+    cb::engine_errc doFusionAggregatedUploaderStats(CookieIface& cookie,
+                                                    const AddStatFn& add_stat);
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not

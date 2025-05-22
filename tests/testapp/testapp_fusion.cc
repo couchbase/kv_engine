@@ -248,6 +248,94 @@ TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
     }
 }
 
+TEST_P(FusionTest, Stat_Uploader) {
+    auto json = fusionStats("uploader", "0");
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("state"));
+    ASSERT_TRUE(json["state"].is_string());
+    EXPECT_EQ("disabled", json["state"]);
+    ASSERT_TRUE(json.contains("term"));
+    ASSERT_TRUE(json["term"].is_number_integer());
+    EXPECT_EQ(0, json["term"]);
+
+    ASSERT_TRUE(json.contains("sync_session_completed_bytes"));
+    ASSERT_TRUE(json["sync_session_completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["sync_session_completed_bytes"]);
+    ASSERT_TRUE(json.contains("sync_session_total_bytes"));
+    ASSERT_TRUE(json["sync_session_total_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["sync_session_total_bytes"]);
+    ASSERT_TRUE(json.contains("snapshot_pending_bytes"));
+    ASSERT_TRUE(json["snapshot_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["snapshot_pending_bytes"]);
+}
+
+TEST_P(FusionTest, Stat_Uploader_Aggregate) {
+    // Create second vbucket
+    adminConnection->selectBucket(bucketName);
+    const auto vb1 = Vbid(1);
+    adminConnection->setVbucket(vb1, vbucket_state_active, {});
+    adminConnection->store("bump-vb-high-seqno", vb1, {});
+    adminConnection->waitForSeqnoToPersist(Vbid(1), 1);
+
+    const auto res = fusionStats("uploader", {});
+    ASSERT_FALSE(res.empty());
+    ASSERT_TRUE(res.is_object());
+    ASSERT_TRUE(res.contains("vb_0"));
+    ASSERT_TRUE(res.contains("vb_1"));
+
+    // verify vb_0 stats
+    const auto vb_0 = res["vb_0"];
+    ASSERT_FALSE(vb_0.empty());
+    ASSERT_TRUE(vb_0.is_object());
+
+    ASSERT_TRUE(vb_0.contains("state"));
+    ASSERT_TRUE(vb_0["state"].is_string());
+    EXPECT_EQ("disabled", vb_0["state"]);
+    ASSERT_TRUE(vb_0.contains("term"));
+    ASSERT_TRUE(vb_0["term"].is_number_integer());
+    EXPECT_EQ(0, vb_0["term"]);
+
+    ASSERT_TRUE(vb_0.contains("sync_session_completed_bytes"));
+    ASSERT_TRUE(vb_0["sync_session_completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["sync_session_completed_bytes"]);
+    ASSERT_TRUE(vb_0.contains("sync_session_total_bytes"));
+    ASSERT_TRUE(vb_0["sync_session_total_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["sync_session_total_bytes"]);
+    ASSERT_TRUE(vb_0.contains("snapshot_pending_bytes"));
+    ASSERT_TRUE(vb_0["snapshot_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["snapshot_pending_bytes"]);
+
+    // verify vb_1 stats
+    const auto vb_1 = res["vb_1"];
+    ASSERT_FALSE(vb_1.empty());
+    ASSERT_TRUE(vb_1.is_object());
+
+    ASSERT_TRUE(vb_1.contains("state"));
+    ASSERT_TRUE(vb_1["state"].is_string());
+    EXPECT_EQ("disabled", vb_1["state"]);
+    ASSERT_TRUE(vb_1.contains("term"));
+    ASSERT_TRUE(vb_1["term"].is_number_integer());
+    EXPECT_EQ(0, vb_1["term"]);
+
+    ASSERT_TRUE(vb_1.contains("sync_session_completed_bytes"));
+    ASSERT_TRUE(vb_1["sync_session_completed_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["sync_session_completed_bytes"]);
+    ASSERT_TRUE(vb_1.contains("sync_session_total_bytes"));
+    ASSERT_TRUE(vb_1["sync_session_total_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["sync_session_total_bytes"]);
+    ASSERT_TRUE(vb_1.contains("snapshot_pending_bytes"));
+    ASSERT_TRUE(vb_1["snapshot_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["snapshot_pending_bytes"]);
+
+    // Delete vb_1
+    adminConnection->executeInBucket(bucketName, [vb1](auto& conn) {
+        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+        cmd.setVBucket(vb1);
+        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+    });
+}
+
 /**
  * Active guest volumes are volumes involved in a "migration" process in fusion.
  * "migration" is the process of loading some previously mounted volume's data
@@ -503,9 +591,9 @@ TEST_P(FusionTest, StopFusionUploader) {
     });
 }
 
-TEST_P(FusionTest, Stat_UploaderState) {
+TEST_P(FusionTest, ToggleUploader) {
     // Uploader disabled at start
-    auto json = fusionStats("uploader_state", "0");
+    auto json = fusionStats("uploader", "0");
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("state"));
@@ -520,7 +608,7 @@ TEST_P(FusionTest, Stat_UploaderState) {
               startFusionUploader(Vbid(0), "123").getStatus());
 
     // verify stat
-    json = fusionStats("uploader_state", "0");
+    json = fusionStats("uploader", "0");
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("state"));
@@ -540,7 +628,7 @@ TEST_P(FusionTest, Stat_UploaderState) {
     });
 
     // verify stat
-    json = fusionStats("uploader_state", "0");
+    json = fusionStats("uploader", "0");
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("state"));
@@ -554,7 +642,7 @@ TEST_P(FusionTest, Stat_UploaderState) {
 TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
     // Note: vbid:1 doesn't exist
     try {
-        fusionStats("uploader_state", "1");
+        fusionStats("uploader", "1");
         FAIL();
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());

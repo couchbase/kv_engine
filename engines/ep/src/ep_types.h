@@ -506,7 +506,7 @@ enum class FusionStat : uint8_t {
     Invalid,
     SyncInfo,
     ActiveGuestVolumes,
-    UploaderState
+    Uploader
 };
 FusionStat toFusionStat(const std::string& str);
 std::string format_as(FusionStat stat);
