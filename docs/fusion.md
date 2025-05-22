@@ -342,7 +342,7 @@ Any key not shown in the following sections will be ignored.
   "logstore_uri": "uri1",
   "metadatastore_uri": "uri2"
   "metadatastore_auth_token": "some-token"
-  "namespaces": "namespace-to-delete"
+  "namespace": "namespace-to-delete"
 }
 ```
 
