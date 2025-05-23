@@ -1392,7 +1392,7 @@
             "type": "bool"
         },
         "magma_min_value_block_size_threshold": {
-            "default": "(64 * 1024)",
+            "default": "(100 * 1024 * 1024)",
             "dynamic": true,
             "descr": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for lesser memory consumption as it avoids many value copies. For example, magma block compression is turned off for them as compression requires an output buffer as large as the input buffer. This is fine since for such large docs, per document Snappy compression already should give good enough space savings. This setting should be >= SeqIndex data block size or else it won't take effect.",
             "type": "size_t",
