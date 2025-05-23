@@ -44,11 +44,8 @@ protected:
         }
         Configuration config;
         config.parseConfiguration(configStr);
-
-        int numShards = config.getMaxNumShards()
-                                ? config.getMaxNumShards()
-                                : cb::get_available_cpu_count();
-        WorkLoadPolicy workload(config.getMaxNumWorkers(), numShards);
+        WorkLoadPolicy workload(config.getMaxNumWorkers(),
+                                config.getMaxNumShards());
         kvstoreConfig =
                 std::make_unique<MagmaKVStoreConfig>(config,
                                                      config.getBackendString(),

@@ -719,9 +719,6 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
                        "ephemeral_mem_recovery_enabled=true",
                        "ephemeral_mem_recovery");
     boost::replace_all(config, "_ephemeral_mem_recovery_enabled=false", "");
-    boost::replace_all(config, "max_vbuckets=", "vbuckets_");
-    boost::replace_all(
-            config, "max_num_shards_vbucket_factor=", "shards_vbucket_factor_");
     return config;
 }
 
@@ -6867,52 +6864,3 @@ MutationStatus STParameterizedBucketTest::public_processSet(
                         {/*no predicate*/})
             .first;
 }
-
-static std::string desiredCpuCountEnv = "COUCHBASE_CPU_COUNT=999";
-static std::string originalCpuCountEnv =
-        "COUCHBASE_CPU_COUNT=" + std::to_string(cb::get_available_cpu_count());
-
-class ShardCountTest : public STParameterizedBucketTest {
-public:
-    static void SetUpTestCase() {
-        putenv(desiredCpuCountEnv.data());
-        ASSERT_EQ(999, cb::get_available_cpu_count());
-        STParameterizedBucketTest::SetUpTestCase();
-    }
-
-    static void TearDownTestCase() {
-        STParameterizedBucketTest::TearDownTestCase();
-        putenv(originalCpuCountEnv.data());
-        ASSERT_NE(999, cb::get_available_cpu_count());
-    }
-
-    static auto configValues() {
-        using namespace config;
-        // Default config
-        Config config{{"max_vbuckets", "1024"}};
-        // Combine with various other max_vbuckets values
-        config |= Config{{"max_vbuckets", {"1024", "128"}}} *
-                  Config{{"max_num_shards_vbucket_factor",
-                          {"0", "1", "8", "1024"}}};
-        return config;
-    }
-};
-
-TEST_P(ShardCountTest, AutomaticNumShards) {
-    const auto maxVbuckets = engine->getConfiguration().getMaxVbuckets();
-    const auto maxNumShardsVbucketFactor =
-            engine->getConfiguration().getMaxNumShardsVbucketFactor();
-
-    if (maxNumShardsVbucketFactor == 0) {
-        EXPECT_EQ(128, engine->getAutoShardCount());
-    } else {
-        const auto expectedShardCount = std::clamp<size_t>(
-                maxVbuckets / maxNumShardsVbucketFactor, 1, 128);
-        EXPECT_EQ(expectedShardCount, engine->getAutoShardCount());
-    }
-}
-
-INSTANTIATE_TEST_SUITE_P(Parameterized,
-                         ShardCountTest,
-                         ShardCountTest::configValues(),
-                         ShardCountTest::PrintToStringParamName);

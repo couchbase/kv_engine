@@ -2141,31 +2141,6 @@ void EpEngineValueChangeListener::booleanValueChanged(std::string_view key,
     }
 }
 
-size_t EventuallyPersistentEngine::getAutoShardCount() const {
-    // If user didn't specify a maximum shard count, then auto-select
-    // based on the number of available CPUs and the number of vbuckets
-    // in the configuration.
-    int numShards = cb::get_available_cpu_count();
-
-    // Calculate the maximum number of shards based on the number of
-    // vbuckets and the vbucket factor.
-    if (configuration.getMaxNumShardsVbucketFactor() > 0) {
-        int maxNumShardsVbucketLimit =
-                configuration.getMaxVbuckets() /
-                configuration.getMaxNumShardsVbucketFactor();
-
-        numShards = std::min(maxNumShardsVbucketLimit, numShards);
-    }
-
-    // Sanity - must always have at least 1 shard., but not more than
-    // 128 given we don't have machines commonly available to test at
-    // greater sizes.
-    numShards = std::max(1, numShards);
-    numShards = std::min(128, numShards);
-
-    return numShards;
-}
-
 size_t EventuallyPersistentEngine::getShardCount() {
     auto configShardCount = configuration.getMaxNumShards();
     if (configuration.getBackendString() != "magma") {
@@ -2336,11 +2311,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             "not_locked_returns_tmpfail",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    int shardCount = getShardCount();
-    if (shardCount == 0) {
-        shardCount = getAutoShardCount();
-    }
-
     // The number of shards for a magma bucket cannot be changed after the first
     // bucket instantiation. This is because the number of shards determines
     // the on disk structure of the data. To solve this problem we store a file
@@ -2348,7 +2318,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     // shards are to be used. We read this file here if it exists and use that
     // number, if not, this should be the first bucket creation.
     workload = std::make_unique<WorkLoadPolicy>(
-            configuration.getMaxNumWorkers(), shardCount);
+            configuration.getMaxNumWorkers(), getShardCount());
 
     maybeSaveShardCount(*workload);
 

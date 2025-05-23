@@ -46,5 +46,5 @@ public:
 protected:
     ~NoBucketTaskable() override = default;
     const std::string name{"No bucket"};
-    WorkLoadPolicy policy{0, 1};
+    WorkLoadPolicy policy{0, 0};
 };
