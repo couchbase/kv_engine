@@ -181,6 +181,14 @@ public:
         return true;
     }
 
+    bool isNMVBUnequivocal() override {
+        // Ephemeral buckets don't know this, so we return false and the caller
+        // has to look elsewhere. This function is really a sub-function of
+        // EventuallyPersistentEngine::mustRemapNMVB and doesn't have a more
+        // general purpose.
+        return false;
+    }
+
     bool disconnectReplicationAtOOM() const override;
 
     enum class FullPolicy { AutoDelete, FailNewData };

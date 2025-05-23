@@ -6792,6 +6792,16 @@ bool EventuallyPersistentEngine::isDegradedMode() const {
     return kvBucket->isPrimaryWarmupLoadingData() || !trafficEnabled.load();
 }
 
+bool EventuallyPersistentEngine::mustRemapNMVB() const {
+    // If warmup hasn't loaded metdata then traffic enabled is the deciding
+    // factor. Note ephemeral returns false for this, traffic enabled is always
+    // the deciding factor in that case..
+    if (!kvBucket->isNMVBUnequivocal()) {
+        return !trafficEnabled.load();
+    }
+    return false;
+}
+
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
@@ -8041,7 +8051,7 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
 
 cb::engine_errc EventuallyPersistentEngine::maybeRemapStatus(
         cb::engine_errc status) {
-    if (status == cb::engine_errc::not_my_vbucket && isDegradedMode()) {
+    if (status == cb::engine_errc::not_my_vbucket && mustRemapNMVB()) {
         return cb::engine_errc::temporary_failure;
     }
     if (status == cb::engine_errc::no_such_key && isDegradedMode() &&

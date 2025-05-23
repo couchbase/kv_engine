@@ -731,6 +731,14 @@ public:
      */
     virtual bool hasPrimaryWarmupLoadedMetaData() = 0;
 
+    /**
+     * Is a NMVB status unambigous, in that KV has to the best of its knowledge
+     * the correct set of active vbuckets?
+     *
+     * This would be false in the early stages of warmup.
+     */
+    virtual bool isNMVBUnequivocal() = 0;
+
     virtual cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
                                           CookieIface& cookie) const = 0;
 

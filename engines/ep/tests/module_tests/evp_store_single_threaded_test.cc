@@ -256,17 +256,19 @@ void SingleThreadedKVBucketTest::runReadersUntilPrimaryWarmedUp() {
     }
 }
 
-void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
-    runReadersUntilPrimaryWarmedUp();
-
+void SingleThreadedKVBucketTest::runReadersUntilSecondaryWarmedUp() {
     const auto* secondary = engine->getKVBucket()->getSecondaryWarmup();
-    if (!secondary) {
-        return;
-    }
-
+    ASSERT_TRUE(secondary);
     auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     while (!secondary->isComplete()) {
         runNextTask(readerQueue);
+    }
+}
+
+void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
+    runReadersUntilPrimaryWarmedUp();
+    if (engine->getKVBucket()->getSecondaryWarmup()) {
+        runReadersUntilSecondaryWarmedUp();
     }
 }
 

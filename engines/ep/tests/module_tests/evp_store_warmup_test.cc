@@ -839,6 +839,23 @@ TEST_F(WarmupOrderTest, populateShardVbStates) {
     }
 }
 
+TEST_F(WarmupTest, NMVB_remapping) {
+    resetEngineAndEnableWarmup();
+    engine->public_enableTraffic(false);
+    // No vbuckets, any read will first return temporary_failure.
+    auto rv = engine->get_if(*cookie, makeStoredDocKey("key"), vbid, {});
+    EXPECT_EQ(cb::engine_errc::temporary_failure, rv.first);
+    runReadersUntilPrimaryWarmedUp();
+    EXPECT_TRUE(store->isWarmupLoadingData());
+    // Partially warmed up - metadata has been loaded so NMVB can now be
+    // returned.
+    rv = engine->get_if(*cookie, makeStoredDocKey("key"), vbid, {});
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, rv.first);
+
+    runReadersUntilSecondaryWarmedUp();
+    EXPECT_FALSE(store->isWarmupLoadingData());
+}
+
 // Test fixture for Durability-related Warmup tests.
 class DurabilityWarmupTest : public DurabilityKVBucketTest {
 protected:

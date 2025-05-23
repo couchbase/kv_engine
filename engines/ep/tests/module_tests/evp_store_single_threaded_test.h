@@ -322,6 +322,12 @@ protected:
     void runReadersUntilPrimaryWarmedUp();
 
     /**
+     * This method will keep running reader tasks until secondary Warmup shows
+     * it is complete
+     */
+    void runReadersUntilSecondaryWarmedUp();
+
+    /**
      * Helper method that takes the objects current base config, will re-enable
      * warmup in the returned config and also add the new_config arg.
      * @param new_config args to add to the config

@@ -1633,6 +1633,13 @@ protected:
     cb::engine_errc maybeRemapStatus(cb::engine_errc status);
 
     /**
+     * Helper method for maybeRemapStatus in the NMVB case.
+     *
+     * @return true when a NMVB must be remapped to a temporary failure.
+     */
+    bool mustRemapNMVB() const;
+
+    /**
      * Check the access for the given privilege for the
      * bucket.scope.collection
      *

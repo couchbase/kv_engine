@@ -314,6 +314,12 @@ public:
 
     bool hasPrimaryWarmupLoadedMetaData() override;
 
+    bool isNMVBUnequivocal() override {
+        // If persistent bucket has completed metadata loading then a NMVB
+        // status is unambigous.
+        return hasPrimaryWarmupLoadedMetaData();
+    }
+
     /**
      * Add warmup stats if the warmupTask object exists
      */
