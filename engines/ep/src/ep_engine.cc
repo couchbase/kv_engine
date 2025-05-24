@@ -47,11 +47,13 @@
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"
+
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
 #include <cbcrypto/common.h>
+#include <cbcrypto/file_utilities.h>
 #include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
@@ -3992,6 +3994,28 @@ cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
         std::string key(active->getId());
         keys.insert(key);
     }
+
+    bool unencrypted = false;
+    auto deks = cb::crypto::findDeksInUse(
+            configuration.getDbname(),
+            [&unencrypted](const auto& path) {
+                if (!path.filename().string().starts_with("access.log")) {
+                    return false;
+                }
+                if (path.extension() == ".cef") {
+                    return true;
+                }
+                unencrypted = true;
+                return false;
+            },
+            [](auto message, const auto& ctx) {
+                LOG_WARNING_CTX(message, ctx);
+            });
+    if (unencrypted) {
+        deks.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    }
+    keys.insert(deks.begin(), deks.end());
+
     add_stat("encryption-key-ids", nlohmann::json(keys).dump(), cookie);
     return cb::engine_errc::success;
 }
