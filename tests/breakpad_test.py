@@ -67,12 +67,7 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
         args += ['--eval-command=' + c]
 
     logging.debug("GDB args:" + ', '.join(args))
-    gdb = subprocess.Popen(args,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE,
-                           universal_newlines=True)
-    gdb.wait()
-    return gdb.stdout.read()
+    return subprocess.run(args, capture_output=True, text=True, check=True).stdout
 
 
 def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
