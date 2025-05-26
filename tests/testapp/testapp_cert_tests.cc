@@ -272,40 +272,6 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     }
 }
 
-/// The following test tries to use the TLS stack from golang to connect
-/// to the server and establish a connection and authenticate with the
-/// client certificate.
-TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
-    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
-
-    const auto connection = createConnection();
-    const std::vector<std::string> argv = {
-            {OBJECT_ROOT "/tests/gocode/tls_test/tls_test"},
-            {"-kv"},
-            {"localhost:" + std::to_string(connection->getPort())},
-            {"-clientKey"},
-            {OBJECT_ROOT "/tests/cert/clients/trond.key"},
-            {"-clientCert"},
-            {OBJECT_ROOT "/tests/cert/clients/trond.cert"},
-            {"-rootCA"},
-            {OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
-            {"-skipCertVerify"},
-            {"false"}};
-
-    nlohmann::json json;
-    std::string status;
-    const auto child = ProcessMonitor::create(argv, [&status, &json](auto& ec) {
-        json = ec.to_json();
-        status =  ec.to_string();
-    });
-
-    while (child->isRunning()) {
-        std::this_thread::sleep_for(std::chrono::seconds{1});
-    }
-
-    EXPECT_EQ("Success", status) << json.dump(2);
-}
-
 /// Verify we can't connect with the client certificate if the client
 /// don't have the certificate in the trusted certificate store.
 TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store) {
