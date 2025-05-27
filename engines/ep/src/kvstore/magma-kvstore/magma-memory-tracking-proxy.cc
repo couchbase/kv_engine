@@ -702,14 +702,12 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     nlohmann::json json;
-    // @TODO MB-65656: Magma currently have an incomplete implementation for
-    // the following stats. Once the implementation is done, we should call
-    // down to magma to retrieve these stats. For now, we return 0.
     const auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
-        json["sync_session_completed_bytes"] = 0;
-        json["sync_session_total_bytes"] = 0;
-        json["snapshot_pending_bytes"] = 0;
+        json["sync_session_completed_bytes"] =
+                stats.FusionFSStats.SyncSessionTotalBytes;
+        json["sync_session_total_bytes"] =
+                stats.FusionFSStats.SyncSessionCompletedBytes;
     }
     return {status, json};
 }
@@ -719,13 +717,10 @@ MagmaMemoryTrackingProxy::GetFusionMigrationStats(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     nlohmann::json json;
-    // @TODO MB-65656: Magma currently have an incomplete implementation for
-    // the following stats. Once the implementation is done, we should call
-    // down to magma to retrieve these stats. For now, we return 0.
     const auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
-        json["completed_bytes"] = 0;
-        json["total_bytes"] = 0;
+        json["completed_bytes"] = stats.FusionFSStats.MigrationCompletedBytes;
+        json["total_bytes"] = stats.FusionFSStats.MigrationTotalBytes;
     }
     return {status, json};
 }
@@ -871,6 +866,13 @@ MagmaMemoryTrackingProxy::GetFusionUploaderTerm(
         const magma::Magma::KVStoreID kvId) {
     cb::UseArenaMallocSecondaryDomain d;
     return magma->GetFusionUploaderTerm(kvId);
+}
+
+std::tuple<magma::Status, uint64_t>
+MagmaMemoryTrackingProxy::GetFusionPendingSyncBytes(
+        const magma::Magma::KVStoreID kvId) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->GetFusionPendingSyncBytes(kvId);
 }
 
 std::tuple<magma::Status, magma::CloneManifest> MagmaMemoryTrackingProxy::Clone(

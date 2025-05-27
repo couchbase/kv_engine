@@ -357,6 +357,13 @@ public:
     std::tuple<magma::Status, uint64_t> GetFusionUploaderTerm(
             const magma::Magma::KVStoreID kvId);
 
+    /**
+     * @return The amount of data to sync to Fusion in order to have a complete
+     * copy of it for a given kvstore's latest snapshot.
+     */
+    std::tuple<magma::Status, uint64_t> GetFusionPendingSyncBytes(
+            const magma::Magma::KVStoreID kvId);
+
     std::tuple<magma::Status, magma::CloneManifest> Clone(
             const std::string& path, magma::Magma::KVStoreID kvID);
 
