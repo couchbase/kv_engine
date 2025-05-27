@@ -2972,6 +2972,60 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
     return status;
 }
 
+Status get_fusion_namespaces_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto value = cookie.getRequest().getValueString();
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(value);
+    } catch (const nlohmann::json::exception& e) {
+        // Note: Don't log the full payload
+        const auto msg = fmt::format(
+                "get_fusion_namespaces_validator: Invalid json format {}",
+                e.what());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_uri")) {
+        cookie.setErrorContext(
+                "get_fusion_namespaces_validator: Missing "
+                "metadatastore_uri");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_uri"].is_string()) {
+        cookie.setErrorContext(
+                "get_fusion_namespaces_validator: metadatastore_uri not "
+                "string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_auth_token")) {
+        cookie.setErrorContext(
+                "get_fusion_namespaces_validator: Missing "
+                "metadatastore_auth_token");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_auth_token"].is_string()) {
+        cookie.setErrorContext(
+                "get_fusion_namespaces_validator: metadatastore_auth_token "
+                "not string");
+        return Status::Einval;
+    }
+
+    return status;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type_t<ClientOpcode>(command);
     if (validators[idx]) {
@@ -3287,4 +3341,6 @@ McbpValidator::McbpValidator() {
           set_chronicle_auth_token_validator);
     setup(cb::mcbp::ClientOpcode::DeleteFusionNamespace,
           delete_fusion_namespace_validator);
+    setup(cb::mcbp::ClientOpcode::GetFusionNamespaces,
+          get_fusion_namespaces_validator);
 }

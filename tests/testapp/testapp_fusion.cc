@@ -789,6 +789,18 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
+TEST_P(FusionTest, GetFusionNamespaces) {
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFusionNamespaces};
+    nlohmann::json json;
+    json["metadatastore_uri"] = "uri";
+    json["metadatastore_auth_token"] = "some-token";
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
 #else
 
 /**
@@ -804,6 +816,18 @@ TEST_P(NonFusionTest, DeleteFusionNamespace) {
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
     json["namespace"] = "namespace-to-delete";
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+}
+
+TEST_P(NonFusionTest, GetFusionNamespaces) {
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFusionNamespaces};
+    nlohmann::json json;
+    json["metadatastore_uri"] = "uri";
+    json["metadatastore_auth_token"] = "some-token";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);

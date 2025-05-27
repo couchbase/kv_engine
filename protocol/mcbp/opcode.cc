@@ -833,6 +833,8 @@ public:
               {"SET_CHRONICLE_AUTH_TOKEN"sv, {Attribute::Supported}});
         setup(ClientOpcode::DeleteFusionNamespace,
               {"DELETE_FUSION_NAMESPACE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetFusionNamespaces,
+              {"GET_FUSION_NAMESPACES"sv, {Attribute::Supported}});
     }
 
 protected:

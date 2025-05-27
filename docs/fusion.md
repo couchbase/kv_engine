@@ -362,6 +362,77 @@ will contain details.
 This status code is used for unexpected internal failure.
 
 
+# 0x78 - Get Fusion Namespaces
+
+This command retrieves a list of buckets with their unique identifiers
+for buckets that still have data on FusionLogStore.
+
+The request has:
+* No extras
+* No key
+* A value (JSON object encoding the arguments)
+* datatype must be JSON and client must enable JSON when issuing HELO
+
+The value is a JSON object with a number of fields, detailed below.
+
+## JSON definition
+
+The following keys are accepted input. All keys are mandatory.
+Any key not shown in the following sections will be ignored.
+
+* The URI of the Metadatastore
+  * `"metadatastore_uri"`
+  * The value is a string
+
+* The Auth token for accessing the Metadatastore
+  * `"metadatastore_auth_token"`
+  * The value is a string
+
+### Examples
+
+```
+{
+  "metadatastore_uri": "uri"
+  "metadatastore_auth_token": "some-token"
+}
+```
+
+### Returns
+
+On success the response's payload returns a JSON object that contains the
+following keys:
+
+* Version
+  * `"version"`
+  * The value is an unsigned integer
+
+* Namespaces
+  * `"namespaces"`
+  * The value is a list of buckets, with their unique identifiers, that still have data on FusionLogStore
+
+### Examples
+
+```
+{
+  "version": 1,
+  "namespaces": [
+         "kv/travel-sample/uuid1",
+         "kv/bucket-sample/uuid2",
+      ]
+}
+```
+
+### Errors
+
+**Status::Einval (0x04)**
+
+Input validation failure (e.g. incorrect params format). The returned error context
+will contain details.
+
+**Status::Einternal (0x84)**
+
+This status code is used for unexpected internal failure.
+
 # 0x3d - Set VBucket State
 
 To request loading a vbucket from a snapshot, the command is extended from the

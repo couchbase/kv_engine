@@ -31,6 +31,7 @@
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_file_fragment_context.h"
+#include "protocol/mcbp/get_fusion_namespaces_command_context.h"
 #include "protocol/mcbp/get_fusion_storage_snapshot_command_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
@@ -685,6 +686,10 @@ static void delete_fusion_namespace_executor(Cookie& cookie) {
     cookie.obtainContext<DeleteFusionNamespaceCommandContext>(cookie).drive();
 }
 
+static void get_fusion_namespaces_executor(Cookie& cookie) {
+    cookie.obtainContext<GetFusionNamespacesCommandContext>(cookie).drive();
+}
+
 static void process_bin_noop_response(Cookie&) {
     // do nothing
 }
@@ -974,6 +979,8 @@ void initialize_mbcp_lookup_map() {
                   set_chronicle_auth_token_executor);
     setup_handler(cb::mcbp::ClientOpcode::DeleteFusionNamespace,
                   delete_fusion_namespace_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetFusionNamespaces,
+                  get_fusion_namespaces_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

@@ -408,7 +408,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::StartFusionUploader:
         case ClientOpcode::StopFusionUploader:
         case ClientOpcode::DeleteFusionNamespace:
-        case ClientOpcode::ReservedFusion8:
+        case ClientOpcode::GetFusionNamespaces:
         case ClientOpcode::SetChronicleAuthToken:
             // The command don't take (or we don't support decoding) extras
             break;
