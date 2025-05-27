@@ -20,6 +20,7 @@
 
 #include <fmt/args.h>
 #include <memcached/server_core_iface.h>
+#include <utilities/fusion_utilities.h>
 
 /// A listener class to update MagmaKVSTore related configs at runtime.
 class MagmaKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
@@ -235,8 +236,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_fusion_metadatastore_uri",
             std::make_unique<ConfigChangeListener>(*this));
 
-    fusionNamespace = config.getMagmaFusionNamespacePrefix() + "/" +
-                      config.getCouchBucket() + "/" + config.getUuid();
+    fusionNamespace =
+            generateFusionNamespace(config.getCouchBucket(), config.getUuid());
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
     fusionLogCheckpointInterval =

@@ -1692,12 +1692,6 @@
             "dynamic": true,
             "type": "std::string"
         },
-        "magma_fusion_namespace_prefix": {
-            "default": "kv",
-            "descr": "The fusion namespace format is <service_prefix>/<bucket_name>/<bucket_uuid>. This parameter encodes the <service_prefix> for KV.",
-            "dynamic": false,
-            "type": "std::string"
-        },
         "magma_fusion_upload_interval": {
             "default": "(60 * 10)",
             "descr": "The interval between kvstore syncs to fusion, in seconds.",
