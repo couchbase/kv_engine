@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <platform/split_string.h>
 #include <string>
 
 inline const std::string magma_fusion_namespace_prefix = "kv";
@@ -17,4 +18,9 @@ inline const std::string magma_fusion_namespace_prefix = "kv";
 inline std::string generateFusionNamespace(const std::string& bucketName,
                                            const std::string& uuid) {
     return magma_fusion_namespace_prefix + "/" + bucketName + "/" + uuid;
+}
+
+inline bool isValidFusionNamespace(std::string_view namespaceStr) {
+    const auto parts = cb::string::split(namespaceStr, '/');
+    return parts.size() == 3 && parts[0] == magma_fusion_namespace_prefix;
 }

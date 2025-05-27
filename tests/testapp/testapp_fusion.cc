@@ -775,6 +775,21 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
     EXPECT_EQ(false, error) << "Missing stats found";
 }
 
+TEST_P(FusionTest, DeleteInvalidFusionNamespace) {
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::DeleteFusionNamespace};
+    nlohmann::json json;
+    json["logstore_uri"] = "uri1";
+    json["metadatastore_uri"] = "uri2";
+    json["metadatastore_auth_token"] = "some-token";
+    // Invalid namespace: does not begin with "kv/"
+    json["namespace"] = "cbas/namespace-to-delete/uuid";
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    auto resp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
+
 TEST_P(FusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
             cb::mcbp::ClientOpcode::DeleteFusionNamespace};
@@ -782,10 +797,10 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     json["logstore_uri"] = "uri1";
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
-    json["namespace"] = "namespace-to-delete";
+    json["namespace"] = "kv/namespace-to-delete/uuid";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    const auto resp = adminConnection->execute(cmd);
+    auto resp = adminConnection->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -815,7 +830,7 @@ TEST_P(NonFusionTest, DeleteFusionNamespace) {
     json["logstore_uri"] = "uri1";
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
-    json["namespace"] = "namespace-to-delete";
+    json["namespace"] = "kv/namespace-to-delete/uuid";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);

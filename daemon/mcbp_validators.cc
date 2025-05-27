@@ -32,6 +32,7 @@
 #include <platform/string_hex.h>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/fusion_utilities.h>
 #include <utilities/json_utilities.h>
 #include <utilities/throttle_utilities.h>
 #include <string_view>
@@ -2969,6 +2970,13 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
+    const std::string_view ns = json["namespace"].get<std::string_view>();
+    if (!isValidFusionNamespace(ns)) {
+        cookie.setErrorContext(
+                "delete_fusion_namespace_validator: namespace must be in "
+                "format 'kv/bucketName/bucketUUID'");
+        return Status::Einval;
+    }
     return status;
 }
 
