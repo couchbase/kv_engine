@@ -34,18 +34,6 @@ extern "C" {
 #include "mutation_log.h"
 #include "tests/module_tests/test_helpers.h"
 
-// Bitfield of available file permissions.
-namespace FilePerms {
-    const int None = 0;
-#if defined(WIN32)
-    const int Read = _S_IREAD;
-    const int Write = _S_IWRITE;
-#else
-    const int Read = S_IRUSR;
-    const int Write = S_IWUSR;
-#endif
-}
-
 class MutationLogTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -55,23 +43,6 @@ protected:
 
     void TearDown() override {
         std::filesystem::remove(tmp_log_filename);
-    }
-
-    /**
-     * Sets the read/write permissions on the tmp log file (in a
-     * cross-platform way).
-     */
-    void set_file_perms(/*FilePerms*/int perms) {
-#if defined(WIN32)
-        if (_chmod(tmp_log_filename.c_str(), perms) != 0)
-        {
-#else
-        if (chmod(tmp_log_filename.c_str(), perms) != 0)
-        {
-#endif
-            std::cerr << "set_file_perms: chmod failed: " << cb_strerror() << std::endl;
-            abort();
-        }
     }
 
     // Storage for temporary log filename
@@ -300,7 +271,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
     }
 
     // Break the log
-    int file = open(tmp_log_filename.c_str(), O_RDWR, FilePerms::Read | FilePerms::Write);
+    int file = open(tmp_log_filename.c_str(), O_RDWR);
     EXPECT_EQ(5000, lseek(file, 5000, SEEK_SET));
     uint8_t b;
     EXPECT_EQ(1, read(file, &b, sizeof(b)));
@@ -391,11 +362,14 @@ TEST_F(MutationLogTest, LoggingShortRead) {
 
 TEST_F(MutationLogTest, YUNOOPEN) {
     // Make file unreadable
-    set_file_perms(FilePerms::None);
+    std::filesystem::permissions(tmp_log_filename,
+                                 std::filesystem::perms::none);
     MutationLog ml(tmp_log_filename);
     EXPECT_THROW(ml.open(), MutationLog::ReadException);
     // Restore permissions to be able to delete file.
-    set_file_perms(FilePerms::Read | FilePerms::Write);
+    std::filesystem::permissions(tmp_log_filename,
+                                 std::filesystem::perms::owner_read |
+                                         std::filesystem::perms::owner_write);
 }
 
 class MockFileIface : public mlog::DefaultFileIface {
