@@ -197,6 +197,8 @@ LibeventServerSocketImpl::~LibeventServerSocketImpl() {
 }
 
 void LibeventServerSocketImpl::acceptNewClient() {
+    static const bool dont_disconnect_during_shutdown =
+            getenv("MEMCACHED_UNIT_TEST");
     sockaddr_storage addr{};
     socklen_t addrlen = sizeof(addr);
     auto client = cb::net::accept(
@@ -215,7 +217,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
-    if (is_memcached_shutting_down()) {
+    if (is_memcached_shutting_down() && dont_disconnect_during_shutdown) {
         close_client_socket(client);
         return;
     }
