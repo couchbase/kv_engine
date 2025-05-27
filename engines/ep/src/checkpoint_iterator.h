@@ -11,8 +11,9 @@
 
 #pragma once
 
+#include <functional>
 #include <iterator>
-#include <string>
+#include <stdexcept>
 
 /**
  * Class provides checkpoint iterator functionality.
