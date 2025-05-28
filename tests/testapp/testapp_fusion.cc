@@ -708,7 +708,7 @@ TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
 }
 
 TEST_P(FusionTest, GetPrometheusFusionStats) {
-    std::array<std::string_view, 18> statKeysExpected = {
+    std::array<std::string_view, 27> statKeysExpected = {
             "ep_fusion_namespace",
             "ep_fusion_syncs",
             "ep_fusion_bytes_synced",
@@ -726,8 +726,17 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
             "ep_fusion_log_store_remote_deletes",
             "ep_fusion_file_map_mem_used",
             "ep_fusion_sync_failures",
-            "ep_fusion_migration_failures"};
-
+            "ep_fusion_migration_failures",
+            "ep_fusion_num_logs_mounted",
+            "ep_fusion_num_log_segments",
+            "ep_fusion_num_file_extents",
+            "ep_fusion_num_files",
+            "ep_fusion_total_file_size",
+            "ep_fusion_sync_session_total_bytes",
+            "ep_fusion_sync_session_completed_bytes",
+            "ep_fusion_migration_total_bytes",
+            "ep_fusion_migration_completed_bytes",
+    };
     std::vector<std::string> actualKeys;
     adminConnection->executeInBucket(bucketName, [&actualKeys](auto& conn) {
         conn.stats(

@@ -3279,24 +3279,33 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     using namespace cb::stats;
 
     // getStats from Magma
-    constexpr std::array<std::string_view, 17> statNames = {
+    constexpr std::array<std::string_view, 26> statNames = {
             {"fusion_NumSyncs",
+             "fusion_NumSyncFailures",
              "fusion_NumBytesSynced",
+             "fusion_SyncSessionTotalBytes",
+             "fusion_SyncSessionCompletedBytes",
              "fusion_NumLogsMigrated",
+             "fusion_NumLogsMounted",
+             "fusion_NumMigrationFailures",
              "fusion_NumBytesMigrated",
+             "fusion_MigrationTotalBytes",
+             "fusion_MigrationCompletedBytes",
              "fusion_LogStoreSize",
              "fusion_LogStoreGarbageSize",
              "fusion_NumLogsCleaned",
-             "fusion_NumLogStoreRemotePuts",
              "fusion_NumLogCleanBytesRead",
              "fusion_NumLogCleanReads",
+             "fusion_NumLogStoreRemotePuts",
              "fusion_NumLogStoreReads",
              "fusion_NumLogStoreRemoteGets",
              "fusion_NumLogStoreRemoteLists",
              "fusion_NumLogStoreRemoteDeletes",
-             "fusion_FileMapMemUsed",
-             "fusion_NumSyncFailures",
-             "fusion_NumMigrationFailures"}};
+             "fusion_NumLogSegments",
+             "fusion_NumFileExtents",
+             "fusion_NumFiles",
+             "fusion_TotalFileSize",
+             "fusion_FileMapMemUsed"}};
 
     auto kvStoreStats = kvBucket->getKVStoreStats(statNames);
 
@@ -3340,6 +3349,18 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_file_map_mem_used, "fusion_FileMapMemUsed");
     addStat(Key::ep_fusion_sync_failures, "fusion_NumSyncFailures");
     addStat(Key::ep_fusion_migration_failures, "fusion_NumMigrationFailures");
+    addStat(Key::ep_fusion_sync_session_total_bytes,
+            "fusion_SyncSessionTotalBytes");
+    addStat(Key::ep_fusion_sync_session_completed_bytes,
+            "fusion_SyncSessionCompletedBytes");
+    addStat(Key::ep_fusion_num_logs_mounted, "fusion_NumLogsMounted");
+    addStat(Key::ep_fusion_migration_total_bytes, "fusion_MigrationTotalBytes");
+    addStat(Key::ep_fusion_migration_completed_bytes,
+            "fusion_MigrationCompletedBytes");
+    addStat(Key::ep_fusion_total_file_size, "fusion_TotalFileSize");
+    addStat(Key::ep_fusion_num_files, "fusion_NumFiles");
+    addStat(Key::ep_fusion_num_file_extents, "fusion_NumFileExtents");
+    addStat(Key::ep_fusion_num_log_segments, "fusion_NumLogSegments");
 
     // Additional Fusion Stats
     collector.addStat(Key::ep_fusion_namespace, getFusionNamespace());

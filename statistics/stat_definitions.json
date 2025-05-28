@@ -1932,6 +1932,69 @@
         "description": "Total number of times migrating logs failed.",
         "added": "8.0.0"
     },
+    {
+        "key": "ep_fusion_num_logs_mounted",
+        "unit": "count",
+        "type": "gauge",
+        "description": "Number of logs mounted on Fusion for the purpose of extent migration.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_num_log_segments",
+        "unit": "count",
+        "type": "gauge",
+        "description": "Number of log segments on Fusion.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_num_file_extents",
+        "unit": "count",
+        "type": "gauge",
+        "description": "Number of file extents on Fusion.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_num_files",
+        "unit": "count",
+        "type": "gauge",
+        "description": "Number of files on Fusion.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_total_file_size",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total size of all files on Fusion.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_sync_session_total_bytes",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total number of bytes in the sync session.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_sync_session_completed_bytes",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total number of bytes completed in the sync session.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_migration_total_bytes",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total number of bytes in the migration.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_migration_completed_bytes",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total number of bytes completed in the migration.",
+        "added": "8.0.0"
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",
