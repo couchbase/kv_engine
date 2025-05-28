@@ -482,6 +482,10 @@ public:
 
     TestingHook<> scheduleBackfillRegisterCursorHook;
 
+    TestingHook<> processItemsHook;
+
+    TestingHook<> backfillReceivedHook;
+
     bool isFlatBuffersSystemEventEnabled() const;
 
     /**
@@ -856,6 +860,14 @@ private:
      */
     void processItemsInner(const std::lock_guard<std::mutex>& lg,
                            OutstandingItemsResult& outstandingItemsResult);
+
+    /**
+     * Handle exceptions thrown during item processing. The exception is logged
+     * and the stream along with its connection is disconnected.
+     *
+     * @param exception The exception to handle
+     */
+    void handleDcpProducerException(const std::exception& exception);
 
     /**
      * Encodes the marker flags based on the stream state and the snapshot meta
