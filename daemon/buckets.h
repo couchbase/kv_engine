@@ -574,6 +574,9 @@ public:
     Timings aggregatedTimings;
 
 protected:
+    /// Try to destroy all "ready" buckets in parallel
+    void destroyBucketsInParallel();
+
     /**
      * Create a bucket
      *
