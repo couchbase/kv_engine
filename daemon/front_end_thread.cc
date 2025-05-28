@@ -396,17 +396,8 @@ void FrontEndThread::dispatch(SOCKET sfd,
 
     try {
         thread.new_conn_queue.push(sfd, std::move(descr));
-        thread.eventBase.runInEventBaseThread([&thread]() {
-            if (is_memcached_shutting_down()) {
-                if (thread.signal_idle_clients(false) == 0) {
-                    LOG_INFO_CTX("Stopping worker thread",
-                                 {"index", thread.index});
-                    thread.eventBase.terminateLoopSoon();
-                    return;
-                }
-            }
-            thread.dispatch_new_connections();
-        });
+        thread.eventBase.runInEventBaseThread(
+                [&thread]() { thread.dispatch_new_connections(); });
     } catch (const std::bad_alloc& e) {
         LOG_WARNING_CTX("dispatch_conn_new: Failed to dispatch new connection",
                         {"error", e.what()});
