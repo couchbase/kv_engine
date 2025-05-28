@@ -244,7 +244,6 @@ ADD_LIBRARY(ep STATIC
             src/collections/kvstore.cc
             src/collections/manager.cc
             src/collections/manifest.cc
-            src/collections/persist_manifest_task.cc
             src/collections/scan_context.cc
             src/collections/system_event_types.cc
             src/collections/vbucket_filter.cc

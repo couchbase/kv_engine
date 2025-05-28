@@ -118,19 +118,7 @@ public:
      */
     cb::engine_error update(const VBucketStateRLockMap& vbStateLocks,
                             KVBucket& bucket,
-                            std::string_view manifest,
-                            CookieIface* cookie);
-
-    /**
-     * Function used to provide a status when any update PersistManifestTask
-     * completes.
-     * @param engine The task's engine
-     * @param cookie Cookie of the command that triggered the task
-     * @param status The final status of the task execution
-     */
-    void updatePersistManifestTaskDone(EventuallyPersistentEngine& engine,
-                                       CookieIface* cookie,
-                                       cb::engine_errc status);
+                            std::string_view manifest);
 
     /**
      * Retrieve the current manifest
@@ -218,14 +206,6 @@ public:
                        const BucketStatCollector& collector) const;
 
     void setInitialCollectionManifest(const nlohmann::json& payload);
-
-    /**
-     * Called from bucket warmup - see if we have a manifest to resume from
-     *
-     * @return false if the manifest was found but cannot be loaded (e.g.
-     * corruption or system error)
-     */
-    bool warmupLoadManifest(const std::string& dbpath);
 
     /**
      * Perform actions for a completed warmup - currently check if any
@@ -468,9 +448,6 @@ private:
     /// Store the most recent (current) manifest received - this default
     /// constructs as the 'epoch' Manifest
     folly::Synchronized<Manifest> currentManifest;
-
-    /// Serialise updates to the manifest (set_collections core)
-    folly::Synchronized<CookieIface*> updateInProgress{nullptr};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);

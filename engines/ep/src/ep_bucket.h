@@ -375,10 +375,6 @@ public:
         return true;
     }
 
-    bool maybeScheduleManifestPersistence(
-            CookieIface* cookie,
-            const Collections::Manifest& newManifest) override;
-
     /**
      * Gets the BgFetcher for the corresponding vBucket. If there are multiple
      * BgFetchers assigned to this vBucket, the distributionKey is used to

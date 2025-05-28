@@ -56,7 +56,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/collections/evp_store_collections_test.cc
         module_tests/collections/filter_test.cc
         module_tests/collections/manifest_test.cc
-        module_tests/collections/manifest_update_test.cc
         module_tests/collections/stat_checker.cc
         module_tests/collections/vbucket_manifest_test.cc
         module_tests/collections/vbucket_manifest_entry_test.cc

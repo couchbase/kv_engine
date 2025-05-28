@@ -612,27 +612,7 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
         const CollectionsManifest& manifest,
         cb::engine_errc status1) {
     std::string json{manifest};
-
-    auto status = engine->set_collection_manifest(*c, json);
-    if (!isPersistent()) {
-        return status;
-    }
-    EXPECT_EQ(status1, status);
-
-    if (status != cb::engine_errc::would_block) {
-        return status;
-    }
-
-    auto& lpWriterQ = *task_executor->getLpTaskQ(TaskType::Writer);
-
-    runNextTask(lpWriterQ);
-
-    // Cookie now success
-    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(c));
-
-    status = engine->set_collection_manifest(*c, json);
-    EXPECT_EQ(cb::engine_errc::success, status);
-    return status;
+    return engine->set_collection_manifest(*c, json);
 }
 
 void STParameterizedBucketTest::SetUp() {

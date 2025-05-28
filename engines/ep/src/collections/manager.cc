@@ -13,7 +13,6 @@
 #include "bucket_logger.h"
 #include "collections/flush.h"
 #include "collections/manifest.h"
-#include "collections/persist_manifest_task.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
@@ -37,42 +36,7 @@ Collections::Manager::Manager() = default;
 cb::engine_error Collections::Manager::update(
         const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
-        std::string_view manifestString,
-        CookieIface* cookie) {
-    auto lockedUpdateCookie = updateInProgress.wlock();
-    if (*lockedUpdateCookie != nullptr && *lockedUpdateCookie != cookie) {
-        // log this as it's very unexpected, only ever 1 manager
-        return {cb::engine_errc::too_busy,
-                "An update is already in-progress for another cookie:" +
-                        std::to_string(uintptr_t(*lockedUpdateCookie))};
-    }
-
-    // Now getEngineSpecific - if that is null this is a new command, else
-    // it's the IO complete command
-    auto maybeManifest =
-            bucket.getEPEngine().takeEngineSpecific<Manifest>(*cookie);
-
-    if (maybeManifest.has_value()) {
-        // I/O complete path?
-        auto& manifest = *maybeManifest;
-        if (!*lockedUpdateCookie) {
-            // This can occur for a DCP connection, cookie is 'reserved'.
-            EP_LOG_WARN(
-                    "Collections::Manager::update aborted as "
-                    "updateInProgress:{}",
-                    static_cast<const void*>(*lockedUpdateCookie));
-            return {cb::engine_errc::failed,
-                    "Collections::Manager::update failure"};
-        }
-
-        // Final stage of update now happening, clear the cookie and engine
-        // specific so the next update can start after this one returns.
-        *lockedUpdateCookie = nullptr;
-
-        return updateFromIOComplete(
-                std::move(vbStateLocks), bucket, std::move(manifest), cookie);
-    }
-
+        std::string_view manifestString) {
     // Construct a new Manifest (ctor will throw if JSON was illegal)
     Manifest newManifest;
     try {
@@ -89,7 +53,6 @@ cb::engine_error Collections::Manager::update(
 
     // Next compare with current
     // First get an upgrade lock (which is initially read)
-    // Persistence will schedule a task and drop the lock whereas ephemeral will
     // upgrade from read to write locking and do the update
     auto current = currentManifest.ulock();
     auto isSuccessorResult = current->isSuccessor(newManifest);
@@ -97,19 +60,8 @@ cb::engine_error Collections::Manager::update(
         return isSuccessorResult;
     }
 
-    // New manifest is a legal successor the update is going ahead.
-    // Ephemeral bucket can update now, Persistent bucket on wake-up from
-    // successful run of the PeristManifestTask.
-    if (!bucket.maybeScheduleManifestPersistence(cookie, newManifest)) {
-        // Ephemeral case, apply immediately
-        return applyNewManifest(std::move(vbStateLocks),
-                                bucket,
-                                current,
-                                std::move(newManifest));
-    }
-    *lockedUpdateCookie = cookie;
-    return {cb::engine_errc::would_block,
-            "Collections::Manager::update part one complete"};
+    return applyNewManifest(
+            std::move(vbStateLocks), bucket, current, std::move(newManifest));
 }
 
 cb::engine_error Collections::Manager::updateFromIOComplete(
@@ -194,19 +146,6 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
         }
     }
     return {};
-}
-
-void Collections::Manager::updatePersistManifestTaskDone(
-        EventuallyPersistentEngine& engine,
-        CookieIface* cookie,
-        cb::engine_errc status) {
-    // If !success the command will return to the caller, so must clean-up
-    // ready for any further task.
-    if (status != cb::engine_errc::success) {
-        auto lockedUpdateCookie = updateInProgress.wlock();
-        *lockedUpdateCookie = nullptr;
-        engine.clearEngineSpecific(*cookie);
-    }
 }
 
 std::pair<cb::mcbp::Status, nlohmann::json> Collections::Manager::getManifest(
@@ -362,30 +301,6 @@ void Collections::Manager::setInitialCollectionManifest(
             "uid:{:#x}",
             manifest.getUid());
     *currentManifest.wlock() = std::move(manifest);
-}
-
-bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
-    if (currentManifest.rlock()->getUid() != 0) {
-        // Manifest set by ns_server through create_bucket and the method
-        // will be removed once ns_server merged the change to do so
-        return true;
-    }
-
-    auto rv = Collections::PersistManifestTask::tryAndLoad(dbpath);
-    if (rv.has_value()) {
-        EP_LOG_INFO(
-                "Collections::Manager::warmupLoadManifest: starting at "
-                "uid:{:#x}",
-                rv.value().getUid());
-        *currentManifest.wlock() = std::move(rv.value());
-        return true;
-    }
-    // else tryAndLoad detected (and logged) some kind of corruption issue.
-    // If this corruption occurred at the same time as some issue in the
-    // forward flow of the Manifest, KV can't validate that any change to the
-    // manifest is a legal successor (Manifest::isSuccessor) - return false
-    // so Warmup can fail - holding the node::bucket pending.
-    return false;
 }
 
 /**

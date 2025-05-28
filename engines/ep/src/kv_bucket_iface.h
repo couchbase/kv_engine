@@ -894,16 +894,6 @@ public:
     virtual bool isByIdScanSupported() const = 0;
 
     /**
-     * Dependent on bucket type schedule a task for collection manifest
-     * persistence.
-     * @param cookie connection cookie
-     * @param newManifest new manifest that may be copied
-     * @return true if a task was scheduled
-     */
-    virtual bool maybeScheduleManifestPersistence(
-            CookieIface* cookie, const Collections::Manifest& newManifest) = 0;
-
-    /**
      * Create a new range scan on a vbucket
      *
      * @param cookie connection cookie to notify when done

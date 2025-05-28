@@ -15,7 +15,6 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
-#include "collections/persist_manifest_task.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -2796,18 +2795,6 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
         return true;
     }
     folly::assume_unreachable();
-}
-
-// Manifest is copied into engine specific storage and task
-bool EPBucket::maybeScheduleManifestPersistence(
-        CookieIface* cookie, const Collections::Manifest& newManifest) {
-    getEPEngine().storeEngineSpecific(*cookie,
-                                      Collections::Manifest(newManifest));
-
-    ExTask task = std::make_shared<Collections::PersistManifestTask>(
-            *this, Collections::Manifest(newManifest), cookie);
-    ExecutorPool::get()->schedule(task);
-    return true; // we took the manifest
 }
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {

@@ -1342,15 +1342,6 @@ void Warmup::initialize() {
         }
     }
 
-    if (!store.getCollectionsManager().warmupLoadManifest(
-                store.getConfiguration().getDbname())) {
-        EP_LOG_CRITICAL(
-                "Warmup({})::initialize aborting as "
-                "CollectionsManager::warmupLoadManifest failed",
-                getName());
-        return;
-    }
-
     populateShardVbStates();
 
     transition(WarmupState::State::CreateVBuckets);

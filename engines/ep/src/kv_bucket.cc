@@ -2916,10 +2916,10 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest,
     // 2) vbStateLock must be locked before the manifest is locked in update()
     auto vbStateLocks = lockAllVBucketStates();
 
-    auto status =
-            collectionsManager->update(vbStateLocks, *this, manifest, cookie);
-    if (status.code() != cb::engine_errc::success &&
-        status.code() != cb::engine_errc::would_block) {
+    auto status = collectionsManager->update(vbStateLocks, *this, manifest);
+    Expects(status.code() != cb::engine_errc::would_block &&
+            "update can't return would block");
+    if (status.code() != cb::engine_errc::success) {
         EP_LOG_WARN("KVBucket::setCollections error:{} {}",
                     status.code().value(),
                     status.what());

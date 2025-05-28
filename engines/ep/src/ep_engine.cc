@@ -2252,6 +2252,16 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
         return cb::engine_errc::failed;
     }
 
+    // Remove the obsolete collections.manifest file (no longer used)
+    std::filesystem::path dbPath(dbName);
+    std::error_code ec;
+    std::filesystem::remove(dbPath / "collections.manifest", ec);
+    if (ec) {
+        EP_LOG_WARN_CTX("Failed to remove obsolete collection.manifest file",
+                        {"path", dbPath / "collections.manifest"},
+                        {"error", ec.message()});
+    }
+
     auto& env = Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 

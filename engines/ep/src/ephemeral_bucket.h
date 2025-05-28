@@ -157,10 +157,6 @@ public:
         return false;
     }
 
-    bool maybeScheduleManifestPersistence(
-            CookieIface* cookie,
-            const Collections::Manifest& newManifest) override;
-
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral

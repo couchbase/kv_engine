@@ -529,11 +529,6 @@ bool EphemeralBucket::isValidBucketDurabilityLevel(
     folly::assume_unreachable();
 }
 
-bool EphemeralBucket::maybeScheduleManifestPersistence(
-        CookieIface* cookie, const Collections::Manifest& newManifest) {
-    return false; // newManifest not taken
-}
-
 cb::engine_errc EphemeralBucket::getImplementationStats(
         const BucketStatCollector& collector) const {
     using namespace cb::stats;

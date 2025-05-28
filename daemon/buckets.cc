@@ -621,12 +621,8 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                     if (v.empty()) {
                         return false;
                     }
-                    if (v.front() == '{') {
-                        collectionManifest = nlohmann::json::parse(v);
-                    } else {
-                        auto decoded = cb::base64url::decode(v);
-                        collectionManifest = nlohmann::json::parse(decoded);
-                    }
+                    auto decoded = cb::base64url::decode(v);
+                    collectionManifest = nlohmann::json::parse(decoded);
                     return false;
                 }
                 return true;
