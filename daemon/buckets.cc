@@ -1049,20 +1049,66 @@ Bucket& BucketManager::at(size_t idx) {
     return all_buckets[idx];
 }
 
-void BucketManager::destroyAll() {
-    LOG_INFO_RAW("Stop all buckets");
+void BucketManager::destroyBucketsInParallel() {
+    // Iterate over all "ready" buckets and initiate their shutdown
+    std::vector<std::pair<cb::engine_errc, BucketDestroyer>> destroyers;
+    BucketManager::forEach([this, &destroyers](auto& bucket) -> bool {
+        if (bucket.type == BucketType::NoBucket) {
+            return true;
+        }
+        auto [res, instance] = startDestroy("<none>", bucket.name, false, {});
+        if (res == cb::engine_errc::would_block && instance.has_value()) {
+            LOG_INFO_CTX("Destroying bucket", {"name", bucket.name});
+            destroyers.emplace_back(cb::engine_errc::would_block,
+                                    std::move(instance.value()));
+        }
 
-    // Start at one (not zero) because zero is reserved for "no bucket".
-    // The "no bucket" has a state of Bucket::State::Ready but no name.
-    for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
-        if (all_buckets[ii].state == Bucket::State::Ready) {
-            const std::string name{all_buckets[ii].name};
-            LOG_INFO_CTX("Waiting for delete to complete", {"bucket", name});
-            destroy("<none>", name, false, {});
-            LOG_INFO_CTX("Bucket deleted", {"bucket", name});
+        return true;
+    });
+
+    bool done = destroyers.empty();
+    while (!done) {
+        done = true;
+        for (auto& [res, instance] : destroyers) {
+            if (res == cb::engine_errc::would_block) {
+                res = instance.drive();
+                if (res == cb::engine_errc::would_block) {
+                    done = false;
+                }
+            }
+        }
+        if (!done) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
         }
     }
 }
+
+void BucketManager::destroyAll() {
+    LOG_INFO_RAW("Stop all buckets");
+
+    bool active;
+    do {
+        destroyBucketsInParallel();
+        active = false;
+        // Start at one (not zero) because zero is reserved for "no bucket".
+        // The "no bucket" has a state of Bucket::State::Ready but no name.
+        for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
+            if (all_buckets[ii].state != Bucket::State::None) {
+                LOG_INFO_CTX("Found bucket in unexpected state",
+                             {"name", all_buckets[ii].name},
+                             {"state", all_buckets[ii].state.load()});
+                active = true;
+            }
+        }
+        if (active) {
+            LOG_INFO_RAW(
+                    "Sleep 1 seconds to allow buckets time to enter a state "
+                    "where they may be shut down");
+            std::this_thread::sleep_for(std::chrono::seconds{1});
+        }
+    } while (active);
+}
+
 cb::engine_errc BucketManager::pause(CookieIface& cookie,
                                      std::string_view name) {
     return pause(std::to_string(cookie.getConnectionId()), name);
