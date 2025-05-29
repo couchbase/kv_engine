@@ -803,8 +803,10 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
             cb::mcbp::ClientOpcode::DeleteFusionNamespace};
     nlohmann::json json;
-    json["logstore_uri"] = "uri1";
-    json["metadatastore_uri"] = "uri2";
+    const std::string dbPath = mcd_env->getDbPath();
+    ASSERT_TRUE(std::filesystem::exists(dbPath));
+    json["logstore_uri"] = "local://" + dbPath + "/logstore";
+    json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
     json["metadatastore_auth_token"] = "some-token";
     json["namespace"] = "kv/namespace-to-delete/uuid";
     cmd.setValue(json.dump());
@@ -817,7 +819,9 @@ TEST_P(FusionTest, GetFusionNamespaces) {
     auto cmd =
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFusionNamespaces};
     nlohmann::json json;
-    json["metadatastore_uri"] = "uri";
+    const std::string dbPath = mcd_env->getDbPath();
+    ASSERT_TRUE(std::filesystem::exists(dbPath));
+    json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
     json["metadatastore_auth_token"] = "some-token";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
