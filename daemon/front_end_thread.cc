@@ -300,6 +300,7 @@ static void worker_libevent(void* arg) {
 }
 
 void FrontEndThread::dispatch_new_connections() {
+    const bool shutdown = is_memcached_shutting_down();
     tryDisconnectUnauthenticatedConnections();
 
     if (!connectionsInitiatedShutdown.empty()) {
@@ -313,6 +314,12 @@ void FrontEndThread::dispatch_new_connections() {
     new_conn_queue.swap(accept_connections);
 
     for (auto& entry : accept_connections) {
+        if (shutdown) {
+            // Close the sockets instead of trying to dispatch them as new
+            // clients
+            cb::net::closesocket(entry.sock);
+            continue;
+        }
         const bool system = entry.descr->system;
         bool success = false;
         try {
@@ -360,7 +367,7 @@ void FrontEndThread::tryDisconnectUnauthenticatedConnections() {
             // of the list
             return;
         }
-        conn.get().maybeInitiateShutdown(message);
+        conn.get().maybeInitiateShutdown(message, true);
     }
 }
 

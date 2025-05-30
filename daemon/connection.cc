@@ -1276,7 +1276,8 @@ Connection::Connection(SOCKET sfd,
     thread.onConnectionCreate(*this);
 }
 
-bool Connection::maybeInitiateShutdown(const std::string_view reason) {
+bool Connection::maybeInitiateShutdown(const std::string_view reason,
+                                       bool log) {
     if (state != State::running) {
         return false;
     }
@@ -1291,10 +1292,12 @@ bool Connection::maybeInitiateShutdown(const std::string_view reason) {
     auto message = fmt::format("Initiate shutdown of connection from '{}': {}",
                                peername.dump(),
                                reason);
-    LOG_INFO_CTX("Initiate shutdown of connection",
-                 {"conn_id", getId()},
-                 {"peer", peername},
-                 {"reason", reason});
+    if (log) {
+        LOG_INFO_CTX("Initiate shutdown of connection",
+                     {"conn_id", getId()},
+                     {"peer", peername},
+                     {"reason", reason});
+    }
     setTerminationReason(std::move(message));
     shutdown();
     triggerCallback(true);
