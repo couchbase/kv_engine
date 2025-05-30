@@ -855,9 +855,10 @@ public:
      * Try to initiate shutdown of the connection if it is idle
      *
      * @param reason the reason for disconnecting (used in logging)
+     * @param log set to true to log the shutdown
      * @return true if shutdown was initiated
      */
-    bool maybeInitiateShutdown(std::string_view reason);
+    bool maybeInitiateShutdown(std::string_view reason, bool log);
 
     /// Do the client deal with cluster map deduplication in NMVB
     bool dedupeNmvbMaps() const {

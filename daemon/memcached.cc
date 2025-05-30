@@ -564,7 +564,11 @@ bool is_bucket_dying(Connection& c) {
                 to_string(b.state.load()),
                 c.getDescription());
         c.shutdown();
-        c.setTerminationReason("The connected bucket is being deleted");
+        if (memcached_shutdown) {
+            c.setTerminationReason("The system is shutting down");
+        } else {
+            c.setTerminationReason("The connected bucket is being deleted");
+        }
         return true;
     }
 
@@ -771,6 +775,38 @@ static void initialize_serverless_config() {
     }
     LOG_INFO("Serverless static configuration: {}",
              nlohmann::json(config).dump());
+}
+
+void disconnect_clients() {
+    size_t num_clients = 0;
+    auto next_log = std::chrono::steady_clock::now() + std::chrono::minutes(1);
+    bool first_time = true;
+    do {
+        num_clients = 0;
+        bool dump_details = next_log < std::chrono::steady_clock::now();
+        if (dump_details) {
+            next_log = std::chrono::steady_clock::now() + std::chrono::minutes(1);
+        }
+        iterate_all_connections([&num_clients, &dump_details](auto& c) {
+            ++num_clients;
+            if (c.maybeInitiateShutdown("System is shutting down", false) &&
+                dump_details) {
+                LOG_INFO("Waiting for connection to shut down: details: {}",
+                         c.to_json());
+            }
+        });
+        if (num_clients) {
+            if (first_time || dump_details) {
+                first_time = false;
+                LOG_INFO(
+                        "Waiting for all clients to disconnect. Current count "
+                        "{}",
+                        num_clients);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+    } while (num_clients != 0);
+    LOG_INFO_RAW("All clients disconnected");
 }
 
 int memcached_main(int argc, char** argv) {
@@ -1069,13 +1105,16 @@ int memcached_main(int argc, char** argv) {
     // Shut down Prometheus (it adds its own log message)
     cb::prometheus::shutdown();
 
-    LOG_INFO_RAW("Shutting down client worker threads");
-    threads_shutdown();
-
     LOG_INFO_RAW("Shutting down network interface manager thread");
     nim_thread->shutdown();
     nim_thread->waitForState(Couchbase::ThreadState::Zombie);
     nim_thread.reset();
+
+    LOG_INFO_RAW("Disconnect all clients");
+    disconnect_clients();
+
+    LOG_INFO_RAW("Shutting down client worker threads");
+    threads_shutdown();
 
     LOG_INFO_RAW("Releasing bucket resources");
     cleanup_buckets();
