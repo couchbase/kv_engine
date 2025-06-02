@@ -3677,7 +3677,7 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     vb->checkpointManager->createNewCheckpoint();
     // cs, vbs, del, del, ce
-    ASSERT_EQ(5, stats.itemsRemovedFromCheckpoints);
+    ASSERT_EQ(ephemeral() ? 4 : 5, stats.itemsRemovedFromCheckpoints);
     // Force persistence into new CP
     store_item(vbid, makeStoredDocKey("k3"), "k3");
     flushVBucketToDiskIfPersistent(vbid, 1);

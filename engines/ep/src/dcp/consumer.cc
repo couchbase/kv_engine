@@ -1489,8 +1489,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
             if (status == cb::mcbp::Status::Success) {
                 VBucketPtr vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
-                KVBucketIface* kvBucket = engine_.getKVBucket();
-                kvBucket->scheduleVBStatePersist(vbucket);
+                engine_.getKVBucket()->persistVBState(vbucket);
             }
             logger->debug("({}) Add stream for opaque {} with error code {}",
                           vbucket,

@@ -1796,11 +1796,11 @@ public:
             const Collections::VB::ManifestEntry& droppedEntry) const = 0;
 
     /**
-     * Create a failover table entry at the given seqno (and queue a
-     * setVBucketState for later persistence).
-     * @param seqno at which to place the failover table entry
+     * Create a new failover entry in the vbucket.
+     *
+     * @param seqno Sequence number to create failover entry for
      */
-    void createFailoverEntry(uint64_t seqno);
+    virtual void createFailoverEntry(uint64_t seqno) = 0;
 
     /*
      * Create a new range scan, creation uses an I/O task and would_block

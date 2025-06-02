@@ -357,6 +357,14 @@ public:
      */
     failover_entry_t processFailover() override;
 
+    /**
+     * Create a new failover entry in the vbucket and generate a
+     * set_vbucket_state item to persist the state.
+     *
+     * @param seqno Sequence number to create failover entry for
+     */
+    void createFailoverEntry(uint64_t seqno) override;
+
 protected:
     /**
      * queue a background fetch of the specified item.
