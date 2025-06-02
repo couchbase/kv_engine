@@ -137,14 +137,13 @@ protected:
      * @param expiry value for items. 0 == no TTL.
      * @return number of documents written.
      */
-    size_t populateUntilOOM(Vbid vbid, rel_time_t ttl = 0) {
+    size_t populateUntilOOM(Vbid vbid,
+                            rel_time_t ttl = 0,
+                            std::string keyPrefix = "xxx_",
+                            size_t valueSize = 15000) {
         size_t count = 0;
-
         const auto& stats = engine->getEpStats();
         EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
-        // Load ~ 10 documents
-        const size_t valueSize =
-                (stats.mem_high_wat - stats.getEstimatedTotalMemoryUsed()) / 10;
         const std::string value(valueSize, 'x');
 
         const auto expiry =
@@ -152,7 +151,7 @@ protected:
 
         cb::engine_errc result = cb::engine_errc::success;
         while (result == cb::engine_errc::success) {
-            auto key = makeStoredDocKey("xxx_" + std::to_string(count));
+            auto key = makeStoredDocKey(fmt::format("{}{}", keyPrefix, count));
             auto item = make_item(vbid, key, value, expiry);
             // Set freqCount to 0 so will be a candidate for paging out straight
             // away.
