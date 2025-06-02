@@ -194,6 +194,16 @@ public:
         notify_changed("stdin_listener");
     }
 
+    bool isClustermapPushNotificationsEnabled() const {
+        return clustermap_push_notifications_enabled.load();
+    }
+
+    void setClustermapPushNotificationsEnabled(bool enabled) {
+        clustermap_push_notifications_enabled.store(enabled);
+        has.clustermap_push_notifications_enabled = true;
+        notify_changed("clustermap_push_notifications_enabled");
+    }
+
     cb::logger::Config getLoggerConfig() const {
         auto config = logger_settings;
         // log_level is synthesised from settings.verbose.
@@ -1136,6 +1146,8 @@ protected:
     /// Use standard input listener
     std::atomic_bool stdin_listener{true};
 
+    std::atomic_bool clustermap_push_notifications_enabled{true};
+
     /// Should we allow for using the external authentication service or not
     std::atomic_bool external_auth_service{false};
 
@@ -1245,5 +1257,6 @@ public:
         bool quota_sharing_pager_sleep_time_ms = false;
         bool dcp_disconnect_when_stuck_timeout_seconds = false;
         bool dcp_disconnect_when_stuck_name_regex = false;
+        bool clustermap_push_notifications_enabled = false;
     } has;
 };

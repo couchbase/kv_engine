@@ -253,6 +253,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setSslSaslMechanisms(value.get<std::string>());
         } else if (key == "stdin_listener"sv) {
             setStdinListenerEnabled(value.get<bool>());
+        } else if (key == "clustermap_push_notifications_enabled"sv) {
+            setClustermapPushNotificationsEnabled(value.get<bool>());
         } else if (key == "dedupe_nmvb_maps"sv) {
             setDedupeNmvbMaps(value.get<bool>());
         } else if (key == "tcp_keepalive_idle"sv) {
@@ -568,6 +570,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      getEventFramework(),
                      other.getEventFramework());
             setEventFramework(other.getEventFramework());
+        }
+    }
+
+    if (other.has.clustermap_push_notifications_enabled) {
+        if (other.isClustermapPushNotificationsEnabled() !=
+            isClustermapPushNotificationsEnabled()) {
+            LOG_INFO("{}able clustermap push notifications",
+                     other.isClustermapPushNotificationsEnabled() ? "En"
+                                                                  : "Dis");
+            setClustermapPushNotificationsEnabled(
+                    other.isClustermapPushNotificationsEnabled());
         }
     }
 
