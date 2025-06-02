@@ -255,8 +255,7 @@ TEST_P(MiscTest, SetChronicalAuthToken_InvalidArgPayload) {
 
 TEST_P(MiscTest, SetChronicalAuthToken) {
     adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        const auto backend = conn.statsMap("")["ep_backend"];
-        const auto expectedStatus = backend == "magma"
+        const auto expectedStatus = mcd_env->getTestBucket().isMagma()
                                             ? cb::mcbp::Status::Success
                                             : cb::mcbp::Status::NotSupported;
 

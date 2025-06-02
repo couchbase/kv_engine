@@ -77,6 +77,8 @@ public:
 
     [[nodiscard]] bool isFullEviction() const;
 
+    [[nodiscard]] bool isMagma() const;
+
     [[nodiscard]] std::filesystem::path getDbPath() const {
         return dbPath;
     }

@@ -80,7 +80,7 @@ void FusionTest::SetUpTestCase() {
 
 void FusionTest::SetUp() {
     rebuildUserConnection(false);
-    if (userConnection->statsMap("")["ep_backend"] != "magma") {
+    if (!mcd_env->getTestBucket().isMagma()) {
         GTEST_SKIP();
     }
 }

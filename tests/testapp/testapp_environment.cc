@@ -210,6 +210,10 @@ bool TestBucketImpl::isFullEviction() const {
            std::string::npos;
 }
 
+[[nodiscard]] bool TestBucketImpl::isMagma() const {
+    return extraConfig.find("backend=magma") != std::string::npos;
+}
+
 std::string TestBucketImpl::getEncryptionConfig() const {
     return nlohmann::json(keystore).dump();
 }
