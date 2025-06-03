@@ -64,24 +64,6 @@ nlohmann::json ClientConnectionDetails::to_json(
                      duration))}};
 }
 
-/* An item in the connection queue. */
-FrontEndThread::ConnectionQueue::~ConnectionQueue() {
-    connections.withLock([](auto& c) {
-        for (auto& entry : c) {
-            close_client_socket(entry.sock);
-        }
-    });
-}
-
-void FrontEndThread::ConnectionQueue::push(
-        SOCKET sock, std::shared_ptr<ListeningPort> descr) {
-    connections.lock()->emplace_back(sock, std::move(descr));
-}
-
-void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
-    connections.lock()->swap(other);
-}
-
 /*
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
@@ -293,44 +275,37 @@ static void worker_libevent(void* arg) {
     me.running = false;
 }
 
-void FrontEndThread::dispatch_new_connections() {
-    const bool shutdown = is_memcached_shutting_down();
+void FrontEndThread::do_dispatch(SOCKET sfd,
+                                 std::shared_ptr<ListeningPort> descr) {
     tryDisconnectUnauthenticatedConnections();
 
-    std::vector<ConnectionQueue::Entry> accept_connections;
-    new_conn_queue.swap(accept_connections);
+    if (is_memcached_shutting_down()) {
+        cb::net::closesocket(sfd);
+        return;
+    }
 
-    for (auto& entry : accept_connections) {
-        if (shutdown) {
-            // Close the sockets instead of trying to dispatch them as new
-            // clients
-            cb::net::closesocket(entry.sock);
-            continue;
-        }
-        const bool system = entry.descr->system;
-        bool success = false;
-        try {
-            auto connection = Connection::create(
-                    entry.sock, *this, std::move(entry.descr));
-            auto* c = connection.get();
-            connections.insert({c, std::move(connection)});
-            stats.total_conns++;
-            associate_initial_bucket(*c);
-            success = true;
-        } catch (const std::bad_alloc&) {
-            LOG_WARNING_RAW("Failed to allocate memory for connection");
-        } catch (const std::exception& error) {
-            LOG_WARNING("Failed to create connection: {}", error.what());
-        } catch (...) {
-            LOG_WARNING_RAW("Failed to create connection");
-        }
+    const bool system = descr->system;
+    bool success = false;
+    try {
+        auto connection = Connection::create(sfd, *this, std::move(descr));
+        auto* c = connection.get();
+        connections.insert({c, std::move(connection)});
+        stats.total_conns++;
+        associate_initial_bucket(*c);
+        success = true;
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING_RAW("Failed to allocate memory for connection");
+    } catch (const std::exception& error) {
+        LOG_WARNING("Failed to create connection: {}", error.what());
+    } catch (...) {
+        LOG_WARNING_RAW("Failed to create connection");
+    }
 
-        if (!success) {
-            if (system) {
-                --stats.system_conns;
-            }
-            close_client_socket(entry.sock);
+    if (!success) {
+        if (system) {
+            --stats.system_conns;
         }
+        close_client_socket(sfd);
     }
 }
 
@@ -386,9 +361,10 @@ void FrontEndThread::dispatch(SOCKET sfd,
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, std::move(descr));
         thread.eventBase.runInEventBaseThread(
-                [&thread]() { thread.dispatch_new_connections(); });
+                [&thread, sock = sfd, port = std::move(descr)]() {
+                    thread.do_dispatch(sock, port);
+                });
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());

@@ -203,31 +203,7 @@ struct FrontEndThread {
             const std::function<void(Connection&)>& callback) const;
 
 protected:
-    void dispatch_new_connections();
-
-    /**
-     * The dispatcher accepts new clients and needs to dispatch them
-     * to the worker threads. In order to do so we use the ConnectionQueue
-     * where the dispatcher allocates the items and push on to the queue,
-     * and the actual worker thread pop's the items off and start
-     * serving them.
-     */
-    class ConnectionQueue {
-    public:
-        struct Entry {
-            Entry(SOCKET sock, std::shared_ptr<ListeningPort> descr)
-                : sock(sock), descr(std::move(descr)) {
-            }
-            SOCKET sock;
-            std::shared_ptr<ListeningPort> descr;
-        };
-        ~ConnectionQueue();
-        void push(SOCKET sock, std::shared_ptr<ListeningPort> descr);
-        void swap(std::vector<Entry>& other);
-
-    protected:
-        folly::Synchronized<std::vector<Entry>, std::mutex> connections;
-    } new_conn_queue;
+    void do_dispatch(SOCKET sfd, std::shared_ptr<ListeningPort> descr);
 
     /// Shared validator used by all connections serviced by this thread
     /// when they need to validate a JSON document
