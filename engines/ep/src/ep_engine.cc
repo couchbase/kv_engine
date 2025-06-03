@@ -3288,7 +3288,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     using namespace cb::stats;
 
     // getStats from Magma
-    constexpr std::array<std::string_view, 26> statNames = {
+    constexpr std::array<std::string_view, 29> statNames = {
             {"fusion_NumSyncs",
              "fusion_NumSyncFailures",
              "fusion_NumBytesSynced",
@@ -3302,9 +3302,12 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
              "fusion_MigrationCompletedBytes",
              "fusion_LogStoreSize",
              "fusion_LogStoreGarbageSize",
+             "fusion_LogStorePendingDeleteSize",
              "fusion_NumLogsCleaned",
              "fusion_NumLogCleanBytesRead",
              "fusion_NumLogCleanReads",
+             "fusion_ExtentMergerReads",
+             "fusion_ExtentMergerBytesRead",
              "fusion_NumLogStoreRemotePuts",
              "fusion_NumLogStoreReads",
              "fusion_NumLogStoreRemoteGets",
@@ -3348,6 +3351,11 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
             "fusion_NumLogStoreRemotePuts");
     addStat(Key::ep_fusion_log_clean_bytes_read, "fusion_NumLogCleanBytesRead");
     addStat(Key::ep_fusion_log_clean_reads, "fusion_NumLogCleanReads");
+    addStat(Key::ep_fusion_extent_merger_reads, "fusion_ExtentMergerReads");
+    addStat(Key::ep_fusion_extent_merger_bytes_read,
+            "fusion_ExtentMergerBytesRead");
+    addStat(Key::ep_fusion_log_store_pending_delete_size,
+            "fusion_LogStorePendingDeleteSize");
     addStat(Key::ep_fusion_log_store_reads, "fusion_NumLogStoreReads");
     addStat(Key::ep_fusion_log_store_remote_gets,
             "fusion_NumLogStoreRemoteGets");

@@ -4146,6 +4146,12 @@ GetStatsMap MagmaKVStore::getStats(
     fill("fusion_NumLogsCleaned", magmaStats->FusionFSStats.NumLogsCleaned);
     fill("fusion_NumLogCleanBytesRead",
          magmaStats->FusionFSStats.NumLogCleanBytesRead);
+    fill("fusion_ExtentMergerReads",
+         magmaStats->FusionFSStats.ExtentMergerReads);
+    fill("fusion_ExtentMergerBytesRead",
+         magmaStats->FusionFSStats.ExtentMergerBytesRead);
+    fill("fusion_LogStorePendingDeleteSize",
+         magmaStats->FusionFSStats.LogStorePendingDeleteSize);
     fill("fusion_NumLogCleanReads", magmaStats->FusionFSStats.NumLogCleanReads);
     fill("fusion_NumLogStoreRemotePuts",
          magmaStats->FusionFSStats.NumLogStoreRemotePuts);

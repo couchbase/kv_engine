@@ -1877,6 +1877,27 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_fusion_extent_merger_reads",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of read IOs issued in order to merge extents.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_extent_merger_bytes_read",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "Total number of bytes read in order to merge extents.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_log_store_pending_delete_size",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total number of bytes not yet deleted from FusionLogStore.",
+        "added": "8.0.0"
+    },
+    {
         "key": "ep_fusion_log_store_remote_puts",
         "unit": "count",
         "type": "counter",
