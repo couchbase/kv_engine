@@ -1935,7 +1935,7 @@
     {
         "key": "ep_fusion_num_logs_mounted",
         "unit": "count",
-        "type": "gauge",
+        "type": "counter",
         "description": "Number of logs mounted on Fusion for the purpose of extent migration.",
         "added": "8.0.0"
     },
