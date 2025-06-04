@@ -27,6 +27,9 @@
  */
 class MutationLogWriter {
 public:
+    constexpr static size_t MinBlockSize = 512;
+    constexpr static size_t MaxBlockSize = 1024 * 1024;
+
     MutationLogWriter(
             std::string path,
             size_t blocksize,

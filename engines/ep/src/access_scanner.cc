@@ -65,8 +65,23 @@ ItemAccessVisitor::ItemAccessVisitor(
         throw;
     }
 
+    auto bs = conf.getAlogBlockSize();
+    if (bs < MutationLogWriter::MinBlockSize ||
+        bs > MutationLogWriter::MaxBlockSize) {
+        const auto value =
+                std::min(std::max(bs, MutationLogWriter::MinBlockSize),
+                         MutationLogWriter::MaxBlockSize);
+        EP_LOG_WARN_CTX("Configured block size is outside the legal range",
+                        {"range",
+                         {"min", MutationLogWriter::MinBlockSize},
+                         {"max", MutationLogWriter::MaxBlockSize}},
+                        {"configured", bs},
+                        {"using", value});
+        bs = value;
+    }
+
     log = std::make_unique<MutationLogWriter>(next,
-                                              conf.getAlogBlockSize(),
+                                              bs,
                                               encryptionKey,
                                               cb::crypto::Compression::None,
                                               std::move(fileWriteTestHook));

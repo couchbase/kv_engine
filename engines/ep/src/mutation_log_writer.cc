@@ -26,6 +26,9 @@ MutationLogWriter::MutationLogWriter(
       fileWriter(cb::crypto::FileWriter::create(
               encryption_key, path, 16 * 1024, compression)),
       entryBuffer(bs) {
+    Expects(bs >= MutationLogWriter::MinBlockSize &&
+            bs <= MutationLogWriter::MaxBlockSize);
+
     // Write the initial file header!
     LogHeaderBlock header;
     header.set(bs);
