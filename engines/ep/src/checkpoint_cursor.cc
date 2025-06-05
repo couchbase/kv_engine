@@ -160,6 +160,7 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " currentCkpt:{id:" << (*c.currentCheckpoint)->getId()
        << " state:" << to_string((*c.currentCheckpoint)->getState())
        << "} currentSeq:" << (*c.currentPos)->getBySeqno()
+       << " cas:" << (*c.currentPos)->getCas()
        << " currentOp:" << to_string((*c.currentPos)->getOperation())
        << " distance:" << c.distance
        << " itemLinePosition:" << c.itemLinePosition;

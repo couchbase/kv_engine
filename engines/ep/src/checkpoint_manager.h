@@ -314,8 +314,10 @@ public:
 
     /*
      * Queue writing of the VBucket's state to persistent layer.
+     *
+     * @return item->size() from the queued Item
      */
-    void queueSetVBState();
+    size_t queueSetVBState();
 
     /**
      * Advances the given cursor and generates consistent snapshots.

@@ -1023,9 +1023,10 @@ bool CheckpointManager::queueDirty(
     folly::assume_unreachable();
 }
 
-void CheckpointManager::queueSetVBState() {
+size_t CheckpointManager::queueSetVBState() {
     // Grab the vbstate before the queueLock (avoid a lock inversion)
     auto vbstate = vb.getTransitionState();
+    size_t rval = 0;
 
     {
         // Take lock to serialize use of {lastBySeqno} and to queue op.
@@ -1051,7 +1052,7 @@ void CheckpointManager::queueSetVBState() {
 
         auto& openCkpt = getOpenCheckpoint(lh);
         const auto result = openCkpt.queueDirty(item);
-
+        rval = item->size();
         if (result.status == QueueDirtyStatus::SuccessNewItem) {
             ++numItems;
             ++totalItems;
@@ -1079,6 +1080,7 @@ void CheckpointManager::queueSetVBState() {
     //   Producers: they are in their step() loop anyway, so any attempt of
     //   notification is actually a NOP.
     vb.notifyReplication();
+    return rval;
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForDcp(
@@ -1502,32 +1504,41 @@ void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    const auto& openCkpt = getOpenCheckpoint(lh);
+    const auto& ckpt = getOpenCheckpoint(lh);
 
-    snapshot_info_t info(
-            lastBySeqno,
-            {openCkpt.getSnapshotStartSeqno(), openCkpt.getSnapshotEndSeqno()});
-
-    // If there are no items in the open checkpoint then we need to resume by
-    // using that sequence numbers of the last closed snapshot. The exception is
-    // if we are in a partial snapshot which can be detected by checking if the
-    // snapshot start sequence number is greater than the start sequence number
-    // Also, since the last closed snapshot may not be in the checkpoint manager
-    // we should just use the last by sequence number. The open checkpoint will
-    // be overwritten once the next snapshot marker is received since there are
-    // no items in it.
+    // This function is used by DCP streams for determining the in-memory
+    // snapshot state of this vbucket. That is determined in this function by
+    // looking at the open checkpoint state.
     //
-    // Note: Condition on "modifiedByExpel" added in MB-39344 for ensuring that
-    // the semantic here doesn't change by the new ItemExpel semantic.
-    // Actually new unit tests cover this code path and prove that there is no
-    // semantic change here caused by MB-39344. But, the additional condition
-    // covers us by any unexpected (and uncaught in unit tests) behaviour.
-    if (!openCkpt.modifiedByExpel() && !openCkpt.hasNonMetaItems() &&
-        static_cast<uint64_t>(lastBySeqno) < info.range.getStart()) {
-        info.range = snapshot_range_t(lastBySeqno, lastBySeqno);
-    }
-
-    return info;
+    // Baseline scenarios:
+    //
+    //  1. The open checkpoint stores at least a non-meta item (eg a mutation).
+    //    Non-meta items bump the CM::lastBySeqno, so in this case by logic
+    //    lastBySeqno is within the open checkpoint range.
+    //    Return: {start=lastBySeqno, snap[ckpt.snapStart, ckpt.snapStart]}
+    //
+    //  2. The open checkpoint doesn't store any non-meta item (ie only meta
+    //    items in checkpoint). In that case we know that CM::lastBySeqno was
+    //    updated for the last time with the highSeqno of a previous (now closed
+    //    and maybe also removed) checkpoint. Thus, we know that the vbucket
+    //    has never really jumped into to the new/open checkpoint range.
+    //    Return: {start=lastBySeqno, snap[lastBySeqno, lastBySeqno]}
+    //
+    // Now, ItemExpel at first look complicates the above a bit as after
+    // ItemExpel we can't just look into the checkpoint for inferring what that
+    // checkpoint stores or stores-not.
+    // But actually, given that ItemExpel doesn't modify any lastBySeqno or
+    // ckpt.snapStart, we can infer on (1) or (2) above by just looking at
+    // lastBySeqno vs ckpt.snapStart. Ie:
+    //
+    //  if (lastBySeqno < ckpt.snapStart) then (2);
+    //  else then (1)
+    const auto range =
+            static_cast<uint64_t>(lastBySeqno) < ckpt.getSnapshotStartSeqno()
+                    ? snapshot_range_t(lastBySeqno, lastBySeqno)
+                    : snapshot_range_t(ckpt.getSnapshotStartSeqno(),
+                                       ckpt.getSnapshotEndSeqno());
+    return {static_cast<uint64_t>(lastBySeqno), range};
 }
 
 uint64_t CheckpointManager::getFailoverSeqno() const {
@@ -2020,8 +2031,8 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         return {};
     }
 
-    if (!oldestCheckpoint->hasNonMetaItems()) {
-        // There are no mutation items in the checkpoint to expel.
+    if (oldestCheckpoint->getNumItems() == 1) {
+        // Items is 1 (checkpoint_start only), so nothing to expel
         return {};
     }
 
@@ -2074,26 +2085,10 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     // Note: If reached here iterator points to some position > begin()
     Expects(distance > 0);
 
-    /*
-     * Walk backwards over the checkpoint if not yet reached the dummy item,
-     * and pointing to an item that either:
-     * 1. has a subsequent entry with the same seqno (i.e. we don't want
-     *    to expel some items but not others with the same seqno), or
-     * 2. is pointing to a metadata item.
-     */
-    while ((iterator != oldestCheckpoint->begin()) &&
-           ((std::next(iterator) != oldestCheckpoint->end() &&
-             (*iterator)->getBySeqno() ==
-                     (*std::next(iterator))->getBySeqno()) ||
-            ((*iterator)->isCheckPointMetaItem()))) {
-        --iterator;
-        Expects(distance > 0);
-        --distance;
-    }
-
     // If pointing to the dummy item then cannot expel anything and so just
     // return.
-    if (iterator == oldestCheckpoint->begin()) {
+    // If distance is < 2  nothing can be expelled
+    if (iterator == oldestCheckpoint->begin() || distance < 2) {
         return {};
     }
 

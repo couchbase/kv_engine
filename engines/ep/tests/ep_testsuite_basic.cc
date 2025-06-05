@@ -1842,6 +1842,13 @@ static enum test_result test_set_vbucket_out_of_range(EngineIface* h) {
 }
 
 static enum test_result set_max_cas_mb21190(EngineIface* h) {
+    if (!isPersistentBucket(h)) {
+        // The max_cas is 0 until a mutation occurs. Persistent buckets will
+        // have stored a set-vb-state and intialised the max_cas.
+        checkeq(cb::engine_errc::success,
+                store(h, nullptr, StoreSemantics::Set, "key", "value"),
+                "Failed to store a value");
+    }
     uint64_t max_cas = get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0");
 
     // Prior to MB-56181 this test would increment max_cas by 1 and test that

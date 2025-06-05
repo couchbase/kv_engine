@@ -4413,11 +4413,6 @@ void VBucket::scheduleDestruction(CheckpointList&& checkpoints) const {
     }
 }
 
-void VBucket::createFailoverEntry(uint64_t seqno) {
-    failovers->createEntry(seqno);
-    checkpointManager->queueSetVBState();
-}
-
 void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
     auto toNotify = tmpFailAndGetAllHpNotifies(engine);
 

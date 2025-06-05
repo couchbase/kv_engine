@@ -660,8 +660,9 @@ private:
     /// a WeaklyMonotonic, but many unit tests will violate that.
     uint64_t visibleSnapEndSeqno = 0;
 
-    /// The seqno of the highest expelled item.
-    MONOTONIC3(int64_t, highestExpelledSeqno, Labeller);
+    /// The seqno of the highest expelled item. Weak monotonic as expel of
+    /// set-vb-state can result in same value
+    WEAKLY_MONOTONIC3(int64_t, highestExpelledSeqno, Labeller);
 
     const Vbid vbucketId;
 

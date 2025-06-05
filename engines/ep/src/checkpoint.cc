@@ -190,7 +190,9 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // in toWrite, so we can make our de-dup checks.
                 const auto existingSeqno =
                         (*indexEntry.getPosition())->getBySeqno();
-                Expects(highestExpelledSeqno < existingSeqno);
+
+                // vb-state expelling means we can have <= existingSeqno
+                Expects(highestExpelledSeqno <= existingSeqno);
 
                 const auto oldPos = it->second.getPosition();
                 const auto& oldItem = *oldPos;
@@ -518,8 +520,6 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
         throw std::logic_error(
                 "Checkpoint::expelItems: Called on an empty checkpoint");
     }
-    // The last item to be expelled is not expected to be a meta-item.
-    Expects(!(*last)->isCheckPointMetaItem());
 
     // Record the seqno of the last item to be expelled.
     highestExpelledSeqno = (*last)->getBySeqno();
@@ -778,6 +778,7 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
         os << e->getKey() << "," << e->size();
+        os << e->getCas() << ",";
         e->isCheckPointMetaItem() ? os << ",[m]" : os << "";
         if (e->getOperation() == queue_op::set_vbucket_state) {
             os << ",value:" << e->getValueView();

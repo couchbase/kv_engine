@@ -295,6 +295,13 @@ public:
     // purgeTombstones runs.
     TestingHook<> postPurgeTombstonesHook;
 
+    /**
+     * Create a new failover entry in the vbucket.
+     *
+     * @param seqno Sequence number to create failover entry for
+     */
+    void createFailoverEntry(uint64_t seqno) override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
