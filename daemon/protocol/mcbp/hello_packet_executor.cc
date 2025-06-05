@@ -316,14 +316,18 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case Feature::ClustermapChangeNotificationBrief:
-            connection.setClustermapChangeNotification(
-                    ClustermapChangeNotification::Brief);
-            added = true;
+            if (Settings::instance().isClustermapPushNotificationsEnabled()) {
+                connection.setClustermapChangeNotification(
+                        ClustermapChangeNotification::Brief);
+                added = true;
+            }
             break;
         case Feature::ClustermapChangeNotification:
-            connection.setClustermapChangeNotification(
-                    ClustermapChangeNotification::Full);
-            added = true;
+            if (Settings::instance().isClustermapPushNotificationsEnabled()) {
+                connection.setClustermapChangeNotification(
+                        ClustermapChangeNotification::Full);
+                added = true;
+            }
             break;
         case Feature::UnorderedExecution:
             if (connection.isDCP()) {

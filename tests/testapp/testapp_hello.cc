@@ -160,3 +160,44 @@ TEST_F(HelloTest, Collections) {
     ASSERT_EQ(1, features.size());
     ASSERT_EQ(cb::mcbp::Feature::Collections, features[0]);
 }
+
+TEST_F(HelloTest, DisableClustermapPushNotifications) {
+    memcached_cfg["clustermap_push_notifications_enabled"] = false;
+    reconfigure();
+
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Duplex);
+    cmd.enableFeature(cb::mcbp::Feature::ClustermapChangeNotification);
+    cmd.enableFeature(cb::mcbp::Feature::ClustermapChangeNotificationBrief);
+
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto& features = rsp.getFeatures();
+    ASSERT_EQ(1, features.size());
+    EXPECT_EQ(cb::mcbp::Feature::Duplex, features.front());
+
+    memcached_cfg.erase("clustermap_push_notifications_enabled");
+    reconfigure();
+}
+
+TEST_F(HelloTest, EnableClustermapPushNotifications) {
+    memcached_cfg["clustermap_push_notifications_enabled"] = true;
+    reconfigure();
+
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Duplex);
+    cmd.enableFeature(cb::mcbp::Feature::ClustermapChangeNotification);
+    cmd.enableFeature(cb::mcbp::Feature::ClustermapChangeNotificationBrief);
+
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto& features = rsp.getFeatures();
+    // If both brief and full is requested the server will only reply with brief
+    ASSERT_EQ(2, features.size());
+    EXPECT_EQ(cb::mcbp::Feature::Duplex, features[0]);
+    EXPECT_EQ(cb::mcbp::Feature::ClustermapChangeNotificationBrief,
+              features[1]);
+
+    memcached_cfg.erase("clustermap_push_notifications_enabled");
+    reconfigure();
+}
