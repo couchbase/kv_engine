@@ -215,6 +215,14 @@ public:
 
     void doEphemeralMemRecoveryStats(const StatCollector& collector);
 
+    void persistVBState(Vbid vbid) override {
+        // No flusher - no-op
+    }
+
+    void persistVBState() override {
+        // No flusher - no-op
+    }
+
 protected:
     friend class KVBucketTest;
     friend class SingleThreadedEphemeralTest;

@@ -3496,3 +3496,20 @@ std::filesystem::space_info EPBucket::getCachedDiskSpaceInfo() {
                 [this]() { return getDiskSpaceUsed(); });
     });
 }
+
+void EPBucket::persistVBState(Vbid vbid) {
+    VBucketPtr vb = getVBucket(vbid);
+
+    if (!vb) {
+        EP_LOG_WARN("EPBucket::persistVBState: {} does not not exist.", vbid);
+        return;
+    }
+
+    vb->checkpointManager->queueSetVBState();
+}
+
+void EPBucket::persistVBState() {
+    for (auto vbid : vbMap.getBuckets()) {
+        persistVBState(vbid);
+    }
+}

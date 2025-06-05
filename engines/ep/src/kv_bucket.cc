@@ -171,7 +171,7 @@ public:
             store.setCompactionExpiryFetchInline(value);
         } else if (key == "continuous_backup_enabled") {
             // The new setting will take effect after the vbstate flush.
-            store.scheduleVBStatePersist();
+            store.persistVBState();
         }
     }
 
@@ -1050,7 +1050,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         continueToActive(oldstate, transfer, vb, vbStateLock);
     }
 
-    scheduleVBStatePersist(vb->getId());
+    persistVBState(vb->getId());
 }
 
 void KVBucket::continueToActive(
@@ -1161,28 +1161,8 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
     // When the VBucket is constructed we initialize
     // persistenceSeqno(0) && persistenceCheckpointId(0)
     newvb->setBucketCreation(true);
-    scheduleVBStatePersist(vbid);
+    persistVBState(vbid);
     return cb::engine_errc::success;
-}
-
-void KVBucket::scheduleVBStatePersist() {
-    for (auto vbid : vbMap.getBuckets()) {
-        scheduleVBStatePersist(vbid);
-    }
-}
-
-void KVBucket::scheduleVBStatePersist(Vbid vbid) {
-    VBucketPtr vb = getVBucket(vbid);
-
-    if (!vb) {
-        EP_LOG_WARN(
-                "EPStore::scheduleVBStatePersist: {} does not not exist. "
-                "Unable to schedule persistence.",
-                vbid);
-        return;
-    }
-
-    vb->checkpointManager->queueSetVBState();
 }
 
 size_t KVBucket::getExpiryPagerSleeptime() {
@@ -2799,7 +2779,7 @@ bool KVBucket::runAccessScannerTask() {
 }
 
 void KVBucket::runVbStatePersistTask(Vbid vbid) {
-    scheduleVBStatePersist(vbid);
+    persistVBState(vbid);
 }
 
 size_t KVBucket::getActiveResidentRatio() const {

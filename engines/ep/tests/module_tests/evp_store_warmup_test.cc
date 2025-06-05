@@ -630,7 +630,7 @@ TEST_F(WarmupTest, TwoStateChangesAtSameSeqno) {
         EXPECT_EQ(failoverTableLastSeqno,
                   vb->failovers->getLatestEntry().by_seqno);
     }
-    store->scheduleVBStatePersist(vbid);
+    store->persistVBState(vbid);
 
     // 3) Flush the two state changes together and warmup so that we can more
     // easily read what was persisted
