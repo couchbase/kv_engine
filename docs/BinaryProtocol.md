@@ -1757,6 +1757,9 @@ The DCP stats group accepts the following parameters, specified as a JSON value.
 }
 ```
 
+For details on retrieving Fusion-specific statistics, see
+[Fusion Stats](fusion.md#0x10---fusion-stats).
+
 ### 0x1b Verbosity
 
 Request:

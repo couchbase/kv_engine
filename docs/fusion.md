@@ -1,3 +1,79 @@
+# 0x10 - Fusion Stats
+
+This command is used to retrieve Fusion-related statistics from the server.
+It is similar to a regular ```stat``` command but specifically targets
+Fusion stats by using a specially formatted key.
+
+The request has:
+* A bucket
+* No extras
+* A key - must begin with the prefix "fusion"
+* No value
+
+## Key Format
+
+```
+fusion <stat-group> [<vbid>]
+```
+* ```<stat-group>```: The category of Fusion stats you want.
+
+* ```<vbid>``` (optional): The specific VBucket ID to query.
+
+## Stat Groups
+
+The stat-group can be one of the following:
+* ```active_guest_volumes```: Returns a JSON array of active Fusion volumes
+for a VBucket.
+* ```uploader```: Returns a JSON object of uploader progress related stats.
+* ```migration```: Returns a JSON object of migration progress related stats.
+
+## Behaviour
+
+If a ```<vbid>``` is provided → Returns stats for that specific VBucket.
+
+If a ```<vbid>``` is not provided → Returns aggregated stats across all
+VBuckets.
+
+If aggregation is not supported for the stat group, the request will fail.
+
+## Returns
+
+If the request is successful, the server will respond with a JSON object
+where the keys are the stat names and the values are the corresponding
+stat value.
+
+Example response for `fusion active_guest_volumes`:
+```
+{
+  "volume1",
+  "volume2",
+  "volume3"
+}
+```
+
+Example response for `fusion uploader`:
+```
+{
+  "vb_0": {
+    "uploader_state": "enabled",
+    "sync_session_completed_bytes": 100,
+    "sync_session_total_bytes": 1000,
+    "sync_snapshot_pending_bytes": 100
+    "term": 2,
+  },
+  "vb_1": ...
+}
+```
+
+Example response for `fusion migration 0`:
+```
+{
+  "completed_bytes": 100,
+  "total_bytes": 1000,
+}
+```
+
+
 # 0x70 - Get Fusion Storage Snapshot
 
 Requests that the server creates a logical snapshot in the fusion backend.
