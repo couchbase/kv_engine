@@ -58,9 +58,7 @@
 #include "protocol/mcbp/set_vbucket_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
-#include "protocol/mcbp/start_fusion_uploader_command_context.h"
 #include "protocol/mcbp/stats_context.h"
-#include "protocol/mcbp/stop_fusion_uploader_command_context.h"
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
 #include "protocol/mcbp/unmount_fusion_vbucket_command_context.h"
@@ -650,19 +648,52 @@ static void sync_fusion_logstore_executor(Cookie& cookie) {
 }
 
 static void start_fusion_uploader_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
-        cookie.obtainContext<StartFusionUploaderCommandContext>(cookie).drive();
-    } else {
+    if (!cookie.getConnection().getBucket().supports(Feature::Fusion)) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
     }
+
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              try {
+                  const auto& req = c.getRequest();
+                  const auto args = nlohmann::json::parse(req.getValueString());
+                  const std::string term = args["term"];
+                  auto& engine = c.getConnection().getBucketEngine();
+                  return engine.startFusionUploader(req.getVBucket(),
+                                                    std::stoull(term));
+              } catch (const std::exception& e) {
+                  const auto& conn = c.getConnection();
+                  LOG_WARNING_CTX("start_fusion_uploader_executor",
+                                  {"conn_id", conn.getId()},
+                                  {"description", conn.getDescription()},
+                                  {"error", e.what()});
+                  c.setErrorContext(e.what());
+                  return cb::engine_errc::failed;
+              }
+          }).drive();
 }
 
 static void stop_fusion_uploader_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
-        cookie.obtainContext<StopFusionUploaderCommandContext>(cookie).drive();
-    } else {
+    if (!cookie.getConnection().getBucket().supports(Feature::Fusion)) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
     }
+
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              try {
+                  const auto& req = c.getRequest();
+                  auto& engine = c.getConnection().getBucketEngine();
+                  return engine.stopFusionUploader(req.getVBucket());
+              } catch (const std::exception& e) {
+                  const auto& conn = c.getConnection();
+                  LOG_WARNING_CTX("stop_fusion_uploader_executor",
+                                  {"conn_id", conn.getId()},
+                                  {"description", conn.getDescription()},
+                                  {"error", e.what()});
+                  c.setErrorContext(e.what());
+                  return cb::engine_errc::failed;
+              }
+          }).drive();
 }
 
 static void set_chronicle_auth_token_executor(Cookie& cookie) {

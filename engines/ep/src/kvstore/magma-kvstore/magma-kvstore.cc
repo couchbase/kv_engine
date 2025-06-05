@@ -654,7 +654,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
                 std::to_string(configuration.getShardId())),
       scanCounter(0),
       continuousBackupStatus(getCacheSize(), BackupStatus::Stopped),
-      currEngine(ObjectRegistry::getCurrentEngine()) {
+      currEngine(ObjectRegistry::getCurrentEngine()),
+      fusionUploaderManager(*this) {
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
     configuration.magmaCfg.MaxKVStoreLSDBufferSize =
@@ -4645,50 +4646,43 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
                                       *magmaFileHandle.snapshot.get());
 }
 
+cb::engine_errc MagmaKVStore::checkFusionStatCallStatus(
+        FusionStat stat, Vbid vbid, magma::Status status) const {
+    if (status.ErrorCode() != Status::Code::Ok) {
+        if (status.ErrorCode() == Status::Code::InvalidKVStore) {
+            return cb::engine_errc::not_my_vbucket;
+        }
+        EP_LOG_WARN_CTX("MagmaKVStore::checkFusionStatCallStatus: ",
+                        {"stat", stat},
+                        {"vb", vbid.get()},
+                        {"status", status.String()});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}
+
 std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         FusionStat stat, Vbid vbid) {
-    const auto checkStatus =
-            [this, stat, vbid](magma::Status status) -> cb::engine_errc {
-        if (status.ErrorCode() != Status::Code::Ok) {
-            if (status.ErrorCode() == Status::Code::InvalidKVStore) {
-                return cb::engine_errc::not_my_vbucket;
-            }
-            EP_LOG_WARN_CTX("MagmaKVStore::getFusionStats: ",
-                            {"stat", stat},
-                            {"vb", vbid.get()},
-                            {"status", status.String()});
-            return cb::engine_errc::failed;
-        }
-        return cb::engine_errc::success;
-    };
-
     switch (stat) {
     case FusionStat::Invalid:
         throw std::logic_error("MagmaKVStore::getFusionStats: Invalid");
     case FusionStat::SyncInfo: {
         const auto [status, data] =
                 magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
-        return {checkStatus(status), data};
+        return {checkFusionStatCallStatus(stat, vbid, status), data};
     }
     case FusionStat::ActiveGuestVolumes: {
         const auto [status, data] = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
-        return {checkStatus(status), data};
+        return {checkFusionStatCallStatus(stat, vbid, status), data};
     }
     case FusionStat::Uploader: {
         const auto id = Magma::KVStoreID(vbid.get());
         nlohmann::json json;
-        {
-            const auto [status, data] = magma->IsFusionUploader(id);
-            if (const auto errc = checkStatus(status);
-                errc != cb::engine_errc::success) {
-                return {errc, {}};
-            }
-            json["state"] = data ? "enabled" : "disabled";
-        }
+        { json["state"] = fusionUploaderManager.getUploaderState(vbid); }
         {
             const auto [status, data] = magma->GetFusionUploaderTerm(id);
-            if (const auto errc = checkStatus(status);
+            if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
                 return {errc, {}};
             }
@@ -4696,7 +4690,7 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         }
         {
             auto [status, data] = magma->GetFusionPendingSyncBytes(id);
-            const auto errc = checkStatus(status);
+            const auto errc = checkFusionStatCallStatus(stat, vbid, status);
             if (errc != cb::engine_errc::success) {
                 return {errc, {}};
             }
@@ -4704,7 +4698,7 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         }
         {
             const auto [status, stats] = magma->GetFusionUploaderStats(id);
-            if (const auto errc = checkStatus(status);
+            if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
                 return {errc, {}};
             }
@@ -4720,7 +4714,7 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         nlohmann::json json;
         {
             const auto [status, stats] = magma->GetFusionMigrationStats(id);
-            if (const auto errc = checkStatus(status);
+            if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
                 return {errc, {}};
             }
@@ -4895,10 +4889,15 @@ float MagmaKVStore::getMagmaFusionLogstoreFragmentationThreshold() const {
 }
 
 cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
+    return fusionUploaderManager.startUploader(*currEngine, vbid, term);
+}
+
+cb::engine_errc MagmaKVStore::doStartFusionUploader(Vbid vbid, uint64_t term) {
     const auto status =
             magma->StartFusionUploader(Magma::KVStoreID(vbid.get()), term);
+    fusionUploaderManager.onToggleComplete(vbid);
     if (status.ErrorCode() != Status::Code::Ok) {
-        EP_LOG_WARN_CTX("MagmaKVStore::startFusionUploader: ",
+        EP_LOG_WARN_CTX("MagmaKVStore::doStartFusionUploader: ",
                         {"vb", vbid},
                         {"term", term},
                         {"status", status.String()});
@@ -4908,14 +4907,37 @@ cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
 }
 
 cb::engine_errc MagmaKVStore::stopFusionUploader(Vbid vbid) {
+    return fusionUploaderManager.stopUploader(*currEngine, vbid);
+}
+
+cb::engine_errc MagmaKVStore::doStopFusionUploader(Vbid vbid) {
     const auto status = magma->StopFusionUploader(Magma::KVStoreID(vbid.get()));
+    fusionUploaderManager.onToggleComplete(vbid);
     if (status.ErrorCode() != Status::Code::Ok) {
-        EP_LOG_WARN_CTX("MagmaKVStore::stopFusionUploader: ",
+        EP_LOG_WARN_CTX("MagmaKVStore::doStopFusionUploader: ",
                         {"vb", vbid},
                         {"status", status.String()});
         return cb::engine_errc::failed;
     }
     return cb::engine_errc::success;
+}
+
+bool MagmaKVStore::isFusionUploader(Vbid vbid) const {
+    const auto [status, info] =
+            magma->IsFusionUploader(Magma::KVStoreID(vbid.get()));
+    checkFusionStatCallStatus(FusionStat::Uploader, vbid, status);
+    return info;
+}
+
+uint64_t MagmaKVStore::getFusionUploaderTerm(Vbid vbid) const {
+    const auto [status, term] =
+            magma->GetFusionUploaderTerm(Magma::KVStoreID(vbid.get()));
+    checkFusionStatCallStatus(FusionStat::Uploader, vbid, status);
+    return term;
+}
+
+FusionUploaderState MagmaKVStore::getFusionUploaderState(Vbid vbid) const {
+    return fusionUploaderManager.getUploaderState(vbid);
 }
 
 std::variant<cb::engine_errc, cb::snapshot::Manifest>

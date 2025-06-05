@@ -13,11 +13,13 @@
 
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
 
 class FusionTest : public TestappClientTest {
 protected:
     static void SetUpTestCase();
     void SetUp() override;
+    void TearDown() override;
 
     BinprotResponse mountVbucket(Vbid vbid, const nlohmann::json& volumes);
 
@@ -35,6 +37,8 @@ protected:
                                                  std::string_view snapshotUuid);
 
     BinprotResponse startFusionUploader(Vbid vbid, const nlohmann::json& term);
+
+    BinprotResponse stopFusionUploader(Vbid vbid);
 
     BinprotResponse syncFusionLogstore(Vbid vbid);
 
@@ -55,7 +59,10 @@ public:
     static constexpr auto logstoreRelativePath = "logstore";
     static constexpr auto chronicleAuthToken = "some-token1!";
     static constexpr auto bucketUuid = "uuid-123";
+    static const Vbid vbid;
 };
+
+const Vbid FusionTest::vbid = Vbid(0);
 
 void FusionTest::SetUpTestCase() {
     const std::string dbPath = mcd_env->getDbPath();
@@ -74,14 +81,26 @@ void FusionTest::SetUpTestCase() {
     // executing and Fusion API against it in the various test cases. We would
     // hit sporadic failures by "kvstore invalid" otherwise.
     adminConnection->selectBucket(bucketName);
-    adminConnection->store("bump-vb-high-seqno", Vbid(0), {});
-    adminConnection->waitForSeqnoToPersist(Vbid(0), 1);
+    adminConnection->store("bump-vb-high-seqno", vbid, {});
+    adminConnection->waitForSeqnoToPersist(vbid, 1);
 }
 
 void FusionTest::SetUp() {
     rebuildUserConnection(false);
     if (!mcd_env->getTestBucket().isMagma()) {
         GTEST_SKIP();
+    }
+}
+
+void FusionTest::TearDown() {
+    if (userConnection->statsMap("")["ep_backend"] != "magma") {
+        GTEST_SKIP();
+    }
+
+    // Some tests assume the uploader disabled for vbid
+    if (fusionStats("uploader", std::to_string(vbid.get()))["state"] ==
+        "enabled") {
+        stopFusionUploader(vbid);
     }
 }
 
@@ -151,6 +170,35 @@ BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
                 cmd.setDatatype(cb::mcbp::Datatype::JSON);
                 resp = conn.execute(cmd);
             });
+
+    cb::waitForPredicateUntil(
+            [this, vbid]() {
+                return fusionStats("uploader",
+                                   std::to_string(vbid.get()))["state"] ==
+                       "enabled";
+            },
+            std::chrono::seconds(5));
+
+    return resp;
+}
+
+BinprotResponse FusionTest::stopFusionUploader(Vbid vbid) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(bucketName, [&resp, vbid](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StopFusionUploader};
+        cmd.setVBucket(vbid);
+        resp = conn.execute(cmd);
+    });
+
+    cb::waitForPredicateUntil(
+            [this, vbid]() {
+                return fusionStats("uploader",
+                                   std::to_string(vbid.get()))["state"] ==
+                       "disabled";
+            },
+            std::chrono::seconds(5));
+
     return resp;
 }
 
@@ -422,7 +470,6 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     setMigrationRateLimit(0);
 
     // Start uploader (necessary before SyncFusionLogstore)
-    const auto vbid = Vbid(0);
     const auto term = "1";
     ASSERT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, term).getStatus());
@@ -474,7 +521,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
                           std::filesystem::copy_options::recursive);
 
     // Delete vbucket (mount fails by EExists otherwise)
-    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
         auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
         cmd.setVBucket(vbid);
         ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
@@ -485,7 +532,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
               mountVbucket(vbid, {guestVolume}).getStatus());
 
     // Create vbucket from volume data
-    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
         const nlohmann::json meta{{"use_snapshot", "fusion"}};
         conn.setVbucket(vbid, vbucket_state_active, meta);
     });
@@ -524,15 +571,13 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
     // magma. Here big-enough for preventing SSO that hides memory domain
     // alloc issues.
     const auto nonexistentUuid = std::string(1024, 'u');
-    auto resp = releaseFusionStorageSnapshot(Vbid(0), nonexistentUuid);
+    auto resp = releaseFusionStorageSnapshot(vbid, nonexistentUuid);
     // @todo MB-66688: Return less generic error
     EXPECT_EQ(cb::mcbp::Status::Einternal, resp.getStatus());
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     // Create a snapshot
-    const auto vbid = Vbid(0);
-
     // MB-65649: snaps uuid reported in the GetFusionStorageSnapshot response.
     // Here big-enough for preventing SSO that hides memory domain alloc issues.
     const auto snapshotUuid = std::string(1024, 'u');
@@ -610,7 +655,6 @@ TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
 }
 
 TEST_P(FusionTest, SyncFusionLogstore) {
-    const auto vbid = Vbid(0);
     ASSERT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, "1").getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, syncFusionLogstore(vbid).getStatus());
@@ -618,7 +662,6 @@ TEST_P(FusionTest, SyncFusionLogstore) {
 
 TEST_P(FusionTest, StartFusionUploader) {
     // arg invalid (not string)
-    const auto vbid = Vbid(0);
     auto resp = startFusionUploader(vbid, 1234);
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
@@ -640,13 +683,9 @@ TEST_P(FusionTest, StartFusionUploader) {
 }
 
 TEST_P(FusionTest, StopFusionUploader) {
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StopFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        const auto resp = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    // Baseline test, uploader never started, call is a successful NOP
+    ASSERT_EQ("disabled", fusionStats("uploader", "0")["state"]);
+    EXPECT_EQ(cb::mcbp::Status::Success, stopFusionUploader(vbid).getStatus());
 }
 
 TEST_P(FusionTest, ToggleUploader) {
@@ -661,40 +700,48 @@ TEST_P(FusionTest, ToggleUploader) {
     ASSERT_TRUE(json["term"].is_number_integer());
     EXPECT_EQ(0, json["term"]);
 
-    // Start uploader
+    // Start uploader..
+    const uint64_t term = 123;
     EXPECT_EQ(cb::mcbp::Status::Success,
-              startFusionUploader(Vbid(0), "123").getStatus());
-
-    // verify stat
+              startFusionUploader(vbid, std::to_string(term)).getStatus());
+    // verify stats
     json = fusionStats("uploader", "0");
-    ASSERT_FALSE(json.empty());
-    ASSERT_TRUE(json.is_object());
-    ASSERT_TRUE(json.contains("state"));
-    ASSERT_TRUE(json["state"].is_string());
     EXPECT_EQ("enabled", json["state"]);
-    ASSERT_TRUE(json.contains("term"));
-    ASSERT_TRUE(json["term"].is_number_integer());
-    EXPECT_EQ(123, json["term"]);
+    EXPECT_EQ(term, json["term"]);
 
-    // Stop uploader
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StopFusionUploader};
-        cmd.setVBucket(Vbid(0));
-        const auto res = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
-    });
+    // Verify that starting an enabled uploader doesn't fail (it's just a NOP).
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, std::to_string(term)).getStatus());
 
-    // verify stat
+    // Stop uploader..
+    EXPECT_EQ(cb::mcbp::Status::Success, stopFusionUploader(vbid).getStatus());
+    // verify stats
     json = fusionStats("uploader", "0");
-    ASSERT_FALSE(json.empty());
-    ASSERT_TRUE(json.is_object());
-    ASSERT_TRUE(json.contains("state"));
-    ASSERT_TRUE(json["state"].is_string());
     EXPECT_EQ("disabled", json["state"]);
-    ASSERT_TRUE(json.contains("term"));
-    ASSERT_TRUE(json["term"].is_number_integer());
     EXPECT_EQ(0, json["term"]);
+
+    // Verify that stopping a disabled uploader doesn't fail (it's just a NOP).
+    EXPECT_EQ(cb::mcbp::Status::Success, stopFusionUploader(vbid).getStatus());
+
+    // Try start uploader again.
+    // This step verifies that internally at StopUploader we have correctly
+    // cleared vbid for accepting new StartUploader requests.
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, std::to_string(term)).getStatus());
+    // verify stats
+    json = fusionStats("uploader", "0");
+    EXPECT_EQ("enabled", json["state"]);
+    EXPECT_EQ(term, json["term"]);
+
+    // Verify that re-starting a running uploader with a new term is equivalent
+    // to Stop + Start(newTerm)
+    const auto newTerm = term + 1;
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, std::to_string(newTerm)).getStatus());
+    // verify stats
+    json = fusionStats("uploader", "0");
+    EXPECT_EQ("enabled", json["state"]);
+    EXPECT_EQ(newTerm, json["term"]);
 }
 
 TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {

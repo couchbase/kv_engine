@@ -1432,6 +1432,10 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
 
     // Sync to FusionLogstore
     EXPECT_EQ(cb::engine_errc::success, engine->startFusionUploader(vbid, 1));
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "StartFusionUploaderTask vb:0");
+    ASSERT_TRUE(dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid))
+                        .isFusionUploader(vbid));
     EXPECT_EQ(cb::engine_errc::success, engine->syncFusionLogstore(vbid));
 
     shutdownAndPurgeTasks(engine.get());
@@ -1482,6 +1486,36 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
         runBGFetcherTask();
     }
     destroy_mock_cookie(cookie2);
+}
+
+TEST_P(STMagmaFusionTest, ToggleUploader) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Uploader disabled at first
+    auto& magma = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    ASSERT_EQ(FusionUploaderState::Disabled,
+              magma.getFusionUploaderState(vbid));
+
+    // Schedule task for starting the uploader
+    EXPECT_EQ(cb::engine_errc::success, engine->startFusionUploader(vbid, 1));
+    EXPECT_EQ(FusionUploaderState::Enabling,
+              magma.getFusionUploaderState(vbid));
+
+    // Run the task
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "StartFusionUploaderTask vb:0");
+    EXPECT_EQ(FusionUploaderState::Enabled, magma.getFusionUploaderState(vbid));
+
+    // Schedule task for stopping the uploader
+    EXPECT_EQ(cb::engine_errc::success, engine->stopFusionUploader(vbid));
+    EXPECT_EQ(FusionUploaderState::Disabling,
+              magma.getFusionUploaderState(vbid));
+
+    // Run the task
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "StopFusionUploaderTask vb:0");
+    EXPECT_EQ(FusionUploaderState::Disabled,
+              magma.getFusionUploaderState(vbid));
 }
 
 INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,

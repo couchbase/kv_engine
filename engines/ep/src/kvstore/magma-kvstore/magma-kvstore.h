@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "fusion_uploder.h"
 #include "kv_magma_common/magma-kvstore_magma_db_stats.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
@@ -681,8 +682,45 @@ public:
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
+    /**
+     * Schedules a task for starting the fusion uploader in bg-thread.
+     * The call fails by key_already_exists if any start/stop task is already
+     * scheduled.
+     */
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
+
+    /**
+     * Calls into magma::StartFusionUploader. This is a blocking call.
+     */
+    cb::engine_errc doStartFusionUploader(Vbid vbid, uint64_t term);
+
+    /**
+     * Schedules a task for stopping the fusion uploader in bg-thread.
+     * The call fails by key_already_exists if any start/stop task is already
+     * scheduled.
+     */
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
+
+    /**
+     * Calls into magma::StopFusionUploader. This is a blocking call.
+     */
+    cb::engine_errc doStopFusionUploader(Vbid vbid);
+
+    /**
+     * Calls into magma::IsFusionUploader(vbid).
+     *
+     * @return True if the uploader is enabled, false otherwise.
+     */
+    bool isFusionUploader(Vbid vbid) const;
+
+    /**
+     * Calls into magma::GetFusionUploaderTerm(vbid).
+     *
+     * @return The current uplaoder term.
+     */
+    uint64_t getFusionUploaderTerm(Vbid vbid) const;
+
+    FusionUploaderState getFusionUploaderState(Vbid vbid) const;
 
     std::chrono::seconds getFusionUploadInterval() const;
     std::chrono::seconds getFusionLogCheckpointInterval() const;
@@ -988,6 +1026,10 @@ protected:
         folly::assume_unreachable();
     }
 
+    cb::engine_errc checkFusionStatCallStatus(FusionStat stat,
+                                              Vbid vbid,
+                                              magma::Status status) const;
+
     MagmaKVStoreConfig& configuration;
 
     /**
@@ -1065,6 +1107,8 @@ protected:
 
 private:
     EventuallyPersistentEngine* currEngine;
+
+    FusionUploaderManager fusionUploaderManager;
 };
 
 struct MagmaKVStoreTransactionContext : public TransactionContext {
