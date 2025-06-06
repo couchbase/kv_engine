@@ -4836,24 +4836,19 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // Simulate running the checkpoint processor task again, now we process
     // the second and the third checkpoints (both type:memory)
     outItems = stream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(ephemeral() ? 6 : 8, outItems.items.size());
+    ASSERT_EQ(ephemeral() ? 6 : 7, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     if (!ephemeral()) {
         // this set_vbucket_state is from creating a new failover table entry as
         // part of changing to active in the middle of this test
         ASSERT_EQ(queue_op::set_vbucket_state,
                   outItems.items.at(1)->getOperation());
-
-        // this set_vbucket_state is from changing to active in the middle of
-        // this test
-        ASSERT_EQ(queue_op::set_vbucket_state,
-                  outItems.items.at(2)->getOperation());
     }
-    const int mutationIndex = ephemeral() ? 1 : 3;
-    const int pendingSyncWriteIndex = ephemeral() ? 2 : 4;
-    const int checkpointEndIndex = ephemeral() ? 3 : 5;
-    const int checkpointStartIndex = ephemeral() ? 4 : 6;
-    const int commitSyncWriteIndex = ephemeral() ? 5 : 7;
+    const int mutationIndex = ephemeral() ? 1 : 2;
+    const int pendingSyncWriteIndex = ephemeral() ? 2 : 3;
+    const int checkpointEndIndex = ephemeral() ? 3 : 4;
+    const int checkpointStartIndex = ephemeral() ? 4 : 5;
+    const int commitSyncWriteIndex = ephemeral() ? 5 : 6;
     ASSERT_EQ(queue_op::mutation,
               outItems.items.at(mutationIndex)->getOperation());
     ASSERT_EQ(queue_op::pending_sync_write,
@@ -5150,19 +5145,15 @@ void DurabilityPromotionStreamTest::
     // Get items from CM, expect Memory{set-vbs:4, M:4}:
     //   ckpt-start + set-vbs:4 + M:4 + ckpt-end
     outItems = activeStream->public_getOutstandingItems(*vb);
-    ASSERT_EQ(ephemeral() ? 2 : 4, outItems.items.size());
+    ASSERT_EQ(ephemeral() ? 2 : 3, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     if (!ephemeral()) {
         // this set_vbucket_state is from creating a new failover table entry as
         // part of changing to active in the middle of this test
         ASSERT_EQ(queue_op::set_vbucket_state,
                   outItems.items.at(1)->getOperation());
-        // this set_vbucket_state is from changing to active in the middle of
-        // this test
-        ASSERT_EQ(queue_op::set_vbucket_state,
-                  outItems.items.at(2)->getOperation());
     }
-    const int mutationIndex = ephemeral() ? 1 : 3;
+    const int mutationIndex = ephemeral() ? 1 : 2;
     ASSERT_EQ(queue_op::mutation,
               outItems.items.at(mutationIndex)->getOperation());
     ASSERT_EQ(4, outItems.items.at(mutationIndex)->getBySeqno());

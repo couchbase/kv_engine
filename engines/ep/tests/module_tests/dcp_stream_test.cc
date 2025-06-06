@@ -9851,8 +9851,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_64246) {
     ASSERT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(ckptId + 2, manager.getOpenCheckpointId());
     // cs + vbs(a) + vbs(r)
-    // Note: MB-66839: 1 extra vbs(a) was queued
-    EXPECT_EQ(4, manager.getNumOpenChkItems());
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
     EXPECT_EQ(10, manager.getHighSeqno());
     checkpointSnap = manager.getSnapshotInfo();
     EXPECT_EQ(10, checkpointSnap.range.getStart());
@@ -9862,7 +9861,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_64246) {
     // Item Expel is the precondition for triggering the broken code path at
     // CheckpointManager::getSnapshotInfo() which is used for making the
     // StreamRequest in DcpConsumer::addStream
-    EXPECT_EQ(3, manager.expelUnreferencedCheckpointItems().count);
+    EXPECT_EQ(2, manager.expelUnreferencedCheckpointItems().count);
 
     // Before the fix getSnapshotInfo() would expose an invalid snapshot
     // (snapStart:11, snapEnd:11, start:10), so these need to NOT vary from

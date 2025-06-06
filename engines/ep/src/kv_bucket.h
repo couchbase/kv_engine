@@ -1338,7 +1338,9 @@ protected:
 
     /// Helper method from setVBucketState_UNLOCKED() - extracted
     /// `to == vbucket_state_active` logic
-    void continueToActive(vbucket_state_t oldstate,
+    /// @return true if no vbstate was queued for persistence - allowing caller
+    /// to queue one if needed.
+    bool continueToActive(vbucket_state_t oldstate,
                           TransferVB transfer,
                           VBucketPtr& vb,
                           std::unique_lock<folly::SharedMutex>& vbStateLock);

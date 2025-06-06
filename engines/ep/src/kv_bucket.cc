@@ -1046,14 +1046,18 @@ void KVBucket::setVBucketState_UNLOCKED(
                 vb->getId(), to, closeInboundStreams, &vbStateLock);
     }
 
+    bool needToPersistVbState = true;
     if (to == vbucket_state_active) {
-        continueToActive(oldstate, transfer, vb, vbStateLock);
+        needToPersistVbState =
+                continueToActive(oldstate, transfer, vb, vbStateLock);
     }
 
-    persistVBState(vb->getId());
+    if (needToPersistVbState) {
+        persistVBState(vb->getId());
+    }
 }
 
-void KVBucket::continueToActive(
+bool KVBucket::continueToActive(
         vbucket_state_t oldstate,
         TransferVB transfer,
         VBucketPtr& vb,
@@ -1082,10 +1086,13 @@ void KVBucket::continueToActive(
         vb->setReceivingInitialDiskSnapshot(false);
     }
 
+    bool needToPersistVbState = true;
     if (oldstate != vbucket_state_active && transfer == TransferVB::No) {
         // Changed state to active and this isn't a transfer (i.e.
         // takeover), which means this is a new fork in the vBucket history
         const auto entry = vb->processFailover();
+        needToPersistVbState = false; // processFailover always queues a vbstate
+                                      // so caller has no need to persist
         EP_LOG_INFO(
                 "KVBucket::setVBucketState: {} created new failover entry "
                 "with uuid:{} and seqno:{}",
@@ -1099,6 +1106,8 @@ void KVBucket::continueToActive(
                 std::make_shared<PendingOpsNotification>(engine, vb);
         ExecutorPool::get()->schedule(notifyTask);
     }
+
+    return needToPersistVbState;
 }
 
 cb::engine_errc KVBucket::createVBucket_UNLOCKED(
