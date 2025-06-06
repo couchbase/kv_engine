@@ -11,6 +11,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "checkpoint_test.h"
 #include "tests/module_tests/test_helpers.h"
+
 class CheckpointExpelTest : public CheckpointTest {};
 
 TEST_P(CheckpointExpelTest, ExpelSetVBState) {

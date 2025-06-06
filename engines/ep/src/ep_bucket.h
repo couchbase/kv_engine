@@ -391,6 +391,18 @@ public:
 
     Flusher* getOneFlusher() override;
 
+    /**
+     * Persistent bucket implements this function to queue a vb-state meta item
+     * for the flusher to consume.
+     */
+    void persistVBState(Vbid vbid) override;
+
+    /**
+     * Persistent bucket implements this function to queue vb-state meta items
+     * for the flusher to consume for all vbuckets.
+     */
+    void persistVBState() override;
+
     /// Hook that gets called after a the EPBuckets purge seqno has been update
     /// during an implicit compaction
     TestingHook<> postPurgeSeqnoImplicitCompactionHook;

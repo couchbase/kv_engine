@@ -1179,3 +1179,7 @@ failover_entry_t EphemeralVBucket::processFailover() {
     createFailoverEntry(checkpointManager->getFailoverSeqno());
     return failovers->getLatestEntry();
 }
+
+void EphemeralVBucket::createFailoverEntry(uint64_t seqno) {
+    failovers->createEntry(seqno);
+}

@@ -126,7 +126,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
                     manager);
     ASSERT_EQ(1, list.size());
     // cs, vbs
-    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 1 : 2, manager.getNumOpenChkItems());
 
     const auto key = makeStoredDocKey("key");
     const std::string value = "value";
@@ -157,7 +157,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     // Steps to ensure backfill when we re-create the stream in the following
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(1, manager.getOpenCheckpointId());
-    ASSERT_EQ(3, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 2 : 3, manager.getNumOpenChkItems());
     manager.createNewCheckpoint();
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(2, manager.getOpenCheckpointId());
@@ -221,7 +221,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
                     manager);
     ASSERT_EQ(1, list.size());
     // cs, vbs, vbs
-    ASSERT_EQ(3, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 1 : 3, manager.getNumOpenChkItems());
 
     // SyncWrite and Commit
     const auto key = makeStoredDocKey("key");
@@ -240,7 +240,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
 
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(1, manager.getOpenCheckpointId());
-    ASSERT_EQ(4, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 2 : 4, manager.getNumOpenChkItems());
 
     {
         std::shared_lock rlh(vb.getStateLock());
@@ -265,7 +265,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     //     ASSERT_EQ(2, manager.getNumOpenChkItems());
     ASSERT_EQ(1, list.size());
     ASSERT_EQ(1, manager.getOpenCheckpointId());
-    ASSERT_EQ(5, manager.getNumOpenChkItems());
+    ASSERT_EQ(ephemeral() ? 3 : 5, manager.getNumOpenChkItems());
 
     // Cover seqnos [1, 2] with a range-read, then queue another Prepare.
     {

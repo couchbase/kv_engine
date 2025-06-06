@@ -661,14 +661,15 @@ public:
     virtual const StorageProperties getStorageProperties() const = 0;
 
     /**
-     * schedule a vb_state snapshot task for a given shard.
+     * Request that a vbstate meta item is queued for persistence.
      */
-    virtual void scheduleVBStatePersist() = 0;
+    virtual void persistVBState(Vbid vbid) = 0;
 
     /**
-     * Schedule a vbstate persistence task for a given vbucket.
+     * Request that vbstate meta items are queued for persistence for all
+     * vbuckets
      */
-    virtual void scheduleVBStatePersist(Vbid vbid) = 0;
+    virtual void persistVBState() = 0;
 
     virtual const VBucketMap& getVBuckets() const = 0;
 

@@ -980,12 +980,14 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
                     .lock();
     ASSERT_TRUE(dcpCursor);
 
+    // cs + vbs for persistent buckets
+    ASSERT_EQ(ephemeral() ? 1 : 2, cm.getNumOpenChkItems());
     // Store an item
-    ASSERT_EQ(2, cm.getNumOpenChkItems()); // cs+ vbs
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
+
     EXPECT_EQ(1, cm.getNumCheckpoints());
-    EXPECT_EQ(3, cm.getNumOpenChkItems());
+    EXPECT_EQ(ephemeral() ? 2 : 3, cm.getNumOpenChkItems());
 
     // Create new open checkpoint
     cm.createNewCheckpoint();
