@@ -142,26 +142,22 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForSingleBucket) {
             nullptr);
     crossBucketVisitor->scheduleNow(std::move(visitors));
 
+    const auto taskName = fmt::format("test ({})", engine->getName());
     EXPECT_FALSE(crossBucketVisitor->hasCompleted());
     // Expect to visit one Vbucket per task wakeup.
     EXPECT_EQ(std::nullopt, lastVbid);
-    task_executor->runNextTask(TaskType::NonIO,
-                               "test (SynchronousEPEngine:default)");
+    task_executor->runNextTask(TaskType::NonIO, taskName);
     EXPECT_EQ(Vbid(0), lastVbid);
-    task_executor->runNextTask(TaskType::NonIO,
-                               "test (SynchronousEPEngine:default)");
+    task_executor->runNextTask(TaskType::NonIO, taskName);
     EXPECT_EQ(Vbid(1), lastVbid);
-    task_executor->runNextTask(TaskType::NonIO,
-                               "test (SynchronousEPEngine:default)");
+    task_executor->runNextTask(TaskType::NonIO, taskName);
     EXPECT_EQ(Vbid(2), lastVbid);
     // Final task run will not progress the visitor, as all vBuckets have been
     // visited.
-    task_executor->runNextTask(TaskType::NonIO,
-                               "test (SynchronousEPEngine:default)");
+    task_executor->runNextTask(TaskType::NonIO, taskName);
     EXPECT_EQ(Vbid(2), lastVbid);
     // The task should have ran to completion.
-    EXPECT_THROW(task_executor->runNextTask(
-                         TaskType::NonIO, "test (SynchronousEPEngine:default)"),
+    EXPECT_THROW(task_executor->runNextTask(TaskType::NonIO, taskName),
                  std::logic_error);
     EXPECT_TRUE(crossBucketVisitor->hasCompleted());
     // Task objects should have been destroyed, this is the only strong ref.
@@ -206,53 +202,47 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForTwoBuckets) {
                                     /* randomShuffle */ false);
 
     // Expect to visit one Vbucket per task wakeup.
+    const auto taskName1 = fmt::format("test ({})", engine->getName());
+    const auto taskName2 = fmt::format("test ({})", engine2->getName());
+
     EXPECT_EQ(std::nullopt, lastVbidBucket1);
     EXPECT_EQ(std::nullopt, lastVbidBucket2);
     {
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:default)");
+        task_executor->runNextTask(TaskType::NonIO, taskName1);
         EXPECT_EQ(Vbid(0), lastVbidBucket1);
         EXPECT_EQ(std::nullopt, lastVbidBucket2);
     }
     {
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:engine2)");
+        task_executor->runNextTask(TaskType::NonIO, taskName2);
         EXPECT_EQ(Vbid(0), lastVbidBucket1);
         EXPECT_EQ(Vbid(0), lastVbidBucket2);
     }
     {
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:default)");
+        task_executor->runNextTask(TaskType::NonIO, taskName1);
         EXPECT_EQ(Vbid(1), lastVbidBucket1);
         EXPECT_EQ(Vbid(0), lastVbidBucket2);
     }
     {
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:engine2)");
+        task_executor->runNextTask(TaskType::NonIO, taskName2);
         EXPECT_EQ(Vbid(1), lastVbidBucket1);
         EXPECT_EQ(Vbid(1), lastVbidBucket2);
     }
     {
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:default)");
+        task_executor->runNextTask(TaskType::NonIO, taskName1);
         EXPECT_EQ(Vbid(2), lastVbidBucket1);
         EXPECT_EQ(Vbid(1), lastVbidBucket2);
     }
     {
         // Final task run will not progress the visitors
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:engine2)");
-        task_executor->runNextTask(TaskType::NonIO,
-                                   "test (SynchronousEPEngine:default)");
+        task_executor->runNextTask(TaskType::NonIO, taskName2);
+        task_executor->runNextTask(TaskType::NonIO, taskName1);
         EXPECT_EQ(Vbid(2), lastVbidBucket1);
         EXPECT_EQ(Vbid(1), lastVbidBucket2);
     }
     // The tasks should have ran to completion.
-    EXPECT_THROW(task_executor->runNextTask(
-                         TaskType::NonIO, "test (SynchronousEPEngine:default)"),
+    EXPECT_THROW(task_executor->runNextTask(TaskType::NonIO, taskName1),
                  std::logic_error);
-    EXPECT_THROW(task_executor->runNextTask(
-                         TaskType::NonIO, "test (SynchronousEPEngine:engine2)"),
+    EXPECT_THROW(task_executor->runNextTask(TaskType::NonIO, taskName2),
                  std::logic_error);
     // Task objects should have been destroyed, this is the only strong ref.
     EXPECT_EQ(1, crossBucketVisitor.use_count());

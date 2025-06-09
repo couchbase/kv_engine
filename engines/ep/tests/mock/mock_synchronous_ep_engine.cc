@@ -60,7 +60,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
         }
     }
 
-    name = "SynchronousEPEngine:" + configuration.getCouchBucket();
+    name = fmt::format("SynchronousEPEngine:{}:{}",
+                       fmt::ptr(this),
+                       configuration.getCouchBucket());
 
     auto& env = ::Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
