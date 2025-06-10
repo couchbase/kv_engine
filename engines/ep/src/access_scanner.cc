@@ -167,6 +167,15 @@ void ItemAccessVisitor::visitBucket(VBucket& vb) {
 }
 
 bool ItemAccessVisitor::cycleFile() {
+    // we might want to rewrite the current file in the case where it was
+    // previously unencrypted and the new one is encrypted (or the other way)
+    // for now; just remove it if that is the case
+    if (encryptionKey) {
+        removeFile(name);
+    } else {
+        removeFile(name + ".cef");
+    }
+
     std::error_code ec;
     std::filesystem::rename(name + ".cef", name + ".old.cef", ec);
     if (!ec) {
@@ -273,34 +282,7 @@ AccessScanner::AccessScanner(KVBucket& _store,
     maxStoredItems = conf.getAlogMaxStoredItems();
     double initialSleep = sleeptime;
     if (useStartTime) {
-        size_t startTime = conf.getAlogTaskTime();
-
-        /*
-         * Ensure startTime will always be within a range of (0, 23).
-         * A validator is already in place in the configuration file.
-         */
-        startTime = startTime % 24;
-
-        /*
-         * The following logic calculates the amount of time this task
-         * needs to sleep for initially so that it would wake up at the
-         * designated task time, note that this logic kicks in only when
-         * useStartTime argument in the constructor is set to TRUE.
-         * Otherwise this task will wake up periodically in a time
-         * specified by sleeptime.
-         */
-        const time_t now = ep_abs_time(ep_current_time());
-        struct tm timeNow, timeTarget;
-        cb_gmtime_r(&now, &timeNow);
-        timeTarget = timeNow;
-        if (timeNow.tm_hour >= (int)startTime) {
-            timeTarget.tm_mday += 1;
-        }
-        timeTarget.tm_hour = startTime;
-        timeTarget.tm_min = 0;
-        timeTarget.tm_sec = 0;
-
-        initialSleep = difftime(mktime(&timeTarget), mktime(&timeNow));
+        initialSleep = calculateSleepTime();
         snooze(initialSleep);
     }
 
@@ -359,8 +341,16 @@ bool AccessScanner::run() {
             }
         }
     }
-    snooze(sleepTime);
-    updateAlogTime(sleepTime);
+
+    // If task is scheduled to run once a day calculate the sleep time
+    // relative to when the task was run in the case it was forcibly run
+    // at a different time. If the user configured alog_sleep_time to another
+    // value just run relative from now.
+    const auto waitTime =
+            conf.getAlogSleepTime() == 1440 ? calculateSleepTime() : sleepTime;
+
+    snooze(waitTime);
+    updateAlogTime(waitTime);
 
     return true;
 }
@@ -370,6 +360,30 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
     gettimeofday(&_waketime, nullptr);
     _waketime.tv_sec += sleepSecs;
     stats.alogTime.store(_waketime.tv_sec);
+}
+
+double AccessScanner::calculateSleepTime() const {
+    size_t startTime = conf.getAlogTaskTime();
+
+    // Ensure startTime will always be within a range of (0, 23).
+    // A validator is already in place in the configuration file.
+    startTime = startTime % 24;
+
+    // The following logic calculates the amount of time this task
+    // needs to sleep for so that it would wake up at the
+    // designated task time.
+    const time_t now = ep_abs_time(ep_current_time());
+    struct tm timeNow, timeTarget;
+    cb_gmtime_r(&now, &timeNow);
+    timeTarget = timeNow;
+    if (timeNow.tm_hour >= (int)startTime) {
+        timeTarget.tm_mday += 1;
+    }
+    timeTarget.tm_hour = startTime;
+    timeTarget.tm_min = 0;
+    timeTarget.tm_sec = 0;
+
+    return difftime(mktime(&timeTarget), mktime(&timeNow));
 }
 
 std::string AccessScanner::getDescription() const {

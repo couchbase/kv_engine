@@ -44,6 +44,9 @@ protected:
 
     void updateAlogTime(double sleepSecs);
 
+    /// Calculate the sleep time from now until the next alog_task_time
+    double calculateSleepTime() const;
+
     KVBucket& store;
     Configuration& conf;
     EPStats& stats;

@@ -7994,7 +7994,21 @@ cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
     if (!json.empty()) {
         ks = json;
     }
+    bool rewriteAccessLog = false;
+    {
+        // Extra scope to let the shared ptr's die
+        auto nextActive = ks.getActiveKey();
+        auto currentActive = encryptionKeyProvider.lookup({});
+        if ((!currentActive && nextActive) || (!nextActive && currentActive)) {
+            // going from off->on or on->off
+            rewriteAccessLog = true;
+        }
+    }
     encryptionKeyProvider.setKeys(std::move(ks));
+
+    if (rewriteAccessLog) {
+        runAccessScannerTask();
+    }
     return cb::engine_errc::success;
 }
 

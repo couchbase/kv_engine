@@ -167,7 +167,9 @@ void TestBucketImpl::setUpBucket(const std::string& name,
         }
     }
 
-    std::string settings = "dbname=" + dbdir.generic_string();
+    std::string settings = fmt::format("dbname={};alog_path={}/access_log",
+                                       dbdir.generic_string(),
+                                       dbdir.generic_string());
     // Disable bloom_filters - for all memcahed testapp tests we want
     // to see things like gets of tombstones going to disk and not
     // getting skipped (to ensure correct EWOULDBLOCK handling etc).

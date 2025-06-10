@@ -12,6 +12,7 @@
 #include <cbcrypto/file_reader.h>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/random.h>
 #include <platform/uuid.h>
 
 class EncryptionTest : public TestappClientTest {
@@ -32,6 +33,100 @@ public:
                             "require an encryption key");
                 });
         EXPECT_EQ(encrypted, reader->is_encrypted());
+    }
+
+    /// Wait for the bucket to only use the proivided key
+    void waitForEncryptionKey(std::string_view key_id) {
+        const auto timeout =
+                std::chrono::steady_clock::now() + std::chrono::seconds{30};
+
+        adminConnection->executeInBucket(bucketName, [](auto& conn) {
+            conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
+        });
+
+        while (std::chrono::steady_clock::now() < timeout) {
+            nlohmann::json stats;
+            adminConnection->executeInBucket(
+                    bucketName, [&stats](auto& connection) {
+                        connection.stats(
+                                [&stats](auto& k, auto& v) {
+                                    stats = nlohmann::json::parse(v);
+                                },
+                                "encryption-key-ids");
+                    });
+            if (stats.size() != 1 ||
+                stats.front().get<std::string>() != key_id) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            } else {
+                return;
+            }
+        }
+        throw std::runtime_error(fmt::format(
+                "waitForEncryptionKey: Timed out waiting for key {}", key_id));
+    }
+
+    /// Wait for the bucket to only use the proivided key; and verify that
+    /// there is an access log file generated and check if it is encrypted
+    /// if the key_id would indicate that
+    void waitForAccessLog(std::string_view key_id) {
+        waitForEncryptionKey(key_id);
+        auto dbpath = mcd_env->getTestBucket().getDbPath();
+        std::error_code ec;
+        bool found = false;
+        for (const auto& p :
+             std::filesystem::directory_iterator(dbpath / bucketName, ec)) {
+            if (p.path().filename().string().find("access_log") !=
+                std::string::npos) {
+                auto ext = p.path().extension().string();
+                ASSERT_NE(ext, ".next")
+                        << "Expected access log file to not have extension "
+                           ".next, but got "
+                        << ext;
+                if (key_id == cb::crypto::DataEncryptionKey::UnencryptedKeyId) {
+                    ASSERT_NE(ext, ".cef")
+                            << "Expected unencrypted access log file to not "
+                               "have extension .cef, but got "
+                            << ext;
+                } else {
+                    ASSERT_EQ(ext, ".cef")
+                            << "Expected encrypted access log file to have "
+                               "extension .cef, but got "
+                            << ext;
+                }
+                found = true;
+            }
+        }
+        ASSERT_TRUE(found) << "No access log file found in "
+                           << (dbpath / bucketName).string();
+    }
+
+    /// Populate the bucket with data until we have less than 90%
+    /// resident data in the active vbucket (we're only using vb0) as
+    /// access.log is only written when the there is non-resident data.
+    void populateData() {
+        Document doc;
+        doc.value.resize(10 * 1024 * 1024);
+        cb::RandomGenerator rand;
+        rand.getBytes(doc.value.data(), doc.value.size());
+        bool done = false;
+        int base = 0;
+        constexpr int batch = 10;
+        do {
+            for (int ii = 0; ii < batch; ++ii) {
+                doc.info.id = fmt::format("mykey-{}", base + ii);
+                userConnection->mutate(doc, Vbid(0), MutationType::Set);
+            }
+            base += batch;
+            adminConnection->executeInBucket(bucketName, [&done](auto& conn) {
+                conn.stats(
+                        [&done](auto& k, auto& v) {
+                            if (k == "vb_active_perc_mem_resident") {
+                                done = std::stod(v) < 90.0;
+                            }
+                        },
+                        "");
+            });
+        } while (!done);
     }
 };
 
@@ -247,4 +342,75 @@ TEST_P(EncryptionTest, TestDisableEncryption) {
 
     ASSERT_EQ(1, stats.size()) << stats.dump();
     ASSERT_EQ("unencrypted", stats.front().get<std::string>());
+
+    // Turn encryption back on as other tests expect the bucket to be
+    // encrypted
+    mcd_env->getTestBucket().keystore.setActiveKey(
+            cb::crypto::DataEncryptionKey::generate());
+    config = nlohmann::json(mcd_env->getTestBucket().keystore).dump();
+    rsp = connection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+            bucketName,
+            config});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    rsp = connection->execute(BinprotCompactDbCommand{});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // fetch the stats and it should not be "unencrypted"
+    connection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+
+    ASSERT_EQ(1, stats.size()) << stats.dump();
+    ASSERT_NE("unencrypted", stats.front().get<std::string>());
+}
+
+TEST_P(EncryptionTest, TestAccessScannerRewrite) {
+    // Verify that the bucket is encrypted
+    auto connection = adminConnection->clone();
+    connection->authenticate("@admin");
+    connection->selectBucket(bucketName);
+
+    // we won't get an access if we're all resident.
+    populateData();
+
+    // Disable encryption and verify that the access log is rewritten
+    // unencrypted
+    mcd_env->getTestBucket().keystore.setActiveKey({});
+    std::string config =
+            nlohmann::json(mcd_env->getTestBucket().keystore).dump();
+
+    auto rsp = connection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+            bucketName,
+            config});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    waitForAccessLog(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+
+    rsp = connection->execute(BinprotCompactDbCommand{});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // fetch the stats and it should be "unencrypted"
+    nlohmann::json stats;
+    connection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+
+    ASSERT_EQ(1, stats.size()) << stats.dump();
+    ASSERT_EQ("unencrypted", stats.front().get<std::string>());
+
+    cb::crypto::SharedEncryptionKey key =
+            cb::crypto::DataEncryptionKey::generate();
+
+    // Turn encryption back on and verify that the access log is rewritten
+    // encrypted
+    mcd_env->getTestBucket().keystore.setActiveKey(key);
+    config = nlohmann::json(mcd_env->getTestBucket().keystore).dump();
+    rsp = connection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+            bucketName,
+            config});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    waitForAccessLog(key->getId());
 }
