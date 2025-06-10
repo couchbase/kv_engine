@@ -46,7 +46,6 @@ public:
 protected:
     void update(Vbid vbid);
 
-    bool removeFile(const std::filesystem::path& path);
     bool cycleFile();
 
 private:

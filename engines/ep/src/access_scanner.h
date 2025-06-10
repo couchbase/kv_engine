@@ -43,7 +43,6 @@ protected:
                                cb::SemaphoreGuard<> semaphoreGuard);
 
     void updateAlogTime(double sleepSecs);
-    void deleteAlogFile(const std::string& fileName);
 
     KVBucket& store;
     Configuration& conf;

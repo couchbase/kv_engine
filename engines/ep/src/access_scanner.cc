@@ -30,6 +30,18 @@
 #include <memory>
 #include <numeric>
 
+static bool removeFile(const std::filesystem::path& path) {
+    std::error_code ec;
+    remove(path, ec);
+    if (ec) {
+        EP_LOG_WARN_CTX("Failed to remove access log file",
+                        {"path", path.string()},
+                        {"error", ec.message()});
+        return false;
+    }
+    return true;
+}
+
 ItemAccessVisitor::ItemAccessVisitor(
         KVBucket& _store,
         Configuration& conf,
@@ -57,6 +69,9 @@ ItemAccessVisitor::ItemAccessVisitor(
 
     try {
         // Remove the file if one exists from a previous partial run
+        // (e.g. due to a crash). We *don't* want to use the common
+        // method removeFile, as we can't continue running the visitor
+        // if we failed to remove the file.
         std::filesystem::remove_all(next);
     } catch (const std::exception& e) {
         EP_LOG_WARN_CTX("Failed to remove existing access log",
@@ -149,18 +164,6 @@ void ItemAccessVisitor::visitBucket(VBucket& vb) {
         writeFailed = true;
         log->disable();
     }
-}
-
-bool ItemAccessVisitor::removeFile(const std::filesystem::path& path) {
-    std::error_code ec;
-    remove(path, ec);
-    if (ec) {
-        EP_LOG_WARN_CTX("Failed to remove access log file",
-                        {"path", next},
-                        {"error", ec.message()});
-        return false;
-    }
-    return true;
 }
 
 bool ItemAccessVisitor::cycleFile() {
@@ -347,9 +350,9 @@ bool AccessScanner::run() {
                         {"resident_ratio_threshold", residentRatioThreshold});
 
                 /* Remove .old shard access log file */
-                deleteAlogFile(prev);
+                removeFile(prev);
                 /* Remove shard access log file */
-                deleteAlogFile(name);
+                removeFile(name);
                 stats.accessScannerSkips++;
             } else {
                 createAndScheduleTask(i, std::move(semaphoreGuard));
@@ -379,14 +382,6 @@ std::chrono::microseconds AccessScanner::maxExpectedDuration() const {
     // 'ItemAccessVisitor' tasks). As such we don't expect to execute for
     // very long.
     return std::chrono::milliseconds(100);
-}
-
-void AccessScanner::deleteAlogFile(const std::string& fileName) {
-    if (cb::io::isFile(fileName) && remove(fileName.c_str()) == -1) {
-        EP_LOG_WARN_CTX("Failed to remove",
-                        {"path", fileName},
-                        {"error", strerror(errno)});
-    }
 }
 
 /**
