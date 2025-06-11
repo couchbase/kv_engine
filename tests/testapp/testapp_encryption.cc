@@ -64,70 +64,6 @@ public:
         throw std::runtime_error(fmt::format(
                 "waitForEncryptionKey: Timed out waiting for key {}", key_id));
     }
-
-    /// Wait for the bucket to only use the proivided key; and verify that
-    /// there is an access log file generated and check if it is encrypted
-    /// if the key_id would indicate that
-    void waitForAccessLog(std::string_view key_id) {
-        waitForEncryptionKey(key_id);
-        auto dbpath = mcd_env->getTestBucket().getDbPath();
-        std::error_code ec;
-        bool found = false;
-        for (const auto& p :
-             std::filesystem::directory_iterator(dbpath / bucketName, ec)) {
-            if (p.path().filename().string().find("access_log") !=
-                std::string::npos) {
-                auto ext = p.path().extension().string();
-                ASSERT_NE(ext, ".next")
-                        << "Expected access log file to not have extension "
-                           ".next, but got "
-                        << ext;
-                if (key_id == cb::crypto::DataEncryptionKey::UnencryptedKeyId) {
-                    ASSERT_NE(ext, ".cef")
-                            << "Expected unencrypted access log file to not "
-                               "have extension .cef, but got "
-                            << ext;
-                } else {
-                    ASSERT_EQ(ext, ".cef")
-                            << "Expected encrypted access log file to have "
-                               "extension .cef, but got "
-                            << ext;
-                }
-                found = true;
-            }
-        }
-        ASSERT_TRUE(found) << "No access log file found in "
-                           << (dbpath / bucketName).string();
-    }
-
-    /// Populate the bucket with data until we have less than 90%
-    /// resident data in the active vbucket (we're only using vb0) as
-    /// access.log is only written when the there is non-resident data.
-    void populateData() {
-        Document doc;
-        doc.value.resize(10 * 1024 * 1024);
-        cb::RandomGenerator rand;
-        rand.getBytes(doc.value.data(), doc.value.size());
-        bool done = false;
-        int base = 0;
-        constexpr int batch = 10;
-        do {
-            for (int ii = 0; ii < batch; ++ii) {
-                doc.info.id = fmt::format("mykey-{}", base + ii);
-                userConnection->mutate(doc, Vbid(0), MutationType::Set);
-            }
-            base += batch;
-            adminConnection->executeInBucket(bucketName, [&done](auto& conn) {
-                conn.stats(
-                        [&done](auto& k, auto& v) {
-                            if (k == "vb_active_perc_mem_resident") {
-                                done = std::stod(v) < 90.0;
-                            }
-                        },
-                        "");
-            });
-        } while (!done);
-    }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -374,6 +310,9 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
     // we won't get an access if we're all resident.
     populateData();
 
+    auto num_shards = getNumShards();
+    auto num_runs = waitForSnoozedAccessScanner();
+
     // Disable encryption and verify that the access log is rewritten
     // unencrypted
     mcd_env->getTestBucket().keystore.setActiveKey({});
@@ -385,20 +324,25 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
             bucketName,
             config});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    waitForAccessLog(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
+    });
 
-    rsp = connection->execute(BinprotCompactDbCommand{});
-    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    // Now wait for the access scanner to run and rewrite the access log
+    // unencrypted
+    waitForEncryptionKey(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    while (num_runs == waitForSnoozedAccessScanner()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    verifyAccessLogFiles(num_shards, false, false);
 
-    // fetch the stats and it should be "unencrypted"
-    nlohmann::json stats;
-    connection->stats(
-            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
-            "encryption-key-ids");
+    // Rerun the access scanner. This time we should get the .old plain
+    // files
+    rerunAccessScanner();
+    verifyAccessLogFiles(num_shards, false, true);
 
-    ASSERT_EQ(1, stats.size()) << stats.dump();
-    ASSERT_EQ("unencrypted", stats.front().get<std::string>());
-
+    // Turn encryption back on and verify that the access log is
+    // rewritten encrypted, and the .old files are removed
     cb::crypto::SharedEncryptionKey key =
             cb::crypto::DataEncryptionKey::generate();
 
@@ -411,6 +355,15 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
             bucketName,
             config});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
+    });
 
-    waitForAccessLog(key->getId());
+    // Now wait for the access scanner to run and rewrite the access log
+    // unencrypted
+    waitForEncryptionKey(key->getId());
+    while (num_runs == waitForSnoozedAccessScanner()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    verifyAccessLogFiles(num_shards, true, false);
 }

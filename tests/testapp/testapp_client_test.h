@@ -34,6 +34,63 @@ public:
     size_t get_cmd_counter(std::string_view name);
 
     bool isTlsEnabled() const override;
+
+    /**
+     * Populate the bucket with data until we have less than the provided
+     * present of resident data in the active vbucket (we're only using vb0)
+     * by using the key pattern: "mykey-<number>".
+     *
+     * @returns the number of keys inserted
+     */
+    size_t populateData(double limit = 90.0);
+
+    /**
+     * Rerun the access scanner task for the current bucket being tested
+     * and wait for it to complete.
+     */
+    void rerunAccessScanner();
+
+    /**
+     * Get the current access scanner task stats for the current bucket being
+     * tested
+     *
+     * @return the JSON object returned for AccessScanner from the 'stats tasks'
+     */
+    nlohmann::json getAccessScannerStats();
+
+    /**
+     * Wait until the access scanner task is in "snoozed" state for the
+     * current bucket being tested;
+     * (and the access scanner visitor tasks have completed).
+     *
+     * @return the number of runs the access scanner has done
+     */
+    int waitForSnoozedAccessScanner();
+
+    /**
+     * Get the number of shards in the current bucket being tested.
+     * @return the number of shards
+     */
+    int getNumShards();
+
+    /**
+     * Verify that the expected set of access log files exist. If encrypted
+     * is set to true; the files should be encrypted and have an .cef suffix.
+     * Otherwise they should be unencrypted and have no suffix.
+     * If expect_old is set to true; the files should have a ".old[.cef]"
+     * version as well.
+     *
+     * @param num_shards the number of shards in the bucket
+     * @param encrypted see above
+     * @param expect_old see above
+     */
+    void verifyAccessLogFiles(int num_shards, bool encrypted, bool expect_old);
+
+    /**
+     * Verify that there are no access log files for the bucket
+     * @param num_shards the number of shards in the bucket
+     */
+    void verifyNoAccessLogFiles(int num_shards);
 };
 
 enum class XattrSupport { Yes, No };

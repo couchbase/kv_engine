@@ -257,9 +257,13 @@ void ItemAccessVisitor::complete() {
                         {"error", strerror(errno)});
         return;
     }
-    EP_LOG_INFO_CTX("New access log file created",
-                    {"name", encryptionKey ? name + ".cef" : name},
-                    {"num_items", static_cast<uint64_t>(num_items)});
+    EP_LOG_INFO_CTX(
+            "New access log file created",
+            {"name", encryptionKey ? name + ".cef" : name},
+            {"num_items", static_cast<uint64_t>(num_items)},
+            {"encryption_key",
+             encryptionKey ? encryptionKey->getId()
+                           : cb::crypto::DataEncryptionKey::UnencryptedKeyId});
 }
 
 AccessScanner::AccessScanner(KVBucket& _store,
@@ -317,27 +321,41 @@ bool AccessScanner::run() {
             deleteAccessLogFiles = true;
         }
 
+        std::vector<std::filesystem::path> files;
         for (size_t i = 0; i < store.getVBuckets().getNumShards(); i++) {
             cb::SemaphoreGuard<> semaphoreGuard(&semaphore,
                                                 cb::adopt_token_t{});
 
             if (deleteAccessLogFiles) {
                 std::string name(alogPath + "." + std::to_string(i));
-                std::string prev(name + ".old");
-
-                EP_LOG_INFO_CTX(
-                        "Deleting access log files resident ratio is over the "
-                        "threshold",
-                        {"paths", {name, prev}},
-                        {"resident_ratio_threshold", residentRatioThreshold});
-
-                /* Remove .old shard access log file */
-                removeFile(prev);
-                /* Remove shard access log file */
-                removeFile(name);
+                std::error_code ec;
+                for (const auto& extension : {"", ".old", ".cef", ".old.cef"}) {
+                    std::filesystem::path filePath(name + extension);
+                    if (std::filesystem::exists(filePath, ec)) {
+                        files.push_back(filePath);
+                    }
+                }
                 stats.accessScannerSkips++;
             } else {
                 createAndScheduleTask(i, std::move(semaphoreGuard));
+            }
+        }
+
+        if (deleteAccessLogFiles) {
+            if (files.empty()) {
+                EP_LOG_INFO_CTX(
+                        "Not generating access log files as resident ratio is "
+                        "over the threshold",
+                        {"resident_ratio_threshold", residentRatioThreshold});
+            } else {
+                EP_LOG_INFO_CTX(
+                        "Deleting access log files as resident ratio is over "
+                        "the threshold",
+                        {"paths", files},
+                        {"resident_ratio_threshold", residentRatioThreshold});
+                for (const auto& file : files) {
+                    removeFile(file);
+                }
             }
         }
     }

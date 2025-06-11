@@ -11,6 +11,7 @@
 #include "testapp_client_test.h"
 #include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
+#include <platform/random.h>
 #include <xattr/blob.h>
 
 void TestappClientTest::SetUpTestCase() {
@@ -31,6 +32,176 @@ bool TestappClientTest::isTlsEnabled() const {
         return true;
     }
     throw std::logic_error("isTlsEnabled(): unknown transport");
+}
+
+size_t TestappClientTest::populateData(double limit) {
+    Document doc;
+    doc.value.resize(10 * 1024 * 1024);
+    cb::RandomGenerator rand;
+    rand.getBytes(doc.value.data(), doc.value.size());
+    bool done = false;
+    int total = 0;
+    constexpr int batch = 10;
+    do {
+        for (int ii = 0; ii < batch; ++ii) {
+            doc.info.id = fmt::format("mykey-{}", total + ii);
+            userConnection->mutate(doc, Vbid(0), MutationType::Set);
+        }
+        total += batch;
+        adminConnection->executeInBucket(
+                bucketName, [&done, limit](auto& conn) {
+                    conn.stats(
+                            [&done, limit](auto& k, auto& v) {
+                                if (k == "vb_active_perc_mem_resident") {
+                                    done = std::stod(v) < limit;
+                                }
+                            },
+                            "");
+                });
+    } while (!done);
+    return total;
+}
+
+void TestappClientTest::rerunAccessScanner() {
+    auto num_runs = waitForSnoozedAccessScanner();
+
+    BinprotResponse response;
+    adminConnection->executeInBucket(bucketName, [&response](auto& conn) {
+        response = conn.execute(BinprotSetParamCommand{
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "access_scanner_run",
+                "true"});
+    });
+    if (!response.isSuccess()) {
+        throw ConnectionError("rerunAccessScanner: SetParam failed", response);
+    }
+
+    while (num_runs == waitForSnoozedAccessScanner()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+nlohmann::json TestappClientTest::getAccessScannerStats() {
+    nlohmann::json stats;
+    auto key = fmt::format("ep_tasks:tasks:{}", bucketName);
+    adminConnection->executeInBucket(bucketName, [&stats, &key](auto& conn) {
+        conn.stats(
+                [&stats, &key](auto& k, auto& v) {
+                    if (k == key) {
+                        stats = nlohmann::json::parse(v);
+                    }
+                },
+                "tasks");
+    });
+
+    for (const auto& task : stats) {
+        if (task.contains("name") && task["name"] == "AccessScannerVisitor") {
+            return {};
+        }
+    }
+
+    for (const auto& task : stats) {
+        if (task.contains("name") && task["name"] == "AccessScanner") {
+            return task;
+        }
+    }
+    return {};
+}
+
+int TestappClientTest::waitForSnoozedAccessScanner() {
+    do {
+        auto stats = getAccessScannerStats();
+        if (!stats.empty() && stats.value("state", "") == "SNOOZED") {
+            return stats.value("num_runs", 0);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    } while (true);
+}
+
+int TestappClientTest::getNumShards() {
+    int shards = 0;
+    adminConnection->executeInBucket(bucketName, [&shards](auto& conn) {
+        conn.stats(
+                [&shards](auto& k, auto& v) {
+                    if (k == "ep_workload:num_shards") {
+                        shards = std::stoi(v);
+                    }
+                },
+                "workload");
+    });
+    return shards;
+}
+
+void TestappClientTest::verifyAccessLogFiles(int num_shards,
+                                             bool encrypted,
+                                             bool expect_old) {
+    std::filesystem::path directory =
+            mcd_env->getTestBucket().getDbPath() / bucketName;
+
+    for (int ii = 0; ii < num_shards; ++ii) {
+        auto prefix = fmt::format("access_log.{}", ii);
+        if (encrypted) {
+            // The unencrypted versions should not exist!
+            EXPECT_FALSE(exists(directory / prefix))
+                    << "Did not expect access log file to exist at "
+                    << (directory / prefix).string();
+            EXPECT_FALSE(exists(directory / (prefix + ".old")))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ".old")).string();
+
+            // The encrypted version should exist
+            EXPECT_TRUE(exists(directory / (prefix + ".cef")))
+                    << "Expected access log file to exist at "
+                    << (directory / (prefix + ".cef")).string();
+
+            if (expect_old) {
+                EXPECT_TRUE(exists(directory / (prefix + ".old.cef")))
+                        << "Expected access log file to exist at "
+                        << (directory / (prefix + ".old.cef")).string();
+            } else {
+                EXPECT_FALSE(exists(directory / (prefix + ".old.cef")))
+                        << "Did not expect access log file to exist at "
+                        << (directory / (prefix + ".old.cef")).string();
+            }
+        } else {
+            // The encrypted versions should not exist!
+            EXPECT_FALSE(exists(directory / (prefix + ".cef")))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ".cef")).string();
+            EXPECT_FALSE(exists(directory / (prefix + ".old.cef")))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ".old.cef")).string();
+
+            // The unencrypted version should exist
+            EXPECT_TRUE(exists(directory / prefix))
+                    << "Expected access log file to exist at "
+                    << (directory / prefix).string();
+
+            if (expect_old) {
+                EXPECT_TRUE(exists(directory / (prefix + ".old")))
+                        << "Expected access log file to exist at "
+                        << (directory / (prefix + ".old")).string();
+            } else {
+                EXPECT_FALSE(exists(directory / (prefix + ".old")))
+                        << "Did not expect access log file to exist at "
+                        << (directory / (prefix + ".old")).string();
+            }
+        }
+    }
+}
+
+void TestappClientTest::verifyNoAccessLogFiles(int num_shards) {
+    std::filesystem::path directory =
+            mcd_env->getTestBucket().getDbPath() / bucketName;
+
+    for (int ii = 0; ii < num_shards; ++ii) {
+        auto prefix = fmt::format("access_log.{}", ii);
+        for (const auto* ext : {".cef", ".old.cef", "", ".old"}) {
+            EXPECT_FALSE(exists(directory / (prefix + ext)))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ext)).string();
+        }
+    }
 }
 
 void TestappXattrClientTest::setBodyAndXattr(

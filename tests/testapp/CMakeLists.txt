@@ -23,6 +23,7 @@ set(memcached_testapp_SOURCES
     subdoc_encoder.h
     testapp.cc
     testapp.h
+    testapp_access_scanner.cc
     testapp_arithmetic.cc
     testapp_audit.cc
     testapp_audit.h
