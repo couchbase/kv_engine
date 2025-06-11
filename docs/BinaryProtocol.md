@@ -477,6 +477,8 @@ information about a given command.
 | 0x46 | TAP Checkout Start - TAP removed in 5.0                |
 | 0x47 | TAP Checkpoint End - TAP removed in 5.0                |
 | 0x48 | Get all vb seqnos |
+| 0x49 | [GetEx](#0x49-getex) |
+| 0x4a | [GetExReplica](#0x50-getexreplica) |
 | 0x50 | [Dcp Open](dcp/documentation/commands/open-connection.md) |
 | 0x51 | [Dcp add stream](dcp/documentation/commands/add-stream.md) |
 | 0x52 | [Dcp close stream](dcp/documentation/commands/close-stream.md) |
@@ -2122,6 +2124,40 @@ following 7-byte ascii string (the request length set to 7).
        0|a s y n c = 0  |
         +---------------+
         Total 7 bytes
+
+### 0x49 GetEx
+### 0x50 GetExReplica
+
+GetEx and GetExReplica are used to retrieve an item from the server.
+GetEx retrieves the item from the active vbucket, while GetExReplica
+retrieves the item from a replica vbucket.
+
+In order to use these commands the client must enable the following
+features on the connection:
+
+* SnappyEverywhere
+* XATTR
+* Datatype JSON
+
+Request:
+
+* MUST NOT have extras.
+* MUST have key.
+* MUST NOT have value.
+
+Response:
+
+* MUST have extras (4 bytes; the flags for the item).
+* MUST NOT have key
+* MAY have value
+
+The result of the operation is signaled through the status code and
+upon success the value contains the full data for the item, including
+any extended attributes (XATTRs) and the value. If the datatype is
+set to SNAPPY the *entire value* is compressed using Snappy. If the
+datatype contains XATTR the extended attributes is stored as part
+of the value. See the section "XAttr - extended attributes" in
+Documents.md for more information on the encoding.
 
 ### 0x84 SetChronicleAuthToken
 
