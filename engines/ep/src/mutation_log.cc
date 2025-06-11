@@ -65,9 +65,7 @@ protected:
 std::size_t RandomIoFileReader::pread(std::span<uint8_t> blob,
                                       uint64_t offset) {
     if (offset < current_offset) {
-        // we can't rewind the buffer
-        EP_LOG_INFO("Trying to read from offset before current offset for {}",
-                    path.string());
+        // we can't rewind the buffer. Reopen and seek forward
         open();
     }
 
