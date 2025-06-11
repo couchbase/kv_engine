@@ -261,6 +261,7 @@ void EPStats::reset() {
     defragNumMoved.reset();
     compressorNumVisited.reset();
     compressorNumCompressed.reset();
+    snapshotBytesRead.reset();
 
     pendingOpsHisto.reset();
     bgWaitHisto.reset();

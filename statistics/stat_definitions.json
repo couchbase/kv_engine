@@ -2047,6 +2047,14 @@
         "description": "The timestamp of the oldest document stored in the history window, oldest of all vbuckets",
         "added": "7.2.0"
     },
+/* Snapshot stats (FBR) */
+    {
+        "key": "ep_snapshot_read",
+        "unit": "bytes",
+        "cbstat": "ep_snapshot_read_bytes",
+        "description": "The number of bytes read when copying/downloading snapshots",
+        "added": "8.0.0"
+    },
 /* Timing stats */
     {
         "key": "task_duration",

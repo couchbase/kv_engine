@@ -29,5 +29,6 @@ void download(std::unique_ptr<MemcachedConnection> connection,
               std::size_t fsync_interval,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
-                                       cb::logger::Json json)>& log_callback);
+                                       cb::logger::Json json)>& log_callback,
+              const std::function<void(std::size_t)>& stats_collect_callback);
 } // namespace cb::snapshot

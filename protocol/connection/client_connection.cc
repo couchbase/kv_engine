@@ -2534,13 +2534,17 @@ nlohmann::json ConnectionError::getErrorJsonContext() const {
 class GetFileFragmentAsyncReadCallback
     : public folly::AsyncReader::ReadCallback {
 public:
-    GetFileFragmentAsyncReadCallback(folly::EventBase& base,
-                                     cb::io::FileSink& sink)
-        : base(base), buffer(2 * 1024 * 1024), sink(sink) {
+    GetFileFragmentAsyncReadCallback(
+            folly::EventBase& base,
+            cb::io::FileSink& sink,
+            std::function<void(std::size_t)> stats_collect_callback)
+        : base(base),
+          buffer(2 * 1024 * 1024),
+          sink(sink),
+          stats_collect_callback(std::move(stats_collect_callback)) {
     }
 
     ~GetFileFragmentAsyncReadCallback() override = default;
-
     void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
         *bufReturn = buffer.data() + offset;
         *lenReturn = buffer.size() - offset;
@@ -2562,6 +2566,9 @@ public:
     }
 
     void onDataReceived(std::string_view view) {
+        if (stats_collect_callback && !view.empty()) {
+            stats_collect_callback(view.size());
+        }
         if (!header.has_value()) {
             if (view.size() < sizeof(cb::mcbp::Header)) {
                 return;
@@ -2613,6 +2620,9 @@ public:
     /// The header we received
     std::optional<cb::mcbp::Header> header;
 
+    /// The callback to collect stats
+    std::function<void(std::size_t)> stats_collect_callback;
+
     /// Store the view to the file
     void storeData(std::string_view view) {
         sink.sink(view);
@@ -2623,11 +2633,13 @@ public:
     }
 };
 
-uint64_t MemcachedConnection::getFileFragment(std::string_view uuid,
-                                              uint64_t id,
-                                              uint64_t offset,
-                                              uint64_t length,
-                                              cb::io::FileSink& sink) {
+uint64_t MemcachedConnection::getFileFragment(
+        std::string_view uuid,
+        uint64_t id,
+        uint64_t offset,
+        uint64_t length,
+        cb::io::FileSink& sink,
+        std::function<void(std::size_t)> stats_collect_callback) {
     // This command cannot be used if there is pending data!
     Expects(asyncReadCallback->input_bytes == 0);
 
@@ -2638,7 +2650,8 @@ uint64_t MemcachedConnection::getFileFragment(std::string_view uuid,
     sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFileFragment,
                                       std::string{uuid},
                                       file_meta.dump()});
-    GetFileFragmentAsyncReadCallback callback(*eventBase, sink);
+    GetFileFragmentAsyncReadCallback callback(
+            *eventBase, sink, std::move(stats_collect_callback));
     asyncSocket->setReadCB(&callback);
     eventBase->loop();
     asyncSocket->setReadCB(nullptr);

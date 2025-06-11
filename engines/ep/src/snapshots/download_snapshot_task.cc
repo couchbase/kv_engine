@@ -112,14 +112,18 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
     listener->stateChanged(DownloadSnapshotTaskState::DownloadFiles);
 
     try {
-        download(std::move(connection),
-                 dir,
-                 manifest,
-                 properties.fsync_interval,
-                 [this](auto level, auto msg, auto json) {
-                     auto& logger = getGlobalBucketLogger();
-                     logger->logWithContext(level, msg, json);
-                 });
+        download(
+                std::move(connection),
+                dir,
+                manifest,
+                properties.fsync_interval,
+                [this](auto level, auto msg, auto json) {
+                    auto& logger = getGlobalBucketLogger();
+                    logger->logWithContext(level, msg, json);
+                },
+                [this](auto bytes) {
+                    engine->getEpStats().snapshotBytesRead += bytes;
+                });
     } catch (const std::exception& e) {
         listener->failed(fmt::format(
                 "Received exception while downloading snapshot: {}", e.what()));

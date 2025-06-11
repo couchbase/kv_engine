@@ -1176,16 +1176,21 @@ public:
      *               check the returned value for the number of bytes actually
      *               received
      * @param sink The sink to write the data to
+     * @param stats_collect_callback the callback function to get the buffer
+     * size to return to the io layer (the default allocation size is provided
+     * as a parameter to the callback)
      * @return The number of bytes from the file received from the server. Note
      *         that this number may be less than the requested length
      * @throws ConnectionError for unexpected errors from the server
      * @throws folly::AsyncSocketException for network / file IO errors
      */
-    uint64_t getFileFragment(std::string_view uuid,
-                             uint64_t id,
-                             uint64_t offset,
-                             uint64_t length,
-                             cb::io::FileSink& sink);
+    uint64_t getFileFragment(
+            std::string_view uuid,
+            uint64_t id,
+            uint64_t offset,
+            uint64_t length,
+            cb::io::FileSink& sink,
+            std::function<void(std::size_t)> stats_collect_callback = {});
 
     /**
      * In order to simulate a slow client reading data one may set this

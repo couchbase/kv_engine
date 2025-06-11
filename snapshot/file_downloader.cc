@@ -30,12 +30,14 @@ FileDownloader::FileDownloader(
         std::size_t fsync_interval,
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
-                           cb::logger::Json json)> log_callback)
+                           cb::logger::Json json)> log_callback,
+        std::function<void(std::size_t)> stats_collect_callback)
     : connection(std::move(connection)),
       directory(std::move(directory)),
       uuid(std::move(uuid)),
       fsync_interval(fsync_interval),
-      log_callback(std::move(log_callback)) {
+      log_callback(std::move(log_callback)),
+      stats_collect_callback(std::move(stats_collect_callback)) {
     // Empty
 }
 
@@ -75,8 +77,8 @@ bool FileDownloader::download(const FileInfo& meta) const {
                      {{"uuid", uuid},
                       {"path", meta.path.string()},
                       {"chunk", file_meta}});
-        offset +=
-                connection->getFileFragment(uuid, meta.id, offset, chunk, sink);
+        offset += connection->getFileFragment(
+                uuid, meta.id, offset, chunk, sink, stats_collect_callback);
     }
     sink.close();
     const auto end = std::chrono::steady_clock::now();

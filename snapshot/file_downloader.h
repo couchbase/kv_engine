@@ -48,6 +48,8 @@ public:
      * @param uuid the uuid for the the snapshot the file belongs to
      * @param fsync_interval the number of bytes between each call to fsync()
      * @param log_callback a callback function to add information to the log
+     * @param stats_collect_callback a callback function for stat collection
+     * received)
      */
     FileDownloader(std::unique_ptr<MemcachedConnection> connection,
                    std::filesystem::path directory,
@@ -55,7 +57,8 @@ public:
                    std::size_t fsync_interval,
                    std::function<void(spdlog::level::level_enum,
                                       std::string_view,
-                                      cb::logger::Json json)> log_callback);
+                                      cb::logger::Json json)> log_callback,
+                   std::function<void(std::size_t)> stats_collect_callback);
     /**
      * Download the file provided in the meta section
      *
@@ -98,5 +101,7 @@ protected:
     const std::function<void(
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>
             log_callback;
+    /// The callback method to log progress
+    const std::function<void(std::size_t)> stats_collect_callback;
 };
 } // namespace cb::snapshot

@@ -6925,6 +6925,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_secondary_warmup_min_items_threshold",
               "ep_secondary_warmup_min_memory_threshold",
               "ep_seqno_persistence_timeout",
+              "ep_snapshot_read_bytes",
               "ep_startup_time",
               "ep_storedval_num",
               "ep_storedval_num_allocated_total",

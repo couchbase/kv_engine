@@ -255,9 +255,11 @@ TEST_F(SnapshotClusterTest, Snapshots) {
                        {"failed", "incomplete", "none"},
                        {"available"},
                        30s);
+    bool found = false;
     destination_node->stats(
-            [&manifest, &error](auto k, auto v) {
+            [&manifest, &error, &found](auto k, auto v) {
                 if (k == "vb_0:download") {
+                    found = true;
                     auto json = nlohmann::json::parse(v);
                     EXPECT_EQ(json["state"], "Finished");
                     if (json.contains("manifest")) {
@@ -269,6 +271,17 @@ TEST_F(SnapshotClusterTest, Snapshots) {
                 }
             },
             "snapshot-details");
+    ASSERT_TRUE(found) << "Failed to find snapshot-details";
+    found = false;
+    destination_node->stats(
+            [&manifest, &error, &found](auto k, auto v) {
+                if (k == "ep_snapshot_read_bytes") {
+                    found = true;
+                    EXPECT_NE(v, "0");
+                }
+            },
+            "");
+    ASSERT_TRUE(found) << "Failed to find ep_snapshot_read_bytes";
     ASSERT_TRUE(error.empty()) << "Failed to download snapshot: " << error;
     EXPECT_TRUE(manifest.has_value());
 
