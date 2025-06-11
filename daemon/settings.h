@@ -1001,6 +1001,26 @@ public:
         return abrupt_shutdown_timeout.load(std::memory_order_acquire);
     }
 
+    /**
+     * Get the maximum size of a chunk when reading file fragments
+     *
+     * @return the maximum chunk size in bytes
+     */
+    size_t getFileFragmentMaxChunkSize() const {
+        return file_fragment_max_chunk_size.load(std::memory_order_acquire);
+    }
+
+    /**
+     * Set the maximum size of a chunk when reading file fragments
+     *
+     * @param val the new maximum chunk size in bytes
+     */
+    void setFileFragmentMaxChunkSize(size_t val) {
+        file_fragment_max_chunk_size.store(val, std::memory_order_release);
+        has.file_fragment_max_chunk_size = true;
+        notify_changed("file_fragment_max_chunk_size");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1271,6 +1291,9 @@ protected:
     /// The maximum number of paths allowed in a subdoc multi-path operation
     std::atomic<size_t> subdoc_multi_max_paths{16};
 
+    /// The maximum size of a chunk when reading file fragments
+    std::atomic<size_t> file_fragment_max_chunk_size{20_MiB};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1350,5 +1373,6 @@ public:
         bool dcp_disconnect_when_stuck_name_regex = false;
         bool subdoc_multi_max_paths = false;
         bool clustermap_push_notifications_enabled = false;
+        bool file_fragment_max_chunk_size = false;
     } has;
 };

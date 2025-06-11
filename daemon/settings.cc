@@ -452,6 +452,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "abrupt_shutdown_timeout"sv) {
             setAbruptShutdownTimeout(
                     std::chrono::milliseconds(value.get<size_t>()));
+        } else if (key == "file_fragment_max_chunk_size"sv) {
+            setFileFragmentMaxChunkSize(value.get<size_t>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1171,6 +1173,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getSubdocMultiMaxPaths()},
                          {"to", other.getSubdocMultiMaxPaths()});
             setSubdocMultiMaxPaths(other.getSubdocMultiMaxPaths());
+        }
+    }
+
+    if (other.has.file_fragment_max_chunk_size) {
+        if (other.getFileFragmentMaxChunkSize() !=
+            getFileFragmentMaxChunkSize()) {
+            LOG_INFO_CTX("Change file_fragment_max_chunk_size",
+                         {"from", getFileFragmentMaxChunkSize()},
+                         {"to", other.getFileFragmentMaxChunkSize()});
+            setFileFragmentMaxChunkSize(other.getFileFragmentMaxChunkSize());
         }
     }
 }

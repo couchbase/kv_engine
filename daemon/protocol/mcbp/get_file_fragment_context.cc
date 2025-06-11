@@ -32,7 +32,8 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       uuid(cookie.getRequest().getKeyString()),
       useSendfile(cookie.getConnection().isSendfileSupported()),
-      state(State::Initialize) {
+      state(State::Initialize),
+      chunk_size(Settings::instance().getFileFragmentMaxChunkSize()) {
     // The validator checked that the payload was JSON and that it contains
     // the mandatory fields
     const auto json =
@@ -189,9 +190,7 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                 "Read file fragment",
                 [this]() {
                     try {
-                        constexpr std::size_t ChunkSize = 20_MiB;
-                        const auto to_read = std::min(length, ChunkSize);
-
+                        const auto to_read = std::min(length, chunk_size);
                         auto iob = folly::IOBuf::createCombined(to_read);
                         filestream.read(
                                 reinterpret_cast<char*>(iob->writableTail()),

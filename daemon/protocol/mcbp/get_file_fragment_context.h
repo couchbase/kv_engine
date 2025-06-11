@@ -75,4 +75,7 @@ protected:
     int fd{-1};
 
     State state;
+
+    /// The size of the chunks we read from the file.
+    const std::size_t chunk_size;
 };

@@ -96,6 +96,7 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
               {"error_maps_dir", errmaps.generic_string()},
               {"external_auth_service", true},
               {"external_auth_service_scram_support", true},
+              {"file_fragment_max_chunk_size", 4_KiB},
               {"root", NodeImpl::directory.generic_string()},
               {"rbac_file", rbac.generic_string()},
               {"sasl_mechanisms", "PLAIN OAUTHBEARER"},
