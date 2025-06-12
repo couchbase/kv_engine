@@ -59,6 +59,8 @@ public:
     void floatValueChanged(std::string_view key, float value) override {
         if (key == "magma_mem_quota_ratio") {
             config.setMagmaMemQuotaRatio(value);
+        } else if (key == "magma_fusion_logstore_fragmentation_threshold") {
+            config.setFusionLogstoreFragmentationThreshold(value);
         }
     }
 
@@ -258,10 +260,22 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_fusion_upload_interval",
             std::make_unique<ConfigChangeListener>(*this));
+
+    fusionLogstoreFragmentationThreshold =
+            config.getMagmaFusionLogstoreFragmentationThreshold();
+    config.addValueChangedListener(
+            "magma_fusion_logstore_fragmentation_threshold",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
     this->store = store;
+}
+
+void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {
+    Expects(store);
+    fusionLogstoreFragmentationThreshold.store(value);
+    store->setMagmaFusionLogstoreFragmentationThreshold(value);
 }
 
 void MagmaKVStoreConfig::setFusionMigrationRateLimit(size_t value) {

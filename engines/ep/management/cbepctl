@@ -300,6 +300,8 @@ Available params for "set":
     magma_fusion_logstore_uri - URI of the Fusion LogStore
     magma_fusion_metadatastore_uri - URI of the Fusion MetadataStore
     magma_fusion_upload_interval - The interval between kvstore syncs to fusion, in seconds.
+    magma_fusion_logstore_fragmentation_threshold - The threshold at which the fusion log store will perform garbage
+                                                    collection.
 
   Available params for "set dcp_param":
     dcp_consumer_process_buffered_messages_yield_limit - The threshold at which

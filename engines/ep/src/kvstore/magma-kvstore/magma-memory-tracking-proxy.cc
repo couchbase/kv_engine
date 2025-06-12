@@ -821,6 +821,18 @@ size_t MagmaMemoryTrackingProxy::GetFusionSyncRateLimit() const {
     return magma->GetFusionSyncRateLimit();
 }
 
+void MagmaMemoryTrackingProxy::SetFusionLogstoreFragmentationThreshold(
+        float threshold) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetFusionLogStoreFragmentationThreshold(threshold);
+}
+
+float MagmaMemoryTrackingProxy::GetFusionLogstoreFragmentationThreshold()
+        const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionLogStoreFragmentationThreshold();
+}
+
 magma::Status MagmaMemoryTrackingProxy::SetFusionLogStoreURI(
         const std::string& uri) {
     cb::UseArenaMallocSecondaryDomain d;

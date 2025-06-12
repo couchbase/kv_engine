@@ -319,6 +319,12 @@ public:
 
     void setFusionSyncRateLimit(size_t value);
 
+    float getFusionLogstoreFragmentationThreshold() const {
+        return fusionLogstoreFragmentationThreshold;
+    }
+
+    void setFusionLogstoreFragmentationThreshold(float value);
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -603,4 +609,7 @@ private:
     std::atomic<size_t> fusionMigrationRateLimit;
     // The rate limit for Fusion sync uploads, in bytes per second
     std::atomic<size_t> fusionSyncRateLimit;
+    // The threshold at which the fusion log store will perform garbage
+    // collection
+    std::atomic<float> fusionLogstoreFragmentationThreshold;
 };

@@ -702,6 +702,9 @@ public:
     std::chrono::seconds getMagmaFusionUploadInterval() const;
     void setMagmaFusionUploadInterval(std::chrono::seconds value);
 
+    void setMagmaFusionLogstoreFragmentationThreshold(float value);
+    float getMagmaFusionLogstoreFragmentationThreshold() const;
+
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,

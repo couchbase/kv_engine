@@ -1686,6 +1686,18 @@
             "dynamic": true,
             "type": "std::string"
         },
+        "magma_fusion_logstore_fragmentation_threshold": {
+            "default": "0.5",
+            "descr": "The threshold at which the fusion log store will perform garbage collection. This is a ratio between 0.0 and 1.0.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "max": 1.0,
+                    "min": 0.0
+                }
+            }
+        },
         "magma_fusion_metadatastore_uri": {
             "default": "",
             "descr": "URI of the Fusion MetadataStore.",

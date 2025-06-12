@@ -324,6 +324,11 @@ public:
     magma::Status SetFusionMetadataStoreURI(const std::string& uri);
     std::string GetFusionMetadataStoreURI() const;
 
+    // The threshold at which the fusion log store will perform garbage
+    // collection. This is a ratio between 0.0 and 1.0.
+    void SetFusionLogstoreFragmentationThreshold(float threshold);
+    float GetFusionLogstoreFragmentationThreshold() const;
+
     /**
      * Start uploading data to FusionLogStore for the latest revision of the
      * given kvstore.

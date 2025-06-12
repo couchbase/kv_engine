@@ -929,6 +929,9 @@ cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
         configuration.setMagmaFusionMetadatastoreUri(val);
     } else if (key == "magma_fusion_upload_interval") {
         configuration.setMagmaFusionUploadInterval(std::stoull(val));
+    } else if (key == "magma_fusion_logstore_fragmentation_threshold") {
+        configuration.setMagmaFusionLogstoreFragmentationThreshold(
+                std::stof(val));
     } else {
         EP_LOG_WARN_CTX("Rejecting setFusionFlushParam request",
                         {"key", key},
