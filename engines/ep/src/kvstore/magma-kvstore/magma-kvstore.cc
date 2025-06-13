@@ -2146,7 +2146,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         // collections.
         magma::Status status;
         std::tie(status, openCollections) = getOpenCollections(vbid, snapshot);
-        if (!status && status.ErrorCode() != Status::Code::NotFound) {
+        if (!status) {
             logger->warn(
                     "MagmaKVStore::initBySeqnoScanContext {} failed to get "
                     "open collections from disk. Status:{}",
