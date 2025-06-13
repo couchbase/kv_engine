@@ -133,6 +133,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "request cancelled";
     case engine_errc::too_much_data_in_output_buffer:
         return "too much data in output buffer";
+    case engine_errc::encryption_key_not_available:
+        return "encryption key not available";
     }
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

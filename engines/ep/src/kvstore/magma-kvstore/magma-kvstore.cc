@@ -885,9 +885,15 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
     }
 
     if (!status) {
+        if (status.ErrorCode() == Status::Code::EncryptionKeyNotFound) {
+            throw cb::engine_error(
+                    cb::engine_errc::encryption_key_not_available,
+                    "MagmaKVStore::initialize()");
+        }
         std::string err =
                 "MagmaKVStore Magma open failed. Status:" + status.String();
         logger->critical(err);
+
         throw std::logic_error(err);
     }
 

@@ -65,6 +65,16 @@ public:
                      const std::string& config,
                      MemcachedConnection& conn);
 
+    /**
+     * Get the configuration string to use when creating a bucket.
+     *
+     * @param name the name of the bucket to create
+     * @param config Any additional configuration options
+     * @return The string to pass to the create bucket command
+     */
+    std::string getCreateBucketConfigString(std::string_view name,
+                                            std::string_view config = {});
+
     enum class BucketCreateMode { Clean, AllowRecreate };
 
     void setBucketCreateMode(BucketCreateMode mode) {

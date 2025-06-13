@@ -76,6 +76,7 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::too_many_connections:
     case engine_errc::cancelled:
     case engine_errc::bucket_paused:
+    case engine_errc::encryption_key_not_available:
         cookie.sendResponse(mapped);
         break;
     }

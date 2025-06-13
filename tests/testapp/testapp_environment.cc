@@ -167,9 +167,33 @@ void TestBucketImpl::setUpBucket(const std::string& name,
         }
     }
 
-    std::string settings = fmt::format("dbname={};alog_path={}/access_log",
-                                       dbdir.generic_string(),
-                                       dbdir.generic_string());
+    createEwbBucket(name,
+                    BucketType::Couchbase,
+                    getCreateBucketConfigString(name, config),
+                    conn);
+    conn.executeInBucket(name, [](auto& connection) {
+        // Set the vBucket state. Set a single replica so that any
+        // SyncWrites can be completed.
+        nlohmann::json meta;
+        meta["topology"] = nlohmann::json::array({{"active"}});
+        connection.setVbucket(Vbid(0), vbucket_state_active, meta);
+
+        auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
+        connection.setAutoRetryTmpfail(true);
+        const auto resp = connection.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+        connection.setAutoRetryTmpfail(auto_retry_tmpfail);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
+std::string TestBucketImpl::getCreateBucketConfigString(
+        std::string_view name, std::string_view config) {
+    const auto dbdir = dbPath / name;
+
+    auto settings = fmt::format("dbname={};alog_path={}/access_log",
+                                dbdir.generic_string(),
+                                dbdir.generic_string());
     // Disable bloom_filters - for all memcahed testapp tests we want
     // to see things like gets of tombstones going to disk and not
     // getting skipped (to ensure correct EWOULDBLOCK handling etc).
@@ -185,26 +209,11 @@ void TestBucketImpl::setUpBucket(const std::string& name,
         settings += ";max_vbuckets=16";
     }
     if (!config.empty()) {
-        settings += ";" + config;
+        settings = fmt::format("{};{}", settings, config);
     }
     settings = fmt::format("{};encryption={}", settings, getEncryptionConfig());
 
-    createEwbBucket(
-            name, BucketType::Couchbase, mergeConfigString(settings), conn);
-    conn.executeInBucket(name, [](auto& connection) {
-        // Set the vBucket state. Set a single replica so that any
-        // SyncWrites can be completed.
-        nlohmann::json meta;
-        meta["topology"] = nlohmann::json::array({{"active"}});
-        connection.setVbucket(Vbid(0), vbucket_state_active, meta);
-
-        auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
-        connection.setAutoRetryTmpfail(true);
-        const auto resp = connection.execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
-        connection.setAutoRetryTmpfail(auto_retry_tmpfail);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    return mergeConfigString(settings);
 }
 
 bool TestBucketImpl::isFullEviction() const {

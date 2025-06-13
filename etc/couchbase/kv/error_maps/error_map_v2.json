@@ -176,6 +176,13 @@
                 "conn-state-invalidated"
             ]
         },
+        "26": {
+            "name": "ENCRYPTION_KEY_NOT_AVAILABLE",
+            "desc": "Encryption key not available",
+            "attrs": [
+                "special-handling"
+            ]
+        },
         "30": {
             "name": "RATE_LIMITED_NETWORK_INGRESS",
             "desc": "Rate limited: Network Ingress",

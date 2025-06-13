@@ -80,6 +80,8 @@ enum class Status : uint16_t {
      * node, and the Cluster manager has not yet granted all
      * users access to the cluster. */
     NotInitialized = 0x25,
+    /// An encryption key is not available for the requested operation
+    EncryptionKeyNotAvailable = 0x26,
 
     // Start error codes for rate limits. Reserve segment [0x30, 0x4f]
 

@@ -379,6 +379,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::opaque_no_match:
     case cb::engine_errc::throttled:
     case cb::engine_errc::bucket_paused:
+    case cb::engine_errc::encryption_key_not_available:
         return code;
 
     case cb::engine_errc::too_many_connections:

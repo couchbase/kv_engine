@@ -87,6 +87,7 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
     case cb::engine_errc::vbuuid_not_equal:
     case cb::engine_errc::bucket_paused:
     case cb::engine_errc::cancelled:
+    case cb::engine_errc::encryption_key_not_available:
         throw std::runtime_error(
                 "cb::rangescan::getHandlingStatus unexpected status:" +
                 to_string(status));

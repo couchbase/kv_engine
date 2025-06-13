@@ -756,7 +756,9 @@ cb::engine_errc BucketManager::create(uint32_t cid,
                 bucket, "bucket creation rollback", std::to_string(cid));
 
         bucket.reset();
-        result = cb::engine_errc::not_stored;
+        if (result != cb::engine_errc::encryption_key_not_available) {
+            result = cb::engine_errc::not_stored;
+        }
     }
     return result;
 }

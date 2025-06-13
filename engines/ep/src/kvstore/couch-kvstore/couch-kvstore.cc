@@ -537,6 +537,17 @@ void CouchKVStore::initialize(
         const auto errCode = openDB(vbid, db, options);
 
         if (errCode != COUCHSTORE_SUCCESS) {
+            if (errCode == COUCHSTORE_ERROR_NO_ENCRYPTION_KEY) {
+                throw cb::engine_error(
+                        cb::engine_errc::encryption_key_not_available,
+                        fmt::format(
+                                "CouchKVStore::initialize: failed to open "
+                                "database file: mode:read_only, {}, "
+                                "file_name:{}",
+                                vbid,
+                                getDBFileName(dbname, vbid, db.getFileRev())));
+            }
+
             logOpenError(__func__,
                          spdlog::level::level_enum::warn,
                          errCode,

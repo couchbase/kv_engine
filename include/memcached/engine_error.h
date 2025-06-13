@@ -167,6 +167,9 @@ enum class engine_errc {
     /// continue
     too_much_data_in_output_buffer,
 
+    /// The required encryption key is not available
+    encryption_key_not_available,
+
     /// Generic failue
     failed
 };

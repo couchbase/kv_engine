@@ -11,6 +11,7 @@
 
 #include <cbcrypto/file_reader.h>
 #include <fmt/format.h>
+#include <memcached/config_parser.h>
 #include <nlohmann/json.hpp>
 #include <platform/random.h>
 #include <platform/uuid.h>
@@ -366,4 +367,39 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     verifyAccessLogFiles(num_shards, true, false);
+}
+
+TEST_P(EncryptionTest, BucketReloadWhenMissingKeys) {
+    // The current bucket should be encrypted
+    auto& bucket = mcd_env->getTestBucket();
+
+    // Delete the current bucket
+    adminConnection->deleteBucket(bucketName);
+
+    auto config =
+            cb::config::filter(bucket.getCreateBucketConfigString(bucketName),
+                               [](auto k, auto) -> bool {
+                                   if (k == "encryption") {
+                                       return false;
+                                   }
+                                   return true;
+                               });
+
+    auto rsp = adminConnection->execute(
+            BinprotCreateBucketCommand{bucketName, "ep.so", config});
+
+    ASSERT_EQ(cb::mcbp::Status::EncryptionKeyNotAvailable, rsp.getStatus())
+            << "It should not be possible to create a bucket without the keys";
+
+    // Verify that we can recreate the bucket if we provide all buckets
+    rsp = adminConnection->execute(BinprotCreateBucketCommand{
+            bucketName,
+            "ep.so",
+            bucket.getCreateBucketConfigString(bucketName)});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    // Nuke the bucket and recreate it just like the next tests expects
+    // it to be (in a clean state with a replica vbucket etc and enable
+    // traffic)
+    DeleteTestBucket();
+    CreateTestBucket();
 }

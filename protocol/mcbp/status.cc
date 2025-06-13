@@ -39,6 +39,7 @@ bool is_known(Status status) {
     case Status::Rollback:
     case Status::Eaccess:
     case Status::NotInitialized:
+    case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
@@ -136,6 +137,7 @@ bool isStatusSuccess(Status status) {
     case Status::Erange:
     case Status::Eaccess:
     case Status::NotInitialized:
+    case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
@@ -277,6 +279,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Eaccess";
         case Status::NotInitialized:
             return "NotInitialized";
+        case Status::EncryptionKeyNotAvailable:
+            return "EncryptionKeyNotAvailable";
         case Status::RateLimitedNetworkIngress:
             return "RateLimitedNetworkIngress";
         case Status::RateLimitedNetworkEgress:
@@ -442,6 +446,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "No access";
         case Status::NotInitialized:
             return "Node not initialized";
+        case Status::EncryptionKeyNotAvailable:
+            return "Encryption key not available";
         case Status::RateLimitedNetworkIngress:
             return "Rate limit: Network ingress";
         case Status::RateLimitedNetworkEgress:
