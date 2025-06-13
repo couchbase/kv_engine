@@ -276,6 +276,8 @@ cb::engine_errc magmaErr2EngineErr(Status::Code result) {
         return cb::engine_errc::temporary_failure;
     case Status::CheckpointNotFound:
         return cb::engine_errc::temporary_failure;
+    case Status::EncryptionKeyNotFound:
+        return cb::engine_errc::temporary_failure;
     case Status::NoAccess:
         return cb::engine_errc::temporary_failure;
     }
@@ -3539,6 +3541,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::RetryLater:
     case Status::NoAccess:
     case Status::OkDocNotFound:
+    case Status::EncryptionKeyNotFound:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
