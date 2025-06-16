@@ -3386,6 +3386,97 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumTempItems());
 }
 
+// Test coverage for MB-67091
+// Test checks that if compaction is scheduled, but the vbucket is then deleted
+// that compaction aborts.
+TEST_P(EPBucketFullEvictionTest, CompactionVBucketDeleted) {
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    ASSERT_TRUE(epBucket);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              epBucket->scheduleCompaction(
+                      vbid, config, cookie, std::chrono::milliseconds(0)));
+
+    bool postCompactionCompletionHookCalled = false;
+    auto mockEPBucket = dynamic_cast<MockEPBucket*>(store);
+    mockEPBucket->setPostCompactionCompletionHook(
+            [this, &postCompactionCompletionHookCalled]() {
+                postCompactionCompletionHookCalled = true;
+            });
+
+    // Run from a hook that will be called
+    // within deleteVbucket - before compaction would be cancelled. This is
+    // testing the weak_ptr acquire and abort logic
+    mockEPBucket->deleteVbucketImplHook = [&mockEPBucket, this]() {
+        auto task = mockEPBucket->getCompactionTask(vbid);
+        ASSERT_TRUE(task);
+        EXPECT_FALSE(task->run());
+    };
+    EXPECT_EQ(0, engine->getEpStats().compactionAborted);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid, nullptr));
+    EXPECT_EQ(1, engine->getEpStats().compactionAborted);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
+    EXPECT_FALSE(postCompactionCompletionHookCalled);
+}
+
+// Test coverage for MB-67091
+// This test extends on CompactionVBucketDeleted by recreating the vbucket and
+// rescheduling the compaction. In this case compaction should succeed.
+TEST_P(EPBucketFullEvictionTest, CompactionVBucketRecreated) {
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    ASSERT_TRUE(epBucket);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              epBucket->scheduleCompaction(
+                      vbid, config, cookie, std::chrono::milliseconds(0)));
+
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid, nullptr));
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              epBucket->scheduleCompaction(
+                      vbid, config, cookie, std::chrono::milliseconds(0)));
+
+    bool postCompactionCompletionHookCalled = false;
+    dynamic_cast<MockEPBucket*>(store)->setPostCompactionCompletionHook(
+            [this, &postCompactionCompletionHookCalled]() {
+                postCompactionCompletionHookCalled = true;
+            });
+
+    EXPECT_EQ(0, engine->getEpStats().compactionAborted);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
+
+    // Drive all the tasks through the queue.
+    auto runTasks = [this](TaskQueue& queue) {
+        while (queue.getFutureQueueSize() > 0 ||
+               queue.getReadyQueueSize() > 0) {
+            ObjectRegistry::onSwitchThread(engine.get());
+            runNextTask(queue);
+        }
+    };
+    runTasks(*task_executor->getLpTaskQ(TaskType::AuxIO));
+
+    EXPECT_EQ(0, engine->getEpStats().compactionAborted);
+    EXPECT_EQ(0, engine->getEpStats().compactionFailed);
+    EXPECT_TRUE(postCompactionCompletionHookCalled);
+}
+
 struct BFilterPrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<

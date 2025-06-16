@@ -175,3 +175,8 @@ MockEPBucket::public_getCompactionTasks() const {
 const cb::snapshot::Cache& MockEPBucket::public_getSnapshotCache() const {
     return snapshotCache;
 }
+
+void MockEPBucket::deleteVbucketImpl(LockedVBucketPtr& lockedVB) {
+    deleteVbucketImplHook();
+    EPBucket::deleteVbucketImpl(lockedVB);
+}

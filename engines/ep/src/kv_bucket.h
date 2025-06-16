@@ -1415,6 +1415,13 @@ protected:
      */
     void completeLoadingVBuckets();
 
+    /**
+     * Called during vbucket delete and will perform any specific operatins
+     * requires by the sub-class (EP/Ephemeral)
+     */
+    virtual void deleteVbucketImpl(LockedVBucketPtr& lockedVB) {
+    }
+
     friend class VBucketLoader;
     friend class Warmup;
     friend class WarmupLoadingKVPairs;

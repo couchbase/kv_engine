@@ -1214,12 +1214,11 @@ cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, CookieIface* c) {
                                      vbStateLock);
         }
 
-        getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(),
-                                                        vbid);
-
         // Drop the VB to begin deletion, the last holder of the VB will
         // unknowingly trigger the destructor which schedules a deletion task.
         vbMap.dropVBucketAndSetupDeferredDeletion(vbid, c);
+
+        deleteVbucketImpl(lockedVB);
     }
 
     if (c) {

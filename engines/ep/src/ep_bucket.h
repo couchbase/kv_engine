@@ -647,6 +647,8 @@ protected:
     cb::engine_errc doFusionAggregatedGuestVolumesStats(
             CookieIface& cookie, const AddStatFn& add_stat);
 
+    void deleteVbucketImpl(LockedVBucketPtr& lockedVB) override;
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not

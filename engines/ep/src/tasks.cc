@@ -14,6 +14,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
+#include "vbucket.h"
 #include "warmup.h"
 #include <executor/executorpool.h>
 
@@ -29,7 +30,7 @@ bool FlusherTask::run() {
 }
 
 CompactTask::CompactTask(EPBucket& bucket,
-                         Vbid vbid,
+                         const VBucketPtr& vbucket,
                          CompactionConfig config,
                          cb::time::steady_clock::time_point requestedStartTime,
                          CookieIface* ck,
@@ -40,9 +41,9 @@ CompactTask::CompactTask(EPBucket& bucket,
                                semaphore,
                                completeBeforeShutdown),
       bucket(bucket),
-      vbid(vbid) {
+      vbid(vbucket->getId()) {
     auto lockedState = compaction.wlock();
-
+    lockedState->vbucket = vbucket;
     lockedState->config = config;
 
     if (ck) {
@@ -66,19 +67,29 @@ bool CompactTask::runInner() {
 
     // pull out the config we have been requested to run with and any cookies
     // that maybe waiting.
-    auto configAndCookies = preDoCompact();
+    auto compactionData = preDoCompact();
 
-    if (!configAndCookies) {
+    if (!compactionData) {
         // if we ran now, we wouldn't be respecting the requested compaction
         // delay. Reschedule, preDoCompact has already updated the wake time.
         return true;
     }
 
-    auto [config, cookies] = *configAndCookies;
+    if (!compactionData->vbucket ||
+        compactionData->vbucket->isDeletionDeferred()) {
+        // vbucket was deleted.
+        EP_LOG_INFO_CTX(
+                "CompactTask vbucket deleted/deleting",
+                {{"vb", vbid}, {"deleting", bool(compactionData->vbucket)}});
+        ++bucket.getEPEngine().getEpStats().compactionAborted;
+        bucket.updateCompactionTasks(vbid);
+        return false;
+    }
 
     runningCallback();
 
-    auto reschedule = bucket.doCompact(vbid, config, cookies);
+    auto reschedule = bucket.doCompact(
+            vbid, compactionData->config, compactionData->cookiesWaiting);
 
     // If this compaction has finished its work (doesn't need to be
     // re-scheduled), then clean up the task and see if any other tasks
@@ -93,7 +104,7 @@ bool CompactTask::runInner() {
 
     // even if compaction completed, we may still need to reschedule if the
     // config was updated by another compaction request while we were running
-    reschedule = !isTaskDone(cookies) || reschedule;
+    reschedule = !isTaskDone(compactionData->cookiesWaiting) || reschedule;
 
     if (reschedule) {
         // run again as soon as possible. If the compaction has a delay set,
@@ -129,8 +140,7 @@ CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
 
-std::optional<std::pair<CompactionConfig, std::vector<CookieIface*>>>
-CompactTask::preDoCompact() {
+std::optional<CompactTask::CompactTaskData> CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
     if (lockedState->requestedStartTime > cb::time::steady_clock::now()) {
         updateWaketime(lockedState->requestedStartTime);
@@ -140,15 +150,19 @@ CompactTask::preDoCompact() {
     // config and cookiesWaiting are moved out to the task run loop, any
     // subsequent schedule now operates on the 'empty' objects whilst run
     // gets on with compacting using the returned values.
-    return {{std::move(lockedState->config),
-             std::move(lockedState->cookiesWaiting)}};
+    return CompactTaskData{lockedState->vbucket.lock(),
+                           std::move(lockedState->config),
+                           std::move(lockedState->cookiesWaiting)};
 }
 
-CompactionConfig CompactTask::runCompactionWithConfig(
+CompactionConfig CompactTask::runCompactionWithVbucketAndConfig(
+        const VBucketPtr& vbucket,
         std::optional<CompactionConfig> config,
         CookieIface* cookie,
         cb::time::steady_clock::time_point requestedStartTime) {
     auto lockedState = compaction.wlock();
+    // Refresh the weak_ptr to support a vbucket being re-created and compacted
+    lockedState->vbucket = vbucket;
     if (config) {
         lockedState->config.merge(config.value());
     }

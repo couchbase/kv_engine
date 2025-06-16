@@ -68,7 +68,7 @@ private:
 class CompactTask : public EpLimitedConcurrencyTask {
 public:
     CompactTask(EPBucket& bucket,
-                Vbid vbid,
+                const VBucketPtr& vbucket,
                 CompactionConfig config,
                 cb::time::steady_clock::time_point requestedStartTime,
                 CookieIface* ck,
@@ -86,7 +86,7 @@ public:
     }
 
     /**
-     * This function should be called only when the task is already exists and
+     * This function should be called only when the task already exists and
      * is "scheduled".
      *
      * The caller does not need to know the state of the task, it could be:
@@ -106,10 +106,18 @@ public:
      * the current compaction is complete, the latest config will be used in the
      * reschedule run.
      *
+     * @param vbucket The vbucket, a weak_ptr will refer to this vbucket and
+     * must be locked by the CompactTask::run
+     * @param config The config to use for the compaction (see above for
+     * details).
+     * @param cookie The cookie to use for the compaction. If not specified,
+     * the current cookie will be used.
+     * @param requestedStartTime The time at which compaction should start.
      * @return The config that the task is now configured with (e.g. merged
      *         config) is returned.
      */
-    CompactionConfig runCompactionWithConfig(
+    CompactionConfig runCompactionWithVbucketAndConfig(
+            const VBucketPtr& vbucket,
             std::optional<CompactionConfig> config,
             CookieIface* cookie,
             cb::time::steady_clock::time_point requestedStartTime);
@@ -149,12 +157,16 @@ private:
      * the requested start time to later in the future - the task may need
      * to sleep again. If this is the case, snooze() will be called.
      *
-     * @return config and vector of cookies waiting for compaction to complete,
-     *         or nullopt if start time has not been reached
+     * @return vbucket, config and vector of cookies waiting for compaction to
+     * complete, or nullopt if start time has not been reached
      *
      */
-    std::optional<std::pair<CompactionConfig, std::vector<CookieIface*>>>
-    preDoCompact();
+    struct CompactTaskData {
+        VBucketPtr vbucket;
+        CompactionConfig config;
+        std::vector<CookieIface*> cookiesWaiting;
+    };
+    std::optional<CompactTaskData> preDoCompact();
 
     /**
      * Using the input cookies and current "Compaction" state, determine if
@@ -170,9 +182,14 @@ private:
     bool isTaskDone(const std::vector<CookieIface*>& cookies);
 
     EPBucket& bucket;
-    Vbid vbid;
 
+    /**
+     * The id of the vbucket that this task is compacting. Stored separately so
+     * we can log vbid info if we couldn't lock the weak_ptr
+     */
+    Vbid vbid;
     struct Compaction {
+        std::weak_ptr<VBucket> vbucket;
         CompactionConfig config{};
         std::vector<CookieIface*> cookiesWaiting;
         // if delayed compaction was requested, this task should not

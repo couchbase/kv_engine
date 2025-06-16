@@ -111,4 +111,7 @@ public:
     public_getCompactionTasks() const;
 
     const cb::snapshot::Cache& public_getSnapshotCache() const;
+
+    TestingHook<> deleteVbucketImplHook;
+    void deleteVbucketImpl(LockedVBucketPtr& lockedVB) override;
 };

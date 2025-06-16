@@ -1247,16 +1247,16 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
 
     if (!emplaced) {
         // The existing task must be poked - it needs to either reschedule if
-        // it is currently running or run with the given config.
-        tasksConfig = task->runCompactionWithConfig(
-                config, cookie, requestedStartTime);
+        // it is currently running or run with the given vbucket and config.
+        tasksConfig = task->runCompactionWithVbucketAndConfig(
+                vb, config, cookie, requestedStartTime);
         // now wake the task - the config has changed and it may need to
         // work out a new wake time.
         ExecutorPool::get()->wake(task->getId());
     } else {
         // Nothing in the map for this vbid now construct the task
         task = std::make_shared<CompactTask>(*this,
-                                             vbid,
+                                             vb,
                                              config,
                                              requestedStartTime,
                                              cookie,
@@ -1349,8 +1349,12 @@ cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
 
 cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
     auto handle = compactionTasks.wlock();
-    for (const auto& task : *handle) {
-        task.second->cancel();
+    if (auto itr = handle->find(vbid); itr != handle->end()) {
+        const auto& task = (*itr).second;
+        EP_LOG_INFO_CTX("Compaction cancelled", {"vb", vbid});
+        task->cancel();
+        // Done, can now erase from the compactionTasks map
+        handle->erase(itr);
     }
     return cb::engine_errc::success;
 }
@@ -3512,4 +3516,10 @@ void EPBucket::persistVBState() {
     for (auto vbid : vbMap.getBuckets()) {
         persistVBState(vbid);
     }
+}
+
+void EPBucket::deleteVbucketImpl(LockedVBucketPtr& lockedVB) {
+    const auto vbid = lockedVB->getId();
+    cancelCompaction(vbid);
+    getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(), vbid);
 }
