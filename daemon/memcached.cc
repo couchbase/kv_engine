@@ -1158,8 +1158,24 @@ int memcached_main(int argc, char** argv) {
                  {"sigint", sigint},
                  {"sigterm", sigterm});
 
+    // We are shutting down the server, and at this time we still accept
+    // new connections, but they are immediately closed and not dispatched
+    // to the worker threads
+    //
+    // In this mode we won't accept new commands to be started, but we
+    // wait for all commands currently being executed to complete.
+    //
+    // Start by deleting all buckets, and as part of initiating bucket
+    // deletion we'll cancel all sync writes and disconnect those connections
     BucketManager::instance().destroyAll();
 
+    // There may however be connections which are not associated with a bucket,
+    // so we should wait for all of those to disconnect as well
+    LOG_INFO_RAW("Disconnect all clients");
+    disconnect_clients();
+
+    // At this time we should have no connections left, so we can go ahead
+    // and shut down the parent monitor
     if (parent_monitor) {
         LOG_INFO_RAW("Shutting down parent monitor");
         parent_monitor.reset();
@@ -1168,13 +1184,14 @@ int memcached_main(int argc, char** argv) {
     // Shut down Prometheus (it adds its own log message)
     cb::prometheus::shutdown();
 
+    // There is no ongoing commands, so it is safe to shut down the
+    // network interface manager thread. This will also close the listening
+    // socket. We've been closing the newly created connections immediately
+    // since we detected the start of the shutdown sequence.
     LOG_INFO_RAW("Shutting down network interface manager thread");
     nim_thread->shutdown();
     nim_thread->waitForState(Couchbase::ThreadState::Zombie);
     nim_thread.reset();
-
-    LOG_INFO_RAW("Disconnect all clients");
-    disconnect_clients();
 
     LOG_INFO_RAW("Shutting down client worker threads");
     threads_shutdown();
