@@ -41,9 +41,7 @@ public:
         const auto timeout =
                 std::chrono::steady_clock::now() + std::chrono::seconds{30};
 
-        adminConnection->executeInBucket(bucketName, [](auto& conn) {
-            conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
-        });
+        compactDb();
 
         while (std::chrono::steady_clock::now() < timeout) {
             nlohmann::json stats;
@@ -64,6 +62,15 @@ public:
         }
         throw std::runtime_error(fmt::format(
                 "waitForEncryptionKey: Timed out waiting for key {}", key_id));
+    }
+
+    BinprotResponse compactDb() {
+        BinprotResponse response;
+        adminConnection->executeInBucket(bucketName, [&response](auto& conn) {
+            response = conn.execute(BinprotCompactDbCommand{},
+                                    std::chrono::seconds{30});
+        });
+        return response;
     }
 };
 
@@ -269,7 +276,7 @@ TEST_P(EncryptionTest, TestDisableEncryption) {
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     // Compact the vbucket
-    rsp = connection->execute(BinprotCompactDbCommand{});
+    rsp = compactDb();
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     // fetch the stats and it should be "unencrypted"
@@ -290,7 +297,7 @@ TEST_P(EncryptionTest, TestDisableEncryption) {
             bucketName,
             config});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    rsp = connection->execute(BinprotCompactDbCommand{});
+    rsp = compactDb();
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
     // fetch the stats and it should not be "unencrypted"
@@ -325,9 +332,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
             bucketName,
             config});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
-    });
+    compactDb();
 
     // Now wait for the access scanner to run and rewrite the access log
     // unencrypted
@@ -356,9 +361,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
             bucketName,
             config});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        conn.execute(BinprotCompactDbCommand{}, std::chrono::seconds{30});
-    });
+    compactDb();
 
     // Now wait for the access scanner to run and rewrite the access log
     // unencrypted
