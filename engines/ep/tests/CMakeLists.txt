@@ -183,6 +183,12 @@ if (NUMA_FOUND)
     target_link_libraries(ep-engine_ep_unit_tests PRIVATE ${NUMA_LIBRARIES})
 endif()
 
+# Fuzz tests are linked into the ep-engine_ep_unit_tests executable.
+if(HAVE_FUZZTEST)
+    cb_link_fuzztest(ep-engine_ep_unit_tests)
+    add_subdirectory(fuzz_tests)
+endif()
+
 add_sanitizers(ep-engine_ep_unit_tests)
 
 cb_add_test_executable(ep-engine_couch-fs-stats_test

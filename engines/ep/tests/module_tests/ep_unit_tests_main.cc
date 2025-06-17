@@ -30,6 +30,10 @@
 #include <platform/cbassert.h>
 #include <array>
 
+#ifdef HAVE_FUZZTEST
+#include <fuzztest/init_fuzztest.h>
+#endif
+
 using namespace std::chrono_literals;
 
 /* static storage for environment variable set by putenv(). */
@@ -103,6 +107,12 @@ int main(int argc, char **argv) {
     // Initialise GoogleMock (and GoogleTest), consuming any cmd-line arguments
     // it owns before we check our own.
     ::testing::InitGoogleMock(&argc, argv);
+
+#ifdef HAVE_FUZZTEST
+    // Initialise fuzztest. This should match fuzztest_gtest_main.cc.
+    fuzztest::ParseAbslFlags(argc, argv);
+    fuzztest::InitFuzzTest(&argc, &argv);
+#endif
 
     // Parse command-line options.
     int cmd;

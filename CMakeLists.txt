@@ -66,6 +66,10 @@ if (TARGET fusionfs)
     add_definitions(-DUSE_FUSION=1)
 endif()
 
+if(HAVE_FUZZTEST)
+    include(CouchbaseFuzzTest)
+endif()
+
 if (WIN32)
     # 'conversion' conversion from 'type1' to 'type2', possible loss of data
     add_definitions(/wd4244)
