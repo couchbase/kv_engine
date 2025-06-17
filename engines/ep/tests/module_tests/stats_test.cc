@@ -34,7 +34,7 @@
 #include "trace_helpers.h"
 #include "utilities/test_manifest.h"
 #include "warmup.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <platform/semaphore.h>
 #include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>

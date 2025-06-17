@@ -20,7 +20,7 @@
 #include "utilities/test_manifest.h"
 #include "vbucket.h"
 #include <folly/portability/GMock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_arena_malloc_client.h>

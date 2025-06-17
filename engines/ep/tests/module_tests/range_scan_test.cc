@@ -25,7 +25,7 @@
 #include "vbucket.h"
 
 #include <boost/uuid/name_generator.hpp>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>

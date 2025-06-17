@@ -26,7 +26,7 @@
 #include "vbucket.h"
 
 #include <folly/portability/GMock.h>
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 #include <climits>
 
 void CheckpointRemoverTest::SetUp() {

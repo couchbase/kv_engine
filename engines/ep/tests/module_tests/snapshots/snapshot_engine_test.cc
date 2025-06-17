@@ -14,7 +14,7 @@
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class SnapshotEngineTest
     : public SingleThreadedEPBucketTest,
