@@ -1,5 +1,4 @@
-add_executable(humpty_dumpty
-        humpty_dumpty.cc)
+cb_add_test_executable(humpty_dumpty humpty_dumpty.cc)
 target_link_libraries(humpty_dumpty
     PRIVATE
         ep
