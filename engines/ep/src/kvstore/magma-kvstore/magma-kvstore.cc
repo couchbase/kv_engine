@@ -919,16 +919,14 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
                 [this](const auto& ks) { magma->setActiveEncryptionKeys(ks); });
     }
 
-    if (!configuration.getFusionLogstoreURI().empty()) {
-        magma->SetFusionUploadInterval(configuration.getFusionUploadInterval());
-        magma->SetFusionLogCheckpointInterval(
-                configuration.getFusionLogCheckpointInterval());
-        magma->SetFusionMigrationRateLimit(
-                configuration.getFusionMigrationRateLimit());
-        magma->SetFusionSyncRateLimit(configuration.getFusionSyncRateLimit());
-        magma->SetFusionLogstoreFragmentationThreshold(
-                configuration.getFusionLogstoreFragmentationThreshold());
-    }
+    magma->SetFusionUploadInterval(configuration.getFusionUploadInterval());
+    magma->SetFusionLogCheckpointInterval(
+            configuration.getFusionLogCheckpointInterval());
+    magma->SetFusionMigrationRateLimit(
+            configuration.getFusionMigrationRateLimit());
+    magma->SetFusionSyncRateLimit(configuration.getFusionSyncRateLimit());
+    magma->SetFusionLogstoreFragmentationThreshold(
+            configuration.getFusionLogstoreFragmentationThreshold());
 }
 
 MagmaKVStore::~MagmaKVStore() {
