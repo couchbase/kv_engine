@@ -146,6 +146,7 @@ namespace cb::engine {
 enum class Feature : uint16_t {
     Collections = 1,
     Persistence = 2,
+    Fusion = 3,
 };
 
 using FeatureSet = std::unordered_set<Feature>;

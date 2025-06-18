@@ -96,6 +96,8 @@ std::array<HandlerFunction, 0x100> handlers;
  */
 std::array<HandlerFunction, 0x100> response_handlers;
 
+using cb::engine::Feature;
+
 static void process_bin_get_meta(Cookie& cookie) {
     cookie.obtainContext<GetMetaCommandContext>(cookie).drive();
 }
@@ -238,8 +240,7 @@ static void verbosity_executor(Cookie& cookie) {
 }
 
 static void get_file_fragment_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.obtainContext<GetFileFragmentContext>(cookie).drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
@@ -247,24 +248,21 @@ static void get_file_fragment_executor(Cookie& cookie) {
 }
 
 static void prepare_snapshot_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.obtainContext<PrepareSnapshotContext>(cookie).drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
     }
 }
 static void release_snapshot_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.obtainContext<ReleaseSnapshotContext>(cookie).drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
     }
 }
 static void download_snapshot_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
                   return c.getConnection().getBucketEngine().download_snapshot(
                           c,
@@ -608,28 +606,26 @@ static void auth_provider_executor(Cookie& cookie) {
 }
 
 static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.obtainContext<GetFusionStorageSnapshotCommandContext>(cookie)
+                .drive();
+
+    } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
     }
-    cookie.obtainContext<GetFusionStorageSnapshotCommandContext>(cookie)
-            .drive();
 }
 
 static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.obtainContext<ReleaseFusionStorageSnapshotCommandContext>(cookie)
+                .drive();
+    } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
     }
-    cookie.obtainContext<ReleaseFusionStorageSnapshotCommandContext>(cookie)
-            .drive();
 }
 
 static void mount_fusion_vbucket_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
         cookie.obtainContext<MountFusionVbucketCommandContext>(cookie).drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
@@ -637,8 +633,7 @@ static void mount_fusion_vbucket_executor(Cookie& cookie) {
 }
 
 static void unmount_vbucket_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
         cookie.obtainContext<UnmountFusionVbucketCommandContext>(cookie)
                 .drive();
     } else {
@@ -647,35 +642,31 @@ static void unmount_vbucket_executor(Cookie& cookie) {
 }
 
 static void sync_fusion_logstore_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.obtainContext<SyncFusionLogstoreCommandContext>(cookie).drive();
+    } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
     }
-    cookie.obtainContext<SyncFusionLogstoreCommandContext>(cookie).drive();
 }
 
 static void start_fusion_uploader_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.obtainContext<StartFusionUploaderCommandContext>(cookie).drive();
+    } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
     }
-    cookie.obtainContext<StartFusionUploaderCommandContext>(cookie).drive();
 }
 
 static void stop_fusion_uploader_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.obtainContext<StopFusionUploaderCommandContext>(cookie).drive();
+    } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
     }
-    cookie.obtainContext<StopFusionUploaderCommandContext>(cookie).drive();
 }
 
 static void set_chronicle_auth_token_executor(Cookie& cookie) {
-    if (!cookie.getConnection().getBucket().supports(
-                cb::engine::Feature::Persistence)) {
+    if (!cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }

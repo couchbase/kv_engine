@@ -1989,7 +1989,13 @@ cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     if (configuration.getBucketTypeString() == "ephemeral") {
         return {cb::engine::Feature::Collections};
     }
+#ifdef USE_FUSION
+    return {cb::engine::Feature::Collections,
+            cb::engine::Feature::Persistence,
+            cb::engine::Feature::Fusion};
+#else
     return {cb::engine::Feature::Collections, cb::engine::Feature::Persistence};
+#endif
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled() {
