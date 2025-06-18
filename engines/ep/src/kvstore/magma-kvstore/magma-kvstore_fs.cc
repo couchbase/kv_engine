@@ -156,26 +156,6 @@ public:
         return baseDir->Sync();
     }
 
-    magma::Status RemoteOpen(const std::string& remote) override {
-        auto g = tracker.startWithScopeGuard(FileOp::open());
-        return baseDir->RemoteOpen(remote);
-    }
-
-    magma::Status QueueRemoteSync(std::vector<PathAndSize>& fileList) override {
-        auto g = tracker.startWithScopeGuard(FileOp::sync());
-        return baseDir->QueueRemoteSync(fileList);
-    }
-
-    std::tuple<bool, magma::Status> GetRemoteSyncStatus() override {
-        auto g = tracker.startWithScopeGuard(FileOp::read(0));
-        return baseDir->GetRemoteSyncStatus();
-    }
-
-    magma::Status RequestRemoteSyncCompletion() override {
-        auto g = tracker.startWithScopeGuard(FileOp::read(0));
-        return baseDir->RequestRemoteSyncCompletion();
-    }
-
 private:
     FileOpsTracker& tracker;
     std::unique_ptr<magma::Directory> baseDir;
