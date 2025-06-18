@@ -58,6 +58,22 @@ brew install llvm@17
 sudo ln -s /opt/homebrew/opt/llvm@17//lib/clang/17/lib/darwin/libclang_rt.fuzzer_osx.a /Library/Developer/CommandLineTools/usr/lib/clang/15.0.0/lib/darwin/libclang_rt.fuzzer_osx.a
 ```
 
+## Writing fuzz tests
+
+Fuzz tests which are built using the google/fuzztest library should:
+ - be added to CTest with a prefix "fuzztest."
+ - use the --fromenv=fuzz_for flag, to allow for the fuzz duration to be
+ specified as an environment variable (example: `FLAGS_fuzz_for=30s`)
+
+This makes it possible to run all fuzz tests with a fuzzing duration specified
+at runtime:
+```sh
+FLAGS_fuzz_for=30s ctest -R ^fuzztest
+```
+
+Note: The CTest targets are only registered when `FUZZTEST_FUZZING_MODE` is
+enabled.
+
 ## Running the fuzz tests
 
 On supported platforms (not Windows), the fuzz tests are compiled and linked
@@ -77,6 +93,11 @@ ctest -R ep-engine_ep_unit_tests.*FuzzTest
 To run a specific fuzz test in fuzzing mode:
 ```
 ep-engine_ep_unit_tests --fuzz=TestCase --fuzz-for=10s
+```
+
+To run all fuzz tests in fuzzing mode:
+```sh
+FLAGS_fuzz_for=10s ctest -R ^fuzztest
 ```
 
 See also:

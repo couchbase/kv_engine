@@ -189,6 +189,17 @@ if(HAVE_FUZZTEST)
     add_subdirectory(fuzz_tests)
 endif()
 
+if(FUZZTEST_FUZZING_MODE)
+    # Add all fuzz tests under the fuzztest.ep-engine_ep_unit_tests prefix.
+    # To run the fuzz tests, the FLAGS_fuzz_for env variable must be set.
+    gtest_discover_tests(ep-engine_ep_unit_tests
+            EXTRA_ARGS --fromenv=fuzz_for
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            TEST_PREFIX fuzztest.ep-engine_ep_unit_tests.
+            TEST_FILTER *FuzzTest*
+            DISCOVERY_TIMEOUT 60)
+endif()
+
 add_sanitizers(ep-engine_ep_unit_tests)
 
 cb_add_test_executable(ep-engine_couch-fs-stats_test
