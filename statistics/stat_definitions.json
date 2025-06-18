@@ -2069,6 +2069,13 @@
         "description": "The number of bytes read when copying/downloading snapshots",
         "added": "8.0.0"
     },
+    {
+        "key": "ep_dcp_cache_transfer_read",
+        "unit": "bytes",
+        "cbstat": "ep_dcp_cache_transfer_read_bytes",
+        "description": "The number of bytes read by DCP cache transfer",
+        "added": "8.1.0"
+    },
 /* Timing stats */
     {
         "key": "task_duration",

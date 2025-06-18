@@ -535,6 +535,7 @@ public:
     Counter compressorNumCompressed;
 
     Counter snapshotBytesRead;
+    Counter cacheTransferBytesRead;
 
     //! Histogram of queue processing dirty age.
     Hdr1sfMicroSecHistogram dirtyAgeHisto;

@@ -1436,6 +1436,8 @@ cb::engine_errc PassiveStream::processCachedValue(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    engine->getEpStats().cacheTransferBytesRead += resp.getItem()->size();
+
     vb->ht.upsertItem(
             *resp.getItem(),
             /*eject*/ false,

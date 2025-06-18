@@ -6512,6 +6512,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_dcp_backfill_idle_protection_enabled",
               "ep_dcp_backfill_in_progress_per_connection_limit",
               "ep_dcp_cache_transfer_enabled",
+              "ep_dcp_cache_transfer_read_bytes",
               "ep_dcp_checkpoint_dequeue_limit",
               "ep_dcp_consumer_buffer_ratio",
               "ep_dcp_consumer_flow_control_ack_ratio",

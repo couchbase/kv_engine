@@ -3445,6 +3445,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     collector.addStat(Key::ep_mem_low_wat, epstats.mem_low_wat);
     collector.addStat(Key::ep_mem_high_wat, epstats.mem_high_wat);
     collector.addStat(Key::ep_snapshot_read, epstats.snapshotBytesRead);
+    collector.addStat(Key::ep_dcp_cache_transfer_read,
+                      epstats.cacheTransferBytesRead);
 
     return cb::engine_errc::success;
 }
