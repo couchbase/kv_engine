@@ -207,8 +207,9 @@ options.
 
 #### FORCE_WITH_META_OP
 
-This flag is used to specify that the operation should be forced, so conflict
-checks are skipped and writes are permitted to replica and pending vbuckets.
+This flag provides the same functionality as SKIP_CONFLICT_RESOLUTION_FLAG.
+Previously this flag would allow writes to replica vbuckets but was removed
+by https://jira.issues.couchbase.com/issues/MB-67207
 
 #### FORCE_ACCEPT_WITH_META_OPS
 

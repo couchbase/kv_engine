@@ -1424,8 +1424,6 @@ protected:
      * @param generateCas[out] set to Yes if CAS regeneration is enabled.
      * @param checkConflicts[out] set to No if conflict resolution should
      *        not be performed.
-     * @param permittedVBStates[out] updates with replica and pending if the
-     *        options contain force.
      * @param deleteSource Changes to TTL if IS_EXPIRATION flag (del_with_meta)
      * @return true if everything is OK, false for an invalid combination of
      *              options
@@ -1433,7 +1431,6 @@ protected:
     bool decodeWithMetaOptions(cb::const_byte_buffer extras,
                                GenerateCas& generateCas,
                                CheckConflicts& checkConflicts,
-                               PermittedVBStates& permittedVBStates,
                                DeleteSource& deleteSource);
 
     /**
@@ -1444,8 +1441,7 @@ protected:
      */
     bool decodeSetWithMetaOptions(cb::const_byte_buffer extras,
                                   GenerateCas& generateCas,
-                                  CheckConflicts& checkConflicts,
-                                  PermittedVBStates& permittedVBStates);
+                                  CheckConflicts& checkConflicts);
 
     /**
      * Sends error response, using the specified error and response callback

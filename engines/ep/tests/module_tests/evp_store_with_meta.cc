@@ -711,26 +711,37 @@ TEST_P(AllWithMetaTest, forceFail) {
                   cb::engine_errc::no_such_key);
 }
 
-TEST_P(AllWithMetaTest, forceSuccessReplica) {
+// MB-67207: FORCE_WITH_META_OP has been downgraded to match
+// SKIP_CONFLICT_RESOLUTION_FLAG. The ability to write to a replica now removed
+// as it is too dangerous to support.
+TEST_P(AllWithMetaTest, forceReplica) {
     store->setVBucketState(vbid, vbucket_state_replica);
     ItemMetaData itemMeta{1, 0, 0, expiry};
     oneOpAndCheck(GetParam(),
                   itemMeta,
                   FORCE_WITH_META_OP,
                   true,
-                  cb::mcbp::Status::Success,
-                  cb::engine_errc::success);
+                  cb::mcbp::Status::NotMyVbucket,
+                  cb::engine_errc::no_such_key);
 }
 
-TEST_P(AllWithMetaTest, forceSuccessPending) {
+// MB-67207: FORCE_WITH_META_OP has been downgraded to match
+// SKIP_CONFLICT_RESOLUTION_FLAG. The ability to write to a pending vbucket now
+// removed as it is too dangerous to support.
+TEST_P(AllWithMetaTest, forcePending) {
     store->setVBucketState(vbid, vbucket_state_pending);
-    ItemMetaData itemMeta{1, 0, 0, expiry};
-    oneOpAndCheck(GetParam(),
-                  itemMeta,
-                  FORCE_WITH_META_OP,
-                  true,
-                  cb::mcbp::Status::Success,
-                  cb::engine_errc::success);
+    auto swm = buildWithMetaPacket(GetParam(),
+                                   PROTOCOL_BINARY_DATATYPE_XATTR,
+                                   vbid /*vbucket*/,
+                                   0 /*opaque*/,
+                                   0 /*cas*/,
+                                   {1, 0, 0, 0},
+                                   "mykey",
+                                   createXattrValue("myvalue", true),
+                                   {},
+                                   FORCE_WITH_META_OP);
+    // pending - must wait
+    EXPECT_EQ(cb::engine_errc::would_block, callEngine(GetParam(), swm));
 }
 
 TEST_P(AllWithMetaTest, regenerateCAS) {

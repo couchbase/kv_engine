@@ -6204,21 +6204,16 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
 bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
         cb::const_byte_buffer extras,
         GenerateCas& generateCas,
-        CheckConflicts& checkConflicts,
-        PermittedVBStates& permittedVBStates) {
+        CheckConflicts& checkConflicts) {
     // DeleteSource not needed by SetWithMeta, so set to default of explicit
     DeleteSource deleteSource = DeleteSource::Explicit;
-    return EventuallyPersistentEngine::decodeWithMetaOptions(extras,
-                                                             generateCas,
-                                                             checkConflicts,
-                                                             permittedVBStates,
-                                                             deleteSource);
+    return EventuallyPersistentEngine::decodeWithMetaOptions(
+            extras, generateCas, checkConflicts, deleteSource);
 }
 bool EventuallyPersistentEngine::decodeWithMetaOptions(
         cb::const_byte_buffer extras,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts,
-        PermittedVBStates& permittedVBStates,
         DeleteSource& deleteSource) {
     bool forceFlag = false;
     if (extras.size() == 28 || extras.size() == 30) {
@@ -6227,7 +6222,11 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
         memcpy(&options, extras.data() + fixed_extras_size, sizeof(options));
         options = ntohl(options);
 
-        if (options & SKIP_CONFLICT_RESOLUTION_FLAG) {
+        if (options & (SKIP_CONFLICT_RESOLUTION_FLAG | FORCE_WITH_META_OP)) {
+            // FORCE_WITH_META_OP used to change permittedVBStates to include
+            // replica and pending, which is incredibly dangerous. This flag is
+            // still supported but now only permits a change to the
+            // checkConflicts flag. MB-67207
             checkConflicts = CheckConflicts::No;
         }
 
@@ -6237,12 +6236,6 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
 
         if (options & REGENERATE_CAS) {
             generateCas = GenerateCas::Yes;
-        }
-
-        if (options & FORCE_WITH_META_OP) {
-            permittedVBStates.set(vbucket_state_replica);
-            permittedVBStates.set(vbucket_state_pending);
-            checkConflicts = CheckConflicts::No;
         }
 
         if (options & IS_EXPIRATION) {
@@ -6333,8 +6326,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
-    if (!decodeSetWithMetaOptions(
-                extras, generateCas, checkConflicts, permittedVBStates)) {
+    if (!decodeSetWithMetaOptions(extras, generateCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -6596,11 +6588,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
     DeleteSource deleteSource = DeleteSource::Explicit;
-    if (!decodeWithMetaOptions(extras,
-                               generateCas,
-                               checkConflicts,
-                               permittedVBStates,
-                               deleteSource)) {
+    if (!decodeWithMetaOptions(
+                extras, generateCas, checkConflicts, deleteSource)) {
         return cb::engine_errc::invalid_arguments;
     }
 
