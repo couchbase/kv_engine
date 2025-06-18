@@ -224,6 +224,19 @@ public:
     void visitBucket(VBucket& vb) override;
 
     void complete() override;
+
+    /**
+     * If we have more items in the expired list, we need to revisit so the
+     * expiries can be processed and the list can be emptied.
+     * Otherwise check if the hash table needs a revisit.
+     */
+    NeedsRevisit needsToRevisitLast() override {
+        if (!isExpiredListEmpty()) {
+            return NeedsRevisit::YesNow;
+        }
+
+        return PagingVisitor::needsToRevisitLast();
+    }
 };
 
 class ItemPagingVisitor : public PagingVisitor {

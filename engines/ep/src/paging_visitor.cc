@@ -239,6 +239,10 @@ ExpiredPagingVisitor::shouldInterrupt() {
 
     // Yield after expiration, do not visit vbucket
     if (processExpiredItemsOnly) {
+        // We will now pause/snooze(0) so we require the flag to be reset so
+        // the next run of the task can continue instead of snoozing as well
+        // and entering a run->pause loop.
+        processExpiredItemsOnly = false;
         return ExecutionState::Pause;
     }
 

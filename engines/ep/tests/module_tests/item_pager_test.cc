@@ -2818,6 +2818,70 @@ TEST_P(STExpiryPagerTest, ProcessExpiredListBeforeVisitingHashTable) {
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems());
 }
 
+// Test that when the expired list is not empty and the visitor has to sleep
+// and then wake up, it will process/delete the expired items.
+// This also tests that the expired list is still processed even if there are
+// no more hash table visits required.
+TEST_P(STExpiryPagerTest, MB_67191) {
+    const auto quota = engine->getEpStats().getMaxDataSize();
+    increaseQuota(quota);
+
+    auto& config = engine->getConfiguration();
+    // Force immediate yield by setting duration limits to 0
+    config.setExpiryVisitorItemsOnlyDurationMs(0);
+    config.setExpiryVisitorExpireAfterVisitDurationMs(0);
+
+    // Store 203 items with an expiry time in the past
+    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    for (size_t i = 0; i < 203; i++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i + 1));
+        auto item = make_item(
+                vbid,
+                key,
+                createXattrValue("value_" + std::to_string(i + 1)),
+                expiry,
+                PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+    }
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 203});
+    EXPECT_EQ(203, engine->getVBucket(vbid)->getNumItems())
+            << "Should begin with 203 items in the bucket";
+
+    store->wakeUpExpiryPager();
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+    runNextTask(lpNonioQ, "Paging expired items.");
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    auto pagers = 1;
+    EXPECT_EQ(initialNonIoTasks + pagers, lpNonioQ.getFutureQueueSize());
+
+    // First run of ExpiryPagingVisitor should accumulate expired items and
+    // pause after expiring 101 items. This is because we have
+    // "visit_bucket_and_expire_items_duration_limit=0" and the ProgressTracker
+    // required a minimum of 100 + 1 items visited before it will consider
+    // yielding.
+    runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 101});
+    // Verify 102 items are left
+    EXPECT_EQ(102, engine->getVBucket(vbid)->getNumItems());
+    // Visitor reschedules itself
+    EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
+
+    // Second run of ExpiryPagingVisitor should also expire 101
+    runNextTask(lpNonioQ, "Expired item remover on vb:0");
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 101});
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems()); // 1 item left
+    // Visitor reschedules itself
+    EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
+
+    // Last run of ExpiryPagingVisitor should expire the last item
+    runNextTask(lpNonioQ, "Expired item remover on vb:0");
+    flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
+
+    // No more tasks scheduled to run
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+}
+
 TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     // MB-42688: Test that the ordering of the paging visitor comparator is
     // fixed even if the amount of pageable memory or the vbucket state changes.
