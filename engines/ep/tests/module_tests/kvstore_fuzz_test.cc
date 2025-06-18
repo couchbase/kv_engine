@@ -46,20 +46,21 @@ protected:
     uint64_t counter = 0;
 };
 
-struct KVStoreFuzzTestErrors {
+struct KVStoreRandomizedTestErrors {
     bool open = false;
     bool read = false;
     bool write = false;
 };
 
 template <typename BasicJsonType>
-static void to_json(BasicJsonType& j, const KVStoreFuzzTestErrors& errors) {
+static void to_json(BasicJsonType& j,
+                    const KVStoreRandomizedTestErrors& errors) {
     j["open"] = errors.open;
     j["read"] = errors.read;
     j["write"] = errors.write;
 }
 
-class KVStoreFuzzTest
+class KVStoreRandomizedTest
     : public KVStoreTest,
       public ::testing::WithParamInterface<
               std::tuple<KVStoreTestEncryption, KVStoreTestBuffering>> {
@@ -69,7 +70,7 @@ public:
 
     static constexpr unsigned int MaxItems = 300;
 
-    KVStoreFuzzTest(const std::string& loggerName)
+    KVStoreRandomizedTest(const std::string& loggerName)
         : rngSeed(std::chrono::system_clock::now().time_since_epoch().count()),
           rng(rngSeed),
           logger(loggerName),
@@ -104,9 +105,9 @@ public:
         KVStoreTest::TearDown();
     }
 
-    virtual void allowErrors(KVStoreFuzzTestErrors) = 0;
+    virtual void allowErrors(KVStoreRandomizedTestErrors) = 0;
 
-    virtual KVStoreFuzzTestErrors getErrorsOccurred() = 0;
+    virtual KVStoreRandomizedTestErrors getErrorsOccurred() = 0;
 
     static bool isEncrypted() {
         return std::get<0>(GetParam()) == KVStoreTestEncryption::Encrypted;
@@ -139,7 +140,7 @@ private:
     uint64_t seqno = 0;
 };
 
-VBucketPtr KVStoreFuzzTest::makeVBucket() {
+VBucketPtr KVStoreRandomizedTest::makeVBucket() {
     return std::make_unique<EPVBucket>(
             vbid,
             vbucket_state_active,
@@ -161,7 +162,7 @@ VBucketPtr KVStoreFuzzTest::makeVBucket() {
                     std::make_shared<Collections::Manager>()));
 }
 
-std::vector<queued_item> KVStoreFuzzTest::generate(size_t count) {
+std::vector<queued_item> KVStoreRandomizedTest::generate(size_t count) {
     std::vector<queued_item> items;
     items.reserve(count);
     std::unordered_set<uint32_t> keys;
@@ -186,7 +187,7 @@ std::vector<queued_item> KVStoreFuzzTest::generate(size_t count) {
     return items;
 }
 
-vb_bgfetch_queue_t KVStoreFuzzTest::make_bgfetch_queue(
+vb_bgfetch_queue_t KVStoreRandomizedTest::make_bgfetch_queue(
         const std::vector<queued_item>& items) {
     vb_bgfetch_queue_t queue;
     for (const auto& item : items) {
@@ -198,10 +199,11 @@ vb_bgfetch_queue_t KVStoreFuzzTest::make_bgfetch_queue(
     return queue;
 }
 
-void KVStoreFuzzTest::checkGetMulti(bool committed,
-                                    bool allowReadErrors,
-                                    const State& previous,
-                                    const std::vector<queued_item>& mutations) {
+void KVStoreRandomizedTest::checkGetMulti(
+        bool committed,
+        bool allowReadErrors,
+        const State& previous,
+        const std::vector<queued_item>& mutations) {
     allowErrors({allowReadErrors, allowReadErrors, false});
     auto bgfetch = make_bgfetch_queue(mutations);
     kvstore->getMulti(vbid, bgfetch, defaultCreateItemCallback);
@@ -237,8 +239,8 @@ void KVStoreFuzzTest::checkGetMulti(bool committed,
     }
 }
 
-void KVStoreFuzzTest::runTest(bool compact,
-                              std::chrono::steady_clock::duration duration) {
+void KVStoreRandomizedTest::runTest(
+        bool compact, std::chrono::steady_clock::duration duration) {
     const auto deadline = std::chrono::steady_clock::now() + duration;
     State allItems;
     uint64_t iteration = 0;
@@ -395,18 +397,18 @@ public:
         return COUCHSTORE_SUCCESS;
     }
 
-    KVStoreFuzzTestErrors allowedErrors;
-    KVStoreFuzzTestErrors occurredErrors;
+    KVStoreRandomizedTestErrors allowedErrors;
+    KVStoreRandomizedTestErrors occurredErrors;
 
 private:
     BucketLogger& logger;
     std::mt19937& rng;
 };
 
-class CouchKVStoreFuzzTest : public KVStoreFuzzTest {
+class CouchKVStoreRandomizedTest : public KVStoreRandomizedTest {
 public:
-    CouchKVStoreFuzzTest()
-        : KVStoreFuzzTest("CouchKVStoreFuzzTest"),
+    CouchKVStoreRandomizedTest()
+        : KVStoreRandomizedTest("CouchKVStoreRandomizedTest"),
           ops(logger, rng),
           config(1024, 4, data_dir, "couchdb", 0) {
         config.setLogger(logger);
@@ -415,22 +417,22 @@ public:
     }
 
     void SetUp() override {
-        KVStoreFuzzTest::SetUp();
+        KVStoreRandomizedTest::SetUp();
         kvstore = std::make_unique<CouchKVStore>(
                 config, ops, &encryptionKeyProvider);
     }
 
     void TearDown() override {
         kvstore.reset();
-        KVStoreFuzzTest::TearDown();
+        KVStoreRandomizedTest::TearDown();
     }
 
-    void allowErrors(KVStoreFuzzTestErrors errors) override {
+    void allowErrors(KVStoreRandomizedTestErrors errors) override {
         ops.allowedErrors = errors;
         ops.occurredErrors = {};
     }
 
-    KVStoreFuzzTestErrors getErrorsOccurred() override {
+    KVStoreRandomizedTestErrors getErrorsOccurred() override {
         return ops.occurredErrors;
     }
 
@@ -438,17 +440,17 @@ public:
     CouchKVStoreConfig config;
 };
 
-TEST_P(CouchKVStoreFuzzTest, FlushGetMulti) {
+TEST_P(CouchKVStoreRandomizedTest, FlushGetMulti) {
     runTest(false, std::chrono::seconds(2));
 }
 
-TEST_P(CouchKVStoreFuzzTest, FlushGetMultiCompact) {
+TEST_P(CouchKVStoreRandomizedTest, FlushGetMultiCompact) {
     runTest(true, std::chrono::seconds(2));
 }
 
 INSTANTIATE_TEST_SUITE_P(
-        CouchKVStoreFuzzTest,
-        CouchKVStoreFuzzTest,
+        CouchKVStoreRandomizedTest,
+        CouchKVStoreRandomizedTest,
         ::testing::Combine(::testing::Values(KVStoreTestEncryption::Unencrypted,
                                              KVStoreTestEncryption::Encrypted),
                            ::testing::Values(KVStoreTestBuffering::Unbuffered,
