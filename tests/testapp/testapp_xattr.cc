@@ -1718,8 +1718,12 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
 
     EXPECT_EQ(rsp.getCas(), metarsp.getCas());
     auto meta = metarsp.getMetaPayload();
-    EXPECT_EQ(cb::mcbp::Datatype::Xattr,
-              static_cast<cb::mcbp::Datatype>(meta.getDatatype()));
+    // It is possible that the value was compressed (xattrs is part of
+    // the value, and could be the *only* part of the value). Ignore
+    // the snappy bit as it may or may not be set.
+    auto datatype = meta.getDatatype();
+    datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.getDeleted());
 
@@ -1774,9 +1778,13 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               userConnection->execute(cmd).getStatus());
 
-    // Should now only be XATTR datatype
+    // It is possible that the value was compressed (xattrs is part of
+    // the value, and could be the *only* part of the value). Ignore
+    // the snappy bit as it may or may not be set.
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
+    auto datatype = meta.getDatatype();
+    datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.getDeleted());
 }
