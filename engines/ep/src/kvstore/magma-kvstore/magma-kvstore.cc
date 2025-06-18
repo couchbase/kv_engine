@@ -4813,6 +4813,9 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
 cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
     const auto status = magma->SyncKVStore(Magma::KVStoreID(vbid.get()), true);
     if (status.ErrorCode() != Status::Code::Ok) {
+        if (status.ErrorCode() == Status::Code::InvalidKVStore) {
+            return cb::engine_errc::not_my_vbucket;
+        }
         EP_LOG_WARN_CTX("MagmaKVStore::syncFusionLogstore: ",
                         {"vb", vbid},
                         {"status", status.String()});
@@ -4897,6 +4900,9 @@ cb::engine_errc MagmaKVStore::doStartFusionUploader(Vbid vbid, uint64_t term) {
             magma->StartFusionUploader(Magma::KVStoreID(vbid.get()), term);
     fusionUploaderManager.onToggleComplete(vbid);
     if (status.ErrorCode() != Status::Code::Ok) {
+        if (status.ErrorCode() == Status::Code::InvalidKVStore) {
+            return cb::engine_errc::not_my_vbucket;
+        }
         EP_LOG_WARN_CTX("MagmaKVStore::doStartFusionUploader: ",
                         {"vb", vbid},
                         {"term", term},
@@ -4914,6 +4920,9 @@ cb::engine_errc MagmaKVStore::doStopFusionUploader(Vbid vbid) {
     const auto status = magma->StopFusionUploader(Magma::KVStoreID(vbid.get()));
     fusionUploaderManager.onToggleComplete(vbid);
     if (status.ErrorCode() != Status::Code::Ok) {
+        if (status.ErrorCode() == Status::Code::InvalidKVStore) {
+            return cb::engine_errc::not_my_vbucket;
+        }
         EP_LOG_WARN_CTX("MagmaKVStore::doStopFusionUploader: ",
                         {"vb", vbid},
                         {"status", status.String()});
