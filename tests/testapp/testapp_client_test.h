@@ -68,6 +68,18 @@ public:
     int waitForSnoozedAccessScanner();
 
     /**
+     * Get the number of access scanner runs and skips
+     * @return a pair with the first entry being the number of runs
+     *        and the second entry being the number of skips
+     */
+    std::pair<int, int> getNumAccessScannerCounts();
+
+    int getAggregatedAccessScannerCounts() {
+        auto [runs, skips] = getNumAccessScannerCounts();
+        return runs + skips;
+    }
+
+    /**
      * Get the number of shards in the current bucket being tested.
      * @return the number of shards
      */

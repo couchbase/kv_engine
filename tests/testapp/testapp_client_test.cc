@@ -64,6 +64,10 @@ size_t TestappClientTest::populateData(double limit) {
 
 void TestappClientTest::rerunAccessScanner() {
     auto num_runs = waitForSnoozedAccessScanner();
+    // we're about to schedule 1 access scanner per shard, so fetch
+    // the current number of runs and add the number of shards so that
+    // we know how many runs we need to wait for
+    auto needed_runs = getAggregatedAccessScannerCounts() + getNumShards();
 
     BinprotResponse response;
     adminConnection->executeInBucket(bucketName, [&response](auto& conn) {
@@ -76,7 +80,8 @@ void TestappClientTest::rerunAccessScanner() {
         throw ConnectionError("rerunAccessScanner: SetParam failed", response);
     }
 
-    while (num_runs == waitForSnoozedAccessScanner()) {
+    while (num_runs == waitForSnoozedAccessScanner() ||
+           getAggregatedAccessScannerCounts() < needed_runs) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
@@ -116,6 +121,23 @@ int TestappClientTest::waitForSnoozedAccessScanner() {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } while (true);
+}
+
+std::pair<int, int> TestappClientTest::getNumAccessScannerCounts() {
+    int skips = 0;
+    int runs = 0;
+    adminConnection->executeInBucket(bucketName, [&skips, &runs](auto& conn) {
+        conn.stats(
+                [&skips, &runs](auto& k, auto& v) {
+                    if (k == "ep_num_access_scanner_skips") {
+                        skips = std::stoi(v);
+                    } else if (k == "ep_num_access_scanner_runs") {
+                        runs = std::stoi(v);
+                    }
+                },
+                "");
+    });
+    return {runs, skips};
 }
 
 int TestappClientTest::getNumShards() {

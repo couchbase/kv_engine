@@ -18,15 +18,7 @@
 class AccessScannerTest : public TestappClientTest {
 public:
     int getNumAccessScannerSkips() {
-        int ret = 0;
-        userConnection->stats(
-                [&ret](auto& k, auto& v) {
-                    if (k == "ep_num_access_scanner_skips") {
-                        ret = std::stoi(v);
-                    }
-                },
-                "");
-        return ret;
+        return getNumAccessScannerCounts().second;
     }
 };
 
