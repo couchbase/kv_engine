@@ -75,11 +75,15 @@ void BackgroundThreadCommandContext::execute_task_and_notify() {
                     EXIT_FAILURE,
                     "BackgroundThreadCommandContext::execute_task_and_notify: "
                     "execute() returned would_block",
-                    {"cookie", cookie.to_json()},
-                    {"description", cookie.getConnection().getDescription()});
+                    {"conn_id", cookie.getConnectionId()},
+                    {"description", cookie.getConnection().getDescription()},
+                    {"cookie", cookie.to_json()});
         }
     } catch (const std::exception& e) {
         LOG_ERROR_CTX("Exception occurred in BackgroundThreadCommandContext",
+                      {"conn_id", cookie.getConnectionId()},
+                      {"description", cookie.getConnection().getDescription()},
+                      {"cookie", cookie.to_json()},
                       {"error", e.what()});
         status = cb::engine_errc::disconnect;
     }
