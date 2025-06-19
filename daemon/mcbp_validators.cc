@@ -332,7 +332,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         if (header.getKeylen() > maxKeyLen) {
             cookie.setErrorContext("Key length exceeds " +
                                    std::to_string(maxKeyLen));
-            return cb::mcbp::Status::Einval;
+            return Status::Einval;
         }
         break;
     }
@@ -422,7 +422,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
     if (generates_dockey == GeneratesDocKey::Yes &&
         !is_document_key_valid(cookie)) {
         // setErrorContext done within is_document_key_valid
-        return cb::mcbp::Status::Einval;
+        return Status::Einval;
     }
 
     // We need to set the scope and collection identifiers into the Cookie
@@ -443,7 +443,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
 
     const auto ingress_status =
             connection.getBucket().data_ingress_status.load();
-    if (ingress_status != cb::mcbp::Status::Success &&
+    if (ingress_status != Status::Success &&
         cb::mcbp::is_client_writing_data(request.getClientOpcode())) {
         return ingress_status;
     }
@@ -1785,11 +1785,11 @@ static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
             cookie.getRequest()
                     .getCommandSpecifics<SetBucketDataLimitExceededPayload>();
     switch (payload.getStatus()) {
-    case cb::mcbp::Status::Success:
-    case cb::mcbp::Status::BucketSizeLimitExceeded:
-    case cb::mcbp::Status::BucketResidentRatioTooLow:
-    case cb::mcbp::Status::BucketDataSizeTooBig:
-    case cb::mcbp::Status::BucketDiskSpaceTooLow:
+    case Status::Success:
+    case Status::BucketSizeLimitExceeded:
+    case Status::BucketResidentRatioTooLow:
+    case Status::BucketDataSizeTooBig:
+    case Status::BucketDiskSpaceTooLow:
         break;
     default:
         cookie.setErrorContext("Unknown status code provided");
@@ -2826,7 +2826,7 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
     }
 
     const std::string term = json["term"];
-    if (term.empty() || !std::ranges::all_of(term, ::isdigit)) {
+    if (term.empty() || !std::ranges::all_of(term, isdigit)) {
         const auto msg = fmt::format(
                 "start_fusion_uploader_validator: term is not digits - {}",
                 json.dump());
@@ -3047,62 +3047,56 @@ void McbpValidator::setup(ClientOpcode command, Status (*f)(Cookie&)) {
 }
 
 McbpValidator::McbpValidator() {
-    setup(cb::mcbp::ClientOpcode::DcpOpen, dcp_open_validator);
-    setup(cb::mcbp::ClientOpcode::DcpAddStream, dcp_add_stream_validator);
-    setup(cb::mcbp::ClientOpcode::DcpCloseStream, dcp_close_stream_validator);
-    setup(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-          dcp_snapshot_marker_validator);
-    setup(cb::mcbp::ClientOpcode::DcpDeletion, dcp_deletion_validator);
-    setup(cb::mcbp::ClientOpcode::DcpExpiration, dcp_expiration_validator);
-    setup(cb::mcbp::ClientOpcode::DcpGetFailoverLog,
-          dcp_get_failover_log_validator);
-    setup(cb::mcbp::ClientOpcode::DcpMutation, dcp_mutation_validator);
-    setup(cb::mcbp::ClientOpcode::DcpSetVbucketState,
-          dcp_set_vbucket_state_validator);
-    setup(cb::mcbp::ClientOpcode::DcpNoop, dcp_noop_validator);
-    setup(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+    setup(ClientOpcode::DcpOpen, dcp_open_validator);
+    setup(ClientOpcode::DcpAddStream, dcp_add_stream_validator);
+    setup(ClientOpcode::DcpCloseStream, dcp_close_stream_validator);
+    setup(ClientOpcode::DcpSnapshotMarker, dcp_snapshot_marker_validator);
+    setup(ClientOpcode::DcpDeletion, dcp_deletion_validator);
+    setup(ClientOpcode::DcpExpiration, dcp_expiration_validator);
+    setup(ClientOpcode::DcpGetFailoverLog, dcp_get_failover_log_validator);
+    setup(ClientOpcode::DcpMutation, dcp_mutation_validator);
+    setup(ClientOpcode::DcpSetVbucketState, dcp_set_vbucket_state_validator);
+    setup(ClientOpcode::DcpNoop, dcp_noop_validator);
+    setup(ClientOpcode::DcpBufferAcknowledgement,
           dcp_buffer_acknowledgement_validator);
-    setup(cb::mcbp::ClientOpcode::DcpControl, dcp_control_validator);
-    setup(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_stream_end_validator);
-    setup(cb::mcbp::ClientOpcode::DcpStreamReq, dcp_stream_req_validator);
-    setup(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_system_event_validator);
-    setup(cb::mcbp::ClientOpcode::DcpPrepare, dcp_prepare_validator);
-    setup(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
-          dcp_seqno_acknowledged_validator);
-    setup(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_validator);
-    setup(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_validator);
-    setup(cb::mcbp::ClientOpcode::IsaslRefresh,
-          configuration_refresh_validator);
-    setup(cb::mcbp::ClientOpcode::Verbosity, verbosity_validator);
-    setup(cb::mcbp::ClientOpcode::Hello, hello_validator);
-    setup(cb::mcbp::ClientOpcode::Version, version_validator);
-    setup(cb::mcbp::ClientOpcode::Quit, quit_validator);
-    setup(cb::mcbp::ClientOpcode::SaslListMechs, sasl_list_mech_validator);
-    setup(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_validator);
-    setup(cb::mcbp::ClientOpcode::SaslStep, sasl_auth_validator);
-    setup(cb::mcbp::ClientOpcode::Noop, noop_validator);
-    setup(cb::mcbp::ClientOpcode::GetEx, getex_validator);
-    setup(cb::mcbp::ClientOpcode::GetExReplica, getex_validator);
-    setup(cb::mcbp::ClientOpcode::Get, get_validator);
-    setup(cb::mcbp::ClientOpcode::Gat, gat_validator);
-    setup(cb::mcbp::ClientOpcode::Touch, gat_validator);
-    setup(cb::mcbp::ClientOpcode::Delete, delete_validator);
-    setup(cb::mcbp::ClientOpcode::Stat, stat_validator);
-    setup(cb::mcbp::ClientOpcode::Increment, arithmetic_validator);
-    setup(cb::mcbp::ClientOpcode::Decrement, arithmetic_validator);
-    setup(cb::mcbp::ClientOpcode::GetCmdTimer, get_cmd_timer_validator);
-    setup(cb::mcbp::ClientOpcode::SetCtrlToken, set_ctrl_token_validator);
-    setup(cb::mcbp::ClientOpcode::GetCtrlToken, get_ctrl_token_validator);
-    setup(cb::mcbp::ClientOpcode::IoctlGet, ioctl_get_validator);
-    setup(cb::mcbp::ClientOpcode::IoctlSet, ioctl_set_validator);
-    setup(cb::mcbp::ClientOpcode::AuditPut, audit_put_validator);
-    setup(cb::mcbp::ClientOpcode::AuditConfigReload,
-          audit_config_reload_validator);
-    setup(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
-    setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
-    setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
+    setup(ClientOpcode::DcpControl, dcp_control_validator);
+    setup(ClientOpcode::DcpStreamEnd, dcp_stream_end_validator);
+    setup(ClientOpcode::DcpStreamReq, dcp_stream_req_validator);
+    setup(ClientOpcode::DcpSystemEvent, dcp_system_event_validator);
+    setup(ClientOpcode::DcpPrepare, dcp_prepare_validator);
+    setup(ClientOpcode::DcpSeqnoAcknowledged, dcp_seqno_acknowledged_validator);
+    setup(ClientOpcode::DcpCommit, dcp_commit_validator);
+    setup(ClientOpcode::DcpAbort, dcp_abort_validator);
+    setup(ClientOpcode::IsaslRefresh, configuration_refresh_validator);
+    setup(ClientOpcode::Verbosity, verbosity_validator);
+    setup(ClientOpcode::Hello, hello_validator);
+    setup(ClientOpcode::Version, version_validator);
+    setup(ClientOpcode::Quit, quit_validator);
+    setup(ClientOpcode::SaslListMechs, sasl_list_mech_validator);
+    setup(ClientOpcode::SaslAuth, sasl_auth_validator);
+    setup(ClientOpcode::SaslStep, sasl_auth_validator);
+    setup(ClientOpcode::Noop, noop_validator);
+    setup(ClientOpcode::GetEx, getex_validator);
+    setup(ClientOpcode::GetExReplica, getex_validator);
+    setup(ClientOpcode::Get, get_validator);
+    setup(ClientOpcode::Gat, gat_validator);
+    setup(ClientOpcode::Touch, gat_validator);
+    setup(ClientOpcode::Delete, delete_validator);
+    setup(ClientOpcode::Stat, stat_validator);
+    setup(ClientOpcode::Increment, arithmetic_validator);
+    setup(ClientOpcode::Decrement, arithmetic_validator);
+    setup(ClientOpcode::GetCmdTimer, get_cmd_timer_validator);
+    setup(ClientOpcode::SetCtrlToken, set_ctrl_token_validator);
+    setup(ClientOpcode::GetCtrlToken, get_ctrl_token_validator);
+    setup(ClientOpcode::IoctlGet, ioctl_get_validator);
+    setup(ClientOpcode::IoctlSet, ioctl_set_validator);
+    setup(ClientOpcode::AuditPut, audit_put_validator);
+    setup(ClientOpcode::AuditConfigReload, audit_config_reload_validator);
+    setup(ClientOpcode::ConfigReload, config_reload_validator);
+    setup(ClientOpcode::ConfigValidate, config_validate_validator);
+    setup(ClientOpcode::Shutdown, shutdown_validator);
 
-    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+    setup(ClientOpcode::SetBucketDataLimitExceeded,
           set_bucket_data_limit_exceeded_validator);
 
     setup(ClientOpcode::SetActiveEncryptionKeys,
@@ -3110,245 +3104,204 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::PruneEncryptionKeys, prune_encryption_keys_validator);
 
     if (cb::serverless::isEnabled()) {
-        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+        setup(ClientOpcode::SetBucketThrottleProperties,
               set_bucket_throttle_properties_validator);
-        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+        setup(ClientOpcode::SetNodeThrottleProperties,
               set_node_throttle_properties_validator);
     } else {
-        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+        setup(ClientOpcode::SetBucketThrottleProperties,
               not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
-              not_supported_validator);
+        setup(ClientOpcode::SetNodeThrottleProperties, not_supported_validator);
     }
 
-    setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
-    setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::SetDriftCounterState_Unsupported,
+    setup(ClientOpcode::ObserveSeqno, observe_seqno_validator);
+    setup(ClientOpcode::GetAdjustedTime_Unsupported, not_supported_validator);
+    setup(ClientOpcode::SetDriftCounterState_Unsupported,
           not_supported_validator);
 
-    setup(cb::mcbp::ClientOpcode::SubdocGet, subdoc_get_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocExists, subdoc_exists_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocDictAdd, subdoc_dict_add_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-          subdoc_dict_upsert_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocDelete, subdoc_delete_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocReplace, subdoc_replace_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-          subdoc_array_push_last_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+    setup(ClientOpcode::SubdocGet, subdoc_get_validator);
+    setup(ClientOpcode::SubdocExists, subdoc_exists_validator);
+    setup(ClientOpcode::SubdocDictAdd, subdoc_dict_add_validator);
+    setup(ClientOpcode::SubdocDictUpsert, subdoc_dict_upsert_validator);
+    setup(ClientOpcode::SubdocDelete, subdoc_delete_validator);
+    setup(ClientOpcode::SubdocReplace, subdoc_replace_validator);
+    setup(ClientOpcode::SubdocArrayPushLast, subdoc_array_push_last_validator);
+    setup(ClientOpcode::SubdocArrayPushFirst,
           subdoc_array_push_first_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocArrayInsert,
-          subdoc_array_insert_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+    setup(ClientOpcode::SubdocArrayInsert, subdoc_array_insert_validator);
+    setup(ClientOpcode::SubdocArrayAddUnique,
           subdoc_array_add_unique_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocCounter, subdoc_counter_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocMultiLookup,
-          subdoc_multi_lookup_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
-          subdoc_multi_mutation_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocGetCount, subdoc_get_count_validator);
-    setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+    setup(ClientOpcode::SubdocCounter, subdoc_counter_validator);
+    setup(ClientOpcode::SubdocMultiLookup, subdoc_multi_lookup_validator);
+    setup(ClientOpcode::SubdocMultiMutation, subdoc_multi_mutation_validator);
+    setup(ClientOpcode::SubdocGetCount, subdoc_get_count_validator);
+    setup(ClientOpcode::SubdocReplaceBodyWithXattr,
           subdoc_replace_body_with_xattr_validator);
 
-    setup(cb::mcbp::ClientOpcode::Set, set_replace_validator);
-    setup(cb::mcbp::ClientOpcode::Add, add_validator);
-    setup(cb::mcbp::ClientOpcode::Replace, set_replace_validator);
-    setup(cb::mcbp::ClientOpcode::Append, append_prepend_validator);
-    setup(cb::mcbp::ClientOpcode::Prepend, append_prepend_validator);
-    setup(cb::mcbp::ClientOpcode::CreateBucket, create_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::DeleteBucket, delete_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::SelectBucket, select_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::PauseBucket, pause_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::ResumeBucket, resume_bucket_validator);
-    setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, get_all_vb_seqnos_validator);
+    setup(ClientOpcode::Set, set_replace_validator);
+    setup(ClientOpcode::Add, add_validator);
+    setup(ClientOpcode::Replace, set_replace_validator);
+    setup(ClientOpcode::Append, append_prepend_validator);
+    setup(ClientOpcode::Prepend, append_prepend_validator);
+    setup(ClientOpcode::CreateBucket, create_bucket_validator);
+    setup(ClientOpcode::ListBuckets, list_bucket_validator);
+    setup(ClientOpcode::DeleteBucket, delete_bucket_validator);
+    setup(ClientOpcode::SelectBucket, select_bucket_validator);
+    setup(ClientOpcode::PauseBucket, pause_bucket_validator);
+    setup(ClientOpcode::ResumeBucket, resume_bucket_validator);
+    setup(ClientOpcode::GetAllVbSeqnos, get_all_vb_seqnos_validator);
 
-    setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
-    setup(cb::mcbp::ClientOpcode::Scrub_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Flush_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Flushq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::EvictKey, evict_key_validator);
+    setup(ClientOpcode::Scrub_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Flush_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Flushq_Unsupported, not_supported_validator);
 
     if (cb::serverless::isEnabled()) {
         // No need to start allowing quiet commands in a serverless
         // deployment
-        setup(cb::mcbp::ClientOpcode::Quitq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Getq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Getk, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Getkq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Gatq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Deleteq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Incrementq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Decrementq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Setq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Addq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Replaceq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Appendq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Prependq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::GetqMeta, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::SetqWithMeta, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::AddqWithMeta, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::DelqWithMeta, not_supported_validator);
+        setup(ClientOpcode::Quitq, not_supported_validator);
+        setup(ClientOpcode::Getq, not_supported_validator);
+        setup(ClientOpcode::Getk, not_supported_validator);
+        setup(ClientOpcode::Getkq, not_supported_validator);
+        setup(ClientOpcode::Gatq, not_supported_validator);
+        setup(ClientOpcode::Deleteq, not_supported_validator);
+        setup(ClientOpcode::Incrementq, not_supported_validator);
+        setup(ClientOpcode::Decrementq, not_supported_validator);
+        setup(ClientOpcode::Setq, not_supported_validator);
+        setup(ClientOpcode::Addq, not_supported_validator);
+        setup(ClientOpcode::Replaceq, not_supported_validator);
+        setup(ClientOpcode::Appendq, not_supported_validator);
+        setup(ClientOpcode::Prependq, not_supported_validator);
+        setup(ClientOpcode::GetqMeta, not_supported_validator);
+        setup(ClientOpcode::SetqWithMeta, not_supported_validator);
+        setup(ClientOpcode::AddqWithMeta, not_supported_validator);
+        setup(ClientOpcode::DelqWithMeta, not_supported_validator);
     } else {
-        setup(cb::mcbp::ClientOpcode::Quitq, quit_validator);
-        setup(cb::mcbp::ClientOpcode::Getq, get_validator);
-        setup(cb::mcbp::ClientOpcode::Getk, get_validator);
-        setup(cb::mcbp::ClientOpcode::Getkq, get_validator);
-        setup(cb::mcbp::ClientOpcode::Gatq, gat_validator);
-        setup(cb::mcbp::ClientOpcode::Deleteq, delete_validator);
-        setup(cb::mcbp::ClientOpcode::Incrementq, arithmetic_validator);
-        setup(cb::mcbp::ClientOpcode::Decrementq, arithmetic_validator);
-        setup(cb::mcbp::ClientOpcode::Setq, set_replace_validator);
-        setup(cb::mcbp::ClientOpcode::Addq, add_validator);
-        setup(cb::mcbp::ClientOpcode::Replaceq, set_replace_validator);
-        setup(cb::mcbp::ClientOpcode::Appendq, append_prepend_validator);
-        setup(cb::mcbp::ClientOpcode::Prependq, append_prepend_validator);
-        setup(cb::mcbp::ClientOpcode::GetqMeta, get_meta_validator);
-        setup(cb::mcbp::ClientOpcode::SetqWithMeta, mutate_with_meta_validator);
-        setup(cb::mcbp::ClientOpcode::AddqWithMeta, mutate_with_meta_validator);
-        setup(cb::mcbp::ClientOpcode::DelqWithMeta, mutate_with_meta_validator);
+        setup(ClientOpcode::Quitq, quit_validator);
+        setup(ClientOpcode::Getq, get_validator);
+        setup(ClientOpcode::Getk, get_validator);
+        setup(ClientOpcode::Getkq, get_validator);
+        setup(ClientOpcode::Gatq, gat_validator);
+        setup(ClientOpcode::Deleteq, delete_validator);
+        setup(ClientOpcode::Incrementq, arithmetic_validator);
+        setup(ClientOpcode::Decrementq, arithmetic_validator);
+        setup(ClientOpcode::Setq, set_replace_validator);
+        setup(ClientOpcode::Addq, add_validator);
+        setup(ClientOpcode::Replaceq, set_replace_validator);
+        setup(ClientOpcode::Appendq, append_prepend_validator);
+        setup(ClientOpcode::Prependq, append_prepend_validator);
+        setup(ClientOpcode::GetqMeta, get_meta_validator);
+        setup(ClientOpcode::SetqWithMeta, mutate_with_meta_validator);
+        setup(ClientOpcode::AddqWithMeta, mutate_with_meta_validator);
+        setup(ClientOpcode::DelqWithMeta, mutate_with_meta_validator);
     }
 
-    setup(cb::mcbp::ClientOpcode::GetMeta, get_meta_validator);
-    setup(cb::mcbp::ClientOpcode::SetWithMeta, mutate_with_meta_validator);
-    setup(cb::mcbp::ClientOpcode::AddWithMeta, mutate_with_meta_validator);
-    setup(cb::mcbp::ClientOpcode::DelWithMeta, mutate_with_meta_validator);
-    setup(cb::mcbp::ClientOpcode::GetErrorMap, get_errmap_validator);
-    setup(cb::mcbp::ClientOpcode::GetLocked, get_locked_validator);
-    setup(cb::mcbp::ClientOpcode::UnlockKey, unlock_validator);
-    setup(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions,
+    setup(ClientOpcode::GetMeta, get_meta_validator);
+    setup(ClientOpcode::SetWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::AddWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::DelWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::GetErrorMap, get_errmap_validator);
+    setup(ClientOpcode::GetLocked, get_locked_validator);
+    setup(ClientOpcode::UnlockKey, unlock_validator);
+    setup(ClientOpcode::UpdateExternalUserPermissions,
           update_user_permissions_validator);
-    setup(cb::mcbp::ClientOpcode::RbacRefresh, configuration_refresh_validator);
-    setup(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_validator);
-    setup(cb::mcbp::ClientOpcode::DropPrivilege, drop_privilege_validator);
-    setup(cb::mcbp::ClientOpcode::GetClusterConfig,
-          get_cluster_config_validator);
-    setup(cb::mcbp::ClientOpcode::SetClusterConfig,
-          set_cluster_config_validator);
-    setup(cb::mcbp::ClientOpcode::GetFailoverLog,
-          dcp_get_failover_log_validator);
-    setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,
+    setup(ClientOpcode::RbacRefresh, configuration_refresh_validator);
+    setup(ClientOpcode::AuthProvider, auth_provider_validator);
+    setup(ClientOpcode::DropPrivilege, drop_privilege_validator);
+    setup(ClientOpcode::GetClusterConfig, get_cluster_config_validator);
+    setup(ClientOpcode::SetClusterConfig, set_cluster_config_validator);
+    setup(ClientOpcode::GetFailoverLog, dcp_get_failover_log_validator);
+    setup(ClientOpcode::CollectionsSetManifest,
           collections_set_manifest_validator);
-    setup(cb::mcbp::ClientOpcode::CollectionsGetManifest,
+    setup(ClientOpcode::CollectionsGetManifest,
           collections_get_manifest_validator);
-    setup(cb::mcbp::ClientOpcode::CollectionsGetID,
-          collections_get_id_validator);
-    setup(cb::mcbp::ClientOpcode::CollectionsGetScopeID,
+    setup(ClientOpcode::CollectionsGetID, collections_get_id_validator);
+    setup(ClientOpcode::CollectionsGetScopeID,
           collections_get_id_validator); // same rules as GetID
-    setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
-    setup(cb::mcbp::ClientOpcode::EwouldblockCtl, ewb_validator);
-    setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);
-    setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
-    setup(cb::mcbp::ClientOpcode::DelVbucket, del_vbucket_validator);
-    setup(cb::mcbp::ClientOpcode::GetVbucket, get_vbucket_validator);
-    setup(cb::mcbp::ClientOpcode::StopPersistence,
-          start_stop_persistence_validator);
-    setup(cb::mcbp::ClientOpcode::StartPersistence,
-          start_stop_persistence_validator);
-    setup(cb::mcbp::ClientOpcode::EnableTraffic,
-          enable_disable_traffic_validator);
-    setup(cb::mcbp::ClientOpcode::DisableTraffic,
-          enable_disable_traffic_validator);
-    setup(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_validator);
-    setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
-    setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
-    setup(cb::mcbp::ClientOpcode::GetReplica, get_validator);
-    setup(cb::mcbp::ClientOpcode::ReturnMeta, return_meta_validator);
-    setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
-          seqno_persistence_validator);
-    setup(cb::mcbp::ClientOpcode::CompactDb, compact_db_validator);
-    setup(cb::mcbp::ClientOpcode::Observe, observe_validator);
+    setup(ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
+    setup(ClientOpcode::EwouldblockCtl, ewb_validator);
+    setup(ClientOpcode::GetRandomKey, get_random_key_validator);
+    setup(ClientOpcode::SetVbucket, set_vbucket_validator);
+    setup(ClientOpcode::DelVbucket, del_vbucket_validator);
+    setup(ClientOpcode::GetVbucket, get_vbucket_validator);
+    setup(ClientOpcode::StopPersistence, start_stop_persistence_validator);
+    setup(ClientOpcode::StartPersistence, start_stop_persistence_validator);
+    setup(ClientOpcode::EnableTraffic, enable_disable_traffic_validator);
+    setup(ClientOpcode::DisableTraffic, enable_disable_traffic_validator);
+    setup(ClientOpcode::Ifconfig, ifconfig_validator);
+    setup(ClientOpcode::GetKeys, get_keys_validator);
+    setup(ClientOpcode::SetParam, set_param_validator);
+    setup(ClientOpcode::GetReplica, get_validator);
+    setup(ClientOpcode::ReturnMeta, return_meta_validator);
+    setup(ClientOpcode::SeqnoPersistence, seqno_persistence_validator);
+    setup(ClientOpcode::CompactDb, compact_db_validator);
+    setup(ClientOpcode::Observe, observe_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported).
     // They're added to make it easier to see which opcodes we currently
     // don't have a proper validator for
-    setup(cb::mcbp::ClientOpcode::Rget_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rset_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rsetq_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rappend_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rappendq_Unsupported,
+    setup(ClientOpcode::Rget_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rset_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rsetq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rappend_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rappendq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rprepend_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rprependq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rdelete_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rdeleteq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rincr_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rincrq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rdecr_Unsupported, not_supported_validator);
+    setup(ClientOpcode::Rdecrq_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapConnect_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapConnect_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapMutation_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapDelete_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapFlush_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapOpaque_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapVbucketSet_Unsupported, not_supported_validator);
+    setup(ClientOpcode::TapCheckpointStart_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rprepend_Unsupported,
+    setup(ClientOpcode::TapCheckpointEnd_Unsupported, not_supported_validator);
+    setup(ClientOpcode::DeregisterTapClient_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rprependq_Unsupported,
+    setup(ClientOpcode::DcpFlush_Unsupported, not_supported_validator);
+    setup(ClientOpcode::ResetReplicationChain_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdelete_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdeleteq_Unsupported,
+    setup(ClientOpcode::NotifyVbucketUpdate_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rincr_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rincrq_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdecr_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::Rdecrq_Unsupported, not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapConnect_Unsupported,
+    setup(ClientOpcode::SnapshotVbStates_Unsupported, not_supported_validator);
+    setup(ClientOpcode::VbucketBatchCount_Unsupported, not_supported_validator);
+    setup(ClientOpcode::ChangeVbFilter_Unsupported, not_supported_validator);
+    setup(ClientOpcode::CheckpointPersistence_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapConnect_Unsupported,
+    setup(ClientOpcode::CreateCheckpoint_Unsupported, not_supported_validator);
+    setup(ClientOpcode::LastClosedCheckpoint_Unsupported,
           not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapMutation_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapDelete_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapFlush_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapOpaque_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapVbucketSet_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointStart_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::DeregisterTapClient_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::DcpFlush_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::ResetReplicationChain_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::SnapshotVbStates_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::VbucketBatchCount_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::ChangeVbFilter_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::CheckpointPersistence_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::CreateCheckpoint_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint_Unsupported,
-          not_supported_validator);
-    setup(cb::mcbp::ClientOpcode::SslCertsRefresh_Unsupported,
-          not_supported_validator);
+    setup(ClientOpcode::SslCertsRefresh_Unsupported, not_supported_validator);
 
-    setup(cb::mcbp::ClientOpcode::RangeScanCreate, create_range_scan_validator);
-    setup(cb::mcbp::ClientOpcode::RangeScanContinue,
-          continue_range_scan_validator);
-    setup(cb::mcbp::ClientOpcode::RangeScanCancel, cancel_range_scan_validator);
+    setup(ClientOpcode::RangeScanCreate, create_range_scan_validator);
+    setup(ClientOpcode::RangeScanContinue, continue_range_scan_validator);
+    setup(ClientOpcode::RangeScanCancel, cancel_range_scan_validator);
 
-    setup(cb::mcbp::ClientOpcode::GetFileFragment, get_file_fragment_validator);
-    setup(cb::mcbp::ClientOpcode::PrepareSnapshot, prepare_snapshot_validator);
-    setup(cb::mcbp::ClientOpcode::ReleaseSnapshot, release_snapshot_validator);
-    setup(cb::mcbp::ClientOpcode::DownloadSnapshot,
-          download_snapshot_validator);
+    setup(ClientOpcode::GetFileFragment, get_file_fragment_validator);
+    setup(ClientOpcode::PrepareSnapshot, prepare_snapshot_validator);
+    setup(ClientOpcode::ReleaseSnapshot, release_snapshot_validator);
+    setup(ClientOpcode::DownloadSnapshot, download_snapshot_validator);
 
-    setup(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
+    setup(ClientOpcode::GetFusionStorageSnapshot,
           get_fusion_storage_snapshot_validator);
-    setup(cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
+    setup(ClientOpcode::ReleaseFusionStorageSnapshot,
           release_fusion_storage_snapshot_validator);
-    setup(cb::mcbp::ClientOpcode::MountFusionVbucket, mount_vbucket_validator);
-    setup(cb::mcbp::ClientOpcode::UnmountFusionVbucket,
-          unmount_vbucket_validator);
-    setup(cb::mcbp::ClientOpcode::SyncFusionLogstore,
-          sync_fusion_logstore_validator);
-    setup(cb::mcbp::ClientOpcode::StartFusionUploader,
-          start_fusion_uploader_validator);
-    setup(cb::mcbp::ClientOpcode::StopFusionUploader,
-          stop_fusion_uploader_validator);
-    setup(cb::mcbp::ClientOpcode::SetChronicleAuthToken,
+    setup(ClientOpcode::MountFusionVbucket, mount_vbucket_validator);
+    setup(ClientOpcode::UnmountFusionVbucket, unmount_vbucket_validator);
+    setup(ClientOpcode::SyncFusionLogstore, sync_fusion_logstore_validator);
+    setup(ClientOpcode::StartFusionUploader, start_fusion_uploader_validator);
+    setup(ClientOpcode::StopFusionUploader, stop_fusion_uploader_validator);
+    setup(ClientOpcode::SetChronicleAuthToken,
           set_chronicle_auth_token_validator);
-    setup(cb::mcbp::ClientOpcode::DeleteFusionNamespace,
+    setup(ClientOpcode::DeleteFusionNamespace,
           delete_fusion_namespace_validator);
-    setup(cb::mcbp::ClientOpcode::GetFusionNamespaces,
-          get_fusion_namespaces_validator);
+    setup(ClientOpcode::GetFusionNamespaces, get_fusion_namespaces_validator);
 }
