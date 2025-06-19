@@ -149,7 +149,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/warmup_test.cc
         module_tests/item_compression_task_test.cc
         $<TARGET_OBJECTS:couchstore_test_fileops>
-        $<TARGET_OBJECTS:couchfile_upgrade_objects>
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)

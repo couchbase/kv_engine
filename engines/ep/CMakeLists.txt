@@ -70,9 +70,6 @@ add_sanitizers(genconfig)
 add_executable(pid_runner tools/pid_runner.cc)
 target_link_libraries(pid_runner PRIVATE ep)
 
-add_subdirectory(tools/couchfile_upgrade)
-include_directories(tools/couchfile_upgrade)
-
 add_subdirectory(tools/humpty_dumpty)
 
 cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
