@@ -1156,6 +1156,11 @@ TEST_P(KVStoreErrorInjectionTest, CollectionDropCompaction_Success) {
 }
 
 TEST_P(KVStoreErrorInjectionTest, CollectionDropCompaction_Fail) {
+    auto restoreLevel =
+            folly::makeGuard([level = cb::logger::get()->level()]() {
+                cb::logger::get()->set_level(level);
+            });
+    cb::logger::get()->set_level(spdlog::level::debug);
     testCollectionDropCompaction(true);
 }
 
