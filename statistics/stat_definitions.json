@@ -4341,12 +4341,12 @@
     {
         "family": "collection_ops",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only"
+        "description": "Per-collection counters of operations that perform store/get(read)/delete type operations against active vbuckets"
     },
     {
         "key": "collection_ops_store",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
+        "description": "Per-collection counters of operations that perform store type operations against active vbuckets",
         "type": "counter",
         "cbstat": "ops_store",
         "prometheus": {
@@ -4367,14 +4367,14 @@
                 "op": "delete"
             }
         },
-        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
+        "description": "Per-collection counters of operations that perform delete type operations against active vbuckets",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "collection_ops_get",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
+        "description": "Per-collection counters of operations that perform get (read) type operations against active vbuckets",
         "type": "counter",
         "cbstat": "ops_get",
         "prometheus": {
