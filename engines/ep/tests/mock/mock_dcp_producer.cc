@@ -184,3 +184,31 @@ void MockDcpProducer::public_enableSyncReplication() {
 std::unique_ptr<DcpResponse> MockDcpProducer::public_getNextItem() {
     return getNextItem();
 }
+
+std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
+MockDcpProducer::doRollbackCheck(VBucket& vb,
+                                 const Collections::VB::Filter& filter,
+                                 uint64_t highSeqno,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t purgeSeqno,
+                                 uint32_t flags,
+                                 uint64_t* rollback_seqno) {
+    // The vbStateLock must be already acquired by the DcpProducer. I.e. this
+    // must fail.
+    EXPECT_FALSE(vb.getStateLock().try_lock());
+    return DcpProducer::doRollbackCheck(vb,
+                                        filter,
+                                        highSeqno,
+                                        start_seqno,
+                                        end_seqno,
+                                        vbucket_uuid,
+                                        snap_start_seqno,
+                                        snap_end_seqno,
+                                        purgeSeqno,
+                                        flags,
+                                        rollback_seqno);
+}

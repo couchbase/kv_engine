@@ -425,7 +425,7 @@ public:
 
     std::variant<bool, cb::engine_errc> checkAndMaybeEraseStream(
             Vbid vbid, cb::mcbp::DcpStreamId sid);
-    std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
+    virtual std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
     doRollbackCheck(VBucket& vb,
                     const Collections::VB::Filter& filter,
                     uint64_t highSeqno,
