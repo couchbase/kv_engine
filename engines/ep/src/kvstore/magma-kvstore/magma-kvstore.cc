@@ -277,7 +277,7 @@ cb::engine_errc magmaErr2EngineErr(Status::Code result) {
     case Status::CheckpointNotFound:
         return cb::engine_errc::temporary_failure;
     case Status::EncryptionKeyNotFound:
-        return cb::engine_errc::temporary_failure;
+        return cb::engine_errc::encryption_key_not_available;
     case Status::NoAccess:
         return cb::engine_errc::temporary_failure;
     }
