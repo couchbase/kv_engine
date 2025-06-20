@@ -93,7 +93,7 @@ void FusionTest::SetUp() {
 }
 
 void FusionTest::TearDown() {
-    if (userConnection->statsMap("")["ep_backend"] != "magma") {
+    if (!mcd_env->getTestBucket().isMagma()) {
         GTEST_SKIP();
     }
 
