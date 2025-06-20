@@ -42,6 +42,9 @@
 #include <folly/io/async/EventBase.h>
 #include <folly/portability/Unistd.h>
 #include <gsl/gsl-lite.hpp>
+#ifdef USE_FUSION
+#include <libmagma/magma.h>
+#endif
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
@@ -482,6 +485,14 @@ static void settings_init() {
                 ConcurrencySemaphores::instance().authentication.setCapacity(
                         s.getMaxConcurrentAuthentications());
             });
+
+#ifdef USE_FUSION
+    settings.addChangeListener("fusion_migration_rate_limit",
+                               [](const auto&, auto& s) {
+                                   magma::Magma::SetFusionMigrationRateLimit(
+                                           s.getFusionMigrationRateLimit());
+                               });
+#endif
 }
 
 /**

@@ -919,9 +919,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
 cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
         std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
-    if (key == "magma_fusion_migration_rate_limit") {
-        configuration.setMagmaFusionMigrationRateLimit(std::stoull(val));
-    } else if (key == "magma_fusion_sync_rate_limit") {
+    if (key == "magma_fusion_sync_rate_limit") {
         configuration.setMagmaFusionSyncRateLimit(std::stoull(val));
     } else if (key == "magma_fusion_logstore_uri") {
         configuration.setMagmaFusionLogstoreUri(val);

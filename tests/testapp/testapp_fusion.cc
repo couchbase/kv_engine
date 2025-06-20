@@ -53,6 +53,8 @@ protected:
     nlohmann::json fusionStats(std::optional<std::string_view> subGroup,
                                std::optional<std::string_view> vbid);
 
+    size_t getStat(std::string_view key);
+
     void setMigrationRateLimit(size_t bytes);
 
 public:
@@ -232,21 +234,41 @@ nlohmann::json FusionTest::fusionStats(std::optional<std::string_view> subGroup,
     return res;
 }
 
-void FusionTest::setMigrationRateLimit(size_t bytes) {
-    adminConnection->executeInBucket(bucketName, [bytes](auto& conn) {
-        const auto cmd = BinprotSetParamCommand(
-                cb::mcbp::request::SetParamPayload::Type::Flush,
-                "magma_fusion_migration_rate_limit",
-                std::to_string(bytes));
-        const auto resp = BinprotMutationResponse(conn.execute(cmd));
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+size_t FusionTest::getStat(std::string_view key) {
+    size_t value;
+    adminConnection->executeInBucket(bucketName, [&key, &value](auto& conn) {
+        conn.stats(
+                [&](auto& k, auto& v) {
+                    if (k == key) {
+                        value = std::stoul(v);
+                    }
+                },
+                ""); // we convert empty to null to get engine stats
     });
+    return value;
+}
+
+void FusionTest::setMigrationRateLimit(size_t bytes) {
+    memcached_cfg["fusion_migration_rate_limit"] = bytes;
+    reconfigure();
 }
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          FusionTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
+
+TEST_P(FusionTest, FusionMigrationRateLimit) {
+    size_t migrationRatelimit = getStat("fusion_migration_rate_limit");
+    EXPECT_EQ(1024 * 1024 * 75, migrationRatelimit)
+            << "Default value of fusion_migration_rate_limit is not as "
+               "expected";
+
+    setMigrationRateLimit(0);
+    migrationRatelimit = getStat("fusion_migration_rate_limit");
+    EXPECT_EQ(0, migrationRatelimit)
+            << "migration rate limit should be 0 after setting it to 0";
+}
 
 TEST_P(FusionTest, AggregatedStats) {
     try {

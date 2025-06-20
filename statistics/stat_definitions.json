@@ -2016,6 +2016,13 @@
         "description": "Total number of bytes completed in the migration.",
         "added": "8.0.0"
     },
+    {
+        "key": "fusion_migration_rate_limit",
+        "unit": "bytes",
+        "description": "The rate limit for fusion extent migration, in bytes per second.",
+        "added": "8.0.0"
+
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",

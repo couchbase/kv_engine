@@ -725,9 +725,6 @@ public:
     std::chrono::seconds getFusionUploadInterval() const;
     std::chrono::seconds getFusionLogCheckpointInterval() const;
 
-    size_t getMagmaFusionMigrationRateLimit() const;
-    void setMagmaFusionMigrationRateLimit(size_t value);
-
     size_t getMagmaFusionSyncRateLimit() const;
     void setMagmaFusionSyncRateLimit(size_t value);
 

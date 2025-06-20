@@ -295,7 +295,6 @@ Available params for "set":
     seqno_persistence_timeout    - Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed
     history_retention_seconds    - Seconds of history a bucket should aim to retain on disk.
     history_retention_bytes      - Max bytes of history a bucket should aim to retain on disk.
-    magma_fusion_migration_rate_limit - The rate limit for Fusion extent migration, in bytes per second.
     magma_fusion_sync_rate_limit - The rate limit for Fusion sync uploads, in bytes per second.
     magma_fusion_logstore_uri - URI of the Fusion LogStore
     magma_fusion_metadatastore_uri - URI of the Fusion MetadataStore

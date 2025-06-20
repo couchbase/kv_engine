@@ -1171,8 +1171,6 @@ public:
                          std::to_string(fusionUploadInterval);
         config_string += ";magma_fusion_log_checkpoint_interval=" +
                          std::to_string(fusionLogCheckpointInterval);
-        config_string += ";magma_fusion_migration_rate_limit=" +
-                         std::to_string(fusionMigrationRateLimit);
         config_string += ";magma_fusion_sync_rate_limit=" +
                          std::to_string(fusionSyncRateLimit);
         config_string += ";magma_fusion_logstore_fragmentation_threshold=" +
@@ -1189,8 +1187,7 @@ protected:
             "local://" + dbPathString + "/metadatastore";
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
-    const size_t fusionMigrationRateLimit = 9101112;
-    const size_t fusionSyncRateLimit = 13141516;
+    const size_t fusionSyncRateLimit = 9101112;
     const float fusionLogstoreFragmentationThreshold = 0.3f;
 };
 
@@ -1210,8 +1207,6 @@ TEST_P(STMagmaFusionTest, Config) {
     EXPECT_EQ(fusionUploadInterval, kvstore.getFusionUploadInterval().count());
     EXPECT_EQ(fusionLogCheckpointInterval,
               kvstore.getFusionLogCheckpointInterval().count());
-    EXPECT_EQ(fusionMigrationRateLimit,
-              kvstore.getMagmaFusionMigrationRateLimit());
     EXPECT_EQ(fusionSyncRateLimit, kvstore.getMagmaFusionSyncRateLimit());
     EXPECT_EQ(fusionLogstoreFragmentationThreshold,
               kvstore.getMagmaFusionLogstoreFragmentationThreshold());
@@ -1239,27 +1234,6 @@ TEST_P(STMagmaFusionTest, MagmaFusionLogstoreFragmentationThreshold) {
     EXPECT_EQ(0, config.getFusionLogstoreFragmentationThreshold())
             << "config not updated";
     EXPECT_EQ(0, kvstore.getMagmaFusionLogstoreFragmentationThreshold())
-            << "value not passed down to Magma";
-}
-
-TEST_P(STMagmaFusionTest, MagmaFusionMigrationRateLimit) {
-    std::string msg;
-    ASSERT_EQ(cb::engine_errc::success,
-              engine->setFlushParam(
-                      "magma_fusion_migration_rate_limit", "777777", msg));
-
-    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
-    EXPECT_EQ(777777, config.getFusionMigrationRateLimit())
-            << "config not updated";
-    EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
-            << "value not passed down to Magma";
-
-    ASSERT_EQ(cb::engine_errc::success,
-              engine->setFlushParam(
-                      "magma_fusion_migration_rate_limit", "0", msg));
-    EXPECT_EQ(0, config.getFusionMigrationRateLimit()) << "config not updated";
-    EXPECT_EQ(0, kvstore.getMagmaFusionMigrationRateLimit())
             << "value not passed down to Magma";
 }
 

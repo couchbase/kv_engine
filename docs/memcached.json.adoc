@@ -497,6 +497,10 @@ when stuck (see dcp_disconnect_when_stuck_timeout_seconds).
 The value in the JSON is a string but is expected to be a base64 encoded
 value to avoid any character escaping being required.
 
+=== fusion_migration_rate_limit
+
+The rate limit for Fusion extent migration, in bytes per second.
+
 == EXAMPLES
 
 A Sample memcached.json:

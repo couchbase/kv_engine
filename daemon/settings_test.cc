@@ -960,6 +960,20 @@ TEST(SettingsUpdateTest, MaxConcurrentCommandsPerConnectionIsDynamic) {
     EXPECT_EQ(1000, settings.getMaxConcurrentCommandsPerConnection());
 }
 
+TEST(SettingsUpdateTest, FusionMigrationRateLimitIsDynamic) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionMigrationRateLimit(10);
+    // setting it to the same value should work
+    updated.setFusionMigrationRateLimit(10);
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setFusionMigrationRateLimit(1000);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(1000, settings.getFusionMigrationRateLimit());
+}
+
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {
     Settings updated;
     Settings settings;

@@ -307,12 +307,6 @@ public:
         return fusionLogCheckpointInterval;
     }
 
-    size_t getFusionMigrationRateLimit() const {
-        return fusionMigrationRateLimit;
-    }
-
-    void setFusionMigrationRateLimit(size_t value);
-
     size_t getFusionSyncRateLimit() const {
         return fusionSyncRateLimit;
     }
@@ -605,8 +599,6 @@ private:
     // The interval at which FusionFS should create a log checkpoint on the
     // FusionMetadataStore and delete eligible logs from the FusionLogStore
     std::chrono::seconds fusionLogCheckpointInterval;
-    // The rate limit for Fusion extent migration, in bytes per second
-    std::atomic<size_t> fusionMigrationRateLimit;
     // The rate limit for Fusion sync uploads, in bytes per second
     std::atomic<size_t> fusionSyncRateLimit;
     // The threshold at which the fusion log store will perform garbage

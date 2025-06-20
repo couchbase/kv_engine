@@ -64,6 +64,8 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(Key::connection_structures, stats.conn_structs);
         collector.addStat(Key::curr_connections_closing,
                           stats.curr_conn_closing);
+        collector.addStat(Key::fusion_migration_rate_limit,
+                          Settings::instance().getFusionMigrationRateLimit());
 
         auto sdks = SdkConnectionManager::instance().getConnectedSdks();
         for (const auto& [key, value] : sdks) {
