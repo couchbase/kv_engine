@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "fusion_uploder.h"
+#include "fusion_uploader.h"
 #include "kv_magma_common/magma-kvstore_magma_db_stats.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"

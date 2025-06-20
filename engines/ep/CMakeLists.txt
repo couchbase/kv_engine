@@ -25,7 +25,7 @@ IF (EP_USE_MAGMA)
     INCLUDE_DIRECTORIES(AFTER ${MAGMA_INCLUDE_DIR})
     LIST(APPEND EP_STORAGE_LIBS magma)
     SET(MAGMA_KVSTORE_SOURCE
-            src/kvstore/magma-kvstore/fusion_uploder.cc
+            src/kvstore/magma-kvstore/fusion_uploader.cc
             src/kvstore/magma-kvstore/magma-kvstore.cc
             src/kvstore/magma-kvstore/magma-kvstore_config.cc
             src/kvstore/magma-kvstore/magma-kvstore_fs.cc

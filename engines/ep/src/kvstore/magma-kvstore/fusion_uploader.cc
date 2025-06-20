@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "fusion_uploder.h"
+#include "fusion_uploader.h"
 
 #include "bucket_logger.h"
 #include "ep_task.h"
@@ -74,11 +74,6 @@ cb::engine_errc FusionUploaderManager::startUploader(
 
         if (kvstore.isFusionUploader(vbid) &&
             kvstore.getFusionUploaderTerm(vbid) == term) {
-            EP_LOG_WARN_CTX(
-                    "FusionUploaderManager::startUploader: Already enabled "
-                    "with same term",
-                    {"vb", vbid},
-                    {"term", term});
             return cb::engine_errc::success;
         }
 
@@ -108,9 +103,6 @@ cb::engine_errc FusionUploaderManager::stopUploader(
         }
 
         if (!kvstore.isFusionUploader(vbid)) {
-            EP_LOG_WARN_CTX(
-                    "FusionUploaderManager::stopUploader: Already disabled",
-                    {"vb", vbid});
             return cb::engine_errc::success;
         }
 
