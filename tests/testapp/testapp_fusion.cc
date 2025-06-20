@@ -50,8 +50,8 @@ protected:
      *             string (eg non numeric) tests
      * @return The payload, which is always a in json format
      */
-    nlohmann::json fusionStats(std::optional<std::string_view> subGroup,
-                               std::optional<std::string_view> vbid);
+    nlohmann::json fusionStats(std::string_view subGroup,
+                               std::string_view vbid);
 
     size_t getStat(std::string_view key);
 
@@ -215,8 +215,8 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
     return resp;
 }
 
-nlohmann::json FusionTest::fusionStats(std::optional<std::string_view> subGroup,
-                                       std::optional<std::string_view> vbid) {
+nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
+                                       std::string_view vbid) {
     nlohmann::json res;
     adminConnection->executeInBucket(
             bucketName, [&res, &subGroup, &vbid](auto& conn) {
@@ -224,12 +224,9 @@ nlohmann::json FusionTest::fusionStats(std::optional<std::string_view> subGroup,
                 // might be just "fusion" followed by some space. Memcached is
                 // expected to be resilient to that, so I don't trim the cmd
                 // string here on purpose for stressing the validation code out.
-                const auto statCmd = fmt::format("fusion {} {}",
-                                                 subGroup ? *subGroup : "",
-                                                 vbid ? *vbid : "");
-                conn.stats([&res](auto& k,
+                conn.stats([&res](auto&,
                                   auto& v) { res = nlohmann::json::parse(v); },
-                           statCmd);
+                           fmt::format("fusion {} {}", subGroup, vbid));
             });
     return res;
 }
