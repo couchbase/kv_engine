@@ -2297,12 +2297,8 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
         EXPECT_EQ(cb::engine_errc::not_my_vbucket, err)
                 << "Unexpected error code";
 
-        // The streamRequest failed and should not of created anymore tasks than
-        // ActiveStreamCheckpointProcessorTask.
-        EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
-
-        // Stop Producer checkpoint processor task
-        producer->cancelCheckpointCreatorTask();
+        // No stream, no tasks
+        EXPECT_EQ(0, lpNonIoQ.getFutureQueueSize());
     }
 }
 

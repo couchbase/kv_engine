@@ -265,4 +265,17 @@ public:
     std::unique_ptr<DcpResponse> public_getNextItem();
 
     void public_enableSyncReplication();
+
+    std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
+    doRollbackCheck(VBucket& vb,
+                    const Collections::VB::Filter& filter,
+                    uint64_t highSeqno,
+                    uint64_t start_seqno,
+                    uint64_t end_seqno,
+                    uint64_t vbucket_uuid,
+                    uint64_t snap_start_seqno,
+                    uint64_t snap_end_seqno,
+                    uint64_t purgeSeqno,
+                    uint32_t flags,
+                    uint64_t* rollback_seqno) override;
 };

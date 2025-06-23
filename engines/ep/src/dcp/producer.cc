@@ -485,6 +485,22 @@ cb::engine_errc DcpProducer::streamRequest(
                 vbucket);
         return cb::engine_errc::not_my_vbucket;
     }
+    PermittedVBStates permittedVBStates{vbucket_state_active,
+                                        vbucket_state_replica};
+    if (flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) {
+        permittedVBStates = {vbucket_state_active};
+    }
+
+    folly::SharedMutex::ReadHolder vbStateReadLock(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
+        logger->info(
+                "({}) Stream request failed because "
+                "the vbucket is in state:{} flags:{}",
+                vbucket,
+                vb->toString(vb->getState()),
+                flags);
+        return cb::engine_errc::not_my_vbucket;
+    }
 
     auto highSeqno = gsl::narrow<uint64_t>(vb->getHighSeqno());
     if (flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
@@ -504,17 +520,6 @@ cb::engine_errc DcpProducer::streamRequest(
                     vbucket);
             return cb::engine_errc::not_supported;
         }
-    }
-
-    if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
-        (vb->getState() != vbucket_state_active)) {
-        logger->info(
-                "({}) Stream request failed because "
-                "the vbucket is in state:{}, only active vbuckets were "
-                "requested",
-                vbucket,
-                vb->toString(vb->getState()));
-        return cb::engine_errc::not_my_vbucket;
     }
 
     if (start_seqno > end_seqno) {
@@ -753,36 +758,26 @@ cb::engine_errc DcpProducer::streamRequest(
         scheduleCheckpointProcessorTask();
     }
 
-    {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_dead) {
-            logger->warn(
-                    "({}) Stream request failed because "
-                    "this vbucket is in dead state",
-                    vbucket);
-            return cb::engine_errc::not_my_vbucket;
-        }
-
-        if (vb->isReceivingInitialDiskSnapshot()) {
-            logger->info(
-                    "({}) Stream request failed because this vbucket"
-                    "is currently receiving its initial disk snapshot",
-                    vbucket);
-            return cb::engine_errc::temporary_failure;
-        }
-
-        // MB-19428: Only activate the stream if we are adding it to the
-        // streams map.
-        s->setActive();
-
-        updateStreamsMap(vbucket, streamID, s);
+    if (vb->isReceivingInitialDiskSnapshot()) {
+        logger->info(
+                "({}) Stream request failed because this vbucket"
+                "is currently receiving its initial disk snapshot",
+                vbucket);
+        return cb::engine_errc::temporary_failure;
     }
+
+    // MB-19428: Only activate the stream if we are adding it to the
+    // streams map.
+    s->setActive();
+
+    updateStreamsMap(vbucket, streamID, s);
+    vbStateReadLock.unlock();
 
     // See MB-25820:  Ensure that callback is called only after all other
     // possible error cases have been tested.  This is to ensure we do not
     // generate two responses for a single streamRequest.
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(nullptr,
-                                                                     true);
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(nullptr, true);
     cb::engine_errc rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
     if (rv != cb::engine_errc::success) {
