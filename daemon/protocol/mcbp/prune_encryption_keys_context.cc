@@ -39,6 +39,9 @@ cb::engine_errc PruneEncryptionKeysContext::execute() {
                  {"conn_id", cookie.getConnectionId()},
                  {"entity", entity},
                  {"keys", keys});
+    if (!validateKeys()) {
+        return cb::engine_errc::encryption_key_not_available;
+    }
     try {
         if (entity == cb::dek::Entity::Audit) {
             cb::audit::pruneDeks(keys);
@@ -64,6 +67,21 @@ cb::engine_errc PruneEncryptionKeysContext::execute() {
                  {"config", keys});
 
     return cb::engine_errc::success;
+}
+
+bool PruneEncryptionKeysContext::validateKeys() const {
+    auto& manager = cb::dek::Manager::instance();
+    for (const auto& key : keys) {
+        if (key != cb::crypto::DataEncryptionKey::UnencryptedKeyId &&
+            manager.lookup(entity, key) == cb::crypto::SharedEncryptionKey{}) {
+            LOG_WARNING_CTX("Prune encryption keys: Key not found",
+                            {"conn_id", cookie.getConnectionId()},
+                            {"entity", entity},
+                            {"key", key});
+            return false;
+        }
+    }
+    return true;
 }
 
 void PruneEncryptionKeysContext::pruneLog() {

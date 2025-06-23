@@ -27,6 +27,10 @@ protected:
     // Execute the operation when running on the executor
     cb::engine_errc execute() override;
 
+    /// Validate the keys to prune. We can't prune a key we don't have
+    /// as we can't rewrite those files with the newest key
+    bool validateKeys() const;
+
     void pruneLog();
 
     /// The keys to drop

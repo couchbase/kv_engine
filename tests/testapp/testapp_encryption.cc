@@ -250,6 +250,21 @@ TEST_P(EncryptionTest, TestPruneDeks) {
               dekManager.lookup(cb::dek::Entity::Logs)->getId());
 }
 
+TEST_P(EncryptionTest, TestPruneDeks_UnknownKeyId) {
+    auto keys = nlohmann::json::array();
+    keys.emplace_back("This is an unknown key id");
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::PruneEncryptionKeys,
+                                  format_as(cb::dek::Entity::Logs),
+                                  keys.dump()});
+    ASSERT_EQ(cb::mcbp::Status::EncryptionKeyNotAvailable, rsp.getStatus());
+    rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::PruneEncryptionKeys,
+                                  format_as(cb::dek::Entity::Audit),
+                                  keys.dump()});
+    ASSERT_EQ(cb::mcbp::Status::EncryptionKeyNotAvailable, rsp.getStatus());
+}
+
 TEST_P(EncryptionTest, TestDisableEncryption) {
     // Verify that the bucket is encrypted
     auto connection = adminConnection->clone();
