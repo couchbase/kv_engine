@@ -92,6 +92,10 @@ public:
         return producerPtr.lock();
     }
 
+    size_t getTotalBytesQueued() const {
+        return totalBytesQueued;
+    }
+
     std::function<void(const StoredValue&)> preQueueCallback =
             [](const auto&) { /*nothing*/ };
 
@@ -122,4 +126,7 @@ protected:
 
     /// Configuration: Stream will send keys or keys+value
     IncludeValue includeValue = IncludeValue::Yes;
+
+    /// Total bytes queued
+    size_t totalBytesQueued{0};
 };

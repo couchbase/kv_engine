@@ -108,7 +108,8 @@ public:
         : EpTask(e, TaskId::CacheTransferTask),
           vbid(vbid),
           visitor(std::move(stream)),
-          descriptionDetail(descriptionDetail) {
+          descriptionDetail(descriptionDetail),
+          startTime(cb::time::steady_clock::now()) {
     }
 
     bool run() override;
@@ -129,6 +130,7 @@ private:
     std::string descriptionDetail;
     uint64_t queuedCount{0};
     uint64_t visitedCount{0};
+    cb::time::steady_clock::time_point startTime;
 };
 
 bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -165,7 +167,7 @@ bool CacheTransferHashTableVisitor::setUpHashTableVisit(VBucket& vb) {
     // Have a stream and it is active, so we can visit.
     queuedCount = 0;
     visitedCount = 0;
-    progressTracker.setDeadline(std::chrono::steady_clock::now() +
+    progressTracker.setDeadline(cb::time::steady_clock::now() +
                                 std::chrono::milliseconds(25));
     return true;
 }
@@ -225,11 +227,20 @@ bool CacheTransferTask::run() {
             };
 
     if (position == vb->ht.endPosition()) {
+        // Calculate total runtime
+        auto endTime = cb::time::steady_clock::now();
+        auto totalRuntimeMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(endTime -
+                                                                      startTime)
+                        .count();
+
         // Reached end of HT
         EP_LOG_INFO_CTX("CacheTransferTask::run: Reached HT end.",
                         {{"vbid", vbid},
                          {"visited_count", visitedCount},
-                         {"queued_count", queuedCount}});
+                         {"queued_count", queuedCount},
+                         {"total_runtime_ms", totalRuntimeMs},
+                         {"total_bytes_queued", stream.getTotalBytesQueued()}});
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
         // Notify the producer as we have queued a stream end.
         notify = true;
@@ -424,6 +435,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         if (state != State::Active) {
             return Status::Stop;
         }
+        totalBytesQueued += response->getMessageSize();
         pushToReadyQ(std::move(response));
     }
 
