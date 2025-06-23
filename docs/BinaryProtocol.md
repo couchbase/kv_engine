@@ -2527,9 +2527,14 @@ multiple entries in a single command).
 
 Locks the item for mutations for a specified period of time. Locking an item
 updates the CAS and the new CAS value is returned. The item becomes unlocked:
+* on a successful mutation
 * when the timeout expires
 * when manually unlocked
 * on node shutdown, as the locked status is NOT persisted to disk
+
+The locked status is maintained on a best-effort basis; a failover/rebalance
+may also cause it to be lost. The intended use is as a helper to a CAS
+operation, so that concurrent threads don't proceed to update the same item.
 
 Request:
 
