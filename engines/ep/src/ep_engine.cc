@@ -85,6 +85,7 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/fusion_support.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/logtags.h>
 #include <utilities/math_utilities.h>
@@ -1985,13 +1986,12 @@ cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     if (configuration.getBucketTypeString() == "ephemeral") {
         return {cb::engine::Feature::Collections};
     }
-#ifdef USE_FUSION
-    return {cb::engine::Feature::Collections,
-            cb::engine::Feature::Persistence,
-            cb::engine::Feature::Fusion};
-#else
+    if (isFusionSupportEnabled()) {
+        return {cb::engine::Feature::Collections,
+                cb::engine::Feature::Persistence,
+                cb::engine::Feature::Fusion};
+    }
     return {cb::engine::Feature::Collections, cb::engine::Feature::Persistence};
-#endif
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled() {

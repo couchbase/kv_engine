@@ -426,6 +426,7 @@ target_link_libraries(ep
         cbcompress
         engine_utilities
         ep-engine_collections
+        fusion_support
         mcbp
         mc_client_connection
         mcd_executor

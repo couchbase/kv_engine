@@ -70,6 +70,7 @@
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/fusion_support.h>
 #include <utilities/throttle_utilities.h>
 
 /**
@@ -705,11 +706,20 @@ static void set_chronicle_auth_token_executor(Cookie& cookie) {
 }
 
 static void delete_fusion_namespace_executor(Cookie& cookie) {
-    cookie.obtainContext<DeleteFusionNamespaceCommandContext>(cookie).drive();
+    if (isFusionSupportEnabled()) {
+        cookie.obtainContext<DeleteFusionNamespaceCommandContext>(cookie)
+                .drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
 }
 
 static void get_fusion_namespaces_executor(Cookie& cookie) {
-    cookie.obtainContext<GetFusionNamespacesCommandContext>(cookie).drive();
+    if (isFusionSupportEnabled()) {
+        cookie.obtainContext<GetFusionNamespacesCommandContext>(cookie).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
 }
 
 static void process_bin_noop_response(Cookie&) {

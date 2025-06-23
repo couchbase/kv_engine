@@ -24,6 +24,7 @@
 #include "vbucket.h"
 
 #include <platform/cb_arena_malloc.h>
+#include <utilities/fusion_support.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/synchronization/Baton.h>
@@ -1158,8 +1159,6 @@ INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-#ifdef USE_FUSION
-
 class STMagmaFusionTest : public STParamMagmaBucketTest {
 public:
     void SetUp() override {
@@ -1174,6 +1173,9 @@ public:
         config_string += ";magma_fusion_logstore_fragmentation_threshold=" +
                          std::to_string(fusionLogstoreFragmentationThreshold);
         STParameterizedBucketTest::SetUp();
+        if (!isFusionSupportEnabled()) {
+            GTEST_SKIP() << "Fusion support is not enabled";
+        }
     }
 
 protected:
@@ -1473,5 +1475,3 @@ INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,
                          STMagmaFusionTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
-
-#endif // USE_FUSION

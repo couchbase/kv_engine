@@ -152,6 +152,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)
+    target_compile_definitions(ep-engine_ep_unit_tests PUBLIC HAVE_MAGMA_SUPPORT=1)
     target_sources(ep-engine_ep_unit_tests PUBLIC
             module_tests/continuous_backup_test.cc
             module_tests/history_dcp_test.cc

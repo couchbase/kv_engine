@@ -10,10 +10,10 @@
 
 #include "testapp_client_test.h"
 
-#ifdef USE_FUSION
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
+#include <utilities/fusion_support.h>
 
 class FusionTest : public TestappClientTest {
 protected:
@@ -57,6 +57,13 @@ protected:
 
     void setMemcachedConfig(std::string_view key, size_t value);
 
+    /// Check to see if Fusion is supported in the current bucket.
+    /// In order to support Fusion, the bucket must be a Magma bucket and
+    /// the support must be enabled in the build configuration.
+    bool isFusionSupportedInBucket() const {
+        return mcd_env->getTestBucket().isMagma() && isFusionSupportEnabled();
+    }
+
     bool waitForUploaderState(Vbid vbid, std::string_view state);
 
 public:
@@ -71,7 +78,7 @@ const Vbid FusionTest::vbid = Vbid(0);
 
 void FusionTest::SetUpTestCase() {
     createUserConnection = true;
-    const std::string dbPath = mcd_env->getDbPath();
+    const auto dbPath = mcd_env->getDbPath().generic_string();
     const auto bucketConfig = fmt::format(
             "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
             "};chronicle_auth_token={};uuid={}",
@@ -93,7 +100,7 @@ void FusionTest::SetUpTestCase() {
 
 void FusionTest::SetUp() {
     TestappClientTest::SetUp();
-    if (!mcd_env->getTestBucket().isMagma()) {
+    if (!isFusionSupportedInBucket()) {
         GTEST_SKIP();
     }
 
@@ -111,8 +118,7 @@ void FusionTest::TearDown() {
     }
 
     // Some tests assume the uploader disabled for vbid
-    if (fusionStats("uploader", std::to_string(vbid.get()))["state"] ==
-        "enabled") {
+    if (isFusionSupportedInBucket()) {
         stopFusionUploader(vbid);
     }
 }
@@ -221,9 +227,9 @@ void FusionTest::setMemcachedConfig(std::string_view key, size_t value) {
 bool FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
     return cb::waitForPredicateUntil(
             [this, vbid, state]() {
-                return fusionStats("uploader",
-                                   std::to_string(vbid.get()))["state"] ==
-                       state;
+                return fusionStats("uploader", std::to_string(vbid.get()))
+                               .at("state")
+                               .get<std::string>() == state;
             },
             std::chrono::seconds(5));
 }
@@ -511,7 +517,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     // we'll use later for creating a vbucket by MountVbucket(volume) +
     // SetVBucketState(use_snapshot)
 
-    const std::string dbPath = mcd_env->getDbPath();
+    const auto dbPath = mcd_env->getDbPath().generic_string();
     ASSERT_TRUE(std::filesystem::exists(dbPath));
 
     // Create guest volumes (just using a folder within the test path)
@@ -849,7 +855,7 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
             cb::mcbp::ClientOpcode::DeleteFusionNamespace};
     nlohmann::json json;
-    const std::string dbPath = mcd_env->getDbPath();
+    const auto dbPath = mcd_env->getDbPath().generic_string();
     ASSERT_TRUE(std::filesystem::exists(dbPath));
     json["logstore_uri"] = "local://" + dbPath + "/logstore";
     json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
@@ -865,7 +871,7 @@ TEST_P(FusionTest, GetFusionNamespaces) {
     auto cmd =
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFusionNamespaces};
     nlohmann::json json;
-    const std::string dbPath = mcd_env->getDbPath();
+    const auto dbPath = mcd_env->getDbPath().generic_string();
     ASSERT_TRUE(std::filesystem::exists(dbPath));
     json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
     json["metadatastore_auth_token"] = "some-token";
@@ -875,12 +881,19 @@ TEST_P(FusionTest, GetFusionNamespaces) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
-#else
-
 /**
  * Test class used to verify the behaviour of fusion APIs in a non-fusion env.
  */
-class NonFusionTest : public TestappClientTest {};
+class NonFusionTest : public TestappClientTest {
+    void SetUp() override;
+};
+
+void NonFusionTest::SetUp() {
+    TestappClientTest::SetUp();
+    if (isFusionSupportEnabled()) {
+        GTEST_SKIP();
+    }
+}
 
 TEST_P(NonFusionTest, DeleteFusionNamespace) {
     auto cmd = BinprotGenericCommand{
@@ -912,5 +925,3 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          NonFusionTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
-
-#endif // USE_FUSION

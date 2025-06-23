@@ -39,6 +39,7 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/fusion_support.h>
 #include <utilities/string_utilities.h>
 #include <chrono>
 #include <cinttypes>
@@ -690,10 +691,13 @@ static cb::engine_errc stat_scheduler_executor(const std::string& arg,
 
 static cb::engine_errc stat_fusion_executor(const std::string& arg,
                                             Cookie& cookie) {
-    return bucket_get_stats(cookie,
-                            cookie.getRequest().getKeyString(),
-                            cookie.getRequest().getValueString(),
-                            appendStatsFn);
+    if (isFusionSupportEnabled()) {
+        return bucket_get_stats(cookie,
+                                cookie.getRequest().getKeyString(),
+                                cookie.getRequest().getValueString(),
+                                appendStatsFn);
+    }
+    return cb::engine_errc::not_supported;
 }
 
 /***************************** STAT HANDLERS *****************************/

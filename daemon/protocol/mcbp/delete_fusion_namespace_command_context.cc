@@ -9,14 +9,11 @@
  */
 
 #include "delete_fusion_namespace_command_context.h"
-
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
-#ifdef USE_FUSION
-#include <libmagma/magma.h>
-#endif
 #include <logger/logger.h>
+#include <utilities/fusion_support.h>
 
 DeleteFusionNamespaceCommandContext::DeleteFusionNamespaceCommandContext(
         Cookie& cookie)
@@ -29,7 +26,6 @@ DeleteFusionNamespaceCommandContext::DeleteFusionNamespaceCommandContext(
 }
 
 cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
-#ifdef USE_FUSION
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
     const auto logstore = request["logstore_uri"];
@@ -38,16 +34,13 @@ cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
     const auto ns = request["namespace"];
     const auto status = magma::Magma::DeleteFusionNamespace(
             logstore, metadatastore, token, ns);
-    if (status.ErrorCode() != magma::Status::Code::Ok) {
-        LOG_WARNING_CTX("DeleteFusionNamespace: ",
-                        {"logstore_uri", logstore},
-                        {"metadatastore_uri", metadatastore},
-                        {"namespace", ns},
-                        {"error", status.String()});
-        return cb::engine_errc::failed;
+    if (status.IsOK()) {
+        return cb::engine_errc::success;
     }
-    return cb::engine_errc::success;
-#else
-    return cb::engine_errc::not_supported;
-#endif
+    LOG_WARNING_CTX("DeleteFusionNamespace",
+                    {"logstore_uri", logstore},
+                    {"metadatastore_uri", metadatastore},
+                    {"namespace", ns},
+                    {"error", status.String()});
+    return cb::engine_errc::failed;
 }

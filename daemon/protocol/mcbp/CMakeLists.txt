@@ -135,6 +135,7 @@ target_link_libraries(memcached_daemon_mcbp
         PRIVATE
         memcached_daemon_protocol_utils
         Folly::folly
+        fusion_support
         hdrhistogram
         memcached_logger
         nlohmann_json::nlohmann_json
@@ -143,12 +144,3 @@ target_link_libraries(memcached_daemon_mcbp
         sigar_cpp
         statistics
         subjson)
-
-if (TARGET fusionfs)
-    target_compile_definitions(memcached_daemon_mcbp
-            PRIVATE -DUSE_FUSION=1)
-    target_include_directories(memcached_daemon_mcbp
-            SYSTEM PRIVATE ${MAGMA_INCLUDE_DIR})
-    target_link_libraries(memcached_daemon_mcbp
-            PRIVATE magma)
-endif()

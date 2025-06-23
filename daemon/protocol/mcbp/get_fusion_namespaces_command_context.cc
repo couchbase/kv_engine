@@ -9,15 +9,11 @@
  */
 
 #include "get_fusion_namespaces_command_context.h"
-
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
-#ifdef USE_FUSION
-#include <libmagma/magma.h>
-#endif
-
 #include <logger/logger.h>
+#include <utilities/fusion_support.h>
 #include <utilities/fusion_utilities.h>
 
 GetFusionNamespacesCommandContext::GetFusionNamespacesCommandContext(
@@ -31,7 +27,6 @@ GetFusionNamespacesCommandContext::GetFusionNamespacesCommandContext(
 }
 
 cb::engine_errc GetFusionNamespacesCommandContext::execute() {
-#ifdef USE_FUSION
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
     const auto metadatastore = request["metadatastore_uri"];
@@ -44,19 +39,15 @@ cb::engine_errc GetFusionNamespacesCommandContext::execute() {
                                               token,
                                               magma_fusion_namespace_prefix,
                                               namespaceDepth);
-    if (status.ErrorCode() != magma::Status::Code::Ok) {
-        LOG_WARNING_CTX("GetFusionNamespaces: ",
-                        {"metadatastore_uri", metadatastore},
-                        {"error", status.String()});
-        cookie.setErrorContext(
-                fmt::format("Failed with error: {}", status.String()));
-        return cb::engine_errc::failed;
+    if (status.IsOK()) {
+        response = json.dump();
+        datatype = cb::mcbp::Datatype::JSON;
+        return cb::engine_errc::success;
     }
-    response = json.dump();
-    datatype = cb::mcbp::Datatype::JSON;
-
-    return cb::engine_errc::success;
-#else
-    return cb::engine_errc::not_supported;
-#endif
+    LOG_WARNING_CTX("GetFusionNamespaces",
+                    {"metadatastore_uri", metadatastore},
+                    {"error", status.String()});
+    cookie.setErrorContext(
+            fmt::format("Failed with error: {}", status.String()));
+    return cb::engine_errc::failed;
 }

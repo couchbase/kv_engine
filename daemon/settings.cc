@@ -20,6 +20,7 @@
 #include <platform/dirutils.h>
 #include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
+#include <utilities/fusion_support.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 #include <algorithm>
@@ -396,9 +397,21 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "max_concurrent_commands_per_connection"sv) {
             setMaxConcurrentCommandsPerConnection(value.get<size_t>());
         } else if (key == "fusion_migration_rate_limit"sv) {
-            setFusionMigrationRateLimit(value.get<size_t>());
+            if (isFusionSupportEnabled()) {
+                setFusionMigrationRateLimit(value.get<size_t>());
+            } else {
+                LOG_WARNING_CTX("Ignore fusion_migration_rate_limit",
+                                {"value", value.dump()},
+                                {"reason", "Fusion support is not enabled"});
+            }
         } else if (key == "fusion_sync_rate_limit") {
-            setFusionSyncRateLimit(value.get<size_t>());
+            if (isFusionSupportEnabled()) {
+                setFusionSyncRateLimit(value.get<size_t>());
+            } else {
+                LOG_WARNING_CTX("Ignore fusion_sync_rate_limit",
+                                {"value", value.dump()},
+                                {"reason", "Fusion support is not enabled"});
+            }
         } else if (key == "phosphor_config"sv) {
             auto config = value.get<std::string>();
             // throw an exception if the config is invalid

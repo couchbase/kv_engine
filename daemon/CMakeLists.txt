@@ -117,15 +117,6 @@ if (NUMA_FOUND)
     target_link_libraries(memcached_daemon PRIVATE ${NUMA_LIBRARIES})
 endif()
 
-if (TARGET fusionfs)
-    target_compile_definitions(memcached_daemon
-            PRIVATE -DUSE_FUSION=1)
-    target_include_directories(memcached_daemon
-            SYSTEM PRIVATE ${MAGMA_INCLUDE_DIR})
-    target_link_libraries(memcached_daemon
-            PRIVATE magma)
-endif()
-
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
 cb_enable_unity_build(memcached_daemon)
 
@@ -149,6 +140,7 @@ target_link_libraries(memcached_daemon
                       ep
                       ewouldblock_engine
                       folly_io_callbacks
+                      fusion_support
                       mcd_dek
                       mcd_executor
                       mcd_tracing
