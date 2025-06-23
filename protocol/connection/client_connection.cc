@@ -1661,18 +1661,6 @@ void MemcachedConnection::stats(
     }
 }
 
-std::map<std::string, std::string> MemcachedConnection::statsMap(
-        const std::string& subcommand,
-        const GetFrameInfoFunction& getFrameInfo) {
-    std::map<std::string, std::string> ret;
-    stats([&ret](const std::string& key,
-                 const std::string& value) -> void { ret[key] = value; },
-          subcommand,
-          {},
-          getFrameInfo);
-    return ret;
-}
-
 void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
                                                      cb::engine_errc err_code,
                                                      uint32_t value,

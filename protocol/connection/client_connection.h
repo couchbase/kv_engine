@@ -660,15 +660,6 @@ public:
                std::string value = std::string{},
                const GetFrameInfoFunction& getFrameInfo = {});
 
-    /**
-     * Get stats as a map
-     * @param subcommand
-     * @return
-     */
-    std::map<std::string, std::string> statsMap(
-            const std::string& subcommand,
-            const GetFrameInfoFunction& getFrameInfo = {});
-
     nlohmann::json stats(const std::string& subcommand,
                          const GetFrameInfoFunction& getFrameInfo = {});
 

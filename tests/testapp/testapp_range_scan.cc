@@ -92,7 +92,7 @@ public:
             const auto resp2 = connection.execute(cmd1);
             ASSERT_EQ(cb::mcbp::Status::Success, resp2.getStatus());
 
-            EXPECT_EQ("60", connection.statsMap("range-scans")["max_duration"]);
+            EXPECT_EQ(60, connection.stats("range-scans")["max_duration"]);
         });
 
         // add a name to all scans, the server limits the name length so we

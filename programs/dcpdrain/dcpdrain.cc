@@ -425,7 +425,7 @@ protected:
 
 void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
     // One stat call and then we'll find each of the vbuckets.
-    auto vbucketDetailsMap = getConnection().statsMap("vbucket-details");
+    auto vbucketDetailsMap = getConnection().stats("vbucket-details");
 
     for (auto& vb : vbuckets) {
         std::string prefix = "vb_" + std::to_string(vb.vbucket);
@@ -434,10 +434,10 @@ void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
         Expects(vbucketDetailsMap.count(highSeqKey));
         Expects(vbucketDetailsMap.count(uuidSeqKey));
 
-        vb.snapEndSeqno = std::stoull(vbucketDetailsMap[highSeqKey]);
+        vb.snapEndSeqno = vbucketDetailsMap[highSeqKey].get<uint64_t>();
         vb.snapStartSeqno = 0;
         vb.startSeqno = vb.snapEndSeqno / 2;
-        vb.vbucketUuid = std::stoull(vbucketDetailsMap[uuidSeqKey]);
+        vb.vbucketUuid = vbucketDetailsMap[uuidSeqKey].get<uint64_t>();
     }
 }
 
