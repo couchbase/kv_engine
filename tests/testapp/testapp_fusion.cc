@@ -57,6 +57,8 @@ protected:
 
     void setMigrationRateLimit(size_t bytes);
 
+    bool waitForUploaderState(Vbid vbid, std::string_view state);
+
 public:
     static constexpr auto logstoreRelativePath = "logstore";
     static constexpr auto chronicleAuthToken = "some-token1!";
@@ -173,13 +175,11 @@ BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
                 resp = conn.execute(cmd);
             });
 
-    cb::waitForPredicateUntil(
-            [this, vbid]() {
-                return fusionStats("uploader",
-                                   std::to_string(vbid.get()))["state"] ==
-                       "enabled";
-            },
-            std::chrono::seconds(5));
+    if (!resp.isSuccess()) {
+        return resp;
+    }
+
+    EXPECT_TRUE(waitForUploaderState(vbid, "enabled"));
 
     return resp;
 }
@@ -193,13 +193,11 @@ BinprotResponse FusionTest::stopFusionUploader(Vbid vbid) {
         resp = conn.execute(cmd);
     });
 
-    cb::waitForPredicateUntil(
-            [this, vbid]() {
-                return fusionStats("uploader",
-                                   std::to_string(vbid.get()))["state"] ==
-                       "disabled";
-            },
-            std::chrono::seconds(5));
+    if (!resp.isSuccess()) {
+        return resp;
+    }
+
+    EXPECT_TRUE(waitForUploaderState(vbid, "disabled"));
 
     return resp;
 }
@@ -248,6 +246,16 @@ size_t FusionTest::getStat(std::string_view key) {
 void FusionTest::setMigrationRateLimit(size_t bytes) {
     memcached_cfg["fusion_migration_rate_limit"] = bytes;
     reconfigure();
+}
+
+bool FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
+    return cb::waitForPredicateUntil(
+            [this, vbid, state]() {
+                return fusionStats("uploader",
+                                   std::to_string(vbid.get()))["state"] ==
+                       state;
+            },
+            std::chrono::seconds(5));
 }
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
