@@ -839,9 +839,7 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
     bool error = false;
     for (const auto& key : missingKeys) {
         error = true;
-        fprintf(stderr,
-                "Expected %s but not found in actual\n",
-                std::string{key}.c_str());
+        fmt::println(stderr, "Expected {} but not found in actual", key);
     }
 
     // Find any extra fusion stats - those that are found in actual but not
@@ -853,9 +851,7 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
 
     for (const auto& key : extraKeys) {
         error = true;
-        fprintf(stderr,
-                "Found stat %s but was not expected\n",
-                std::string{key}.c_str());
+        fmt::println(stderr, "Found stat {} but was not expected", key);
     }
 
     EXPECT_EQ(false, error) << "Missing stats found";
