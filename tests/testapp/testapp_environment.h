@@ -36,12 +36,12 @@ class MutablePasswordDatabase;
 /**
  * The test bucket which tests are being run against.
  */
-class TestBucketImpl {
+class TestBucket {
 public:
-    TestBucketImpl(const std::filesystem::path& test_directory,
-                   std::string extraConfig);
+    TestBucket(const std::filesystem::path& test_directory,
+               std::string extraConfig);
 
-    virtual ~TestBucketImpl() = default;
+    ~TestBucket() = default;
 
     /**
      * Create a bucket with the provided name and the provided
@@ -236,7 +236,7 @@ public:
     /**
      * @return The bucket type being tested.
      */
-    [[nodiscard]] TestBucketImpl& getTestBucket() {
+    [[nodiscard]] TestBucket& getTestBucket() {
         return *testBucket;
     }
 
@@ -336,7 +336,7 @@ protected:
 
     nlohmann::json audit_config;
     nlohmann::json rbac_data;
-    std::unique_ptr<TestBucketImpl> testBucket;
+    std::unique_ptr<TestBucket> testBucket;
     cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
 };
 

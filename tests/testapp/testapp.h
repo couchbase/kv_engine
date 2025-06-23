@@ -60,7 +60,7 @@ extern std::unique_ptr<ProcessMonitor> memcachedProcess;
 // Set of HELLO features which are currently enabled.
 extern std::set<cb::mcbp::Feature> enabled_hello_features;
 
-class TestBucketImpl;
+class TestBucket;
 
 /**
  * Base test fixture for all 'testapp' tests - aka a test application talking to
@@ -307,7 +307,7 @@ protected:
     static void DeleteTestBucket();
 
     // Get information about the bucket used for testing
-    static TestBucketImpl& GetTestBucket();
+    static TestBucket& GetTestBucket();
 
     /* Configure the ewouldblock error-injecting engine */
     static void ewouldblock_engine_configure(cb::engine_errc err_code,

@@ -39,14 +39,14 @@ protected:
         std::filesystem::remove_all(mcd_env->getDbPath());
 
         mcd_env->getTestBucket().setBucketCreateMode(
-                TestBucketImpl::BucketCreateMode::Clean);
+                TestBucket::BucketCreateMode::Clean);
         ShutdownTest::SetUp();
         rebuildUserConnection(false);
     }
 
     void TearDown() override {
         mcd_env->getTestBucket().setBucketCreateMode(
-                TestBucketImpl::BucketCreateMode::Clean);
+                TestBucket::BucketCreateMode::Clean);
         ShutdownTest::TearDown();
     }
 
@@ -94,7 +94,7 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
     shutdownMemcached(GetParam());
 
     mcd_env->getTestBucket().setBucketCreateMode(
-            TestBucketImpl::BucketCreateMode::AllowRecreate);
+            TestBucket::BucketCreateMode::AllowRecreate);
     // Restart memcached, and attempt to read the item we persisted.
     ShutdownTest::SetUp();
 
@@ -181,7 +181,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     shutdownMemcached(GetParam());
 
     mcd_env->getTestBucket().setBucketCreateMode(
-            TestBucketImpl::BucketCreateMode::AllowRecreate);
+            TestBucket::BucketCreateMode::AllowRecreate);
 
     // Restart memcached.
     ShutdownTest::SetUp();

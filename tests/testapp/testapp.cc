@@ -175,7 +175,7 @@ void TestappTest::DeleteTestBucket() {
     }
 }
 
-TestBucketImpl& TestappTest::GetTestBucket() {
+TestBucket& TestappTest::GetTestBucket() {
     return mcd_env->getTestBucket();
 }
 

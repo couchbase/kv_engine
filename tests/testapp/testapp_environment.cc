@@ -27,7 +27,7 @@
 #include <memory>
 #include <thread>
 
-std::string TestBucketImpl::mergeConfigString(const std::string& next) {
+std::string TestBucket::mergeConfigString(const std::string& next) {
     if (next.empty()) {
         return extraConfig;
     }
@@ -53,10 +53,10 @@ std::string TestBucketImpl::mergeConfigString(const std::string& next) {
     return settings;
 }
 
-void TestBucketImpl::createEwbBucket(const std::string& name,
-                                     BucketType type,
-                                     const std::string_view config,
-                                     MemcachedConnection& conn) {
+void TestBucket::createEwbBucket(const std::string& name,
+                                 BucketType type,
+                                 const std::string_view config,
+                                 MemcachedConnection& conn) {
     auto cfg = fmt::format("ewb_real_engine={}", bucket_type_to_module(type));
     if (!config.empty()) {
         cfg = fmt::format("{};{}", cfg, config);
@@ -65,9 +65,9 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
 }
 
 // Both memcached and ep-engine buckets support set_param for xattr on/off
-void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
-                                     const std::string& bucketName,
-                                     bool value) {
+void TestBucket::setXattrEnabled(MemcachedConnection& conn,
+                                 const std::string& bucketName,
+                                 bool value) {
     setParam(conn,
              bucketName,
              "xattr_enabled",
@@ -75,9 +75,9 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
              cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
-void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
-                                        const std::string& bucketName,
-                                        const std::string& value) {
+void TestBucket::setCompressionMode(MemcachedConnection& conn,
+                                    const std::string& bucketName,
+                                    const std::string& value) {
     setParam(conn,
              bucketName,
              "compression_mode",
@@ -85,9 +85,9 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
              cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
-void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
-                                            const std::string& bucketName,
-                                            const std::string& value) {
+void TestBucket::setMinCompressionRatio(MemcachedConnection& conn,
+                                        const std::string& bucketName,
+                                        const std::string& value) {
     setParam(conn,
              bucketName,
              "min_compression_ratio",
@@ -95,8 +95,8 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
              cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
-void TestBucketImpl::setMutationMemRatio(MemcachedConnection& conn,
-                                         const std::string& value) {
+void TestBucket::setMutationMemRatio(MemcachedConnection& conn,
+                                     const std::string& value) {
     BinprotGenericCommand cmd{
             cb::mcbp::ClientOpcode::SetParam, "mutation_mem_ratio", value};
     cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
@@ -104,12 +104,11 @@ void TestBucketImpl::setMutationMemRatio(MemcachedConnection& conn,
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 }
 
-void TestBucketImpl::setParam(
-        MemcachedConnection& conn,
-        const std::string& bucketName,
-        const std::string& paramName,
-        const std::string& paramValue,
-        cb::mcbp::request::SetParamPayload::Type paramType) {
+void TestBucket::setParam(MemcachedConnection& conn,
+                          const std::string& bucketName,
+                          const std::string& paramName,
+                          const std::string& paramValue,
+                          cb::mcbp::request::SetParamPayload::Type paramType) {
     conn.executeInBucket(bucketName, [&](auto& connection) {
         BinprotGenericCommand cmd{
                 cb::mcbp::ClientOpcode::SetParam, paramName, paramValue};
@@ -119,15 +118,15 @@ void TestBucketImpl::setParam(
     });
 }
 
-TestBucketImpl::TestBucketImpl(const std::filesystem::path& test_directory,
-                               std::string extraConfig)
+TestBucket::TestBucket(const std::filesystem::path& test_directory,
+                       std::string extraConfig)
     : dbPath(test_directory / "dbase"), extraConfig(std::move(extraConfig)) {
     keystore.setActiveKey(cb::crypto::DataEncryptionKey::generate());
 }
 
-void TestBucketImpl::createBucket(const std::string& name,
-                                  const std::string& config,
-                                  MemcachedConnection& conn) {
+void TestBucket::createBucket(const std::string& name,
+                              const std::string& config,
+                              MemcachedConnection& conn) {
     const auto dbdir = dbPath / name;
     if (exists(dbdir)) {
         remove_all(dbdir);
@@ -157,9 +156,9 @@ void TestBucketImpl::createBucket(const std::string& name,
     });
 }
 
-void TestBucketImpl::setUpBucket(const std::string& name,
-                                 const std::string& config,
-                                 MemcachedConnection& conn) {
+void TestBucket::setUpBucket(const std::string& name,
+                             const std::string& config,
+                             MemcachedConnection& conn) {
     const auto dbdir = dbPath / name;
     if (bucketCreateMode == BucketCreateMode::Clean) {
         if (exists(dbdir)) {
@@ -187,8 +186,8 @@ void TestBucketImpl::setUpBucket(const std::string& name,
     });
 }
 
-std::string TestBucketImpl::getCreateBucketConfigString(
-        std::string_view name, std::string_view config) {
+std::string TestBucket::getCreateBucketConfigString(std::string_view name,
+                                                    std::string_view config) {
     const auto dbdir = dbPath / name;
 
     auto settings = fmt::format("dbname={};alog_path={}/access_log",
@@ -216,16 +215,16 @@ std::string TestBucketImpl::getCreateBucketConfigString(
     return mergeConfigString(settings);
 }
 
-bool TestBucketImpl::isFullEviction() const {
+bool TestBucket::isFullEviction() const {
     return extraConfig.find("item_eviction_policy=full_eviction") !=
            std::string::npos;
 }
 
-[[nodiscard]] bool TestBucketImpl::isMagma() const {
+[[nodiscard]] bool TestBucket::isMagma() const {
     return extraConfig.find("backend=magma") != std::string::npos;
 }
 
-std::string TestBucketImpl::getEncryptionConfig() const {
+std::string TestBucket::getEncryptionConfig() const {
     return nlohmann::json(keystore).dump();
 }
 
@@ -255,8 +254,8 @@ McdEnvironment::McdEnvironment(std::string engineConfig)
     // the ewouldblock engine..
     setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
-    testBucket = std::make_unique<TestBucketImpl>(test_directory,
-                                                  std::move(engineConfig));
+    testBucket = std::make_unique<TestBucket>(test_directory,
+                                              std::move(engineConfig));
     // I shouldn't need to use string() here, but it fails to compile on
     // windows without it:
     //
