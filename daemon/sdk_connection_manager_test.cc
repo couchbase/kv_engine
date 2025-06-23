@@ -17,6 +17,13 @@ TEST(SdkConnectionManagerTest, Wraps) {
 
     for (std::size_t ii = 0; ii < Max; ++ii) {
         instance.registerSdk(std::to_string(ii));
+        if (ii == 0) {
+            // make sure that even if the the clock resolution is very low
+            // on the system we get a different timestamp on the first entry
+            // and the subsequent ones (as we're later on verify that we
+            // evic the *oldest* entry from the map)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
     auto sdks = instance.getConnectedSdks();
     EXPECT_EQ(sdks.size(), Max);
