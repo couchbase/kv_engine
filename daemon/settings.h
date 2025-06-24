@@ -991,8 +991,22 @@ public:
 
     void setSubdocMultiMaxPaths(size_t val);
 
+    void setAbruptShutdownTimeout(std::chrono::milliseconds val) {
+        abrupt_shutdown_timeout.store(val, std::memory_order_release);
+        has.abrupt_shutdown_timeout = true;
+        notify_changed("abrupt_shutdown_timeout");
+    }
+
+    std::chrono::milliseconds getAbruptShutdownTimeout() const {
+        return abrupt_shutdown_timeout.load(std::memory_order_acquire);
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
+
+    /// The number of milliseconds to wait for after ns_server dropped stdin
+    /// until we terminate the shutdown process and terminate with _Exit(9)
+    std::atomic<std::chrono::milliseconds> abrupt_shutdown_timeout{};
 
     /// The file containing audit configuration
     std::string audit_file;
@@ -1267,6 +1281,7 @@ public:
      * getter/setter pattern
      */
     struct {
+        bool abrupt_shutdown_timeout = false;
         bool rbac_file = false;
         bool threads = false;
         bool interfaces = false;

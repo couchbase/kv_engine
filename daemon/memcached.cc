@@ -432,6 +432,11 @@ static void settings_init() {
 
     // Set up the listener functions
     settings.addChangeListener(
+            "abrupt_shutdown_timeout", [](const std::string&, Settings& s) {
+                abrupt_shutdown_timeout_changed(s.getAbruptShutdownTimeout());
+            });
+
+    settings.addChangeListener(
             "scramsha_fallback_salt", [](const std::string&, Settings& s) {
                 cb::sasl::pwdb::UserFactory::setScramshaFallbackSalt(
                         s.getScramshaFallbackSalt());

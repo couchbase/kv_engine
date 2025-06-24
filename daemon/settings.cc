@@ -449,6 +449,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     value.get<std::string>());
         } else if (key == "subdoc_multi_max_paths"sv) {
             setSubdocMultiMaxPaths(value.get<size_t>());
+        } else if (key == "abrupt_shutdown_timeout"sv) {
+            setAbruptShutdownTimeout(
+                    std::chrono::milliseconds(value.get<size_t>()));
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -547,6 +550,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     // Ok, go ahead and update the settings!!
+    if (other.has.abrupt_shutdown_timeout) {
+        if (other.getAbruptShutdownTimeout() != getAbruptShutdownTimeout()) {
+            LOG_INFO_CTX("Change abrupt shutdown timeout",
+                         {"from", getAbruptShutdownTimeout()},
+                         {"to", other.getAbruptShutdownTimeout()});
+            setAbruptShutdownTimeout(other.getAbruptShutdownTimeout());
+        }
+    }
+
     if (other.has.tcp_keepalive_idle) {
         if (other.getTcpKeepAliveIdle() != getTcpKeepAliveIdle()) {
             LOG_INFO_CTX("Change TCP_KEEPIDLE time",

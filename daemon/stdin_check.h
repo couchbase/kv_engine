@@ -10,5 +10,11 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
+
+/// The exit code used by the abnormal exit handler to std::_Exit()
+constexpr int abnormal_exit_handler_exit_code = 9;
+
 void start_stdin_listener(std::function<void()> function);
+void abrupt_shutdown_timeout_changed(std::chrono::milliseconds timeout);

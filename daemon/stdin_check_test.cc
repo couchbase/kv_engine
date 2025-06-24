@@ -7,6 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include "stdin_check.h"
 
 #include <boost/process.hpp>
 #include <fmt/format.h>
@@ -21,11 +22,13 @@
 
 class StdinCheckRunner {
 public:
-    StdinCheckRunner(int waittime = 0) {
-        setenv("ABRUPT_SHUTDOWN_TIMEOUT", "1", 1);
-        setenv("MEMCACHED_UNIT_TESTS", "1", 1);
+    StdinCheckRunner(int waittime = 0, int abrupt_shutdown_timeout = 0) {
         auto exe = std::filesystem::current_path() / "stdin_check_test_runner";
         std::vector<std::string> args = {{"--wait", std::to_string(waittime)}};
+        if (abrupt_shutdown_timeout) {
+            args.emplace_back(fmt::format("--abrupt_shutdown_timeout={}",
+                                          abrupt_shutdown_timeout));
+        }
 
         child = std::make_unique<boost::process::child>(
                 boost::process::exe = exe.native(),
@@ -141,4 +144,22 @@ TEST(StdinCheck, UnknownCommand) {
     runner.send("foobar");
     auto message = runner.read();
     EXPECT_EQ("Unknown command received on stdin. Ignored", message);
+}
+
+TEST(StdinCheck, AbnormalShutdownTimeout) {
+    StdinCheckRunner runner(60, 1);
+    runner.send("get_abnormal_timeout");
+    auto message = runner.read();
+    EXPECT_EQ("1000ms", message);
+
+    runner.hangup();
+    message = runner.read();
+    EXPECT_EQ("EOF on stdin. Initiating shutdown", message);
+    message = runner.readTestProgramMessage();
+    EXPECT_EQ("Shutdown started, sleep before exit", message);
+    message = runner.read();
+    EXPECT_EQ(fmt::format("Shutdown timed out! Exit({})",
+                          abnormal_exit_handler_exit_code),
+              message);
+    EXPECT_EQ(abnormal_exit_handler_exit_code, runner.wait());
 }

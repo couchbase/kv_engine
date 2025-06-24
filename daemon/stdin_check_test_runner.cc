@@ -37,7 +37,16 @@ int main(int argc, char** argv) {
              "wait",
              Argument::Required,
              "seconds",
-             "Seconds to sleep before exiting after receiving an exit "});
+             "Seconds to sleep before exiting after receiving an exit"});
+    getopt.addOption({[](auto value) {
+                          abrupt_shutdown_timeout_changed(std::chrono::seconds{
+                                  std::stoi(std::string{value})});
+                          ;
+                      },
+                      "abrupt_shutdown_timeout",
+                      Argument::Required,
+                      "seconds",
+                      "Seconds to wait for abrupt shutdown timeout"});
 
     auto arguments = getopt.parse(argc, argv, [&getopt]() {
         std::cerr << R"(Usage: stdin_check_test_runner [options]

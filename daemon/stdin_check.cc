@@ -20,11 +20,13 @@
 #endif
 
 #include <array>
+#include <atomic>
 #include <functional>
 #include <string_view>
 
 std::function<void()> exit_function;
 static constexpr int command_buffer_size = 80;
+std::atomic<std::chrono::milliseconds> max_abnormal_shutdown_duration;
 
 static char* get_command(char* buffer) {
 #ifdef WIN32
@@ -112,6 +114,10 @@ static void check_stdin_thread() {
                 exit_function();
                 call_exit_handler = false;
             }
+        } else if (cmd.starts_with("get_abnormal_timeout")) {
+            fmt::print(stderr,
+                       "{}ms\n",
+                       max_abnormal_shutdown_duration.load().count());
         } else {
             fmt::print(stderr, "Unknown command received on stdin. Ignored\n");
         }
@@ -122,10 +128,28 @@ static void check_stdin_thread() {
         fmt::print(stderr, "EOF on stdin. Initiating shutdown\n");
         exit_function();
     }
+
+    auto timeout =
+            max_abnormal_shutdown_duration.load(std::memory_order_acquire);
+    if (timeout != std::chrono::milliseconds::zero()) {
+        std::this_thread::sleep_for(timeout);
+        fmt::print(stderr,
+                   "Shutdown timed out! Exit({})\n",
+                   abnormal_exit_handler_exit_code);
+        std::_Exit(abnormal_exit_handler_exit_code);
+    }
 }
 
 void start_stdin_listener(std::function<void()> function) {
+    // Disable buffering on standard input (otherwise we may not detec
+    // a rapid "shutdown\ndie!\n" sequence as the second one is in the
+    // buffer and poll won't return until new data arrives)
+    setbuf(stdin, nullptr);
     exit_function = std::move(function);
     auto thr = create_thread([]() { check_stdin_thread(); }, "mc:check_stdin");
     thr.detach();
+}
+
+void abrupt_shutdown_timeout_changed(std::chrono::milliseconds timeout) {
+    max_abnormal_shutdown_duration.store(timeout, std::memory_order_release);
 }
