@@ -76,5 +76,3 @@ void disconnect_bucket(Bucket& bucket, Cookie* cookie);
 /// the context of the front end thread it is bound to. This means
 /// that the function cannot be called in one of the front end context
 void iterate_all_connections(std::function<void(Connection&)> callback);
-
-void start_stdin_listener(std::function<void()> function);

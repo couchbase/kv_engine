@@ -231,3 +231,26 @@ gtest_discover_tests(memcached_unit_tests
         TEST_PREFIX memcached_unit_tests.
         ONE_CTEST_PER_SUITE
         ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+
+if (NOT WIN32)
+    cb_add_test_executable(stdin_check_test_runner stdin_check_test_runner.cc stdin_check.cc)
+    target_link_libraries(stdin_check_test_runner PRIVATE platform)
+
+    cb_add_test_executable(stdin_check_test stdin_check_test.cc)
+    kv_enable_pch(stdin_check_test)
+    add_sanitizers(stdin_check_test)
+    add_dependencies(stdin_check_test stdin_check_test_runner)
+    target_include_directories(stdin_check_test SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+    target_link_libraries(stdin_check_test PRIVATE
+            ${Boost_LIBRARIES}
+            Folly::headers
+            fmt::fmt
+            platform
+            GTest::gtest
+            GTest::gtest_main)
+    gtest_discover_tests(stdin_check_test
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            TEST_PREFIX stdin_check_test.
+            ONE_CTEST_PER_SUITE
+            ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+endif ()

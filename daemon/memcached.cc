@@ -30,6 +30,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "stats.h"
+#include "stdin_check.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 #include <cbsasl/mechanism.h>

@@ -8,8 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "stdin_check.h"
+#include <fmt/format.h>
+#include <platform/platform_thread.h>
 #include <cstdio>
-#include <cstring>
 
 #ifndef WIN32
 #include <sys/poll.h>
@@ -17,17 +19,16 @@
 #include <cerrno>
 #endif
 
-#include <memcached/engine.h>
-#include <platform/platform_thread.h>
-#include <thread>
-
-#include "memcached.h"
+#include <array>
+#include <functional>
+#include <string_view>
 
 std::function<void()> exit_function;
+static constexpr int command_buffer_size = 80;
 
-static char* get_command(char* buffer, size_t buffsize) {
+static char* get_command(char* buffer) {
 #ifdef WIN32
-    if (fgets(buffer, gsl::narrow<int>(buffsize), stdin) == NULL) {
+    if (fgets(buffer, command_buffer_size, stdin) == NULL) {
         return NULL;
     }
     return buffer;
@@ -57,16 +58,16 @@ static char* get_command(char* buffer, size_t buffsize) {
     while (true) {
         switch (poll(&fds, 1, 60000)) {
         case 1:
-            if (fgets(buffer, buffsize, stdin) == nullptr) {
+            if (fgets(buffer, command_buffer_size, stdin) == nullptr) {
                 return nullptr;
             }
             return buffer;
         case 0:
             break;
         default:
-            fprintf(stderr,
-                    "ERROR: Failed to run poll() on standard input %s\n",
-                    strerror(errno));
+            fmt::print(stderr,
+                       "ERROR: Failed to run poll() on standard input {}\n",
+                       strerror(errno));
             /* sleep(6) to avoid busywait */
             sleep(1);
         }
@@ -93,32 +94,32 @@ static char* get_command(char* buffer, size_t buffsize) {
  */
 static void check_stdin_thread() {
     using namespace std::string_view_literals;
-    std::array<char, 80> command;
+    std::array<char, command_buffer_size> command;
 
     bool call_exit_handler = true;
 
-    while (get_command(command.data(), command.size()) != nullptr) {
+    while (get_command(command.data()) != nullptr) {
         std::string_view cmd(command.data(), strlen(command.data()));
         /* Handle the command */
         if (cmd.starts_with("die!")) {
-            fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
+            fmt::print(stderr, "'die!' on stdin. Exiting super-quickly\n");
             fflush(stderr);
             std::_Exit(0);
         }
         if (cmd.starts_with("shutdown")) {
             if (call_exit_handler) {
-                fprintf(stderr, "EOL on stdin.  Initiating shutdown\n");
+                fmt::print(stderr, "EOL on stdin. Initiating shutdown\n");
                 exit_function();
                 call_exit_handler = false;
             }
         } else {
-            fputs("Unknown command received on stdin. Ignored\n", stderr);
+            fmt::print(stderr, "Unknown command received on stdin. Ignored\n");
         }
     }
 
     /* The stream is closed.. do a nice shutdown */
     if (call_exit_handler) {
-        fputs("EOF on stdin. Initiating shutdown\n", stderr);
+        fmt::print(stderr, "EOF on stdin. Initiating shutdown\n");
         exit_function();
     }
 }
