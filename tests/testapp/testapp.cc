@@ -501,6 +501,7 @@ nlohmann::json TestappTest::generate_config() {
             {"external_auth_slow_duration", "5 s"},
             {"external_auth_request_timeout", "30 s"},
             {"fusion_migration_rate_limit", 75_MiB},
+            {"fusion_sync_rate_limit", 75_MiB},
             {"error_maps_dir", get_errmaps_dir()},
             {"audit_file", mcd_env->getAuditFilename().string()},
             {"rbac_file", mcd_env->getRbacFilename().string()},

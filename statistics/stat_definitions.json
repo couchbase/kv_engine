@@ -2023,6 +2023,13 @@
         "added": "8.0.0"
 
     },
+    {
+        "key": "fusion_sync_rate_limit",
+        "unit": "bytes",
+        "description": "The rate limit for fusion sync uploads, in bytes per second.",
+        "added": "8.0.0"
+
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",

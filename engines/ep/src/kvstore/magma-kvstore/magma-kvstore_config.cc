@@ -47,8 +47,6 @@ public:
             config.setMagmaKeyTreeIndexBlockSize(value);
         } else if (key == "continuous_backup_interval") {
             config.setContinousBackupInterval(std::chrono::seconds(value));
-        } else if (key == "magma_fusion_sync_rate_limit") {
-            config.setFusionSyncRateLimit(value);
         } else if (key == "magma_fusion_upload_interval") {
             config.setFusionUploadInterval(std::chrono::seconds(value));
         }
@@ -243,11 +241,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     fusionLogCheckpointInterval =
             std::chrono::seconds(config.getMagmaFusionLogCheckpointInterval());
 
-    fusionSyncRateLimit = config.getMagmaFusionSyncRateLimit();
-    config.addValueChangedListener(
-            "magma_fusion_sync_rate_limit",
-            std::make_unique<ConfigChangeListener>(*this));
-
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
     config.addValueChangedListener(
@@ -269,12 +262,6 @@ void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {
     Expects(store);
     fusionLogstoreFragmentationThreshold.store(value);
     store->setMagmaFusionLogstoreFragmentationThreshold(value);
-}
-
-void MagmaKVStoreConfig::setFusionSyncRateLimit(size_t value) {
-    Expects(store);
-    fusionSyncRateLimit.store(value);
-    store->setMagmaFusionSyncRateLimit(value);
 }
 
 void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {

@@ -974,6 +974,20 @@ TEST(SettingsUpdateTest, FusionMigrationRateLimitIsDynamic) {
     EXPECT_EQ(1000, settings.getFusionMigrationRateLimit());
 }
 
+TEST(SettingsUpdateTest, FusionSyncRateLimitIsDynamic) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionSyncRateLimit(10);
+    // setting it to the same value should work
+    updated.setFusionSyncRateLimit(10);
+    settings.updateSettings(updated, false);
+
+    // changing it should work
+    updated.setFusionSyncRateLimit(1000);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(1000, settings.getFusionSyncRateLimit());
+}
+
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {
     Settings updated;
     Settings settings;

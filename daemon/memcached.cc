@@ -493,6 +493,11 @@ static void settings_init() {
                                    magma::Magma::SetFusionMigrationRateLimit(
                                            s.getFusionMigrationRateLimit());
                                });
+    settings.addChangeListener("fusion_sync_rate_limit",
+                               [](const auto&, auto& s) {
+                                   magma::Magma::SetFusionSyncRateLimit(
+                                           s.getFusionSyncRateLimit());
+                               });
 #endif
 }
 

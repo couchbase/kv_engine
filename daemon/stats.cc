@@ -20,6 +20,9 @@
 #include "settings.h"
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
+#ifdef USE_FUSION
+#include <libmagma/magma.h>
+#endif
 #include <logger/logger.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
@@ -64,9 +67,12 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(Key::connection_structures, stats.conn_structs);
         collector.addStat(Key::curr_connections_closing,
                           stats.curr_conn_closing);
+#ifdef USE_FUSION
         collector.addStat(Key::fusion_migration_rate_limit,
                           Settings::instance().getFusionMigrationRateLimit());
-
+        collector.addStat(Key::fusion_sync_rate_limit,
+                          magma::Magma::GetFusionSyncRateLimit());
+#endif
         auto sdks = SdkConnectionManager::instance().getConnectedSdks();
         for (const auto& [key, value] : sdks) {
             collector.withLabels({{"sdk", key}})

@@ -310,10 +310,6 @@ public:
     void SetFusionLogCheckpointInterval(std::chrono::seconds interval);
     std::chrono::seconds GetFusionLogCheckpointInterval() const;
 
-    // The rate limit for Fusion sync uploads, in bytes per second.
-    void SetFusionSyncRateLimit(size_t limit);
-    size_t GetFusionSyncRateLimit() const;
-
     magma::Status SetFusionLogStoreURI(const std::string& uri);
     std::string GetFusionLogStoreURI() const;
 

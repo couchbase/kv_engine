@@ -55,7 +55,7 @@ protected:
 
     size_t getStat(std::string_view key);
 
-    void setMigrationRateLimit(size_t bytes);
+    void setMemcachedConfig(std::string_view key, size_t value);
 
     bool waitForUploaderState(Vbid vbid, std::string_view state);
 
@@ -241,8 +241,8 @@ size_t FusionTest::getStat(std::string_view key) {
     return value;
 }
 
-void FusionTest::setMigrationRateLimit(size_t bytes) {
-    memcached_cfg["fusion_migration_rate_limit"] = bytes;
+void FusionTest::setMemcachedConfig(std::string_view key, size_t value) {
+    memcached_cfg[key] = value;
     reconfigure();
 }
 
@@ -267,10 +267,30 @@ TEST_P(FusionTest, FusionMigrationRateLimit) {
             << "Default value of fusion_migration_rate_limit is not as "
                "expected";
 
-    setMigrationRateLimit(0);
+    setMemcachedConfig("fusion_migration_rate_limit", 0);
     migrationRatelimit = getStat("fusion_migration_rate_limit");
-    EXPECT_EQ(0, migrationRatelimit)
-            << "migration rate limit should be 0 after setting it to 0";
+    EXPECT_EQ(0, migrationRatelimit) << "migration rate limit in magma should "
+                                        "be 0 after setting it to 0";
+
+    // All done, unblock the data migration. The test process would get stuck
+    // otherwise.
+    setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
+}
+
+TEST_P(FusionTest, FusionSyncRateLimit) {
+    size_t syncRatelimit = getStat("fusion_sync_rate_limit");
+    EXPECT_EQ(75_MiB, syncRatelimit)
+            << "Default value of fusion_sync_rate_limit is not as "
+               "expected";
+
+    setMemcachedConfig("fusion_sync_rate_limit", 0);
+    syncRatelimit = getStat("fusion_sync_rate_limit");
+    EXPECT_EQ(0, syncRatelimit)
+            << "sync rate limit in magma should be 0 after setting it to 0";
+
+    // All done, unblock sync uploads. The test process would get stuck
+    // otherwise.
+    setMemcachedConfig("fusion_sync_rate_limit", 75_MiB);
 }
 
 TEST_P(FusionTest, AggregatedStats) {
@@ -492,7 +512,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     // triggered by mountVBucket(volumes). Volumes are considered "active" only
     // during the transfer, so we need to start and "stall" the migration for
     // reading that information back.
-    setMigrationRateLimit(0);
+    setMemcachedConfig("fusion_migration_rate_limit", 0);
 
     // Start uploader (necessary before SyncFusionLogstore)
     const auto term = "1";
@@ -571,7 +591,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
 
     // All done, unblock the data migration. The test process would get stuck
     // otherwise.
-    setMigrationRateLimit(75_MiB);
+    setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {

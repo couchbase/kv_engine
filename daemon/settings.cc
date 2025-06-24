@@ -397,6 +397,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMaxConcurrentCommandsPerConnection(value.get<size_t>());
         } else if (key == "fusion_migration_rate_limit"sv) {
             setFusionMigrationRateLimit(value.get<size_t>());
+        } else if (key == "fusion_sync_rate_limit") {
+            setFusionSyncRateLimit(value.get<size_t>());
         } else if (key == "phosphor_config"sv) {
             auto config = value.get<std::string>();
             // throw an exception if the config is invalid
@@ -990,6 +992,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFusionMigrationRateLimit()},
                          {"to", other.getFusionMigrationRateLimit()});
             setFusionMigrationRateLimit(other.getFusionMigrationRateLimit());
+        }
+    }
+
+    if (other.has.fusion_sync_rate_limit) {
+        if (other.getFusionSyncRateLimit() != getFusionSyncRateLimit()) {
+            LOG_INFO_CTX("Change fusion sync rate limit",
+                         {"from", getFusionSyncRateLimit()},
+                         {"to", other.getFusionSyncRateLimit()});
+            setFusionSyncRateLimit(other.getFusionSyncRateLimit());
         }
     }
 

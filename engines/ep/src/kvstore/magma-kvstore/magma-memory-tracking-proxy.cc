@@ -801,16 +801,6 @@ std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionLogCheckpointInterval()
     return magma->GetFusionLogCheckpointInterval();
 }
 
-void MagmaMemoryTrackingProxy::SetFusionSyncRateLimit(size_t limit) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    magma->SetFusionSyncRateLimit(limit);
-}
-
-size_t MagmaMemoryTrackingProxy::GetFusionSyncRateLimit() const {
-    cb::UseArenaMallocSecondaryDomain sGuard;
-    return magma->GetFusionSyncRateLimit();
-}
-
 void MagmaMemoryTrackingProxy::SetFusionLogstoreFragmentationThreshold(
         float threshold) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

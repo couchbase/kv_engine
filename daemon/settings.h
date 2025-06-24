@@ -314,6 +314,16 @@ public:
         notify_changed("fusion_migration_rate_limit");
     }
 
+    size_t getFusionSyncRateLimit() const {
+        return fusion_sync_rate_limit.load(std::memory_order_acquire);
+    }
+
+    void setFusionSyncRateLimit(size_t value) {
+        fusion_sync_rate_limit.store(value, std::memory_order_release);
+        has.fusion_sync_rate_limit = true;
+        notify_changed("fusion_sync_rate_limit");
+    }
+
     size_t getMaxUserConnections() const {
         return getMaxConnections() - getSystemConnections();
     }
@@ -1101,6 +1111,9 @@ protected:
     // The rate limit for Fusion extent migration, in bytes per second
     std::atomic<size_t> fusion_migration_rate_limit{75_MiB};
 
+    // The rate limit for Fusion sync uploads, in bytes per second
+    std::atomic<size_t> fusion_sync_rate_limit{1024 * 1024 * 75};
+
     /**
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.
@@ -1303,6 +1316,7 @@ public:
         bool max_concurrent_commands_per_connection = false;
         bool max_concurrent_authentications = false;
         bool fusion_migration_rate_limit = false;
+        bool fusion_sync_rate_limit = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;

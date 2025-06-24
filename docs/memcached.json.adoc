@@ -501,6 +501,10 @@ value to avoid any character escaping being required.
 
 The rate limit for Fusion extent migration, in bytes per second.
 
+=== fusion_sync_rate_limit
+
+The rate limit for Fusion sync uploads, in bytes per second.
+
 == EXAMPLES
 
 A Sample memcached.json:
