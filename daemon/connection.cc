@@ -1421,46 +1421,18 @@ void Connection::close() {
 }
 
 void Connection::propagateDisconnect() const {
-#ifdef CB_DEVELOPMENT_ASSERTS
-    const auto log = state == State::pending_close;
-#endif
     auto& bucket = getBucket();
 
     if (bucket.type == BucketType::ClusterConfigOnly) {
         // We don't have an engine
-#ifdef CB_DEVELOPMENT_ASSERTS
-        if (log) {
-            LOG_INFO_CTX("Cluster config bucket don't have an engine",
-                         {"conn_id", getId()},
-                         {"issue", "MB-65077"});
-        }
-#endif
         return;
     }
     auto& engine = bucket.getEngine();
-    std::size_t index = 0;
     for (auto& cookie : cookies) {
         if (cookie) {
-#ifdef CB_DEVELOPMENT_ASSERTS
-            if (log) {
-                LOG_INFO_CTX(
-                        "Send disconnect notification for cookie to engine",
-                        {"conn_id", getId()},
-                        {"cookie_index", index},
-                        {"issue", "MB-65077"});
-            }
-#endif
             engine.disconnect(*cookie);
         }
-        ++index;
     }
-#ifdef CB_DEVELOPMENT_ASSERTS
-    if (log) {
-        LOG_INFO_CTX("Send disconnect notification to engine for connection",
-                     {"conn_id", getId()},
-                     {"issue", "MB-65077"});
-    }
-#endif
     engine.disconnect(*this);
 }
 
