@@ -265,7 +265,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(FusionTest, FusionMigrationRateLimit) {
     size_t migrationRatelimit = getStat("fusion_migration_rate_limit");
-    EXPECT_EQ(1024 * 1024 * 75, migrationRatelimit)
+    EXPECT_EQ(75_MiB, migrationRatelimit)
             << "Default value of fusion_migration_rate_limit is not as "
                "expected";
 
@@ -573,7 +573,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
 
     // All done, unblock the data migration. The test process would get stuck
     // otherwise.
-    setMigrationRateLimit(1024 * 1024 * 75);
+    setMigrationRateLimit(75_MiB);
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {

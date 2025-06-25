@@ -19,7 +19,7 @@ BucketLoggerEngineTest::BucketLoggerEngineTest() {
     config.filename = "spdlogger_engine_test";
     // 2. Set up the logger with a greater file size so logs are output to a
     // single file
-    config.cyclesize = 100 * 1024;
+    config.cyclesize = 100_KiB;
 }
 
 void BucketLoggerEngineTest::SetUp() {

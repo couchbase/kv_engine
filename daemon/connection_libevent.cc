@@ -31,7 +31,7 @@
 /// consume memory on the server (for instance send everything except
 /// the last byte of a request and let the server be stuck waiting
 /// for the last byte of a 20MB command)
-static constexpr size_t MaxUnauthenticatedFrameSize = 16 * 1024;
+static constexpr size_t MaxUnauthenticatedFrameSize = 16_KiB;
 
 LibeventConnection::LibeventConnection(SOCKET sfd,
                                        FrontEndThread& thr,
@@ -161,7 +161,7 @@ void LibeventConnection::rw_callback() {
         // transferred at least 64k to getting notified *too* often.
         const auto length = getSendQueueSize();
         if (length) {
-            const size_t chunk = 64 * 1024;
+            const size_t chunk = 64_KiB;
             if (length > chunk) {
                 const auto watermark =
                         std::min(length - chunk, max_send_watermark_size);

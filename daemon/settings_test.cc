@@ -630,7 +630,7 @@ TEST_F(SettingsTest, max_packet_size) {
     obj["max_packet_size"] = maxPacketSize;
     try {
         Settings settings(obj);
-        EXPECT_EQ(30 * 1024 * 1024, settings.getMaxPacketSize());
+        EXPECT_EQ(30_MiB, settings.getMaxPacketSize());
         EXPECT_TRUE(settings.has.max_packet_size);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -909,7 +909,7 @@ TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
     cb::logger::Config config;
     config.filename.assign("logger_test");
     config.buffersize = 1024;
-    config.cyclesize = 1024 * 1024;
+    config.cyclesize = 1_MiB;
 
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 

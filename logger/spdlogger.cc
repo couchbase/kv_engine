@@ -180,7 +180,7 @@ std::optional<std::string> cb::logger::initialize(
     auto max_aggregated_size = logger_settings.max_aggregated_size;
 
     if (getenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE") != nullptr) {
-        cyclesz = 1024 * 1024 * 1024; // use up to 1 GB log file size
+        cyclesz = 1_GiB; // use up to 1 GB log file size
     }
 
     try {

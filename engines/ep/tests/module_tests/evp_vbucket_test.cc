@@ -75,7 +75,7 @@ TEST_P(EPVBucketTest, SizeStatsSoftDel) {
     size_t initialSize = this->global_stats.getCurrentSize();
 
     const StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
+    const size_t itemSize(16_KiB);
     char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
@@ -102,7 +102,7 @@ TEST_P(EPVBucketTest, SizeStatsSoftDelFlush) {
     size_t initialSize = this->global_stats.getCurrentSize();
 
     StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
+    const size_t itemSize(16_KiB);
     char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 

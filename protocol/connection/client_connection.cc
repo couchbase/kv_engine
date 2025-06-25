@@ -132,7 +132,7 @@ static void handleFollyAsyncSocketException(
  */
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 private:
-    static constexpr size_t DefaultBufferSize = 8192;
+    static constexpr size_t DefaultBufferSize = 8_KiB;
     static constexpr size_t DefaultChunkSize = 256;
 
 public:
@@ -2527,7 +2527,7 @@ public:
             cb::io::FileSink& sink,
             std::function<void(std::size_t)> stats_collect_callback)
         : base(base),
-          buffer(2 * 1024 * 1024),
+          buffer(2_MiB),
           sink(sink),
           stats_collect_callback(std::move(stats_collect_callback)) {
     }

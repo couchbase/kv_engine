@@ -208,7 +208,7 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
     document.info.cas = cb::mcbp::cas::Wildcard;
     document.info.datatype = cb::mcbp::Datatype::Raw;
     // Store a 20MB value in the cache
-    document.value.assign(20 * 1024 * 1024, 'b');
+    document.value.assign(20_MiB, 'b');
 
     const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     EXPECT_NE(0, info.cas);

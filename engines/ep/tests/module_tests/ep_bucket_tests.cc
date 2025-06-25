@@ -654,7 +654,7 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
     switch (limitType) {
     case BackfillBufferLimit::StreamByte:
         limit = engine->getConfiguration().getDcpScanByteLimit();
-        valueSize = 1024 * 1024;
+        valueSize = 1_MiB;
         break;
     case BackfillBufferLimit::StreamItem:
         limit = engine->getConfiguration().getDcpScanItemLimit();
@@ -669,9 +669,9 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
         // buffer is 20MB). So, disable the stream-limits by setting high values
         // for maxBytes (1GB) and maxItems (1M)
         auto& scanBuffer = producer->public_getBackfillScanBuffer();
-        scanBuffer.maxBytes = 1024 * 1024 * 1024;
+        scanBuffer.maxBytes = 1_GiB;
         scanBuffer.maxItems = 1000000;
-        valueSize = 1024 * 1024;
+        valueSize = 1_MiB;
         break;
     }
     ASSERT_GT(limit, 0);

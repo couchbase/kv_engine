@@ -13,6 +13,7 @@
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/vbucket.h>
+#include <platform/byte_literals.h>
 
 enum class AllocationMode { Ask, Movable };
 std::ostream& operator<<(std::ostream& os, const AllocationMode& mode) {
@@ -117,7 +118,7 @@ TEST_P(AsyncReaderUnitTests, isBufferMovable) {
 }
 
 TEST_P(AsyncReaderUnitTests, maxBufferSize) {
-    EXPECT_EQ(21 * 1024 * 1024, readCallback.maxBufferSize());
+    EXPECT_EQ(21_MiB, readCallback.maxBufferSize());
 }
 
 TEST_P(AsyncReaderUnitTests, eof) {

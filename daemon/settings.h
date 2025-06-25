@@ -1019,7 +1019,7 @@ protected:
     /// body of the document. With a 1MB output queue you can fit 50 ~20k
     /// documents (50 is the (default) max number of operations a client
     /// may perform before backing off.
-    std::atomic<size_t> max_send_queue_size{1024 * 1024};
+    std::atomic<size_t> max_send_queue_size{1_MiB};
 
     /// The maximum size we want to try to set SO_SNDBUF to. For windows
     /// the default is 1MB as there is no operating system tunable which
@@ -1028,9 +1028,9 @@ protected:
     /// insane large number and use the operating systems max value.
     std::atomic<uint32_t> max_so_sndbuf_size{
 #ifdef WIN32
-            1024 * 1024
+            1_MiB
 #else
-            256 * 1024 * 1024
+            256_MiB
 #endif
     };
 
@@ -1099,7 +1099,7 @@ protected:
     std::atomic<std::size_t> max_concurrent_commands_per_connection{32};
 
     // The rate limit for Fusion extent migration, in bytes per second
-    std::atomic<size_t> fusion_migration_rate_limit{1024 * 1024 * 75};
+    std::atomic<size_t> fusion_migration_rate_limit{75_MiB};
 
     /**
      * Note that it is not safe to add new listeners after we've spun up
@@ -1138,7 +1138,7 @@ protected:
     /// Max document size is 20MB so by using 30MB we'll get the correct
     /// E2BIG error message for connections going a bit bigger (and not
     /// a quiet disconnect)
-    uint32_t max_packet_size{30 * 1024 * 1024};
+    uint32_t max_packet_size{30_MiB};
 
     std::atomic<int> num_reader_threads{0};
     std::atomic<int> num_writer_threads{0};

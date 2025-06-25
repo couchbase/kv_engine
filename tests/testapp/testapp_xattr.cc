@@ -1839,7 +1839,7 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
 
     // Let it be almost 1MB (the internal length fields and keys
     // is accounted for in the system space
-    std::string value(1024 * 1024 - 40, 'a');
+    std::string value(1_MiB - 40, 'a');
     value.front() = '"';
     value.back() = '"';
 
@@ -1865,7 +1865,7 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
     userConnection->store("mb25928", Vbid(0), std::move(blob));
 
-    std::string value(1024 * 1024, 'a');
+    std::string value(1_MiB, 'a');
     value.front() = '"';
     value.back() = '"';
 

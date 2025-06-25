@@ -57,7 +57,7 @@ public:
                 });
 
         const nlohmann::json bucketConfig{
-                {"max_size", 128 * 1024 * 1024},
+                {"max_size", 128_MiB},
                 {"replicas", 0},
                 {"backend", "magma"},
                 {"item_eviction_policy", "full_eviction"},

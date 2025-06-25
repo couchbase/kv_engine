@@ -19,7 +19,7 @@ TEST(LoggerConfig, AllDefault) {
     auto config = nlohmann::json::parse("{}").get<Config>();
     EXPECT_TRUE(config.filename.empty());
     EXPECT_EQ(8192, config.buffersize);
-    EXPECT_EQ(100 * 1024 * 1024, config.cyclesize);
+    EXPECT_EQ(100_MiB, config.cyclesize);
     EXPECT_FALSE(config.unit_test);
     EXPECT_TRUE(config.console);
     EXPECT_EQ(spdlog::level::level_enum::info, config.log_level);

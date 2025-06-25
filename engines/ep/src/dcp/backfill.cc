@@ -295,7 +295,7 @@ void KVStoreScanTracker::setMaxRunningScans(uint16_t newMaxRunningBackfills,
 }
 
 /* Db file memory */
-const uint32_t dbFileMem = 10 * 1024;
+const uint32_t dbFileMem = 10_KiB;
 /* Max num of scans we want to have irrespective of memory */
 const uint16_t numScansThreshold = 4096;
 /* Max percentage of memory we want scans to occupy */

@@ -118,7 +118,7 @@ protected:
         ASSERT_EQ(24571, store->getVBucket(vbid)->ht.getSize())
                 << "Expected to have a HashTable of size 24571";
         auto& stats = engine->getEpStats();
-        ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 200 * 1024 * 4)
+        ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), 200_KiB * 4)
                 << "Expected to start with less than 200KB of memory used";
         ASSERT_LT(stats.getEstimatedTotalMemoryUsed(),
                   stats.getMaxDataSize() * 0.5)
@@ -369,12 +369,11 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
             << "Expected to be below low watermark after running item pager";
 }
 
-static auto parameters =
-        std::make_tuple(/*max_size*/ std::to_string(200 * 1024 * 1024),
-                        /*mem_low_wat_percent*/ "0.6",
-                        /*mem_high_wat_percent*/ "0.8",
-                        /*skew*/ 0.9,
-                        /*noOfAccesses*/ 20000000);
+static auto parameters = std::make_tuple(/*max_size*/ std::to_string(200_MiB),
+                                         /*mem_low_wat_percent*/ "0.6",
+                                         /*mem_high_wat_percent*/ "0.8",
+                                         /*skew*/ 0.9,
+                                         /*noOfAccesses*/ 20000000);
 
 static auto persistentTestConfigValues = ::testing::Values(
         std::tuple_cat(std::make_tuple(std::string("persistent")), parameters));

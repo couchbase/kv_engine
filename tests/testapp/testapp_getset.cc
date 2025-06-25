@@ -268,7 +268,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     xattrVal.assign(R"({"eg":")");
     xattrVal.append(std::string(1048552, 'a'));
     xattrVal.append(std::string("\"}"));
-    EXPECT_EQ(1024 * 1024, 4 + 6 + xattrVal.size() + sysXattr.size());
+    EXPECT_EQ(1_MiB, 4 + 6 + xattrVal.size() + sysXattr.size());
 
     setBodyAndXattr(userdata, {{sysXattr, xattrVal}});
 

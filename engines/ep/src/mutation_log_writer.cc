@@ -24,7 +24,7 @@ MutationLogWriter::MutationLogWriter(
     : fileWriteTestHook(std::move(fileWriteTestHook)),
       block(folly::IOBuf::createCombined(bs)),
       fileWriter(cb::crypto::FileWriter::create(
-              encryption_key, path, 16 * 1024, compression)),
+              encryption_key, path, 16_KiB, compression)),
       entryBuffer(bs) {
     Expects(bs >= MutationLogWriter::MinBlockSize &&
             bs <= MutationLogWriter::MaxBlockSize);

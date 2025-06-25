@@ -10,6 +10,7 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/byte_literals.h>
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
@@ -91,7 +92,7 @@ protected:
 
     bool auditd_enabled{false};
     uint32_t rotate_interval{900};
-    size_t rotate_size{20 * 1024 * 1024};
+    size_t rotate_size{20_MiB};
     std::optional<std::chrono::seconds> prune_age;
     bool buffered{true};
     bool filtering_enabled{false};

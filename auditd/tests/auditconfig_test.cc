@@ -39,7 +39,7 @@ protected:
     nlohmann::json createDefaultConfig() {
         nlohmann::json root;
         root["version"] = 2;
-        root["rotate_size"] = 20 * 1024 * 1024;
+        root["rotate_size"] = 20_MiB;
         root["rotate_interval"] = 900;
         root["auditd_enabled"] = true;
         root["buffered"] = true;

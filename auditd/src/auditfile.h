@@ -127,7 +127,7 @@ protected:
     std::filesystem::path open_file_name;
     std::filesystem::path log_directory;
     time_t open_time = 0;
-    size_t max_log_size = 20 * 1024 * 1024;
+    size_t max_log_size = 20_MiB;
     uint32_t rotate_interval = 900;
     std::optional<std::chrono::seconds> prune_age;
     /// Iterating over all files in the directory and fetch their

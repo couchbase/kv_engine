@@ -10,6 +10,7 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/byte_literals.h>
 #include <spdlog/common.h>
 
 #include <string>
@@ -28,9 +29,9 @@ struct Config {
     /// 8192 item size for the logging queue. This is equivalent to 2 MB
     size_t buffersize = 8192;
     /// 100 MB per cycled file
-    size_t cyclesize = 100 * 1024 * 1024;
+    size_t cyclesize = 100_MiB;
     /// Start deleting old log files when we exceed 500MB
-    size_t max_aggregated_size = 500 * 1024 * 1024;
+    size_t max_aggregated_size = 500_MiB;
     /// if running in a unit test or not
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr

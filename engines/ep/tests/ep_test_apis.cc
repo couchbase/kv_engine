@@ -1591,7 +1591,7 @@ int write_items_upto_mem_perc(EngineIface* h, int mem_thresh_perc) {
                                nullptr,
                                StoreSemantics::Set,
                                fmt::format("key{}", num_items),
-                               std::string(1024 * 100, 'x'));
+                               std::string(100_KiB, 'x'));
         if (ret == cb::engine_errc::temporary_failure ||
             ret == cb::engine_errc::no_memory) {
             wait_for_flusher_to_settle(h);

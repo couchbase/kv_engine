@@ -137,7 +137,7 @@ enum class BucketCompressionMode : uint8_t {
 static const float default_min_compression_ratio = 1.2f;
 
 /* The default maximum size for a value */
-static const size_t default_max_item_size = 20 * 1024 * 1024;
+static const size_t default_max_item_size = 20_MiB;
 
 namespace cb::engine {
 /**

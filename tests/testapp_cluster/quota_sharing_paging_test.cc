@@ -20,14 +20,6 @@
 
 using namespace cb::test;
 
-size_t operator""_MiB(unsigned long long mebibytes) {
-    return mebibytes * 1024 * 1024;
-}
-
-size_t operator""_MiB(long double mebibytes) {
-    return static_cast<size_t>(mebibytes * 1024 * 1024);
-}
-
 // Helper to calculate absolute difference between two size_t.
 ssize_t absdiff(size_t x, size_t y) {
     return std::abs(gsl::narrow<ssize_t>(x) - gsl::narrow<ssize_t>(y));

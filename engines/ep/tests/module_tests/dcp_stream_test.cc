@@ -6057,7 +6057,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_53806) {
     // Time to run again for the backfill.
     // We expect Mut:2 and Mut:3 pushed to the stream.
     // Before the fix we skip seqno:2 and proceed to seqno:3.
-    bfm.setBackfillBufferSize(1024 * 1024);
+    bfm.setBackfillBufferSize(1_MiB);
     ASSERT_EQ(backfill_success, bfm.backfill());
 
     EXPECT_EQ(2, readyQ.size());
@@ -6081,7 +6081,7 @@ TEST_P(SingleThreadedActiveStreamTest, ReadyQLimit) {
     auto& vb = *engine->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
 
-    const size_t checkpointMaxSize = 1024 * 1024;
+    const size_t checkpointMaxSize = 1_MiB;
     engine->getCheckpointConfig().setCheckpointMaxSize(checkpointMaxSize);
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(checkpointMaxSize,
@@ -9393,7 +9393,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
     stream->processMarker(&snapshotMarker);
 
     const std::string key = "key";
-    const auto value = hasValue ? std::string(1024 * 1024, 'v') : std::string();
+    const auto value = hasValue ? std::string(1_MiB, 'v') : std::string();
     size_t messageBytes = key.size() + value.size();
 
     using namespace cb::durability;
@@ -9548,7 +9548,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     stream->processMarker(&snapshotMarker);
 
     const std::string key = "key";
-    const auto value = std::string(1024 * 1024, 'v');
+    const auto value = std::string(1_MiB, 'v');
     const auto messageBytes =
             MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
 
@@ -9621,7 +9621,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
     stream->processMarker(&snapshotMarker);
 
     const std::string key = "key";
-    const auto value = std::string(1024 * 1024, 'v');
+    const auto value = std::string(1_MiB, 'v');
     const auto messageBytes =
             MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
 
@@ -9713,7 +9713,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
     ASSERT_EQ(0, stream1->getUnackedBytes());
 
     const std::string key = "key";
-    const auto value = std::string(1024 * 1024, 'v');
+    const auto value = std::string(1_MiB, 'v');
     const auto messageBytes =
             MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
 

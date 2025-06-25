@@ -205,7 +205,7 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
 size_t SingleThreadedKVBucketTest::loadUpToOOM(VbucketOp op) {
     size_t numLoaded = 0;
     auto ret = cb::engine_errc::success;
-    const auto value = std::string(1024 * 1024, 'x');
+    const auto value = std::string(1_MiB, 'x');
     do {
         auto item = make_item(
                 vbid,

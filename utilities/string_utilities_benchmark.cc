@@ -10,6 +10,7 @@
 
 #include "utilities/string_utilities.h"
 #include <benchmark/benchmark.h>
+#include <platform/byte_literals.h>
 
 std::string payload;
 
@@ -23,10 +24,10 @@ static void stage_and_commit(benchmark::State& state) {
     }
 }
 
-BENCHMARK(stage_and_commit)->RangeMultiplier(2)->Range(64, 1024 * 1024);
+BENCHMARK(stage_and_commit)->RangeMultiplier(2)->Range(64, 1_MiB);
 
 int main(int argc, char** argv) {
-    payload.resize(1024 * 1024, 'a');
+    payload.resize(1_MiB, 'a');
 
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();

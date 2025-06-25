@@ -1089,7 +1089,7 @@ public:
     }
 
 protected:
-    std::array<uint8_t, 1024 * 1024 * 2> scratch;
+    std::array<uint8_t, 2_MiB> scratch;
     cb::mcbp::RequestBuilder builder;
     cb::mcbp::Request& header;
 };

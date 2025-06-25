@@ -500,7 +500,7 @@ nlohmann::json TestappTest::generate_config() {
             {"active_external_users_push_interval", "30 m"},
             {"external_auth_slow_duration", "5 s"},
             {"external_auth_request_timeout", "30 s"},
-            {"fusion_migration_rate_limit", 1024 * 1024 * 75},
+            {"fusion_migration_rate_limit", 75_MiB},
             {"error_maps_dir", get_errmaps_dir()},
             {"audit_file", mcd_env->getAuditFilename().string()},
             {"rbac_file", mcd_env->getRbacFilename().string()},
@@ -521,7 +521,7 @@ nlohmann::json TestappTest::generate_config() {
             {"logger",
              {{"unit_test", true},
               {"filename", mcd_env->getLogFilePattern().generic_string()},
-              {"cyclesize", 200 * 1024 * 1024}}},
+              {"cyclesize", 200_MiB}}},
             {"portnumber_file", mcd_env->getPortnumberFile().string()},
             {"prometheus", {{"port", 0}, {"family", "inet"}}},
     };

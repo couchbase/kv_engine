@@ -619,7 +619,7 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
     runCompaction(vbid, 0, true);
 
     // Now enable history and flush some items
-    store->setHistoryRetentionBytes(1024 * 1024 * 100);
+    store->setHistoryRetentionBytes(100_MiB);
     std::vector<Item> items;
 
     // this flush will now enable history
@@ -739,7 +739,7 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_CursorDrop) {
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Now enable history..
-    store->setHistoryRetentionBytes(1024 * 1024 * 100);
+    store->setHistoryRetentionBytes(100_MiB);
     // ..and flush some items
     store_item(vbid, makeStoredDocKey("historyKeyA"), value);
     store_item(vbid, makeStoredDocKey("historyKeyB"), value);
@@ -789,7 +789,7 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
     EXPECT_EQ(01, epVB.getHistoricalItemsFlushed());
 
     // Now history begins here
-    store->setHistoryRetentionBytes(1024 * 1024 * 100);
+    store->setHistoryRetentionBytes(100_MiB);
     setHistoryStartSeqno(3);
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v0");
     flush_vbucket_to_disk(vbid, 1);

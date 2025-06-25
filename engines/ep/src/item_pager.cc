@@ -44,9 +44,6 @@
 
 #include <memory>
 
-/// 1 GiB (base 2)
-static constexpr size_t GiB = 1024ULL * 1024 * 1024;
-
 ItemPager::ItemPager(size_t numConcurrentPagers,
                      std::chrono::milliseconds sleepTime)
     : numConcurrentPagers(numConcurrentPagers),
@@ -150,7 +147,7 @@ std::chrono::microseconds StrictQuotaItemPager::maxExpectedVisitorDuration()
     // We take the p99.99 as baseline and linearly interpolate upwards from 10
     // GiB. maxExpectedDuration becomes 575ms for 100 GiB quota.
     const auto quotaInGiB =
-            gsl::narrow<int64_t>(stats.getMaxDataSize() / GiB);
+            gsl::narrow<int64_t>(stats.getMaxDataSize() / 1_GiB);
     return std::chrono::milliseconds(125 +
                                      std::max(quotaInGiB - 10, int64_t(0)) * 5);
 }
@@ -443,7 +440,7 @@ std::chrono::microseconds ExpiredItemPager::maxExpectedVisitorDuration() const {
     // We take the p99.99 as baseline and linearly interpolate upwards from 10
     // GiB. maxExpectedDuration becomes 235ms for 100 GiB quota.
     const auto quotaInGiB =
-            gsl::narrow<int64_t>(stats.getMaxDataSize() / GiB);
+            gsl::narrow<int64_t>(stats.getMaxDataSize() / 1_GiB);
     return std::chrono::milliseconds(55 +
                                      std::max(quotaInGiB - 10, int64_t(0)) * 2);
 }

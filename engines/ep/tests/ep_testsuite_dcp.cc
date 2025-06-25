@@ -1460,7 +1460,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                          "Failed to set VBucket state.");
     }
 
-    const uint64_t bucketQuota = 1024 * 1024 * 600;
+    const uint64_t bucketQuota = 600_MiB;
     setAndWaitForQuotaChange(h, bucketQuota);
 
     const size_t dcpQuota =

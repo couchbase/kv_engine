@@ -15,6 +15,7 @@
 
 #include <logger/logger.h>
 #include <platform/backtrace.h>
+#include <platform/byte_literals.h>
 #include <platform/exceptions.h>
 
 static bool should_include_backtrace = true;
@@ -54,7 +55,7 @@ static void log_handled_exception() {
 
 // Log the symbolified backtrace to this point.
 static void log_backtrace() {
-    std::array<char, 4096> buffer;
+    std::array<char, 4_KiB> buffer;
     if (print_backtrace_to_buffer("    ", buffer.data(), buffer.size())) {
         LOG_CRITICAL("Call stack: {}", buffer.data());
     } else {

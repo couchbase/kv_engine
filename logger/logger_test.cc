@@ -54,7 +54,7 @@ protected:
  */
 TEST_F(FileRotationTest, MultipleFilesTest) {
     cb::logger::shutdown();
-    config.max_aggregated_size = 6 * 1024;
+    config.max_aggregated_size = 6_KiB;
     setUpLogger();
 
     for (auto ii = 0; ii < 100; ii++) {

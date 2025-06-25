@@ -15,6 +15,7 @@
 #include <json/syntax_validator.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <platform/byte_literals.h>
 #include <deque>
 
 class Connection;
@@ -62,7 +63,7 @@ protected:
 
 private:
     /// The initial capacity of the buffer where we store the stats responses.
-    static constexpr size_t BUFFER_CAPACITY = 16 * 1024;
+    static constexpr size_t BUFFER_CAPACITY = 16_KiB;
 
     struct TaskData {
         /**

@@ -418,7 +418,7 @@ static unsigned long strtoul(const char* arg) {
             if (rest == "k" || rest == "K") {
                 ret *= 1024;
             } else if (rest == "m" || rest == "M") {
-                ret *= 1024 * 1024;
+                ret *= 1_MiB;
             } else if (!rest.empty()) {
                 std::cerr << "Failed to parse string (extra characters at the "
                              "end): "

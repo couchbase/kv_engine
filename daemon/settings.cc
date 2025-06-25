@@ -216,7 +216,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMaxPacketSize(value.get<uint32_t>() * uint32_t(1024) *
                              uint32_t(1024));
         } else if (key == "max_send_queue_size"sv) {
-            setMaxSendQueueSize(value.get<size_t>() * 1024 * 1024);
+            setMaxSendQueueSize(value.get<size_t>() * 1_MiB);
         } else if (key == "max_so_sndbuf_size"sv) {
             setMaxSoSndbufSize(value.get<uint32_t>());
         } else if (key == "max_connections"sv) {
@@ -705,8 +705,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.max_send_queue_size) {
         if (other.max_send_queue_size != max_send_queue_size) {
             LOG_INFO_CTX("Change max packet size",
-                         {"from", max_send_queue_size / (1024 * 1024)},
-                         {"to", other.max_send_queue_size / (1024 * 1024)});
+                         {"from", max_send_queue_size / (1_MiB)},
+                         {"to", other.max_send_queue_size / (1_MiB)});
             setMaxSendQueueSize(other.max_send_queue_size);
         }
     }

@@ -10,6 +10,7 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/config_parser.h>
+#include <platform/byte_literals.h>
 
 using namespace cb::config;
 using namespace std::string_view_literals;
@@ -118,10 +119,10 @@ TEST(ConfigValueAsSizeT, WithTrailingCharacters) {
 }
 
 TEST(ConfigValueAsSizeT, WithSizeSpecifiers) {
-    EXPECT_EQ(1234ULL * 1024, value_as_size_t("1234k"));
-    EXPECT_EQ(1234ULL * 1024 * 1024, value_as_size_t("1234m"));
-    EXPECT_EQ(1234ULL * 1024 * 1024 * 1024, value_as_size_t("1234g"));
-    EXPECT_EQ(1234ULL * 1024 * 1024 * 1024 * 1024, value_as_size_t("1234t"));
+    EXPECT_EQ(1234_KiB, value_as_size_t("1234k"));
+    EXPECT_EQ(1234_MiB, value_as_size_t("1234m"));
+    EXPECT_EQ(1234_GiB, value_as_size_t("1234g"));
+    EXPECT_EQ(1234_TiB, value_as_size_t("1234t"));
 }
 
 TEST(ConfigValueAsSizeT, WithSizeSpecifiersAndTrailingChars) {
@@ -151,10 +152,10 @@ TEST(ConfigValueAsSizeT, WithMultipleSizeSpecifiers) {
 }
 
 TEST(ConfigValueAsSSizeT, WithSizeSpecifiers) {
-    EXPECT_EQ(-1234LL * 1024, value_as_ssize_t("-1234k"));
-    EXPECT_EQ(-1234LL * 1024 * 1024, value_as_ssize_t("-1234m"));
-    EXPECT_EQ(-1234LL * 1024 * 1024 * 1024, value_as_ssize_t("-1234g"));
-    EXPECT_EQ(-1234LL * 1024 * 1024 * 1024 * 1024, value_as_ssize_t("-1234t"));
+    EXPECT_EQ(-static_cast<ssize_t>(1234_KiB), value_as_ssize_t("-1234k"));
+    EXPECT_EQ(-static_cast<ssize_t>(1234_MiB), value_as_ssize_t("-1234m"));
+    EXPECT_EQ(-static_cast<ssize_t>(1234_GiB), value_as_ssize_t("-1234g"));
+    EXPECT_EQ(-static_cast<ssize_t>(1234_TiB), value_as_ssize_t("-1234t"));
 }
 
 TEST(ConfigValueAsBool, True) {

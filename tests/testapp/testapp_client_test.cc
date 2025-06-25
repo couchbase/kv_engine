@@ -36,7 +36,7 @@ bool TestappClientTest::isTlsEnabled() const {
 
 size_t TestappClientTest::populateData(double limit) {
     Document doc;
-    doc.value.resize(10 * 1024 * 1024);
+    doc.value.resize(10_MiB);
     cb::RandomGenerator rand;
     rand.getBytes(doc.value.data(), doc.value.size());
     bool done = false;

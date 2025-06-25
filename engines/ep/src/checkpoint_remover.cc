@@ -231,7 +231,7 @@ bool CheckpointMemRecoveryTask::runInner(bool) {
 
     EP_LOG_DEBUG("{} Triggering CM memory recovery - attempting to free {} MB",
                  getDescription(),
-                 bytesToFree / (1024 * 1024));
+                 bytesToFree / (1_MiB));
 
     const auto wasAboveBackfillThreshold =
             bucket.isMemUsageAboveBackfillThreshold();

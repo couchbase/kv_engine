@@ -10,11 +10,12 @@
 #include "read_callback.h"
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <platform/byte_literals.h>
 
 namespace cb::io::network {
 
-static constexpr size_t MaxFrameSize = 21 * 1024 * 1024;
-static constexpr size_t DefaultBufferSize = 8192;
+static constexpr size_t MaxFrameSize = 21_MiB;
+static constexpr size_t DefaultBufferSize = 8_KiB;
 static constexpr size_t MinTailroomSize = 256;
 
 AsyncReadCallback::AsyncReadCallback() = default;

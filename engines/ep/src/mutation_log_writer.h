@@ -16,6 +16,7 @@
 #include <memcached/storeddockey_fwd.h>
 #include <memcached/vbucket.h>
 #include <mutation_log_entry.h>
+#include <platform/byte_literals.h>
 #include <functional>
 
 /**
@@ -28,7 +29,7 @@
 class MutationLogWriter {
 public:
     constexpr static size_t MinBlockSize = 512;
-    constexpr static size_t MaxBlockSize = 1024 * 1024;
+    constexpr static size_t MaxBlockSize = 1_MiB;
 
     MutationLogWriter(
             std::string path,

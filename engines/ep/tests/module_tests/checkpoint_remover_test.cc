@@ -149,7 +149,7 @@ TEST_P(CheckpointRemoverEPTest, CursorsEligibleToDrop) {
 TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    const size_t bucketQuota = 1024 * 1024 * 100;
+    const size_t bucketQuota = 100_MiB;
     auto& config = engine->getConfiguration();
     config.setMaxSize(bucketQuota);
     auto& stats = engine->getEpStats();
@@ -209,7 +209,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
 
     scheduleCheckpointRemoverTask();
 
-    const size_t bucketQuota = 1024 * 1024 * 100;
+    const size_t bucketQuota = 100_MiB;
     auto& config = engine->getConfiguration();
     config.setMaxSize(bucketQuota);
     // set the max checkpoint size excessively high - need the test to
@@ -299,7 +299,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     }
 
     config.setChkExpelEnabled(true);
-    config.setMaxSize(1024 * 1024 * 100);
+    config.setMaxSize(100_MiB);
     // Disable the mem-based checkpoint creation in this test, we would end up
     // doing straight CheckpointRemoval rather than ItemExpel/CursorDrop
     config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
@@ -310,7 +310,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     stats.mem_low_wat.store(1);
 
     int ii = 0;
-    const auto value = std::string(1024 * 1024, 'x');
+    const auto value = std::string(1_MiB, 'x');
     while (stats.getCheckpointManagerEstimatedMemUsage() <
            chkptMemRecoveryLimit) {
         std::string doc_key = "key_" + std::to_string(ii);
@@ -424,7 +424,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
 
     auto& config = engine->getConfiguration();
     config.setChkExpelEnabled(true);
-    config.setMaxSize(1024 * 1024 * 100);
+    config.setMaxSize(100_MiB);
 
     ASSERT_EQ(0, store->getRequiredCMMemoryReduction());
 
@@ -480,7 +480,7 @@ TEST_P(CheckpointRemoverTest, MB59601) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     config.setChkExpelEnabled(false);
-    config.setMaxSize(100UL * 1024 * 1024);
+    config.setMaxSize(100_MiB);
     // Disable the mem-based checkpoint creation in this test, we would end up
     // doing straight CheckpointRemoval rather than ItemExpel/CursorDrop
     config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
@@ -491,7 +491,7 @@ TEST_P(CheckpointRemoverTest, MB59601) {
     stats.mem_low_wat.store(1);
 
     int numItems = 0;
-    const std::string value(1024 * 1024, 'x');
+    const std::string value(1_MiB, 'x');
     while (stats.getCheckpointManagerEstimatedMemUsage() <
            chkptMemRecoveryLimit) {
         auto docKey = "key_" + std::to_string(++numItems);
@@ -867,14 +867,14 @@ TEST_P(CheckpointRemoverEPTest, MB_48233) {
 
     auto& config = engine->getConfiguration();
     config.setChkExpelEnabled(true);
-    config.setMaxSize(1024 * 1024 * 100);
+    config.setMaxSize(100_MiB);
 
     // Load to OOM. At the same time, makes just 1 item eligible for expelling.
     // Purpose here is:
     //  1. Hit OOM
     //  2. Give the MemoryRecoveryTask some item to expel
     //  3. Prevent eager checkpoint removal. (1) wouldn't be verified otherwise
-    const auto value = std::string(1024 * 1024, 'x');
+    const auto value = std::string(1_MiB, 'x');
     auto ret = cb::engine_errc::success;
     for (size_t seqno = 1; ret != cb::engine_errc::no_memory; ++seqno) {
         auto item = make_item(
@@ -922,8 +922,8 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
     auto cursor = activeStream.getCursor().lock();
 
     config.setChkExpelEnabled(true);
-    config.setMaxSize(1024 * 1024 * 100);
-    const auto value = std::string(1024 * 1024, 'x');
+    config.setMaxSize(100_MiB);
+    const auto value = std::string(1_MiB, 'x');
     auto ret = cb::engine_errc::success;
     for (size_t i = 0; ret != cb::engine_errc::no_memory; ++i) {
         auto item = make_item(
@@ -1318,7 +1318,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& config = engine->getConfiguration();
-    config.setMaxSize(1024 * 1024); // 1MB
+    config.setMaxSize(1_MiB); // 1MB
     config.setCheckpointMemoryRatio(0); // will always require reduction
 
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
@@ -1364,7 +1364,7 @@ TEST_P(CheckpointRemoverTest, TriggeredByChkUpperMark) {
     auto& stats = engine->getEpStats();
     auto& bucket = *engine->getKVBucket();
 
-    const size_t bucketQuota = 1024 * 1024 * 100; // 100MB
+    const size_t bucketQuota = 100_MiB; // 100MB
     config.setMaxSize(bucketQuota);
     // Set checkpoint quota to a lower value to test the upper mark triggering
     config.setCheckpointMemoryRatio(0.2);
@@ -1410,7 +1410,7 @@ TEST_P(CheckpointRemoverTest, TriggeredByBucketHWM) {
     auto& stats = engine->getEpStats();
     auto& bucket = *engine->getKVBucket();
 
-    const size_t bucketQuota = 1024 * 1024 * 100; // 100MB
+    const size_t bucketQuota = 100_MiB; // 100MB
     config.setMaxSize(bucketQuota);
     config.setCheckpointMaxSize(bucketQuota);
     // Set high checkpoint quota as we just want to test the HWM triggering

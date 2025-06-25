@@ -2737,7 +2737,7 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     // above those.
 
     auto& config = engine->getConfiguration();
-    const size_t _100MB = 1024 * 1024 * 100;
+    const size_t _100MB = 100_MiB;
     engine->setMaxDataSize(_100MB);
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(_100MB, stats.getMaxDataSize());
@@ -2753,20 +2753,19 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     // 5MB expected
     EXPECT_EQ(_100MB * ratio, consumer->getFlowControlBufSize());
 
-    const size_t _1GB = 1024 * 1024 * 1024;
-    engine->setMaxDataSize(_1GB);
-    ASSERT_EQ(_1GB, stats.getMaxDataSize());
+    engine->setMaxDataSize(1_GiB);
+    ASSERT_EQ(1_GiB, stats.getMaxDataSize());
     ratio = 0.1;
     config.setDcpConsumerBufferRatio(ratio);
     // 100MB expected
-    EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
+    EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
 }
 
 TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
 
     auto& config = engine->getConfiguration();
-    const size_t _100MB = 1024 * 1024 * 100;
+    const size_t _100MB = 100_MiB;
     engine->setMaxDataSize(_100MB);
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(_100MB, stats.getMaxDataSize());
@@ -2780,13 +2779,12 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     ASSERT_TRUE(consumer->public_flowControl().isEnabled());
     ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
-    EXPECT_EQ(_100MB * ratio, consumer->getFlowControlBufSize());
+    EXPECT_EQ(100_MiB * ratio, consumer->getFlowControlBufSize());
 
     // Now change the Bucket Quota ONLY, and very consumer buffer resized
-    const size_t _1GB = 1024 * 1024 * 1024;
-    engine->setMaxDataSize(_1GB);
-    ASSERT_EQ(_1GB, stats.getMaxDataSize());
-    EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
+    engine->setMaxDataSize(1_GiB);
+    ASSERT_EQ(1_GiB, stats.getMaxDataSize());
+    EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
 }
 
 struct PrintToStringCombinedNameXattrOnOff {

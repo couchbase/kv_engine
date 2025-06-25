@@ -191,7 +191,7 @@ TEST_P(MiscTest, ExceedMaxPacketSize) {
     request.setOpcode(cb::mcbp::ClientOpcode::Set);
     request.setExtlen(sizeof(cb::mcbp::request::MutationPayload));
     request.setKeylen(1);
-    request.setBodylen(31 * 1024 * 1024);
+    request.setBodylen(31_MiB);
     request.setOpaque(0xdeadbeef);
 
     auto mysocket = getConnection().releaseSocket();
@@ -403,11 +403,11 @@ TEST_F(TestappTest, MB56893) {
     conn.reconnect();
 
     Frame frame;
-    frame.payload.resize(1024 * 1024 + sizeof(cb::mcbp::Header));
+    frame.payload.resize(1_MiB + sizeof(cb::mcbp::Header));
     auto* header = reinterpret_cast<cb::mcbp::Request*>(frame.payload.data());
     header->setMagic(cb::mcbp::Magic::ClientRequest);
     header->setOpcode(cb::mcbp::ClientOpcode::Noop);
-    header->setBodylen(1024 * 1024);
+    header->setBodylen(1_MiB);
 
     try {
         // We don't really know how libevent will deliver the data

@@ -1716,7 +1716,7 @@ TEST_F(CheckpointMemQuotaTest, CheckpointMemQuotaStat) {
     std::unordered_map<std::string, prometheus::MetricFamily> statsMap;
     PrometheusStatCollector collector(statsMap);
     auto bucketCollector = collector.forBucket("foo");
-    auto quota = 5 * 1024 * 1024;
+    auto quota = 5_MiB;
     engine->setMaxDataSize(quota);
 
     auto rc = engine->get_prometheus_stats(bucketCollector, MetricGroup::Low);

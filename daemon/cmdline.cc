@@ -32,7 +32,7 @@ static void usage() {
 }
 
 static std::string read_command() {
-    std::vector<char> buffer(1 * 1024 * 1024);
+    std::vector<char> buffer(1_MiB);
 #ifdef WIN32
     // Windows call a blocking call to fgets() in stdin_check so we
     // can might as well use the portable fgets() and not have to

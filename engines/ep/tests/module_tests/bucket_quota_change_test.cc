@@ -271,8 +271,8 @@ public:
         // item to inflate memory usage for the purposes of this test and we
         // don't want that item to have to be too large (allocations aren't
         // fast).
-        engine->getConfiguration().setMaxSize(10 * 1024 * 1024);
-        engine->setMaxDataSize(10 * 1024 * 1024);
+        engine->getConfiguration().setMaxSize(10_MiB);
+        engine->setMaxDataSize(10_MiB);
 
         // We need our item to be a certain size (and hard-coding some size is
         // brittle) so we'll calculate an appropriate value. Our HWM defaults to

@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <platform/byte_literals.h>
 #include <platform/cb_arena_malloc_client.h>
 
 #include <cstddef>
@@ -22,7 +23,7 @@ constexpr std::size_t TotalBuckets = cb::ArenaMallocMaxClients;
 
 /// The total number of bytes which may be used from privileged (system)
 /// users in a document
-constexpr std::size_t PrivilegedBytes = 1024 * 1024;
+constexpr std::size_t PrivilegedBytes = 1_MiB;
 
 /// The maximum length of a username
 constexpr std::size_t MaxUsernameLength = 128;

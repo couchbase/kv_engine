@@ -12,6 +12,7 @@
 #include <fmt/ostream.h>
 #include <mcbp/protocol/datatype.h>
 #include <memcached/dockey_view.h>
+#include <platform/byte_literals.h>
 #include <sys/types.h>
 #include <chrono>
 #include <cstdint>

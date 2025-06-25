@@ -181,7 +181,7 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
 
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
-    document.value.resize(21 * 1024 * 1024);
+    document.value.resize(21_MiB);
     document.compress();
     try {
         userConnection->mutateWithMeta(
@@ -204,7 +204,7 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
     auto xattrValue = blob.finalize();
     std::ranges::copy(xattrValue, std::back_inserter(document.value));
 
-    document.value.resize((20 * 1024 * 1024) + xattrValue.size());
+    document.value.resize((20_MiB) + xattrValue.size());
     document.info.datatype = cb::mcbp::Datatype::Xattr;
     userConnection->mutateWithMeta(
             document, Vbid(0), cb::mcbp::cas::Wildcard, 1, 0, {});

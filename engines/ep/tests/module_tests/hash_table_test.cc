@@ -754,7 +754,7 @@ protected:
     HashTableStatsTest()
         : ht(stats, makeFactory(), 5, 1, 0, defaultHtTempItemsAllowedPercent),
           key(makeStoredDocKey("somekey")),
-          itemSize(16 * 1024),
+          itemSize(16_KiB),
           item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
           evictionPolicy(std::get<0>(GetParam())) {
         // Assign a valid sequence number.

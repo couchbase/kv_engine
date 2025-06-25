@@ -14,6 +14,7 @@
 #include <cbsasl/password_database.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <platform/byte_literals.h>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -82,7 +83,7 @@ public:
     }
 
     [[nodiscard]] constexpr static size_t getMaximumDocSize() {
-        return 20 * 1024 * 1024;
+        return 20_MiB;
     }
 
     [[nodiscard]] bool isFullEviction() const;

@@ -4594,7 +4594,7 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
 }
 
 static enum test_result test_memory_condition(EngineIface* h) {
-    std::string data(1024 * 1024, 'x');
+    std::string data(1_MiB, 'x');
 
     // Disable persistence so this test isn't racy
     stop_persistence(h);

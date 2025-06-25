@@ -641,7 +641,7 @@ TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
     EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 
     // Load a document of size 1MiB
-    int valueSize = 1 * 1024 * 1024;
+    int valueSize = 1_MiB;
     const std::string value(valueSize, 'x');
     auto key = makeStoredDocKey("key");
 
@@ -687,7 +687,7 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
               store->setVBucketState(vbid, vbucket_state_active, {}));
     EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 
-    int valueSize = 1 * 1024 * 1024;
+    int valueSize = 1_MiB;
 
     // Load documents of size 1MiB
     const std::string value(valueSize, 'x');
@@ -790,7 +790,7 @@ TEST_P(EPBucketFullEvictionTest, DontQueueBGFetchItemAboveMutationWatermark) {
               store->setVBucketState(vbid, vbucket_state_active, {}));
     EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 
-    int valueSize = 1 * 1024 * 1024;
+    int valueSize = 1_MiB;
 
     // Load document of size 1MiB
     const std::string value(valueSize, 'x');
@@ -2523,7 +2523,7 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
     auto* cookie = create_mock_cookie();
 
     const auto key = makeStoredDocKey("key");
-    const auto value = std::string(1024 * 1024, 'x');
+    const auto value = std::string(1_MiB, 'x');
     auto item =
             make_item(vbid, key, value, 0 /*exp*/, PROTOCOL_BINARY_RAW_BYTES);
 

@@ -18,6 +18,7 @@
 #include "utilities/testing_hook.h"
 
 #include <memcached/thread_pool_config.h>
+#include <platform/byte_literals.h>
 #include <chrono>
 #include <filesystem>
 
@@ -455,7 +456,7 @@ private:
     /**
      * Value block size for SeqIndex SSTable.
      */
-    std::atomic<size_t> magmaMinValueBlockSizeThreshold{64 * 1024};
+    std::atomic<size_t> magmaMinValueBlockSizeThreshold{64_KiB};
 
     /**
      * Index block size for SeqIndex SSTable.

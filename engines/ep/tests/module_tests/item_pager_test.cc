@@ -52,9 +52,6 @@ using namespace std::string_literals;
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 
-/// 1 GiB (base 2)
-static constexpr size_t GiB = 1024ULL * 1024 * 1024;
-
 // Comparing durations as ints gives better GTest output
 template <typename T>
 static constexpr auto countMilliseconds(T x) {
@@ -87,7 +84,7 @@ protected:
         // magma to flush with every batch. This will release memory
         // being held by streaming sstables (~600KB). Otherwise, we would
         // have to bump up the quota for magma.
-        increaseQuota(800 * 1024);
+        increaseQuota(800_KiB);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
@@ -622,10 +619,10 @@ TEST_P(STItemPagerTest, MaxVisitorDuration) {
     stats.setMaxDataSize(0);
     EXPECT_EQ(125, countMilliseconds(pager.maxExpectedVisitorDuration()));
 
-    stats.setMaxDataSize(10 * GiB);
+    stats.setMaxDataSize(10_GiB);
     EXPECT_EQ(125, countMilliseconds(pager.maxExpectedVisitorDuration()));
 
-    stats.setMaxDataSize(100 * GiB);
+    stats.setMaxDataSize(100_GiB);
     EXPECT_EQ(575, countMilliseconds(pager.maxExpectedVisitorDuration()));
 }
 
@@ -1224,11 +1221,10 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // Now set max_size to be 10MiB
     std::string msg;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->setFlushParam(
-                      "max_size", std::to_string(10 * 1024 * 1204), msg));
+              engine->setFlushParam("max_size", std::to_string(10_MiB), msg));
 
     // Store a large document 4MiB
-    std::string value(4 * 1024 * 1204, 'a');
+    std::string value(4_MiB, 'a');
     {
         auto item =
                 make_item(vbid, {"key", DocKeyEncodesCollectionId::No}, value);
@@ -2576,10 +2572,10 @@ TEST_P(STExpiryPagerTest, MaxVisitorDuration) {
     stats.setMaxDataSize(0);
     EXPECT_EQ(55, countMilliseconds(pager.maxExpectedVisitorDuration()));
 
-    stats.setMaxDataSize(10 * GiB);
+    stats.setMaxDataSize(10_GiB);
     EXPECT_EQ(55, countMilliseconds(pager.maxExpectedVisitorDuration()));
 
-    stats.setMaxDataSize(100 * GiB);
+    stats.setMaxDataSize(100_GiB);
     EXPECT_EQ(235, countMilliseconds(pager.maxExpectedVisitorDuration()));
 }
 
@@ -3018,7 +3014,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     }
 
     // Need a slightly higher quota here
-    increaseQuota(800 * 1024);
+    increaseQuota(800_KiB);
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 

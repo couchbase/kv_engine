@@ -3275,7 +3275,7 @@ size_t KVBucket::getRequiredCMMemoryReduction() const {
 
     const size_t cmToClear = toClear - pendingDealloc;
 
-    const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
+    const auto toMB = [](size_t bytes) { return bytes / (1_MiB); };
     EP_LOG_DEBUG(
             "Triggering memory recovery as CM memory usage ({} MB) plus "
             "detached checkpoint usage ({} MB) ({} MB in total) exceeds the "

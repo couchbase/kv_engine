@@ -28,7 +28,7 @@
 #include <mutex>
 
 static phosphor::TraceConfig lastConfig{
-        phosphor::TraceConfig(phosphor::BufferMode::ring, 20 * 1024 * 1024)};
+        phosphor::TraceConfig(phosphor::BufferMode::ring, 20_MiB)};
 static std::mutex configMutex;
 
 static void setTraceConfig(const std::string& config) {
@@ -179,7 +179,7 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
 
     std::string formatted;
     phosphor::tools::JSONExport exporter(context);
-    static constexpr std::size_t chunksize = 1024 * 1024;
+    static constexpr std::size_t chunksize = 1_MiB;
     size_t last_wrote;
     do {
         formatted.resize(formatted.size() + chunksize);

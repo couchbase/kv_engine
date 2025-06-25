@@ -1017,7 +1017,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     checkeq(cb::engine_errc::too_big,
             set_with_meta(h,
                           key,
-                          {bigValue, 32 * 1024 * 1024},
+                          {bigValue, 32_MiB},
                           Vbid(0),
                           &itm_meta,
                           cas_for_set),

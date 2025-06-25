@@ -36,7 +36,7 @@ public:
 
         // Run with a few different quotas
         quotaMB = state.range(0);
-        engine->setMaxDataSize(quotaMB * 1024 * 1024);
+        engine->setMaxDataSize(quotaMB * 1_MiB);
 
         // Disable the pager as we'll run things manually
         engine->getKVBucket()->disableItemPager();

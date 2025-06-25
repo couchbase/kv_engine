@@ -348,7 +348,7 @@ static void pools_default_buckets_callback(struct evhttp_request* req,
     }
 
     nlohmann::json config;
-    config["max_size"] = std::stoi(params["ramQuotaMB"]) * 1024 * 1024;
+    config["max_size"] = std::stoi(params["ramQuotaMB"]) * 1_MiB;
     config["replicas"] = std::stoi(params["replicaNumber"]);
     config["compression_mode"] = params["compressionMode"];
     if (params["evictionPolicy"] == "fullEviction") {

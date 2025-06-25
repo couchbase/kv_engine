@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/byte_literals.h>
 #include <optional>
 #include <string>
 
@@ -79,7 +80,7 @@ struct DownloadProperties {
     /// The bucket to connect to
     std::string bucket;
 
-    static constexpr std::size_t DefaultFsyncInterval = 50 * 1024 * 1024;
+    static constexpr std::size_t DefaultFsyncInterval = 50_MiB;
     /// The number of bytes between each call to fsync
     std::size_t fsync_interval = DefaultFsyncInterval;
 

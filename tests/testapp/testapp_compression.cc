@@ -25,7 +25,7 @@ class CompressionTest : public TestappXattrClientTest {
 public:
     static void SetUpTestCase() {
         TestappXattrClientTest::SetUpTestCase();
-        xattr_value.resize(4096, 'z');
+        xattr_value.resize(4_KiB, 'z');
         xattr_value.front() = '"';
         xattr_value.back() = '"';
     }
@@ -164,7 +164,7 @@ TEST_P(CompressionTest, SubdocLookupFieldOnCompressedDocument) {
 TEST_P(CompressionTest, GetReturnsCompressedData) {
     Document doc;
     doc.info.id = name;
-    doc.value.resize(4096, 'a');
+    doc.value.resize(4_KiB, 'a');
     doc.compress();
     // By storing the document compressed, the server shouldn't need to compress
     // it and just reuse the provided blob
@@ -205,7 +205,7 @@ TEST_P(CompressionTest, AppendPrepend) {
 TEST_P(CompressionTest, GatReturnsCompressedData) {
     Document doc;
     doc.info.id = name;
-    doc.value.resize(4096, 'a');
+    doc.value.resize(4_KiB, 'a');
     doc.compress();
     // By storing the document compressed, the server shouldn't need to compress
     // it and just reuse the provided blob
@@ -231,7 +231,7 @@ TEST_P(CompressionTest, GatReturnsCompressedData) {
 TEST_P(CompressionTest, GetLockedReturnsCompressedData) {
     Document doc;
     doc.info.id = name;
-    doc.value.resize(4096, 'a');
+    doc.value.resize(4_KiB, 'a');
     doc.compress();
     // By storing the document compressed, the server shouldn't need to compress
     // it and just reuse the provided blob

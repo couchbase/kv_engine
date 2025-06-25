@@ -1249,8 +1249,7 @@ TEST_F(SingleThreadedCheckpointTest,
 
 TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
     auto& config = engine->getConfiguration();
-    const uint32_t _1GB = 1024 * 1024 * 1024;
-    config.setMaxSize(_1GB);
+    config.setMaxSize(1_GiB);
     const auto ckptMemRatio = 0.4f;
     config.setCheckpointMemoryRatio(ckptMemRatio);
     const auto maxCheckpoints = 20;
@@ -1261,12 +1260,12 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = *vb->checkpointManager;
 
-    ASSERT_EQ(_1GB, config.getMaxSize());
+    ASSERT_EQ(1_GiB, config.getMaxSize());
     ASSERT_EQ(ckptMemRatio, store->getCheckpointMemoryRatio());
     ASSERT_EQ(maxCheckpoints,
               manager.getCheckpointConfig().getMaxCheckpoints());
 
-    const auto cmQuota = _1GB * ckptMemRatio;
+    const auto cmQuota = 1_GiB * ckptMemRatio;
     const auto numVBuckets = store->getVBuckets().getNumAliveVBuckets();
     ASSERT_GT(numVBuckets, 0);
     const auto expected = cmQuota / numVBuckets / maxCheckpoints;
@@ -1276,11 +1275,9 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
 TEST_F(SingleThreadedCheckpointTest,
        CheckpointMaxSize_NeverGreaterThanFlushMaxBytes) {
     auto& config = engine->getConfiguration();
-    const size_t _1GB = 1024 * 1024 * 1024;
-    const size_t _2GB = 2 * _1GB;
-    ASSERT_EQ(_2GB, config.getFlushBatchMaxBytes());
+    ASSERT_EQ(2_GiB, config.getFlushBatchMaxBytes());
 
-    config.setMaxSize(_2GB);
+    config.setMaxSize(2_GiB);
     config.setCheckpointMemoryRatio(1.0f); // CMQuota takes Full Bucket Quota
     config.setMaxCheckpoints(2); // Two Checkpoints takes full CMQuota
 
@@ -1290,25 +1287,21 @@ TEST_F(SingleThreadedCheckpointTest,
 
     const auto& ckptConfig = manager.getCheckpointConfig();
     EXPECT_EQ(2, ckptConfig.getMaxCheckpoints());
-    EXPECT_EQ(_1GB, ckptConfig.getCheckpointMaxSize());
+    EXPECT_EQ(1_GiB, ckptConfig.getCheckpointMaxSize());
 
-    const size_t _4GB = 4 * _1GB;
-    engine->setMaxDataSize(_4GB); // triggers checkpoint's size auto-setup
-    EXPECT_EQ(_2GB, ckptConfig.getCheckpointMaxSize());
+    engine->setMaxDataSize(4_GiB); // triggers checkpoint's size auto-setup
+    EXPECT_EQ(2_GiB, ckptConfig.getCheckpointMaxSize());
 
-    const size_t _5GB = 5 * _1GB;
-    engine->setMaxDataSize(_5GB); // triggers checkpoint's size auto-setup
+    engine->setMaxDataSize(5_GiB); // triggers checkpoint's size auto-setup
     // checkpoint_computed_max_size won't cross flush_batch_max_bytes
-    EXPECT_EQ(_2GB, ckptConfig.getCheckpointMaxSize());
+    EXPECT_EQ(2_GiB, ckptConfig.getCheckpointMaxSize());
 }
 
 TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_CapAtFlushMaxBytes) {
     auto& config = engine->getConfiguration();
-    const size_t _1GB = 1024 * 1024 * 1024;
-    const size_t _2GB = 2 * _1GB;
-    ASSERT_EQ(_2GB, config.getFlushBatchMaxBytes());
+    ASSERT_EQ(2_GiB, config.getFlushBatchMaxBytes());
 
-    config.setMaxSize(_2GB);
+    config.setMaxSize(2_GiB);
     config.setCheckpointMemoryRatio(1.0f); // CMQuota takes Full Bucket Quota
     config.setMaxCheckpoints(2); // Two Checkpoints takes full CMQuota
 
@@ -1318,27 +1311,25 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_CapAtFlushMaxBytes) {
 
     const auto& ckptConfig = manager.getCheckpointConfig();
     EXPECT_EQ(2, ckptConfig.getMaxCheckpoints());
-    EXPECT_EQ(_1GB, ckptConfig.getCheckpointMaxSize());
+    EXPECT_EQ(1_GiB, ckptConfig.getCheckpointMaxSize());
 
     config.setCheckpointMaxSize(1); // Set to 1
     EXPECT_EQ(1, ckptConfig.getCheckpointMaxSize());
 
-    const size_t _5GB = 5 * _1GB;
-    config.setMaxSize(_5GB);
-    engine->setMaxDataSize(_5GB); // triggers checkpoint's size auto-setup
+    config.setMaxSize(5_GiB);
+    engine->setMaxDataSize(5_GiB); // triggers checkpoint's size auto-setup
     // checkpoint_computed_max_size is capped at flush_batch_max_bytes
     // Note: Before the fix for MB-61238 checkpoint_computed_max_size is still 1
-    EXPECT_EQ(_2GB, ckptConfig.getCheckpointMaxSize());
+    EXPECT_EQ(2_GiB, ckptConfig.getCheckpointMaxSize());
 }
 
 TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& config = engine->getConfiguration();
-    config.setMaxSize(1024 * 1024 * 100);
+    config.setMaxSize(100_MiB);
 
     config.setMaxCheckpoints(20);
     // Note: This test also verifies that a value > 0 is just set (*)
-    const uint32_t _10MB = 1024 * 1024 * 10;
-    config.setCheckpointMaxSize(_10MB);
+    config.setCheckpointMaxSize(10_MiB);
 
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -1346,12 +1337,12 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
 
     const auto& ckptConfig = manager.getCheckpointConfig();
     ASSERT_EQ(20, ckptConfig.getMaxCheckpoints());
-    ASSERT_EQ(_10MB, ckptConfig.getCheckpointMaxSize()); // (*)
+    ASSERT_EQ(10_MiB, ckptConfig.getCheckpointMaxSize()); // (*)
 
     ASSERT_EQ(1, manager.getNumCheckpoints());
 
     const size_t numItems = 5;
-    const std::string value(_10MB, '!');
+    const std::string value(10_MiB, '!');
     for (size_t i = 0; i < numItems; ++i) {
         auto item = makeCommittedItem(
                 makeStoredDocKey("key" + std::to_string(i)), value, vbid);
@@ -1368,7 +1359,7 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
 TEST_F(SingleThreadedCheckpointTest,
        MemUsageCheckpointCreation_CkptSizeSmallerThanItemSize) {
     auto& config = engine->getConfiguration();
-    config.setMaxSize(1024 * 1024 * 100);
+    config.setMaxSize(100_MiB);
 
     config.setMaxCheckpoints(20);
     // Set checkpoint max size to something very low

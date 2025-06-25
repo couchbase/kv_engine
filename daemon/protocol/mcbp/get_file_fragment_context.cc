@@ -25,7 +25,7 @@
 #include <platform/crc32c.h>
 #include <platform/strerror.h>
 
-constexpr std::size_t MaxReadSize = 2 * 1024 * 1024 * 1024ULL;
+constexpr std::size_t MaxReadSize = 2_GiB;
 
 GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
@@ -195,7 +195,7 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                 "Read file fragment",
                 [this]() {
                     try {
-                        constexpr std::size_t ChunkSize = 20 * 1024 * 1024;
+                        constexpr std::size_t ChunkSize = 20_MiB;
                         const auto to_read = std::min(length, ChunkSize);
 
                         auto iob = folly::IOBuf::createCombined(to_read);

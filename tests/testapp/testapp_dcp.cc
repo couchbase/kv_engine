@@ -187,7 +187,7 @@ TEST_P(DcpTest, DcpStreamStats) {
 TEST_P(DcpTest, MB60706) {
     nlohmann::json json;
 
-    std::string value(2048 * 1024, 'a');
+    std::string value(2_MiB, 'a');
 
     for (int ii = 0; ii < 10; ++ii) {
         store_document(fmt::format("MB60706_{}", ii), value, 0, 0, false);
