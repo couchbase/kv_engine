@@ -110,7 +110,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         endSeqno = dcpMaxSeqno;
     }
 
-    std::shared_lock rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
         snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
         if (info.range.getEnd() > en_seqno) {

@@ -160,6 +160,7 @@ std::shared_ptr<ActiveStream> MockDcpProducer::makeStream(
         StreamRequestInfo& req,
         VBucketPtr vb,
         Collections::VB::Filter filter) {
+    EXPECT_FALSE(vb->getStateLock().try_lock());
     return std::make_shared<MockActiveStream>(&engine_,
                                               shared_from_base<DcpProducer>(),
                                               getName(),

@@ -7721,7 +7721,15 @@ TEST_P(SingleThreadedActiveStreamTest,
         throw std::runtime_error("processItemsHook throw");
     };
     auto items = stream->public_getOutstandingItems(vb);
-    EXPECT_THROW(stream->public_processItems(items), std::exception);
+    try {
+        stream->public_processItems(items);
+        FAIL() << "No exception thrown";
+    } catch (const std::runtime_error& e) {
+        EXPECT_EQ(std::string("processItemsHook throw"), e.what());
+    }
+
+    // Write an item so that the task will be scheduled by all bucket types
+    store_item(vbid, makeStoredDocKey("key"), "value");
 
     // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
     // which will catch the exception thrown by processItems().
@@ -7752,17 +7760,25 @@ TEST_P(SingleThreadedActiveStreamTest, ProcessStreamsExceptionCrashes) {
         throw std::runtime_error("processItemsHook throw");
     };
     auto items = stream->public_getOutstandingItems(vb);
-    EXPECT_THROW(stream->public_processItems(items), std::exception);
+    try {
+        stream->public_processItems(items);
+        FAIL() << "No exception thrown";
+    } catch (const std::runtime_error& e) {
+        EXPECT_EQ(std::string("processItemsHook throw"), e.what());
+    }
 
     // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
     // Exception will not be caught
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
     auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_THROW(runNextTask(nonIO,
-                             "Process checkpoint(s) for DCP producer "
-                             "test_producer->test_consumer"),
-                 std::exception);
-
+    try {
+        runNextTask(nonIO,
+                    "Process checkpoint(s) for DCP producer "
+                    "test_producer->test_consumer");
+        FAIL() << "No exception thrown";
+    } catch (const std::runtime_error& e) {
+        EXPECT_EQ(std::string("processItemsHook throw"), e.what());
+    }
     // Producer should NOT disconnect connection
     EXPECT_NE(cb::engine_errc::disconnect, producer->step(false, producers));
 }
