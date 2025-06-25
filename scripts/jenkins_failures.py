@@ -457,7 +457,7 @@ if __name__ == '__main__':
             '{} instances of this failure ({:.1f}% of sampled failures):'.format(
                 num_failures,
                 (num_failures * 100.0) / total_failures))
-        for d_idx, d in enumerate(details[:10]):
+        for d_idx, d in enumerate(details[:100]):
             human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
             print("* Time: {}, Jenkins job: {}, patch: {}".format(human_time,
                   d['url'], d['gerrit_patch']))
@@ -466,8 +466,8 @@ if __name__ == '__main__':
                 for name, value in d['variables'].items():
                     print(f'{name} = `{value[d_idx]}`;', end='')
                 print()
-        if len(details) > 10:
+        if len(details) > 100:
             print(
-                "<cut> - only showing details of first 10/{} instances.".format(
+                "<cut> - only showing details of first 100/{} instances.".format(
                     len(details)))
         print('\n===========\n')
