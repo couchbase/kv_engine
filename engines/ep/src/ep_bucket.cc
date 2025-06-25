@@ -1277,7 +1277,8 @@ cb::engine_errc EPBucket::scheduleOrRescheduleCompaction(
                     {"drop_deletes", tasksConfig.drop_deletes},
                     {"internal", tasksConfig.internally_requested},
                     {"status", !emplaced ? "rescheduled" : "created"},
-                    {"delay", execDelay.count()});
+                    {"delay", execDelay.count()},
+                    {"obsolete_keys", tasksConfig.obsolete_keys});
 
     return cb::engine_errc::would_block;
 }
@@ -1617,7 +1618,8 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
                      {{"size", ctx->stats.post.size},
                       {"items", ctx->stats.post.items},
                       {"deleted_items", ctx->stats.post.deletedItems},
-                      {"purge_seqno", ctx->stats.post.purgeSeqno}}});
+                      {"purge_seqno", ctx->stats.post.purgeSeqno}}},
+                    {"obsolete_keys", ctx->obsolete_keys});
     return result == CompactDBStatus::Success;
 }
 
