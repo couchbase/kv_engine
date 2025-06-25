@@ -240,6 +240,7 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300
+        TIMEOUT_SIGNAL_NAME SIGQUIT
                    ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
     # Create a set of tests for magma which are filtered such that only the
