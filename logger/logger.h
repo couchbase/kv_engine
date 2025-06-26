@@ -290,6 +290,20 @@ bool isInitialized();
 /// in use in any of the files
 std::unordered_set<std::string> getDeksInUse();
 
+namespace detail {
+inline Json context(Json::initializer_list_t json) {
+    // Avoid creating 1-element object arrays.
+    // Makes context({std::move(a)}) move a, as opposed to creating [a].
+    return json.size() == 1 && (*json.begin())->is_object()
+                   ? std::move(*json.begin())
+                   : json;
+}
+
+inline Json context(Json&& json) {
+    return std::move(json);
+}
+} // namespace detail
+
 } // namespace cb::logger
 
 // Visual Studio doesn't correctly handle the constexpr
@@ -309,12 +323,15 @@ std::unordered_set<std::string> getDeksInUse();
         }                                                                \
     } while (false)
 
-#define CB_LOG_ENTRY_CTX(severity, msg, ...)                        \
-    do {                                                            \
-        auto& _logger_ = cb::logger::get();                         \
-        if (_logger_ && _logger_->should_log(severity)) {           \
-            _logger_->logWithContext(severity, msg, {__VA_ARGS__}); \
-        }                                                           \
+#define CB_LOG_ENTRY_CTX(severity, msg, ...)                     \
+    do {                                                         \
+        auto& _logger_ = cb::logger::get();                      \
+        if (_logger_ && _logger_->should_log(severity)) {        \
+            _logger_->logWithContext(                            \
+                    severity,                                    \
+                    msg,                                         \
+                    cb::logger::detail::context({__VA_ARGS__})); \
+        }                                                        \
     } while (false)
 
 #define CB_LOG_RAW(severity, msg)                         \

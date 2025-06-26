@@ -25,7 +25,7 @@ void cb::logger::PrefixLogger::setPrefix(nlohmann::ordered_json contextPrefix,
 void cb::logger::PrefixLogger::logWithContext(spdlog::level::level_enum lvl,
                                               std::string_view msg,
                                               Json ctx) {
-    auto finalCtx = Json(BasicJsonType(contextPrefix));
+    auto finalCtx = Json(contextPrefix);
     mergeContext(finalCtx, std::move(ctx));
     Logger::logWithContext(lvl, msg, std::move(finalCtx));
 }

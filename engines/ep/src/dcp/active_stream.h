@@ -15,6 +15,7 @@
 #include "dcp/stream.h"
 #include "utilities/testing_hook.h"
 #include <memcached/engine_error.h>
+#include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 #include <spdlog/common.h>
@@ -22,10 +23,6 @@
 
 namespace cb::mcbp::request {
 enum class DcpSnapshotMarkerFlag : uint32_t;
-}
-
-namespace cb::logger {
-class Json;
 }
 
 class BackfillManager;

@@ -42,7 +42,7 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
     try {
         using namespace cb::logger;
         // Get the prefix early so we can reserve space in the final context.
-        Json basePrefix = static_cast<BasicJsonType>(getContextPrefix());
+        Json basePrefix = getContextPrefix();
         // Create a new context object into which we will merge all keys.
         // Final context is the conn_id + engine + static prefix + context.
         Json finalContext = Json::object();

@@ -312,7 +312,7 @@ TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
 TEST_F(BucketLoggerTest, PrefixLogger) {
     auto prefixLogger = std::make_shared<cb::logger::PrefixLogger>(
             "prefix_logger", cb::logger::get());
-    prefixLogger->setPrefix(cb::logger::BasicJsonType({{"prefix", "test"}}),
+    prefixLogger->setPrefix(cb::logger::Json({{"prefix", "test"}}),
                             "prefix=test");
 
     prefixLogger->log(spdlog::level::info, "my message");

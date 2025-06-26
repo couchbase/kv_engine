@@ -222,12 +222,12 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setSupportsSnappyEverywhere(false);
 
     // The connection key as a JSON object.
-    cb::logger::BasicJsonType client;
+    cb::logger::Json client;
     if (!key.empty()) {
         if (key.front() == '{') {
             // This may be JSON
             try {
-                client = cb::logger::BasicJsonType::parse(key);
+                client = cb::logger::Json::parse(key);
                 auto obj = client.find("i");
                 if (obj != client.end() && (*obj).is_string()) {
                     try {
@@ -253,7 +253,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     }
 
     // JSON array of enabled features.
-    cb::logger::BasicJsonType features = cb::logger::BasicJsonType::array();
+    cb::logger::Json features = cb::logger::Json::array();
     for (const auto& feature : requested) {
         bool added = false;
 

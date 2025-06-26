@@ -18,14 +18,11 @@
 
 #include <engines/ep/src/collections/collections_types.h>
 #include <memcached/engine_error.h>
+#include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
 
 namespace cb::mcbp {
 enum class DcpAddStreamFlag : uint32_t;
-}
-
-namespace cb::logger {
-class Json;
 }
 
 class AbortSyncWriteConsumer;
