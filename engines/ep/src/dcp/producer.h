@@ -460,9 +460,9 @@ public:
     TestingHook<> updateStreamsMapHook;
 
 protected:
-    std::pair<cb::engine_errc, VBucketPtr> checkConditionsForStreamRequest(
+    cb::engine_errc checkConditionsForStreamRequest(
             StreamRequestInfo& req,
-            Vbid vbucket,
+            VBucket& vb,
             std::optional<std::string_view> json);
 
     std::variant<Collections::VB::Filter, cb::engine_errc>
@@ -486,15 +486,18 @@ protected:
     virtual cb::engine_errc scheduleTasksForStreamRequest(
             std::shared_ptr<ActiveStream> s,
             VBucket& vb,
-            cb::mcbp::DcpStreamId streamID,
-            dcp_add_failover_log callback,
-            bool callAddVBConnByVBId);
+            cb::mcbp::DcpStreamId streamID);
 
     virtual std::shared_ptr<ActiveStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,
             VBucketPtr vb,
             Collections::VB::Filter filter);
+
+    cb::engine_errc sendFailoverLog(
+            Vbid vbucket,
+            const std::vector<vbucket_failover_t>& failoverEntries,
+            const dcp_add_failover_log callback);
 
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of

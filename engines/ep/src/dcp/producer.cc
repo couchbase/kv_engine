@@ -356,14 +356,22 @@ cb::engine_errc DcpProducer::streamRequest(
                           end_seqno,
                           snap_start_seqno,
                           snap_end_seqno};
-    auto ret = cb::engine_errc::failed;
-    VBucketPtr vb;
-
-    std::tie(ret, vb) = checkConditionsForStreamRequest(req, vbucket, json);
+    lastReceiveTime = ep_uptime_now();
+    if (doDisconnect()) {
+        return cb::engine_errc::disconnect;
+    }
+    auto vb = engine_.getVBucket(vbucket);
+    if (!vb) {
+        logger->warnWithContext(
+                "Stream request failed because this vbucket doesn't exist",
+                {{"vb", vbucket}});
+        return cb::engine_errc::not_my_vbucket;
+    }
+    std::shared_lock vbStateReadLock{vb->getStateLock()};
+    auto ret = checkConditionsForStreamRequest(req, *vb, json);
     if (ret != cb::engine_errc::success) {
         return ret;
     }
-    Expects(vb);
 
     const auto maybeFilter = constructFilterForStreamRequest(*vb, json);
     if (std::holds_alternative<cb::engine_errc>(maybeFilter)) {
@@ -408,11 +416,26 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::failed;
     }
 
-    return scheduleTasksForStreamRequest(std::move(stream),
-                                         *vb,
-                                         streamID,
-                                         std::move(callback),
-                                         callAddVBConnByVBId);
+    ret = scheduleTasksForStreamRequest(std::move(stream), *vb, streamID);
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    const auto failoverEntries = vb->failovers->getFailoverLog();
+
+    vbStateReadLock.unlock();
+
+    ret = sendFailoverLog(vbucket, failoverEntries, std::move(callback));
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    notifyStreamReady(vbucket);
+
+    if (callAddVBConnByVBId) {
+        engine_.getDcpConnMap().addVBConnByVBId(*this, vbucket);
+    }
+    return cb::engine_errc::success;
 }
 
 std::shared_ptr<ActiveStream> DcpProducer::makeStream(
@@ -439,30 +462,30 @@ std::shared_ptr<ActiveStream> DcpProducer::makeStream(
                                           std::move(filter));
 }
 
-std::pair<cb::engine_errc, VBucketPtr>
-DcpProducer::checkConditionsForStreamRequest(
+cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
         StreamRequestInfo& req,
-        Vbid vbucket,
+        VBucket& vb,
         std::optional<std::string_view> json) {
-    lastReceiveTime = ep_uptime_now();
-    if (doDisconnect()) {
-        return {cb::engine_errc::disconnect, nullptr};
+    PermittedVBStates permittedVBStates{vbucket_state_active,
+                                        vbucket_state_replica};
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::ActiveVbOnly)) {
+        permittedVBStates = {vbucket_state_active};
     }
 
-    VBucketPtr vb = engine_.getVBucket(vbucket);
-    if (!vb) {
-        logger->warnWithContext(
-                "Stream request failed because this vbucket doesn't exist",
-                {{"vb", vbucket}});
-        return {cb::engine_errc::not_my_vbucket, nullptr};
+    if (!permittedVBStates.test(vb.getState())) {
+        logger->infoWithContext("Stream request failed due to vbucket state",
+                                {{"vb", vb.getId()},
+                                 {"vb_state", vb.toString(vb.getState())},
+                                 {"flags", fmt::to_string(req.flags)}});
+        return cb::engine_errc::not_my_vbucket;
     }
 
-    req.high_seqno = vb->getHighSeqno();
+    req.high_seqno = vb.getHighSeqno();
     if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::FromLatest)) {
         req.start_seqno = req.snap_start_seqno = req.snap_end_seqno =
                 req.high_seqno;
         if (req.vbucket_uuid == 0) {
-            req.vbucket_uuid = vb->failovers->getLatestUUID();
+            req.vbucket_uuid = vb.failovers->getLatestUUID();
         }
     }
 
@@ -473,19 +496,9 @@ DcpProducer::checkConditionsForStreamRequest(
             logger->warnWithContext(
                     "noop is mandatory for v5 features like xattrs and "
                     "collections",
-                    {{"vb", vbucket}});
-            return {cb::engine_errc::not_supported, nullptr};
+                    {{"vb", vb.getId()}});
+            return cb::engine_errc::not_supported;
         }
-    }
-
-    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::ActiveVbOnly) &&
-        (vb->getState() != vbucket_state_active)) {
-        logger->infoWithContext(
-                "Stream request failed because the vbucket is in the wrong "
-                "state, only "
-                "active vbuckets were requested",
-                {{"vb", vbucket}, {"vb_state", vb->toString(vb->getState())}});
-        return {cb::engine_errc::not_my_vbucket, nullptr};
     }
 
     if (req.start_seqno > req.end_seqno) {
@@ -494,10 +507,10 @@ DcpProducer::checkConditionsForStreamRequest(
                 "the end seqno; Incorrect params passed by the DCP client",
                 {"dcp", "producer"},
                 {"dcp_name", getName()},
-                {"vb", vbucket},
+                {"vb", vb.getId()},
                 {"start_seqno", req.start_seqno},
                 {"end_seqno", req.end_seqno});
-        return {cb::engine_errc::out_of_range, nullptr};
+        return cb::engine_errc::out_of_range;
     }
 
     if (!(req.snap_start_seqno <= req.start_seqno &&
@@ -505,13 +518,13 @@ DcpProducer::checkConditionsForStreamRequest(
         logger->warnWithContext(
                 "Stream request failed because the snap start seqno <= start "
                 "seqno <= snap end seqno is required",
-                {{"vb", vbucket},
+                {{"vb", vb.getId()},
                  {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
                  {"start_seqno", req.start_seqno}});
-        return {cb::engine_errc::out_of_range, nullptr};
+        return cb::engine_errc::out_of_range;
     }
 
-    return {cb::engine_errc::success, std::move(vb)};
+    return cb::engine_errc::success;
 }
 
 std::variant<Collections::VB::Filter, cb::engine_errc>
@@ -738,9 +751,7 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
 cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
         std::shared_ptr<ActiveStream> s,
         VBucket& vb,
-        const cb::mcbp::DcpStreamId streamID,
-        const dcp_add_failover_log callback,
-        const bool callAddVBConnByVBId) {
+        const cb::mcbp::DcpStreamId streamID) {
     const Vbid vbucket = vb.getId();
 
     /* We want to create the 'createCheckpointProcessorTask' here even if
@@ -752,50 +763,37 @@ cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
         scheduleCheckpointProcessorTask();
     }
 
-    {
-        std::shared_lock rlh(vb.getStateLock());
-        if (vb.getState() == vbucket_state_dead) {
-            logger->warnWithContext(
-                    "Stream request failed because this vbucket is in dead "
-                    "state",
-                    {{"vb", vbucket}});
-            return cb::engine_errc::not_my_vbucket;
-        }
-
-        if (vb.isReceivingInitialDiskSnapshot()) {
-            logger->infoWithContext(
-                    "Stream request failed because this vbucket is currently "
-                    "receiving its initial disk snapshot",
-                    {{"vb", vbucket}});
-            return cb::engine_errc::temporary_failure;
-        }
-
-        // MB-19428: Only activate the stream if we are adding it to the
-        // streams map.
-        s->setActive();
-
-        updateStreamsMap(vbucket, streamID, s);
+    if (vb.isReceivingInitialDiskSnapshot()) {
+        logger->infoWithContext(
+                "Stream request failed because this vbucket is currently "
+                "receiving its initial disk snapshot",
+                {{"vb", vbucket}});
+        return cb::engine_errc::temporary_failure;
     }
 
-    const auto failoverEntries = vb.failovers->getFailoverLog();
+    // MB-19428: Only activate the stream if we are adding it to the
+    // streams map.
+    s->setActive();
 
+    updateStreamsMap(vbucket, streamID, s);
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc DcpProducer::sendFailoverLog(
+        Vbid vbucket,
+        const std::vector<vbucket_failover_t>& failoverEntries,
+        const dcp_add_failover_log callback) {
     // See MB-25820:  Ensure that callback is called only after all other
     // possible error cases have been tested.  This is to ensure we do not
     // generate two responses for a single streamRequest.
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(nullptr, true);
-    cb::engine_errc rv = callback(failoverEntries);
+    auto* epe = ObjectRegistry::onSwitchThread(nullptr, true);
+    auto rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
     if (rv != cb::engine_errc::success) {
         logger->warnWithContext(
                 "Couldn't add failover log to stream request due to error",
                 {{"vb", vbucket}, {"error", rv}});
-    }
-
-    notifyStreamReady(vbucket);
-
-    if (callAddVBConnByVBId) {
-        engine_.getDcpConnMap().addVBConnByVBId(*this, vbucket);
     }
 
     return rv;
