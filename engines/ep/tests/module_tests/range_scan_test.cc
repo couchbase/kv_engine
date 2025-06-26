@@ -1989,6 +1989,7 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::cancelled:
     case cb::engine_errc::bucket_paused:
     case cb::engine_errc::encryption_key_not_available:
+    case cb::engine_errc::checksum_mismatch:
         return false;
     }
     throw std::invalid_argument(

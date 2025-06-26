@@ -82,6 +82,9 @@ enum class Status : uint16_t {
     NotInitialized = 0x25,
     /// An encryption key is not available for the requested operation
     EncryptionKeyNotAvailable = 0x26,
+    /// The calculated checksum of the data does not match the expected
+    /// checksum
+    ChecksumMismatch = 0x27,
 
     // Start error codes for rate limits. Reserve segment [0x30, 0x4f]
 

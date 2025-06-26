@@ -96,6 +96,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::BucketPaused;
     case engine_errc::encryption_key_not_available:
         return Status::EncryptionKeyNotAvailable;
+    case engine_errc::checksum_mismatch:
+        return Status::ChecksumMismatch;
 
     case engine_errc::too_much_data_in_output_buffer:
     case engine_errc::throttled:

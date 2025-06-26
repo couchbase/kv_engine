@@ -135,6 +135,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "too much data in output buffer";
     case engine_errc::encryption_key_not_available:
         return "encryption key not available";
+    case engine_errc::checksum_mismatch:
+        return "checksum mismatch";
     }
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

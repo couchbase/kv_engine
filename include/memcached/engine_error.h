@@ -170,6 +170,10 @@ enum class engine_errc {
     /// The required encryption key is not available
     encryption_key_not_available,
 
+    /// The calculated checksum of the data does not match the expected
+    /// checksum
+    checksum_mismatch,
+
     /// Generic failue
     failed
 };

@@ -183,6 +183,13 @@
                 "special-handling"
             ]
         },
+        "27": {
+            "name": "CHECKSUM_MISMATCH",
+            "desc": "The calculated checksum of data does not match the expected checksum",
+            "attrs": [
+                "special-handling"
+            ]
+        },
         "30": {
             "name": "RATE_LIMITED_NETWORK_INGRESS",
             "desc": "Rate limited: Network Ingress",

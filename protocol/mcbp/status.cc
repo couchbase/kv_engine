@@ -39,6 +39,7 @@ bool is_known(Status status) {
     case Status::Rollback:
     case Status::Eaccess:
     case Status::NotInitialized:
+    case Status::ChecksumMismatch:
     case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
@@ -137,6 +138,7 @@ bool isStatusSuccess(Status status) {
     case Status::Erange:
     case Status::Eaccess:
     case Status::NotInitialized:
+    case Status::ChecksumMismatch:
     case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
@@ -279,6 +281,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Eaccess";
         case Status::NotInitialized:
             return "NotInitialized";
+        case Status::ChecksumMismatch:
+            return "ChecksumMismatch";
         case Status::EncryptionKeyNotAvailable:
             return "EncryptionKeyNotAvailable";
         case Status::RateLimitedNetworkIngress:
@@ -446,6 +450,9 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "No access";
         case Status::NotInitialized:
             return "Node not initialized";
+        case Status::ChecksumMismatch:
+            return "The calculated checksum of data does not match the "
+                   "expected checksum";
         case Status::EncryptionKeyNotAvailable:
             return "Encryption key not available";
         case Status::RateLimitedNetworkIngress:
