@@ -69,6 +69,7 @@ public:
 const Vbid FusionTest::vbid = Vbid(0);
 
 void FusionTest::SetUpTestCase() {
+    createUserConnection = true;
     const std::string dbPath = mcd_env->getDbPath();
     const auto bucketConfig = fmt::format(
             "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
@@ -90,7 +91,7 @@ void FusionTest::SetUpTestCase() {
 }
 
 void FusionTest::SetUp() {
-    rebuildUserConnection(false);
+    TestappClientTest::SetUp();
     if (!mcd_env->getTestBucket().isMagma()) {
         GTEST_SKIP();
     }
@@ -216,16 +217,13 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
 nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
                                        std::string_view vbid) {
     nlohmann::json res;
-    adminConnection->executeInBucket(
-            bucketName, [&res, &subGroup, &vbid](auto& conn) {
-                // Note: subGroup and vbid are optional so the final command
-                // might be just "fusion" followed by some space. Memcached is
-                // expected to be resilient to that, so I don't trim the cmd
-                // string here on purpose for stressing the validation code out.
-                conn.stats([&res](auto&,
-                                  auto& v) { res = nlohmann::json::parse(v); },
-                           fmt::format("fusion {} {}", subGroup, vbid));
-            });
+    // Note: subGroup and vbid are optional so the final command
+    // might be just "fusion" followed by some space. Memcached is
+    // expected to be resilient to that, so I don't trim the cmd
+    // string here on purpose for stressing the validation code out.
+    userConnection->stats(
+            [&res](auto k, auto v) { res = nlohmann::json::parse(v); },
+            fmt::format("fusion {} {}", subGroup, vbid));
     return res;
 }
 
