@@ -30,15 +30,18 @@ void download(std::unique_ptr<MemcachedConnection> connection,
 
     auto download_with_retry = [&downloader](auto& file) -> void {
         int retry = 5;
+        cb::engine_errc err;
         while (retry > 0) {
-            if (downloader.download(file)) {
+            err = downloader.download(file);
+            if (err == cb::engine_errc::success) {
                 return;
             }
             --retry;
         }
-        throw std::runtime_error(fmt::format(
-                "Failed to download \"{}\" after 5 attempts. Giving up.",
-                file.path.string()));
+        throw engine_error(err,
+                           fmt::format("Failed to download \"{}\" after 5 "
+                                       "attempts. Giving up.",
+                                       file.path.string()));
     };
 
     for (const auto& file : snapshot.files) {

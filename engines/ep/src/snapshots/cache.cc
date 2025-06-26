@@ -130,8 +130,8 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
         })) {
         EP_LOG_WARN_CTX("Cache::prepare try_emplace failed",
                         {{"uuid", manifest.uuid}});
-        remove(manifest.uuid);
-        return cb::engine_errc::failed;
+        (void)remove(manifest.uuid);
+        return cb::engine_errc::key_already_exists;
     }
     return prepared;
 }
@@ -194,7 +194,7 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
     if (rv != engine_errc::success) {
         std::error_code ec;
         remove_all(path / manifest.uuid, ec);
-        return cb::engine_errc::failed;
+        return rv;
     }
 
     if (!snapshots.withLock([&manifest, time = time()](auto& map) {
@@ -202,7 +202,7 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         })) {
         EP_LOG_WARN_CTX("Cache::download try_emplace failed",
                         {{"uuid", manifest.uuid}});
-        return cb::engine_errc::failed;
+        return cb::engine_errc::key_already_exists;
     }
 
     return manifest;

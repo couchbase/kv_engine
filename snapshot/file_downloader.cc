@@ -41,7 +41,7 @@ FileDownloader::FileDownloader(
     // Empty
 }
 
-bool FileDownloader::download(const FileInfo& meta) const {
+cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
     std::size_t size = meta.size;
 
     std::filesystem::path local = directory / meta.path;
@@ -58,7 +58,7 @@ bool FileDownloader::download(const FileInfo& meta) const {
                 log_callback(info,
                              "Skipping file; already downloaded",
                              {{"path", meta.path.string()}, {"size", size}});
-                return true;
+                return cb::engine_errc::success;
             }
             // Checksum error.. Remove the file and try again
             remove(local);
@@ -91,7 +91,7 @@ bool FileDownloader::download(const FileInfo& meta) const {
                  {"duration", end - start},
                  {"throughput", cb::calculateThroughput(size, end - start)}});
         remove(local);
-        return false;
+        return cb::engine_errc::checksum_mismatch;
     }
 
     log_callback(info,
@@ -99,7 +99,7 @@ bool FileDownloader::download(const FileInfo& meta) const {
                  {{"path", meta.path.string()},
                   {"duration", end - start},
                   {"throughput", cb::calculateThroughput(size, end - start)}});
-    return true;
+    return cb::engine_errc::success;
 }
 
 bool FileDownloader::validateChecksum(const std::filesystem::path& file,

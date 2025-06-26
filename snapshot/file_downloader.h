@@ -9,6 +9,7 @@
  */
 
 #pragma once
+#include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/file_sink.h>
 #include <platform/json_log.h>
@@ -63,8 +64,9 @@ public:
      * Download the file provided in the meta section
      *
      * @param meta The meta information describing the file to download
+     * @return error code indicating the result of the operation
      */
-    bool download(const FileInfo& meta) const;
+    cb::engine_errc download(const FileInfo& meta) const;
 
 protected:
     /**

@@ -906,7 +906,7 @@ cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
                                 {"sha512", sha512},
                                 {"expectedSha512", info.sha512},
                                 {"type", type});
-                return cb::engine_errc::failed;
+                return cb::engine_errc::checksum_mismatch;
             }
 
             info.status = cb::snapshot::FileStatus::Present;
@@ -942,7 +942,7 @@ KVStore::getValidatedManifest(const std::filesystem::path& path) {
     // Validate all files, do they exist? Are they truncated?
     for (auto& file : m.files) {
         auto status = checkSnapshotFile(path, m.uuid, file, "FILE");
-        if (status == cb::engine_errc::failed) {
+        if (status == cb::engine_errc::checksum_mismatch) {
             // Corrupt
             return status;
         }
@@ -954,7 +954,7 @@ KVStore::getValidatedManifest(const std::filesystem::path& path) {
 
     for (auto& file : m.deks) {
         auto status = checkSnapshotFile(path, m.uuid, file, "DEK");
-        if (status == cb::engine_errc::failed) {
+        if (status == cb::engine_errc::checksum_mismatch) {
             // Corrupt
             return status;
         }

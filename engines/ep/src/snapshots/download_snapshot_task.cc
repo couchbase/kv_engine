@@ -124,6 +124,14 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                 [this](auto bytes) {
                     engine->getEpStats().snapshotBytesRead += bytes;
                 });
+    } catch (const engine_error& e) {
+        listener->failed(fmt::format(
+                "Received exception while downloading snapshot: {}", e.what()));
+        EP_LOG_ERR_CTX("DownloadSnapshotTask::doDownloadFiles()",
+                       {"vb", vbid},
+                       {"status", static_cast<engine_errc>(e.code().value())},
+                       {"error", e.what()});
+        return static_cast<engine_errc>(e.code().value());
     } catch (const std::exception& e) {
         listener->failed(fmt::format(
                 "Received exception while downloading snapshot: {}", e.what()));
