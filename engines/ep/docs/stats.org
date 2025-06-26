@@ -489,7 +489,7 @@ The stats below are listed for each vbucket.
 
 | Stat                          | Description                                |
 |-------------------------------+--------------------------------------------|
-| num_items                     | Number of items in this vbucket            |
+| num_items                     | Number of items in this vbucket (excludes deleted, prepares and system items) |
 | num_tmp_items                 | Number of temporary items in memory        |
 | num_non_resident              | Number of non-resident items               |
 | vb_pending_perc_mem_resident  | % memory resident                          |
