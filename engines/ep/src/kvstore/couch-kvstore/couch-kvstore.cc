@@ -3741,7 +3741,7 @@ cb::engine_errc CouchKVStore::couchErr2EngineErr(
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
         return cb::engine_errc::no_such_key;
     case COUCHSTORE_ERROR_NO_ENCRYPTION_KEY:
-        return cb::engine_errc::failed;
+        return cb::engine_errc::encryption_key_not_available;
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_NO_HEADER:
     default:
