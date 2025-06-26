@@ -69,7 +69,7 @@ static void server_global_stats(const StatCollector& collector) {
                           stats.curr_conn_closing);
 #ifdef USE_FUSION
         collector.addStat(Key::fusion_migration_rate_limit,
-                          Settings::instance().getFusionMigrationRateLimit());
+                          magma::Magma::GetFusionMigrationRateLimit());
         collector.addStat(Key::fusion_sync_rate_limit,
                           magma::Magma::GetFusionSyncRateLimit());
 #endif
