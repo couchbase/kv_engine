@@ -350,7 +350,7 @@ For introductory information on stats within Couchbase, start with the
 |---------------------------------------------------------+------------------------------------------------|
 | ep_vb_total                                             | Total vBuckets (count)                         |
 | curr_items_tot                                          | Total number of items                          |
-| curr_items                                              | Number of active items in memory               |
+| curr_items                                              | Number of active non-deleted items             |
 | curr_temp_items                                         | Number of temporary items in memory            |
 | vb_dead_num                                             | Number of dead vBuckets                        |
 | ep_diskqueue_items                                      | Total items in disk queue                      |
