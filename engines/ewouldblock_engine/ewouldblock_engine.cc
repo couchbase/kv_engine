@@ -430,6 +430,20 @@ public:
                           const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
+    cb::engine_errc cached_value(CookieIface& cookie,
+                                 uint32_t opaque,
+                                 const DocKeyView& key,
+                                 cb::const_byte_buffer value,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 Vbid vbucket,
+                                 uint32_t flags,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 uint32_t expiration,
+                                 uint32_t lock_time,
+                                 cb::const_byte_buffer meta,
+                                 uint8_t nru) override;
 
 protected:
     GET_SERVER_API gsa;
@@ -1824,6 +1838,39 @@ cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
     }
     return real_engine_dcp->abort(
             cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
+}
+
+cb::engine_errc EWB_Engine::cached_value(CookieIface& cookie,
+                                         uint32_t opaque,
+                                         const DocKeyView& key,
+                                         cb::const_byte_buffer value,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         Vbid vbucket,
+                                         uint32_t flags,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         uint32_t expiration,
+                                         uint32_t lock_time,
+                                         cb::const_byte_buffer meta,
+                                         uint8_t nru) {
+    if (!real_engine_dcp) {
+        return cb::engine_errc::not_supported;
+    }
+    return real_engine_dcp->cached_value(cookie,
+                                         opaque,
+                                         key,
+                                         value,
+                                         datatype,
+                                         cas,
+                                         vbucket,
+                                         flags,
+                                         by_seqno,
+                                         rev_seqno,
+                                         expiration,
+                                         lock_time,
+                                         meta,
+                                         nru);
 }
 
 unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa) {

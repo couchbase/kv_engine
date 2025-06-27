@@ -1743,6 +1743,38 @@ cb::engine_errc EventuallyPersistentEngine::abort(CookieIface& cookie,
     return conn->abort(opaque, vbucket, key, preparedSeqno, abortSeqno);
 }
 
+cb::engine_errc EventuallyPersistentEngine::cached_value(
+        CookieIface& cookie,
+        uint32_t opaque,
+        const DocKeyView& key,
+        cb::const_byte_buffer value,
+        uint8_t datatype,
+        uint64_t cas,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t bySeqno,
+        uint64_t revSeqno,
+        uint32_t expiration,
+        uint32_t lockTime,
+        cb::const_byte_buffer meta,
+        uint8_t nru) {
+    auto engine = acquireEngine(this);
+    auto conn = engine->getConnHandler(cookie);
+    return conn->cached_value(opaque,
+                              key,
+                              value,
+                              datatype,
+                              cas,
+                              vbucket,
+                              flags,
+                              bySeqno,
+                              revSeqno,
+                              expiration,
+                              lockTime,
+                              meta,
+                              nru);
+}
+
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it

@@ -256,6 +256,20 @@ public:
                                                Vbid vbucket,
                                                uint64_t prepared_seqno);
 
+    /// Receive a cached_value message.
+    virtual cb::engine_errc cached_value(uint32_t opaque,
+                                         const DocKeyView& key,
+                                         cb::const_byte_buffer value,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         Vbid vbucket,
+                                         uint32_t flags,
+                                         uint64_t bySeqno,
+                                         uint64_t revSeqno,
+                                         uint32_t expiration,
+                                         uint32_t lockTime,
+                                         cb::const_byte_buffer meta,
+                                         uint8_t nru);
     const char* logHeader() const;
 
     /**

@@ -800,4 +800,39 @@ struct DcpIface {
                                                 const DocKeyView& key,
                                                 uint64_t prepared_seqno,
                                                 uint64_t abort_seqno) = 0;
+
+    /**
+     * Callback to the engine that a cached value message was received
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param key The documents key
+     * @param value The value to store
+     * @param datatype The datatype for the incomming item
+     * @param cas The documents CAS value
+     * @param vbucket The vbucket identifier for the document
+     * @param flags The user specified flags
+     * @param by_seqno The sequence number in the vbucket
+     * @param rev_seqno The revision number for the item
+     * @param expiration When the document expire
+     * @param lock_time The lock time for the document
+     * @param meta The documents meta
+     * @param nru The engine's NRU value
+     * @return Standard engine error code.
+     */
+    [[nodiscard]] virtual cb::engine_errc cached_value(
+            CookieIface& cookie,
+            uint32_t opaque,
+            const DocKeyView& key,
+            cb::const_byte_buffer value,
+            uint8_t datatype,
+            uint64_t cas,
+            Vbid vbucket,
+            uint32_t flags,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t expiration,
+            uint32_t lock_time,
+            cb::const_byte_buffer meta,
+            uint8_t nru) = 0;
 };

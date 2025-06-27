@@ -1809,3 +1809,52 @@ void DcpConsumer::addBufferSizeControl(size_t bufferSize) {
     pendingControls.lock()->emplace_back(DcpControlKeys::ConnectionBufferSize,
                                          std::to_string(bufferSize));
 }
+
+cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
+                                          const DocKeyView& key,
+                                          cb::const_byte_buffer value,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          Vbid vbucket,
+                                          uint32_t flags,
+                                          uint64_t bySeqno,
+                                          uint64_t revSeqno,
+                                          uint32_t expiration,
+                                          uint32_t lockTime,
+                                          cb::const_byte_buffer meta,
+                                          uint8_t nru) {
+    lastMessageTime = ep_uptime_now();
+
+    if (bySeqno == 0) {
+        logger->warnWithContext("Invalid sequence number (0) for cached_value!",
+                                {{"vb", vbucket}});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    queued_item item(new Item(key,
+                              flags,
+                              expiration,
+                              value.data(),
+                              value.size(),
+                              datatype,
+                              cas,
+                              bySeqno,
+                              vbucket,
+                              revSeqno,
+                              nru /*freqCounter */));
+    const auto msgBytes = MutationResponse::mutationBaseMsgBytes + key.size() +
+                          meta.size() + value.size();
+    UpdateFlowControl ufc(*this, msgBytes);
+    auto msg = std::make_unique<MutationConsumerMessage>(
+            std::move(item),
+            opaque,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeleteTime::No,
+            IncludeDeletedUserXattrs::Yes,
+            key.getEncoding(),
+            nullptr,
+            cb::mcbp::DcpStreamId{},
+            DcpResponse::Event::CachedValue);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+}

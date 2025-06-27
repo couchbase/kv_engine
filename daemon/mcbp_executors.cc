@@ -21,6 +21,7 @@
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
 #include "protocol/mcbp/bucket_management_command_context.h"
+#include "protocol/mcbp/dcp_cached_value.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
@@ -760,6 +761,12 @@ static void process_bin_dcp_response(Cookie& cookie) {
     }
 }
 
+static void dcp_cached_value_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return dcp_cached_value(c);
+          }).drive();
+}
+
 static void setup_response_handler(cb::mcbp::ClientOpcode opcode,
                                    HandlerFunction function) {
     response_handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)] =
@@ -813,6 +820,8 @@ void initialize_mbcp_lookup_map() {
                            process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
                            process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpCachedValue,
+                           process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::GetErrorMap,
                            process_bin_dcp_response);
 
@@ -850,7 +859,8 @@ void initialize_mbcp_lookup_map() {
                   dcp_seqno_acknowledged_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_executor);
-
+    setup_handler(cb::mcbp::ClientOpcode::DcpCachedValue,
+                  dcp_cached_value_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsSetManifest,
                   collections_set_manifest_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsGetManifest,

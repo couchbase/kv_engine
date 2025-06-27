@@ -3170,6 +3170,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::DcpSeqnoAcknowledged, dcp_seqno_acknowledged_validator);
     setup(ClientOpcode::DcpCommit, dcp_commit_validator);
     setup(ClientOpcode::DcpAbort, dcp_abort_validator);
+    setup(ClientOpcode::DcpCachedValue, dcp_mutation_validator);
     setup(ClientOpcode::IsaslRefresh, configuration_refresh_validator);
     setup(ClientOpcode::Verbosity, verbosity_validator);
     setup(ClientOpcode::Hello, hello_validator);

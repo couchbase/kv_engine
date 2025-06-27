@@ -20,6 +20,7 @@ add_library(memcached_daemon_mcbp OBJECT
         dcp_add_failover_log.h
         dcp_add_stream_executor.cc
         dcp_buffer_acknowledgement_executor.cc
+        dcp_cached_value.cc
         dcp_close_stream_executor.cc
         dcp_commit_executor.cc
         dcp_control_executor.cc

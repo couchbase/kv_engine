@@ -743,6 +743,54 @@ cb::engine_errc MockEngine::abort(CookieIface& cookie,
             cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
 
+cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
+                                         uint32_t opaque,
+                                         const DocKeyView& key,
+                                         cb::const_byte_buffer value,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         Vbid vbucket,
+                                         uint32_t flags,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         uint32_t expiration,
+                                         uint32_t lock_time,
+                                         cb::const_byte_buffer meta,
+                                         uint8_t nru) {
+    auto engine_fn = [this,
+                      &cookie,
+                      opaque,
+                      k = std::cref(key),
+                      value,
+                      datatype,
+                      cas,
+                      vbucket,
+                      flags,
+                      by_seqno,
+                      rev_seqno,
+                      expiration,
+                      lock_time,
+                      meta,
+                      nru]() {
+        return the_engine_dcp->cached_value(cookie,
+                                            opaque,
+                                            k,
+                                            value,
+                                            datatype,
+                                            cas,
+                                            vbucket,
+                                            flags,
+                                            by_seqno,
+                                            rev_seqno,
+                                            expiration,
+                                            lock_time,
+                                            meta,
+                                            nru);
+    };
+
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 void MockEngine::disconnect(CookieIface& cookie) {
     the_engine->disconnect(cookie);
 }
