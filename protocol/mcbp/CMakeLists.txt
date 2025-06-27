@@ -72,22 +72,34 @@ add_test(NAME mcbp_unit_tests
 add_sanitizers(mcbp_unit_tests)
 cb_enable_unity_build(mcbp_unit_tests)
 
-cb_add_test_executable(mcbp_fuzz_test mcbp_fuzz_test.cc)
-target_include_directories(mcbp_fuzz_test SYSTEM PRIVATE ${Memcached_BINARY_DIR})
-add_sanitizers(mcbp_fuzz_test)
-target_link_libraries(mcbp_fuzz_test PRIVATE memcached_daemon)
+# Fuzz tests are linked into the mcbp_fuzz_test executable.
+if(HAVE_FUZZTEST)
+    cb_add_test_executable(mcbp_fuzz_test mcbp_fuzz_test.cc)
+    target_include_directories(mcbp_fuzz_test SYSTEM PRIVATE ${Memcached_BINARY_DIR})
+    cb_link_fuzztest(mcbp_fuzz_test)
+    target_link_libraries(
+        mcbp_fuzz_test
+        PUBLIC
+        fuzztest::gtest_main
+    )
+    target_link_libraries(mcbp_fuzz_test PRIVATE memcached_daemon)
+endif()
 
-add_test(NAME mcbp_protocol_fuzz:MB-47151
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND mcbp_fuzz_test ${CMAKE_CURRENT_SOURCE_DIR}/regression/crash-1cc3298997828941907db8cc25f038f324191ae1)
+if(FUZZTEST_FUZZING_MODE)
+    # Add all fuzz tests under the fuzztest.mcbp_fuzz_test prefix.
+    # To run the fuzz tests, the FLAGS_fuzz_for env variable must be set.
+    gtest_discover_tests(mcbp_fuzz_test
+        EXTRA_ARGS --fromenv=fuzz_for
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX fuzztest.mcbp_fuzz_test.
+        DISCOVERY_TIMEOUT 60)
+endif()
 
 cb_add_test_executable(mcbp_network_fuzz_test mcbp_network_fuzz_test.cc)
 add_sanitizers(mcbp_network_fuzz_test)
 target_link_libraries(mcbp_network_fuzz_test PUBLIC mc_client_connection mcbp platform)
 
 if (CB_LIBFUZZER)
-    target_compile_definitions(mcbp_fuzz_test PUBLIC HAVE_LIBFUZZER=1)
     target_compile_definitions(mcbp_network_fuzz_test PUBLIC HAVE_LIBFUZZER=1)
-    cb_link_libfuzzer_main(mcbp_fuzz_test)
     cb_link_libfuzzer_main(mcbp_network_fuzz_test)
 endif ()

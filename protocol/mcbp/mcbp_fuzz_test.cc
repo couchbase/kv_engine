@@ -14,6 +14,7 @@
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
 #include <daemon/settings.h>
+#include <fuzztest/fuzztest.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <cstdint>
@@ -125,6 +126,15 @@ protected:
     FuzzConnection connection;
 };
 
+class McbpFuzzTest {
+public:
+    McbpFuzzTest();
+    void fuzz(std::string_view data);
+};
+
+FUZZ_TEST_F(McbpFuzzTest, fuzz)
+        .WithDomains(fuzztest::String().WithMinSize(sizeof(cb::mcbp::Header)));
+
 /**
  * The callback libFuzzer will call to test a single input
  *
@@ -132,13 +142,12 @@ protected:
  * @param size Size of data to test
  * @return 0
  */
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    static FuzzValidator framework;
-    framework.fuzz(data, size);
-    return 0;
+void McbpFuzzTest::fuzz(std::string_view data) {
+    FuzzValidator framework;
+    framework.fuzz(reinterpret_cast<const uint8_t*>(data.data()), data.size());
 }
 
-extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
+McbpFuzzTest::McbpFuzzTest() {
     cb::logger::createBlackholeLogger();
     Settings::instance().setXattrEnabled(true);
     cb::rbac::initialize();
@@ -151,14 +160,4 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
     // initialized as part of checking for an event, but the connection object
     // will use it in its destructor to submit a "session terminated" event
     AuditDescriptorManager::lookup(MEMCACHED_AUDIT_INVALID_PACKET);
-    return 0;
 }
-
-#ifndef HAVE_LIBFUZZER
-int main() {
-    LLVMFuzzerInitialize(nullptr, nullptr);
-    LLVMFuzzerTestOneInput(nullptr, 0);
-    shutdown_audit();
-    return 0;
-}
-#endif
