@@ -260,7 +260,7 @@ public:
                                                uint64_t seqno,
                                                Vbid vbid) override;
     cb::engine_errc set_active_encryption_keys(
-            const nlohmann::json& json) override;
+            CookieIface& cookie, const nlohmann::json& json) override;
     cb::engine_errc prepare_snapshot(
             CookieIface& cookie,
             Vbid vbid,
@@ -1443,8 +1443,8 @@ cb::engine_errc EWB_Engine::wait_for_seqno_persistence(CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::set_active_encryption_keys(
-        const nlohmann::json& json) {
-    return real_engine->set_active_encryption_keys(json);
+        CookieIface& cookie, const nlohmann::json& json) {
+    return real_engine->set_active_encryption_keys(cookie, json);
 }
 
 cb::engine_errc EWB_Engine::prepare_snapshot(

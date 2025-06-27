@@ -7941,8 +7941,8 @@ cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
 
 [[nodiscard]] cb::engine_errc
 EventuallyPersistentEngine::set_active_encryption_keys(
-        const nlohmann::json& json) {
-    return acquireEngine(this)->setActiveEncryptionKeys(json);
+        CookieIface& cookie, const nlohmann::json& json) {
+    return acquireEngine(this)->setActiveEncryptionKeys(cookie, json);
 }
 
 cb::engine_errc EventuallyPersistentEngine::prepare_snapshot(
@@ -7986,11 +7986,8 @@ cb::engine_errc EventuallyPersistentEngine::release_snapshot(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
-        const nlohmann::json& json) {
-    cb::crypto::KeyStore ks;
-    if (!json.empty()) {
-        ks = json;
-    }
+        CookieIface& cookie, const nlohmann::json& json) {
+    cb::crypto::KeyStore ks = json["keystore"];
     bool rewriteAccessLog = false;
     {
         // Extra scope to let the shared ptr's die
@@ -8001,6 +7998,33 @@ cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
             rewriteAccessLog = true;
         }
     }
+
+    std::vector<std::string> missing_keys;
+    for (const auto& k : json["unavailable"]) {
+        const auto key = k.get<std::string>();
+        if (!ks.lookup(key)) {
+            auto sk = encryptionKeyProvider.lookup(key);
+            if (sk) {
+                ks.add(sk);
+            } else {
+                missing_keys.emplace_back(key);
+            }
+        }
+    }
+
+    if (!missing_keys.empty()) {
+        nlohmann::json missing_keys_json = missing_keys;
+        EP_LOG_WARN_CTX(
+                "Failed to update Data encryption",
+                {"status", cb::engine_errc::encryption_key_not_available},
+                {"missing", missing_keys_json});
+        setErrorContext(cookie,
+                        fmt::format("Unknown encryption key(s): {}",
+                                    missing_keys_json.dump()));
+
+        return cb::engine_errc::encryption_key_not_available;
+    }
+
     encryptionKeyProvider.setKeys(std::move(ks));
 
     if (rewriteAccessLog) {

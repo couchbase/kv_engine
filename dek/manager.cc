@@ -48,17 +48,6 @@ Entity to_entity(std::string_view entity) {
             fmt::format("cb::dek::to_entity(): Unknown value {}", entity));
 }
 
-nlohmann::json toLoggableJson(const cb::crypto::KeyStore& keystore) {
-    nlohmann::json ids = nlohmann::json::array();
-    keystore.iterateKeys([&ids](auto key) { ids.emplace_back(key->getId()); });
-    nlohmann::json entry;
-    entry["keys"] = std::move(ids);
-    if (keystore.getActiveKey()) {
-        entry["active"] = keystore.getActiveKey()->getId();
-    }
-    return entry;
-}
-
 class ManagerImpl : public Manager {
     [[nodiscard]] SharedEncryptionKey lookup(
             Entity entity, std::string_view id) const override;

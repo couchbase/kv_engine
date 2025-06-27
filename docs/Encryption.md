@@ -106,7 +106,8 @@ The key field of the packet contains the entity to set the keys for (name of the
 bucket, `@logs`, `@config`, `@audit`). The value of the packet contains the list
 of keys and the active key:
 
-      {
+    {
+      "keystore": {
         "active": "489cf03d-07f1-4e4c-be6f-01f227757937",
         "keys": [
           {
@@ -115,4 +116,15 @@ of keys and the active key:
             "key": "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="
           }
         ]
-      }
+      },
+      "unavailable": [
+        "c7e26d06-88ed-43bc-9f66-87b60c037211",
+        "fdcda290-fecd-4032-b8cd-7a23815fb934"
+      ]
+    }
+
+The `unavailable` field is a list of keys should be present in the keystore,
+but the caller had problems accessing them. This is used to indicate that
+these keys should be copied from the old keystore to the new one. An
+error (`EncryptionKeyNotAvailable`) is reported if the server is missing
+any of the keys in the `unavailable` list.

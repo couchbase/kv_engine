@@ -344,7 +344,7 @@ TEST_F(SnapshotClusterTest, Snapshots) {
 
     nlohmann::json json = keystore;
     rsp = destination_node->execute(
-            BinprotSetActiveEncryptionKeysCommand{bucket_name, json.dump()});
+            BinprotSetActiveEncryptionKeysCommand{bucket_name, json});
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
             << "Failed to set the active encryption keys";
 

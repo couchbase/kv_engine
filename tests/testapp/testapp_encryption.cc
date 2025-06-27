@@ -72,6 +72,16 @@ public:
         });
         return response;
     }
+
+    /// Test that we can set the encryption keys for the provided entity
+    /// when we mark all keys as unavailable
+    void testSetEncryptionKeysWithAllUnavailable(
+            cb::dek::Entity entity, cb::crypto::SharedEncryptionKey key);
+
+    /// Test that we can set the encryption keys the bucket when we mark
+    /// all current keys as unavailable
+    void testSetEncryptionKeysWithAllUnavailable_bucket(
+            cb::crypto::SharedEncryptionKey key);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -95,7 +105,7 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
     // Tell memcached of the new key
     rsp = adminConnection->execute(BinprotSetActiveEncryptionKeysCommand{
             format_as(cb::dek::Entity::Config),
-            manager.to_json(cb::dek::Entity::Config).dump()});
+            manager.to_json(cb::dek::Entity::Config)});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     // At this time memcached should be able to read the file
@@ -420,4 +430,122 @@ TEST_P(EncryptionTest, BucketReloadWhenMissingKeys) {
     // traffic)
     DeleteTestBucket();
     CreateTestBucket();
+}
+
+void EncryptionTest::testSetEncryptionKeysWithAllUnavailable(
+        cb::dek::Entity entity, cb::crypto::SharedEncryptionKey key) {
+    using namespace cb::crypto;
+
+    std::vector<std::string> existing_keys;
+    mcd_env->getDekManager().iterate(
+            [&existing_keys, entity](auto ent, const auto& ks) {
+                if (ent == entity) {
+                    ks.iterateKeys([&existing_keys](const auto k) {
+                        if (k) {
+                            existing_keys.emplace_back(k->getId());
+                        }
+                    });
+                }
+            });
+
+    mcd_env->getDekManager().setActive(entity, key);
+
+    KeyStore ks;
+    ks.setActiveKey(key);
+
+    auto rsp = adminConnection->execute(
+            BinprotSetActiveEncryptionKeysCommand{entity, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // But if we try to set the active key for the logs entity with a
+    // key that is not in the keystore on the server we should get an error
+    existing_keys.emplace_back("This is an unknown key id");
+    existing_keys.emplace_back("This is another unknown key id");
+    rsp = adminConnection->execute(
+            BinprotSetActiveEncryptionKeysCommand{entity, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::EncryptionKeyNotAvailable, rsp.getStatus());
+    // Verify that the error context contains the unknown keys
+    EXPECT_TRUE(rsp.getDataView().contains("This is an unknown key id"));
+    EXPECT_TRUE(rsp.getDataView().contains("This is another unknown key id"));
+
+    // Verify that I don't break the logic with the invalid request and can
+    // set the active keys again
+    existing_keys.resize(existing_keys.size() - 2);
+
+    rsp = adminConnection->execute(
+            BinprotSetActiveEncryptionKeysCommand{entity, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+void EncryptionTest::testSetEncryptionKeysWithAllUnavailable_bucket(
+        cb::crypto::SharedEncryptionKey key) {
+    using namespace cb::crypto;
+
+    std::vector<std::string> existing_keys;
+    auto& bucket_keystore = mcd_env->getTestBucket().keystore;
+
+    bucket_keystore.iterateKeys([&existing_keys](const auto k) {
+        if (k) {
+            existing_keys.emplace_back(k->getId());
+        }
+    });
+    bucket_keystore.setActiveKey(key);
+
+    KeyStore ks;
+    ks.setActiveKey(key);
+
+    auto rsp = adminConnection->execute(BinprotSetActiveEncryptionKeysCommand{
+            bucketName, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // But if we try to set the active key for the logs entity with a
+    // key that is not in the keystore on the server we should get an error
+    existing_keys.emplace_back("This is an unknown key id");
+    existing_keys.emplace_back("This is another unknown key id");
+    rsp = adminConnection->execute(BinprotSetActiveEncryptionKeysCommand{
+            bucketName, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::EncryptionKeyNotAvailable, rsp.getStatus());
+    // Verify that the error context contains the unknown keys
+    EXPECT_TRUE(rsp.getDataView().contains("This is an unknown key id"));
+    EXPECT_TRUE(rsp.getDataView().contains("This is another unknown key id"));
+
+    // Verify that I don't break the logic with the invalid request and can
+    // set the active keys again
+    existing_keys.resize(existing_keys.size() - 2);
+
+    rsp = adminConnection->execute(BinprotSetActiveEncryptionKeysCommand{
+            bucketName, ks, existing_keys});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_logs) {
+    // disable
+    testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Logs, {});
+    // set new active
+    testSetEncryptionKeysWithAllUnavailable(
+            cb::dek::Entity::Logs, cb::crypto::DataEncryptionKey::generate());
+}
+
+TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_audit) {
+    // disable
+    testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Audit, {});
+    // set new active
+    testSetEncryptionKeysWithAllUnavailable(
+            cb::dek::Entity::Audit, cb::crypto::DataEncryptionKey::generate());
+}
+
+TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_config) {
+    // disable
+    testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Config, {});
+    // set new active
+    testSetEncryptionKeysWithAllUnavailable(
+            cb::dek::Entity::Config, cb::crypto::DataEncryptionKey::generate());
+}
+
+TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_bucket) {
+    // disable
+    testSetEncryptionKeysWithAllUnavailable_bucket({});
+    // set new active
+    testSetEncryptionKeysWithAllUnavailable_bucket(
+            cb::crypto::DataEncryptionKey::generate());
 }

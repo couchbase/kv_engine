@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "client_mcbp_commands.h"
+#include <dek/manager.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
@@ -2229,6 +2230,31 @@ std::vector<std::string> BinprotGetKeysResponse::getKeys() const {
     }
 
     return ret;
+}
+
+static nlohmann::json makeEncryptionKeysJson(
+        const nlohmann::json& keystore,
+        const std::vector<std::string>& unavailable) {
+    return nlohmann::json(
+            {{"keystore", keystore}, {"unavailable", unavailable}});
+}
+
+BinprotSetActiveEncryptionKeysCommand::BinprotSetActiveEncryptionKeysCommand(
+        std::string entity,
+        const nlohmann::json& keystore,
+        const std::vector<std::string>& unavailable)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+              std::move(entity),
+              makeEncryptionKeysJson(keystore, unavailable).dump()) {
+}
+
+BinprotSetActiveEncryptionKeysCommand::BinprotSetActiveEncryptionKeysCommand(
+        cb::dek::Entity entity,
+        const nlohmann::json& keystore,
+        const std::vector<std::string>& unavailable)
+    : BinprotSetActiveEncryptionKeysCommand(
+              format_as(entity), keystore, unavailable) {
 }
 
 BinprotGetMetaCommand::BinprotGetMetaCommand(std::string key,

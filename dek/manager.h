@@ -29,10 +29,6 @@ inline auto to_string(Entity entity) {
 }
 Entity to_entity(std::string_view entity);
 
-/// Convert a keystore to a JSON object we may put in our logs
-/// (strip off the actual keys etc)
-nlohmann::json toLoggableJson(const cb::crypto::KeyStore& keystore);
-
 class Manager {
 public:
     virtual ~Manager() = default;

@@ -22,6 +22,10 @@ namespace cb::mcbp::request {
 class FrameInfo;
 }
 
+namespace cb::dek {
+enum class Entity;
+}
+
 /**
  * This is the base class used for binary protocol commands. You probably
  * want to use one of the subclasses. Do not subclass this class directly,
@@ -1280,11 +1284,14 @@ public:
 class BinprotSetActiveEncryptionKeysCommand : public BinprotGenericCommand {
 public:
     BinprotSetActiveEncryptionKeysCommand() = delete;
-    BinprotSetActiveEncryptionKeysCommand(std::string entity, std::string value)
-        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
-                                std::move(entity),
-                                std::move(value)) {
-    }
+    BinprotSetActiveEncryptionKeysCommand(
+            std::string entity,
+            const nlohmann::json& keystore,
+            const std::vector<std::string>& unavailable = {});
+    BinprotSetActiveEncryptionKeysCommand(
+            cb::dek::Entity entity,
+            const nlohmann::json& keystore,
+            const std::vector<std::string>& unavailable = {});
 };
 
 class BinprotGetMetaCommand : public BinprotGenericCommand {

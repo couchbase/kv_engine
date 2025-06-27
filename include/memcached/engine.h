@@ -965,11 +965,12 @@ struct EngineIface {
 
     /**
      * Set the encryption keys to use.
+     * @param cookie The cookie identifying the request
      * @param json The JSON specification for a "KeyStore" to use
      * @return status of the operation
      */
     [[nodiscard]] virtual cb::engine_errc set_active_encryption_keys(
-            const nlohmann::json& json) {
+            CookieIface& cookie, const nlohmann::json& json) {
         return cb::engine_errc::not_supported;
     }
 

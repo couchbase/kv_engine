@@ -953,7 +953,7 @@ int memcached_main(int argc, char** argv) {
         cb::dek::Manager::instance().iterate(
                 [&encryption](auto entity, const auto& ks) {
                     encryption[cb::dek::format_as(entity)] =
-                            cb::dek::toLoggableJson(ks);
+                            cb::crypto::toLoggableJson(ks);
                 });
         if (!encryption.empty()) {
             LOG_INFO_CTX("Data encryption", {"config", encryption});

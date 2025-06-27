@@ -1811,12 +1811,64 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
         return status;
     }
 
-    auto payload = cookie.getHeader().getValueString();
+    auto key = cookie.getHeader().getKeyString();
+    if (key.front() == '@') {
+        try {
+            cb::dek::to_entity(key);
+        } catch (const std::exception& exception) {
+            cookie.setErrorContext(fmt::format("Invalid entity provided: {}",
+                                               exception.what()));
+            return Status::Einval;
+        }
+    }
     try {
-        cb::crypto::KeyStore ks = nlohmann::json::parse(payload);
+        auto payload = cookie.getHeader().getValueString();
+        const auto json = nlohmann::json::parse(payload);
+        if (!json.is_object()) {
+            cookie.setErrorContext("The provided value is not a JSON object");
+            return Status::Einval;
+        }
+
+        // Allow the old way of specifying the key store until
+        // ns_server has been updated to use the new format. This chunk
+        // should be removed once they've merged their code
+        if (json.contains("active") || json.contains("keys")) {
+            cb::crypto::KeyStore ks = nlohmann::json::parse(payload);
+            return Status::Success;
+        }
+
+        if (json.contains("unavailable")) {
+            if (!json["unavailable"].is_array()) {
+                cookie.setErrorContext(
+                        "The provided value must contain an array of "
+                        "unavailable keys");
+                return Status::Einval;
+            }
+            for (const auto& unavailabe : json["unavailable"]) {
+                if (!unavailabe.is_string()) {
+                    cookie.setErrorContext(
+                            "The provided value must contain an array of "
+                            "unavailable keys as strings");
+                    return Status::Einval;
+                }
+                if (unavailabe.get<std::string>() ==
+                    cb::crypto::DataEncryptionKey::UnencryptedKeyId) {
+                    cookie.setErrorContext(
+                            "It does not make sense to mark the unencrypted "
+                            "key as unavailable");
+                    return Status::Einval;
+                }
+            }
+        }
+
+        if (!json.contains("keystore")) {
+            cookie.setErrorContext(
+                    "The provided value must contain a keystore object");
+            return Status::Einval;
+        }
+
+        cb::crypto::KeyStore ks = json["keystore"];
     } catch (const std::exception& exception) {
-        LOG_ERROR_CTX("Failed to decode active encryption key info",
-                      {"error", exception.what()});
         cookie.setErrorContext(
                 fmt::format("Failed to decode active encryption key info: {}",
                             exception.what()));

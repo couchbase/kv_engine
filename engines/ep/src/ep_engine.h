@@ -329,7 +329,7 @@ public:
                               const DocKeyView& key,
                               Vbid vbucket) override;
     [[nodiscard]] cb::engine_errc set_active_encryption_keys(
-            const nlohmann::json& json) override;
+            CookieIface& cookie, const nlohmann::json& json) override;
     [[nodiscard]] cb::engine_errc prepare_snapshot(
             CookieIface& cookie,
             Vbid vbid,
@@ -931,7 +931,7 @@ public:
     KVStoreIface::CreateItemCB getCreateItemCallback();
 
     [[nodiscard]] cb::engine_errc setActiveEncryptionKeys(
-            const nlohmann::json& json);
+            CookieIface& cookie, const nlohmann::json& json);
 
     /**
      * Create an Item with the following parameters if the mutation watermark

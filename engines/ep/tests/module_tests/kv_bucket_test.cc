@@ -782,7 +782,10 @@ void KVBucketTest::setupEncryptionKeys() {
                 key["id"].get<std::string>().append(".key.1")));
     }
     EXPECT_EQ(cb::engine_errc::success,
-              engine->set_active_encryption_keys(std::move(jsonKeys)));
+              engine->set_active_encryption_keys(
+                      *cookie,
+                      {{"keystore", std::move(jsonKeys)},
+                       {"unavailable", nlohmann::json::array()}}));
 }
 
 nlohmann::json KVBucketTest::getEncryptionKeys() {
