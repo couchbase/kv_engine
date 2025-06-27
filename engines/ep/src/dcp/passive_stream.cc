@@ -292,10 +292,12 @@ cb::engine_errc PassiveStream::messageReceived(
         // the map).
         return cb::engine_errc::success;
     }
-
     auto seqno = dcpResponse->getBySeqno();
     if (seqno) {
-        if (uint64_t(*seqno) <= last_seqno.load()) {
+        // Check for seqno ordering except when there is a CachedValue which is
+        // not in seqno order.
+        if (uint64_t(*seqno) <= last_seqno.load() &&
+            dcpResponse->getEvent() != DcpResponse::Event::CachedValue) {
             OBJ_LOG_WARN_CTX(
                     *this,
                     "Erroneous (out of sequence) message received, with "
@@ -1332,12 +1334,14 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::SystemEvent:
         ret = processSystemEvent(dynamic_cast<SystemEventMessage&>(*resp));
         break;
+    case DcpResponse::Event::CachedValue:
+        ret = processCachedValue(dynamic_cast<MutationConsumerMessage&>(*resp));
+        break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
     case DcpResponse::Event::SeqnoAcknowledgement:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
-    case DcpResponse::Event::CachedValue:
     case DcpResponse::Event::CacheTransferToActiveStream:
         // These are invalid events for this path, they are handled by
         // the DcpConsumer class
@@ -1401,8 +1405,37 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
 
     const auto seqno = resp.getBySeqno();
     if (err == cb::engine_errc::success && seqno) {
-        last_seqno.store(*seqno);
+        // CachedValue is not in seqno order, so we need to reset the last_seqno
+        // to the seqno of the CachedValue.
+        if (resp.getEvent() == DcpResponse::Event::CachedValue) {
+            last_seqno.reset(*seqno);
+        } else {
+            last_seqno.store(*seqno);
+        }
     }
 
     return ret;
+}
+
+cb::engine_errc PassiveStream::processCachedValue(
+        MutationConsumerMessage& resp) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    std::shared_lock rlh(vb->getStateLock());
+
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    vb->ht.upsertItem(
+            *resp.getItem(),
+            /*eject*/ false,
+            /*keyMetaDataOnly*/ false,
+            /*evictionPolicy*/ engine->getKVBucket()->getItemEvictionPolicy());
+
+    return cb::engine_errc::success;
 }

@@ -16,6 +16,7 @@
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <tests/mock/mock_cache_transfer_stream.h>
 #include <tests/mock/mock_checkpoint_manager.h>
 #include <tests/mock/mock_dcp_consumer.h>
 #include <tests/mock/mock_dcp_producer.h>
@@ -139,6 +140,8 @@ public:
 
         void transferPrepare(const StoredDocKey& expectedKey,
                              uint64_t expectedSeqno);
+
+        void transferCachedValue();
 
         void transferSnapshotMarker(
                 uint64_t expectedStart,
@@ -421,6 +424,9 @@ public:
     void HPSUpdatedOnReplica_ForMutations(MarkerVersion markerVersion);
 
     void HpsSentForInMemoryDiskSnapshot(MarkerVersion markerVersion);
+
+    // Setup the node0/node1 active/replica to simulate FBR transfer
+    std::vector<StoredDocKey> setupFBR(int nKeys);
 };
 
 void DCPLoopbackTestHelper::DcpRoute::destroy() {
@@ -467,7 +473,16 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
                              "NonIO ready/future queues after null "
                              "producerMsg, but both are zero";
         }
-        if (!stream.getItemsRemaining()) {
+        // ActiveStream counts items remaining using the number of items behind
+        // the cursor, so can return non zero even if processing tasks haven't
+        // executed. CacheTransferStream just returns the number of items queued
+        // in the readyQ, so will return 0 items until the visiting task runs.
+        // Therefore if this stream is a CacheTransfer don't stop because items
+        // remaining is zero. No tests rely on nullptr being returned so
+        // currently we can just keep looping until the task runs and items are
+        // available.
+        if (stream.getItemsRemaining() == 0 &&
+            !dynamic_cast<MockCacheTransferStream*>(&stream)) {
             return {};
         }
         return getNextProducerMsg(stream);
@@ -478,7 +493,8 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
     if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
         producerMsg->getEvent() == DcpResponse::Event::Deletion ||
         producerMsg->getEvent() == DcpResponse::Event::Expiration ||
-        producerMsg->getEvent() == DcpResponse::Event::Prepare) {
+        producerMsg->getEvent() == DcpResponse::Event::Prepare ||
+        producerMsg->getEvent() == DcpResponse::Event::CachedValue) {
         producerMsg = std::make_unique<MutationConsumerMessage>(
                 *static_cast<MutationResponse*>(producerMsg.get()));
     }
@@ -587,6 +603,15 @@ void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
               streams.second->messageReceived(std::move(msg)));
 }
 
+void DCPLoopbackTestHelper::DcpRoute::transferCachedValue() {
+    auto streams = getStreams();
+    auto msg = getNextProducerMsg(*streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
+}
+
 void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         uint64_t expectedStart,
         uint64_t expectedEnd,
@@ -663,13 +688,16 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(
                                          fakeDcpAddFailoverLog,
                                          {});
     if (error == cb::engine_errc::success) {
-        EXPECT_GT(static_cast<MockCheckpointManager*>(
-                          producerVb->checkpointManager.get())
-                          ->getNumOfCursors(),
-                  cursorCount)
-                << "Expected cursor count to increase for "
-                << "successful streamRequest";
-        EXPECT_GE(getLpNonIoQ()->getFutureQueueSize(), 1);
+        if (!isFlagSet(sr->getFlags(),
+                       cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+            EXPECT_GT(static_cast<MockCheckpointManager*>(
+                              producerVb->checkpointManager.get())
+                              ->getNumOfCursors(),
+                      cursorCount)
+                    << "Expected cursor count to increase for "
+                    << "successful streamRequest";
+            EXPECT_GE(getLpNonIoQ()->getFutureQueueSize(), 1);
+        }
         // Finally the stream-request response sends the failover table back
         // to the consumer... simulate that
         auto failoverLog = producerVb->failovers->getFailoverLog();
@@ -2617,6 +2645,93 @@ TEST_P(DCPRollbackTest, CheckHPSPostRollback) {
     EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
 }
 
+std::vector<StoredDocKey> DCPLoopbackStreamTest::setupFBR(int nKeys) {
+    std::vector<StoredDocKey> keys;
+    for (int i = 0; i < nKeys; i++) {
+        keys.push_back(makeStoredDocKey("key" + std::to_string(i)));
+    }
+
+    // Clone failover table from active into replica.
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    auto activeVB = engines[Node0]->getKVBucket()->getVBucket(vbid);
+    auto failovers = activeVB->failovers->getFailoverLog();
+    replicaVB->failovers = std::make_unique<FailoverTable>(
+            activeVB->failovers->getJSON(), 5, replicaVB->getHighSeqno());
+
+    // Now populate both vbuckets with the keys.
+    for (const auto& key : keys) {
+        uint64_t seq{0};
+        auto item = makeCommittedItem(key, "value", vbid);
+        item->setCas(1);
+
+        // Write to the active VB
+        EXPECT_EQ(cb::engine_errc::success,
+                  engines[Node0]->getKVBucket()->setWithMeta(
+                          *item,
+                          0,
+                          &seq,
+                          cookie,
+                          {vbucket_state_active},
+                          CheckConflicts::No,
+                          true,
+                          GenerateBySeqno::Yes));
+
+        // Write to the replica VB
+        EXPECT_EQ(cb::engine_errc::success,
+                  engines[Node1]->getKVBucket()->setWithMeta(
+                          *item,
+                          0,
+                          &seq,
+                          cookie,
+                          {vbucket_state_replica},
+                          CheckConflicts::No,
+                          true,
+                          GenerateBySeqno::Yes));
+    }
+
+    replicaVB->ht.clear();
+    flushNodeIfPersistent(Node0);
+    flushNodeIfPersistent(Node1);
+    return keys;
+}
+class DCPCacheTransfer : public DCPLoopbackStreamTest {
+public:
+    void SetUp() override {
+        DCPLoopbackStreamTest::SetUp();
+    }
+};
+
+TEST_P(DCPCacheTransfer, CacheTransfer) {
+    auto keys = setupFBR(4);
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, replicaVB->dirtyQueueSize);
+    auto route0_1 = createDcpRoute(Node0, Node1);
+
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            route0_1.doStreamRequest(cb::mcbp::DcpAddStreamFlag::CacheTransfer)
+                    .first);
+    // Flush vbstate that is generated by acceptStream
+    flushNodeIfPersistent(Node1);
+    EXPECT_EQ(0, replicaVB->dirtyQueueSize);
+
+    for (const auto& key : keys) {
+        EXPECT_FALSE(replicaVB->ht.findForRead(key).storedValue);
+    }
+    for (size_t i = 0; i < keys.size(); i++) {
+        route0_1.transferCachedValue();
+    }
+    // Now the replica as the values as resident, but not dirty (nothing to
+    // flush)
+    for (const auto& key : keys) {
+        ASSERT_TRUE(replicaVB->ht.findForRead(key).storedValue);
+        EXPECT_FALSE(replicaVB->ht.findForRead(key).storedValue->isDirty());
+        EXPECT_TRUE(replicaVB->ht.findForRead(key).storedValue->isResident());
+    }
+    // Nothing is for flushing
+    EXPECT_EQ(0, replicaVB->dirtyQueueSize);
+}
+
 INSTANTIATE_TEST_SUITE_P(DCPLoopbackStreamTests,
                          DCPLoopbackStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
@@ -2631,3 +2746,8 @@ INSTANTIATE_TEST_SUITE_P(DCPRollbackTest,
                          DCPRollbackTest,
                          DCPRollbackTest::allConfigValues(),
                          DCPRollbackTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(DCPReflectionCacheTransferTests,
+                         DCPCacheTransfer,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

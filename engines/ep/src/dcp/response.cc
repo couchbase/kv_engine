@@ -137,7 +137,8 @@ MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
                        response.getIncludeDeletedUserXattrs(),
                        response.getDocKeyEncodesCollectionId(),
                        response.getEnableExpiryOutput(),
-                       response.getStreamId()),
+                       response.getStreamId(),
+                       response.getEvent()),
       emd(nullptr) {
 }
 

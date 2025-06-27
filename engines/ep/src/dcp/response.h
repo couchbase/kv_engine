@@ -674,7 +674,8 @@ public:
                             IncludeDeletedUserXattrs includeDeletedUserXattrs,
                             DocKeyEncodesCollectionId includeCollectionID,
                             ExtendedMetaData* e,
-                            cb::mcbp::DcpStreamId sid)
+                            cb::mcbp::DcpStreamId sid,
+                            std::optional<Event> eventType = std::nullopt)
         : MutationResponse(std::move(item),
                            opaque,
                            includeVal,
@@ -683,7 +684,8 @@ public:
                            includeDeletedUserXattrs,
                            includeCollectionID,
                            EnableExpiryOutput::Yes,
-                           sid),
+                           sid,
+                           eventType),
           emd(e) {
     }
 
