@@ -10,6 +10,7 @@
 #include "testapp_environment.h"
 #include <auditd/couchbase_audit_events.h>
 #include <cbcrypto/common.h>
+#include <cbcrypto/encrypted_file_header.h>
 #include <cbcrypto/file_reader.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
@@ -19,6 +20,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
+#include <platform/timeutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/string_utilities.h>
@@ -426,9 +428,22 @@ std::string McdEnvironment::readConcurrentUpdatedFile(
         auto lookup = [this, entity](auto key) {
             return dek_manager->lookup(entity, key);
         };
+        if (!cb::waitForPredicateUntil(
+                    [&path]() {
+                        return file_size(path) >=
+                               sizeof(cb::crypto::EncryptedFileHeader);
+                    },
+                    std::chrono::seconds{5},
+                    std::chrono::milliseconds{10})) {
+            throw std::runtime_error(fmt::format(
+                    "Timed out waiting for file to be large enough: {}",
+                    path.generic_string()));
+        }
         auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
         if (!file_reader->is_encrypted()) {
-            throw std::runtime_error("Expected the file to be encrypted");
+            throw std::runtime_error(
+                    fmt::format("Expected the file to be encrypted: {}",
+                                path.generic_string()));
         }
 
         std::string chunk;
