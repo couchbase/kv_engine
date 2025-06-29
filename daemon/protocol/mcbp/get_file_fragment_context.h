@@ -60,16 +60,19 @@ protected:
     cb::engine_errc chain_file_chunk();
     cb::engine_errc transfer_with_sendfile();
     const std::string uuid;
+    const bool useSendfile;
     std::string filename;
     std::size_t id{0};
     std::size_t offset{0};
     std::size_t length{0};
-#ifdef WIN32
-    std::ifstream file_stream;
-#else
-    int fd{-1};
-#endif
     folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
+    /// We're using a file_stream to read the file if we need
+    /// to read it in chunks (i.e., not using sendfile).
+    std::ifstream filestream;
+    /// In configurations where we may use sendfile (Linux/MacOS
+    /// and not TLS) we need a file descriptor to pass along
+    /// to the sendfile(2) call
+    int fd{-1};
 
     State state;
 };

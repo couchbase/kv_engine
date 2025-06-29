@@ -10,8 +10,6 @@
 
 #include "get_file_fragment_context.h"
 
-#include "platform/dirutils.h"
-
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
@@ -23,13 +21,17 @@
 #include <logger/logger.h>
 #include <memcached/engine.h>
 #include <platform/crc32c.h>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
+
+#include <algorithm>
 
 constexpr std::size_t MaxReadSize = 2_GiB;
 
 GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       uuid(cookie.getRequest().getKeyString()),
+      useSendfile(cookie.getConnection().isSendfileSupported()),
       state(State::Initialize) {
     // The validator checked that the payload was JSON and that it contains
     // the mandatory fields
@@ -38,29 +40,28 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     id = json["id"].get<std::size_t>();
     offset = stoll(json.value("offset", "0"));
     length = stoll(json["length"].get<std::string>());
-    if (length > MaxReadSize) {
-        length = MaxReadSize;
+    length = std::min(length, MaxReadSize);
+    if (!useSendfile) {
+        filestream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     }
-#ifdef WIN32
-    file_stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-#endif
 }
 
 GetFileFragmentContext::~GetFileFragmentContext() {
-#ifdef WIN32
-    if (file_stream.is_open()) {
-        try {
-            file_stream.close();
-        } catch (const std::exception&) {
-        }
-    }
-#else
     if (fd != -1 && ::close(fd) == -1) {
         LOG_WARNING_CTX("Failed to close file descriptor",
-                        {"conn_id", cookie.getConnectionId(), "fd", fd},
+                        {"conn_id", cookie.getConnectionId()},
+                        {"fd", fd},
                         {"error", cb_strerror()});
     }
-#endif
+    if (filestream.is_open()) {
+        try {
+            filestream.close();
+        } catch (const std::exception& e) {
+            LOG_WARNING_CTX("Failed to close file descriptor",
+                            {"conn_id", cookie.getConnectionId()},
+                            {"error", e.what()});
+        }
+    }
 }
 
 cb::engine_errc GetFileFragmentContext::step() {
@@ -122,39 +123,32 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                         return;
                     }
 
-#ifdef WIN32
-                    file_stream.open(filename, std::ios::binary | std::ios::in);
-                    file_stream.seekg(offset);
-#else
-                    fd = ::open(filename.c_str(), O_RDONLY);
-                    if (fd == -1) {
-                        LOG_WARNING_CTX("Failed to open file",
-                                        {"conn_id", cookie.getConnectionId()},
-                                        {"error", cb_strerror()},
-                                        {"file", filename});
-                        if (errno == ENOENT) {
-                            cookie.notifyIoComplete(
-                                    cb::engine_errc::no_such_key);
+                    if (useSendfile) {
+                        fd = ::open(filename.c_str(), O_RDONLY);
+                        if (fd == -1) {
+                            LOG_WARNING_CTX(
+                                    "Failed to open file",
+                                    {"conn_id", cookie.getConnectionId()},
+                                    {"error", cb_strerror()},
+                                    {"file", filename});
+                            if (errno == ENOENT) {
+                                cookie.notifyIoComplete(
+                                        cb::engine_errc::no_such_key);
+                                return;
+                            }
+                            if (errno == EACCES) {
+                                cookie.notifyIoComplete(
+                                        cb::engine_errc::no_access);
+                                return;
+                            }
+                            cookie.notifyIoComplete(cb::engine_errc::failed);
                             return;
                         }
-                        if (errno == EACCES) {
-                            cookie.notifyIoComplete(cb::engine_errc::no_access);
-                            return;
-                        }
-                        cookie.notifyIoComplete(cb::engine_errc::failed);
-                        return;
+                    } else {
+                        filestream.open(filename,
+                                        std::ios::binary | std::ios::in);
+                        filestream.seekg(offset);
                     }
-
-#ifdef __linux__
-                    // Give the kernel a hint that we'll read the data
-                    // sequentially and won't need it more than once
-                    (void)posix_fadvise(
-                            fd,
-                            0,
-                            0,
-                            POSIX_FADV_SEQUENTIAL | POSIX_FADV_NOREUSE);
-#endif
-#endif
 
                     length = std::min(length, MaxReadSize);
                     state = State::SendResponseHeader;
@@ -199,34 +193,13 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                         const auto to_read = std::min(length, ChunkSize);
 
                         auto iob = folly::IOBuf::createCombined(to_read);
-
-#ifdef WIN32
-                        file_stream.read(
+                        filestream.read(
                                 reinterpret_cast<char*>(iob->writableTail()),
                                 to_read);
                         iob->append(to_read);
                         chunk.swap(iob);
                         length -= to_read;
                         offset += to_read;
-#else
-                        auto nr = ::pread(
-                                fd, iob->writableTail(), to_read, offset);
-                        if (nr == -1) {
-                            LOG_WARNING_CTX(
-                                    "Failed to read file chunk",
-                                    {"conn_id", cookie.getConnectionId()},
-                                    {"error", cb_strerror()});
-                            cookie.notifyIoComplete(
-                                    cb::engine_errc::disconnect);
-                            return;
-                        }
-                        if (nr > 0) {
-                            length -= nr;
-                            offset += nr;
-                            iob->append(nr);
-                            chunk.swap(iob);
-                        }
-#endif
 
                         cookie.notifyIoComplete(cb::engine_errc::success);
                     } catch (const std::exception& e) {
@@ -246,18 +219,13 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
 }
 
 cb::engine_errc GetFileFragmentContext::transfer_with_sendfile() {
-#ifdef WIN32
-    throw std::logic_error("Sendfile not implemented for win32");
-#else
-    auto ret = connection.sendFile(
-            fd, static_cast<off_t>(offset), static_cast<off_t>(length));
+    const auto ret = connection.sendFile(fd, offset, length);
     if (ret == cb::engine_errc::success) {
         // evbuffer took the ownership..
         fd = -1;
     }
     state = State::Done;
     return ret;
-#endif
 }
 
 cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
