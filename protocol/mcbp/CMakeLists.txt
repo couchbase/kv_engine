@@ -77,11 +77,7 @@ if(HAVE_FUZZTEST)
     cb_add_test_executable(mcbp_fuzz_test mcbp_fuzz_test.cc)
     target_include_directories(mcbp_fuzz_test SYSTEM PRIVATE ${Memcached_BINARY_DIR})
     cb_link_fuzztest(mcbp_fuzz_test)
-    target_link_libraries(
-        mcbp_fuzz_test
-        PUBLIC
-        fuzztest::gtest_main
-    )
+    cb_link_fuzztest_main(mcbp_fuzz_test)
     target_link_libraries(mcbp_fuzz_test PRIVATE memcached_daemon)
 endif()
 
