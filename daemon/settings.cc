@@ -454,6 +454,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     std::chrono::milliseconds(value.get<size_t>()));
         } else if (key == "file_fragment_max_chunk_size"sv) {
             setFileFragmentMaxChunkSize(value.get<size_t>());
+        } else if (key == "dcp_consumer_max_marker_version"sv) {
+            setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1164,6 +1166,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", current.count()},
                          {"to", newValue.count()});
             setDcpDisconnectWhenStuckTimeout(newValue);
+        }
+    }
+
+    if (other.has.dcp_consumer_max_marker_version) {
+        const auto newValue = other.getDcpConsumerMaxMarkerVersion();
+        const auto current = getDcpConsumerMaxMarkerVersion();
+        if (newValue != current) {
+            LOG_INFO_CTX("Change dcp_consumer_max_marker_version",
+                         {"from", current},
+                         {"to", newValue});
+            setDcpConsumerMaxMarkerVersion(newValue);
         }
     }
 

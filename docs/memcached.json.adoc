@@ -497,6 +497,11 @@ when stuck (see dcp_disconnect_when_stuck_timeout_seconds).
 The value in the JSON is a string but is expected to be a base64 encoded
 value to avoid any character escaping being required.
 
+=== dcp_consumer_enable_max_marker_version
+
+A double value that sets the max_marker_version which the consumer
+sends to the producer to communicate the MarkerVersion it supports.
+
 === fusion_migration_rate_limit
 
 The rate limit for Fusion extent migration, in bytes per second.

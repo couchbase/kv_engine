@@ -1021,6 +1021,16 @@ public:
         notify_changed("file_fragment_max_chunk_size");
     }
 
+    double getDcpConsumerMaxMarkerVersion() const {
+        return dcp_consumer_max_marker_version.load(std::memory_order_acquire);
+    }
+
+    void setDcpConsumerMaxMarkerVersion(double val) {
+        dcp_consumer_max_marker_version.store(val, std::memory_order_release);
+        has.dcp_consumer_max_marker_version = true;
+        notify_changed("dcp_consumer_max_marker_version");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1288,6 +1298,9 @@ protected:
     folly::Synchronized<std::string, std::mutex>
             dcp_disconnect_when_stuck_name_regex;
 
+    /// The max_marker_version that a consumer will send to a producer.
+    std::atomic<double> dcp_consumer_max_marker_version{2.2};
+
     /// The maximum number of paths allowed in a subdoc multi-path operation
     std::atomic<size_t> subdoc_multi_max_paths{16};
 
@@ -1374,5 +1387,6 @@ public:
         bool subdoc_multi_max_paths = false;
         bool clustermap_push_notifications_enabled = false;
         bool file_fragment_max_chunk_size = false;
+        bool dcp_consumer_max_marker_version = false;
     } has;
 };

@@ -208,8 +208,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                                    "true",
                                    [this]() { changeStreams = true; });
 
-    // Enable purgeSeqno transmission.
-    controls->emplace_back(DcpControlKeys::SnapshotMaxMarkerVersion, "2.2");
+    if (engine.getDcpConsumerMaxMarkerVersion() >= 2.2) {
+        controls->emplace_back(DcpControlKeys::SnapshotMaxMarkerVersion, "2.2");
+    }
 }
 
 DcpConsumer::~DcpConsumer() {

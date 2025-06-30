@@ -83,6 +83,10 @@ struct ServerCoreApi : public ServerCoreIface {
     bool getNotLockedReturnsTmpfail() override {
         return Settings::instance().getNotLockedReturnsTmpfail();
     }
+
+    double getDcpConsumerMaxMarkerVersion() override {
+        return Settings::instance().getDcpConsumerMaxMarkerVersion();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

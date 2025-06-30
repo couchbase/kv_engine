@@ -1391,3 +1391,11 @@ TEST_F(SettingsTest, TestDefaultExternalAuthTimeout) {
     EXPECT_EQ(60s,
               duration_cast<seconds>(settings.getExternalAuthRequestTimeout()));
 }
+
+TEST_F(SettingsTest, TestDcpConsumerMaxMarkerVersion) {
+    Settings settings;
+    EXPECT_EQ(2.2, settings.getDcpConsumerMaxMarkerVersion());
+
+    settings.setDcpConsumerMaxMarkerVersion(2.3);
+    EXPECT_EQ(2.3, settings.getDcpConsumerMaxMarkerVersion());
+}

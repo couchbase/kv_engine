@@ -8211,3 +8211,7 @@ cb::engine_errc EventuallyPersistentEngine::getNotLockedError() const {
     return useTmpfail ? cb::engine_errc::temporary_failure
                       : cb::engine_errc::not_locked;
 }
+
+double EventuallyPersistentEngine::getDcpConsumerMaxMarkerVersion() const {
+    return serverApi->core->getDcpConsumerMaxMarkerVersion();
+}

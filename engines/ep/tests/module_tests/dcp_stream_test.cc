@@ -10299,3 +10299,56 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          TestStuckProducer,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+class TestDcpConsumerMaxMarkerVersion : public SingleThreadedPassiveStreamTest {
+public:
+    void SetUp() override {
+        // Don't start as replica initially, we'll set up the consumer manually
+        startAsReplica = false;
+        SingleThreadedPassiveStreamTest::SetUp();
+    }
+
+    void setupConsumerWithMaxMarker(double maxMarkerVersion) {
+        mock_set_dcp_consumer_max_marker_version(maxMarkerVersion);
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+        setupConsumerAndPassiveStream();
+    }
+
+    void verifySnapshotMarkerVersionControl(bool expected,
+                                            std::string_view maxMarkerVersion) {
+        auto controls = consumer->public_getPendingControls().lock();
+
+        auto maxMarkerVersionControl = std::find_if(
+                controls->begin(), controls->end(), [](const auto& control) {
+                    return control.key == "max_marker_version";
+                });
+
+        bool foundSnapshotMarkerVersion =
+                (maxMarkerVersionControl != controls->end());
+
+        EXPECT_EQ(expected, foundSnapshotMarkerVersion)
+                << "Snapshot marker version control should "
+                << (expected ? "be" : "not be") << " present";
+
+        if (foundSnapshotMarkerVersion) {
+            EXPECT_EQ(maxMarkerVersion, maxMarkerVersionControl->value)
+                    << "max_marker_version control value should be '"
+                    << maxMarkerVersion << "'";
+        }
+    }
+};
+
+TEST_P(TestDcpConsumerMaxMarkerVersion, MaxMarkerVersionEnabled) {
+    setupConsumerWithMaxMarker(2.2);
+    verifySnapshotMarkerVersionControl(true, "2.2");
+}
+
+TEST_P(TestDcpConsumerMaxMarkerVersion, MaxMarkerVersionDisabled) {
+    setupConsumerWithMaxMarker(0.0);
+    verifySnapshotMarkerVersionControl(false, "");
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         TestDcpConsumerMaxMarkerVersion,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

@@ -96,6 +96,10 @@ public:
     bool getNotLockedReturnsTmpfail() override {
         return false;
     }
+
+    double getDcpConsumerMaxMarkerVersion() override {
+        return 2.2;
+    }
 };
 
 int main(int argc, char **argv) {

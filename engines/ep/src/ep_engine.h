@@ -1157,6 +1157,11 @@ public:
      */
     cb::engine_errc getNotLockedError() const;
 
+    /**
+     * @return the max_marker_version that a consumer will send to a producer.
+     */
+    double getDcpConsumerMaxMarkerVersion() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 

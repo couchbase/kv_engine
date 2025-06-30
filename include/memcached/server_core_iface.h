@@ -98,4 +98,9 @@ struct ServerCoreIface {
      * error where possible.
      */
     virtual bool getNotLockedReturnsTmpfail() = 0;
+
+    /**
+     * The max_marker_version that a consumer will send to a producer.
+     */
+    virtual double getDcpConsumerMaxMarkerVersion() = 0;
 };
