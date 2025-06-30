@@ -251,40 +251,44 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
     constexpr int flags = 1;
     int error;
 
-#ifdef IPV6_V6ONLY
     if (ai->ai_family == AF_INET6) {
         error = cb::net::setsockopt(
                 sfd, IPPROTO_IPV6, IPV6_V6ONLY, &flags, sizeof(flags));
         if (error != 0) {
-            LOG_WARNING_CTX("setsockopt(IPV6_V6ONLY)",
-                            {"error", strerror(errno)});
+            LOG_WARNING_CTX(
+                    "Server socket setsockopt failed",
+                    {"option", "IPV6_V6ONLY"},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
             close_server_socket(sfd);
             return INVALID_SOCKET;
         }
     }
-#endif
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING_CTX("setsockopt(SO_REUSEADDR)",
+        LOG_WARNING_CTX("Server socket setsockopt failed",
+                        {"option", "SO_REUSEADDR"},
                         {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_REUSEPORT, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING_CTX("setsockopt(SO_REUSEPORT)",
+        LOG_WARNING_CTX("Server socket setsockopt failed",
+                        {"option", "SO_REUSEPORT"},
                         {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING_CTX("setsockopt(SO_KEEPALIVE)",
+        LOG_WARNING_CTX("Server socket setsockopt failed",
+                        {"option", "SO_KEEPALIVE"},
                         {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling)) !=
         0) {
-        LOG_WARNING_CTX("setsockopt(SO_LINGER)",
+        LOG_WARNING_CTX("Server socket setsockopt failed",
+                        {"option", "SO_LINGER"},
                         {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
