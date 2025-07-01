@@ -63,11 +63,17 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
+    // Create scope shop as if it came from manifest uid cafef00d
+    std::string scope = "shop";
+    ScopeID sid = ScopeEntry::shop1.getId();
+    Collections::ManifestUid manifestUid(0xcafef00d);
+    Collections::CreateScopeEventData scopeEventData{manifestUid, {sid, scope}};
+    Collections::CreateScopeEventDcpData scopeEventDcpData{scopeEventData};
+
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
-    ScopeID sid = ScopeEntry::shop1.getId();
-    Collections::ManifestUid manifestUid(0xcafef00d);
+
     Collections::CreateEventData createEventData{
             manifestUid,
             {sid, cid, collection, {/*no ttl*/}, CanDeduplicate::Yes}};
@@ -84,6 +90,16 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
+    consumer->systemEvent(
+            /*opaque*/ 2,
+            vbid,
+            mcbp::systemevent::id::CreateScope,
+            /*seqno*/ 1,
+            mcbp::systemevent::version::version0,
+            {reinterpret_cast<const uint8_t*>(scope.data()), scope.size()},
+            {reinterpret_cast<const uint8_t*>(&scopeEventDcpData),
+             Collections::CreateScopeEventDcpData::size});
+
     VBucketPtr vb = store->getVBucket(vbid);
 
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
@@ -96,7 +112,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*opaque*/ 2,
                       vbid,
                       mcbp::systemevent::id::CreateCollection,
-                      /*seqno*/ 1,
+                      /*seqno*/ 2,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
@@ -120,7 +136,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*cas*/ 0,
                       vbid,
                       /*flags*/ 0,
-                      /*bySeqno*/ 2,
+                      /*bySeqno*/ 3,
                       /*revSeqno*/ 0,
                       /*expTime*/ 0,
                       /*lock_time*/ 0,
@@ -129,7 +145,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
 
     // Now check that the DCP consumer has updated the in memory high seqno
     // counter for this item
-    EXPECT_EQ(2, vb->lockCollections().getHighSeqno(CollectionEntry::meat));
+    EXPECT_EQ(3, vb->lockCollections().getHighSeqno(CollectionEntry::meat));
 
     // Call the consumer function for handling DCP events
     // delete the meat collection
@@ -138,7 +154,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*opaque*/ 2,
                       vbid,
                       mcbp::systemevent::id::DeleteCollection,
-                      /*seqno*/ 3,
+                      /*seqno*/ 4,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
@@ -169,7 +185,7 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
-    ScopeID sid = ScopeEntry::shop1.getId();
+    ScopeID sid = ScopeEntry::defaultS.getId();
     Collections::ManifestUid manifestUid(0xcafef00d);
     Collections::CreateEventData createEventData{
             manifestUid,
@@ -4899,6 +4915,52 @@ TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
     EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+}
+
+// Validate that consumer rejects a collection without a scope being created
+// first
+TEST_P(CollectionsDcpParameterizedTest, MB_66959) {
+    store->setVBucketState(vbid, vbucket_state_replica);
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration.
+    consumer->disableFlatBuffersSystemEvents();
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, 0));
+
+    // Create collection, but wityhout creating the scope
+    std::string collection = "collection";
+    CollectionID cid = CollectionEntry::meat.getId();
+    Collections::ManifestUid manifestUid(0xcafef00d);
+    ScopeID sid = ScopeEntry::shop1.getId();
+    Collections::CreateEventData createEventData{
+            manifestUid,
+            {sid, cid, collection, {/*no ttl*/}, CanDeduplicate::Yes}};
+    Collections::CreateEventDcpData createEventDcpData{createEventData};
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(/*opaque*/ 2,
+                                       vbid,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 100,
+                                       /*flags*/ {},
+                                       /*HCS*/ {},
+                                       /*maxVisibleSeqno*/ {}));
+
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              consumer->systemEvent(
+                      /*opaque*/ 2,
+                      vbid,
+                      mcbp::systemevent::id::CreateCollection,
+                      /*seqno*/ 1,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(collection.data()),
+                       collection.size()},
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateEventDcpData::size}));
 }
 
 // Test cases which run for persistent and ephemeral buckets
