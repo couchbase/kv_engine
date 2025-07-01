@@ -7,10 +7,10 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#ifdef USE_FUSION
 
 #include "testapp_client_test.h"
 
+#ifdef USE_FUSION
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
