@@ -579,6 +579,17 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                Metered metered,
                                                CanDeduplicate canDeduplicate,
                                                int64_t startSeqno) {
+    // Check scope exists
+    if (scopes.find(identifiers.first) == scopes.end()) {
+        throwException<std::logic_error>(
+                __func__,
+                "scope does not exist: failed adding collection:" +
+                        identifiers.second.to_string() +
+                        ", name:" + std::string(collectionName) +
+                        ", scope:" + identifiers.first.to_string() +
+                        ", startSeqno:" + std::to_string(startSeqno));
+    }
+
     CollectionSharedMetaDataView meta{collectionName, identifiers.first};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
