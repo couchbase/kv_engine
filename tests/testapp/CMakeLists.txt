@@ -18,7 +18,7 @@ add_test(NAME testapp_auth_provider_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND testapp_auth_provider_test)
 
-set(memcached_testapp_SOURCES
+cb_add_test_executable(memcached_testapp
     subdoc_encoder.cc
     subdoc_encoder.h
     testapp.cc
@@ -84,7 +84,6 @@ set(memcached_testapp_SOURCES
     testapp_xattr.h
     ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
-cb_add_test_executable(memcached_testapp ${memcached_testapp_SOURCES})
 target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR} ${Platform_SOURCE_DIR}/external)
 
 target_link_libraries(memcached_testapp PRIVATE
