@@ -30,7 +30,7 @@ add_test(NAME cluster_test
 set_tests_properties(cluster_test
         PROPERTIES RUN_SERIAL TRUE)
 
-if (BUILD_ENTERPRISE AND NOT WIN32)
+if (TARGET magma AND NOT WIN32)
     # Magma emits a lot of critical warnings and fails on
     # win32 due to failing to open files.
     # Only run on other platforms for now

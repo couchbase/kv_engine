@@ -161,7 +161,7 @@ gtest_discover_tests(memcached_testapp
         PROPERTIES TIMEOUT 300
         ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
 
-if (BUILD_ENTERPRISE)
+if (TARGET magma)
     gtest_discover_tests(memcached_testapp
             EXTRA_ARGS -c backend=magma -c max_size=209715200 ${VERBOSE_EXTRA_ARG}
             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -170,4 +170,4 @@ if (BUILD_ENTERPRISE)
             DISCOVERY_TIMEOUT 60
             PROPERTIES TIMEOUT 300
             ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
-endif (BUILD_ENTERPRISE)
+endif (TARGET magma)
