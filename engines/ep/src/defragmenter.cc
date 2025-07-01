@@ -19,6 +19,7 @@
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/scope_timer.h>
 #include <cinttypes>
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine& e,
@@ -68,8 +69,13 @@ bool DefragmenterTask::run() {
 }
 
 std::chrono::duration<double> DefragmenterTask::defrag() {
-    auto currentFragStats = cb::ArenaMalloc::getFragmentationStats(
-            engine->getArenaMallocClient());
+    auto getFragmentationStats = [this]() {
+        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>>
+                timer(this, "defrag.getfragmentation");
+        return cb::ArenaMalloc::getFragmentationStats(
+                engine->getArenaMallocClient());
+    };
+    auto currentFragStats = getFragmentationStats();
 
     auto sleepAndRun = calculateSleepTimeAndRunState(currentFragStats);
     if (!sleepAndRun.runDefragger) {
