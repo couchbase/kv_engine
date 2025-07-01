@@ -64,6 +64,7 @@ public:
     static constexpr auto chronicleAuthToken = "some-token1!";
     static constexpr auto bucketUuid = "uuid-123";
     static const Vbid vbid;
+    std::unique_ptr<MemcachedConnection> connection;
 };
 
 const Vbid FusionTest::vbid = Vbid(0);
@@ -95,6 +96,13 @@ void FusionTest::SetUp() {
     if (!mcd_env->getTestBucket().isMagma()) {
         GTEST_SKIP();
     }
+
+    // Create a new "admin" connection for the test case and make sure
+    // it identifies itself with the test name to make it easier to locate
+    // it in the logs we dump if there is a unit test failure.
+    connection = adminConnection->clone(true, {}, name);
+    connection->authenticate("@admin");
+    connection->selectBucket(bucketName);
 }
 
 void FusionTest::TearDown() {
@@ -111,107 +119,73 @@ void FusionTest::TearDown() {
 
 BinprotResponse FusionTest::mountVbucket(Vbid vbid,
                                          const nlohmann::json& volumes) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(
-            bucketName, [&resp, vbid, &volumes](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::MountFusionVbucket};
-                cmd.setVBucket(vbid);
-                nlohmann::json json;
-                json["mountPaths"] = volumes;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-    return resp;
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::MountFusionVbucket};
+    cmd.setVBucket(vbid);
+    nlohmann::json json;
+    json["mountPaths"] = volumes;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    return connection->execute(cmd);
 }
 
 BinprotResponse FusionTest::getFusionStorageSnapshot(
         Vbid vbid, std::string_view snapshotUuid, size_t validity) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(
-            bucketName, [&resp, vbid, &snapshotUuid, validity](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
-                cmd.setVBucket(vbid);
-                nlohmann::json json;
-                json["snapshotUuid"] = snapshotUuid;
-                json["validity"] = validity;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-    return resp;
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
+    cmd.setVBucket(vbid);
+    nlohmann::json json;
+    json["snapshotUuid"] = snapshotUuid;
+    json["validity"] = validity;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    return connection->execute(cmd);
 }
 
 BinprotResponse FusionTest::releaseFusionStorageSnapshot(
         Vbid vbid, std::string_view snapshotUuid) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(
-            bucketName, [&resp, vbid, &snapshotUuid](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
-                cmd.setVBucket(vbid);
-                nlohmann::json json;
-                json["snapshotUuid"] = snapshotUuid;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-    return resp;
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
+    cmd.setVBucket(vbid);
+    nlohmann::json json;
+    json["snapshotUuid"] = snapshotUuid;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    return connection->execute(cmd);
 }
 
 BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
                                                 const nlohmann::json& term) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(
-            bucketName, [&resp, vbid, &term](auto& conn) {
-                auto cmd = BinprotGenericCommand{
-                        cb::mcbp::ClientOpcode::StartFusionUploader};
-                cmd.setVBucket(vbid);
-                nlohmann::json json;
-                json["term"] = term;
-                cmd.setValue(json.dump());
-                cmd.setDatatype(cb::mcbp::Datatype::JSON);
-                resp = conn.execute(cmd);
-            });
-
-    if (!resp.isSuccess()) {
-        return resp;
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::StartFusionUploader};
+    cmd.setVBucket(vbid);
+    nlohmann::json json;
+    json["term"] = term;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    auto resp = connection->execute(cmd);
+    if (resp.isSuccess()) {
+        EXPECT_TRUE(waitForUploaderState(vbid, "enabled"));
     }
-
-    EXPECT_TRUE(waitForUploaderState(vbid, "enabled"));
-
     return resp;
 }
 
 BinprotResponse FusionTest::stopFusionUploader(Vbid vbid) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(bucketName, [&resp, vbid](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::StopFusionUploader};
-        cmd.setVBucket(vbid);
-        resp = conn.execute(cmd);
-    });
-
-    if (!resp.isSuccess()) {
-        return resp;
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::StopFusionUploader};
+    cmd.setVBucket(vbid);
+    auto resp = connection->execute(cmd);
+    if (resp.isSuccess()) {
+        EXPECT_TRUE(waitForUploaderState(vbid, "disabled"));
     }
-
-    EXPECT_TRUE(waitForUploaderState(vbid, "disabled"));
-
     return resp;
 }
 
 BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
-    BinprotResponse resp;
-    adminConnection->executeInBucket(bucketName, [&resp, vbid](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::SyncFusionLogstore};
-        cmd.setVBucket(vbid);
-        resp = conn.execute(cmd);
-    });
-    return resp;
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::SyncFusionLogstore};
+    cmd.setVBucket(vbid);
+    return connection->execute(cmd);
 }
 
 nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
@@ -221,7 +195,7 @@ nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
     // might be just "fusion" followed by some space. Memcached is
     // expected to be resilient to that, so I don't trim the cmd
     // string here on purpose for stressing the validation code out.
-    userConnection->stats(
+    connection->stats(
             [&res](auto k, auto v) { res = nlohmann::json::parse(v); },
             fmt::format("fusion {} {}", subGroup, vbid));
     return res;
@@ -229,15 +203,13 @@ nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
 
 size_t FusionTest::getStat(std::string_view key) {
     size_t value;
-    adminConnection->executeInBucket(bucketName, [&key, &value](auto& conn) {
-        conn.stats(
-                [&](auto& k, auto& v) {
-                    if (k == key) {
-                        value = std::stoul(v);
-                    }
-                },
-                ""); // we convert empty to null to get engine stats
-    });
+    connection->stats(
+            [&value, key](auto& k, auto& v) {
+                if (k == key) {
+                    value = std::stoul(v);
+                }
+            },
+            "");
     return value;
 }
 
@@ -365,11 +337,10 @@ TEST_P(FusionTest, Stat_Uploader) {
 
 TEST_P(FusionTest, Stat_Uploader_Aggregate) {
     // Create second vbucket
-    adminConnection->selectBucket(bucketName);
     const auto vb1 = Vbid(1);
-    adminConnection->setVbucket(vb1, vbucket_state_active, {});
-    adminConnection->store("bump-vb-high-seqno", vb1, {});
-    adminConnection->waitForSeqnoToPersist(Vbid(1), 1);
+    connection->setVbucket(vb1, vbucket_state_active, {});
+    connection->store("bump-vb-high-seqno", vb1, {});
+    connection->waitForSeqnoToPersist(Vbid(1), 1);
 
     const auto res = fusionStats("uploader", {});
     ASSERT_FALSE(res.empty());
@@ -422,11 +393,9 @@ TEST_P(FusionTest, Stat_Uploader_Aggregate) {
     EXPECT_EQ(0, vb_1["snapshot_pending_bytes"]);
 
     // Delete vb_1
-    adminConnection->executeInBucket(bucketName, [vb1](auto& conn) {
-        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
-        cmd.setVBucket(vb1);
-        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
-    });
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+    cmd.setVBucket(vb1);
+    ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
 }
 
 TEST_P(FusionTest, Stat_Migration) {
@@ -443,11 +412,10 @@ TEST_P(FusionTest, Stat_Migration) {
 
 TEST_P(FusionTest, Stat_Migration_Aggregate) {
     // Create second vbucket
-    adminConnection->selectBucket(bucketName);
     const auto vb1 = Vbid(1);
-    adminConnection->setVbucket(vb1, vbucket_state_active, {});
-    adminConnection->store("bump-vb-high-seqno", vb1, {});
-    adminConnection->waitForSeqnoToPersist(Vbid(1), 1);
+    connection->setVbucket(vb1, vbucket_state_active, {});
+    connection->store("bump-vb-high-seqno", vb1, {});
+    connection->waitForSeqnoToPersist(Vbid(1), 1);
 
     const auto res = fusionStats("migration", {});
     ASSERT_FALSE(res.empty());
@@ -480,11 +448,9 @@ TEST_P(FusionTest, Stat_Migration_Aggregate) {
     EXPECT_EQ(0, vb_1["total_bytes"]);
 
     // Delete vb_1
-    adminConnection->executeInBucket(bucketName, [vb1](auto& conn) {
-        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
-        cmd.setVBucket(vb1);
-        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
-    });
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+    cmd.setVBucket(vb1);
+    ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
 }
 
 /**
@@ -520,9 +486,8 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
               startFusionUploader(vbid, term).getStatus());
 
     // Store some data
-    adminConnection->selectBucket(bucketName);
-    adminConnection->store("bump-vb-high-seqno", vbid, {});
-    adminConnection->waitForSeqnoToPersist(vbid, 1);
+    connection->store("bump-vb-high-seqno", vbid, {});
+    connection->waitForSeqnoToPersist(vbid, 1);
     // And SyncFusionLogstore. That creates the log-<term>.1 file in the
     // logstore.
     syncFusionLogstore(vbid);
@@ -565,22 +530,18 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
                           guestVolumePath,
                           std::filesystem::copy_options::recursive);
 
-    // Delete vbucket (mount fails by EExists otherwise)
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
-        cmd.setVBucket(vbid);
-        ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
-    });
+    /// Delete vbucket (mount fails by EExists otherwise)
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+    cmd.setVBucket(vbid);
+    ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
 
     // Mount by providing the given volume
     ASSERT_EQ(cb::mcbp::Status::Success,
               mountVbucket(vbid, {guestVolume}).getStatus());
 
     // Create vbucket from volume data
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        const nlohmann::json meta{{"use_snapshot", "fusion"}};
-        conn.setVbucket(vbid, vbucket_state_active, meta);
-    });
+    connection->setVbucket(
+            vbid, vbucket_state_active, {{"use_snapshot", "fusion"}});
 
     // Verify active_guest_volumes stat
     // Note: Implicit format check, this throws if json isn't list of strings
@@ -677,26 +638,22 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
 }
 
 TEST_P(FusionTest, UnmountFusionVbucket_NeverMounted) {
-    adminConnection->executeInBucket(bucketName, [](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::UnmountFusionVbucket};
-        cmd.setVBucket(Vbid(1));
-        const auto res = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
-    });
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::UnmountFusionVbucket};
+    cmd.setVBucket(Vbid(1));
+    const auto res = connection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
 }
 
 TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
     const Vbid vbid{1};
     const auto resp = mountVbucket(vbid, {"path1", "path2"});
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    adminConnection->executeInBucket(bucketName, [vbid](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::UnmountFusionVbucket};
-        cmd.setVBucket(vbid);
-        const auto res = conn.execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
-    });
+    auto cmd =
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::UnmountFusionVbucket};
+    cmd.setVBucket(vbid);
+    const auto res = connection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
 }
 
 TEST_P(FusionTest, SyncFusionLogstore) {
@@ -833,15 +790,13 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
             "ep_fusion_log_store_pending_delete_size",
     };
     std::vector<std::string> actualKeys;
-    adminConnection->executeInBucket(bucketName, [&actualKeys](auto& conn) {
-        conn.stats(
-                [&actualKeys](auto& k, auto& v) {
-                    if (k.starts_with("ep_fusion")) {
-                        actualKeys.emplace_back(k);
-                    }
-                },
-                ""); // we convert empty to null to get engine stats
-    });
+    connection->stats(
+            [&actualKeys](auto& k, auto& v) {
+                if (k.starts_with("ep_fusion")) {
+                    actualKeys.emplace_back(k);
+                }
+            },
+            ""); // we convert empty to null to get engine stats
 
     // Sort both collections
     std::ranges::sort(actualKeys);
