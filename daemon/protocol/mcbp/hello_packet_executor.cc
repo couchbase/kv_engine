@@ -382,7 +382,7 @@ void process_hello_packet_executor(Cookie& cookie) {
 
         if (added) {
             out.push_back(htons(uint16_t(feature)));
-            features.push_back(format_as(feature));
+            features.push_back(feature);
         }
     }
 
