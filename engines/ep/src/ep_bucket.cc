@@ -3154,7 +3154,7 @@ cb::engine_errc EPBucket::prepareSnapshot(
         CookieIface& cookie,
         Vbid vbid,
         const std::function<void(const nlohmann::json&)>& callback) {
-    auto vb = getVBucket(vbid);
+    auto vb = getLockedVBucket(vbid);
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
