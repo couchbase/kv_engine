@@ -170,8 +170,7 @@ public:
         } else if (key.compare("compaction_expiry_fetch_inline") == 0) {
             store.setCompactionExpiryFetchInline(value);
         } else if (key == "continuous_backup_enabled") {
-            // The new setting will take effect after the vbstate flush.
-            store.persistVBState();
+            store.setContinuousBackupEnabled(value);
         }
     }
 
@@ -470,6 +469,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "checkpoint_destruction_tasks",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
+    // Just initialise the value from the config, do not call the method, since
+    // that will trigger an unnecessary vbstate flush.
+    continuousBackupEnabled = config.isContinuousBackupEnabled();
     config.addValueChangedListener(
             "continuous_backup_enabled",
             std::make_unique<EPStoreValueChangeListener>(*this));
@@ -3438,9 +3440,7 @@ void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
     historyRetentionSeconds = seconds;
 
     if (isHistoryRetentionEnabled() != wasEnabled) {
-        // New mutations needs to be queued in a new checkpoint created with the
-        // correct history flag.
-        createNewActiveCheckpoints();
+        postHistoryRetentionChange(!wasEnabled);
     }
 }
 
@@ -3464,9 +3464,26 @@ void KVBucket::setHistoryRetentionBytes(size_t bytes) {
     historyRetentionBytes = bytes;
 
     if (isHistoryRetentionEnabled() != wasEnabled) {
-        // New mutations needs to be queued in a new checkpoint created with the
-        // correct history flag.
-        createNewActiveCheckpoints();
+        postHistoryRetentionChange(!wasEnabled);
+    }
+}
+
+void KVBucket::postHistoryRetentionChange(bool enabled) {
+    // New mutations needs to be queued in a new checkpoint created with the
+    // correct history flag.
+    createNewActiveCheckpoints();
+    if (continuousBackupEnabled) {
+        if (enabled) {
+            EP_LOG_INFO_RAW(
+                    "History retention enabled, starting continuous backup");
+        } else {
+            EP_LOG_WARN_RAW(
+                    "History retention disabled, stopping continuous backup");
+        }
+        // Continuous backup is not enabled at the KVStore level without
+        // history retention. When history retention is enabled, we need to
+        // persist the vbstate to trigger backup to start.
+        persistVBState();
     }
 }
 
@@ -3506,6 +3523,20 @@ void KVBucket::setCompactionExpiryFetchInline(bool value) {
 
 bool KVBucket::isCompactionExpiryFetchInline() const {
     return compactionExpiryFetchInline;
+}
+
+void KVBucket::setContinuousBackupEnabled(bool enabled) {
+    continuousBackupEnabled = enabled;
+    // The new setting will take effect after the vbstate flush.
+    persistVBState();
+    if (enabled && !isHistoryRetentionEnabled()) {
+        EP_LOG_WARN_RAW(
+                "Continuous backup requires history retention to be enabled");
+    }
+}
+
+bool KVBucket::isContinuousBackupEnabled() const {
+    return continuousBackupEnabled;
 }
 
 size_t KVBucket::getNumCheckpointDestroyers() const {

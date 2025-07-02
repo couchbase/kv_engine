@@ -1189,6 +1189,18 @@ public:
     bool isCompactionExpiryFetchInline() const;
 
     /**
+     * Set whether continuous backup is enabled.
+     *
+     * @param enabled
+     */
+    void setContinuousBackupEnabled(bool enabled);
+
+    /**
+     * @return whether continuous backup is enabled.
+     */
+    bool isContinuousBackupEnabled() const;
+
+    /**
      * @return The number of checkpoint destroyer tasks enabled in this KVBucket
      */
     size_t getNumCheckpointDestroyers() const;
@@ -1408,6 +1420,13 @@ protected:
      * active vbuckets in the VBMap.
      */
     void createNewActiveCheckpoints();
+
+    /**
+     * Called after history retention is changed.
+     * Used to ensure new mutations are queued in a new checkpoint created with
+     * the correct history flag, and to start continuous backup if enabled.
+     */
+    void postHistoryRetentionChange(bool enabled);
 
     /**
      * Should be called after warmup has populated the vBucket map and after
@@ -1649,6 +1668,11 @@ protected:
      * config lock on each read.
      */
     std::atomic<bool> compactionExpiryFetchInline;
+
+    /**
+     * Whether continuous backup is enabled.
+     */
+    std::atomic<bool> continuousBackupEnabled{false};
 
     friend class KVBucketTest;
 };

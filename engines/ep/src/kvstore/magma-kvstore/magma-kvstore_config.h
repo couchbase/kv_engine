@@ -278,8 +278,21 @@ public:
         return historyRetentionSize;
     }
 
+    void setHistoryRetentionSize(size_t bytes) {
+        historyRetentionSize = bytes;
+    }
+
     std::chrono::seconds getHistoryRetentionTime() const {
         return historyRetentionTime;
+    }
+
+    void setHistoryRetentionTime(std::chrono::seconds time) {
+        historyRetentionTime = time;
+    }
+
+    bool isHistoryRetentionEnabled() const {
+        return historyRetentionSize > 0 ||
+               historyRetentionTime.load().count() > 0;
     }
 
     std::string getFusionLogstoreURI() const {
@@ -580,8 +593,8 @@ private:
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 
-    size_t historyRetentionSize{0};
-    std::chrono::seconds historyRetentionTime{0};
+    std::atomic<size_t> historyRetentionSize{0};
+    std::atomic<std::chrono::seconds> historyRetentionTime{0s};
 
     // Fusion Logstore URI.
     folly::Synchronized<std::string> fusionLogstoreURI;

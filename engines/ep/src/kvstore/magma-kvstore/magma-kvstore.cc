@@ -969,7 +969,8 @@ void MagmaKVStore::resume() {
 void MagmaKVStore::postVBStateFlush(Vbid vbid,
                                     const vbucket_state& committedState) {
     const auto newState = committedState.transition.state;
-    const auto isBackupEnabled = configuration.isContinousBackupEnabled();
+    const auto isBackupEnabled = configuration.isContinousBackupEnabled() &&
+                                 configuration.isHistoryRetentionEnabled();
 
     auto& backupStatus = continuousBackupStatus[getCacheSlot(vbid)];
 
@@ -4557,10 +4558,12 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
 
 void MagmaKVStore::setHistoryRetentionBytes(size_t bytes, size_t nVbuckets) {
     Expects(nVbuckets);
+    configuration.setHistoryRetentionSize(bytes);
     magma->SetHistoryRetentionSize(bytes / nVbuckets);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
+    configuration.setHistoryRetentionTime(seconds);
     magma->SetHistoryRetentionTime(seconds);
 }
 

@@ -217,6 +217,19 @@ TEST_P(ContinousBackupTest, stopBackupOnVBucketDeletion) {
     EXPECT_EQ(callbackCountBeforeDelete + 1, callbackCountAfterDelete);
 }
 
+TEST_P(ContinousBackupTest, BackupRequiresHistoryRetention) {
+    auto& store = getMockKVStore(vbid);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setHistoryRetentionSeconds(0);
+    dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setHistoryRetentionSeconds(30000);
+    dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+}
+
 TEST_P(ContinousBackupTest, DoNotStartBackupIfConfigDisabled) {
     auto& store = getMockKVStore(vbid);
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
