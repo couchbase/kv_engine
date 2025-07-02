@@ -1467,9 +1467,25 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 }
 
 std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
-    // Reset the continuous backup status for the vbid as we are deleting this
-    // vbucket and new vbucket with this vbid should start with stopped status.
-    continuousBackupStatus[getCacheSlot(vbid)] = BackupStatus::Stopped;
+    auto& backupStatus = continuousBackupStatus[getCacheSlot(vbid)];
+    if (backupStatus == BackupStatus::Started) {
+        // Stopping the backup will force a backup to be created before the
+        // vBucket is deleted. This is necessary to support the case of
+        // restoring to just before bucket flush.
+        auto status = magma->StopBackup(vbid.get());
+        if (!status) {
+            // We should not treat the failure here as fatal, log and continue
+            // with deleting the vbucket.
+            logger->logWithContext(spdlog::level::warn,
+                                   "Failed to stop continuous backup before "
+                                   "deleting vbucket",
+                                   {{"vb", vbid}, {"error", status.String()}});
+        }
+        // Reset the continuous backup status for the vbid as we are deleting
+        // this vbucket and new vbucket with this vbid should start with stopped
+        // status.
+        backupStatus = BackupStatus::Stopped;
+    }
 
     auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
     if (status) {

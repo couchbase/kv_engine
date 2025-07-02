@@ -203,8 +203,18 @@ TEST_P(ContinousBackupTest, stopBackupOnVBucketDeletion) {
     auto& store = getMockKVStore(vbid);
     EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
 
+    size_t callbackCountBeforeDelete = 0;
+    engine->getKVBucket()->getKVStoreStat("continuous_backup_callback_count",
+                                          callbackCountBeforeDelete);
+
     engine->getKVBucket()->deleteVBucket(vbid);
+
+    size_t callbackCountAfterDelete = 0;
+    engine->getKVBucket()->getKVStoreStat("continuous_backup_callback_count",
+                                          callbackCountAfterDelete);
+
     EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+    EXPECT_EQ(callbackCountBeforeDelete + 1, callbackCountAfterDelete);
 }
 
 TEST_P(ContinousBackupTest, DoNotStartBackupIfConfigDisabled) {
