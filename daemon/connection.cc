@@ -1193,10 +1193,6 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
     return true;
 }
 
-bool Connection::dcpUseWriteBuffer(size_t size) const {
-    return isTlsEnabled() && size < thread.scratch_buffer.size();
-}
-
 void Connection::updateSendBytes(size_t nbytes) {
     totalSend += nbytes;
     get_thread_stats(this)->bytes_written += nbytes;
@@ -1888,33 +1884,6 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
 
     const auto value = it->getValueView();
-    const auto total = sizeof(extras) + key.size() + value.size() +
-                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
-                       sizeof(cb::mcbp::Request);
-    if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
-                             : cb::mcbp::Magic::ClientRequest);
-        builder.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
-        if (sid) {
-            builder.setFramingExtras(frameExtras.getBuf());
-        }
-        builder.setExtras(extras.getBuffer());
-        builder.setKey({key.data(), key.size()});
-        builder.setValue(value);
-        builder.setOpaque(opaque);
-        builder.setVBucket(vbucket);
-        builder.setCas(it->getCas());
-        builder.setDatatype(it->getDataType());
-        const auto ret =
-                add_packet_to_send_pipe(builder.getFrame()->getFrame());
-        if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(
-                    *this, doc_read_bytes, dcpResourceAllocationDomain);
-        }
-        return ret;
-    }
-
     cb::mcbp::Request req = {};
     req.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
                      : cb::mcbp::Magic::ClientRequest);
@@ -2000,36 +1969,6 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     cb::mcbp::request::DcpDeletionV1Payload extdata(by_seqno, rev_seqno);
 
-    const auto total = sizeof(extdata) + key.size() + value.size() +
-                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
-                       sizeof(cb::mcbp::Request);
-
-    if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-
-        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
-                             : cb::mcbp::Magic::ClientRequest);
-        builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
-        if (sid) {
-            builder.setFramingExtras(frameInfo.getBuf());
-        }
-        builder.setExtras(extdata.getBuffer());
-        builder.setKey({key.data(), key.size()});
-        builder.setValue(value);
-        builder.setOpaque(opaque);
-        builder.setVBucket(vbucket);
-        builder.setCas(it->getCas());
-        builder.setDatatype(it->getDataType());
-
-        const auto ret =
-                add_packet_to_send_pipe(builder.getFrame()->getFrame());
-        if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(
-                    *this, doc_read_bytes, dcpResourceAllocationDomain);
-        }
-        return ret;
-    }
-
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpDeletionV1Payload;
     std::array<uint8_t,
@@ -2091,34 +2030,6 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     auto value = it->getValueView();
 
-    const auto total = sizeof(extras) + key.size() + value.size() +
-                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
-                       sizeof(cb::mcbp::Request);
-
-    if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
-                             : cb::mcbp::Magic::ClientRequest);
-        builder.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
-        if (sid) {
-            builder.setFramingExtras(frameInfo.getBuf());
-        }
-        builder.setExtras(extras.getBuffer());
-        builder.setKey({key.data(), key.size()});
-        builder.setValue(value);
-        builder.setOpaque(opaque);
-        builder.setVBucket(vbucket);
-        builder.setCas(it->getCas());
-        builder.setDatatype(it->getDataType());
-        const auto ret =
-                add_packet_to_send_pipe(builder.getFrame()->getFrame());
-        if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(
-                    *this, doc_read_bytes, dcpResourceAllocationDomain);
-        }
-        return ret;
-    }
-
     // Make blob big enough for either delete or expiry
     std::array<uint8_t,
                sizeof(cb::mcbp::Request) + sizeof(extras) + sizeof(frameInfo)>
@@ -2179,34 +2090,6 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     auto value = it->getValueView();
-
-    const auto total = sizeof(extras) + key.size() + value.size() +
-                       (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
-                       sizeof(cb::mcbp::Request);
-
-    if (dcpUseWriteBuffer(total)) {
-        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-        builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
-                             : cb::mcbp::Magic::ClientRequest);
-        builder.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
-        if (sid) {
-            builder.setFramingExtras(frameInfo.getBuf());
-        }
-        builder.setExtras(extras.getBuffer());
-        builder.setKey({key.data(), key.size()});
-        builder.setValue(value);
-        builder.setOpaque(opaque);
-        builder.setVBucket(vbucket);
-        builder.setCas(it->getCas());
-        builder.setDatatype(it->getDataType());
-        const auto ret =
-                add_packet_to_send_pipe(builder.getFrame()->getFrame());
-        if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(
-                    *this, doc_read_bytes, dcpResourceAllocationDomain);
-        }
-        return ret;
-    }
 
     // Make blob big enough for either delete or expiry
     std::array<uint8_t,
@@ -2379,23 +2262,6 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
         extras.setDeleted(uint8_t(1));
     }
     extras.setDurabilityLevel(level);
-
-    size_t total = sizeof(extras) + key.size() + buffer.size() +
-                   sizeof(cb::mcbp::Request);
-    if (dcpUseWriteBuffer(total)) {
-        // Format a local copy and send
-        cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-        builder.setMagic(cb::mcbp::Magic::ClientRequest);
-        builder.setOpcode(cb::mcbp::ClientOpcode::DcpPrepare);
-        builder.setExtras(extras.getBuffer());
-        builder.setKey({key.data(), key.size()});
-        builder.setOpaque(opaque);
-        builder.setVBucket(vbucket);
-        builder.setCas(it->getCas());
-        builder.setDatatype(it->getDataType());
-        builder.setValue(buffer);
-        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
-    }
 
     cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);

@@ -656,10 +656,6 @@ public:
      */
     virtual void triggerCallback(bool force = false) = 0;
 
-    /// Check if DCP should use the write buffer for the message or if it
-    /// should use an IOVector to do so
-    bool dcpUseWriteBuffer(size_t total) const;
-
     void scheduleDcpStep() override;
 
     // Implementation of DcpMessageProducersIface interface

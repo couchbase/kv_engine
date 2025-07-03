@@ -365,14 +365,16 @@ void LibeventConnection::copyToOutputStream(std::string_view data) {
 
 void LibeventConnection::copyToOutputStream(gsl::span<std::string_view> data) {
     Expects(getThread().eventBase.isInEventBaseThread());
-    size_t nb = 0;
+
+    auto* out = bufferevent_get_output(bev.get());
+    size_t total = 0;
     for (const auto& d : data) {
-        if (bufferevent_write(bev.get(), d.data(), d.size()) == -1) {
+        if (evbuffer_add(out, d.data(), d.size()) == -1) {
             throw std::bad_alloc();
         }
-        nb += d.size();
+        total += d.size();
     }
-    updateSendBytes(nb);
+    updateSendBytes(total);
 }
 
 static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
