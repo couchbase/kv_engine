@@ -7,7 +7,6 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include "testapp_client_test.h"
 
 #include <gmock/gmock.h>
@@ -50,10 +49,15 @@ protected:
      *             string (eg non numeric) tests
      * @return The payload, which is always a in json format
      */
-    nlohmann::json fusionStats(std::string_view subGroup,
-                               std::string_view vbid);
+    std::pair<cb::engine_errc, nlohmann::json> fusionStats(
+            std::string_view subGroup, std::string_view vbid = {});
 
-    size_t getStat(std::string_view key);
+    std::pair<cb::engine_errc, nlohmann::json> fusionStats(
+            std::string_view subGroup, Vbid vbid) {
+        return fusionStats(subGroup, std::to_string(vbid.get()));
+    }
+
+    std::pair<cb::engine_errc, size_t> getStat(std::string_view key);
 
     void setMemcachedConfig(std::string_view key, size_t value);
 
@@ -64,7 +68,16 @@ protected:
         return mcd_env->getTestBucket().isMagma() && isFusionSupportEnabled();
     }
 
-    bool waitForUploaderState(Vbid vbid, std::string_view state);
+    /**
+     * Waits for the Fusion uploader to be in the specified state for the
+     * test vbucket.
+     *
+     * @param state The expected state of the uploader (eg "enabled",
+     * "disabled")
+     * @throws std::runtime_error if the uploader does not reach the expected
+     *         state within 5 seconds.
+     */
+    void waitForUploaderState(std::string_view state);
 
 public:
     static constexpr auto logstoreRelativePath = "logstore";
@@ -99,10 +112,7 @@ void FusionTest::SetUpTestCase() {
 }
 
 void FusionTest::SetUp() {
-    TestappClientTest::SetUp();
-    if (!isFusionSupportedInBucket()) {
-        GTEST_SKIP();
-    }
+    TestappTest::SetUp();
 
     // Create a new "admin" connection for the test case and make sure
     // it identifies itself with the test name to make it easier to locate
@@ -113,12 +123,8 @@ void FusionTest::SetUp() {
 }
 
 void FusionTest::TearDown() {
-    if (!mcd_env->getTestBucket().isMagma()) {
-        GTEST_SKIP();
-    }
-
-    // Some tests assume the uploader disabled for vbid
     if (isFusionSupportedInBucket()) {
+        // Some tests assume the uploader disabled for vbid
         stopFusionUploader(vbid);
     }
 }
@@ -171,7 +177,7 @@ BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     auto resp = connection->execute(cmd);
     if (resp.isSuccess()) {
-        EXPECT_TRUE(waitForUploaderState(vbid, "enabled"));
+        waitForUploaderState("enabled");
     }
     return resp;
 }
@@ -182,9 +188,29 @@ BinprotResponse FusionTest::stopFusionUploader(Vbid vbid) {
     cmd.setVBucket(vbid);
     auto resp = connection->execute(cmd);
     if (resp.isSuccess()) {
-        EXPECT_TRUE(waitForUploaderState(vbid, "disabled"));
+        waitForUploaderState("disabled");
     }
     return resp;
+}
+
+void FusionTest::waitForUploaderState(std::string_view state) {
+    if (!cb::waitForPredicateUntil(
+                [this, state]() {
+                    auto [ec, json] = fusionStats("uploader", vbid);
+                    if (ec != cb::engine_errc::success) {
+                        throw std::runtime_error(
+                                fmt::format("waitForUploaderState: Failed to "
+                                            "fetch fusion uploader stats: {}",
+                                            ec));
+                    }
+                    return json["state"].get<std::string>() == state;
+                },
+                std::chrono::seconds(5))) {
+        throw std::runtime_error(
+                fmt::format("waitForUploaderState: Timeout waiting for "
+                            "uploader state to be: {}",
+                            state));
+    }
 }
 
 BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
@@ -194,44 +220,49 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
     return connection->execute(cmd);
 }
 
-nlohmann::json FusionTest::fusionStats(std::string_view subGroup,
-                                       std::string_view vbid) {
-    nlohmann::json res;
-    // Note: subGroup and vbid are optional so the final command
-    // might be just "fusion" followed by some space. Memcached is
-    // expected to be resilient to that, so I don't trim the cmd
-    // string here on purpose for stressing the validation code out.
-    connection->stats(
-            [&res](auto k, auto v) { res = nlohmann::json::parse(v); },
-            fmt::format("fusion {} {}", subGroup, vbid));
-    return res;
+std::pair<cb::engine_errc, nlohmann::json> FusionTest::fusionStats(
+        std::string_view subGroup, std::string_view vbid) {
+    try {
+        nlohmann::json res;
+        // Note: subGroup and vbid are optional so the final command
+        // might be just "fusion" followed by some space. Memcached is
+        // expected to be resilient to that, so I don't trim the cmd
+        // string here on purpose for stressing the validation code out.
+        connection->stats(
+                [&res](auto&, auto& v) { res = nlohmann::json::parse(v); },
+                fmt::format("fusion {} {}", subGroup, vbid));
+        return {cb::engine_errc::success, res};
+    } catch (const ConnectionError& e) {
+        if (e.isNotSupported()) {
+            return {cb::engine_errc::not_supported, {}};
+        }
+        if (e.isInvalidArguments()) {
+            return {cb::engine_errc::invalid_arguments, {}};
+        }
+        if (e.isNotMyVbucket()) {
+            return {cb::engine_errc::not_my_vbucket, {}};
+        }
+        abort();
+    }
 }
 
-size_t FusionTest::getStat(std::string_view key) {
+std::pair<cb::engine_errc, size_t> FusionTest::getStat(std::string_view key) {
+    cb::engine_errc ec = cb::engine_errc::not_supported;
     size_t value;
     connection->stats(
-            [&value, key](auto& k, auto& v) {
+            [&value, &ec, key](auto& k, auto& v) {
                 if (k == key) {
                     value = std::stoul(v);
+                    ec = cb::engine_errc::success;
                 }
             },
-            "");
-    return value;
+            ""); // we convert empty to null to get engine stats
+    return {ec, value};
 }
 
 void FusionTest::setMemcachedConfig(std::string_view key, size_t value) {
     memcached_cfg[key] = value;
     reconfigure();
-}
-
-bool FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
-    return cb::waitForPredicateUntil(
-            [this, vbid, state]() {
-                return fusionStats("uploader", std::to_string(vbid.get()))
-                               .at("state")
-                               .get<std::string>() == state;
-            },
-            std::chrono::seconds(5));
 }
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -240,15 +271,22 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(FusionTest, FusionMigrationRateLimit) {
-    size_t migrationRatelimit = getStat("fusion_migration_rate_limit");
+    auto [ec, migrationRatelimit] = getStat("fusion_migration_rate_limit");
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+
+    EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(75_MiB, migrationRatelimit)
             << "Default value of fusion_migration_rate_limit is not as "
                "expected";
 
     setMemcachedConfig("fusion_migration_rate_limit", 0);
-    migrationRatelimit = getStat("fusion_migration_rate_limit");
-    EXPECT_EQ(0, migrationRatelimit) << "migration rate limit in magma should "
-                                        "be 0 after setting it to 0";
+    std::tie(ec, migrationRatelimit) = getStat("fusion_migration_rate_limit");
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(0, migrationRatelimit)
+            << "migration rate limit should be 0 after setting it to 0";
 
     // All done, unblock the data migration. The test process would get stuck
     // otherwise.
@@ -256,13 +294,20 @@ TEST_P(FusionTest, FusionMigrationRateLimit) {
 }
 
 TEST_P(FusionTest, FusionSyncRateLimit) {
-    size_t syncRatelimit = getStat("fusion_sync_rate_limit");
+    auto [ec, syncRatelimit] = getStat("fusion_sync_rate_limit");
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+
+    EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(75_MiB, syncRatelimit)
             << "Default value of fusion_sync_rate_limit is not as "
                "expected";
 
     setMemcachedConfig("fusion_sync_rate_limit", 0);
-    syncRatelimit = getStat("fusion_sync_rate_limit");
+    std::tie(ec, syncRatelimit) = getStat("fusion_sync_rate_limit");
+    EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(0, syncRatelimit)
             << "sync rate limit in magma should be 0 after setting it to 0";
 
@@ -271,26 +316,35 @@ TEST_P(FusionTest, FusionSyncRateLimit) {
     setMemcachedConfig("fusion_sync_rate_limit", 75_MiB);
 }
 
-TEST_P(FusionTest, AggregatedStats) {
-    try {
-        fusionStats({}, {});
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::NotSupported, e.getReason());
-    }
+/**
+ * The format for the fusion stats command is:
+ *    fusion <subGroup> [vbid]
+ *
+ * where <subGroup> is one of the supported subgroups and is a mandatory
+ * argument. Verify that the command fails if the <subGroup> is not
+ * present
+ */
+TEST_P(FusionTest, FusionStatNoSubgroup) {
+    const auto [ec, _] = fusionStats({});
+    ASSERT_EQ(cb::engine_errc::not_supported, ec);
 }
 
 TEST_P(FusionTest, InvalidStat) {
-    try {
-        fusionStats("someInvalidStat", "0");
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
+    const auto [ec, _] = fusionStats("someInvalidStat", "0");
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments, ec);
+    } else {
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
     }
 }
 
 TEST_P(FusionTest, Stat_SyncInfo) {
-    const auto json = fusionStats("sync_info", "0");
+    const auto [ec, json] = fusionStats("sync_info", vbid);
+    if (!isFusionSupportedInBucket()) {
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+    ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.contains("logSeqno"));
     EXPECT_EQ(0, json["logSeqno"]);
@@ -301,26 +355,30 @@ TEST_P(FusionTest, Stat_SyncInfo) {
 }
 
 TEST_P(FusionTest, Stat_SyncInfo_VbidInvalid) {
-    try {
-        fusionStats("sync_info", "a");
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
+    const auto [ec, json] = fusionStats("sync_info", "a");
+    if (isFusionSupportedInBucket()) {
+        ASSERT_EQ(cb::engine_errc::invalid_arguments, ec);
+    } else {
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
     }
 }
 
 TEST_P(FusionTest, Stat_SyncInfo_KVStoreInvalid) {
     // Note: vbid:1 doesn't exist
-    try {
-        fusionStats("sync_info", "1");
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    const auto [ec, json] = fusionStats("sync_info", Vbid{1});
+    if (isFusionSupportedInBucket()) {
+        ASSERT_EQ(cb::engine_errc::not_my_vbucket, ec);
+    } else {
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
     }
 }
 
 TEST_P(FusionTest, Stat_Uploader) {
-    auto json = fusionStats("uploader", "0");
+    const auto [ec, json] = fusionStats("uploader", vbid);
+    if (!isFusionSupportedInBucket()) {
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("state"));
@@ -342,13 +400,17 @@ TEST_P(FusionTest, Stat_Uploader) {
 }
 
 TEST_P(FusionTest, Stat_Uploader_Aggregate) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     // Create second vbucket
     const auto vb1 = Vbid(1);
     connection->setVbucket(vb1, vbucket_state_active, {});
     connection->store("bump-vb-high-seqno", vb1, {});
     connection->waitForSeqnoToPersist(Vbid(1), 1);
 
-    const auto res = fusionStats("uploader", {});
+    const auto [ec, res] = fusionStats("uploader");
+    ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.is_object());
     ASSERT_TRUE(res.contains("vb_0"));
@@ -405,7 +467,12 @@ TEST_P(FusionTest, Stat_Uploader_Aggregate) {
 }
 
 TEST_P(FusionTest, Stat_Migration) {
-    auto json = fusionStats("migration", "0");
+    auto [ec, json] = fusionStats("migration", vbid);
+    if (!isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+    ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("completed_bytes"));
@@ -417,13 +484,17 @@ TEST_P(FusionTest, Stat_Migration) {
 }
 
 TEST_P(FusionTest, Stat_Migration_Aggregate) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     // Create second vbucket
     const auto vb1 = Vbid(1);
     connection->setVbucket(vb1, vbucket_state_active, {});
     connection->store("bump-vb-high-seqno", vb1, {});
     connection->waitForSeqnoToPersist(Vbid(1), 1);
 
-    const auto res = fusionStats("migration", {});
+    const auto [ec, res] = fusionStats("migration");
+    ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.is_object());
     ASSERT_TRUE(res.contains("vb_0"));
@@ -480,6 +551,12 @@ TEST_P(FusionTest, Stat_Migration_Aggregate) {
  *    the migration process.
  */
 TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
+    if (!isFusionSupportedInBucket()) {
+        auto [ec, json] = fusionStats("active_guest_volumes", vbid);
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+
     // We need to read back "active guest volumes" during a data migration
     // triggered by mountVBucket(volumes). Volumes are considered "active" only
     // during the transfer, so we need to start and "stall" the migration for
@@ -536,7 +613,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
                           guestVolumePath,
                           std::filesystem::copy_options::recursive);
 
-    /// Delete vbucket (mount fails by EExists otherwise)
+    // Delete vbucket (mount fails by EExists otherwise)
     auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
     cmd.setVBucket(vbid);
     ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
@@ -551,8 +628,10 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
 
     // Verify active_guest_volumes stat
     // Note: Implicit format check, this throws if json isn't list of strings
-    const std::vector<std::string> expectedVolumes =
-            fusionStats("active_guest_volumes", std::to_string(vbid.get()));
+    auto [ec, json] = fusionStats("active_guest_volumes", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
+
+    const std::vector<std::string> expectedVolumes = json;
     ASSERT_EQ(1, expectedVolumes.size());
     EXPECT_EQ(guestVolume, expectedVolumes.at(0));
 
@@ -562,7 +641,11 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
-    const auto json = fusionStats("active_guest_volumes", {});
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
+    const auto [ec, json] = fusionStats("active_guest_volumes");
+    ASSERT_EQ(cb::engine_errc::success, ec);
 
     // @todo MB-63679: Implement test with multiple vbuckets in place
     ASSERT_TRUE(json.is_array());
@@ -570,15 +653,18 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_KVStoreInvalid) {
     // Note: vbid:1 doesn't exist
-    try {
-        fusionStats("active_guest_volumes", "1");
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    const auto [ec, json] = fusionStats("active_guest_volumes", Vbid{1});
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::not_my_vbucket, ec);
+    } else {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
     }
 }
 
 TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     // MB-64494: snapshot uuid reported in the error message allocated by
     // magma. Here big-enough for preventing SSO that hides memory domain
     // alloc issues.
@@ -589,6 +675,9 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     // Create a snapshot
     // MB-65649: snaps uuid reported in the GetFusionStorageSnapshot response.
     // Here big-enough for preventing SSO that hides memory domain alloc issues.
@@ -627,6 +716,10 @@ TEST_P(FusionTest, MountFusionVbucket_InvalidArgs) {
 
 TEST_P(FusionTest, MountFusionVbucket) {
     const auto resp = mountVbucket(Vbid(1), {"path1", "path2"});
+    if (!isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+        return;
+    }
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
@@ -636,6 +729,10 @@ TEST_P(FusionTest, MountFusionVbucket) {
 
 TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
     const auto resp = mountVbucket(Vbid(1), nlohmann::json::array());
+    if (!isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+        return;
+    }
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
@@ -648,10 +745,17 @@ TEST_P(FusionTest, UnmountFusionVbucket_NeverMounted) {
             BinprotGenericCommand{cb::mcbp::ClientOpcode::UnmountFusionVbucket};
     cmd.setVBucket(Vbid(1));
     const auto res = connection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, res.getStatus());
+    }
 }
 
 TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     const Vbid vbid{1};
     const auto resp = mountVbucket(vbid, {"path1", "path2"});
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -663,42 +767,74 @@ TEST_P(FusionTest, UnmountFusionVbucket_PreviouslyMounted) {
 }
 
 TEST_P(FusionTest, SyncFusionLogstore) {
-    ASSERT_EQ(cb::mcbp::Status::Success,
-              startFusionUploader(vbid, "1").getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, syncFusionLogstore(vbid).getStatus());
+    if (isFusionSupportedInBucket()) {
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  startFusionUploader(vbid, "1").getStatus());
+    }
+    auto res = syncFusionLogstore(vbid);
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, res.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, res.getStatus());
+    }
 }
 
-TEST_P(FusionTest, StartFusionUploader) {
+TEST_P(FusionTest, StartFusionUploaderInvalidTerm_not_string) {
     // arg invalid (not string)
     auto resp = startFusionUploader(vbid, 1234);
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
 
+TEST_P(FusionTest, StartFusionUploaderInvalidTerm_not_numeric_string) {
     // arg invalid (not numeric string)
-    resp = startFusionUploader(vbid, "abc123");
+    auto resp = startFusionUploader(vbid, "abc123");
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
 
+TEST_P(FusionTest, StartFusionUploaderInvalidTerm_too_long_string) {
     // arg invalid (too large numeric string)
-    resp = startFusionUploader(vbid, std::string(100, '1'));
+    auto resp = startFusionUploader(vbid, std::string(100, '1'));
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
 
+TEST_P(FusionTest, StartFusionUploaderInvalidTerm_negative_number) {
     // arg invalid (negative numeric string)
-    resp = startFusionUploader(vbid, "-1");
+    auto resp = startFusionUploader(vbid, "-1");
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+}
 
-    // arg valid
-    resp = startFusionUploader(vbid, "123");
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+TEST_P(FusionTest, StartFusionUploader) {
+    auto resp = startFusionUploader(vbid, "123");
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
 }
 
 TEST_P(FusionTest, StopFusionUploader) {
-    // Baseline test, uploader never started, call is a successful NOP
-    ASSERT_EQ("disabled", fusionStats("uploader", "0")["state"]);
-    EXPECT_EQ(cb::mcbp::Status::Success, stopFusionUploader(vbid).getStatus());
+    if (isFusionSupportedInBucket()) {
+        // Baseline test, uploader never started, call is a successful NOP
+        const auto [ec, json] = fusionStats("uploader", vbid);
+        ASSERT_EQ(cb::engine_errc::success, ec);
+        ASSERT_EQ("disabled", json["state"]);
+    }
+
+    auto resp = stopFusionUploader(vbid);
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
 }
 
 TEST_P(FusionTest, ToggleUploader) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     // Uploader disabled at start
-    auto json = fusionStats("uploader", "0");
+    auto [ec, json] = fusionStats("uploader", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_object());
     ASSERT_TRUE(json.contains("state"));
@@ -713,7 +849,8 @@ TEST_P(FusionTest, ToggleUploader) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, std::to_string(term)).getStatus());
     // verify stats
-    json = fusionStats("uploader", "0");
+    std::tie(ec, json) = fusionStats("uploader", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
     EXPECT_EQ("enabled", json["state"]);
     EXPECT_EQ(term, json["term"]);
 
@@ -724,7 +861,8 @@ TEST_P(FusionTest, ToggleUploader) {
     // Stop uploader..
     EXPECT_EQ(cb::mcbp::Status::Success, stopFusionUploader(vbid).getStatus());
     // verify stats
-    json = fusionStats("uploader", "0");
+    std::tie(ec, json) = fusionStats("uploader", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
     EXPECT_EQ("disabled", json["state"]);
     EXPECT_EQ(0, json["term"]);
 
@@ -737,7 +875,8 @@ TEST_P(FusionTest, ToggleUploader) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, std::to_string(term)).getStatus());
     // verify stats
-    json = fusionStats("uploader", "0");
+    std::tie(ec, json) = fusionStats("uploader", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
     EXPECT_EQ("enabled", json["state"]);
     EXPECT_EQ(term, json["term"]);
 
@@ -747,22 +886,26 @@ TEST_P(FusionTest, ToggleUploader) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, std::to_string(newTerm)).getStatus());
     // verify stats
-    json = fusionStats("uploader", "0");
+    std::tie(ec, json) = fusionStats("uploader", vbid);
+    ASSERT_EQ(cb::engine_errc::success, ec);
     EXPECT_EQ("enabled", json["state"]);
     EXPECT_EQ(newTerm, json["term"]);
 }
 
 TEST_P(FusionTest, Stat_UploaderState_KVStoreInvalid) {
     // Note: vbid:1 doesn't exist
-    try {
-        fusionStats("uploader", "1");
-        FAIL();
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, e.getReason());
+    const auto [ec, _] = fusionStats("uploader", Vbid{1});
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::not_my_vbucket, ec);
+    } else {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
     }
 }
 
 TEST_P(FusionTest, GetPrometheusFusionStats) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
     std::array<std::string_view, 30> statKeysExpected = {
             "ep_fusion_namespace",
             "ep_fusion_syncs",
@@ -863,8 +1006,12 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     json["namespace"] = "kv/namespace-to-delete/uuid";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    auto resp = adminConnection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    const auto resp = adminConnection->execute(cmd);
+    if (isFusionSupportEnabled()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
 }
 
 TEST_P(FusionTest, GetFusionNamespaces) {
@@ -878,50 +1025,9 @@ TEST_P(FusionTest, GetFusionNamespaces) {
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-}
-
-/**
- * Test class used to verify the behaviour of fusion APIs in a non-fusion env.
- */
-class NonFusionTest : public TestappClientTest {
-    void SetUp() override;
-};
-
-void NonFusionTest::SetUp() {
-    TestappClientTest::SetUp();
     if (isFusionSupportEnabled()) {
-        GTEST_SKIP();
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
     }
 }
-
-TEST_P(NonFusionTest, DeleteFusionNamespace) {
-    auto cmd = BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::DeleteFusionNamespace};
-    nlohmann::json json;
-    json["logstore_uri"] = "uri1";
-    json["metadatastore_uri"] = "uri2";
-    json["metadatastore_auth_token"] = "some-token";
-    json["namespace"] = "kv/namespace-to-delete/uuid";
-    cmd.setValue(json.dump());
-    cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    const auto resp = adminConnection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
-}
-
-TEST_P(NonFusionTest, GetFusionNamespaces) {
-    auto cmd =
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFusionNamespaces};
-    nlohmann::json json;
-    json["metadatastore_uri"] = "uri";
-    json["metadatastore_auth_token"] = "some-token";
-    cmd.setValue(json.dump());
-    cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    const auto resp = adminConnection->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
-}
-
-INSTANTIATE_TEST_SUITE_P(TransportProtocols,
-                         NonFusionTest,
-                         ::testing::Values(TransportProtocols::McbpPlain),
-                         ::testing::PrintToStringParamName());
