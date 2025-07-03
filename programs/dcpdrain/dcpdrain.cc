@@ -102,7 +102,7 @@ Options:
                                  = 0.5]. Represented as a float, i.e. 0.5 is
                                  50%.
   -c or --control key=value      Add a control message
-  -C or --csv                    Print out the result as csv (ms;bytes;#items)
+  --json                         Print the result as a JSON object
   -N or --name                   The dcp name to use
   -v or --verbose                Add more output
   -4 or --ipv4                   Connect over IPv4
@@ -252,23 +252,32 @@ public:
         return connection->getUnderlyingAsyncSocket().getAppBytesReceived();
     }
 
-    void reportConnectionStats() {
+    nlohmann::json getConnectionStats() const {
         const auto duration =
                 std::chrono::duration_cast<std::chrono::milliseconds>(stop -
                                                                       start);
-
-        size_t total_bytes = getTotalBytesReceived();
-        fmt::print(
-                "Connection took {} ms - {} mutations with a total of {} bytes "
-                "received in {} snapshots and {} oso snapshots (overhead {} "
-                "bytes, {})\n",
-                duration.count(),
-                mutations,
-                total_bytes,
-                snapshots,
-                oso_snapshots,
-                total_bytes - mutation_bytes,
-                cb::calculateThroughput(total_bytes, stop - start));
+        const auto total_bytes = getTotalBytesReceived();
+        std::vector<uint16_t> vb;
+        for (const auto& v : vbuckets) {
+            vb.emplace_back(v.vbucket);
+        }
+        nlohmann::json entry = {
+                {"duration_ms", duration.count()},
+                {"mutations", mutations},
+                {"total_bytes", total_bytes},
+                {"snapshots", snapshots},
+                {"oso_snapshots", oso_snapshots},
+                {"overhead_bytes", total_bytes - mutation_bytes},
+                {"throughput",
+                 cb::calculateThroughput(total_bytes, stop - start)}};
+        if (!vb.empty()) {
+            entry["vbuckets"] = vb;
+        }
+        if (connection) {
+            entry["host"] = connection->getHostname();
+            entry["port"] = connection->getPort();
+        }
+        return entry;
     }
 
     /**
@@ -626,7 +635,7 @@ int main(int argc, char** argv) {
     std::string password{};
     std::string bucket{};
     sa_family_t family = AF_UNSPEC;
-    bool csv = false;
+    bool json = false;
     std::vector<std::pair<std::string, std::string>> controls = {
             {"set_priority", "high"},
             {"supports_cursor_dropping_vulcan", "true"},
@@ -662,7 +671,8 @@ int main(int argc, char** argv) {
         EnableChangeStreams,
         VBuckets,
         Hang,
-        StartInsideSnapshot
+        StartInsideSnapshot,
+        Json
     };
 
     std::vector<option> long_options = {
@@ -678,7 +688,7 @@ int main(int argc, char** argv) {
             {"buffer-size", required_argument, nullptr, 'B'},
             {"acknowledge-ratio", required_argument, nullptr, 'a'},
             {"control", required_argument, nullptr, 'c'},
-            {"csv", no_argument, nullptr, 'C'},
+            {"json", no_argument, nullptr, Options::Json},
             {"name", required_argument, nullptr, 'N'},
             {"num-connections", required_argument, nullptr, 'n'},
             {"verbose", no_argument, nullptr, 'v'},
@@ -768,8 +778,8 @@ int main(int argc, char** argv) {
         case 'v':
             verbose = true;
             break;
-        case 'C':
-            csv = true;
+        case Options::Json:
+            json = true;
             break;
         case 'N':
             name = optarg;
@@ -1032,21 +1042,49 @@ int main(int argc, char** argv) {
     size_t mutation_bytes = 0;
     size_t snapshots = 0;
     size_t oso_snapshots = 0;
+    nlohmann::json individual = nlohmann::json::array();
     for (const auto& c : connections) {
         total_bytes += c->getTotalBytesReceived();
         mutations += c->getMutations();
         mutation_bytes += c->getMutationBytes();
         snapshots += c->getSnapshots();
         oso_snapshots += c->getOsoSnapshots();
-        if (!csv && connections.size() > 1) {
-            c->reportConnectionStats();
+        if (connections.size() > 1) {
+            individual.push_back(c->getConnectionStats());
         }
     }
 
-    if (csv) {
-        std::cout << duration.count() << ';' << total_bytes << ';' << mutations
-                  << std::endl;
+    if (json) {
+        nlohmann::json report = {
+                {"duration_ms", duration.count()},
+                {"mutations", mutations},
+                {"total_bytes", total_bytes},
+                {"snapshots", snapshots},
+                {"oso_snapshots", oso_snapshots},
+                {"overhead_bytes", total_bytes - mutation_bytes},
+                {"throughput",
+                 cb::calculateThroughput(total_bytes, stop - start)}};
+        if (!individual.empty()) {
+            report["per_connection"] = std::move(individual);
+        }
+        fmt::println("{}", report.dump());
     } else {
+        for (const auto& entry : individual) {
+            fmt::print(
+                    "Connection took {} ms - {} mutations with a total of {} "
+                    "bytes "
+                    "received in {} snapshots and {} oso snapshots (overhead "
+                    "{} "
+                    "bytes, {})\n",
+                    entry["duration_ms"].get<size_t>(),
+                    entry["mutations"].get<size_t>(),
+                    entry["total_bytes"].get<size_t>(),
+                    entry["snapshots"].get<size_t>(),
+                    entry["oso_snapshots"].get<size_t>(),
+                    entry["overhead_bytes"].get<size_t>(),
+                    entry["throughput"].get<std::string>());
+        }
+
         fmt::print(
                 "Execution took {} ms - {} mutations with a total of {} bytes "
                 "received in {} snapshots and {} oso snapshots (overhead {} "
