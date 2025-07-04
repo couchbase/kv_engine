@@ -1354,7 +1354,10 @@ cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
         const auto& task = (*itr).second;
         EP_LOG_INFO_CTX("Compaction cancelled", {"vb", vbid});
         task->cancel();
-        // Done, can now erase from the compactionTasks map
+
+        // Erase the task from the map. The task itself if it does run (or is
+        // running) would also do/try this, but if the task never runs after
+        // cancel the task would remain in the map.
         handle->erase(itr);
     }
     return cb::engine_errc::success;
@@ -1687,11 +1690,8 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
         }
         // Done, can now erase from the compactionTasks map
         handle->erase(itr);
-    } else {
-        throw std::logic_error(
-                "EPBucket::updateCompactionTasks no task for vbid:" +
-                vbid.to_string());
     }
+    // else no task found, already removed by cancelCompaction
 
     return false;
 }

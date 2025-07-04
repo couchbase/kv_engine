@@ -2966,6 +2966,28 @@ TEST_P(EPBucketTest, MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
     EXPECT_FALSE(task1);
 }
 
+TEST_P(EPBucketTest, CancelWhenRunning) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task);
+
+    CompactionConfig config1{100, 1, true, true, {}};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config1, nullptr, std::chrono::seconds(0)));
+    task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    EXPECT_EQ(config1, task->getCurrentConfig());
+
+    // Now we will manually call run, which will callback into
+    // updateCompactionTasks.
+    mockEPBucket->cancelCompaction(vbid);
+    EXPECT_FALSE(task->run());
+
+    task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task); // no task anymore
+}
+
 /**
  * Helper class to start a compaction task running in another thread,
  * then block it at the point it calls runningCallback

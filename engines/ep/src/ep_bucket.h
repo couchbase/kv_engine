@@ -181,9 +181,11 @@ public:
                    std::vector<CookieIface*>& cookies);
 
     /**
+     * This method is called from CompactTask
+     *
      * After compaction completes the task can be removed if no further
      * compaction is required. If other compaction tasks exist, one of them
-     * will be 'poked' to run. This method is called from CompactTask
+     * will be 'poked' to run.
      *
      * @param vbid id of vbucket that has completed compaction
      * @returns True if the current task must be re-scheduled, else false.
