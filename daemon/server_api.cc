@@ -87,6 +87,14 @@ struct ServerCoreApi : public ServerCoreIface {
     double getDcpConsumerMaxMarkerVersion() override {
         return Settings::instance().getDcpConsumerMaxMarkerVersion();
     }
+
+    bool isDcpSnapshotMarkerHPSEnabled() override {
+        return Settings::instance().isDcpSnapshotMarkerHPSEnabled();
+    }
+
+    bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
+        return Settings::instance().isDcpSnapshotMarkerPurgeSeqnoEnabled();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

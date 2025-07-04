@@ -10352,3 +10352,92 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          TestDcpConsumerMaxMarkerVersion,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+class TestDcpSnapshotMarkerFeatures : public SingleThreadedActiveStreamTest {
+public:
+    void SetUp() override {
+        SingleThreadedActiveStreamTest::SetUp();
+        store_item(vbid, makeStoredDocKey("foo"), "bar");
+        flushAndRemoveCheckpoints(vbid);
+    }
+
+    void testDcpSnapshotMarkerHPSEnabled(bool enabled) {
+        auto& vb = *store->getVBucket(vbid);
+        stream.reset();
+
+        // Enable/disable HPS in snapshot marker
+        mock_set_dcp_snapshot_marker_hps_enabled(enabled);
+
+        // Create producer and stream
+        recreateProducer(vb,
+                         cb::mcbp::DcpOpenFlag::None,
+                         {{"max_marker_version", "2.2"}});
+        producer->createCheckpointProcessorTask();
+        // Requirement for HPS to be included in snapshot marker
+        producer->setSyncReplication(SyncReplication::SyncReplication);
+        producer->setMaxMarkerVersion(MarkerVersion::V2_2);
+        recreateStream(vb, true /* enforceProducerFlags */);
+
+        stream->transitionStateToBackfilling();
+        EXPECT_EQ(0, stream->public_readyQSize());
+        // Perform the actual backfill - fills up the readyQ in the stream.
+        producer->getBFM().backfill();
+
+        // Verify HPS presence/absence depending on the setting
+        auto resp = stream->public_nextQueuedItem(*producer);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+        auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+        EXPECT_EQ(enabled, marker->getHighPreparedSeqno().has_value());
+    }
+
+    void testDcpSnapshotMarkerPurgeSeqnoEnabled(bool enabled) {
+        auto& vb = *store->getVBucket(vbid);
+        stream.reset();
+
+        // Enable/disable purge seqno in snapshot marker
+        mock_set_dcp_snapshot_marker_purge_seqno_enabled(enabled);
+
+        // Create producer and stream
+        recreateProducer(vb,
+                         cb::mcbp::DcpOpenFlag::None,
+                         {{"max_marker_version", "2.2"}});
+        producer->createCheckpointProcessorTask();
+        // Requirement for purge seqno to be included in snapshot marker
+        producer->setMaxMarkerVersion(MarkerVersion::V2_2);
+        recreateStream(vb, true /* enforceProducerFlags */);
+
+        stream->transitionStateToBackfilling();
+        EXPECT_EQ(0, stream->public_readyQSize());
+        // Perform the actual backfill - fills up the readyQ in the stream.
+        producer->getBFM().backfill();
+
+        // Verify purge seqno presence/absence depending on the setting
+        auto resp = stream->public_nextQueuedItem(*producer);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+        auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+        EXPECT_EQ(enabled, marker->getPurgeSeqno().has_value());
+    }
+};
+
+TEST_P(TestDcpSnapshotMarkerFeatures, TestDcpSnapshotMarkerHPSEnabledTrue) {
+    testDcpSnapshotMarkerHPSEnabled(true);
+}
+
+TEST_P(TestDcpSnapshotMarkerFeatures, TestDcpSnapshotMarkerHPSEnabledFalse) {
+    testDcpSnapshotMarkerHPSEnabled(false);
+}
+
+TEST_P(TestDcpSnapshotMarkerFeatures,
+       TestDcpSnapshotMarkerPurgeSeqnoEnabledTrue) {
+    testDcpSnapshotMarkerPurgeSeqnoEnabled(true);
+}
+
+TEST_P(TestDcpSnapshotMarkerFeatures,
+       TestDcpSnapshotMarkerPurgeSeqnoEnabledFalse) {
+    testDcpSnapshotMarkerPurgeSeqnoEnabled(false);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         TestDcpSnapshotMarkerFeatures,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

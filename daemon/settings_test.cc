@@ -1399,3 +1399,19 @@ TEST_F(SettingsTest, TestDcpConsumerMaxMarkerVersion) {
     settings.setDcpConsumerMaxMarkerVersion(2.3);
     EXPECT_EQ(2.3, settings.getDcpConsumerMaxMarkerVersion());
 }
+
+TEST_F(SettingsTest, TestDcpSnapshotMarkerHPSEnabled) {
+    Settings settings;
+    EXPECT_TRUE(settings.isDcpSnapshotMarkerHPSEnabled());
+
+    settings.setDcpSnapshotMarkerHPSEnabled(false);
+    EXPECT_FALSE(settings.isDcpSnapshotMarkerHPSEnabled());
+}
+
+TEST_F(SettingsTest, TestDcpSnapshotMarkerPurgeSeqnoEnabled) {
+    Settings settings;
+    EXPECT_TRUE(settings.isDcpSnapshotMarkerPurgeSeqnoEnabled());
+
+    settings.setDcpSnapshotMarkerPurgeSeqnoEnabled(false);
+    EXPECT_FALSE(settings.isDcpSnapshotMarkerPurgeSeqnoEnabled());
+}

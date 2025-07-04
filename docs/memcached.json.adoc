@@ -499,8 +499,19 @@ value to avoid any character escaping being required.
 
 === dcp_consumer_enable_max_marker_version
 
-A double value that sets the max_marker_version which the consumer
-sends to the producer to communicate the MarkerVersion it supports.
+A string which represents a double value that sets the max_marker_version
+which the consumer sends to the producer to communicate the MarkerVersion
+it supports.
+
+=== dcp_snapshot_marker_hps_enabled
+
+A boolean value which when set false will disable the feature that sends
+the HPS within the snapshot marker to the consumer.
+
+=== dcp_snapshot_marker_purge_seqno_enabled
+
+A boolean value which when set false will disable the feature that sends
+the purge seqno within the snapshot marker to the consumer.
 
 === fusion_migration_rate_limit
 

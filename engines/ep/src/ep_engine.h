@@ -1162,6 +1162,16 @@ public:
      */
     double getDcpConsumerMaxMarkerVersion() const;
 
+    /**
+     * @return true if the HPS should be sent in Snapshot Marker.
+     */
+    bool isDcpSnapshotMarkerHPSEnabled() const;
+
+    /**
+     * @return true if the Purge Seqno should be sent in Snapshot Marker.
+     */
+    bool isDcpSnapshotMarkerPurgeSeqnoEnabled() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 

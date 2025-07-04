@@ -103,4 +103,14 @@ struct ServerCoreIface {
      * The max_marker_version that a consumer will send to a producer.
      */
     virtual double getDcpConsumerMaxMarkerVersion() = 0;
+
+    /**
+     * If true, send the HPS in Snapshot Marker.
+     */
+    virtual bool isDcpSnapshotMarkerHPSEnabled() = 0;
+
+    /**
+     * If true, send the Purge Seqno in Snapshot Marker.
+     */
+    virtual bool isDcpSnapshotMarkerPurgeSeqnoEnabled() = 0;
 };

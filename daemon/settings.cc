@@ -456,6 +456,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setFileFragmentMaxChunkSize(value.get<size_t>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
+        } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
+            setDcpSnapshotMarkerHPSEnabled(value.get<bool>());
+        } else if (key == "dcp_snapshot_marker_purge_seqno_enabled"sv) {
+            setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }

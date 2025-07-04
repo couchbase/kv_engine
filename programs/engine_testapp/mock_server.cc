@@ -143,6 +143,8 @@ static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
 static std::string dcp_disconnect_when_stuck_name_regex;
 static bool not_locked_returns_tmpfail{false};
 static double dcp_consumer_enable_max_marker_version{2.2};
+static bool dcp_snapshot_marker_hps_enabled{true};
+static bool dcp_snapshot_marker_purge_seqno_enabled{true};
 
 void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
     dcp_disconnect_when_stuck_timeout = timeout;
@@ -158,6 +160,14 @@ void mock_set_not_locked_returns_tmpfail(bool value) {
 
 void mock_set_dcp_consumer_max_marker_version(double value) {
     dcp_consumer_enable_max_marker_version = value;
+}
+
+void mock_set_dcp_snapshot_marker_hps_enabled(bool value) {
+    dcp_snapshot_marker_hps_enabled = value;
+}
+
+void mock_set_dcp_snapshot_marker_purge_seqno_enabled(bool value) {
+    dcp_snapshot_marker_purge_seqno_enabled = value;
 }
 
 struct MockServerCoreApi : public ServerCoreIface {
@@ -207,6 +217,14 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     double getDcpConsumerMaxMarkerVersion() override {
         return dcp_consumer_enable_max_marker_version;
+    }
+
+    bool isDcpSnapshotMarkerHPSEnabled() override {
+        return dcp_snapshot_marker_hps_enabled;
+    }
+
+    bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
+        return dcp_snapshot_marker_purge_seqno_enabled;
     }
 };
 

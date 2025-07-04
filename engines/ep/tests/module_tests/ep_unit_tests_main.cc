@@ -100,6 +100,14 @@ public:
     double getDcpConsumerMaxMarkerVersion() override {
         return 2.2;
     }
+
+    bool isDcpSnapshotMarkerHPSEnabled() override {
+        return true;
+    }
+
+    bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {

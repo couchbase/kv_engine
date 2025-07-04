@@ -14,6 +14,7 @@
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
 #include "utilities/testing_hook.h"
+#include <engines/ep/src/ep_engine.h>
 #include <memcached/engine_error.h>
 #include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
@@ -662,6 +663,17 @@ protected:
 
     bool supportSyncReplication() const {
         return syncReplication == SyncReplication::SyncReplication;
+    }
+
+    bool supportHPSInSnapshot(bool hpsInSnapshotRange) const {
+        return engine->isDcpSnapshotMarkerHPSEnabled() && hpsInSnapshotRange &&
+               supportSyncReplication() &&
+               (maxMarkerVersion == MarkerVersion::V2_2);
+    }
+
+    bool supportPurgeSeqnoInSnapshot() const {
+        return engine->isDcpSnapshotMarkerPurgeSeqnoEnabled() &&
+               (maxMarkerVersion == MarkerVersion::V2_2);
     }
 
     /**

@@ -8215,3 +8215,11 @@ cb::engine_errc EventuallyPersistentEngine::getNotLockedError() const {
 double EventuallyPersistentEngine::getDcpConsumerMaxMarkerVersion() const {
     return serverApi->core->getDcpConsumerMaxMarkerVersion();
 }
+
+bool EventuallyPersistentEngine::isDcpSnapshotMarkerHPSEnabled() const {
+    return serverApi->core->isDcpSnapshotMarkerHPSEnabled();
+}
+
+bool EventuallyPersistentEngine::isDcpSnapshotMarkerPurgeSeqnoEnabled() const {
+    return serverApi->core->isDcpSnapshotMarkerPurgeSeqnoEnabled();
+}

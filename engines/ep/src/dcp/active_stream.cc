@@ -399,19 +399,18 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
                                   highPreparedSeqno >= diskStartSeqno &&
                                   highPreparedSeqno <= diskEndSeqno;
 
-        auto sendMarkerV2_2 =
-                hpsInSnapshotRange && (maxMarkerVersion == MarkerVersion::V2_2);
-
-        const auto sendHPS = supportSyncReplication() && sendMarkerV2_2;
-        auto hpsToSend = sendHPS ? highPreparedSeqno : std::nullopt;
+        auto hpsToSend = supportHPSInSnapshot(hpsInSnapshotRange)
+                                 ? highPreparedSeqno
+                                 : std::nullopt;
 
         // The diskEndSeqno & purgeSeqno are derived from the same
         // BySeqnoScanContext and therefore purge seqno will always be <= end
         // seqno. Expect the same to true.
         Expects(purgeSeqno <= diskEndSeqno);
 
-        auto psToSend =
-                sendMarkerV2_2 ? std::make_optional(purgeSeqno) : std::nullopt;
+        auto psToSend = supportPurgeSeqnoInSnapshot()
+                                ? std::make_optional(purgeSeqno)
+                                : std::nullopt;
 
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)

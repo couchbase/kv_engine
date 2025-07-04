@@ -1031,6 +1031,28 @@ public:
         notify_changed("dcp_consumer_max_marker_version");
     }
 
+    bool isDcpSnapshotMarkerHPSEnabled() const {
+        return dcp_snapshot_marker_hps_enabled.load(std::memory_order_acquire);
+    }
+
+    void setDcpSnapshotMarkerHPSEnabled(bool val) {
+        dcp_snapshot_marker_hps_enabled.store(val, std::memory_order_release);
+        has.dcp_snapshot_marker_hps_enabled = true;
+        notify_changed("dcp_snapshot_marker_hps_enabled");
+    }
+
+    bool isDcpSnapshotMarkerPurgeSeqnoEnabled() const {
+        return dcp_snapshot_marker_purge_seqno_enabled.load(
+                std::memory_order_acquire);
+    }
+
+    void setDcpSnapshotMarkerPurgeSeqnoEnabled(bool val) {
+        dcp_snapshot_marker_purge_seqno_enabled.store(
+                val, std::memory_order_release);
+        has.dcp_snapshot_marker_purge_seqno_enabled = true;
+        notify_changed("dcp_snapshot_marker_purge_seqno_enabled");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1301,6 +1323,12 @@ protected:
     /// The max_marker_version that a consumer will send to a producer.
     std::atomic<double> dcp_consumer_max_marker_version{2.2};
 
+    /// Whether to send the HPS in Snapshot Marker.
+    std::atomic<bool> dcp_snapshot_marker_hps_enabled{true};
+
+    /// Whether to send the Purge Seqno in Snapshot Marker.
+    std::atomic<bool> dcp_snapshot_marker_purge_seqno_enabled{true};
+
     /// The maximum number of paths allowed in a subdoc multi-path operation
     std::atomic<size_t> subdoc_multi_max_paths{16};
 
@@ -1388,5 +1416,7 @@ public:
         bool clustermap_push_notifications_enabled = false;
         bool file_fragment_max_chunk_size = false;
         bool dcp_consumer_max_marker_version = false;
+        bool dcp_snapshot_marker_hps_enabled = false;
+        bool dcp_snapshot_marker_purge_seqno_enabled = false;
     } has;
 };
