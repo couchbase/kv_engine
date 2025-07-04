@@ -91,6 +91,7 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
                 "couchkvstore_strerrno: error code must have a database "
                 "instance");
 
+    case COUCHSTORE_ERROR_INVALID_ARGUMENTS:
     case COUCHSTORE_ERROR_CORRUPT:
     case COUCHSTORE_ERROR_CHECKSUM_FAIL:
     case COUCHSTORE_ERROR_DECRYPT:
@@ -1149,9 +1150,9 @@ CompactDBStatus CouchKVStore::compactDB(
     // calling the method for doing the check and when we'll set it to
     // true
     if (vbCompactionRunning[getCacheSlot(vbid)]) {
-        EP_LOG_INFO(
-                "CouchKVStore::compactDB: compaction already running for {}",
-                vbid);
+        logger.infoWithContext(
+                "CouchKVStore::compactDB: compaction already running",
+                {{"vb", vbid}});
         // The API don't let me tell the caller that a compaction is
         // already running so I just have to fail it..
         return CompactDBStatus::Failed;
@@ -1192,12 +1193,10 @@ CompactDBStatus CouchKVStore::compactDB(
             vbucketEncryptionKeysManager.removeNextKey(vbid);
         }
     } catch (const std::exception& le) {
-        logger.error(
-                "CouchKVStore::compactDB: exception while performing "
-                "compaction for {}"
-                " - Details: {}",
-                vbid,
-                le.what());
+        logger.warnWithContext(
+                "CouchKVStore::compactDB: Exception while performing "
+                "compaction",
+                {{"vb", vbid}, {"error", le.what()}});
         status = CompactDBStatus::Failed;
     }
 
@@ -1534,20 +1533,23 @@ CompactDBStatus CouchKVStore::compactDBInternal(
         if (status == ReadVBStateStatus::Success) {
             hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
         } else {
-            EP_LOG_WARN(
-                    "CouchKVStore::compactDBInternal ({}) Failed to obtain "
-                    "vbState for the highCompletedSeqno. Won't prune prepares",
-                    vbid);
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBInternal: Failed to obtain "
+                    "vbState for the highCompletedSeqno - won't prune prepares",
+                    {{"vb", vbid}});
             return CompactDBStatus::Failed;
         }
         auto [getDroppedStatus, droppedCollections] =
                 getDroppedCollections(*sourceDb);
         if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::compactDBInternal {} failed to get "
-                    "dropped collections - status:{}",
-                    vbid,
-                    couchstore_strerror(getDroppedStatus));
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBInternal: Failed to get dropped "
+                    "collections",
+                    {{"vb", vbid},
+                     {"error",
+                      {{"system", cb_strerror()},
+                       {"code", couchstore_strerror(getDroppedStatus)},
+                       {"message", cb::couchstore::getLastInternalError()}}}});
             return CompactDBStatus::Failed;
         }
         hook_ctx->stats.collectionsPurged = droppedCollections.size();
@@ -1585,13 +1587,15 @@ CompactDBStatus CouchKVStore::compactDBInternal(
         if (errCode == COUCHSTORE_ERROR_CANCEL) {
             return CompactDBStatus::Aborted;
         }
-
-        logger.warn(
-                "CouchKVStore::compactDBInternal: cb::couchstore::compact() "
-                "error:{} [{}], name:{}",
-                couchstore_strerror(errCode),
-                couchkvstore_strerrno(sourceDb, errCode),
-                dbfile);
+        logger.warnWithContext(
+                "CouchKVStore::compactDBInternal: cb::couchstore::compact "
+                "error",
+                {{"vb", vbid},
+                 {"error",
+                  {{"system", cb_strerror()},
+                   {"code", couchstore_strerror(errCode)},
+                   {"message", cb::couchstore::getLastInternalError()}}},
+                 {"filename", dbfile}});
         return CompactDBStatus::Failed;
     }
 
@@ -1620,9 +1624,14 @@ CompactDBStatus CouchKVStore::compactDBInternal(
     {
         auto [status, json] = getLocalVbState(*targetDb);
         if (status != COUCHSTORE_SUCCESS) {
-            logger.warn("Failed to read _local/vbstate for {}: {}",
-                        vbid,
-                        couchstore_strerror(status));
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBInternal: Failed to read "
+                    "'_local/vbstate'",
+                    {{"vb", vbid},
+                     {"error",
+                      {{"system", cb_strerror()},
+                       {"code", couchstore_strerror(status)},
+                       {"message", cb::couchstore::getLastInternalError()}}}});
             return CompactDBStatus::Failed;
         }
 
@@ -1696,12 +1705,11 @@ CompactDBStatus CouchKVStore::compactDBInternal(
     try {
         // Rename the .compact file to one with the next revision number
         if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
-            logger.warn(
-                    "CouchKVStore::compactDBInternal: rename error:{}, old:{}, "
-                    "new:{}",
-                    cb_strerror(),
-                    compact_file,
-                    new_file);
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBInternal: rename error",
+                    {{"error", cb_strerror()},
+                     {"old", compact_file},
+                     {"new", new_file}});
             return CompactDBStatus::Failed;
         }
 
@@ -1710,19 +1718,16 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                          ? CompactDBStatus::Success
                          : CompactDBStatus::Failed;
     } catch (const std::exception& e) {
-        logger.error(
-                "CouchKVStore::compactDBInternal: exception while performing "
-                "finalisation of compaction for {}"
-                " - Details: {}",
-                vbid,
-                e.what());
+        logger.errorWithContext(
+                "CouchKVStore::compactDBInternal: Exception while performing "
+                "finalisation of compaction",
+                {{"vb", vbid}, {"error", e.what()}});
 
         // The new file must be removed
         if (remove(new_file.c_str()) != 0) {
-            logger.warn(
-                    "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
-                    cb_strerror(),
-                    new_file);
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBInternal: remove error",
+                    {{"error", cb_strerror()}, {"file", new_file}});
         }
         return CompactDBStatus::Failed;
     }
@@ -1759,10 +1764,10 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
                      options);
 
         if (remove(targetFilename.c_str()) != 0) {
-            logger.warn(
-                    "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
-                    cb_strerror(),
-                    targetFilename);
+            logger.warnWithContext(
+                    "CouchKVStore::compactDBTryAndSwitchToNewFile: "
+                    "remove error",
+                    {{"error", cb_strerror()}, {"file", targetFilename}});
         }
 
         return false;
@@ -1936,7 +1941,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     auto [getDroppedStatus, droppedCollections] = getDroppedCollections(source);
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
         throw std::runtime_error(
-                "CouchKVStore::tryToCatchUpDbFile: getDroppedConnections"
+                "CouchKVStore::tryToCatchUpDbFile: getDroppedCollections"
                 "error: " +
                 std::string(couchstore_strerror(getDroppedStatus)));
         return getDroppedStatus;
@@ -1951,11 +1956,12 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
         lock.unlock();
     }
 
-    EP_LOG_INFO("Try to catch up {}: from {} to {} {} stopping flusher",
-                vbid,
-                start.updateSeqNum,
-                end.updateSeqNum,
-                copyWithoutLock ? "without" : "while");
+    logger.infoWithContext(
+            "CouchKVStore: Try to catch up",
+            {{"vb", vbid},
+             {"flusher", copyWithoutLock ? "running" : "stopped"},
+             {"from", start.updateSeqNum},
+             {"to", end.updateSeqNum}});
 
     // Create a FlushAccounting object which can account for items moving from
     // source to destination. This is constructed with the set of dropped
@@ -1998,16 +2004,17 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
 
     bool ret = true;
     if (copyWithoutLock) {
+        logger.infoWithContext(
+                "CouchKVStore::tryToCatchUpDbFile: Stopping flusher",
+                {{"vb", vbid}});
         lock.lock();
         // the database may have changed.. just return false and let the
         // caller call us again to check..
         ret = false;
     }
 
-    logger.info("Catch up of {} to {} complete{}",
-                vbid,
-                end.updateSeqNum,
-                copyWithoutLock ? ", stopping flusher" : "");
+    logger.infoWithContext("CouchKVStore: Catch up complete",
+                           {{"vb", vbid}, {"to", end.updateSeqNum}});
     return ret;
 }
 
@@ -2221,10 +2228,9 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
 
     if (!handle) {
         // makeFileHandle/openDb will of logged details of failure.
-        logger.warn(
-                "CouchKVStore::initBySeqnoScanContext: makeFileHandle failure "
-                "{}",
-                vbid.get());
+        logger.warnWithContext(
+                "CouchKVStore::initBySeqnoScanContext: makeFileHandle failure",
+                {{"vb", vbid}});
         return nullptr;
     }
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
@@ -2235,33 +2241,35 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
     auto errorCode = couchstore_changes_count(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
     if (errorCode != COUCHSTORE_SUCCESS) {
-        EP_LOG_WARN(
-                "CouchKVStore::initBySeqnoScanContext:Failed to obtain changes "
-                "count for {} rev:{} start_seqno:{} error: {}",
-                vbid,
-                db.getFileRev(),
-                startSeqno,
-                couchstore_strerror(errorCode));
+        logger.warnWithContext(
+                "CouchKVStore::initBySeqnoScanContext: Failed to obtain "
+                "changes count",
+                {{"vb", vbid},
+                 {"rev", db.getFileRev()},
+                 {"start_seqno", startSeqno},
+                 {"error",
+                  {{"system", cb_strerror()},
+                   {"code", couchstore_strerror(errorCode)},
+                   {"message", cb::couchstore::getLastInternalError()}}}});
         return nullptr;
     }
 
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
-        EP_LOG_WARN(
-                "CouchKVStore::initBySeqnoScanContext: {} Failed to obtain "
-                "vbState for the highCompletedSeqno. Status - {}",
-                vbid,
-                to_string(readVbStateResult.status));
+        logger.warnWithContext(
+                "CouchKVStore::initBySeqnoScanContext: Failed to obtain "
+                "vbState for the highCompletedSeqno",
+                {{"vb", vbid}, {"error", to_string(readVbStateResult.status)}});
         return nullptr;
     }
 
     auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        EP_LOG_WARN(
-                "CouchKVStore::initBySeqnoScanContext: {} Failed to get "
-                "dropped collections. Status - {}",
-                vbid,
-                couchstore_strerror(getDroppedStatus));
+        logger.warnWithContext(
+                "CouchKVStore::initBySeqnoScanContext: Failed to get "
+                "dropped collections",
+                {{"vb", vbid},
+                 {"error", couchstore_strerror(getDroppedStatus)}});
         return nullptr;
     }
 
@@ -2310,11 +2318,11 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
 
     auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        EP_LOG_WARN(
-                "CouchKVStore::initByIdScanContext: {} Failed to get "
-                "dropped collections. Status - {}",
-                vbid,
-                couchstore_strerror(getDroppedStatus));
+        logger.warnWithContext(
+                "CouchKVStore::initByIdScanContext: Failed to get "
+                "dropped collections",
+                {{"vb", vbid},
+                 {"error", couchstore_strerror(getDroppedStatus)}});
         return nullptr;
     }
 
@@ -2598,11 +2606,9 @@ void CouchKVStore::logExistingVBucketFiles(Vbid vbid) const {
     const std::string filePrefix =
             dbname + "/" + std::to_string(vbid.get()) + ".couch";
     const auto files = cb::io::findFilesWithPrefix(filePrefix);
-    logger.info(
-            "CouchKVStore: Found {} existing files for {}", files.size(), vbid);
-    for (const auto& f : files) {
-        logger.info("CouchKVStore: Found {}", f);
-    }
+    logger.infoWithContext(
+            "CouchKVStore: Found existing files",
+            {{"vb", vbid}, {"count", files.size()}, {"files", files}});
 }
 
 void CouchKVStore::logOpenError(std::string_view caller,
@@ -2611,15 +2617,16 @@ void CouchKVStore::logOpenError(std::string_view caller,
                                 Vbid vbid,
                                 std::string_view filename,
                                 couchstore_open_flags options) const {
-    logger.log(
+    logger.logWithContext(
             level,
-            "CouchKVStore::{}: {} Open error:{} [{}], filename:{}, option:{}",
-            caller,
-            vbid,
-            couchstore_strerror(errCode),
-            cb_strerror(),
-            filename,
-            options);
+            fmt::format("CouchKVStore::{}: Open error", caller),
+            {{"vb", vbid},
+             {"error",
+              {{"system", cb_strerror()},
+               {"code", couchstore_strerror(errCode)},
+               {"message", cb::couchstore::getLastInternalError()}}},
+             {"filename", filename},
+             {"options", options}});
 
     if (errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
         logExistingVBucketFiles(vbid);
@@ -3206,11 +3213,14 @@ couchstore_error_t CouchKVStore::saveDocs(
             auto [getDroppedStatus, droppedCollections] =
                     getDroppedCollections(*db);
             if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-                logger.warn(
-                        "CouchKVStore::saveDocs: getDroppedConnections"
-                        "error:{}, {}",
-                        couchstore_strerror(getDroppedStatus),
-                        vbid);
+                logger.warnWithContext(
+                        "CouchKVStore::saveDocs: getDroppedCollections error",
+                        {{"vb", vbid},
+                         {"error",
+                          {{"system", cb_strerror()},
+                           {"code", couchstore_strerror(getDroppedStatus)},
+                           {"message",
+                            cb::couchstore::getLastInternalError()}}}});
                 return getDroppedStatus;
             }
 
@@ -3235,13 +3245,14 @@ couchstore_error_t CouchKVStore::saveDocs(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         cb::time::steady_clock::now() - cs_begin));
         if (errCode != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: couchstore_save_documents "
-                    "error:{} [{}], {}, numdocs:{}",
-                    couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode),
-                    vbid,
-                    uint64_t(docs.size()));
+            logger.warnWithContext(
+                    "CouchKVStore::saveDocs: couchstore_save_documents error",
+                    {{"vb", vbid},
+                     {"num_docs", docs.size()},
+                     {"error",
+                      {{"system", cb_strerror()},
+                       {"code", couchstore_strerror(errCode)},
+                       {"message", cb::couchstore::getLastInternalError()}}}});
             return errCode;
         }
     }
@@ -3266,11 +3277,13 @@ couchstore_error_t CouchKVStore::saveDocs(
         const auto errCode = updateCollectionsMeta(
                 txnCtx, *db, kvctx.commitData.collections);
         if (errCode) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: {} updateCollections meta "
-                    "failed with status {}",
-                    vbid,
-                    couchstore_strerror(errCode));
+            logger.warnWithContext(
+                    "CouchKVStore::saveDocs: updateCollections error",
+                    {{"vb", vbid},
+                     {"error",
+                      {{"system", cb_strerror()},
+                       {"code", couchstore_strerror(errCode)},
+                       {"message", cb::couchstore::getLastInternalError()}}}});
             return errCode;
         }
     }
@@ -3278,12 +3291,14 @@ couchstore_error_t CouchKVStore::saveDocs(
     /// Update the local documents before we commit
     auto errCode = updateLocalDocuments(*db, txnCtx.pendingLocalReqsQ);
     if (errCode) {
-        logger.warn(
-                "CouchKVStore::saveDocs: updateLocalDocuments size:{} "
-                "error:{} [{}]",
-                txnCtx.pendingLocalReqsQ.size(),
-                couchstore_strerror(errCode),
-                couchkvstore_strerrno(db, errCode));
+        logger.warnWithContext(
+                "CouchKVStore::saveDocs: updateLocalDocuments error",
+                {{"vb", vbid},
+                 {"num_pending_reqs", txnCtx.pendingLocalReqsQ.size()},
+                 {"error",
+                  {{"system", cb_strerror()},
+                   {"code", couchstore_strerror(errCode)},
+                   {"message", cb::couchstore::getLastInternalError()}}}});
         return errCode;
     }
     txnCtx.pendingLocalReqsQ.clear();
@@ -3299,9 +3314,13 @@ couchstore_error_t CouchKVStore::saveDocs(
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             cb::time::steady_clock::now() - cs_begin));
     if (errCode) {
-        logger.warn("CouchKVStore::saveDocs: couchstore_commit error:{} [{}]",
-                    couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode));
+        logger.warnWithContext(
+                "CouchKVStore::saveDocs: couchstore_commit error",
+                {{"vb", vbid},
+                 {"error",
+                  {{"system", cb_strerror()},
+                   {"code", couchstore_strerror(errCode)},
+                   {"message", cb::couchstore::getLastInternalError()}}}});
         return errCode;
     }
 
@@ -3323,13 +3342,11 @@ couchstore_error_t CouchKVStore::saveDocs(
 
     // Check seqno if we wrote documents
     if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
-        logger.warn(
-                "CouchKVStore::saveDocs: Seqno in db header ({})"
-                " is not matched with what was persisted ({})"
-                " for {}",
-                info.updateSeqNum,
-                maxDBSeqno,
-                vbid);
+        logger.warnWithContext(
+                "CouchKVStore::saveDocs: Persisted seqno mismatch",
+                {{"vb", vbid},
+                 {"header_seqno", info.updateSeqNum},
+                 {"max_seqno", maxDBSeqno}});
     }
     state.highSeqno = info.updateSeqNum;
     state.purgeSeqno = info.purgeSeqNum;
@@ -3410,37 +3427,36 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
             couchstore_open_local_document(db, id.buf, id.size, &ldoc);
 
     if (couchStoreStatus == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        logger.warn(
-                "CouchKVStore::readVBState: '_local/vbstate' not found "
-                "for {}",
-                vbId);
+        logger.warnWithContext(
+                "CouchKVStore::readVBState: '_local/vbstate' not found",
+                {{"vb", vbId}});
         return {ReadVBStateStatus::NotFound, {}};
     }
 
     if (couchStoreStatus != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::readVBState: couchstore_open_local_document"
-                " error:{}, {}",
-                couchstore_strerror(couchStoreStatus),
-                vbId);
+        logger.warnWithContext(
+                "CouchKVStore::readVBState: couchstore_open_local_document "
+                "error",
+                {{"vb", vbId},
+                 {"error",
+                  {{"system", cb_strerror()},
+                   {"code", couchstore_strerror(couchStoreStatus)},
+                   {"message", cb::couchstore::getLastInternalError()}}}});
         return {ReadVBStateStatus::Error, {}};
     }
 
     // Proceed to read/parse the vbstate
     const std::string statjson(ldoc->json.buf, ldoc->json.size);
+    couchstore_free_local_document(ldoc);
+    ldoc = nullptr;
 
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(statjson);
     } catch (const nlohmann::json::exception& e) {
-        couchstore_free_local_document(ldoc);
-        logger.warn(
-                "CouchKVStore::readVBState: Failed to "
-                "parse the vbstat json doc for {}, json:{}, with "
-                "reason:{}",
-                vbId,
-                statjson,
-                e.what());
+        logger.warnWithContext(
+                "CouchKVStore::readVBState: Failed to parse the vbstate",
+                {{"vb", vbId}, {"error", e.what()}, {"doc", statjson}});
         return {ReadVBStateStatus::JsonInvalid, {}};
     }
 
@@ -3451,15 +3467,10 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
     try {
         vbState = json;
     } catch (const nlohmann::json::exception& e) {
-        couchstore_free_local_document(ldoc);
-        logger.warn(
-                "CouchKVStore::readVBState: Failed to "
-                "convert the vbstat json doc for {} to vbState, json:{}, "
-                "with "
-                "reason:{}",
-                vbId,
-                json.dump(),
-                e.what());
+        logger.warnWithContext(
+                "CouchKVStore::readVBState: Failed to convert vbState from "
+                "JSON",
+                {{"vb", vbId}, {"error", e.what()}, {"json", json}});
         return {ReadVBStateStatus::JsonInvalid, {}};
     }
 
@@ -3485,8 +3496,6 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
     if (!snapshotValid) {
         status = ReadVBStateStatus::CorruptSnapshot;
     }
-
-    couchstore_free_local_document(ldoc);
 
     return {status, vbState};
 }
