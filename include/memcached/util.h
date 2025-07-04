@@ -35,6 +35,16 @@ bool safe_strtous(std::string_view s, uint16_t& out);
 bool safe_strtof(const std::string& s, float& out);
 
 /**
+ * Parse a string representing a size (e.g., "1K", "2M", "3G") into
+ * size_t
+ *
+ * @param arg string to parse, which may contain a number and a suffix
+ * @return the parsed size in bytes
+ * @throws std::system_error if parsing fails
+ */
+std::size_t parse_size_string(std::string_view arg);
+
+/**
  * Get a textual representation of the given bucket compression mode
  *
  * @throws std::invalid_argument if the mode isn't one of the legal values

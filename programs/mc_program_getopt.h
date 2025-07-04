@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <folly/io/async/EventBase.h>
 #include <platform/command_line_options_parser.h>
 #include <protocol/connection/client_connection.h>
 #include <filesystem>
@@ -67,9 +68,11 @@ public:
      * by looking at the provided options (and possibly fetch password
      * from the user etc)
      *
+     * @param base the event base to use for the connection (if empty
+     *              a new one will be created to be used within the instance)
      * @throws std::exception (subclass) if anything goes wrong
      */
-    void assemble();
+    void assemble(std::shared_ptr<folly::EventBase> base = {});
 
     /**
      * Get a new authenticated client connection
@@ -89,10 +92,12 @@ public:
      * provided on the command line (SASL or via certificates.
      */
     [[nodiscard]] std::unique_ptr<MemcachedConnection>
-    createAuthenticatedConnection(std::string host,
-                                  in_port_t port,
-                                  sa_family_t family,
-                                  bool secure) const;
+    createAuthenticatedConnection(
+            std::string host,
+            in_port_t port,
+            sa_family_t family,
+            bool secure,
+            std::shared_ptr<folly::EventBase> base = {}) const;
 
 protected:
     cb::getopt::CommandLineOptionsParser parser;

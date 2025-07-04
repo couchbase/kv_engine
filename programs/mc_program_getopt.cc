@@ -156,7 +156,7 @@ std::vector<std::string_view> McProgramGetopt::parse(
     return parser.parse(argc, argv, std::move(error));
 }
 
-void McProgramGetopt::assemble() {
+void McProgramGetopt::assemble(std::shared_ptr<folly::EventBase> base) {
     if (password == "-") {
         password.assign(cb::getpass());
     } else if (password.empty()) {
@@ -230,7 +230,7 @@ void McProgramGetopt::assemble() {
     }
 
     connection = std::make_unique<MemcachedConnection>(
-            host, in_port, family, secure);
+            host, in_port, family, secure, std::move(base));
     if (ssl_cert && ssl_key) {
         connection->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
     }
@@ -240,11 +240,14 @@ void McProgramGetopt::assemble() {
 }
 
 std::unique_ptr<MemcachedConnection>
-McProgramGetopt::createAuthenticatedConnection(std::string h,
-                                               in_port_t p,
-                                               sa_family_t f,
-                                               bool s) const {
-    auto ret = std::make_unique<MemcachedConnection>(std::move(h), p, f, s);
+McProgramGetopt::createAuthenticatedConnection(
+        std::string h,
+        in_port_t p,
+        sa_family_t f,
+        bool s,
+        std::shared_ptr<folly::EventBase> base) const {
+    auto ret = std::make_unique<MemcachedConnection>(
+            std::move(h), p, f, s, std::move(base));
     if (ssl_cert && ssl_key) {
         ret->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
     }

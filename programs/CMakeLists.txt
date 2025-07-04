@@ -5,7 +5,9 @@ add_library(mc_program_utils OBJECT
         mc_program_getopt.h
         )
 kv_enable_pch(mc_program_utils)
-target_link_libraries(mc_program_utils PRIVATE platform ${COUCHBASE_NETWORK_LIBS})
+target_link_libraries(mc_program_utils
+        PRIVATE platform ${COUCHBASE_NETWORK_LIBS} Folly::folly
+        PUBLIC Folly::headers)
 
 cb_add_test_executable(mc_program_utils_test
         hostname_utils_test.cc

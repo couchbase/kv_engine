@@ -10,20 +10,19 @@
 
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSocket.h>
-#include <getopt.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <platform/getpass.h>
 #include <platform/socket.h>
+#include <platform/split_string.h>
 #include <platform/terminal_color.h>
 #include <platform/timeutils.h>
 #include <programs/hostname_utils.h>
-#include <programs/parse_tls_option.h>
+#include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
-#include <utilities/string_utilities.h>
 #include <utilities/terminate_handler.h>
 #include <charconv>
 #include <csignal>
@@ -51,17 +50,8 @@ public:
     }
 } terminateOnErrorWriteCallback;
 
-/// Set to true if TLS mode is requested. We'll use the same TLS configuration
-/// on all connections we're trying to create
-bool tls = false;
-/// The TLS certificate file if provided
-std::optional<std::filesystem::path> tls_certificate_file;
-/// The TLS private key file if provided
-std::optional<std::filesystem::path> tls_private_key_file;
-std::optional<std::filesystem::path> tls_ca_store_file;
-
 /// We're going to use the same buffersize on all connections
-size_t buffersize = 13421772;
+size_t buffersize = 13_MiB;
 float acknowledge_ratio = 0.5;
 
 /// When set to true we'll print out each message we see
@@ -70,83 +60,14 @@ bool verbose = false;
 /// When true, we will not ack anything
 bool hang = false;
 
-static void usage() {
+static void usage(const McProgramGetopt& instance, const int exitcode) {
     std::cerr << R"(Usage: dcpdrain [options]
 
 Options:
 
-  -h or --host hostname[:port]   The host (with an optional port) to connect to
-                                 (for IPv6 use: [address]:port if you'd like to
-                                 specify port)
-  -p or --port port              The port number to connect to
-  -b or --bucket bucketname      The name of the bucket to operate on
-  -u or --user username          The name of the user to authenticate as
-  -P or --password password      The password to use for authentication
-                                 (use '-' to read from standard input)
-  --tls[=cert,key[,castore]]     Use TLS
-                                 If 'cert' and 'key' is provided (they are
-                                 optional) they contains the certificate and
-                                 private key to use to connect to the server
-                                 (and if the server is configured to do so
-                                 it may authenticate to the server by using
-                                 the information in the certificate).
-                                 A non-default CA store may optionally be
-                                 provided.
-  --num-connections=num          The number of connections to use to each host
-  -B or --buffer-size size       Specify the DCP buffer size to use
-                                 [Default = 13421772]. Set to 0 to disable
-                                 DCP flow control (may use k or m to specify
-                                 kilo or megabytes).
-  -a or --acknowledge-ratio      Percentage of buffer-size to receive before
-                                 acknowledge is sent back to memcached [Default
-                                 = 0.5]. Represented as a float, i.e. 0.5 is
-                                 50%.
-  -c or --control key=value      Add a control message
-  --json                         Print the result as a JSON object
-  -N or --name                   The dcp name to use
-  -v or --verbose                Add more output
-  -4 or --ipv4                   Connect over IPv4
-  -6 or --ipv6                   Connect over IPv6
-  --enable-oso[=with-seqno-advanced]
-                                 Enable 'Out-of-Sequence Order' backfills.
-                                 If the optional value 'with-seqno-advanced' is
-                                 specified, also enable support for sending a
-                                 SeqnoAdvanced message when an out of order
-                                 snapshot is used and the transmitted item with
-                                 the greatest seqno is not the greatest seqno
-                                 of the disk snapshot.
-  --disable-collections          Disable Hello::Collections negotiation (for use
-                                 with pre-7.0 versions).
-  --stream-request-value         Path to a file containing stream-request value.
-                                 This must be a file storing a JSON object
-                                 matching the stream-request value
-                                 specification.
-  --stream-id                    Path to a file containing stream-ID config.
-                                 This must be a file storing a JSON object that
-                                 stores a single array of JSON objects, the
-                                 JSON objects are stream-request values (with
-                                 stream-ID configured). Use of this parameter
-                                 enables DCP stream-id. Example:
-                                 {
-                                    "streams":[
-                                      {"collections" : ["0"], "sid":2},
-                                      {"collections" : ["8"], "sid":5}]
-                                 }
-  --stream-request-flags         Value to use for the 4-byte stream-request
-                                 flags field.
-                                 Default value is DCP_ADD_STREAM_FLAG_TO_LATEST
-  --vbuckets=1,2,...             Only stream from a subset of vBuckets. List
-                                 vbucket as a comma-separated list of integers.
-  --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
-  --enable-change-streams        Turn on change-stream support
-  --hang                         Create streams, but do not drain them.
-  --start-inside-snapshot        Start the stream inside of a snapshot. The
-                                 client will query vbucket-details and begin at
-                                 1/2 of each vbucket's high-seqno.
-  --help                         This help text
-)";
-
-    exit(EXIT_FAILURE);
+)" << instance << std::endl
+              << std::endl;
+    std::exit(exitcode);
 }
 
 /// The DcpConnection class is responsible for a single DCP connection to
@@ -154,16 +75,13 @@ Options:
 /// We may have multiple DCP connections to the same server.
 class DcpConnection {
 public:
-    DcpConnection(const std::string& hostname,
-                  std::vector<uint16_t> v,
-                  std::shared_ptr<folly::EventBase> eb) {
-        for (auto vb : v) {
+    DcpConnection(std::unique_ptr<MemcachedConnection> c,
+                  std::string streamname,
+                  const std::vector<uint16_t>& v)
+        : connection(std::move(c)), streamname(std::move(streamname)) {
+        for (const auto& vb : v) {
             vbuckets.emplace_back(vb);
         }
-        auto [host, port, family] = cb::inet::parse_hostname(hostname, {});
-        connection = std::make_unique<MemcachedConnection>(
-                host, port, family, tls, std::move(eb));
-        connection->connect();
     }
 
     MemcachedConnection& getConnection() const {
@@ -262,6 +180,7 @@ public:
             vb.emplace_back(v.vbucket);
         }
         nlohmann::json entry = {
+                {"name", streamname},
                 {"duration_ms", duration.count()},
                 {"mutations", mutations},
                 {"total_bytes", total_bytes},
@@ -291,6 +210,7 @@ public:
 
 protected:
     std::unique_ptr<MemcachedConnection> connection;
+    const std::string streamname;
     struct StreamRequestParams {
         StreamRequestParams(uint16_t vbucket) : vbucket(vbucket) {
         }
@@ -450,31 +370,6 @@ void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
     }
 }
 
-static unsigned long strtoul(const char* arg) {
-    try {
-        char* end = nullptr;
-        auto ret = std::strtoul(arg, &end, 10);
-        if (end != nullptr) {
-            const std::string rest{end};
-            if (rest == "k" || rest == "K") {
-                ret *= 1024;
-            } else if (rest == "m" || rest == "M") {
-                ret *= 1_MiB;
-            } else if (!rest.empty()) {
-                std::cerr << "Failed to parse string (extra characters at the "
-                             "end): "
-                          << rest << std::endl;
-                std::exit(EXIT_FAILURE);
-            }
-        }
-        return ret;
-    } catch (const std::exception& exception) {
-        std::cerr << "Failed to parse string: " << exception.what()
-                  << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-}
-
 static void setControlMessages(
         MemcachedConnection& connection,
         const std::vector<std::pair<std::string, std::string>>& controls) {
@@ -497,22 +392,22 @@ static void setControlMessages(
 }
 
 static std::pair<std::string, std::string> parseControlMessage(
-        const std::string& value) {
-    auto idx = value.find('=');
-    if (idx == std::string::npos) {
+        const std::string_view value) {
+    auto pieces = cb::string::split(value, '=');
+    if (pieces.size() != 2) {
         std::cerr << "Error: control message should be key=value" << std::endl;
         std::exit(EXIT_FAILURE);
     }
-    return {value.substr(0, idx), value.substr(idx + 1)};
+    return {std::string(pieces[0]), std::string(pieces[1])};
 }
 
 /**
  * Given a string in the form of comma-separated integers, parse and return
  * a set of Vbids of those numbers.
  */
-static std::unordered_set<Vbid> parseVBuckets(const std::string& value) {
+static std::unordered_set<Vbid> parseVBuckets(const std::string_view value) {
     std::unordered_set<Vbid> vbuckets;
-    for (auto& element : split_string(value, ",")) {
+    for (auto& element : cb::string::split(value, ',')) {
         Vbid::id_type vb;
         auto result = std::from_chars(
                 element.data(), element.data() + element.size(), vb);
@@ -545,39 +440,8 @@ static std::unordered_set<Vbid> parseVBuckets(const std::string& value) {
 /// all of the vbuckets there
 static std::vector<std::pair<std::string, std::vector<uint16_t>>> vbucketmap;
 
-static void setupVBMap(const std::string& host,
-                       in_port_t in_port,
-                       sa_family_t family,
-                       const std::string& user,
-                       const std::string& password,
-                       const std::string& bucket,
-                       bool enableCollections,
-                       const std::unordered_set<Vbid>& vbuckets,
-                       std::shared_ptr<folly::EventBase> base) {
-    MemcachedConnection connection(host, in_port, family, tls, std::move(base));
-    if (tls_certificate_file && tls_private_key_file) {
-        connection.setTlsConfigFiles(*tls_certificate_file,
-                                     *tls_private_key_file,
-                                     tls_ca_store_file);
-    }
-    connection.connect();
-
-    if (!user.empty()) {
-        connection.authenticate(user, password, "PLAIN");
-    }
-
-    std::vector<cb::mcbp::Feature> features = {
-            {cb::mcbp::Feature::MUTATION_SEQNO,
-             cb::mcbp::Feature::XATTR,
-             cb::mcbp::Feature::XERROR,
-             cb::mcbp::Feature::SNAPPY,
-             cb::mcbp::Feature::JSON}};
-    if (enableCollections) {
-        features.push_back(cb::mcbp::Feature::Collections);
-    }
-    connection.setFeatures(features);
-    connection.selectBucket(bucket);
-
+static void setupVBMap(MemcachedConnection& connection,
+                       const std::unordered_set<Vbid>& vbuckets) {
     // get the CCCP
     auto rsp = connection.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
@@ -595,12 +459,13 @@ static void setupVBMap(const std::string& host,
         auto idx = h.find(':');
         h.resize(idx);
         if (h.find("$HOST") != std::string::npos) {
-            h = host;
+            h = connection.getHostname();
         }
 
         const auto& services =
                 json["nodesExt"].at(static_cast<int>(i)).at("services");
-        uint16_t port = tls ? services.at("kvSSL") : services.at("kv");
+        uint16_t port =
+                connection.isSsl() ? services.at("kvSSL") : services.at("kv");
 
         h += ":" + std::to_string(port);
         vbucketmap.emplace_back(
@@ -627,14 +492,9 @@ int main(int argc, char** argv) {
 #ifndef WIN32
     setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
 #endif
+    cb::net::initialize();
 
-    int cmd;
-    std::string port;
-    std::string host{"localhost"};
-    std::string user{};
-    std::string password{};
     std::string bucket{};
-    sa_family_t family = AF_UNSPEC;
     bool json = false;
     std::vector<std::pair<std::string, std::string>> controls = {
             {"set_priority", "high"},
@@ -656,192 +516,184 @@ int main(int argc, char** argv) {
     bool enableChangeStreams{false};
     std::unordered_set<Vbid> vbuckets;
     bool startInsideSnapshot{false};
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SNAPPY,
+             cb::mcbp::Feature::JSON}};
 
-    cb::net::initialize();
+    McProgramGetopt options;
+    using namespace cb::getopt;
+    options.addOption({[&bucket](auto value) { bucket.assign(value); },
+                       'b',
+                       "bucket",
+                       Argument::Required,
+                       "name",
+                       "The name of the bucket to operate on"});
 
-    // values for getopt_long option.val fields. Must start from non-zero.
-    enum Options {
-        Value = 1,
-        StreamId,
-        EnableOso,
-        EnableOsoWithSeqnoAdvanced,
-        DisableCollections,
-        StreamRequestFlags,
-        EnableFlatbufferSysEvents,
-        EnableChangeStreams,
-        VBuckets,
-        Hang,
-        StartInsideSnapshot,
-        Json
-    };
+    options.addOption({[&num_connections](auto value) {
+                           num_connections = std::stoi(std::string(value));
+                       },
+                       "num-connections",
+                       Argument::Required,
+                       "num",
+                       "The number of connections to use to each host"});
 
-    std::vector<option> long_options = {
-            {"ipv4", no_argument, nullptr, '4'},
-            {"ipv6", no_argument, nullptr, '6'},
-            {"host", required_argument, nullptr, 'h'},
-            {"port", required_argument, nullptr, 'p'},
-            {"bucket", required_argument, nullptr, 'b'},
-            {"password", required_argument, nullptr, 'P'},
-            {"user", required_argument, nullptr, 'u'},
-            {"tls=", optional_argument, nullptr, 't'},
-            {"help", no_argument, nullptr, 0},
-            {"buffer-size", required_argument, nullptr, 'B'},
-            {"acknowledge-ratio", required_argument, nullptr, 'a'},
-            {"control", required_argument, nullptr, 'c'},
-            {"json", no_argument, nullptr, Options::Json},
-            {"name", required_argument, nullptr, 'N'},
-            {"num-connections", required_argument, nullptr, 'n'},
-            {"verbose", no_argument, nullptr, 'v'},
-            {"enable-oso", optional_argument, nullptr, Options::EnableOso},
-            {"disable-collections",
-             no_argument,
-             nullptr,
-             Options::DisableCollections},
-            {"stream-request-value",
-             required_argument,
-             nullptr,
-             Options::Value},
-            {"stream-id", required_argument, nullptr, Options::StreamId},
-            {"stream-request-flags",
-             required_argument,
-             nullptr,
-             Options::StreamRequestFlags},
-            {"vbuckets", required_argument, nullptr, Options::VBuckets},
-            {"enable-flatbuffer-sysevents",
-             no_argument,
-             nullptr,
-             Options::EnableFlatbufferSysEvents},
-            {"enable-change-streams",
-             no_argument,
-             nullptr,
-             Options::EnableChangeStreams},
-            {"hang", no_argument, nullptr, Options::Hang},
-            {"start-inside-snapshot",
-             no_argument,
-             nullptr,
-             Options::StartInsideSnapshot},
-            {nullptr, 0, nullptr, 0}};
+    options.addOption(
+            {[](auto value) { buffersize = parse_size_string(value); },
+             'B',
+             "buffer-size",
+             Argument::Required,
+             "size",
+             "Specify the DCP buffer size to use [Default = 13421772]. Set to "
+             "0 to disable DCP flow control (may use k or m to specify kilo or "
+             "megabytes)."});
 
-    while ((cmd = getopt_long(argc,
-                              argv,
-                              "46h:p:u:b:P:B:a:c:vCMN:",
-                              long_options.data(),
-                              nullptr)) != EOF) {
-        switch (cmd) {
-        case '6':
-            family = AF_INET6;
-            break;
-        case '4':
-            family = AF_INET;
-            break;
-        case 'h':
-            host.assign(optarg);
-            break;
-        case 'p':
-            port.assign(optarg);
-            break;
-        case 'b':
-            bucket.assign(optarg);
-            break;
-        case 'u':
-            user.assign(optarg);
-            break;
-        case 'P':
-            password.assign(optarg);
-            break;
-        case 't':
-            tls = true;
-            if (optarg) {
-                std::tie(tls_certificate_file,
-                         tls_private_key_file,
-                         tls_ca_store_file) = parse_tls_option_or_exit(optarg);
-            }
-            break;
-        case 'n':
-            num_connections = strtoul(optarg);
-            break;
-        case 'B':
-            buffersize = strtoul(optarg);
-            break;
-        case 'a':
-            acknowledge_ratio = std::strtof(optarg, nullptr);
-            if (acknowledge_ratio <= 0 || acknowledge_ratio > 1) {
-                std::cerr << "Error: invalid value '" << optarg
-                          << "' specified for -acknowledge-ratio. Supported "
-                             "values are between 0 and 1\n";
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'c':
-            controls.emplace_back(parseControlMessage(optarg));
-            break;
-        case 'v':
-            verbose = true;
-            break;
-        case Options::Json:
-            json = true;
-            break;
-        case 'N':
-            name = optarg;
-            break;
-        case Options::EnableOso:
-            if (optarg) {
-                if (std::string_view{optarg} == "with-seqno-advanced") {
-                    enableOso = EnableOSO::TrueWithSeqnoAdvanced;
-                } else {
-                    std::cerr
-                            << "Error: invalid option '" << optarg
-                            << "' specified for --enable-oso. Supported values "
-                               "are 'with-seqno-advanced'\n";
-                    return EXIT_FAILURE;
-                }
-            } else {
-                enableOso = EnableOSO::True;
-            }
-            break;
-        case Options::EnableOsoWithSeqnoAdvanced:
-            break;
-        case Options::DisableCollections:
-            enableCollections = false;
-            break;
-        case Options::Value:
-            streamRequestFileName = optarg;
-            break;
-        case Options::StreamId:
-            streamIdFileName = optarg;
-            break;
-        case Options::StreamRequestFlags:
-            streamRequestFlags =
-                    static_cast<cb::mcbp::DcpAddStreamFlag>(strtoul(optarg));
-            break;
-        case Options::EnableFlatbufferSysEvents:
-            enableFlatbufferSysEvents = true;
-            break;
-        case Options::EnableChangeStreams:
-            enableChangeStreams = true;
-            break;
-        case Options::VBuckets:
-            vbuckets = parseVBuckets(optarg);
-            break;
-        case Options::Hang:
-            hang = true;
-            break;
-        case Options::StartInsideSnapshot:
-            startInsideSnapshot = true;
-            break;
-        default:
-            usage();
-            return EXIT_FAILURE;
-        }
-    }
+    options.addOption(
+            {[](auto value) {
+                 acknowledge_ratio = std::stof(std::string(value));
+                 if (acknowledge_ratio <= 0 || acknowledge_ratio > 1) {
+                     std::cerr
+                             << "Error: invalid value '" << value
+                             << "' specified for -acknowledge-ratio. Supported "
+                                "values are between 0 and 1\n";
+                     std::exit(EXIT_FAILURE);
+                 }
+             },
+             'a',
+             "acknowledge-ratio",
+             Argument::Required,
+             "ratio",
+             "Percentage of buffer-size to receive before acknowledge is sent "
+             "back to memcached [Default = 0.5]. Represented as a float, i.e. "
+             "0.5 is 50%."});
 
-    if (password == "-") {
-        password.assign(cb::getpass());
-    } else if (password.empty()) {
-        const char* env_password = std::getenv("CB_PASSWORD");
-        if (env_password) {
-            password = env_password;
-        }
+    options.addOption({[&controls](auto value) {
+                           controls.emplace_back(parseControlMessage(value));
+                       },
+                       'c',
+                       "control",
+                       Argument::Required,
+                       "key=value",
+                       "Add a control message"});
+
+    options.addOption({[&json](auto) { json = true; },
+                       "json",
+                       "Print the result as a JSON object"});
+
+    options.addOption({[&name](auto value) { name.assign(value); },
+                       'N',
+                       "name",
+                       Argument::Required,
+                       "name",
+                       "The DCP name to use"});
+
+    options.addOption(
+            {[](auto) { verbose = true; }, 'v', "verbose", "Add more output"});
+
+    options.addOption(
+            {[&enableOso](auto value) {
+                 if (value.empty()) {
+                     enableOso = EnableOSO::True;
+                 } else {
+                     if (value == "with-seqno-advanced") {
+                         enableOso = EnableOSO::TrueWithSeqnoAdvanced;
+                     } else {
+                         std::cerr << "Error: invalid option '" << value
+                                   << "' specified for --enable-oso. Supported "
+                                      "values "
+                                      "are 'with-seqno-advanced'\n";
+                         std::exit(EXIT_FAILURE);
+                     }
+                 }
+             },
+             "enable-oso",
+             Argument::Optional,
+             "with-seqno-advanced",
+             "Enable 'Out-of-Sequence Order' backfills. If the optional value "
+             "'with-seqno-advanced' is specified, also enable support for "
+             "sending a SeqnoAdvanced message when an out of order snapshot is "
+             "used and the transmitted item with the greatest seqno is not the "
+             "greatest seqno of the disk snapshot."});
+
+    options.addOption(
+            {[&enableCollections](auto) { enableCollections = false; },
+             "disable-collections",
+             "Disable Hello::Collections negotiation (for use with pre-7.0 "
+             "versions)"});
+
+    options.addOption({[&streamRequestFileName](auto value) {
+                           streamRequestFileName = value;
+                       },
+                       "stream-request-value",
+                       Argument::Required,
+                       "filename",
+                       "Path to a file containing stream-request value. This "
+                       "must be a file storing a JSON object matching the "
+                       "stream-request value specification."});
+
+    options.addOption(
+            {[&streamIdFileName](auto value) { streamIdFileName = value; },
+             "stream-id",
+             Argument::Required,
+             "filename",
+             "Path to a file containing stream-ID config. This must be a file "
+             "storing a JSON object that stores a single array of JSON "
+             "objects, the JSON objects are stream-request values (with "
+             "stream-ID configured). Use of this parameter enables DCP "
+             "stream-id. Example: {\"streams\":[{\"collections\" : [\"0\"], "
+             "\"sid\":2},{\"collections\" : [\"8\"], \"sid\":5}]}"});
+
+    options.addOption(
+            {[&streamRequestFlags](auto value) {
+                 streamRequestFlags = static_cast<cb::mcbp::DcpAddStreamFlag>(
+                         parse_size_string(value));
+             },
+             "stream-request-flags",
+             Argument::Required,
+             "number",
+             "Value to use for the 4-byte stream-request flags field. Default "
+             "value is DCP_ADD_STREAM_FLAG_TO_LATEST"});
+
+    options.addOption(
+            {[&vbuckets](auto value) { vbuckets = parseVBuckets(value); },
+             "vbuckets",
+             Argument::Required,
+             "1,2,...",
+             "Only stream from a subset of vBuckets. List vbucket as "
+             "a comma-separated list of integers."});
+
+    options.addOption({[&enableFlatbufferSysEvents](auto) {
+                           enableFlatbufferSysEvents = true;
+                       },
+                       "enable-flatbuffer-sysevents",
+                       "Turn on system events with flatbuffer values"});
+
+    options.addOption(
+            {[&enableChangeStreams](auto) { enableChangeStreams = true; },
+             "enable-change-streams",
+             "Turn on change-stream support"});
+
+    options.addOption({[](auto) { hang = true; },
+                       "hang",
+                       "Create streams, but do not drain them."});
+
+    options.addOption(
+            {[&startInsideSnapshot](auto) { startInsideSnapshot = true; },
+             "start-inside-snapshot",
+             "Start the stream inside of a snapshot. The client will query "
+             "vbucket-details and begin at 1/2 of each vbucket's high-seqno."});
+
+    options.addOption({[&options](auto) { usage(options, EXIT_SUCCESS); },
+                       "help",
+                       "This help text"});
+
+    try {
+        options.parse(argc, argv, [&options] { usage(options, EXIT_FAILURE); });
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << '\n';
+        return EXIT_FAILURE;
     }
 
     if (bucket.empty()) {
@@ -862,11 +714,11 @@ int main(int argc, char** argv) {
 
     std::optional<nlohmann::json> streamIdConfig;
     if (!streamIdFileName.empty()) {
-        auto json = nlohmann::json::parse(cb::io::loadFile(streamIdFileName));
+        auto parsed = nlohmann::json::parse(cb::io::loadFile(streamIdFileName));
         // Expected that the document is an array of stream-request values
-        auto itr = json.find("streams");
-        if (itr == json.end()) {
-            std::cerr << "stream-id content invalid:" << json.dump()
+        auto itr = parsed.find("streams");
+        if (itr == parsed.end()) {
+            std::cerr << "stream-id content invalid:" << parsed.dump()
                       << std::endl;
             return EXIT_FAILURE;
         }
@@ -882,40 +734,26 @@ int main(int argc, char** argv) {
 #endif
 
     auto event_base = std::make_shared<folly::EventBase>();
+    try {
+        options.assemble(event_base);
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    if (enableCollections) {
+        features.push_back(cb::mcbp::Feature::Collections);
+    }
+
     std::vector<std::unique_ptr<DcpConnection>> connections;
     try {
-        if (port.empty()) {
-            port = tls ? "11207" : "11210";
-        }
-        in_port_t in_port;
-        sa_family_t fam;
-        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
+        auto connection = options.getConnection();
+        connection->setFeatures(features);
+        connection->selectBucket(bucket);
 
-        if (family == AF_UNSPEC) { // The user may have used -4 or -6
-            family = fam;
-        }
+        setupVBMap(*connection, vbuckets);
 
-        setupVBMap(host,
-                   in_port,
-                   family,
-                   user,
-                   password,
-                   bucket,
-                   enableCollections,
-                   vbuckets,
-                   event_base);
-
-        std::vector<cb::mcbp::Feature> features = {
-                {cb::mcbp::Feature::MUTATION_SEQNO,
-                 cb::mcbp::Feature::XATTR,
-                 cb::mcbp::Feature::XERROR,
-                 cb::mcbp::Feature::SNAPPY,
-                 cb::mcbp::Feature::JSON}};
-        if (enableCollections) {
-            features.push_back(cb::mcbp::Feature::Collections);
-        }
-
-        for (const auto& [h, vb] : vbucketmap) {
+        for (const auto& [host, vb] : vbucketmap) {
             // We'll use a number fixed number of connections to each host
             // so we need to redistribute the vbuckets across the connections
             // to this host.
@@ -933,25 +771,30 @@ int main(int argc, char** argv) {
             }
 
             int idx = 0;
-            for (const auto& vbuckets : perConnVbuckets) {
-                connections.emplace_back(std::make_unique<DcpConnection>(
-                        h, vbuckets, event_base));
-                auto& c = connections.back()->getConnection();
-                if (!user.empty()) {
-                    c.authenticate(user, password, "PLAIN");
-                }
+            for (const auto& node_vbuckets : perConnVbuckets) {
+                const auto streamname = fmt::format("{}:{}", name, idx++);
+                auto [hostname, port, family] =
+                        cb::inet::parse_hostname(host, {});
+                auto conn = options.createAuthenticatedConnection(
+                        hostname,
+                        port,
+                        family,
+                        connection->isSsl(),
+                        event_base);
+                conn->setFeatures(features);
+                conn->selectBucket(bucket);
 
-                c.setFeatures(features);
-                c.selectBucket(bucket);
+                connections.emplace_back(std::make_unique<DcpConnection>(
+                        std::move(conn), streamname, node_vbuckets));
+                auto& c = connections.back()->getConnection();
 
                 if (startInsideSnapshot) {
                     connections.back()
                             ->queryServerAndSetupStreamRequestInsideSnapshot();
                 }
 
-                std::string nm = name + ":" + std::to_string(idx++);
                 auto rsp = c.execute(BinprotDcpOpenCommand{
-                        std::move(nm), cb::mcbp::DcpOpenFlag::Producer});
+                        streamname, cb::mcbp::DcpOpenFlag::Producer});
                 if (!rsp.isSuccess()) {
                     std::cerr
                             << "Failed to open DCP stream: " << rsp.getStatus()

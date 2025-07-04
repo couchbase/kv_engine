@@ -144,3 +144,42 @@ BucketCompressionMode parseCompressionMode(const std::string_view mode) {
     }
     throw std::invalid_argument("setCompressionMode: invalid mode specified");
 }
+
+std::size_t parse_size_string(const std::string_view arg) {
+    using namespace std::literals::string_view_literals;
+    unsigned long result = 0;
+    auto [next, ec] =
+            std::from_chars(arg.data(), arg.data() + arg.size(), result, 10);
+
+    if (ec == std::errc()) {
+        if (next != arg.data() + arg.size()) {
+            auto rest = std::string(next, arg.data() + arg.size() - next);
+            for (auto& c : rest) {
+                c = std::tolower(c);
+            }
+            if (rest == "k" || rest == "kib") {
+                result *= 1_KiB;
+            } else if (rest == "m" || rest == "mib") {
+                result *= 1_MiB;
+            } else if (rest == "g" || rest == "gib") {
+                result *= 1_GiB;
+            } else if (rest == "t" || rest == "tib") {
+                result *= 1_TiB;
+            } else if (!rest.empty()) {
+                throw std::system_error(
+                        std::make_error_code(std::errc::invalid_argument),
+                        fmt::format(
+                                "Failed to parse string. Expected: "
+                                "<num>[k,m,g,t]. value:\"{}\"",
+                                std::string_view(
+                                        next, arg.data() + arg.size() - next)));
+            }
+        }
+        return result;
+    }
+
+    throw std::system_error(std::make_error_code(ec),
+                            fmt::format("Failed to parse string. Expected: "
+                                        "<num>[k,m,g,t]. value:\"{}\"",
+                                        arg));
+}
