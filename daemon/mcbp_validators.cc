@@ -28,6 +28,7 @@
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <serverless/config.h>
@@ -2878,26 +2879,13 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
     }
 
     const std::string term = json["term"];
-    if (term.empty() || !std::ranges::all_of(term, isdigit)) {
-        const auto msg = fmt::format(
-                "start_fusion_uploader_validator: term is not digits - {}",
-                json.dump());
-        cookie.setErrorContext(msg);
+    uint64_t term_value = 0;
+    if (!safe_strtoull(term, term_value)) {
+        cookie.setErrorContext(
+                "start_fusion_uploader_validator: term is not a valid number");
         return Status::Einval;
     }
-
-    try {
-        std::stoull(term);
-    } catch (const std::exception& e) {
-        const auto msg = fmt::format(
-                "start_fusion_uploader_validator: term ({}) invalid - {}",
-                json.dump(),
-                e.what());
-        cookie.setErrorContext(msg);
-        return Status::Einval;
-    }
-
-    return status;
+    return Status::Success;
 }
 
 static Status stop_fusion_uploader_validator(Cookie& cookie) {
