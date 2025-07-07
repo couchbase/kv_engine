@@ -1103,6 +1103,13 @@ void execute_client_request_packet(Cookie& cookie,
 
 void execute_client_response_packet(Cookie& cookie,
                                     const cb::mcbp::Response& response) {
+    auto& c = cookie.getConnection();
+    if (!c.isAuthenticated()) {
+        c.shutdown();
+        c.setTerminationReason("Not authenticated");
+        return;
+    }
+
     const auto opcode = response.getClientOpcode();
     auto handler = response_handlers[uint8_t(opcode)];
     if (handler) {
@@ -1124,6 +1131,12 @@ void execute_client_response_packet(Cookie& cookie,
 void execute_server_response_packet(Cookie& cookie,
                                     const cb::mcbp::Response& response) {
     auto& c = cookie.getConnection();
+    if (!c.isAuthenticated()) {
+        c.shutdown();
+        c.setTerminationReason("Not authenticated");
+        return;
+    }
+
     const auto opcode = response.getServerOpcode();
     switch (opcode) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
@@ -1132,14 +1145,9 @@ void execute_server_response_packet(Cookie& cookie,
         return;
     case cb::mcbp::ServerOpcode::Authenticate:
     case cb::mcbp::ServerOpcode::GetAuthorization:
-        externalAuthManager->responseReceived(response);
-        return;
+        if (cookie.checkPrivilege(cb::rbac::Privilege::NodeSupervisor)
+                    .success()) {
+            externalAuthManager->responseReceived(response);
+        }
     }
-
-    LOG_INFO_CTX(
-            "Ignoring unsupported server response packet received",
-            {"conn_id", c.getId()},
-            {"opcode_number", fmt::format("{:#x}", uint32_t(opcode))},
-            {"opcode",
-             is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>"});
 }
