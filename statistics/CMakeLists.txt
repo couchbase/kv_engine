@@ -25,15 +25,15 @@ ADD_CUSTOM_COMMAND(
                      -h ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h.temp
                      -c ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc.temp
         COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h.temp
                 ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
         COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc.temp
                 ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
         COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json.temp
                 ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
         DEPENDS

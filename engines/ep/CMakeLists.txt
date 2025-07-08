@@ -109,13 +109,13 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/generated_enums.cc
                      src/generated_enums.h
                   COMMAND
-                     ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.cc.temp src/generated_configuration.cc
+                     ${CMAKE_COMMAND} -E copy src/generated_configuration.cc.temp src/generated_configuration.cc
                   COMMAND
-                     ${CMAKE_COMMAND} -E copy_if_different src/generated_configuration.h.temp src/generated_configuration.h
+                     ${CMAKE_COMMAND} -E copy src/generated_configuration.h.temp src/generated_configuration.h
                   COMMAND
-                     ${CMAKE_COMMAND} -E copy_if_different src/generated_enums.cc.temp src/generated_enums.cc
+                     ${CMAKE_COMMAND} -E copy src/generated_enums.cc.temp src/generated_enums.cc
                   COMMAND
-                     ${CMAKE_COMMAND} -E copy_if_different src/generated_enums.h.temp src/generated_enums.h
+                     ${CMAKE_COMMAND} -E copy src/generated_enums.h.temp src/generated_enums.h
                   DEPENDS
                      src/generated_configuration.cc.temp
                      src/generated_configuration.h.temp
