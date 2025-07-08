@@ -74,8 +74,8 @@ static MetricsAndOpcodesByBucket getMetricsAndOpcodesByBucket(
         const MetricFamilies& metricFamilies) {
     MetricsAndOpcodesByBucket ret;
 
-    for (auto& family : metricFamilies) {
-        for (auto& metric : family.second.metric) {
+    for (const auto& [key, family] : metricFamilies) {
+        for (const auto& metric : family.metric) {
             std::string_view bucketName;
             std::string_view opcode;
             for (auto& label : metric.label) {
@@ -89,9 +89,9 @@ static MetricsAndOpcodesByBucket getMetricsAndOpcodesByBucket(
             }
 
             auto& bucket = ret[bucketName];
-            bucket.insert({family.first});
+            bucket.insert({key, {}});
             if (!opcode.empty()) {
-                bucket.insert({family.first, opcode});
+                bucket.insert({key, opcode});
             }
         }
     }

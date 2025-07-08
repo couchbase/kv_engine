@@ -62,7 +62,7 @@ static CollectionID getCollectionID(const nlohmann::json& jsonObject) {
     if (!collection) {
         return CollectionID::Default;
     }
-    return {collection.value().get<std::string>()};
+    return {collection->get<std::string_view>()};
 }
 
 static cb::rangescan::SamplingConfiguration getSamplingConfig(
