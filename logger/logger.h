@@ -295,8 +295,8 @@ inline Json context(Json::initializer_list_t json) {
     // Avoid creating 1-element object arrays.
     // Makes context({std::move(a)}) move a, as opposed to creating [a].
     return json.size() == 1 && (*json.begin())->is_object()
-                   ? std::move(*json.begin())
-                   : json;
+                   ? Json(*json.begin())
+                   : Json(json);
 }
 
 inline Json context(Json&& json) {

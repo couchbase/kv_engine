@@ -165,12 +165,15 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
         }                                                              \
     } while (false)
 
-#define EP_LOG_CTX(severity, msg, ...)                            \
-    do {                                                          \
-        auto& logger = getGlobalBucketLogger();                   \
-        if (logger->should_log(severity)) {                       \
-            logger->logWithContext(severity, msg, {__VA_ARGS__}); \
-        }                                                         \
+#define EP_LOG_CTX(severity, msg, ...)                           \
+    do {                                                         \
+        auto& logger = getGlobalBucketLogger();                  \
+        if (logger->should_log(severity)) {                      \
+            logger->logWithContext(                              \
+                    severity,                                    \
+                    msg,                                         \
+                    cb::logger::detail::context({__VA_ARGS__})); \
+        }                                                        \
     } while (false)
 
 #define EP_LOG_RAW(severity, msg)               \

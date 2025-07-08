@@ -68,12 +68,12 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
     } catch (const std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure
         // what arguments failed above.
-        spdlog::logger::log(
-                spdlog::level::err,
-                "BucketLogger::logWithContext: Failed to log '{}' {}, what(): ",
-                msg,
-                ctx,
-                e.what());
+        spdlog::logger::log(spdlog::level::err,
+                            "BucketLogger::logWithContext: Failed to log '{}' "
+                            "{}, what(): {}",
+                            msg,
+                            ctx,
+                            e.what());
     }
 }
 

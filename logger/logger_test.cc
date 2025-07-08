@@ -246,3 +246,19 @@ TEST_F(SpdloggerTest, ShutdownRace) {
     EXPECT_EQ(1, countInFile(files.front(), "CRITICAL and this one"));
     EXPECT_EQ(1, countInFile(files.front(), "CRITICAL " + str));
 }
+
+TEST_F(SpdloggerTest, LogJsonInitialization) {
+    cb::logger::Json json = {{"a", 0}};
+    LOG_INFO_CTX("log 1", {"a", 0});
+    LOG_INFO_CTX("log 2", json);
+    LOG_INFO_CTX("log 3", std::move(json));
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), "INFO log 1 {\"a\":0}"))
+            << "Not found in " << files.front();
+    EXPECT_EQ(1, countInFile(files.front(), "INFO log 2 {\"a\":0}"))
+            << "Not found in " << files.front();
+    EXPECT_EQ(1, countInFile(files.front(), "INFO log 3 {\"a\":0}"))
+            << "Not found in " << files.front();
+}
