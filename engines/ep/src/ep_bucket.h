@@ -388,7 +388,7 @@ public:
      * BgFetchers assigned to this vBucket, the distributionKey is used to
      * select a BgFetcher from that set.
      */
-    BgFetcher& getBgFetcher(Vbid vbid, uint32_t distributionKey);
+    BgFetcher& getBgFetcher(Vbid vbid, uint64_t distributionKey);
     Flusher* getFlusher(Vbid vbid);
 
     Flusher* getOneFlusher() override;

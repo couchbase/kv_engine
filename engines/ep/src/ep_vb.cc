@@ -1161,7 +1161,7 @@ void EPVBucket::processImplicitlyCompletedPrepare(
     ht.unlocked_del(v.getHBL(), *v.release());
 }
 
-BgFetcher& EPVBucket::getBgFetcher(uint32_t distributionKey) {
+BgFetcher& EPVBucket::getBgFetcher(uint64_t distributionKey) {
     return dynamic_cast<EPBucket&>(*bucket).getBgFetcher(getId(),
                                                          distributionKey);
 }

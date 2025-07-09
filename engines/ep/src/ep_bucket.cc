@@ -2810,7 +2810,7 @@ std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {
     return os;
 }
 
-BgFetcher& EPBucket::getBgFetcher(Vbid vbid, uint32_t distributionKey) {
+BgFetcher& EPBucket::getBgFetcher(Vbid vbid, uint64_t distributionKey) {
     const auto numBgFetchers = bgFetchers.size();
     const auto numActiveVBuckets = vbMap.getVBStateCount(vbucket_state_active);
     const auto bgFetcher = selectWorkerForVBucket(
