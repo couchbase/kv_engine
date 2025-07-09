@@ -1323,6 +1323,24 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_CapAtFlushMaxBytes) {
     EXPECT_EQ(2_GiB, ckptConfig.getCheckpointMaxSize());
 }
 
+TEST_F(SingleThreadedCheckpointTest,
+       CheckpointMaxSize_RecomputeAtCheckpointQuotaChange) {
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(1_GiB);
+    config.setCheckpointMemoryRatio(1.0f);
+    config.setMaxCheckpoints(2);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    const auto& ckptConfig = manager.getCheckpointConfig();
+    EXPECT_EQ(512_MiB, ckptConfig.getCheckpointMaxSize());
+
+    config.setCheckpointMemoryRatio(0.5f);
+    EXPECT_EQ(256_MiB, ckptConfig.getCheckpointMaxSize());
+}
+
 TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
     auto& config = engine->getConfiguration();
     config.setMaxSize(100_MiB);

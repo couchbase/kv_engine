@@ -3078,6 +3078,11 @@ cb::engine_errc KVBucket::setCheckpointMemoryRatio(float ratio) {
         return cb::engine_errc::invalid_arguments;
     }
     checkpointMemoryRatio = ratio;
+
+    if (getConfiguration().getCheckpointMaxSize() == 0) {
+        autoConfigCheckpointMaxSize();
+    }
+
     return cb::engine_errc::success;
 }
 
@@ -3161,25 +3166,19 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     const auto numCheckpointsPerVB = config.getMaxCheckpoints();
 
     const auto checkpointQuota = maxSize * ckptMemRatio;
-    Expects(checkpointQuota > 0);
+    Expects(checkpointQuota >= 0);
 
     const size_t newComputedCheckpointMaxSize =
             checkpointQuota / numVBuckets / numCheckpointsPerVB;
-    if (newComputedCheckpointMaxSize < 1) {
-        throw std::invalid_argument(
-                fmt::format("KVBucket::autoConfigCheckpointMaxSize: "
-                            "newComputedCheckpointMaxSize:{} is < 1. "
-                            "max_size:{}, "
-                            "checkpoint mem ratio:{}, "
-                            "checkpoint quota:{}, "
-                            "numVBuckets:{}, "
-                            "numCheckpointsPerVB:{}",
-                            newComputedCheckpointMaxSize,
-                            maxSize,
-                            ckptMemRatio,
-                            checkpointQuota,
-                            numVBuckets,
-                            numCheckpointsPerVB));
+    if (newComputedCheckpointMaxSize == 0) {
+        EP_LOG_WARN_CTX(
+                "KVBucket::autoConfigCheckpointMaxSize: "
+                "newComputedCheckpointMaxSize is 0",
+                {"max_size", maxSize},
+                {"checkpoint_memory_ratio", ckptMemRatio},
+                {"checkpoint_quota", checkpointQuota},
+                {"num_vbuckets", numVBuckets},
+                {"num_checkpoints_per_vb", numCheckpointsPerVB});
     }
 
     const auto flushMaxBytes = config.getFlushBatchMaxBytes();

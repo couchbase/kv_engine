@@ -48,6 +48,5 @@ void CheckpointConfig::setMaxCheckpoints(size_t value) {
 }
 
 void CheckpointConfig::setCheckpointMaxSize(size_t value) {
-    Expects(value >= 1);
     checkpointMaxSize = value;
 }
