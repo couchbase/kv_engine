@@ -484,7 +484,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     // commonly occurs in rebalance where a vbucket is taken over by a new node.
     if (toFlush.ranges.size() == 1 &&
         toFlush.checkpointType == CheckpointType::InitialDisk &&
-        toFlush.historical == CheckpointHistorical::No) {
+        toFlush.historical == CheckpointHistorical::No &&
+        engine.isMagmaBlindWriteOptimisationEnabled()) {
         writeOp = WriteOperation::Insert;
     }
 

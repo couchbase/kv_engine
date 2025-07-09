@@ -688,6 +688,11 @@ static void handle_dcp_disconnect_when_stuck_name_regex(
     s.setDcpDisconnectWhenStuckNameRegexFromBase64(obj.get<std::string>());
 }
 
+static void handle_magma_blind_write_optimisation_enabled(
+        Settings& s, const nlohmann::json& obj) {
+    s.setMagmaBlindWriteOptimisationEnabled(obj.get<bool>());
+}
+
 void Settings::setDcpDisconnectWhenStuckTimeout(std::chrono::seconds val) {
     dcp_disconnect_when_stuck_timeout_seconds.store(val,
                                                     std::memory_order_release);
@@ -812,7 +817,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"dcp_disconnect_when_stuck_timeout_seconds",
              handle_dcp_disconnect_when_stuck_timeout_seconds},
             {"dcp_disconnect_when_stuck_name_regex",
-             handle_dcp_disconnect_when_stuck_name_regex}};
+             handle_dcp_disconnect_when_stuck_name_regex},
+            {"magma_blind_write_optimisation_enabled",
+             handle_magma_blind_write_optimisation_enabled}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -1394,6 +1401,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     current.count(),
                     newValue.count());
             setDcpDisconnectWhenStuckTimeout(newValue);
+        }
+    }
+
+    if (other.has.magma_blind_write_optimisation_enabled) {
+        if (other.isMagmaBlindWriteOptimisationEnabled() !=
+            isMagmaBlindWriteOptimisationEnabled()) {
+            LOG_INFO("{} magma blind write optimisation",
+                     other.isMagmaBlindWriteOptimisationEnabled() ? "Enable"
+                                                                  : "Disable");
+            setMagmaBlindWriteOptimisationEnabled(
+                    other.isMagmaBlindWriteOptimisationEnabled());
         }
     }
 }

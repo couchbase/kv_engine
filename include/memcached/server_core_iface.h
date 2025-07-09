@@ -95,4 +95,9 @@ struct ServerCoreIface {
      * when stuck.
      */
     virtual std::string getDcpDisconnectWhenStuckNameRegex() = 0;
+
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    virtual bool isMagmaBlindWriteOptimisationEnabled() = 0;
 };

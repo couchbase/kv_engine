@@ -142,6 +142,11 @@ void mock_set_dcp_disconnect_when_stuck_name_regex(std::string regex) {
     dcp_disconnect_when_stuck_name_regex = regex;
 }
 
+static std::atomic_bool magma_blind_write_optimisation_enabled{true};
+void mock_set_magma_blind_write_optimisation_enabled(bool enabled) {
+    magma_blind_write_optimisation_enabled = enabled;
+}
+
 struct MockServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mock_get_current_time();
@@ -182,6 +187,10 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     std::string getDcpDisconnectWhenStuckNameRegex() override {
         return dcp_disconnect_when_stuck_name_regex;
+    }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return magma_blind_write_optimisation_enabled.load();
     }
 };
 
