@@ -103,10 +103,12 @@ StoredDocKey RangeScanCreateTask::makeEndStoredDocKey(
     if (!key.isInclusive()) {
         // If back 'byte' is > 0
         if (sKey.back()) {
-            // subtract 1 and append 255. sKey now covers up-to but not
-            // including the input key
+            // subtract 1 and extend the key with 255. sKey now covers up-to but
+            // not including the input key
             --sKey.back();
-            sKey.append(std::numeric_limits<char>::max());
+            while (sKey.size() < MaxCollectionsKeyLen) {
+                sKey.append(std::numeric_limits<uint8_t>::max());
+            }
         } else {
             // else pop the 0
             sKey.pop_back();

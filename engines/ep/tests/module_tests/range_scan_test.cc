@@ -178,8 +178,18 @@ public:
                            size_t byteLimit,
                            cb::engine_errc status);
 
-    const std::vector<std::string> getUserStrings() const {
-        return {"user-alan", "useralan", "user.claire", "user::zoe", "users"};
+    [[nodiscard]] std::vector<std::string> getUserStrings() const {
+        return {"user-alan",
+                "useralan",
+                "user.claire",
+                "user::\0",
+                "user::zoe",
+                // 2-byte code unit sequence in UTF-8; U+0416 = Cyrillic Capital
+                // Letter Zhe Interesting case because first byte is outside
+                // ASCII range.
+                "user::\xD0\x96",
+                "user::\xFF",
+                "users"};
     }
 
     /**
@@ -520,6 +530,16 @@ TEST_P(RangeScanCreateAndContinueTest, exclusive_end_2) {
                   scanCollection,
                   {"user"},
                   {"users\0", cb::rangescan::KeyType::Exclusive});
+}
+
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end_non_ascii) {
+    auto expectedKeys = getUserKeys();
+    expectedKeys.erase(makeStoredDocKey("users", scanCollection));
+    expectedKeys.erase(makeStoredDocKey("useralan", scanCollection));
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user:;", cb::rangescan::KeyType::Exclusive});
 }
 
 TEST_P(RangeScanCreateAndContinueTest, exclusive_range) {
@@ -1101,7 +1121,7 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample) {
 TEST_P(RangeScanCreateAndContinueTest, random_sample_with_limit_1) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // We'll sample 1/2 of the keys from the collection
-    auto sampleSize = stats[scanCollection].itemCount / 2;
+    auto sampleSize = (stats[scanCollection].itemCount / 2) + 1;
 
     // key ranges covers all keys in scanCollection, kv_engine will do this
     // not the client
