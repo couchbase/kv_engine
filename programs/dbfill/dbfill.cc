@@ -285,6 +285,7 @@ int main(int argc, char** argv) {
     size_t size = 256;
     size_t documents = 1000000;
     size_t offset = 0;
+    std::optional<int> vbucket;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
@@ -322,6 +323,13 @@ int main(int argc, char** argv) {
              Argument::Required,
              "num",
              "The number of connections to each node (default: 10)"});
+
+    getopt.addOption(
+            {[&vbucket](auto value) { vbucket = stoi(std::string{value}); },
+             "vbucket",
+             Argument::Required,
+             "num",
+             "The vbucket to send mutations to (default: use all vbuckets)"});
 
     getopt.addOption({[](auto value) {
                           if (value == "per-document") {
@@ -366,10 +374,13 @@ int main(int argc, char** argv) {
         auto connection = getopt.getConnection();
         connection->selectBucket(bucket);
         auto node_locator = NodeLocator<Node>::create(
-                *connection, create_node, [](std::string_view key) {
-                    return crc32buf(
-                            reinterpret_cast<const uint8_t*>(key.data()),
-                            key.length());
+                *connection, create_node, [&vbucket](std::string_view key) {
+                    if (!vbucket) {
+                        return crc32buf(
+                                reinterpret_cast<const uint8_t*>(key.data()),
+                                key.length());
+                    }
+                    return static_cast<uint32_t>(*vbucket);
                 });
 
         node_locator->iterate(
