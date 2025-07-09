@@ -7702,3 +7702,7 @@ std::string EventuallyPersistentEngine::getDcpDisconnectWhenStuckNameRegex()
         const {
     return serverApi->core->getDcpDisconnectWhenStuckNameRegex();
 }
+
+bool EventuallyPersistentEngine::isMagmaBlindWriteOptimisationEnabled() const {
+    return serverApi->core->isMagmaBlindWriteOptimisationEnabled();
+}

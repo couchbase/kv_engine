@@ -412,6 +412,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "dcp_disconnect_when_stuck_name_regex"sv) {
             setDcpDisconnectWhenStuckNameRegexFromBase64(
                     value.get<std::string>());
+        } else if (key == "magma_blind_write_optimisation_enabled"sv) {
+            setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -1060,6 +1062,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     current.count(),
                     newValue.count());
             setDcpDisconnectWhenStuckTimeout(newValue);
+        }
+    }
+
+    if (other.has.magma_blind_write_optimisation_enabled) {
+        if (other.isMagmaBlindWriteOptimisationEnabled() !=
+            isMagmaBlindWriteOptimisationEnabled()) {
+            LOG_INFO("{} magma blind write optimisation",
+                     other.isMagmaBlindWriteOptimisationEnabled() ? "Enable"
+                                                                  : "Disable");
+            setMagmaBlindWriteOptimisationEnabled(
+                    other.isMagmaBlindWriteOptimisationEnabled());
         }
     }
 }

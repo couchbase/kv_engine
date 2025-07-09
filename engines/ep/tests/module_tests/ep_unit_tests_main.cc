@@ -87,6 +87,10 @@ public:
     std::string getDcpDisconnectWhenStuckNameRegex() override {
         return {}; // empty disables the feature
     }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {

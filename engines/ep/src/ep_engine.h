@@ -1060,6 +1060,11 @@ public:
      */
     std::string getDcpDisconnectWhenStuckNameRegex() const;
 
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    bool isMagmaBlindWriteOptimisationEnabled() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 
