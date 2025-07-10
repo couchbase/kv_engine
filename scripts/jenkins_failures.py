@@ -16,6 +16,10 @@ Jenkins.
 It attempts to group logically identical failure reasons together, and then
 outputs a list of observed failure reasons, ordered by frequency.
 
+The script also extracts NODE_NAME from Jenkins console output to help identify
+which Jenkins nodes experienced failures. If no name is found, it will be set
+to 'Unknown'.
+
 Note: This is _very_ rough-and-ready - it "works" in that it extracts useful
 information from our CV jobs, but it's likely very specialised to the currently
 observed test failures - i.e. the filtering in filter_failed_builds() will
@@ -38,6 +42,7 @@ import multiprocessing
 import os
 import re
 import sys
+import requests
 
 try:
     import jenkins
@@ -79,6 +84,14 @@ class JenkinsWithTreeFilter(jenkins.Jenkins):
             req.url += 'tree=' + self.tree_filter
         return super().jenkins_request(req, add_crumb, resolve_auth, stream)
 
+class SessionWithAuth(requests.Session):
+    """
+    A session that persists the authentication credentials.
+    """
+    def __init__(self, username, password):
+        super().__init__()
+        self.auth = (username, password)
+
 
 def init_worker(function, url, username, password):
     """Initialise a multiprocessing worker by establishing a connection to
@@ -88,6 +101,42 @@ def init_worker(function, url, username, password):
     # We only ever access these fields from these code paths.
     function.server.tree_filter = 'url,result,timestamp,actions[parameters[*],foundFailureCauses[*]]'
 
+    # Initialize for HTTP requests
+    function.request_session = SessionWithAuth(username, password)
+
+def get_node_name(server, job, number, session):
+    console_url = None
+
+    if job.startswith('kv_engine-windows-'):
+        # Sample console URL: /job/kv_engine-windows-master/63025/consoleText
+        console_url = f"{server.server}job/{job}/{number}/consoleText"
+    else:
+        # We need the branch separate from the job name to construct the console URL.
+        # Sample console URL: /job/kv_engine.ASan-UBSan/job/master/43301/consoleText
+        (job_name, branch) = job.split('/')
+        console_url = f"{server.server}job/{job_name}/job/{branch}/{number}/consoleText"
+
+    try:
+        response = session.get(console_url, stream=True, timeout=30)
+        response.raise_for_status()
+
+        # Node name in the first ~5000 bytes, however load 10000 bytes to be safe.
+        for chunk in response.iter_content(decode_unicode=True, chunk_size=10000):
+            match = re.search(r'NODE_NAME=([^\s]+)', chunk)
+            if match:
+                return match.group(1)
+            break
+
+        logging.warning(f"Failed to find NODE_NAME for {job}-{number}")
+
+    except requests.exceptions.RequestException as e:
+        logging.debug(f"get_node_name: Failed to fetch from {console_url}: {e}")
+        return None
+    except Exception as e:
+        logging.warning(f"get_node_name: Failed to fetch console output for {job}-{number}: {e}")
+        return None
+
+    return None
 
 def get_build_info(build):
     """For the given build job and number, download the information for
@@ -105,6 +154,15 @@ def get_build_info(build):
     if result in ('SUCCESS', 'ABORTED'):
         # Job succeeded or explicitly aborted - skip
         return
+
+    session = get_build_info.request_session
+    node_name = get_node_name(get_build_info.server, job, number, session)
+    if node_name:
+        info['node_name'] = node_name
+        logging.debug("Build: {}-{}: Node: {}".format(job, number, node_name))
+    else:
+        info['node_name'] = 'Unknown'
+
     key = job + "-" + str(number)
     return (key, info)
 
@@ -189,7 +247,8 @@ def extract_failed_builds(details):
                     failures[description].append({'description': description,
                                                   'gerrit_patch': gerrit_patch,
                                                   'timestamp': timestamp,
-                                                  'url': info['url']})
+                                                  'url': info['url'],
+                                                  'node_name': info['node_name']})
         if not description:
             logging.warning(
                 "extract_failed_builds: Did not find failure cause for " +
@@ -459,8 +518,9 @@ if __name__ == '__main__':
                 (num_failures * 100.0) / total_failures))
         for d_idx, d in enumerate(details[:100]):
             human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
-            print("* Time: {}, Jenkins job: {}, patch: {}".format(human_time,
-                  d['url'], d['gerrit_patch']))
+            node_name = d['node_name']
+            print("* Time: {}, Jenkins job: {}, patch: {}, node: {}".format(human_time,
+                  d['url'], d['gerrit_patch'], node_name))
             if len(d['variables']) > 0:
                 print(' `- where ', end='')
                 for name, value in d['variables'].items():
