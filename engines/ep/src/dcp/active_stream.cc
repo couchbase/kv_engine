@@ -408,7 +408,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
         // seqno. Expect the same to true.
         Expects(purgeSeqno <= diskEndSeqno);
 
-        auto psToSend = supportPurgeSeqnoInSnapshot()
+        auto psToSend = supportPurgeSeqnoInSnapshot(hpsInSnapshotRange)
                                 ? std::make_optional(purgeSeqno)
                                 : std::nullopt;
 
