@@ -1058,11 +1058,14 @@ class MemcachedClient(object):
         self._update_collection_map(manifest)
 
     def get_collections(self, update_map=False):
+        tmpVbucketId = self.vbucketId
+        self.vbucketId = 0
         rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_MANIFEST,
                          '',
                          '')
         if update_map:
             self._update_collection_map(rv[2])
+        self.vbucketId = tmpVbucketId
         return rv
 
     def get_collection_id(self, path):
