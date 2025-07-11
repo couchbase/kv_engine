@@ -665,8 +665,8 @@ protected:
         return syncReplication == SyncReplication::SyncReplication;
     }
 
-    bool supportHPSInSnapshot(bool hpsInSnapshotRange) const {
-        return engine->isDcpSnapshotMarkerHPSEnabled() && hpsInSnapshotRange &&
+    bool supportHPSInSnapshot() const {
+        return engine->isDcpSnapshotMarkerHPSEnabled() &&
                supportSyncReplication() &&
                (maxMarkerVersion == MarkerVersion::V2_2);
     }

@@ -3504,9 +3504,27 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
     checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
 
     dcp_step(h, cookie, producers);
+    checkeq(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+            producers.last_op,
+            "Failed, not seqno ack");
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
+
+    dcp_step(h, cookie, producers);
     checkeq(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
             producers.last_op,
             "Failed, not snapshot marker");
+    checkeq(cb::mcbp::Status::Success,
+            producers.last_status,
+            "Failed, not success");
+    checkne(opaque, producers.last_opaque, "Failed, opaque doesn't match");
+
+    dcp_step(h, cookie, producers);
+    checkeq(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+            producers.last_op,
+            "Failed, not seqno ack");
     checkeq(cb::mcbp::Status::Success,
             producers.last_status,
             "Failed, not success");

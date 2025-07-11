@@ -388,20 +388,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
         auto sendHCS = supportSyncReplication() && highCompletedSeqno;
         auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
 
-        // A consumer might have previously receive a snapshot marker from a
-        // lower version node & the HPS on the replica could have already been
-        // bumped to the snapEnd of the previous disk snapshot. When this node
-        // become active & resumes DCP replication the HPS we could send could
-        // be lower than the last send snapEnd. Make sure to pack the HPS in the
-        // snapshot marker only if it is in the snapshot range.
-
-        auto hpsInSnapshotRange = highPreparedSeqno &&
-                                  highPreparedSeqno >= diskStartSeqno &&
-                                  highPreparedSeqno <= diskEndSeqno;
-
-        auto hpsToSend = supportHPSInSnapshot(hpsInSnapshotRange)
-                                 ? highPreparedSeqno
-                                 : std::nullopt;
+        auto hpsToSend =
+                supportHPSInSnapshot() ? highPreparedSeqno : std::nullopt;
 
         // The diskEndSeqno & purgeSeqno are derived from the same
         // BySeqnoScanContext and therefore purge seqno will always be <= end

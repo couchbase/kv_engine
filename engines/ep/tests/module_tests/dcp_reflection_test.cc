@@ -1837,10 +1837,7 @@ TEST_P(DCPLoopbackStreamTest,
             3,
             6,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
-            std::nullopt); // We have negotiated the marker version to v2.2, but
-                           // the producer is still using v2.0, since the hps
-                           // (0, since there were no durable writes performed)
-                           // is not in the snapshot range (3,6).
+            0);
 
     route0_1_new.transferMutation(k4, 4);
     route0_1_new.transferMutation(k5, 5);
@@ -1851,6 +1848,95 @@ TEST_P(DCPLoopbackStreamTest,
     EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
     // Make sure the flusher has actually run & the hps is updated.
     EXPECT_EQ(6, replicaVB->getHighPreparedSeqno());
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       MB_66577_non_zero_hps_outside_snapshot_range_causes_monotonic_violation_in_pdm) {
+    // store a couple of items
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+    ASSERT_EQ(cb::engine_errc::success, storeCommit(k2, 2));
+
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+
+    // flush to disk
+    flushNodeIfPersistent(Node0);
+
+    // clear the checkpoint to force a backfill from disk
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    // create a producer<->consumer with v2.0 marker
+    // Simulates a route between a < 8.0 node and a 8.0 node
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_0);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    route0_1.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 3);
+    route0_1.transferMutation(k3, 4);
+
+    flushNodeIfPersistent(Node1);
+    flushNodeIfPersistent(Node1);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+
+    route0_1.destroy();
+    activeVb->checkpointManager->clear();
+
+    // Add some more keys to the vbucket
+    auto k4 = makeStoredDocKey("k4");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k4));
+    auto k5 = makeStoredDocKey("k5");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k5));
+    auto k6 = makeStoredDocKey("k6");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k6));
+
+    // flush to disk
+    flushNodeIfPersistent(Node0);
+    // clear the checkpoint to force a backfill from disk
+    activeVb->checkpointManager->clear();
+
+    // create a new producer<->consumer with v2.2 marker
+    // Simulates a route between a 8.0 node and a 8.0 node
+    auto route0_1_new = createDcpRoute(Node0,
+                                       Node1,
+                                       EnableExpiryOutput::Yes,
+                                       SyncReplication::SyncReplication,
+                                       MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1_new.doStreamRequest().first);
+
+    route0_1_new.transferSnapshotMarker(
+            4,
+            7,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            2);
+
+    route0_1_new.transferMutation(k4, 5);
+    route0_1_new.transferMutation(k5, 6);
+    route0_1_new.transferMutation(k6, 7);
+
+    flushNodeIfPersistent(Node1);
+
+    // Make sure the flusher has actually run & the hps is updated.
+    EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
+    // The hps in the snapshot marker is not in the snapshot range, therefore
+    // the HPS should be updated to the snapEnd.
+    EXPECT_EQ(7, replicaVB->getHighPreparedSeqno());
 }
 
 // Ideally this class would've inherited STParameterizedBucketTest which already

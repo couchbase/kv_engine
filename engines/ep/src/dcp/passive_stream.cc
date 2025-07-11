@@ -919,7 +919,38 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
     if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
         supportsSyncReplication) {
-        cur_snapshot_hps = marker->getHighPreparedSeqno();
+        const auto hps = marker->getHighPreparedSeqno();
+        if (hps > marker->getEndSeqno()) {
+            const auto msg = fmt::format(
+                    "PassiveStream::processMarker: stream:{} {}, flags:{}, "
+                    "snapStart:{}, snapEnd:{}, HPS:{} - HPS is out of range",
+                    name_,
+                    vb_,
+                    marker->getFlags(),
+                    marker->getStartSeqno(),
+                    marker->getEndSeqno(),
+                    to_string_or_none(hps));
+            throw std::logic_error(msg);
+        }
+
+        // The HPS can be lower than the snapshot start seqno in the following
+        // cases:
+        // 1. Active is a 8.0 node, but sending HPS in marker v2.2 is disabled
+        // on the active; HPS is then encoded as 0 in the marker.
+        // 2. Active is a pre-8.0 version node & it sends marker v2.0; HPS is
+        // encoded is encoded in the marker.
+        // 3. Offline upgrade:
+        //    - There is a offline upgrade of the cluster from < 8.0 to 8.0.
+        //    - The replica has HPS on disk set to a non-zero value (due to
+        //      older logic where we bumped the HPS to snapEnd each time entire
+        //      snapshot is consumed, despite not having any durability work
+        //      load).
+        //    - When the 8.0 cluster starts, since both the consumer & producer
+        //      have negotiated marker_version=2.2, active sends out HPS=0 &
+        //      replica warms up from disk a non-zero value, which cause a
+        //      monotonic violation on the replica, eventually when the active
+        //      sent snapshot marker is processed.
+        cur_snapshot_hps = hps < marker->getStartSeqno() ? std::nullopt : hps;
     } else {
         cur_snapshot_hps = std::nullopt;
     }
