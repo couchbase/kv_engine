@@ -3893,8 +3893,7 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
 cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const char* stat_key,
-        int nkey,
+        std::string_view stat_key,
         VBucketStatsDetailLevel detail) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
@@ -3943,38 +3942,24 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
         return cb::engine_errc::would_block;
     }
 
-    if (nkey > 16 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+    if (stat_key.size() > 16 && stat_key.starts_with("vbucket-details")) {
         Expects(detail == VBucketStatsDetailLevel::Full);
-        std::string vbid(&stat_key[16], nkey - 16);
-        uint16_t vbucket_id(0);
-        if (!safe_strtous(vbid, vbucket_id)) {
-            return cb::engine_errc::invalid_arguments;
+        auto [status, vb] = getValidVBucketFromString(stat_key.substr(16));
+        if (status != cb::engine_errc::success) {
+            return status;
         }
-        Vbid vbucketId = Vbid(vbucket_id);
-        VBucketPtr vb = getVBucket(vbucketId);
-        if (!vb) {
-            return cb::engine_errc::not_my_vbucket;
-        }
-
         StatVBucketVisitor::addVBStats(cookie,
                                        add_stat,
                                        *vb,
                                        kvBucket.get(),
                                        VBucketStatsDetailLevel::Full);
-    } else if (nkey > 25 &&
-               strncmp(stat_key, "vbucket-durability-state", 24) == 0) {
+    } else if (stat_key.size() > 25 &&
+               stat_key.starts_with("vbucket-durability-state")) {
         Expects(detail == VBucketStatsDetailLevel::Durability);
-        std::string vbid(&stat_key[25], nkey - 25);
-        uint16_t vbucket_id(0);
-        if (!safe_strtous(vbid, vbucket_id)) {
-            return cb::engine_errc::invalid_arguments;
+        auto [status, vb] = getValidVBucketFromString(stat_key.substr(25));
+        if (status != cb::engine_errc::success) {
+            return status;
         }
-        Vbid vbucketId = Vbid(vbucket_id);
-        VBucketPtr vb = getVBucket(vbucketId);
-        if (!vb) {
-            return cb::engine_errc::not_my_vbucket;
-        }
-
         StatVBucketVisitor::addVBStats(cookie,
                                        add_stat,
                                        *vb,
@@ -4273,25 +4258,18 @@ public:
 cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const char* stat_key,
-        int nkey) {
-    if (nkey == 10) {
+        std::string_view stat_key) {
+    if (stat_key.size() == 10) {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpoint");
         auto* kvbucket = getKVBucket();
         StatCheckpointVisitor scv(kvbucket, cookie, add_stat);
         kvbucket->visit(scv);
         return cb::engine_errc::success;
     }
-    if (nkey > 11) {
-        std::string vbid(&stat_key[11], nkey - 11);
-        uint16_t vbucket_id(0);
-        if (!safe_strtous(vbid, vbucket_id)) {
-            return cb::engine_errc::invalid_arguments;
-        }
-        Vbid vbucketId = Vbid(vbucket_id);
-        VBucketPtr vb = getVBucket(vbucketId);
-        if (!vb) {
-            return cb::engine_errc::not_my_vbucket;
+    if (stat_key.size() > 11) {
+        auto [status, vb] = getValidVBucketFromString(stat_key.substr(11));
+        if (status != cb::engine_errc::success) {
+            return status;
         }
         StatCheckpointVisitor::addCheckpointStat(
                 cookie, add_stat, kvBucket.get(), *vb);
@@ -4303,29 +4281,20 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
 cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const char* stat_key,
-        int nkey) {
+        std::string_view stat_key) {
     const uint8_t size = 18; // size  of "durability-monitor"
-    if (nkey == size) {
+    if (stat_key.size() == size) {
         // Case stat_key = "durability-monitor"
         // @todo: Return aggregated stats for all VBuckets.
         //     Implement as async, we don't what to block for too long.
         return cb::engine_errc::not_supported;
     }
-    if (nkey > size + 1) {
+    if (stat_key.size() > size + 1) {
         // Case stat_key = "durability-monitor <vbid>"
-        const uint16_t vbidPos = size + 1;
-        std::string vbid_(&stat_key[vbidPos], nkey - vbidPos);
-        uint16_t vbid(0);
-        if (!safe_strtous(vbid_, vbid)) {
-            return cb::engine_errc::invalid_arguments;
-        }
-
-        VBucketPtr vb = getVBucket(Vbid(vbid));
-        if (!vb) {
-            // @todo: I would return an error code, but just replicating the
-            //     behaviour of other stats for now
-            return cb::engine_errc::success;
+        auto [status, vb] =
+                getValidVBucketFromString(stat_key.substr(size + 1));
+        if (status != cb::engine_errc::success) {
+            return status;
         }
         vb->addDurabilityMonitorStats(add_stat, cookie);
     }
@@ -5129,9 +5098,7 @@ EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     uint16_t vbucket_id;
-
-    std::string vbNumString(vbNum);
-    if (!safe_strtous(vbNumString, vbucket_id)) {
+    if (!safe_strtous(vbNum, vbucket_id)) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     Vbid vbid = Vbid(vbucket_id);
@@ -5145,29 +5112,20 @@ EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
 cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const char* stat_key,
-        int nkey) {
+        std::string_view stat_key) {
     if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
         return cb::engine_errc::would_block;
     }
 
-    if (nkey > 14) {
-        std::string value(stat_key + 14, nkey - 14);
-
-        try {
-            checkNumeric(value.c_str());
-        } catch(std::runtime_error &) {
-            return cb::engine_errc::invalid_arguments;
+    if (stat_key.size() > 14) {
+        auto [status, vb] = getValidVBucketFromString(stat_key.substr(14));
+        if (status != cb::engine_errc::success) {
+            return status;
         }
-
-        Vbid vbucket(atoi(value.c_str()));
-        VBucketPtr vb = getVBucket(vbucket);
-        if (!vb || vb->getState() == vbucket_state_dead) {
+        if (vb->getState() == vbucket_state_dead) {
             return cb::engine_errc::not_my_vbucket;
         }
-
         addSeqnoVbStats(cookie, add_stat, vb);
-
         return cb::engine_errc::success;
     }
 
@@ -5614,35 +5572,21 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doHashStats(c, add_stat);
     }
     if (key == "vbucket"sv) {
-        return doVBucketStats(c,
-                              add_stat,
-                              key.data(),
-                              key.size(),
-                              VBucketStatsDetailLevel::State);
+        return doVBucketStats(c, add_stat, key, VBucketStatsDetailLevel::State);
     }
     if (key == "prev-vbucket"sv) {
-        return doVBucketStats(c,
-                              add_stat,
-                              key.data(),
-                              key.size(),
-                              VBucketStatsDetailLevel::PreviousState);
+        return doVBucketStats(
+                c, add_stat, key, VBucketStatsDetailLevel::PreviousState);
     }
     if (key.starts_with("vbucket-durability-state")) {
-        return doVBucketStats(c,
-                              add_stat,
-                              key.data(),
-                              key.size(),
-                              VBucketStatsDetailLevel::Durability);
+        return doVBucketStats(
+                c, add_stat, key, VBucketStatsDetailLevel::Durability);
     }
     if (key.starts_with("vbucket-details")) {
-        return doVBucketStats(c,
-                              add_stat,
-                              key.data(),
-                              key.size(),
-                              VBucketStatsDetailLevel::Full);
+        return doVBucketStats(c, add_stat, key, VBucketStatsDetailLevel::Full);
     }
     if (key.starts_with("vbucket-seqno")) {
-        return doSeqnoStats(c, add_stat, key.data(), key.size());
+        return doSeqnoStats(c, add_stat, key);
     }
 
     if (key == "encryption-key-ids") {
@@ -5650,10 +5594,10 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     }
 
     if (key.starts_with("checkpoint")) {
-        return doCheckpointStats(c, add_stat, key.data(), key.size());
+        return doCheckpointStats(c, add_stat, key);
     }
     if (key.starts_with("durability-monitor")) {
-        return doDurabilityMonitorStats(c, add_stat, key.data(), key.size());
+        return doDurabilityMonitorStats(c, add_stat, key);
     }
     if (key == "timings"sv) {
         doTimingStats(bucketCollector);

@@ -1263,8 +1263,7 @@ protected:
                                   const AddStatFn& add_stat);
     cb::engine_errc doVBucketStats(CookieIface& cookie,
                                    const AddStatFn& add_stat,
-                                   const char* stat_key,
-                                   int nkey,
+                                   std::string_view,
                                    VBucketStatsDetailLevel detail);
     cb::engine_errc doEncryptionKeyIdsStats(CookieIface& cookie,
                                             const AddStatFn& add_stat);
@@ -1274,15 +1273,13 @@ protected:
                                std::string_view keyArgs);
     cb::engine_errc doCheckpointStats(CookieIface& cookie,
                                       const AddStatFn& add_stat,
-                                      const char* stat_key,
-                                      int nkey);
+                                      std::string_view);
     cb::engine_errc doCheckpointDump(CookieIface& cookie,
                                      const AddStatFn& addStat,
                                      std::string_view keyArgs);
     cb::engine_errc doDurabilityMonitorStats(CookieIface& cookie,
                                              const AddStatFn& add_stat,
-                                             const char* stat_key,
-                                             int nkey);
+                                             std::string_view);
     cb::engine_errc doDurabilityMonitorDump(CookieIface& cookie,
                                             const AddStatFn& addStat,
                                             std::string_view keyArgs);
@@ -1335,8 +1332,7 @@ protected:
                                     const AddStatFn& add_stat);
     cb::engine_errc doSeqnoStats(CookieIface& cookie,
                                  const AddStatFn& add_stat,
-                                 const char* stat_key,
-                                 int nkey);
+                                 std::string_view);
     void addSeqnoVbStats(CookieIface& cookie,
                          const AddStatFn& add_stat,
                          const VBucketPtr& vb);
