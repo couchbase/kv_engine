@@ -152,9 +152,8 @@ public:
 
     void public_streamAccepted(uint32_t opaque,
                                cb::mcbp::Status status,
-                               const uint8_t* body,
-                               uint32_t bodylen) {
-        streamAccepted(opaque, status, body, bodylen);
+                               cb::const_byte_buffer newFailoverLog) {
+        streamAccepted(opaque, status, newFailoverLog);
     }
 
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {

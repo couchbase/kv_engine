@@ -676,8 +676,10 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(
         consumer->public_streamAccepted(
                 sr->getOpaque(),
                 cb::mcbp::Status::Success,
-                reinterpret_cast<const uint8_t*>(networkFailoverLog.data()),
-                networkFailoverLog.size() * sizeof(vbucket_failover_t));
+                cb::const_byte_buffer{reinterpret_cast<const uint8_t*>(
+                                              networkFailoverLog.data()),
+                                      networkFailoverLog.size() *
+                                              sizeof(vbucket_failover_t)});
 
         auto addStreamResp = consumer->getVbucketStream(vbid)->next();
         EXPECT_EQ(DcpResponse::Event::AddStream, addStreamResp->getEvent());

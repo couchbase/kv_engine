@@ -22,15 +22,15 @@
  * project.
  */
 
-const uint32_t StreamRequest::baseMsgBytes = 72;
-const uint32_t AddStreamResponse::baseMsgBytes = 28;
-const uint32_t SnapshotMarkerResponse::baseMsgBytes = 24;
-const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
-const uint32_t StreamEndResponse::baseMsgBytes = 28;
-const uint32_t SetVBucketState::baseMsgBytes = 25;
-const uint32_t SnapshotMarker::baseMsgBytes = 24;
-const uint32_t OSOSnapshot::baseMsgBytes = 28;
-const uint32_t SeqnoAdvanced::baseMsgBytes = 32;
+const size_t StreamRequest::baseMsgBytes = 72;
+const size_t AddStreamResponse::baseMsgBytes = 28;
+const size_t SnapshotMarkerResponse::baseMsgBytes = 24;
+const size_t SetVBucketStateResponse::baseMsgBytes = 24;
+const size_t StreamEndResponse::baseMsgBytes = 28;
+const size_t SetVBucketState::baseMsgBytes = 25;
+const size_t SnapshotMarker::baseMsgBytes = 24;
+const size_t OSOSnapshot::baseMsgBytes = 28;
+const size_t SeqnoAdvanced::baseMsgBytes = 32;
 
 const char* DcpResponse::to_string() const {
     switch (event_) {
@@ -111,15 +111,15 @@ uint32_t MutationResponse::getHeaderSize() const {
     }
 }
 
-uint32_t MutationResponse::getMessageSize() const {
+size_t MutationResponse::getMessageSize() const {
     const uint32_t header = getHeaderSize();
-    uint32_t keySize = 0;
+    size_t keySize = 0;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         keySize = item_->getKey().size();
     } else {
         keySize = item_->getKey().makeDocKeyWithoutCollectionID().size();
     }
-    uint32_t body = keySize + item_->getNBytes();
+    size_t body = keySize + item_->getNBytes();
     body += (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     return header + body;
 }
@@ -137,8 +137,8 @@ MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
       emd(nullptr) {
 }
 
-uint32_t MutationConsumerMessage::getMessageSize() const {
-    uint32_t body = MutationResponse::getMessageSize();
+size_t MutationConsumerMessage::getMessageSize() const {
+    auto body = MutationResponse::getMessageSize();
 
     // Check to see if we need to include the extended meta data size.
     if (emd) {
@@ -181,7 +181,7 @@ CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
                       key.getEncoding()) {
 }
 
-uint32_t CommitSyncWrite::getMessageSize() const {
+size_t CommitSyncWrite::getMessageSize() const {
     auto size = commitBaseMsgBytes;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         size += key.size();
@@ -217,7 +217,7 @@ AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
                      key.getEncoding()) {
 }
 
-uint32_t AbortSyncWrite::getMessageSize() const {
+size_t AbortSyncWrite::getMessageSize() const {
     auto size = abortBaseMsgBytes;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         size += key.size();
@@ -227,7 +227,7 @@ uint32_t AbortSyncWrite::getMessageSize() const {
     return size;
 }
 
-uint32_t SnapshotMarker::getMessageSize() const {
+size_t SnapshotMarker::getMessageSize() const {
     auto rv = baseMsgBytes;
     if (purgeSeqno || highPreparedSeqno) {
         rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +

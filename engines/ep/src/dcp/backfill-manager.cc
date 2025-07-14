@@ -425,7 +425,7 @@ void BackfillManager::moveSnoozingToActiveQueue() {
     }
 }
 
-int BackfillManager::getNumInProgressBackfills(
+size_t BackfillManager::getNumInProgressBackfills(
         const std::unique_lock<std::mutex>& lh) const {
     return initializingBackfills.size() + activeBackfills.size() +
            snoozingBackfills.size() + numInProgressUntrackedBackfills;

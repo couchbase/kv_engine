@@ -35,7 +35,7 @@ public:
 
     cb::engine_errc handleFlowCtl(DcpMessageProducersIface& producers);
 
-    void incrFreedBytes(uint32_t bytes);
+    void incrFreedBytes(size_t bytes);
 
     size_t getBufferSize() const;
 
@@ -49,7 +49,7 @@ public:
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) const;
 
-    uint64_t getFreedBytes() const {
+    auto getFreedBytes() const {
         return freedBytes.load();
     }
 
@@ -104,11 +104,11 @@ private:
     /* To keep track of when last buffer ack was sent */
     rel_time_t lastBufferAck;
 
-    /* Total bytes acked by this connection. This is used to for stats */
-    std::atomic<uint64_t> ackedBytes;
+    /* Total bytes acked by this connection. This is used for stats */
+    std::atomic<size_t> ackedBytes;
 
     /* Bytes processed from the flow control buffer */
-    std::atomic<uint64_t> freedBytes;
+    std::atomic<size_t> freedBytes;
 
     // Ratio of freed bytes in the DCP Consumer buffer that triggers a BufferAck
     // message to the Producer

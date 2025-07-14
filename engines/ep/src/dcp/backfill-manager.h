@@ -317,7 +317,8 @@ protected:
     void moveSnoozingToActiveQueue();
 
     /// @returns the number of backfills in progress
-    int getNumInProgressBackfills(const std::unique_lock<std::mutex>& lh) const;
+    size_t getNumInProgressBackfills(
+            const std::unique_lock<std::mutex>& lh) const;
 
     /// The source queue of a dequeued backfill
     enum class Source {

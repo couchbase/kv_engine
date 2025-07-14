@@ -115,7 +115,7 @@ public:
         return (event_ == Event::SystemEvent);
     }
 
-    virtual uint32_t getMessageSize() const = 0;
+    virtual size_t getMessageSize() const = 0;
 
     /**
      * Return approximately how many bytes this response message is using
@@ -212,11 +212,11 @@ public:
         return requestValue_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -252,11 +252,11 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -276,11 +276,11 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -299,11 +299,11 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -339,12 +339,12 @@ public:
         return vbucket_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes +
                (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -370,11 +370,11 @@ public:
         return state_;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -423,7 +423,7 @@ public:
         return flags_;
     }
 
-    uint32_t getMessageSize() const override;
+    size_t getMessageSize() const override;
 
     std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
@@ -441,7 +441,7 @@ public:
         return purgeSeqno;
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -516,7 +516,7 @@ public:
     /**
       * @return size of message to be sent over the wire to the consumer.
       */
-    uint32_t getMessageSize() const override;
+    size_t getMessageSize() const override;
 
     /**
      * @returns a size representing approximately the memory used, in this case
@@ -579,11 +579,11 @@ public:
         }
     }
 
-    static const uint32_t mutationBaseMsgBytes = 55;
-    static const uint32_t deletionBaseMsgBytes = 42;
-    static const uint32_t deletionV2BaseMsgBytes = 45;
-    static const uint32_t expirationBaseMsgBytes = 44;
-    static const uint32_t prepareBaseMsgBytes = 57;
+    static const size_t mutationBaseMsgBytes = 55;
+    static const size_t deletionBaseMsgBytes = 42;
+    static const size_t deletionV2BaseMsgBytes = 45;
+    static const size_t expirationBaseMsgBytes = 44;
+    static const size_t prepareBaseMsgBytes = 57;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -655,7 +655,7 @@ public:
     /**
      * @return size of message on the wire
      */
-    uint32_t getMessageSize() const override;
+    size_t getMessageSize() const override;
 
     ExtendedMetaData* getExtMetaData() {
         return emd.get();
@@ -680,7 +680,7 @@ public:
           payload(preparedSeqno) {
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return sizeof(cb::mcbp::Request) +
                sizeof(cb::mcbp::request::DcpSeqnoAcknowledgedPayload);
     }
@@ -736,11 +736,11 @@ public:
         return payload.getCommitSeqno();
     }
 
-    static constexpr uint32_t commitBaseMsgBytes =
+    static constexpr size_t commitBaseMsgBytes =
             sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpCommitPayload);
 
-    uint32_t getMessageSize() const override;
+    size_t getMessageSize() const override;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -803,11 +803,11 @@ public:
         return OptionalSeqno{payload.getAbortSeqno()};
     }
 
-    static constexpr uint32_t abortBaseMsgBytes =
+    static constexpr size_t abortBaseMsgBytes =
             sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
 
-    uint32_t getMessageSize() const override;
+    size_t getMessageSize() const override;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -830,7 +830,7 @@ public:
                            uint64_t preparedSeqno,
                            uint64_t abortSeqno);
 
-    static constexpr uint32_t abortBaseMsgBytes =
+    static constexpr size_t abortBaseMsgBytes =
             sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
 
@@ -851,9 +851,9 @@ public:
     }
     // baseMsgBytes is the unpadded size of the
     // protocol_binary_request_dcp_system_event::body struct
-    static const uint32_t baseMsgBytes = sizeof(cb::mcbp::Request) +
-                                         sizeof(uint64_t) + sizeof(uint32_t) +
-                                         sizeof(uint8_t);
+    static const size_t baseMsgBytes = sizeof(cb::mcbp::Request) +
+                                       sizeof(uint64_t) + sizeof(uint32_t) +
+                                       sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
     virtual std::string_view getKey() const = 0;
     virtual std::string_view getEventData() const = 0;
@@ -888,7 +888,7 @@ public:
         }
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + key.size() + eventData.size();
     }
 
@@ -959,7 +959,7 @@ public:
     static std::unique_ptr<SystemEventFlatBuffers> makeWithFlatBuffersValue(
             uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid);
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
                getEventData().size() +
                (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
@@ -1386,12 +1386,12 @@ public:
         return !start;
     }
 
-    uint32_t getMessageSize() const override {
+    size_t getMessageSize() const override {
         return baseMsgBytes +
                (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -1422,12 +1422,12 @@ public:
         return {advancedSeqno};
     }
 
-    [[nodiscard]] uint32_t getMessageSize() const override {
+    [[nodiscard]] size_t getMessageSize() const override {
         return baseMsgBytes +
                (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
-    static const uint32_t baseMsgBytes;
+    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;

@@ -711,7 +711,7 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                                             cb::const_byte_buffer meta,
                                             uint32_t deleteTime) {
     IncludeDeleteTime includeDeleteTime;
-    uint32_t bytes = 0;
+    size_t bytes = 0;
     DeleteSource deleteSource;
     switch (origin) {
     case DeleteType::Deletion: {
@@ -996,7 +996,7 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
             return false;
         }
 
-        streamAccepted(opaque, status, value.data(), value.size());
+        streamAccepted(opaque, status, value);
         return true;
     }
     if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
@@ -1372,8 +1372,7 @@ void DcpConsumer::notifyStreamReady(Vbid vbucket) {
 
 void DcpConsumer::streamAccepted(uint32_t opaque,
                                  cb::mcbp::Status status,
-                                 const uint8_t* body,
-                                 uint32_t bodylen) {
+                                 cb::const_byte_buffer newFailoverLog) {
     auto oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
         uint32_t add_opaque = oitr->second.first;
@@ -1383,7 +1382,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
         if (stream && stream->getOpaque() == opaque && stream->isPending()) {
             if (status == cb::mcbp::Status::Success) {
                 VBucketPtr vb = engine_.getVBucket(vbucket);
-                vb->failovers->replaceFailoverLog(body, bodylen);
+                vb->failovers->replaceFailoverLog(newFailoverLog);
                 engine_.getKVBucket()->persistVBState(vbucket);
             }
             logger->debugWithContext(
@@ -1495,15 +1494,20 @@ cb::engine_errc DcpConsumer::stepControlNegotiation(
     return cb::engine_errc::would_block;
 }
 
-uint64_t DcpConsumer::incrOpaqueCounter() {
+uint32_t DcpConsumer::incrOpaqueCounter() {
+    if (opaqueCounter == std::numeric_limits<uint32_t>::max()) {
+        throw std::runtime_error(
+                "DcpConsumer::incrOpaqueCounter: opaqueCounter "
+                "has reached the maximum value");
+    }
     return (++opaqueCounter);
 }
 
-uint32_t DcpConsumer::getFlowControlBufSize() const {
+size_t DcpConsumer::getFlowControlBufSize() const {
     return flowControl.getBufferSize();
 }
 
-void DcpConsumer::setFlowControlBufSize(uint32_t newSize) {
+void DcpConsumer::setFlowControlBufSize(size_t newSize) {
     flowControl.setBufferSize(newSize);
 }
 
@@ -1738,7 +1742,7 @@ bool DcpConsumer::isFlowControlEnabled() const {
     return flowControl.isEnabled();
 }
 
-void DcpConsumer::incrFlowControlFreedBytes(uint32_t bytes) {
+void DcpConsumer::incrFlowControlFreedBytes(size_t bytes) {
     flowControl.incrFreedBytes(bytes);
     scheduleNotifyIfNecessary();
 }

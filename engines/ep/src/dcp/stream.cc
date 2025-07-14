@@ -71,7 +71,7 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
         readyQ.pop();
 
         // Decrement the readyQ size
-        const uint32_t respSize = front->getMessageSize();
+        const auto respSize = front->getMessageSize();
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
@@ -91,7 +91,7 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
     return nullptr;
 }
 
-uint64_t Stream::getReadyQueueMemory() const {
+size_t Stream::getReadyQueueMemory() const {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 

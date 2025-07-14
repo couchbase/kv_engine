@@ -372,19 +372,21 @@ bool FailoverTable::constructFromJSON(const nlohmann::json& json) {
     return true;
 }
 
-void FailoverTable::replaceFailoverLog(const uint8_t* bytes, uint32_t length) {
+void FailoverTable::replaceFailoverLog(cb::const_byte_buffer newLog) {
     std::lock_guard<std::mutex> lh(lock);
-    if ((length % 16) != 0 || length == 0) {
-        throw std::invalid_argument("FailoverTable::replaceFailoverLog: "
-                "length (which is " + std::to_string(length) +
+    if ((newLog.size() % 16) != 0 || newLog.size() == 0) {
+        throw std::invalid_argument(
+                "FailoverTable::replaceFailoverLog: "
+                "length (which is " +
+                std::to_string(newLog.size()) +
                 ") must be a non-zero multiple of 16");
     }
     table.clear();
 
-    for (; length > 0; length -=16) {
+    for (size_t i = newLog.size(); i > 0; i -= 16) {
         failover_entry_t entry;
-        memcpy(&entry.by_seqno, bytes + length - 8, sizeof(uint64_t));
-        memcpy(&entry.vb_uuid, bytes + length - 16, sizeof(uint64_t));
+        memcpy(&entry.by_seqno, newLog.data() + i - 8, sizeof(uint64_t));
+        memcpy(&entry.vb_uuid, newLog.data() + i - 16, sizeof(uint64_t));
         entry.by_seqno = ntohll(entry.by_seqno);
         entry.vb_uuid = ntohll(entry.vb_uuid);
         table.push_front(entry);

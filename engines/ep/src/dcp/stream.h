@@ -119,7 +119,7 @@ public:
         return id == cb::mcbp::DcpStreamId(0);
     }
 
-    uint64_t getReadyQueueMemory() const;
+    size_t getReadyQueueMemory() const;
 
 protected:
     /* To be called after getting streamMutex lock */
@@ -160,7 +160,7 @@ private:
      * in the readyQ.  It is an atomic because otherwise
        getReadyQueueMemory would need to acquire streamMutex.
      */
-    std::atomic <uint64_t> readyQueueMemory;
+    std::atomic<size_t> readyQueueMemory;
 };
 
 const char* to_string(Stream::Snapshot type);

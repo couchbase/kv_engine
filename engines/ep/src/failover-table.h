@@ -171,7 +171,7 @@ public:
      */
     std::vector<vbucket_failover_t> getFailoverLog();
 
-    void replaceFailoverLog(const uint8_t* bytes, uint32_t length);
+    void replaceFailoverLog(cb::const_byte_buffer newLog);
 
     /**
      * Returns total number of entries in the failover table. These entries

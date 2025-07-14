@@ -64,6 +64,12 @@ cb::engine_errc FlowControl::handleFlowCtl(
     // Send a buffer ack when the buffer is sufficiently drained, or every 5
     // secs if there's any unacked byte.
     const auto ackableBytes = freedBytes.load();
+    if (ackableBytes > std::numeric_limits<uint32_t>::max()) {
+        throw std::runtime_error(
+                fmt::format("FlowControl::handleFlowCtl: ackableBytes "
+                            "value {} exceeds 4-byte storage",
+                            ackableBytes));
+    }
     const bool byteThresholdCondition = ackableBytes > getBufferAckThreshold();
     const bool timeThresholdCondition =
             ackableBytes > 0 &&
@@ -73,14 +79,14 @@ cb::engine_errc FlowControl::handleFlowCtl(
         ackedBytes.fetch_add(ackableBytes);
         freedBytes.fetch_sub(ackableBytes);
         return producers.buffer_acknowledgement(
-                consumerConn.incrOpaqueCounter(), ackableBytes);
+                consumerConn.incrOpaqueCounter(),
+                gsl::narrow_cast<uint32_t>(ackableBytes));
     }
 
     return cb::engine_errc::failed;
 }
 
-void FlowControl::incrFreedBytes(uint32_t bytes)
-{
+void FlowControl::incrFreedBytes(size_t bytes) {
     freedBytes.fetch_add(bytes);
 }
 

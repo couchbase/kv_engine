@@ -125,7 +125,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             std::nullopt,
             {}); // sid
 
-    const uint32_t smV1_size =
+    const auto smV1_size =
             SnapshotMarkerResponse::baseMsgBytes +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
 
@@ -155,7 +155,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             std::nullopt,
             {}); // sid
 
-    const uint32_t smV2_0_size =
+    const auto smV2_0_size =
             SnapshotMarkerResponse::baseMsgBytes +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
@@ -177,7 +177,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             std::nullopt,
             cb::mcbp::DcpStreamId(6)); // sid
 
-    const uint32_t smV1_size =
+    const auto smV1_size =
             SnapshotMarkerResponse::baseMsgBytes +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
             sizeof(cb::mcbp::DcpStreamIdFrameInfo);
@@ -208,7 +208,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             std::nullopt,
             cb::mcbp::DcpStreamId(7)); // sid
 
-    const uint32_t smV2_0_size =
+    const auto smV2_0_size =
             SnapshotMarkerResponse::baseMsgBytes +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value) +

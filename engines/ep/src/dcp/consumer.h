@@ -322,11 +322,11 @@ public:
      */
     ProcessUnackedBytesResult processUnackedBytes();
 
-    uint64_t incrOpaqueCounter();
+    uint32_t incrOpaqueCounter();
 
-    uint32_t getFlowControlBufSize() const;
+    size_t getFlowControlBufSize() const;
 
-    void setFlowControlBufSize(uint32_t newSize);
+    void setFlowControlBufSize(size_t newSize);
 
     bool isStreamPresent(Vbid vbucket);
 
@@ -363,7 +363,7 @@ public:
      */
     bool isFlowControlEnabled() const;
 
-    void incrFlowControlFreedBytes(uint32_t bytes);
+    void incrFlowControlFreedBytes(size_t bytes);
 
     /**
      * Adds to the pendingControl container the control to change the flow
@@ -401,8 +401,7 @@ protected:
 
     void streamAccepted(uint32_t opaque,
                         cb::mcbp::Status status,
-                        const uint8_t* body,
-                        uint32_t bodylen);
+                        cb::const_byte_buffer newFailoverLog);
 
     /*
      * Sends a GetErrorMap request to the other side
@@ -564,7 +563,9 @@ protected:
      */
     folly::Synchronized<Controls, std::mutex> pendingControls;
 
-    uint64_t opaqueCounter;
+    /// Opaque generator. uint32_t as that is the maxium opaque supported by the
+    /// MCBP protocol.
+    uint32_t opaqueCounter{0};
     size_t processorTaskId;
     std::atomic<enum ProcessUnackedBytesResult> processorTaskState;
 
@@ -646,7 +647,7 @@ protected:
  */
 class UpdateFlowControl {
 public:
-    UpdateFlowControl(DcpConsumer& consumer, uint32_t bytes)
+    UpdateFlowControl(DcpConsumer& consumer, size_t bytes)
         : consumer(consumer), bytes(bytes) {
         if (bytes == 0) {
             throw std::invalid_argument("UpdateFlowControl given 0 bytes");
@@ -668,7 +669,7 @@ public:
      * instance when destructed.
      * @return The 'bytes' which the object was tracking
      */
-    uint32_t release() {
+    size_t release() {
         auto rv = bytes;
         bytes = 0;
         return rv;
@@ -676,7 +677,7 @@ public:
 
 private:
     DcpConsumer& consumer;
-    uint32_t bytes{0};
+    size_t bytes{0};
 };
 
 /*
