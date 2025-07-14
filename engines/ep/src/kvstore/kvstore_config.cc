@@ -46,7 +46,7 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
                              std::string_view backend,
                              uint16_t numShards,
                              uint16_t shardid)
-    : KVStoreConfig(config.getMaxVbuckets(),
+    : KVStoreConfig(gsl::narrow_cast<uint16_t>(config.getMaxVbuckets()),
                     numShards,
                     config.getDbname(),
                     backend,

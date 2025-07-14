@@ -239,11 +239,11 @@ public:
         // Table containing the hash bucket
         WhichTable table = WhichTable::Primary;
         // Size of the hashtable when the position was created
-        uint32_t ht_size = 0;
+        size_t ht_size = 0;
         // Mutex index that guards the hash bucket
-        uint32_t lock = 0;
+        size_t lock = 0;
         // Hash bucket index
-        uint32_t hash_bucket = 0;
+        size_t hash_bucket = 0;
 
         friend class HashTable;
         friend class HashBucketLock;
@@ -307,9 +307,9 @@ public:
             // given StoredValue.
             // Default values are such that a default-constructed object is
             // equivlent to a non-existent SV.
-            int size = 0;
-            int metaDataSize = 0;
-            int uncompressedSize = 0;
+            size_t size = 0;
+            size_t metaDataSize = 0;
+            size_t uncompressedSize = 0;
             CollectionID cid;
             protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
             bool isValid = false;
@@ -1998,5 +1998,5 @@ public:
      * @param depth the number of entries in this hashtable bucket
      * @param mem counted memory used by this hash table
      */
-    virtual void visit(int bucket, int depth, size_t mem) = 0;
+    virtual void visit(size_t bucket, size_t depth, size_t mem) = 0;
 };

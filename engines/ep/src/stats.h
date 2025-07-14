@@ -324,8 +324,8 @@ public:
     Counter beginFailed;
     //! Number of times a commit failed.
     Counter commitFailed;
-    //! Amount of time spent in the commit phase.
-    std::atomic<rel_time_t> commit_time;
+    //! Milliseconds spent in the commit phase.
+    std::atomic<uint64_t> commit_time;
     //! Number of times we deleted a vbucket.
     Counter vbucketDeletions;
     //! Number of times we failed to delete a vbucket.
@@ -504,7 +504,7 @@ public:
     //! The next access scanner task schedule time (GMT)
     std::atomic<hrtime_t> alogTime;
     //! The number of seconds that the last access scanner task took
-    std::atomic<rel_time_t> alogRuntime;
+    std::atomic<uint64_t> alogRuntime;
 
     //! The next expiry pager task schedule time (GMT)
     std::atomic<hrtime_t> expPagerTime;

@@ -31,7 +31,7 @@ static const std::array<uint32_t, 30> prime_size_table{
          786433,   1572869,   3145721,   6291449,   12582917,  25165813,
          50331653, 100663291, 201326611, 402653189, 805306357, 1610612741}};
 
-static size_t hashToBucket(uint32_t hash, uint32_t tableSize) {
+static size_t hashToBucket(uint32_t hash, size_t tableSize) {
     return hash % tableSize;
 }
 
@@ -1507,7 +1507,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             }
             size_t mem(0);
             while (p) {
-                depth++;
+                ++depth;
                 mem += p->size();
                 p = p->getNext().get().get();
             }

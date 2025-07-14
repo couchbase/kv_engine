@@ -528,7 +528,8 @@ bool KVBucket::initialize() {
      * item in the hash table becomes saturated.
      */
     itemFreqDecayerTask = ItemFreqDecayerTaskManager::get().create(
-            engine, config.getItemFreqDecayerPercent());
+            engine,
+            gsl::narrow_cast<uint16_t>(config.getItemFreqDecayerPercent()));
     ExecutorPool::get()->schedule(itemFreqDecayerTask);
 
     createAndScheduleSeqnoPersistenceNotifier();
@@ -1695,8 +1696,8 @@ GetValue KVBucket::getInternal(const DocKeyView& key,
 }
 
 GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
-    size_t max = vbMap.getSize();
-    const Vbid::id_type start = labs(getRandom()) % max;
+    const auto max = vbMap.getSize();
+    const auto start = static_cast<Vbid::id_type>(labs(getRandom()) % max);
     Vbid::id_type curr = start;
     std::unique_ptr<Item> itm;
 

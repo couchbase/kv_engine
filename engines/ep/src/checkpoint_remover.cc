@@ -280,7 +280,7 @@ CheckpointMemRecoveryTask::getVbucketsSortedByChkMem() const {
     const auto& bucket = *engine->getKVBucket();
     const auto numRemovers = bucket.getCheckpointRemoverTaskCount();
     const auto& vbMap = bucket.getVBuckets();
-    for (size_t vbid = 0; vbid < vbMap.getSize(); ++vbid) {
+    for (Vbid::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
         // Skip if not in shard
         if (vbid % numRemovers != removerId) {
             continue;

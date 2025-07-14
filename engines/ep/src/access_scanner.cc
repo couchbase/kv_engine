@@ -381,7 +381,8 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
 }
 
 double AccessScanner::calculateSleepTime() const {
-    size_t startTime = conf.getAlogTaskTime();
+    // narrow to int for use with tm_hour. Config validates this to be 0 to 23
+    auto startTime = gsl::narrow_cast<int>(conf.getAlogTaskTime());
 
     // Ensure startTime will always be within a range of (0, 23).
     // A validator is already in place in the configuration file.
@@ -394,7 +395,7 @@ double AccessScanner::calculateSleepTime() const {
     struct tm timeNow, timeTarget;
     cb_gmtime_r(&now, &timeNow);
     timeTarget = timeNow;
-    if (timeNow.tm_hour >= (int)startTime) {
+    if (timeNow.tm_hour >= startTime) {
         timeTarget.tm_mday += 1;
     }
     timeTarget.tm_hour = startTime;

@@ -1311,10 +1311,10 @@ void EPBucket::updateCompactionConcurrency() {
         return;
     }
 
-    const int maxConcurrentWriterTasks = std::min(
+    const auto maxConcurrentWriterTasks = std::min(
             ExecutorPool::get()->getNumWriters(), vbMap.getNumShards());
-    const int maxConcurrentAuxIOTasks = ExecutorPool::get()->getNumAuxIO();
-    const int compactionConcurrentTaskLimit =
+    const auto maxConcurrentAuxIOTasks = ExecutorPool::get()->getNumAuxIO();
+    const auto compactionConcurrentTaskLimit =
             std::min(maxConcurrentWriterTasks, maxConcurrentAuxIOTasks);
 
     // Calculate how many compaction tasks we will permit. We always
@@ -1326,10 +1326,11 @@ void EPBucket::updateCompactionConcurrency() {
     // compaction tasks on the AuxIO pool we don't want to saturate disk
     // if we have few writers, and we don't want to saturate the AuxIO
     // pool if we have more writers.
-    const int maxConcurrentCompactTasks = std::clamp(
-            int(compactionConcurrentTaskLimit * compactionMaxConcurrency),
-            1, // min of one task must be allowed to run
-            maxConcurrentAuxIOTasks - 1 /* max */);
+    const auto maxConcurrentCompactTasks =
+            std::clamp(static_cast<size_t>(compactionConcurrentTaskLimit *
+                                           compactionMaxConcurrency),
+                       size_t(1), // min of one task must be allowed to run
+                       maxConcurrentAuxIOTasks - size_t(1) /* max */);
 
     compactionSemaphore->setCapacity(maxConcurrentCompactTasks);
 }
@@ -3358,7 +3359,13 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         const auto second = std::string(args.at(1));
         if (std::ranges::all_of(second, ::isdigit)) {
             // "fusion <vbid>"
-            vbid = Vbid(std::stoul(second));
+            const auto value = std::stoul(second);
+            if (value > std::numeric_limits<uint16_t>::max()) {
+                EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid vbid",
+                                {"stat_key", statKey});
+                return cb::engine_errc::invalid_arguments;
+            }
+            vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
         } else {
             // "fusion <sub_cmd>"
             subCmd = second;
@@ -3372,7 +3379,14 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
                             {"stat_key", statKey});
             return cb::engine_errc::invalid_arguments;
         }
-        vbid = Vbid(std::stoul(third));
+        const auto value = std::stoul(third);
+        if (value > std::numeric_limits<uint16_t>::max()) {
+            EP_LOG_WARN_CTX(
+                    "EPBucket::::doFusionStats: invalid vbid (after subcmd)",
+                    {"stat_key", statKey});
+            return cb::engine_errc::invalid_arguments;
+        }
+        vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
     }
 
     if (!subCmd) {

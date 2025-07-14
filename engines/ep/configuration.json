@@ -917,7 +917,13 @@
             },
             "descr": "Maximum number of vbuckets expected",
             "dynamic": false,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1,
+                    "max": 65535
+                }
+            }
         },
         "max_threads": {
             "default": "0",

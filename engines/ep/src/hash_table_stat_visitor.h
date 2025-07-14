@@ -21,11 +21,9 @@ class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
     HashTableDepthStatVisitor() = default;
 
-    void visit(int bucket, int depth, size_t mem) override {
+    void visit(size_t bucket, size_t depth, size_t mem) override {
         (void)bucket;
-        // -1 is a special case for min.  If there's a value other than
-        // -1, we prefer that.
-        min = std::min(min == -1 ? depth : min, depth);
+        min = std::min(min, depth);
         max = std::max(max, depth);
         depthHisto.add(depth);
         size += depth;
@@ -35,6 +33,6 @@ public:
     Hdr1sfInt32Histogram depthHisto;
     size_t size = 0;
     size_t memUsed = 0;
-    int min = -1;
-    int max = 0;
+    size_t min = std::numeric_limits<size_t>::max();
+    size_t max = 0;
 };

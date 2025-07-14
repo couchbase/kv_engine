@@ -13,6 +13,7 @@
 
 #include "bloomfilter.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/murmurhash3.h>
 
 #include <cmath>
@@ -48,7 +49,8 @@ size_t BloomFilter::estimateNoOfHashes(size_t key_count) {
 uint64_t BloomFilter::hashDocKey(const DocKeyView& key, uint32_t iteration) {
     uint64_t result = 0;
     auto hashable = key.getIdAndKey();
-    uint32_t seed = iteration + (uint32_t(hashable.first) * noOfHashes);
+    uint32_t seed = iteration + (uint32_t(hashable.first) *
+                                 gsl::narrow_cast<uint32_t>(noOfHashes));
     MURMURHASH_3(hashable.second.data(), hashable.second.size(), seed, &result);
     return result;
 }

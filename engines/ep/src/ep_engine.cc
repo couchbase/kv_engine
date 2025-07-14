@@ -4050,10 +4050,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                         buf.data(), vb.ht.getNumLocks(), add_stat, cookie);
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:min_depth", vbid.get());
-                add_casted_stat(buf.data(),
-                                depthVisitor.min == -1 ? 0 : depthVisitor.min,
-                                add_stat,
-                                cookie);
+                add_casted_stat(buf.data(), depthVisitor.min, add_stat, cookie);
                 checked_snprintf(
                         buf.data(), buf.size(), "vb_%d:max_depth", vbid.get());
                 add_casted_stat(buf.data(), depthVisitor.max, add_stat, cookie);

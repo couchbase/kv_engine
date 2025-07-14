@@ -453,7 +453,7 @@ std::chrono::seconds ExpiredItemPager::calculateWakeTimeFromCfg(
          * Ensure task start time will always be within a range of (0, 23).
          * A validator is already in place in the configuration file.
          */
-        size_t startTime = cfg.initialRunTime % 24;
+        auto startHour = static_cast<int>(cfg.initialRunTime % 24);
 
         /*
          * The following logic calculates the amount of time this task
@@ -467,10 +467,10 @@ std::chrono::seconds ExpiredItemPager::calculateWakeTimeFromCfg(
         struct tm timeNow, timeTarget;
         cb_gmtime_r(&now, &timeNow);
         timeTarget = timeNow;
-        if (timeNow.tm_hour >= (int)startTime) {
+        if (timeNow.tm_hour >= startHour) {
             timeTarget.tm_mday += 1;
         }
-        timeTarget.tm_hour = startTime;
+        timeTarget.tm_hour = startHour;
         timeTarget.tm_min = 0;
         timeTarget.tm_sec = 0;
 
