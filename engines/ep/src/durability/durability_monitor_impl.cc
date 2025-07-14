@@ -212,7 +212,7 @@ bool DurabilityMonitor::ActiveSyncWrite::isExpired(
 
 uint8_t DurabilityMonitor::ActiveSyncWrite::getAckCountForNewChain(
         const ActiveDurabilityMonitor::ReplicationChain& chain) {
-    auto ackCount = 0;
+    uint8_t ackCount = 0;
     for (const auto& pos : chain.positions) {
         // We only bump the ackCount if this SyncWrite was acked in either the
         // first or second chain in the old topology (if they exist).
@@ -220,7 +220,12 @@ uint8_t DurabilityMonitor::ActiveSyncWrite::getAckCountForNewChain(
               this->firstChain.chainPtr->hasAcked(pos.first, getBySeqno())) ||
              (this->secondChain &&
               this->secondChain.chainPtr->hasAcked(pos.first, getBySeqno())))) {
-            ackCount++;
+            if (ackCount == std::numeric_limits<uint8_t>::max()) {
+                throw std::logic_error(
+                        "SyncWrite::getAckCountForNewChain: ackCount is too "
+                        "large");
+            }
+            ++ackCount;
         }
     }
 
@@ -233,7 +238,7 @@ void DurabilityMonitor::ActiveSyncWrite::resetTopology(
     // We need to calculate our new ack counts for each chain before resetting
     // any topology so store these values first.
     auto ackedFirstChain = getAckCountForNewChain(firstChain);
-    auto ackedSecondChain = 0;
+    uint8_t ackedSecondChain = 0;
     if (secondChain) {
         ackedSecondChain = getAckCountForNewChain(*secondChain);
     }
@@ -331,7 +336,7 @@ ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
         size_t maxAllowedReplicas,
         CommitStrategy commitStrategy,
         Vbid vbid)
-    : majority(nodes.size() / 2 + 1),
+    : majority(gsl::narrow<uint8_t>(nodes.size() / 2 + 1)),
       active(nodes.at(0)),
       maxAllowedReplicas(maxAllowedReplicas),
       commitStrategy(commitStrategy),

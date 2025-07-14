@@ -668,12 +668,14 @@ size_t ActiveDurabilityMonitor::getTotalMemoryUsed() const {
 
 uint8_t ActiveDurabilityMonitor::getFirstChainSize() const {
     const auto s = state.rlock();
-    return s->firstChain ? s->firstChain->positions.size() : 0;
+    return gsl::narrow_cast<uint8_t>(
+            s->firstChain ? s->firstChain->positions.size() : 0);
 }
 
 uint8_t ActiveDurabilityMonitor::getSecondChainSize() const {
     const auto s = state.rlock();
-    return s->secondChain ? s->secondChain->positions.size() : 0;
+    return gsl::narrow_cast<uint8_t>(
+            s->secondChain ? s->secondChain->positions.size() : 0);
 }
 
 uint8_t ActiveDurabilityMonitor::getFirstChainMajority() const {
