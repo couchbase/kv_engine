@@ -4709,12 +4709,13 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             "Expected 1 set rm op");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{1ull}, last_meta.revSeqno, "Invalid result for seqno");
 
-    const auto expiry = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now() + std::chrono::hours{1});
+    const auto expiry =
+            gsl::narrow<uint32_t>(std::chrono::system_clock::to_time_t(
+                    std::chrono::system_clock::now() + std::chrono::hours{1}));
 
     // Check that set with correct cas succeeds
     checkeq(cb::engine_errc::success,
@@ -4742,7 +4743,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             "Expected 3 set rm ops");
 
     checkeq(uint32_t{5}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{3ull}, last_meta.revSeqno, "Invalid result for seqno");
 
@@ -4808,7 +4809,7 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
             "Expected 1 set rm op");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
@@ -4818,8 +4819,9 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
             "Expected success");
 
     // Check that adding a key with flags and exptime returns the correct values
-    const auto expiry = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now() + std::chrono::hours{1});
+    const auto expiry =
+            gsl::narrow<uint32_t>(std::chrono::system_clock::to_time_t(
+                    std::chrono::system_clock::now() + std::chrono::hours{1}));
     checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key2", "value", Vbid(0), 0, 10, expiry),
             "Expected success");
@@ -4890,7 +4892,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
           "Expected set returing meta to succeed");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
@@ -4904,13 +4906,14 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             "Expected 1 del rm op");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{2}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
-    const auto expiry = std::chrono::system_clock::to_time_t(
-            std::chrono::system_clock::now() + std::chrono::hours{1});
+    const auto expiry =
+            gsl::narrow<uint32_t>(std::chrono::system_clock::to_time_t(
+                    std::chrono::system_clock::now() + std::chrono::hours{1}));
 
     checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key", "value", Vbid(0), 0, 10, expiry),
@@ -4945,7 +4948,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
           "Expected set returing meta to succeed");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{5}, last_meta.revSeqno, "Invalid result for seqno");
 

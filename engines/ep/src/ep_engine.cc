@@ -2750,8 +2750,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         lock_timeout = getGetlDefaultTimeout();
     }
 
-    auto result = kvBucket->getLocked(
-            key, vbucket, ep_current_time(), lock_timeout, &cookie);
+    auto result = kvBucket->getLocked(key, vbucket, lock_timeout, &cookie);
 
     if (result.getStatus() == cb::engine_errc::success) {
         ++stats.numOpsGet;
@@ -4105,7 +4104,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                                 vb.ht.getNumSystemItems(),
                                 add_stat,
                                 cookie);
-            } catch (std::exception& error) {
+            } catch (const std::exception& error) {
                 EP_LOG_WARN_CTX(
                         "StatVBucketVisitor::visitBucket: Failed to build stat",
                         {"error", error.what()});
@@ -6304,7 +6303,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         ret = setWithMeta(request.getVBucket(),
                           makeDocKey(cookie, request.getKey()),
                           value,
-                          {cas, seqno, flags, time_t(expiration)},
+                          {cas, seqno, flags, expiration},
                           false /*isDeleted*/,
                           uint8_t(request.getDatatype()),
                           commandCas,
@@ -6596,7 +6595,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         if (value.empty()) {
             ret = deleteWithMeta(request.getVBucket(),
                                  key,
-                                 {metacas, seqno, flags, time_t(delete_time)},
+                                 {metacas, seqno, flags, delete_time},
                                  cas,
                                  &bySeqno,
                                  cookie,
@@ -6611,7 +6610,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
             ret = setWithMeta(request.getVBucket(),
                               key,
                               value,
-                              {metacas, seqno, flags, time_t(delete_time)},
+                              {metacas, seqno, flags, delete_time},
                               true /*isDeleted*/,
                               PROTOCOL_BINARY_DATATYPE_XATTR,
                               cas,

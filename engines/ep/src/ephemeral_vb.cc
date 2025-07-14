@@ -1070,9 +1070,9 @@ uint64_t EphemeralVBucket::addSystemEventItem(
         // tombstone to be purged a client would wrongly assume it exists.
         // Set the delete time so that purging never occurs
         if (cid && cid.value().isDefaultCollection()) {
-            v->setCompletedOrDeletedTime(-1);
+            v->setCompletedOrDeletedTime(std::numeric_limits<uint32_t>::max());
         } else {
-            v->setCompletedOrDeletedTime(ep_real_time());
+            v->setCompletedOrDeletedTime();
         }
     }
 

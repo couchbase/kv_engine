@@ -41,7 +41,7 @@ static constexpr uint16_t unsetFreqCount = std::numeric_limits<uint16_t>::max();
 
 Item::Item(const DocKeyView& k,
            const uint32_t fl,
-           const time_t exp,
+           const uint32_t exp,
            const value_t& val,
            protocol_binary_datatype_t dtype,
            uint64_t theCas,
@@ -69,7 +69,7 @@ Item::Item(const DocKeyView& k,
 
 Item::Item(const DocKeyView& k,
            const uint32_t fl,
-           const time_t exp,
+           const uint32_t exp,
            const void* dta,
            const size_t nb,
            protocol_binary_datatype_t dtype,

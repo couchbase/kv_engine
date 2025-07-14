@@ -77,3 +77,11 @@ uint32_t ep_convert_to_expiry_time(uint32_t mcbpExpTime) {
                               : gsl::narrow_cast<uint32_t>(
                                         ep_abs_time(ep_reltime(mcbpExpTime)));
 }
+
+uint32_t ep_generate_delete_time() {
+    // Narrowing note: For now narrow_cast accepting that this has always been a
+    // data loss (overflow) risk in the case when ep_real_time returns more than
+    // 2^32 (unlikely). For now we don't want to add a new failure point with
+    // narrow<>
+    return gsl::narrow_cast<uint32_t>(ep_real_time());
+}

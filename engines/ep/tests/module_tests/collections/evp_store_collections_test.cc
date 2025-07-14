@@ -402,7 +402,6 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     // Same for getLocked
     gv = store->getLocked(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
                           vbid,
-                          ep_current_time(),
                           std::chrono::seconds{10},
                           cookie);
     EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());

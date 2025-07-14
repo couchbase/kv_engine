@@ -13,6 +13,7 @@
 
 #include "blob.h"
 #include "dcp/dcp-types.h"
+#include "ep_time.h"
 #include "ep_types.h"
 #include "eviction_utils.h"
 #include "queue_op.h"
@@ -41,15 +42,17 @@ public:
         cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
     }
 
-    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, time_t e) :
-        cas(c), revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s), flags(f),
-        exptime(e) {
+    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, uint32_t e)
+        : cas(c),
+          revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s),
+          flags(f),
+          exptime(e) {
     }
 
     uint64_t cas;
     cb::uint48_t revSeqno;
     uint32_t flags;
-    time_t exptime;
+    uint32_t exptime;
 };
 
 bool operator==(const ItemMetaData& lhs, const ItemMetaData& rhs);
@@ -73,7 +76,7 @@ public:
      */
     Item(const DocKeyView& k,
          const uint32_t fl,
-         const time_t exp,
+         const uint32_t exp,
          const value_t& val,
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
@@ -93,7 +96,7 @@ public:
      */
     Item(const DocKeyView& k,
          const uint32_t fl,
-         const time_t exp,
+         const uint32_t exp,
          const void* dta,
          const size_t nb,
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
@@ -118,7 +121,7 @@ public:
             DeleteSource cause,
             const DocKeyView& k,
             const uint32_t fl,
-            const time_t exp,
+            const uint32_t exp,
             const void* dta,
             const size_t nb,
             protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
@@ -212,11 +215,11 @@ public:
         return value ? value->getSize() : 0;
     }
 
-    time_t getExptime() const override {
+    uint32_t getExptime() const override {
         return metaData.exptime;
     }
 
-    time_t getDeleteTime() const {
+    uint32_t getDeleteTime() const {
         if (!isDeleted()) {
             throw std::logic_error("Item::getDeleteTime called on a mutation");
         }
@@ -260,8 +263,12 @@ public:
         metaData.flags = f;
     }
 
-    void setExpTime(time_t exp_time) {
+    void setExpTime(uint32_t exp_time) {
         metaData.exptime = exp_time;
+    }
+
+    void setDeleteTime(uint32_t delete_time = ep_generate_delete_time()) {
+        metaData.exptime = delete_time;
     }
 
     Vbid getVBucketId() const {
@@ -686,7 +693,7 @@ std::ostream& operator<<(std::ostream& os, const Item& item);
 // Note the assert is written as we see std::string (member of the StoredDocKey)
 // differing. This totals 104 or 112 (string being 24 or 32).
 #ifndef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-static_assert(sizeof(Item) == sizeof(std::string) + 88,
+static_assert(sizeof(Item) == sizeof(std::string) + 80,
               "sizeof Item may have an effect on run-time memory consumption, "
               "please avoid increasing it");
 #endif

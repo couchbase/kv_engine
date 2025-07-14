@@ -1024,9 +1024,9 @@ void Manifest::processExpiryTime(const container::const_iterator entry,
     itm.setExpTime(processExpiryTime(entry, itm.getExptime(), bucketTtl));
 }
 
-time_t Manifest::processExpiryTime(const container::const_iterator entry,
-                                   time_t t,
-                                   std::chrono::seconds bucketTtl) const {
+uint32_t Manifest::processExpiryTime(const container::const_iterator entry,
+                                     uint32_t t,
+                                     std::chrono::seconds bucketTtl) const {
     std::chrono::seconds enforcedTtl{0};
 
     if (bucketTtl.count()) {

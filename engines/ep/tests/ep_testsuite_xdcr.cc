@@ -26,9 +26,7 @@
 static void verifyMetaData(const ItemMetaData& imd, const item_info& metadata) {
     checkeq(uint64_t(imd.revSeqno), metadata.seqno, "Seqno didn't match");
     checkeq(imd.cas, metadata.cas, "Cas didn't match");
-    checkeq(imd.exptime,
-            static_cast<time_t>(metadata.exptime),
-            "Expiration time didn't match");
+    checkeq(imd.exptime, metadata.exptime, "Expiration time didn't match");
     checkeq(imd.flags, metadata.flags, "Flags didn't match");
 }
 

@@ -268,7 +268,7 @@ public:
     virtual GetValue getAndUpdateTtl(const DocKeyView& key,
                                      Vbid vbucket,
                                      CookieIface* cookie,
-                                     time_t exptime) = 0;
+                                     uint32_t exptime) = 0;
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -615,7 +615,6 @@ public:
 
     virtual GetValue getLocked(const DocKeyView& key,
                                Vbid vbucket,
-                               rel_time_t currentTime,
                                std::chrono::seconds lockTimeout,
                                CookieIface* cookie) = 0;
 

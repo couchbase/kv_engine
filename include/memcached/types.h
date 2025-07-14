@@ -83,7 +83,7 @@ public:
     virtual uint32_t getFlags() const = 0;
 
     /// Return the time the item will expire (or 0 if no expiration).
-    virtual time_t getExptime() const = 0;
+    virtual uint32_t getExptime() const = 0;
 
     /// Return a read-only view of the Item's raw value.
     virtual std::string_view getValueView() const = 0;
@@ -157,7 +157,7 @@ struct item_info {
     uint64_t vbucket_uuid{0};
     uint64_t seqno{0};
     uint64_t revid{0};
-    time_t exptime{0}; /**< When the item will expire (absolute time) */
+    uint32_t exptime{0}; /**< When the item will expire (absolute time) */
     uint32_t nbytes{0}; /**< The total size of the data (in bytes) */
     /// Flags associated with the item (in network byte order)
     uint32_t flags{0};

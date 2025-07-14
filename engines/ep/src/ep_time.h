@@ -47,3 +47,11 @@ extern uint32_t ep_limit_expiry_time(uint32_t t, std::chrono::seconds limit);
  *         etc...
  */
 uint32_t ep_convert_to_expiry_time(uint32_t mcbpExpTime);
+
+/**
+ * Generate the time used in recording when an item was deleted
+ *
+ * @return The delete time that should be stored in the Item/StoredValue
+ *         etc...
+ */
+uint32_t ep_generate_delete_time();

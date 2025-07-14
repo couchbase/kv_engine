@@ -503,7 +503,8 @@ public:
      * @param bucketTtl the value of the bucket's maxTTL, 0 being none
      * @returns t or now + appropriate limit
      */
-    time_t processExpiryTime(time_t t, std::chrono::seconds bucketTtl) const {
+    uint32_t processExpiryTime(uint32_t t,
+                               std::chrono::seconds bucketTtl) const {
         return manifest->processExpiryTime(itr, t, bucketTtl);
     }
 

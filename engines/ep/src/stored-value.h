@@ -12,10 +12,10 @@
 #pragma once
 
 #include "blob.h"
+#include "ep_time.h"
 #include "ep_types.h"
 #include "serialised_dockey.h"
 #include "tagged_ptr.h"
-#include "utility.h"
 
 #include <mcbp/protocol/datatype.h>
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
@@ -316,6 +316,9 @@ public:
     /**
      * Check if this item is expired or not.
      *
+     * Narrowing note: The stored expiry is uint32_t - but we are safe to keep
+     * this interface taking a time_t as is only compared to the stored expiry.
+     *
      * @param asOf the time to be compared with this item's expiry time
      * @return true if this item's expiry time < asOf
      */
@@ -358,12 +361,12 @@ public:
      *
      * @return the expiration time.
      */
-    time_t getExptime() const {
+    uint32_t getExptime() const {
         return exptime;
     }
 
-    void setExptime(time_t tim) {
-        exptime = tim;
+    void setExptime(uint32_t time) {
+        exptime = time;
         markDirty();
     }
 
@@ -895,7 +898,7 @@ public:
      *
      * Only applicable for an OSV so we do nothing for a normal SV.
      */
-    void setCompletedOrDeletedTime(time_t time);
+    void setCompletedOrDeletedTime(uint32_t time = ep_generate_delete_time());
 
 protected:
     /**
@@ -1338,7 +1341,7 @@ public:
      * Return the time the item was deleted. Only valid for completed
      * (SyncWrites) or deleted items.
      */
-    time_t getCompletedOrDeletedTime() const;
+    uint32_t getCompletedOrDeletedTime() const;
 
     /**
      * Check if the contents of the StoredValue is same as that of the other
@@ -1365,7 +1368,7 @@ public:
      * Set the time the item was completed (SyncWrite) or deleted at to the
      * specified time.
      */
-    void setCompletedOrDeletedTime(time_t time);
+    void setCompletedOrDeletedTime(uint32_t time = ep_generate_delete_time());
 
     void setPrepareSeqno(int64_t prepareSeqno) {
         this->prepareSeqno = prepareSeqno;

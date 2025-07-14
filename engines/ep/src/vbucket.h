@@ -1399,7 +1399,7 @@ public:
     GetValue getAndUpdateTtl(VBucketStateLockRef vbStateLock,
                              CookieIface* cookie,
                              EventuallyPersistentEngine& engine,
-                             time_t exptime,
+                             uint32_t exptime,
                              const Collections::VB::CachingReadHandle& cHandle);
     /**
      * Add a system event Item to the vbucket and return its seqno. Does
@@ -1499,8 +1499,6 @@ public:
     /**
      * Gets a locked item for a given key.
      *
-     * @param currentTime Current time to use for locking the item for a
-     *                    duration of lockTimeout
      * @param lockTimeout Timeout for the lock on the item
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
@@ -1508,8 +1506,7 @@ public:
      *
      * @return the result of the operation (contains locked item on success)
      */
-    GetValue getLocked(rel_time_t currentTime,
-                       std::chrono::seconds lockTimeout,
+    GetValue getLocked(std::chrono::seconds lockTimeout,
                        CookieIface* cookie,
                        EventuallyPersistentEngine& engine,
                        const Collections::VB::CachingReadHandle& cHandle);
@@ -1992,7 +1989,7 @@ protected:
     std::pair<MutationStatus, GetValue> processGetAndUpdateTtl(
             HashTable::HashBucketLock& hbl,
             StoredValue* v,
-            time_t exptime,
+            uint32_t exptime,
             const Collections::VB::CachingReadHandle& cHandle);
     /**
      * This function checks cas, expiry and other partition (vbucket) related

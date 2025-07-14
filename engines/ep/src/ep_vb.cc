@@ -1081,9 +1081,9 @@ uint64_t EPVBucket::addSystemEventItem(
         // an implied creation event. If we did allow the default collection
         // tombstone to be purged a client would wrongly assume it exists.
         if (cid && cid.value().isDefaultCollection()) {
-            qi->setExpTime(~0);
+            qi->setDeleteTime(std::numeric_limits<uint32_t>::max());
         } else {
-            qi->setExpTime(ep_real_time());
+            qi->setDeleteTime();
         }
     }
 

@@ -1541,8 +1541,7 @@ TEST_P(KVBucketParamTest, lockKeyTempDeletedTest) {
 
     //Check that the temp item is removed for getLocked
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    GetValue gv = store->getLocked(
-            key, vbid, ep_current_time(), std::chrono::seconds{10}, cookie);
+    GetValue gv = store->getLocked(key, vbid, std::chrono::seconds{10}, cookie);
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
@@ -1565,8 +1564,7 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     auto docCas = gv.item->getCas();
 
-    gv = store->getLocked(
-            key, vbid, ep_current_time(), std::chrono::seconds{10}, cookie);
+    gv = store->getLocked(key, vbid, std::chrono::seconds{10}, cookie);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // Need the "real" documents' CAS for expiry.
@@ -1614,8 +1612,7 @@ TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
-    auto gv = store->getLocked(
-            key, vbid, ep_current_time(), std::chrono::seconds{10}, cookie);
+    auto gv = store->getLocked(key, vbid, std::chrono::seconds{10}, cookie);
     EXPECT_EQ(cb::engine_errc::sync_write_in_progress, gv.getStatus());
 }
 

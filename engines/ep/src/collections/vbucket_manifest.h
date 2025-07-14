@@ -828,9 +828,9 @@ protected:
                            std::chrono::seconds bucketTtl) const;
 
     /// see comment on CachingReadHandle
-    time_t processExpiryTime(const container::const_iterator entry,
-                             time_t t,
-                             std::chrono::seconds bucketTtl) const;
+    uint32_t processExpiryTime(const container::const_iterator entry,
+                               uint32_t t,
+                               std::chrono::seconds bucketTtl) const;
 
     /**
      * @returns true/false if _default exists

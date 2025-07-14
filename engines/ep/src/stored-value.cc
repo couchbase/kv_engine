@@ -514,7 +514,7 @@ void StoredValue::incrementAge() {
     }
 }
 
-void StoredValue::setCompletedOrDeletedTime(time_t time) {
+void StoredValue::setCompletedOrDeletedTime(uint32_t time) {
     if (isOrdered()) {
         // Only applicable to OSV
         static_cast<OrderedStoredValue*>(this)->setCompletedOrDeletedTime(time);
@@ -708,7 +708,7 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKeyView& key) {
  * Return the time the item was deleted. Only valid for completed or deleted
  * items.
  */
-time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
+uint32_t OrderedStoredValue::getCompletedOrDeletedTime() const {
     if (isDeleted() || isPrepareCompleted()) {
         return lock_expiry_or_delete_or_complete_time.delete_or_complete_time;
     }
@@ -720,7 +720,7 @@ bool OrderedStoredValue::deleteImpl(DeleteSource delSource) {
     if (StoredValue::deleteImpl(delSource)) {
         // Need to record the time when an item is deleted for subsequent
         //purging (ephemeral_metadata_purge_age).
-        setCompletedOrDeletedTime(ep_real_time());
+        setCompletedOrDeletedTime();
         return true;
     }
     return false;
@@ -732,11 +732,11 @@ void OrderedStoredValue::setValueImpl(const Item& itm) {
     // Update the deleted time (note - even if it was already deleted we should
     // refresh this).
     if (isDeleted()) {
-        setCompletedOrDeletedTime(ep_real_time());
+        setCompletedOrDeletedTime();
     }
 }
 
-void OrderedStoredValue::setCompletedOrDeletedTime(time_t time) {
+void OrderedStoredValue::setCompletedOrDeletedTime(uint32_t time) {
     if (!(isDeleted() || isPrepareCompleted())) {
         throw std::logic_error(
                 "OrderedStoredValue::setCompletedOrDeletedTime: Called on "

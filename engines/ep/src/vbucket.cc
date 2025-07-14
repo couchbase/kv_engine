@@ -1406,7 +1406,7 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     // assigned to it.
     if (qi->isDeleted() && (ctx.generateDeleteTime == GenerateDeleteTime::Yes ||
                             qi->getExptime() == 0)) {
-        qi->setExpTime(ep_real_time());
+        qi->setDeleteTime();
     }
 
     if (!mightContainXattrs() &&
@@ -1438,7 +1438,7 @@ VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
 
     queued_item item(v.toItemAbort(getId()));
     item->setPrepareSeqno(prepareSeqno);
-    item->setExpTime(ep_real_time());
+    item->setDeleteTime();
 
     Expects(item->isAbort());
     Expects(item->isDeleted());
@@ -1448,7 +1448,7 @@ VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
 
 VBNotifyCtx VBucket::queueAbortForUnseenPrepare(queued_item item,
                                                 const VBQueueItemCtx& ctx) {
-    item->setExpTime(ep_real_time());
+    item->setDeleteTime();
 
     Expects(item->isAbort());
     Expects(item->isDeleted());
@@ -1462,7 +1462,7 @@ queued_item VBucket::createNewAbortedItem(const DocKeyView& key,
                                           int64_t abortSeqno) {
     auto item = make_STRCPtr<Item>(key,
                                    0 /*flags*/,
-                                   ep_real_time() /*exp*/,
+                                   0,
                                    value_t{},
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    0,
@@ -1470,6 +1470,7 @@ queued_item VBucket::createNewAbortedItem(const DocKeyView& key,
                                    getId());
 
     item->setAbortSyncWrite();
+    item->setDeleteTime();
     item->setPrepareSeqno(prepareSeqno);
 
     return item;
@@ -2811,7 +2812,7 @@ cb::engine_errc VBucket::add(
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         HashTable::HashBucketLock& hbl,
         StoredValue* v,
-        time_t exptime,
+        uint32_t exptime,
         const Collections::VB::CachingReadHandle& cHandle) {
     if (v) {
         if (isLogicallyNonExistent(*v, cHandle)) {
@@ -2889,7 +2890,7 @@ GetValue VBucket::getAndUpdateTtl(
         VBucketStateLockRef vbStateLock,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
-        time_t exptime,
+        uint32_t exptime,
         const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValueForWrite(cHandle);
     switch (res.status) {
@@ -3171,8 +3172,7 @@ cb::engine_errc VBucket::getKeyStats(
     return cb::engine_errc::no_such_key;
 }
 
-GetValue VBucket::getLocked(rel_time_t currentTime,
-                            std::chrono::seconds lockTimeout,
+GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
                             CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             const Collections::VB::CachingReadHandle& cHandle) {
@@ -3185,8 +3185,9 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
             return GetValue(nullptr, cb::engine_errc::no_such_key);
         }
 
+        const auto currentUptimeSeconds = ep_current_time();
         // if v is locked return error
-        if (v->isLocked(currentTime)) {
+        if (v->isLocked(currentUptimeSeconds)) {
             return GetValue(nullptr, cb::engine_errc::locked_tmpfail);
         }
 
@@ -3203,11 +3204,18 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
             return GetValue(nullptr, cb::engine_errc::would_block, -1, true);
         }
 
+        // Narrowing note: For now narrow_cast and accept this has always been a
+        // "risk" against an overflow of the rel_time_t type. MB-67520 does not
+        // aim to add a new failure point into the code. Later MB-67776 could
+        // add explicit overflow checks and a cleaner failure path.
+        const auto lockUntil = gsl::narrow_cast<rel_time_t>(
+                currentUptimeSeconds + lockTimeout.count());
+
         // acquire lock and increment cas value
-        v->lock(currentTime + lockTimeout.count(), nextHLCCas());
+        v->lock(lockUntil, nextHLCCas());
 
         auto it = v->toItem(getId());
-        it->setCas(v->getCasForWrite(currentTime));
+        it->setCas(v->getCasForWrite(currentUptimeSeconds));
 
         return GetValue(std::move(it));
     }
