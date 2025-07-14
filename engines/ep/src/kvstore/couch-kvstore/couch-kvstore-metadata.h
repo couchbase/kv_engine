@@ -155,7 +155,7 @@ protected:
         }
 
         void setFlexCode(uint8_t code) {
-            auto codeIn = code & flexCodeMask;
+            uint8_t codeIn = code & flexCodeMask;
             flexCode = codeIn + (flexCode & deleteSourceMask);
         }
 
@@ -177,7 +177,8 @@ protected:
         }
 
         void setDeleteSource(DeleteSource source) {
-            auto deleteInt = (static_cast<uint8_t>(source)) << 7;
+            auto deleteInt =
+                    static_cast<uint8_t>((static_cast<uint8_t>(source)) << 7);
             flexCode = deleteInt + (flexCode & flexCodeMask);
         }
 

@@ -370,7 +370,7 @@ private:
     std::chrono::seconds magmaExpiryPurgerInterval;
 
     // Max checkpoints that can be rolled back to
-    int magmaMaxCheckpoints;
+    size_t magmaMaxCheckpoints;
 
     // Time interval between checkpoints
     std::chrono::milliseconds magmaCheckpointInterval;

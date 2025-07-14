@@ -713,7 +713,6 @@ void CouchKVStore::getMulti(Vbid vb,
     if (itms.empty()) {
         return;
     }
-    int numItems = itms.size();
 
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
@@ -726,7 +725,7 @@ void CouchKVStore::getMulti(Vbid vb,
                      db.getFilename(),
                      options);
 
-        st.numGetFailure += numItems;
+        st.numGetFailure += itms.size();
         auto err = couchErr2EngineErr(errCode);
         for (auto& item : itms) {
             item.second.value.setStatus(err);
@@ -742,11 +741,15 @@ void CouchKVStore::getMulti(Vbid vb,
     }
 
     GetMultiCbCtx ctx(*this, vb, itms, std::move(createItemCb));
-
-    errCode = couchstore_docinfos_by_id(
-            db, ids.data(), itms.size(), 0, getMultiCallback, &ctx);
+    // narrow to couchstore API (throwing if we could not narrow)
+    errCode = couchstore_docinfos_by_id(db,
+                                        ids.data(),
+                                        gsl::narrow<unsigned int>(itms.size()),
+                                        0,
+                                        getMultiCallback,
+                                        &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
-        st.numGetFailure += numItems;
+        st.numGetFailure += itms.size();
         logger.warn(
                 "CouchKVStore::getMulti: "
                 "couchstore_docinfos_by_id error {} [{}], {}",

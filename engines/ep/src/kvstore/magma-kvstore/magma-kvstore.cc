@@ -658,8 +658,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
       fusionUploaderManager(*this) {
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
-    configuration.magmaCfg.MaxKVStoreLSDBufferSize =
-            configuration.getMagmaDeleteMemtableWritecache();
+    configuration.magmaCfg.MaxKVStoreLSDBufferSize = gsl::narrow_cast<int>(
+            configuration.getMagmaDeleteMemtableWritecache());
     configuration.magmaCfg.LSDFragmentationRatio =
             configuration.getMagmaDeleteFragRatio();
     configuration.magmaCfg.MaxCheckpoints =
@@ -676,8 +676,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
             configuration.getMagmaMaxWriteCache();
     configuration.magmaCfg.MinValueBlockSizeThreshold =
             configuration.getMagmaMinValueBlockSizeThreshold();
-    configuration.magmaCfg.WALBufferSize =
-            configuration.getMagmaInitialWalBufferSize();
+    configuration.magmaCfg.WALBufferSize = gsl::narrow_cast<uint32_t>(
+            configuration.getMagmaInitialWalBufferSize());
     configuration.magmaCfg.EnableWAL = configuration.getMagmaEnableWAL();
     configuration.magmaCfg.EnableMemoryOptimizedWrites =
             configuration.getMagmaEnableMemoryOptimizedWrites();
@@ -768,7 +768,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
     auto cacheSize = getCacheSize();
     cachedVBStates.resize(cacheSize);
     inTransaction = std::vector<std::atomic_bool>(cacheSize);
-    kvstoreRevList.resize(cacheSize, Monotonic<uint64_t>(0));
+    kvstoreRevList.resize(cacheSize, Monotonic<uint32_t>(0));
 
     useUpsertForSet = configuration.getMagmaEnableUpsert();
     if (useUpsertForSet) {
@@ -1180,8 +1180,9 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
     for (size_t slot = 0; slot < cachedVBStates.size(); slot++) {
         const auto& vb = cachedVBStates[slot];
         if (vb) {
-            uint16_t id = (configuration.getMaxShards() * slot) +
-                          configuration.getShardId();
+            auto id = gsl::narrow_cast<uint16_t>(
+                    (configuration.getMaxShards() * slot) +
+                    configuration.getShardId());
             mergeMagmaDbStatsIntoVBState(*vb, Vbid{id});
         }
         result.emplace_back(vb.get());
@@ -2062,7 +2063,7 @@ bool MagmaKVStore::maybeCompressValue(VB::Commit& commitData,
     // output operation with the compressed value and a copy
     // of the meta with the datatype and value size altered
     meta.setDataType(meta.getDatatype() | uint8_t(cb::mcbp::Datatype::Snappy));
-    meta.setValueSize(newValueStorage.size());
+    meta.setValueSize(gsl::narrow<uint32_t>(newValueStorage.size()));
     newMetaStorage = meta.encode();
     // copy over the existing operation (doesn't deep copy
     // any slices)
@@ -2701,11 +2702,11 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::getPersistedVBucketState(
     return state;
 }
 
-uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
-    uint64_t kvstoreRev{0};
+uint32_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
+    uint32_t kvstoreRev{0};
     auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
     if (status) {
-        kvstoreRev = static_cast<uint64_t>(kvsRev);
+        kvstoreRev = kvsRev;
     }
 
     return kvstoreRev;
@@ -4425,7 +4426,7 @@ void MagmaKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
 void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto backendThreads = configuration.getStorageThreads();
     auto rawBackendThreads =
-            static_cast<int>(configuration.getStorageThreads());
+            static_cast<size_t>(configuration.getStorageThreads());
     if (backendThreads == ThreadPoolConfig::StorageThreadCount::Default) {
         rawBackendThreads = configuration.getMagmaMaxDefaultStorageThreads();
     }

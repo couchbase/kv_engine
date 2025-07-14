@@ -622,7 +622,7 @@ public:
      *
      * @return revision returns 0 (default) if the kvstore does not exist
      */
-    uint64_t getKVStoreRevision(Vbid vbid) const;
+    uint32_t getKVStoreRevision(Vbid vbid) const;
 
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
@@ -1036,8 +1036,9 @@ protected:
 
     std::atomic<size_t> scanCounter; // atomic counter for generating scan id
 
-    // Keep track of the vbucket revision
-    std::vector<Monotonic<uint64_t>> kvstoreRevList;
+    // Keep track of the vbucket revision. Magma API can only accept revisions
+    // upto u32
+    std::vector<Monotonic<uint32_t>> kvstoreRevList;
 
     // For testing, we need to simulate couchstore where every batch
     // is a potential rollback point. We do this by Syncing after every batch
