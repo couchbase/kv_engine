@@ -2093,8 +2093,8 @@ size_t Warmup::getNumShards() const {
 }
 
 void Warmup::populateShardVbStates() {
-    const uint16_t numShards = getNumShards();
-    for (uint16_t shardIdx = 0; shardIdx < numShards; ++shardIdx) {
+    const auto numShards = getNumShards();
+    for (size_t shardIdx = 0; shardIdx < numShards; ++shardIdx) {
         const std::vector<vbucket_state*> curShardStates =
                 store.getRWUnderlyingByShard(shardIdx)->listPersistedVbuckets();
         std::vector<std::pair<Vbid, vbucket_state>> vbStates;
@@ -2103,7 +2103,8 @@ void Warmup::populateShardVbStates() {
             if (!curShardStates[vbIdx]) {
                 continue;
             }
-            const Vbid vbid(vbIdx * numShards + shardIdx);
+            const Vbid vbid(
+                    gsl::narrow<uint16_t>(vbIdx * numShards + shardIdx));
             vbStates.emplace_back(vbid, *curShardStates[vbIdx]);
         }
 

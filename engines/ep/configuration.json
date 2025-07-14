@@ -368,13 +368,25 @@
             "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a document be to be considered for defragmentation.",
             "type": "size_t",
-            "dynamic" : true
+            "dynamic": true,
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 255
+                }
+            }
         },
         "defragmenter_stored_value_age_threshold": {
             "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a StoredValue be to be considered for defragmentation.",
             "type": "size_t",
-            "dynamic" : true
+            "dynamic": true,
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 255
+                }
+            }
         },
         "defragmenter_chunk_duration": {
             "default": "20",

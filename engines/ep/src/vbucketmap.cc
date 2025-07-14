@@ -57,7 +57,8 @@ VBucketMap::Iterator::EndSentinel VBucketMap::end() const {
 }
 
 VBucketMap::VBucketMap(KVBucket& bucket)
-    : size(bucket.getConfiguration().getMaxVbuckets()), bucket(bucket) {
+    : size(gsl::narrow<uint16_t>(bucket.getConfiguration().getMaxVbuckets())),
+      bucket(bucket) {
     auto& engine = bucket.getEPEngine();
     const auto numShards = engine.getWorkLoadPolicy().getNumShards();
     shards.resize(numShards);
@@ -123,7 +124,7 @@ void VBucketMap::dropVBucketAndSetupDeferredDeletion(Vbid id,
 
 std::vector<Vbid> VBucketMap::getBuckets() const {
     std::vector<Vbid> rv;
-    for (size_t i = 0; i < size; ++i) {
+    for (uint16_t i = 0; i < size; ++i) {
         VBucketPtr b(getBucket(Vbid(i)));
         if (b) {
             rv.push_back(b->getId());
@@ -134,7 +135,7 @@ std::vector<Vbid> VBucketMap::getBuckets() const {
 
 std::vector<Vbid> VBucketMap::getBucketsInState(vbucket_state_t state) const {
     std::vector<Vbid> rv;
-    for (size_t i = 0; i < size; ++i) {
+    for (uint16_t i = 0; i < size; ++i) {
         VBucketPtr b = getBucket(Vbid(i));
         if (b && b->getState() == state) {
             rv.push_back(b->getId());
@@ -156,7 +157,7 @@ size_t VBucketMap::getNumShards() const {
 }
 
 void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
-    for (size_t id = 0; id < size; id++) {
+    for (uint16_t id = 0; id < size; id++) {
         auto vb = getBucket(Vbid(id));
         if (vb) {
             vb->setHLCDriftAheadThreshold(threshold);
@@ -165,7 +166,7 @@ void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) 
 }
 
 void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
-    for (size_t id = 0; id < size; id++) {
+    for (uint16_t id = 0; id < size; id++) {
         auto vb = getBucket(Vbid(id));
         if (vb) {
             vb->setHLCDriftBehindThreshold(threshold);
@@ -174,7 +175,7 @@ void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold)
 }
 
 void VBucketMap::setHLCMaxFutureThreshold(std::chrono::microseconds threshold) {
-    for (size_t id = 0; id < size; id++) {
+    for (uint16_t id = 0; id < size; id++) {
         auto vb = getBucket(Vbid(id));
         if (vb) {
             vb->setHLCMaxFutureThreshold(threshold);
@@ -184,7 +185,7 @@ void VBucketMap::setHLCMaxFutureThreshold(std::chrono::microseconds threshold) {
 
 void VBucketMap::setDurabilityImpossibleFallback(
         cb::config::DurabilityImpossibleFallback fallback) {
-    for (size_t id = 0; id < size; id++) {
+    for (uint16_t id = 0; id < size; id++) {
         auto vb = getBucket(Vbid(id));
         if (vb) {
             std::shared_lock rlh(vb->getStateLock());

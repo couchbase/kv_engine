@@ -187,11 +187,11 @@ protected:
 
     // Minimum age (measured in defragmenter task passes) that a document
     // must be to be considered for defragmentation.
-    size_t getAgeThreshold() const;
+    uint8_t getAgeThreshold() const;
 
     // Minimum age (measured in defragmenter task passes) that a StoredValue
     // must be to be considered for defragmentation.
-    size_t getStoredValueAgeThreshold() const;
+    uint8_t getStoredValueAgeThreshold() const;
 
     // Upper limit on how long each defragmention chunk can run for, before
     // being paused.

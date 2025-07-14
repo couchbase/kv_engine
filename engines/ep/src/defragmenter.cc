@@ -216,12 +216,15 @@ DefragmenterTask::calculateSleepTimeAndRunState(
             true};
 }
 
-size_t DefragmenterTask::getAgeThreshold() const {
-    return engine->getConfiguration().getDefragmenterAgeThreshold();
+uint8_t DefragmenterTask::getAgeThreshold() const {
+    return gsl::narrow_cast<uint8_t>(
+            engine->getConfiguration().getDefragmenterAgeThreshold());
 }
 
-size_t DefragmenterTask::getStoredValueAgeThreshold() const {
-    return engine->getConfiguration().getDefragmenterStoredValueAgeThreshold();
+uint8_t DefragmenterTask::getStoredValueAgeThreshold() const {
+    return gsl::narrow_cast<uint8_t>(
+            engine->getConfiguration()
+                    .getDefragmenterStoredValueAgeThreshold());
 }
 
 void DefragmenterTask::updateStats(DefragmentVisitor& visitor) {

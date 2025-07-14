@@ -31,7 +31,7 @@ MutationLogWriter::MutationLogWriter(
 
     // Write the initial file header!
     LogHeaderBlock header;
-    header.set(bs);
+    header.set(gsl::narrow<uint32_t>(bs));
     std::copy_n(reinterpret_cast<const uint8_t*>(&header),
                 sizeof(header),
                 entryBuffer.data());

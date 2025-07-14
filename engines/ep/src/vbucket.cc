@@ -106,7 +106,9 @@ static bool isRange(std::set<Vbid>::const_iterator it,
                     const std::set<Vbid>::const_iterator& end,
                     size_t& length) {
     length = 0;
-    for (Vbid val = *it; it != end && Vbid(val.get() + length) == *it;
+    for (Vbid val = *it;
+         it != end &&
+         Vbid(gsl::narrow_cast<uint16_t>(val.get() + length)) == *it;
          ++it, ++length) {
         // empty
     }

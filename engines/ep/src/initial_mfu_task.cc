@@ -57,8 +57,9 @@ bool InitialMFUTask::run() {
         }
     }
 
-    uint8_t newInitialMFU = aggregated.getValueAtPercentile(
-            config.getItemEvictionInitialMfuPercentile());
+    auto newInitialMFU =
+            gsl::narrow_cast<uint8_t>(aggregated.getValueAtPercentile(
+                    config.getItemEvictionInitialMfuPercentile()));
 
     // Increment by one, to avoid starting out at the lowest MFU value, if
     // that is very saturated.

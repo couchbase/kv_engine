@@ -26,7 +26,7 @@ size_t selectWorkerForVBucket(size_t numWorkers,
 
     // More workers than vBuckets. In that case, at least a subset
     // of vBuckets can use more than 1 worker.
-    const int minWorkersPerVBucket = numWorkers / numVBs;
+    const auto minWorkersPerVBucket = numWorkers / numVBs;
 
     // Normalize the vBucket ID to an index between 0 and the number of
     // vBuckets.
@@ -39,11 +39,11 @@ size_t selectWorkerForVBucket(size_t numWorkers,
     // consecutive vBuckets (0-9), the first 5 vBuckets will be assigned two
     // workers. In that case, vb:3 will have workers 3 and 18.
     const bool hasExtraWorker = normalizedIndex < (numWorkers % numVBs);
-    const int workersForVBucket =
-            minWorkersPerVBucket + static_cast<int>(hasExtraWorker);
+    const size_t workersForVBucket =
+            minWorkersPerVBucket + static_cast<size_t>(hasExtraWorker);
 
     // Pick the worker to use.
-    const int ownWorkerIndex =
+    const size_t ownWorkerIndex =
             folly::hash::twang_mix64(distributionKey) % workersForVBucket;
     // Calculate the worker index.
     return normalizedIndex + ownWorkerIndex * numVBs;

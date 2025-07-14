@@ -52,7 +52,7 @@ private:
     VBucketFilter vBucketFilter;
 
     EPStats& stats;
-    rel_time_t startTime;
+    time_t startTime;
     cb::time::steady_clock::time_point taskStart;
     cb::crypto::SharedEncryptionKey encryptionKey;
     std::string prev;

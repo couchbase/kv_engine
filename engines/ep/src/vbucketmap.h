@@ -86,7 +86,7 @@ public:
         // dereferences of the same iterator, which would be inconvenient.
         VBucketPtr vbPtr;
         // current vbid
-        size_t vbid = 0;
+        uint16_t vbid = 0;
     };
 
     Iterator begin() const;
@@ -116,7 +116,7 @@ public:
 
     // Returns the size of the map, i.e. the total number of VBuckets it can
     // contain.
-    size_t getSize() const {
+    uint16_t getSize() const {
         return size;
     }
     std::vector<Vbid> getBuckets() const;
@@ -207,7 +207,7 @@ private:
 
     std::vector<std::unique_ptr<KVShard>> shards;
 
-    const size_t size;
+    const uint16_t size;
 
     /**
      * Count of how many vbuckets in vbMap are in each of the four valid
