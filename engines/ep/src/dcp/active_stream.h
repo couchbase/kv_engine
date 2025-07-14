@@ -671,9 +671,9 @@ protected:
                (maxMarkerVersion == MarkerVersion::V2_2);
     }
 
-    bool supportPurgeSeqnoInSnapshot(bool hpsInSnapshotRange) const {
+    bool supportPurgeSeqnoInSnapshot() const {
         return engine->isDcpSnapshotMarkerPurgeSeqnoEnabled() &&
-               hpsInSnapshotRange && (maxMarkerVersion == MarkerVersion::V2_2);
+               (maxMarkerVersion == MarkerVersion::V2_2);
     }
 
     /**
