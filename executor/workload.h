@@ -40,8 +40,8 @@ public:
             // Sanity - must always have at least 1 shard., but not more than
             // 128 given we don't have machines commonly available to test at
             // greater sizes.
-            maxNumShards = std::max(1, maxNumShards);
-            maxNumShards = std::min(128, maxNumShards);
+            maxNumShards = std::max(size_t(1), maxNumShards);
+            maxNumShards = std::min(size_t(128), maxNumShards);
         }
     }
 
@@ -80,7 +80,7 @@ public:
     }
 
 private:
-    int maxNumWorkers;
-    int maxNumShards;
+    size_t maxNumWorkers;
+    size_t maxNumShards;
     std::atomic<workload_pattern_t> workloadPattern;
 };
