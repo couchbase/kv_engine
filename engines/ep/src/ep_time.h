@@ -37,3 +37,13 @@ extern time_t ep_abs_time(rel_time_t);
 extern rel_time_t ep_reltime(rel_time_t);
 extern time_t ep_real_time();
 extern uint32_t ep_limit_expiry_time(uint32_t t, std::chrono::seconds limit);
+
+/**
+ * Convert MCBP expiry time to a 32-bit expiry time for storage in the bucket.
+ * 32-bit is the available space for storing the expiry time in the bucket.
+ *
+ * @param mcbpExpTime The MCBP expiry time.
+ * @return The 32-bit expiry time that should be stored in the Item/StoredValue
+ *         etc...
+ */
+uint32_t ep_convert_to_expiry_time(uint32_t mcbpExpTime);

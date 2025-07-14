@@ -2540,12 +2540,10 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         return cb::makeEngineErrorItemPair(memoryCondition());
     }
 
-    time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
-
     try {
         auto* item = new Item(key,
                               flags,
-                              expiretime,
+                              ep_convert_to_expiry_time(exptime),
                               nullptr,
                               nbytes,
                               datatype,
@@ -2651,9 +2649,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         const DocKeyView& key,
         Vbid vbucket,
         uint32_t exptime) {
-    time_t expiry_time = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
-
-    GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, &cookie, expiry_time));
+    GetValue gv(kvBucket->getAndUpdateTtl(
+            key, vbucket, &cookie, ep_convert_to_expiry_time(exptime)));
 
     auto rv = gv.getStatus();
     if (rv == cb::engine_errc::success) {
@@ -6843,11 +6840,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     auto datatype = uint8_t(req.getDatatype());
     auto mutate_type = payload.getMutationType();
     auto flags = payload.getFlags();
-    auto exp = payload.getExpiration();
-    if (exp != 0) {
-        exp = ep_abs_time(ep_reltime(exp));
-    }
-
+    auto exp = ep_convert_to_expiry_time(payload.getExpiration());
     uint64_t seqno;
     cb::engine_errc ret;
     if (mutate_type == ReturnMetaType::Set ||

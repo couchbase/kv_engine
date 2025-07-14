@@ -11,6 +11,7 @@
 
 #include "ep_time.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/server_core_iface.h>
 
 #include <atomic>
@@ -64,4 +65,15 @@ void initialize_time_functions(ServerCoreIface* core_api) {
 
 time_t ep_real_time() {
     return ep_abs_time(ep_current_time());
+}
+
+uint32_t ep_convert_to_expiry_time(uint32_t mcbpExpTime) {
+    // @todo: MB-67576. The value being casted could genuienly be > 2^32 as it
+    // could be the current time + mcbpExpTime. On a well managed system this
+    // isn't a problem for a long time (2^32 seconds since unix epoch). But
+    // never trust the system clock as such, however if we cannot generate
+    // an expiry time that fits u32, we will have to just fail.
+    return (mcbpExpTime == 0) ? 0
+                              : gsl::narrow_cast<uint32_t>(
+                                        ep_abs_time(ep_reltime(mcbpExpTime)));
 }
