@@ -64,11 +64,11 @@ protected:
         }
     }
 
-    void createDocument(std::string value = "{}") {
+    MutationInfo createDocument(std::string value = "{}") {
         Document doc;
         doc.info.id = key;
         doc.value = std::move(value);
-        admin->mutate(doc, Vbid{0}, MutationType::Set);
+        return admin->mutate(doc, Vbid{0}, MutationType::Set);
     }
 
     static BinprotResponse execute(MemcachedConnection& connection,
@@ -1599,7 +1599,9 @@ TEST_P(CollectionsTest, ClientOpcode_GetRandomKey_with_euid_no_access) {
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_GetRandomKey_access) {
-    createDocument();
+    auto mutationInfo = createDocument();
+    adminConnection->selectBucket(bucketName);
+    adminConnection->waitForSeqnoToPersist(Vbid{0}, mutationInfo.seqno);
     BinprotGenericCommand command{ClientOpcode::GetRandomKey};
     GetRandomKeyPayload payload(
             static_cast<uint32_t>(CollectionUid::systemCollection));
@@ -1607,7 +1609,9 @@ TEST_P(CollectionsTest, ClientOpcode_GetRandomKey_access) {
     execute(*admin, command, false, false, false, Status::Success);
 }
 TEST_P(CollectionsTest, ClientOpcode_GetRandomKey_with_euid_with_access) {
-    createDocument();
+    auto mutationInfo = createDocument();
+    adminConnection->selectBucket(bucketName);
+    adminConnection->waitForSeqnoToPersist(Vbid{0}, mutationInfo.seqno);
     BinprotGenericCommand command{ClientOpcode::GetRandomKey};
     GetRandomKeyPayload payload(
             static_cast<uint32_t>(CollectionUid::systemCollection));
