@@ -393,4 +393,31 @@ constexpr std::string_view LegacyJSONFormat = R"({{"max_dcp_seqno":"{}"}})";
 
 } // namespace VB
 
+/**
+ * Convert a string to a CollectionID or ScopeID. This is for string
+ * representations that come from stat calls, not for values that come from the
+ * Manifest (JSON)
+ *
+ * @param str The string to convert.
+ * @return The converted CollectionID or ScopeID.
+ * @throws std::invalid_argument if the string is not a valid CollectionID or
+ *         ScopeID.
+ */
+template <typename T>
+T makeIdFromString(std::string_view str) {
+    auto value = std::stoul(str.data(), nullptr, 16);
+    if (value > std::numeric_limits<uint32_t>::max()) {
+        throw std::invalid_argument("makeIdFromString: value is too large");
+    }
+    return T(gsl::narrow_cast<uint32_t>(value));
+}
+
+static inline CollectionID makeCollectionIDFromString(std::string_view str) {
+    return makeIdFromString<CollectionID>(str);
+}
+
+static inline ScopeID makeScopeIDFromString(std::string_view str) {
+    return makeIdFromString<ScopeID>(str);
+}
+
 } // end namespace Collections

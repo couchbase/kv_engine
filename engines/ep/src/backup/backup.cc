@@ -35,7 +35,9 @@ reEncodeOpenCollections(flatbuffers::FlatBufferBuilder& builder,
                 ScopeIDType(open.metaData.sid),
                 CollectionIDType(open.metaData.cid),
                 open.metaData.maxTtl.has_value(),
-                open.metaData.maxTtl.value_or(std::chrono::seconds(0)).count(),
+                gsl::narrow_cast<uint32_t>(
+                        open.metaData.maxTtl.value_or(std::chrono::seconds(0))
+                                .count()),
                 builder.CreateString(open.metaData.name),
                 getHistoryFromCanDeduplicate(open.metaData.canDeduplicate),
                 getMeteredFromEnum(open.metaData.metered),

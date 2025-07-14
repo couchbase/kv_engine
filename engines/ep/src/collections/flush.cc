@@ -409,7 +409,9 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         auto meta = getMaybeModifiedCollectionMetaData(
                 cid, span.high.startSeqno, span.high.metaData);
 
-        // generate
+        // maxTTL is validated in Manifest.cc to be <= int32_t
+        const auto maxTtl = gsl::narrow_cast<uint32_t>(
+                meta.maxTtl.value_or(std::chrono::seconds::zero()).count());
         exclusiveInsertCollection(
                 meta.cid,
                 meta.flushUid,
@@ -419,8 +421,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         uint32_t{meta.sid},
                         uint32_t(meta.cid),
                         meta.maxTtl.has_value(),
-                        meta.maxTtl.value_or(std::chrono::seconds::zero())
-                                .count(),
+                        maxTtl,
                         builder.CreateString(meta.name.data(),
                                              meta.name.size()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
@@ -455,6 +456,10 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 Collections::getMetered(entry->metered()),
                                 Collections::ManifestUid{entry->flushUid()}});
 
+                // maxTTL is validated in Manifest.cc to be <= int32_t
+                const auto maxTtl = gsl::narrow_cast<uint32_t>(
+                        meta.maxTtl.value_or(std::chrono::seconds::zero())
+                                .count());
                 exclusiveInsertCollection(
                         entry->collectionId(),
                         Collections::ManifestUid{entry->flushUid()},
@@ -464,9 +469,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 entry->scopeId(),
                                 entry->collectionId(),
                                 meta.maxTtl.has_value(),
-                                meta.maxTtl
-                                        .value_or(std::chrono::seconds::zero())
-                                        .count(),
+                                maxTtl,
                                 builder.CreateString(entry->name()),
                                 getHistoryFromCanDeduplicate(
                                         meta.canDeduplicate),
@@ -486,6 +489,9 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         auto meta = getMaybeModifiedCollectionMetaData(
                 CollectionID::Default, 0, CollectionMetaData{});
 
+        // maxTTL is validated in Manifest.cc to be <= int32_t
+        const auto maxTtl = gsl::narrow_cast<uint32_t>(
+                meta.maxTtl.value_or(std::chrono::seconds::zero()).count());
         // Nothing on disk - and not dropped assume the default collection lives
         exclusiveInsertCollection(
                 CollectionID::Default,
@@ -496,8 +502,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         ScopeID::Default,
                         CollectionID::Default,
                         meta.maxTtl.has_value(),
-                        meta.maxTtl.value_or(std::chrono::seconds::zero())
-                                .count(),
+                        maxTtl,
                         builder.CreateString(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),

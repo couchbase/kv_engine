@@ -3876,23 +3876,22 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& manager = getCollectionsManager();
-    auto kv = engine->getKVBucket();
     CBStatCollector cbcollector(append_stat, *cookie);
     auto collector = cbcollector.forBucket("bucket-name");
-    auto result = manager.doScopeStats(*kv, collector, "scopes-byid 0x0");
+    auto result = manager.doScopeStats(*engine, collector, "scopes-byid 0x0");
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(ScopeEntry::defaultS.getId(), result.getScopeId());
     EXPECT_EQ(cm.getUid(), result.getManifestId());
 
-    result = manager.doScopeStats(*kv, collector, "scopes-byid 0x8");
+    result = manager.doScopeStats(*engine, collector, "scopes-byid 0x8");
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(ScopeEntry::shop1.getId(), result.getScopeId());
     EXPECT_EQ(cm.getUid(), result.getManifestId());
 
-    result = manager.doScopeStats(*kv, collector, "scopes-byid 0x1");
+    result = manager.doScopeStats(*engine, collector, "scopes-byid 0x1");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, result.result);
 
-    result = manager.doScopeStats(*kv, collector, "scopes-byid 0x9");
+    result = manager.doScopeStats(*engine, collector, "scopes-byid 0x9");
     EXPECT_EQ(cb::engine_errc::unknown_scope, result.result);
     EXPECT_EQ(cm.getUid(), result.getManifestId());
 }

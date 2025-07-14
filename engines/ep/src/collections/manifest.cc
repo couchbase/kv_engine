@@ -428,11 +428,14 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                 fbCollections;
 
         for (const auto& c : scope.collections) {
+            // maxTtl is <= int32_t - safe to narrow_cast
+            const auto maxTtl = gsl::narrow_cast<uint32_t>(
+                    c.maxTtl.value_or(std::chrono::seconds(0)).count());
             auto newEntry = Collections::Persist::CreateCollection(
                     builder,
                     uint32_t(c.cid),
                     c.maxTtl.has_value(),
-                    c.maxTtl.value_or(std::chrono::seconds(0)).count(),
+                    maxTtl,
                     builder.CreateString(c.name),
                     getHistoryFromCanDeduplicate(c.canDeduplicate),
                     c.metered == Metered::Yes,
@@ -604,7 +607,7 @@ void Manifest::addScopeStats(KVBucket& bucket,
 
 std::optional<CollectionID> Manifest::getCollectionID(
         ScopeID scope, std::string_view path) const {
-    int pos = path.find_first_of('.');
+    auto pos = path.find_first_of('.');
     auto collection = path.substr(pos + 1);
 
     // Empty collection part of the path means default collection.
@@ -636,7 +639,7 @@ std::optional<CollectionID> Manifest::getCollectionID(
 }
 
 std::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
-    int pos = path.find_first_of('.');
+    auto pos = path.find_first_of('.');
     auto scope = path.substr(0, pos);
 
     // Empty scope part of the path means default scope.

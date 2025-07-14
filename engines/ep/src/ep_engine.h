@@ -1172,6 +1172,17 @@ public:
      */
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() const;
 
+    /// Result of getValidVBucketFromString()
+    struct StatusAndVBPtr {
+        cb::engine_errc status;
+        VBucketPtr vb;
+    };
+    /**
+     * Helper method for stats calls - validates the specified vbucket number
+     * and returns a VBucketPtr (if valid).
+     */
+    StatusAndVBPtr getValidVBucketFromString(std::string_view vbNum);
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1229,7 +1240,7 @@ protected:
      *
      * @return True if there is memory for the item; else False
      */
-    bool hasMemoryForItemAllocation(uint32_t totalItemSize);
+    bool hasMemoryForItemAllocation(size_t totalItemSize);
 
     friend class KVBucket;
     friend class EPBucket;
@@ -1339,11 +1350,11 @@ protected:
 
     cb::engine_errc doCollectionStats(CookieIface& cookie,
                                       const AddStatFn& add_stat,
-                                      const std::string& statKey);
+                                      std::string_view statKey);
 
     cb::engine_errc doScopeStats(CookieIface& cookie,
                                  const AddStatFn& add_stat,
-                                 const std::string& statKey);
+                                 std::string_view statKey);
 
     cb::engine_errc doKeyStats(CookieIface& cookie,
                                const AddStatFn& add_stat,
@@ -1414,17 +1425,6 @@ protected:
     void addLookupResult(CookieIface& cookie, std::unique_ptr<Item> result);
 
     bool fetchLookupResult(CookieIface& cookie, std::unique_ptr<Item>& itm);
-
-    /// Result of getValidVBucketFromString()
-    struct StatusAndVBPtr {
-        cb::engine_errc status;
-        VBucketPtr vb;
-    };
-    /**
-     * Helper method for stats calls - validates the specified vbucket number
-     * and returns a VBucketPtr (if valid).
-     */
-    StatusAndVBPtr getValidVBucketFromString(std::string_view vbNum);
 
     /**
      * Private helper method for decoding the options on set/del_with_meta.

@@ -434,59 +434,44 @@ private:
 //   - return top level stats (manager/manifest)
 //   - return per collection item counts from all active VBs
 cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
-        KVBucket& bucket,
+        EventuallyPersistentEngine& engine,
         const BucketStatCollector& collector,
-        const std::string& statKey) {
-    std::optional<std::string> arg;
+        std::string_view statKey) {
+    std::string_view vbucketParam;
     if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
-        arg = statKey.substr(pos + 1);
+        vbucketParam = statKey.substr(pos + 1);
     }
 
     if (statKey.starts_with("collections-details")) {
-        return doCollectionDetailStats(bucket, collector, arg);
+        return doCollectionDetailStats(engine, collector, vbucketParam);
     }
 
-    if (!arg) {
-        return doAllCollectionsStats(bucket, collector);
+    if (vbucketParam.empty()) {
+        return doAllCollectionsStats(*engine.getKVBucket(), collector);
     }
-    return doOneCollectionStats(bucket, collector, arg.value(), statKey);
+    return doOneCollectionStats(
+            *engine.getKVBucket(), collector, vbucketParam, statKey);
 }
 
 // handle key "collections-details"
 cb::EngineErrorGetCollectionIDResult
 Collections::Manager::doCollectionDetailStats(
-        KVBucket& bucket,
+        EventuallyPersistentEngine& engine,
         const BucketStatCollector& collector,
-        std::optional<std::string> arg) {
+        std::string_view vbucketParam) {
     bool success = false;
-    if (arg) {
-        // VB may be encoded in statKey
-        uint16_t id;
-        try {
-            id = std::stoi(*arg);
-        } catch (const std::logic_error& e) {
-            EP_LOG_WARN(
-                    "Collections::Manager::doCollectionDetailStats invalid "
-                    "vbid:{}, exception:{}",
-                    *arg,
-                    e.what());
-            return cb::EngineErrorGetCollectionIDResult{
-                    cb::engine_errc::invalid_arguments};
+    if (!vbucketParam.empty()) {
+        auto [status, vb] = engine.getValidVBucketFromString(vbucketParam);
+        if (status != cb::engine_errc::success) {
+            return cb::EngineErrorGetCollectionIDResult{status};
         }
-
-        Vbid vbid = Vbid(id);
-        VBucketPtr vb = bucket.getVBucket(vbid);
-        if (!vb) {
-            return cb::EngineErrorGetCollectionIDResult{
-                    cb::engine_errc::not_my_vbucket};
-        }
-
-        success = vb->lockCollections().addCollectionStats(vbid, collector);
-
+        success = vb->lockCollections().addCollectionStats(vb->getId(),
+                                                           collector);
     } else {
-        bucket.getCollectionsManager().addCollectionStats(bucket, collector);
+        engine.getKVBucket()->getCollectionsManager().addCollectionStats(
+                *engine.getKVBucket(), collector);
         CollectionDetailedVBucketVisitor visitor(collector);
-        bucket.visit(visitor);
+        engine.getKVBucket()->visit(visitor);
         success = visitor.getSuccess();
     }
     return {success ? cb::engine_errc::success : cb::engine_errc::failed,
@@ -527,16 +512,16 @@ Collections::Manager::doAllCollectionsStats(
 cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         KVBucket& bucket,
         const BucketStatCollector& collector,
-        const std::string& arg,
-        const std::string& statKey) {
+        std::string_view arg,
+        std::string_view statKey) {
     cb::EngineErrorGetCollectionIDResult res{cb::engine_errc::failed};
     // An argument was provided, maybe an id or a 'path'
     if (statKey.starts_with("collections-byid")) {
         CollectionID cid;
         // provided argument should be a hex collection ID N, 0xN or 0XN
         try {
-            cid = std::stoi(arg, nullptr, 16);
-        } catch (const std::logic_error& e) {
+            cid = Collections::makeCollectionIDFromString(arg);
+        } catch (const std::exception& e) {
             EP_LOG_WARN(
                     "Collections::Manager::doOneCollectionStats invalid "
                     "collection arg:{}, exception:{}",
@@ -618,56 +603,42 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
 //   - return top level stats (manager/manifest)
 //   - return number of collections from all active VBs
 cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
-        KVBucket& bucket,
+        EventuallyPersistentEngine& engine,
         const BucketStatCollector& collector,
-        const std::string& statKey) {
-    std::optional<std::string> arg;
-    if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
-        arg = statKey.substr(pos + 1);
+        std::string_view statKey) {
+    std::string_view vbucketParam;
+    if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
+        vbucketParam = statKey.substr(pos + 1);
     }
     if (statKey.starts_with("scopes-details")) {
-        return doScopeDetailStats(bucket, collector, arg);
+        return doScopeDetailStats(engine, collector, vbucketParam);
     }
 
-    if (!arg) {
-        return doAllScopesStats(bucket, collector);
+    if (vbucketParam.empty()) {
+        return doAllScopesStats(*engine.getKVBucket(), collector);
     }
 
-    return doOneScopeStats(bucket, collector, arg.value(), statKey);
+    return doOneScopeStats(
+            *engine.getKVBucket(), collector, vbucketParam, statKey);
 }
 
 // handler for "scope-details"
 cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
-        KVBucket& bucket,
+        EventuallyPersistentEngine& engine,
         const BucketStatCollector& collector,
-        std::optional<std::string> arg) {
+        std::string_view vbucketParam) {
     bool success = true;
-    if (arg) {
-        // VB may be encoded in statKey
-        uint16_t id;
-        try {
-            id = std::stoi(*arg);
-        } catch (const std::logic_error& e) {
-            EP_LOG_WARN(
-                    "Collections::Manager::doScopeDetailStats invalid "
-                    "vbid:{}, exception:{}",
-                    *arg,
-                    e.what());
-            return cb::EngineErrorGetScopeIDResult{
-                    cb::engine_errc::invalid_arguments};
+    if (!vbucketParam.empty()) {
+        auto [status, vb] = engine.getValidVBucketFromString(vbucketParam);
+        if (status != cb::engine_errc::success) {
+            return cb::EngineErrorGetScopeIDResult{status};
         }
-
-        Vbid vbid = Vbid(id);
-        VBucketPtr vb = bucket.getVBucket(vbid);
-        if (!vb) {
-            return cb::EngineErrorGetScopeIDResult{
-                    cb::engine_errc::not_my_vbucket};
-        }
-        success = vb->lockCollections().addScopeStats(vbid, collector);
+        success = vb->lockCollections().addScopeStats(vb->getId(), collector);
     } else {
-        bucket.getCollectionsManager().addScopeStats(bucket, collector);
+        engine.getKVBucket()->getCollectionsManager().addScopeStats(
+                *engine.getKVBucket(), collector);
         ScopeDetailedVBucketVisitor visitor(collector);
-        bucket.visit(visitor);
+        engine.getKVBucket()->visit(visitor);
         success = visitor.getSuccess();
     }
     return {success ? cb::engine_errc::success : cb::engine_errc::failed,
@@ -706,15 +677,15 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
 cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         KVBucket& bucket,
         const BucketStatCollector& collector,
-        const std::string& arg,
-        const std::string& statKey) {
+        std::string_view arg,
+        std::string_view statKey) {
     cb::EngineErrorGetScopeIDResult res{cb::engine_errc::failed};
     if (statKey.starts_with("scopes-byid")) {
         ScopeID scopeID;
         // provided argument should be a hex scope ID N, 0xN or 0XN
         try {
-            scopeID = std::stoi(arg, nullptr, 16);
-        } catch (const std::logic_error& e) {
+            scopeID = Collections::makeScopeIDFromString(arg);
+        } catch (const std::exception& e) {
             EP_LOG_WARN(
                     "Collections::Manager::doOneScopeStats invalid "
                     "scope arg:{}, exception:{}",

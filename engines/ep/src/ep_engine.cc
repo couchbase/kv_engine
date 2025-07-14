@@ -787,7 +787,13 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                 rv = cb::engine_errc::temporary_failure;
             }
         } else if (key == "vb_state_persist_run") {
-            runVbStatePersistTask(Vbid(std::stoi(val)));
+            size_t vbid = std::stoi(val);
+            if (vbid >= kvBucket->getVBMapSize()) {
+                rv = cb::engine_errc::invalid_arguments;
+            } else {
+                runVbStatePersistTask(
+                        Vbid(gsl::narrow_cast<Vbid::id_type>(vbid)));
+            }
         } else if (key == "ephemeral_full_policy") {
             configuration.setEphemeralFullPolicy(val);
         } else if (key == "ephemeral_mem_recovery_enabled") {
@@ -2915,7 +2921,7 @@ cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
 }
 
 bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
-        uint32_t totalItemSize) {
+        size_t totalItemSize) {
     return memoryTracker->isBelowMemoryQuota(totalItemSize);
 }
 
@@ -4928,22 +4934,22 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
         std::array<char, 80> statname;
         ExecutorPool* expool = ExecutorPool::get();
 
-        int readers = expool->getNumReaders();
+        auto readers = expool->getNumReaders();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_readers");
         add_casted_stat(statname.data(), readers, add_stat, cookie);
 
-        int writers = expool->getNumWriters();
+        auto writers = expool->getNumWriters();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_writers");
         add_casted_stat(statname.data(), writers, add_stat, cookie);
 
-        int auxio = expool->getNumAuxIO();
+        auto auxio = expool->getNumAuxIO();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_auxio");
         add_casted_stat(statname.data(), auxio, add_stat, cookie);
 
-        int nonio = expool->getNumNonIO();
+        auto nonio = expool->getNumNonIO();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_nonio");
         add_casted_stat(statname.data(), nonio, add_stat, cookie);
@@ -4954,17 +4960,17 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
                          "ep_workload:num_io_threads_per_core");
         add_casted_stat(statname.data(), threadsPerCore, add_stat, cookie);
 
-        int shards = workload->getNumShards();
+        auto shards = workload->getNumShards();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_shards");
         add_casted_stat(statname.data(), shards, add_stat, cookie);
 
-        int numReadyTasks = expool->getNumReadyTasks();
+        auto numReadyTasks = expool->getNumReadyTasks();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:ready_tasks");
         add_casted_stat(statname.data(), numReadyTasks, add_stat, cookie);
 
-        int numSleepers = expool->getNumSleepers();
+        auto numSleepers = expool->getNumSleepers();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_sleepers");
         add_casted_stat(statname.data(), numSleepers, add_stat, cookie);
@@ -5151,11 +5157,11 @@ void EventuallyPersistentEngine::runVbStatePersistTask(Vbid vbid) {
 cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const std::string& statKey) {
+        std::string_view statKey) {
     CBStatCollector collector(add_stat, cookie);
     auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doCollectionStats(
-            *kvBucket, bucketCollector, statKey);
+            *this, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_collection ||
         res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie, res.getManifestId());
@@ -5166,11 +5172,11 @@ cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
 cb::engine_errc EventuallyPersistentEngine::doScopeStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        const std::string& statKey) {
+        std::string_view statKey) {
     CBStatCollector collector(add_stat, cookie);
     auto bucketCollector = collector.forBucket(getName());
-    auto res = Collections::Manager::doScopeStats(
-            *kvBucket, bucketCollector, statKey);
+    auto res =
+            Collections::Manager::doScopeStats(*this, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie, res.getManifestId());
     }
@@ -5201,8 +5207,8 @@ EventuallyPersistentEngine::parseKeyStatCollection(
         collectionStr.size() > 2) {
         // provided argument should be a hex collection ID N, 0xN or 0XN
         try {
-            cid = std::stoul(collectionStr.data(), nullptr, 16);
-        } catch (const std::logic_error& e) {
+            cid = Collections::makeCollectionIDFromString(collectionStr);
+        } catch (const std::exception& e) {
             EP_LOG_WARN_CTX(
                     "EventuallyPersistentEngine::parseKeyStatCollection "
                     "invalid collection",

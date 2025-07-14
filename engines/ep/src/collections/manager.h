@@ -283,17 +283,17 @@ public:
      * Perform the gathering of collection stats for the bucket.
      */
     static cb::EngineErrorGetCollectionIDResult doCollectionStats(
-            KVBucket& bucket,
+            EventuallyPersistentEngine& engine,
             const BucketStatCollector& collector,
-            const std::string& statKey);
+            std::string_view statKey);
 
     /**
      * Perform the gathering of scope stats for the bucket.
      */
     static cb::EngineErrorGetScopeIDResult doScopeStats(
-            KVBucket& bucket,
+            EventuallyPersistentEngine& engine,
             const BucketStatCollector& collector,
-            const std::string& statKey);
+            std::string_view statKey);
 
     static cb::engine_errc doPrometheusCollectionStats(
             KVBucket& bucket, const BucketStatCollector& collector);
@@ -391,9 +391,9 @@ private:
 
     // handler for "collection-details"
     static cb::EngineErrorGetCollectionIDResult doCollectionDetailStats(
-            KVBucket& bucket,
+            EventuallyPersistentEngine& engine,
             const BucketStatCollector& collector,
-            std::optional<std::string> arg);
+            std::string_view arg);
 
     // handler for "collections"
     static cb::EngineErrorGetCollectionIDResult doAllCollectionsStats(
@@ -403,14 +403,14 @@ private:
     static cb::EngineErrorGetCollectionIDResult doOneCollectionStats(
             KVBucket& bucket,
             const BucketStatCollector& collector,
-            const std::string& arg,
-            const std::string& statKey);
+            std::string_view arg,
+            std::string_view statKey);
 
     // handler for "scope-details"
     static cb::EngineErrorGetScopeIDResult doScopeDetailStats(
-            KVBucket& bucket,
+            EventuallyPersistentEngine& engine,
             const BucketStatCollector& collector,
-            std::optional<std::string> arg);
+            std::string_view arg);
 
     // handler for "scopes"
     static cb::EngineErrorGetScopeIDResult doAllScopesStats(
@@ -420,8 +420,8 @@ private:
     static cb::EngineErrorGetScopeIDResult doOneScopeStats(
             KVBucket& bucket,
             const BucketStatCollector& collector,
-            const std::string& arg,
-            const std::string& statKey);
+            std::string_view arg,
+            std::string_view statKey);
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 

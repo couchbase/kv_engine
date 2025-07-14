@@ -1059,6 +1059,9 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     case SystemEventType::Begin:
     // Modify carries the current collection metadata (same as data as create)
     case SystemEventType::Modify: {
+        // maxTtl is <= int32_t - safe to narrow_cast
+        const auto maxTtl = gsl::narrow_cast<uint32_t>(
+                entry.getMaxTtl().value_or(std::chrono::seconds(0)).count());
         // CreateCollection is a FlatBuffers generated function. This creates
         // a Collection structure which is used by Begin and Modify events.
         auto collection = CreateCollection(
@@ -1067,8 +1070,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 uint32_t(entry.getScopeID()),
                 uint32_t(cid),
                 entry.getMaxTtl().has_value(),
-                entry.getMaxTtl().has_value() ? (*entry.getMaxTtl()).count()
-                                              : 0,
+                maxTtl,
                 builder.CreateString(collectionName.data(),
                                      collectionName.size()),
                 getHistoryFromCanDeduplicate(entry.getCanDeduplicate()),
