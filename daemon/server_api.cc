@@ -50,8 +50,9 @@ struct ServerCoreApi : public ServerCoreIface {
         return mc_time_convert_to_abs_time(exptime);
     }
 
-    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
-        return mc_time_limit_abstime(t, limit);
+    uint32_t limit_expiry_time(uint32_t t,
+                               std::chrono::seconds limit) override {
+        return mc_time_limit_expiry_time(t, limit);
     }
 
     size_t getMaxEngineFileDescriptors() override {

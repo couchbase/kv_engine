@@ -52,8 +52,7 @@ struct ServerCoreIface {
     virtual time_t abstime(rel_time_t exptime) = 0;
 
     /**
-     * Apply a limit to an absolute timestamp (which represents an item's
-     * requested expiry time)
+     * Apply a limit to an already computed item expiry time
      *
      * For example if t represents 23:00 and the time we invoke this method is
      * 22:00 and the limit is 60s, then the returned value will be 22:01. The
@@ -64,11 +63,12 @@ struct ServerCoreIface {
      * If t == 0 and now + limit overflows time_t, time_t::max is returned.
      *
      * @param t The expiry time to be limited, 0 means no expiry, 1 to
-     *        time_t::max are interpreted as the time absolute time of expiry
+     *        uint32_t::max are interpreted as the absolute time of expiry
      * @param limit The limit in seconds
      * @return The expiry time after checking it against now + limit.
      */
-    virtual time_t limit_abstime(time_t t, std::chrono::seconds limit) = 0;
+    virtual uint32_t limit_expiry_time(uint32_t t,
+                                       std::chrono::seconds limit) = 0;
 
     virtual size_t getMaxEngineFileDescriptors() = 0;
 

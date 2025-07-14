@@ -36,4 +36,4 @@ std::chrono::steady_clock::time_point ep_uptime_now();
 extern time_t ep_abs_time(rel_time_t);
 extern rel_time_t ep_reltime(rel_time_t);
 extern time_t ep_real_time();
-extern time_t ep_limit_abstime(time_t t, std::chrono::seconds limit);
+extern uint32_t ep_limit_expiry_time(uint32_t t, std::chrono::seconds limit);

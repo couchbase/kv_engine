@@ -73,8 +73,8 @@ rel_time_t mc_time_convert_to_real_time(
         std::chrono::seconds currentUptime);
 
 /**
- * Apply a limit to an absolute timestamp (which represents an item's requested
- * expiry time)
+ * Apply a limit to an expiry time, which is absolute time in seconds stored in
+ * uint32_t.
  *
  * For example if t represents 23:00 and the time we invoke this method is 22:00
  * and the limit is 60s, then the returned value will be 22:01. The input of
@@ -82,21 +82,21 @@ rel_time_t mc_time_convert_to_real_time(
  *
  * If t == 0, then the returned value is now + limit
  * If t < now, then the result is t, no limit needed.
- * If t == 0 and now + limit overflows time_t, time_t::max is returned.
+ * If t == 0 and now + limit overflows uint32_t, uint32_t::max is returned.
  *
- * @param t The expiry time to be limited, 0 means no expiry, 1 to time_t::max
- *          are intepreted as the time absolute time of expiry
+ * @param t The expiry time to be limited, 0 means no expiry, 1 to
+ *        uint32_t::max are intepretted as the absolute time of expiry
  * @param limit The limit in seconds
  * @return The expiry time after checking it against now + limit.
  */
-time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
+uint32_t mc_time_limit_expiry_time(uint32_t t, std::chrono::seconds limit);
 
 /**
  * As above, but provide the uptime
  */
-time_t mc_time_limit_abstime(time_t t,
-                             std::chrono::seconds limit,
-                             std::chrono::seconds uptime);
+uint32_t mc_time_limit_expiry_time(uint32_t t,
+                                   std::chrono::seconds limit,
+                                   std::chrono::seconds uptime);
 
 namespace cb::time {
 

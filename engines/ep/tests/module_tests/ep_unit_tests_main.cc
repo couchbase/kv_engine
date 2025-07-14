@@ -66,9 +66,10 @@ public:
         return get_current_time() + reltime;
     }
 
-    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
+    uint32_t limit_expiry_time(uint32_t t,
+                               std::chrono::seconds limit) override {
         throw std::runtime_error(
-                "UnitTestServerCore::limit_abstime() not implemented");
+                "UnitTestServerCore::limit_expiry_time() not implemented");
     }
 
     size_t getMaxEngineFileDescriptors() override {

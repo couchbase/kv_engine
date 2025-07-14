@@ -1040,7 +1040,7 @@ time_t Manifest::processExpiryTime(const container::const_iterator entry,
 
     // Note: A ttl value of 0 means no maxTTL
     if (enforcedTtl.count()) {
-        t = ep_limit_abstime(t, enforcedTtl);
+        t = ep_limit_expiry_time(t, enforcedTtl);
     }
     return t;
 }

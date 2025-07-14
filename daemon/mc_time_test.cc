@@ -74,34 +74,34 @@ class McTimeLimitTest : public McTimeTest {};
 
 using namespace std::chrono_literals;
 
-// Basic expiry limiting test, use mc_time_limit_abstime to ensure it limits
+// Basic expiry limiting test, use mc_time_limit_expiry_time to ensure it limits
 // an absolute timestamp.
 TEST_F(McTimeLimitTest, basic) {
     // The time 100 seconds from now must be limited to 99s from now.
-    EXPECT_EQ(now + 99, mc_time_limit_abstime(now + 100, 99s));
+    EXPECT_EQ(now + 99, mc_time_limit_expiry_time(now + 100, 99s));
 }
 
 // Limiting to zero works too, meaning the input time stamp becomes now.
 TEST_F(McTimeLimitTest, limit_to_zero) {
-    EXPECT_EQ(now, mc_time_limit_abstime(now + 100, 0s));
+    EXPECT_EQ(now, mc_time_limit_expiry_time(now + 100, 0s));
 }
 
 // A time stamp in the past needs no limiting
 TEST_F(McTimeLimitTest, time_is_in_the_past) {
-    EXPECT_EQ(now - 100, mc_time_limit_abstime(now - 100, 10s));
-    EXPECT_EQ(1, mc_time_limit_abstime(1, 10s));
+    EXPECT_EQ(now - 100, mc_time_limit_expiry_time(now - 100, 10s));
+    EXPECT_EQ(1, mc_time_limit_expiry_time(1, 10s));
 }
 
 // A zero input (which means never expires) gets turned into an expiry time
 TEST_F(McTimeLimitTest, zero_input) {
-    EXPECT_EQ(now + 10, mc_time_limit_abstime(0, 10s));
+    EXPECT_EQ(now + 10, mc_time_limit_expiry_time(0, 10s));
 }
 
-// If the limit causes overflow, we return max time_t
+// If the limit causes overflow, we return max uint32_t
 TEST_F(McTimeLimitTest, would_overflow) {
     ASSERT_GT(now, 0);
-    EXPECT_EQ(std::numeric_limits<time_t>::max(),
-              mc_time_limit_abstime(0, 9223372036854775807s));
+    EXPECT_EQ(std::numeric_limits<uint32_t>::max(),
+              mc_time_limit_expiry_time(0, 9223372036854775807s));
 }
 
 using namespace std::chrono;

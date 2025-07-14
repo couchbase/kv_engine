@@ -125,7 +125,7 @@ static time_t mock_abstime(const rel_time_t exptime)
     return process_started + exptime;
 }
 
-static time_t mock_limit_abstime(time_t t, std::chrono::seconds limit) {
+static uint32_t mock_limit_expiry_time(uint32_t t, std::chrono::seconds limit) {
     auto upperbound = mock_abstime(mock_get_current_time()) + limit.count();
 
     if (t == 0 || t > upperbound) {
@@ -184,8 +184,9 @@ struct MockServerCoreApi : public ServerCoreIface {
     time_t abstime(rel_time_t exptime) override {
         return mock_abstime(exptime);
     }
-    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
-        return mock_limit_abstime(t, limit);
+    uint32_t limit_expiry_time(uint32_t t,
+                               std::chrono::seconds limit) override {
+        return mock_limit_expiry_time(t, limit);
     }
     size_t getMaxEngineFileDescriptors() override {
         // 1024 is kind of an abitrary limit (it just needs to be greater than

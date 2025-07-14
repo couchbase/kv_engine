@@ -65,7 +65,7 @@ rel_time_t mc_time_get_current_time() {
     return cb::time::UptimeClock::instance().getUptime().count();
 }
 
-/// @return true if a + b would overflow rel_time_t
+/// @return true if a + b would overflow type A
 template <class A, class B>
 static bool would_overflow(A a, B b) {
     return a > (std::numeric_limits<A>::max() - b);
@@ -120,24 +120,26 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
             t, instance.getEpoch(), instance.getUptime());
 }
 
-time_t mc_time_limit_abstime(time_t t, seconds limit, seconds uptime) {
+uint32_t mc_time_limit_expiry_time(uint32_t expiry,
+                                   seconds limit,
+                                   seconds uptime) {
     auto upperbound = mc_time_convert_to_abs_time(uptime.count());
 
-    if (would_overflow<time_t, seconds::rep>(upperbound, limit.count())) {
-        upperbound = std::numeric_limits<time_t>::max();
+    if (would_overflow<uint32_t, seconds::rep>(upperbound, limit.count())) {
+        upperbound = std::numeric_limits<uint32_t>::max();
     } else {
         upperbound = upperbound + limit.count();
     }
 
-    if (t == 0 || t > upperbound) {
-        t = upperbound;
+    if (expiry == 0 || expiry > upperbound) {
+        expiry = upperbound;
     }
 
-    return t;
+    return expiry;
 }
 
-time_t mc_time_limit_abstime(time_t t, seconds limit) {
-    return mc_time_limit_abstime(
+uint32_t mc_time_limit_expiry_time(uint32_t t, seconds limit) {
+    return mc_time_limit_expiry_time(
             t, limit, cb::time::UptimeClock::instance().getUptime());
 }
 
