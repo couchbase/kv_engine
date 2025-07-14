@@ -1778,13 +1778,19 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                        ? std::make_optional(maxVisibleSeqno)
                                        : std::nullopt;
 
-        const auto sendPurgeSeqno = (maxMarkerVersion == MarkerVersion::V2_2) &&
-                                    isDiskCheckpointType(meta.checkpointType);
-
         std::optional<uint64_t> psToSend;
-        if (sendPurgeSeqno) {
+        std::optional<uint64_t> hpsToSend;
+        if (isDiskCheckpointType(meta.checkpointType)) {
             Expects(meta.diskCheckpointState);
-            psToSend = meta.diskCheckpointState->purgeSeqno;
+            psToSend = supportPurgeSeqnoInSnapshot()
+                               ? std::make_optional(
+                                         meta.diskCheckpointState->purgeSeqno)
+                               : std::nullopt;
+            hpsToSend =
+                    supportHPSInSnapshot()
+                            ? std::make_optional(meta.diskCheckpointState
+                                                         ->highPreparedSeqno)
+                            : std::nullopt;
         }
 
         pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
@@ -1793,7 +1799,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                                       snapEnd,
                                                       flags,
                                                       hcsToSend,
-                                                      std::nullopt,
+                                                      hpsToSend,
                                                       mvsToSend,
                                                       psToSend,
                                                       sid));

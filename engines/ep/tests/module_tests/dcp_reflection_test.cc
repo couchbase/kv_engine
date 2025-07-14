@@ -418,6 +418,8 @@ public:
     void HPSUpdatedOnReplica_ForCommittedItems(MarkerVersion markerVersion);
 
     void HPSUpdatedOnReplica_ForMutations(MarkerVersion markerVersion);
+
+    void HpsSentForInMemoryDiskSnapshot(MarkerVersion markerVersion);
 };
 
 void DCPLoopbackTestHelper::DcpRoute::destroy() {
@@ -1937,6 +1939,104 @@ TEST_P(DCPLoopbackStreamTest,
     // The hps in the snapshot marker is not in the snapshot range, therefore
     // the HPS should be updated to the snapEnd.
     EXPECT_EQ(7, replicaVB->getHighPreparedSeqno());
+}
+
+void DCPLoopbackStreamTest::HpsSentForInMemoryDiskSnapshot(
+        MarkerVersion initialMarkerVersion) {
+    // Add a couple of items to the vbucket
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    // Add a prepare and commit for a new item
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+    ASSERT_EQ(cb::engine_errc::success, storeCommit(k2, 2));
+
+    // Add another item to the vbucket
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+
+    // Flush the items to disk
+    flushNodeIfPersistent(Node0);
+
+    // Clear the checkpoint to force a backfill from disk
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   initialMarkerVersion);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    auto expectedHps = initialMarkerVersion == MarkerVersion::V2_2
+                               ? std::optional<uint64_t>(2)
+                               : std::nullopt;
+
+    route0_1.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            expectedHps);
+
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 3);
+    route0_1.transferMutation(k3, 4);
+
+    flushNodeIfPersistent(Node1);
+    // Make sure the flusher has actually run & the hps is updated.
+    EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
+
+    // If the snapshot marker negotiated was v2.2, the HPS will be 2; if the
+    // negotiated marker version is v2.0, the HPS will be 4 (snapEnd).
+    auto replicaExpectedHps =
+            initialMarkerVersion == MarkerVersion::V2_2 ? 2 : 4;
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(replicaExpectedHps, replicaVB->getHighPreparedSeqno());
+
+    // Tear down streams and promote replica to active.
+    route0_1.destroy();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+
+    createNode(Node2, vbucket_state_replica);
+
+    // create a route between Node 1 and Node 2
+    auto route1_2 = createDcpRoute(Node1,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route1_2.doStreamRequest().first);
+
+    route1_2.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            replicaExpectedHps);
+
+    route1_2.transferMutation(k1, 1);
+    route1_2.transferMutation(k2, 3);
+    route1_2.transferMutation(k3, 4);
+
+    flushNodeIfPersistent(Node2);
+    EXPECT_NO_THROW(flushNodeIfPersistent(Node2));
+
+    auto replicaVB2 = engines[Node2]->getKVBucket()->getVBucket(vbid);
+
+    ASSERT_EQ(replicaExpectedHps, replicaVB2->getHighPreparedSeqno());
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       MB_67638_hps_sent_for_in_memory_disk_snapshot_initial_v2_0) {
+    HpsSentForInMemoryDiskSnapshot(MarkerVersion::V2_0);
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       MB_67638_hps_sent_for_in_memory_disk_snapshot_initial_v2_2) {
+    HpsSentForInMemoryDiskSnapshot(MarkerVersion::V2_2);
 }
 
 // Ideally this class would've inherited STParameterizedBucketTest which already
