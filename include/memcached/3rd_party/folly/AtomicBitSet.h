@@ -26,11 +26,13 @@
  * 3. Removed private inheritance from boost::noncopyable
  *   3.1 Added explicit delete of copy/move constructor/assignment
  * 4. Removed includes of other Folly libraries.
- * 5. This comment block
+ * 5. Added mask function with narrow_cast for narrowing warnings
+ * 6. This comment block
  */
 
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -121,6 +123,11 @@ private:
         return bit % kBitsPerBlock;
     }
 
+    static constexpr BlockType mask(size_t idx) {
+        assert(idx < N * kBitsPerBlock);
+        return gsl::narrow_cast<BlockType>(kOne << bitOffset(idx));
+    }
+
     // avoid casts
     static constexpr BlockType kOne = 1;
 
@@ -134,16 +141,12 @@ inline AtomicBitSet<N>::AtomicBitSet() : data_() {
 
 template <size_t N>
 inline bool AtomicBitSet<N>::set(size_t idx, std::memory_order order) {
-    assert(idx < N * kBitsPerBlock);
-    BlockType mask = kOne << bitOffset(idx);
-    return data_[blockIndex(idx)].fetch_or(mask, order) & mask;
+    return data_[blockIndex(idx)].fetch_or(mask(idx), order) & mask(idx);
 }
 
 template <size_t N>
 inline bool AtomicBitSet<N>::reset(size_t idx, std::memory_order order) {
-    assert(idx < N * kBitsPerBlock);
-    BlockType mask = kOne << bitOffset(idx);
-    return data_[blockIndex(idx)].fetch_and(~mask, order) & mask;
+    return data_[blockIndex(idx)].fetch_and(~mask(idx), order) & mask(idx);
 }
 
 template <size_t N>
@@ -156,8 +159,7 @@ inline bool AtomicBitSet<N>::set(size_t idx,
 template <size_t N>
 inline bool AtomicBitSet<N>::test(size_t idx, std::memory_order order) const {
     assert(idx < N * kBitsPerBlock);
-    BlockType mask = kOne << bitOffset(idx);
-    return data_[blockIndex(idx)].load(order) & mask;
+    return data_[blockIndex(idx)].load(order) & mask(idx);
 }
 
 template <size_t N>
