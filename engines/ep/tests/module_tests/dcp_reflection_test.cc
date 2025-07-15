@@ -414,6 +414,10 @@ public:
             cb::mcbp::DcpAddStreamFlag flags, bool completeFinalSnapshot);
 
     void HPSUpdatedOnReplica_ForPendingItems(MarkerVersion markerVersion);
+
+    void HPSUpdatedOnReplica_ForCommittedItems(MarkerVersion markerVersion);
+
+    void HPSUpdatedOnReplica_ForMutations(MarkerVersion markerVersion);
 };
 
 void DCPLoopbackTestHelper::DcpRoute::destroy() {
@@ -1482,6 +1486,8 @@ TEST_P(DCPLoopbackStreamTest,
     EXPECT_EQ(0, failoverEntry.by_seqno);
 }
 
+// Test the HPS is updated on the replica when pending items are flushed to
+// disk.
 void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForPendingItems(
         MarkerVersion markerVersion) {
     // Store a pending item
@@ -1550,30 +1556,54 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForPendingItems(
         }
     }
 
-    // Persist the mutations on replica, the HPS will be updated to 4, before
-    // the fix for MB-51689.
-    flushNodeIfPersistent(Node1);
+    // Seqno of the last prepare flushed to disk.
+    auto getPersistedPreparedSeqno = [&]() {
+        return replicaVB->getShard()
+                ->getRWUnderlying()
+                ->getCachedVBucketState(vbid)
+                ->persistedPreparedSeqno;
+    };
 
     if (isPersistent()) {
-        // HPS is not present in v2.0 marker & the HPS is set to the snapEnd.
-        if (markerVersion == MarkerVersion::V2_0) {
-            EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
-        } else {
-            EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
-        }
+        // Check the persisted HPS before flush.
+        EXPECT_EQ(0, getPersistedPreparedSeqno());
+        // Persist the mutations on replica, the HPS will be updated to 4,
+        // before the fix for MB-51689.
+        flushNodeIfPersistent(Node1);
+        // Seqno of the last prepare flushed to disk.
+        EXPECT_EQ(2, getPersistedPreparedSeqno());
+    }
+
+    if (!isPersistent()) {
+        GTEST_SKIP() << "MB-67633 / MB-67634";
+    }
+
+    // HPS is not present in v2.0 marker & the HPS is set to the snapEnd.
+    // Check the PDM and the persisted HPS.
+    if (markerVersion == MarkerVersion::V2_0) {
+        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(4, replicaVB->getPersistedHighPreparedSeqno());
+    } else {
+        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->getPersistedHighPreparedSeqno());
     }
 }
 
-// When the snapshot marker v2.0 is used, the HPS is set to the snapEnd.
-TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ToSnapEnd) {
+// When the snapshot marker v2.0 is used, the HPS is set to the snapEnd,
+// not to the seqno of a prepare.
+TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForPendingItems_ToSnapEnd) {
     HPSUpdatedOnReplica_ForPendingItems(MarkerVersion::V2_0);
 }
 
-TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_PendingItems) {
+// When the snapshot marker v2.2 is used, the HPS is set to the last prepare
+// seqno.
+TEST_P(DCPLoopbackStreamTest,
+       HPSUpdatedOnReplica_ForPendingItems_ToPreparedSeqno) {
     HPSUpdatedOnReplica_ForPendingItems(MarkerVersion::V2_2);
 }
 
-TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForCommittedItems) {
+void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForCommittedItems(
+        MarkerVersion markerVersion) {
     auto k1 = makeStoredDocKey("k1");
     auto k2 = makeStoredDocKey("k2");
     auto k3 = makeStoredDocKey("k3");
@@ -1602,18 +1632,23 @@ TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForCommittedItems) {
                                    Node1,
                                    EnableExpiryOutput::Yes,
                                    SyncReplication::SyncReplication,
-                                   MarkerVersion::V2_2);
+                                   markerVersion);
 
     // Flush the set_vb_state to disk
     flushNodeIfPersistent(Node1);
 
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
 
+    // HPS is not present in v2.0 marker
+    auto expectedHPS = markerVersion == MarkerVersion::V2_0
+                               ? std::nullopt
+                               : std::optional<uint64_t>(2);
+
     route0_1.transferSnapshotMarker(
             0,
             5,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
-            2 /*execptedHps*/);
+            expectedHPS);
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     const auto& checkpoint =
@@ -1629,26 +1664,115 @@ TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForCommittedItems) {
     route0_1.transferMutation(k3, 5);
 
     if (isPersistent()) {
+        auto lastReceivedSnapshotHPS = markerVersion == MarkerVersion::V2_0
+                                               ? std::nullopt
+                                               : std::optional<uint64_t>(2);
         // Verify the pdm->receivedSnapshotEnds.back() has the correct hps set
-        EXPECT_EQ(2,
+        EXPECT_EQ(lastReceivedSnapshotHPS,
                   PassiveDurabilityMonitorIntrospector::
                           public_getLastReceivedSnapshotHPS(
                                   dynamic_cast<const PassiveDurabilityMonitor&>(
                                           replicaVB->getDurabilityMonitor())));
         EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+        // Persist the mutations on replica, the HPS will be updated to 5,
+        // before the fix for MB-51689.
+        flushNodeIfPersistent(Node1);
+        // TODO: Understand why we need to flush again here.
+        flushNodeIfPersistent(Node1);
+    }
+
+    if (!isPersistent()) {
+        GTEST_SKIP() << "MB-67633 / MB-67634";
+    }
+
+    if (markerVersion == MarkerVersion::V2_0) {
+        EXPECT_EQ(5, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(5, replicaVB->getPersistedHighPreparedSeqno());
     } else {
         EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->getPersistedHighPreparedSeqno());
+    }
+}
+
+// When the snapshot marker v2.0 is used, the HPS is set to the snapEnd,
+// even if we had prepares (which are completed in this test).
+TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForCommittedItems_ToSnapEnd) {
+    HPSUpdatedOnReplica_ForCommittedItems(MarkerVersion::V2_0);
+}
+
+// When the snapshot marker v2.2 is used, the HPS is set to the last prepare
+// seqno, which will not be transmitted to the replica (we send a mutation for
+// the commit).
+TEST_P(DCPLoopbackStreamTest,
+       HPSUpdatedOnReplica_ForCommittedItems_ToPreparedSeqno) {
+    HPSUpdatedOnReplica_ForCommittedItems(MarkerVersion::V2_2);
+}
+
+void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForMutations(
+        MarkerVersion markerVersion) {
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+
+    flushNodeIfPersistent(Node0);
+
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   markerVersion);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    auto expectedHPS = markerVersion == MarkerVersion::V2_0
+                               ? std::nullopt
+                               : std::optional<uint64_t>(0);
+
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            expectedHPS);
+
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+    route0_1.transferMutation(k3, 3);
+
+    flushNodeIfPersistent(Node1);
+    flushNodeIfPersistent(Node1);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+
+    if (!isPersistent()) {
+        GTEST_SKIP() << "MB-67633 / MB-67634";
     }
 
-    // Persist the mutations on replica, the HPS will be updated to 4, before
-    // the fix for MB-51689.
-    flushNodeIfPersistent(Node1);
-    // TODO: Understand why we need to flush again here.
-    flushNodeIfPersistent(Node1);
-
-    if (isPersistent()) {
-        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+    if (markerVersion == MarkerVersion::V2_0) {
+        EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
+    } else {
+        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(0, replicaVB->getPersistedHighPreparedSeqno());
     }
+}
+
+// When the snapshot marker v2.0 is used, the HPS is set to the snapEnd,
+// even though we don't have any prepares.
+TEST_P(DCPLoopbackStreamTest, HPSUpdatedOnReplica_ForMutations_ToSnapEnd) {
+    HPSUpdatedOnReplica_ForMutations(MarkerVersion::V2_0);
+}
+
+// When the snapshot marker v2.2 is used, and no prepares, the HPS is set to 0.
+TEST_P(DCPLoopbackStreamTest,
+       HPSUpdatedOnReplica_ForMutations_ToPreparedSeqno) {
+    HPSUpdatedOnReplica_ForMutations(MarkerVersion::V2_2);
 }
 
 TEST_P(DCPLoopbackStreamTest,

@@ -1013,10 +1013,15 @@ bool CheckpointManager::queueDirty(
     if (uint64_t(lastBySeqno) == snapEnd) {
         lastSnapshotHighSeqno = lastBySeqno;
         if (openCkpt->isDiskCheckpoint()) {
-            const auto snapHps = openCkpt->getSnapHighPreparedSeqno();
-            if (snapHps.has_value()) {
-                openCkpt->setHighPreparedSeqno(snapHps.value());
-            }
+            // If we received the HPS for the disk snapshot, we use that as the
+            // HPS to be flushed to disk.
+            // If we didn't receive the HPS for the disk snapshot, we use
+            // the last seqno in the checkpoint as the HPS to be flushed to
+            // disk.
+            const auto hps =
+                    openCkpt->getSnapHighPreparedSeqno().value_or(snapEnd);
+            // Note that the assignment checks for weak monotonicity.
+            openCkpt->setHighPreparedSeqno(hps);
         }
     }
 
@@ -1272,7 +1277,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                            range.range.getStart(),
                            range.range.getEnd(),
                            to_string_or_none(range.highCompletedSeqno),
-                           to_string_or_none(range.highPreparedSeqno));
+                           range.highPreparedSeqno);
         }
         if (!ranges.empty()) {
             ranges.pop_back();

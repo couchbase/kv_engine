@@ -162,6 +162,8 @@ public:
         return 0;
     }
 
+    uint64_t getPersistedHighPreparedSeqno() const override;
+
     void updateStatsForStateChange(vbucket_state_t from,
                                    vbucket_state_t to) override;
 

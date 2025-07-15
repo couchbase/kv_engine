@@ -341,6 +341,10 @@ uint64_t EphemeralVBucket::getMaxVisibleSeqno() const {
     return seqList->getMaxVisibleSeqno();
 }
 
+uint64_t EphemeralVBucket::getPersistedHighPreparedSeqno() const {
+    return seqList->getHighPreparedSeqno();
+}
+
 void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
                                                  vbucket_state_t to) {
     checkpointManager->updateStatsForStateChange(from, to);

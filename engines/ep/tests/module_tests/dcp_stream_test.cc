@@ -8091,7 +8091,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
         checkVBState(3 /*lastSnapStart*/,
                      3 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,
-                     1 /*HPS*/,
+                     3 /*HPS*/,
                      1 /*HCS*/,
                      2 /*maxDelRevSeqno*/);
     }
@@ -8286,7 +8286,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                                   4 /*snapEnd*/,
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
-                                  std::optional<uint64_t>(4) /*HPS*/,
+                                  {} /*HPS*/,
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -8340,6 +8340,8 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
  * This tests the scenario:
  * [1:Pre, 2:Pre, 3:Commit, 4:Commit, 5:Pre, 6:Mutation]
  *
+ * Whilst one might expect that that HPS value is set to 5, it is in fact set to
+ * the snapshot end (6) due to the changes made for MB-34873.
  */
 TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
     uint32_t opaque = 0;
@@ -8390,7 +8392,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
         checkVBState(6 /*lastSnapStart*/,
                      6 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,
-                     5 /*HPS*/,
+                     6 /*HPS*/,
                      2 /*HCS*/,
                      0 /*maxDelRevSeqno*/);
     }

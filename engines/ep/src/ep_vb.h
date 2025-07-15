@@ -157,6 +157,8 @@ public:
         return getPersistenceSeqno();
     }
 
+    uint64_t getPersistedHighPreparedSeqno() const override;
+
     /**
      * Setup deferred deletion, this is where deletion of the vbucket is
      * deferred and completed by an AUXIO task as it will hit disk for the data

@@ -930,6 +930,16 @@ GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);
 }
 
+uint64_t EPVBucket::getPersistedHighPreparedSeqno() const {
+    if (isBucketCreation()) {
+        return 0;
+    }
+    auto& kvstore = *shard->getRWUnderlying();
+    const auto* vbState = kvstore.getCachedVBucketState(getId());
+    Expects(vbState);
+    return vbState->highPreparedSeqno;
+}
+
 void EPVBucket::setupDeferredDeletion(CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
     auto revision = getShard()->getRWUnderlying()->prepareToDelete(getId());

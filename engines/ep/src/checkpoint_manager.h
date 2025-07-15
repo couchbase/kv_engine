@@ -43,6 +43,14 @@ class Callback;
  * is required as we can't work out a correct PCS on a replica due to de-dupe.
  */
 struct CheckpointSnapshotRange {
+    CheckpointSnapshotRange(const snapshot_range_t& range,
+                            const std::optional<uint64_t>& highCompletedSeqno,
+                            uint64_t highPreparedSeqno)
+        : range(range),
+          highCompletedSeqno(highCompletedSeqno),
+          highPreparedSeqno(highPreparedSeqno) {
+    }
+
     // Getters for start and end to allow us to use this in the same way as a
     // normal snapshot_range_t
     uint64_t getStart() const {
@@ -56,10 +64,10 @@ struct CheckpointSnapshotRange {
 
     // HCS that should be flushed. Currently should only be set for Disk
     // Checkpoint runs.
-    std::optional<uint64_t> highCompletedSeqno = {};
+    std::optional<uint64_t> highCompletedSeqno;
     // HPS that should be flushed when the entire range has been persisted.
     // This is the seqno of the latest prepare in this checkpoint.
-    std::optional<uint64_t> highPreparedSeqno = {};
+    uint64_t highPreparedSeqno;
 };
 
 /**
@@ -764,6 +772,7 @@ protected:
      * @param snapEndSeqno for the new checkpoint
      * @param visibleSnapEnd for the new checkpoint
      * @param highCompletedSeqno optional SyncRep HCS to be flushed to disk
+     * @param highPreparedSeqno optional HPS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
      * @param historical Whether this checkpoint stores an historical snapshot

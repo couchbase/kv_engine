@@ -224,6 +224,12 @@ public:
     int64_t getHighPreparedSeqno() const;
 
     /**
+     * Get the high_prepared_seqno value that is persisted in the vBucket state.
+     * Added for testing purposes.
+     */
+    virtual uint64_t getPersistedHighPreparedSeqno() const = 0;
+
+    /**
      * Get the vBucket's High Completed Seqno. This is the sequence number of
      * the highest prepared SyncWrite which has been completed, i.e.:
      *
