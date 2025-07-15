@@ -264,7 +264,7 @@ protected:
         while (state.KeepRunning()) {
             // Push each possible Vbid to the queue
             Vbid vbid;
-            for (auto i = 0; i < 1024; i++) {
+            for (Vbid::id_type i = 0; i < 1024; i++) {
                 vbid = Vbid(i);
                 auto start = cb::time::steady_clock::now();
                 auto pushed = queue.pushUnique(vbid);
@@ -410,7 +410,7 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopFront)(benchmark::State& state) {
 // Push an entire set of Vbids and pop them all. Tests sanity of queue size and
 // set.
 BENCHMARK_DEFINE_F(VBReadyQueueBench, PopAllSanity)(benchmark::State& state) {
-    for (int i = 0; i < 1024; i++) {
+    for (Vbid::id_type i = 0; i < 1024; i++) {
         queue.pushUnique(Vbid(i));
     }
 
@@ -430,14 +430,14 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopAllSanity)(benchmark::State& state) {
                 std::chrono::duration<double>(end - start).count());
 
         EXPECT_TRUE(queue.empty());
-        for (int i = 0; i < 1024; i++) {
+        for (Vbid::id_type i = 0; i < 1024; i++) {
             EXPECT_FALSE(queue.exists(Vbid(i)));
         }
 
         while (queue.popFront(vbid)) {
         }
 
-        for (int i = 0; i < 1024; i++) {
+        for (Vbid::id_type i = 0; i < 1024; i++) {
             queue.pushUnique(Vbid(i));
         }
     }
@@ -547,14 +547,14 @@ BENCHMARK_REGISTER_F(VBReadyQueueBench, SanityManyElements)
         ->Iterations(5000);
 
 BENCHMARK_REGISTER_F(VBReadyQueueBench, MPSCRandom)
-        ->Threads(cb::get_cpu_count())
+        ->Threads(gsl::narrow_cast<int>(cb::get_cpu_count()))
         ->Iterations(1000000);
 BENCHMARK_REGISTER_F(VBReadyQueueBench, MPSCRandom)
-        ->Threads(cb::get_cpu_count() * 2)
+        ->Threads(gsl::narrow_cast<int>(cb::get_cpu_count() * 2))
         ->Iterations(1000000);
 BENCHMARK_REGISTER_F(VBReadyQueueBench, MPSCRandom)
-        ->Threads(cb::get_cpu_count() * 4)
+        ->Threads(gsl::narrow_cast<int>(cb::get_cpu_count() * 4))
         ->Iterations(1000000);
 BENCHMARK_REGISTER_F(VBReadyQueueBench, MPSCRandom)
-        ->Threads(cb::get_cpu_count() * 8)
+        ->Threads(gsl::narrow_cast<int>(cb::get_cpu_count() * 8))
         ->Iterations(1000000);

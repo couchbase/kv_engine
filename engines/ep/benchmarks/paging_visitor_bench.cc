@@ -137,7 +137,7 @@ public:
                 auto vBucket = engine->getVBucket(vbid);
                 auto htRet = vBucket->ht.findForWrite(makeStoredDocKey(key));
                 if (htRet.storedValue) {
-                    auto freq = freqDist(freqMt);
+                    auto freq = gsl::narrow_cast<uint8_t>(freqDist(freqMt));
                     htRet.storedValue->setFreqCounterValue(freq);
                     htRet.storedValue->setCas(casDist(casMt));
 

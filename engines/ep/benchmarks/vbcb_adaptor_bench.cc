@@ -67,7 +67,7 @@ protected:
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index() == 0) {
             const auto vbCount = state.range(0);
-            for (int i = 0; i < vbCount; i++) {
+            for (Vbid::id_type i = 0; i < vbCount; i++) {
                 ASSERT_EQ(
                         cb::engine_errc::success,
                         engine->getKVBucket()->deleteVBucket(Vbid(i), nullptr))

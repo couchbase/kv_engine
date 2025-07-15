@@ -120,7 +120,7 @@ public:
         EngineStatsBench::SetUp(state);
         if (state.thread_index() == 0) {
             auto numVBs = state.range(0);
-            for (auto vbid = 0; vbid < numVBs; vbid++) {
+            for (Vbid::id_type vbid = 0; vbid < numVBs; vbid++) {
                 ASSERT_EQ(cb::engine_errc::success,
                           engine->getKVBucket()->setVBucketState(
                                   Vbid(vbid), vbucket_state_active));
@@ -131,7 +131,7 @@ public:
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index() == 0) {
             auto numVBs = state.range(0);
-            for (auto vbid = 0; vbid < numVBs; vbid++) {
+            for (Vbid::id_type vbid = 0; vbid < numVBs; vbid++) {
                 ASSERT_EQ(cb::engine_errc::success,
                           engine->getKVBucket()->deleteVBucket(Vbid(vbid),
                                                                nullptr));
@@ -182,7 +182,7 @@ public:
         auto streamPtr = std::static_pointer_cast<ActiveStream>(activeStream);
         // Pretend we have the requested number of streams.
         producer->enableMultipleStreamRequests();
-        for (int i = 0; i < state.range(1); i++) {
+        for (uint16_t i = 0; i < state.range(1); i++) {
             producer->updateStreamsMap(
                     Vbid(0), cb::mcbp::DcpStreamId(i), streamPtr);
         }

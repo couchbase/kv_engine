@@ -47,7 +47,7 @@ public:
 
     StoredDocKey makeKey(CollectionID collection,
                          std::string_view keyPrefix,
-                         int i) {
+                         size_t i) {
         // Use fmtlib to format key with stack-local (non-heap) buffer to
         // minimise the cost of constructing keys for Items.
         fmt::memory_buffer keyBuf;

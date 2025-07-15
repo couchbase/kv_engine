@@ -100,15 +100,16 @@ protected:
         }
 #endif
         }
-        WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                config.getMaxNumShards());
+        WorkLoadPolicy workload(
+                gsl::narrow_cast<int>(config.getMaxNumWorkers()),
+                gsl::narrow_cast<int>(config.getMaxNumShards()));
 
         // Initialize KVStore
-        kvstoreConfig =
-                KVStoreConfig::createKVStoreConfig(config,
-                                                   config.getBackendString(),
-                                                   workload.getNumShards(),
-                                                   shardId);
+        kvstoreConfig = KVStoreConfig::createKVStoreConfig(
+                config,
+                config.getBackendString(),
+                gsl::narrow_cast<uint16_t>(workload.getNumShards()),
+                shardId);
 
         std::filesystem::remove_all(kvstoreConfig->getDBName());
         std::filesystem::create_directories(kvstoreConfig->getDBName());
@@ -119,7 +120,7 @@ protected:
         std::string value = "value";
         auto ctx =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-        for (int i = 1; i <= numItems; i++) {
+        for (uint64_t i = 1; i <= numItems; i++) {
             auto docKey = makeStoredDocKey(key + std::to_string(i));
             auto qi = makeCommittedItem(docKey, value);
             qi->setBySeqno(i);
@@ -159,7 +160,7 @@ protected:
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStoreIface> kvstore;
     Vbid vbid{0};
-    int numItems;
+    uint64_t numItems;
 };
 
 /*

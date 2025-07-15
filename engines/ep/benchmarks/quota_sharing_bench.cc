@@ -110,7 +110,8 @@ BENCHMARK_DEFINE_F(QuotaSharingBench, UniformWriteWorkload)
         for (auto& conn : connections) {
             ++itemCounter;
             conn->store(std::to_string(itemCounter),
-                        Vbid(itemCounter % getNumVBuckets()),
+                        Vbid(gsl::narrow_cast<Vbid::id_type>(itemCounter %
+                                                             getNumVBuckets())),
                         std::string(2048, 'x'));
         }
     }
@@ -126,9 +127,10 @@ BENCHMARK_DEFINE_F(QuotaSharingBench, UniformReadWorkload)
     const size_t numItems = 1000;
     for (size_t i = 0; i < numItems; i++) {
         for (auto& conn : connections) {
-            conn->store(std::to_string(i),
-                        Vbid(i % getNumVBuckets()),
-                        std::string(2048, 'x'));
+            conn->store(
+                    std::to_string(i),
+                    Vbid(gsl::narrow_cast<Vbid::id_type>(i % getNumVBuckets())),
+                    std::string(2048, 'x'));
         }
     }
 
@@ -137,7 +139,8 @@ BENCHMARK_DEFINE_F(QuotaSharingBench, UniformReadWorkload)
         for (auto& conn : connections) {
             itemCounter = (itemCounter + 1) % numItems;
             conn->get(std::to_string(itemCounter),
-                      Vbid(itemCounter % getNumVBuckets()));
+                      Vbid(gsl::narrow_cast<Vbid::id_type>(itemCounter %
+                                                           getNumVBuckets())));
         }
     }
 }
