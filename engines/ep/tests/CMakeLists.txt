@@ -234,13 +234,27 @@ cb_add_test_executable(ep-engine_string_utils_test
 kv_enable_pch(ep-engine_string_utils_test)
 target_link_libraries(ep-engine_string_utils_test PRIVATE GTest::gtest GTest::gtest_main platform)
 
+set(slow_tests "*RangeScanCreateAndContinueTest*")
+set(slow_test_timeout_seconds 1200)
+set(default_timeout_seconds 300)
+
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
 gtest_discover_tests(ep-engine_ep_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX ep-engine_ep_unit_tests.
+        TEST_FILTER "*:-${slow_tests}*"
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
-        PROPERTIES TIMEOUT 300
+        PROPERTIES TIMEOUT ${default_timeout_seconds}
+        TIMEOUT_SIGNAL_NAME SIGQUIT
+                   ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+gtest_discover_tests(ep-engine_ep_unit_tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX ep-engine_ep_unit_tests.
+        TEST_FILTER "${slow_tests}"
+        ONE_CTEST_PER_SUITE
+        DISCOVERY_TIMEOUT 60
+        PROPERTIES TIMEOUT ${slow_test_timeout_seconds}
         TIMEOUT_SIGNAL_NAME SIGQUIT
                    ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
