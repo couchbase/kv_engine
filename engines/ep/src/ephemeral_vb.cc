@@ -479,10 +479,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                     lh, listWriteLg, *queueItmCtx.hcs);
         }
 
-        if (queueItmCtx.durability &&
-            std::holds_alternative<cb::durability::Requirements>(
-                    queueItmCtx.durability.value()
-                            .requirementsOrPreparedSeqno)) {
+        if (osv.isPending()) {
             seqList->updateHighPreparedSeqno(lh, listWriteLg, osv.getBySeqno());
         }
 
@@ -559,10 +556,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
         }
 
         // Only prepares have durability requirements set ..
-        if (queueItmCtx.durability &&
-            std::holds_alternative<cb::durability::Requirements>(
-                    queueItmCtx.durability.value()
-                            .requirementsOrPreparedSeqno)) {
+        if (osv->isPending()) {
             seqList->updateHighPreparedSeqno(
                     lh, listWriteLg, osv->getBySeqno());
         }

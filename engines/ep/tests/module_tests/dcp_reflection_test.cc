@@ -1574,13 +1574,12 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForPendingItems(
         EXPECT_EQ(2, getPersistedPreparedSeqno());
     }
 
-    if (!isPersistent()) {
-        GTEST_SKIP() << "MB-67633 / MB-67634";
-    }
-
     // HPS is not present in v2.0 marker & the HPS is set to the snapEnd.
     // Check the PDM and the persisted HPS.
     if (markerVersion == MarkerVersion::V2_0) {
+        if (!isPersistent()) {
+            GTEST_SKIP() << "MB-67633";
+        }
         EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
         EXPECT_EQ(4, replicaVB->getPersistedHighPreparedSeqno());
     } else {
@@ -1682,7 +1681,7 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForCommittedItems(
     }
 
     if (!isPersistent()) {
-        GTEST_SKIP() << "MB-67633 / MB-67634";
+        GTEST_SKIP() << "MB-67633";
     }
 
     if (markerVersion == MarkerVersion::V2_0) {
@@ -1750,11 +1749,10 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForMutations(
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
 
-    if (!isPersistent()) {
-        GTEST_SKIP() << "MB-67633 / MB-67634";
-    }
-
     if (markerVersion == MarkerVersion::V2_0) {
+        if (!isPersistent()) {
+            GTEST_SKIP() << "MB-67633";
+        }
         EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
         EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
     } else {
