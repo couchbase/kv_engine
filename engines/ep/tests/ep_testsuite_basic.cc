@@ -17,6 +17,7 @@
 
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
+#include <ep_time.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/types.h>
 #include <platform/cb_malloc.h>
@@ -466,7 +467,8 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
     check_expression(get_meta(h, key, errorMetaPair), "Expected to get meta");
 
     //init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
+    ItemMetaData itm_meta(
+            0xdeadbeef, 10, 0xdeadbeef, ep_convert_to_expiry_time(300));
 
     //do a set with meta
     checkeq(cb::engine_errc::locked,
@@ -1213,7 +1215,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     check_key_value(h, "coolkey", "cooler", strlen("cooler"));
 
     // set new exptime to 111
-    int expTime = time(nullptr) + 111;
+    int expTime = ep_convert_to_expiry_time(111);
 
     checkeq(cb::engine_errc::success,
             touch(h, "coolkey", Vbid(0), expTime),
@@ -1239,7 +1241,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     // evict key, touch expiration time, and verify
     evict_key(h, "coolkey", Vbid(0), "Ejected.");
 
-    expTime = time(nullptr) + 222;
+    expTime = ep_convert_to_expiry_time(222);
     checkeq(cb::engine_errc::success,
             touch(h, "coolkey", Vbid(0), expTime),
             "touch coolkey");

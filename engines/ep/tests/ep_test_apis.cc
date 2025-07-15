@@ -1417,14 +1417,14 @@ void wait_for_expired_items_to_be(
 
 void wait_for_memory_usage_below(
         EngineIface* h,
-        int mem_threshold,
+        size_t mem_threshold,
         const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<int> accumulator("to be below", "mem_used", nullptr,
                                          mem_threshold,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, "mem_used");
+        auto current = get_ull_stat(h, "mem_used");
         if (current <= mem_threshold) {
             break;
         }

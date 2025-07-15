@@ -1003,7 +1003,10 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     do {
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
-                    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+                    dcp->buffer_acknowledgement(
+                            *cookie,
+                            ++opaque,
+                            gsl::narrow<uint32_t>(bytes_read)),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -1058,7 +1061,8 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
 
     /* Do buffer ack of the outstanding bytes */
     checkeq(cb::engine_errc::success,
-            dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+            dcp->buffer_acknowledgement(
+                    *cookie, ++opaque, gsl::narrow<uint32_t>(bytes_read)),
             "buffer ack failed");
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
@@ -1305,7 +1309,10 @@ static void dcp_waiting_step(EngineIface* h,
     do {
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
-                    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+                    dcp->buffer_acknowledgement(
+                            *cookie,
+                            ++opaque,
+                            gsl::narrow<uint32_t>(bytes_read)),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -1355,7 +1362,8 @@ static void dcp_waiting_step(EngineIface* h,
 
     /* Do buffer ack of the outstanding bytes */
     checkeq(cb::engine_errc::success,
-            dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+            dcp->buffer_acknowledgement(
+                    *cookie, ++opaque, gsl::narrow<uint32_t>(bytes_read)),
             "buffer ack failed");
 }
 
@@ -1455,7 +1463,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     const size_t numConsumers = 6;
     std::vector<CookieIface*> cookie(numConsumers);
 
-    for (size_t i = 0; i < numConsumers; ++i) {
+    for (Vbid::id_type i = 0; i < numConsumers; ++i) {
         check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_replica),
                          "Failed to set VBucket state.");
     }
@@ -1520,7 +1528,8 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                 "Failed dcp consumer open connection.");
 
         checkeq(cb::engine_errc::success,
-                dcp->add_stream(*cookie[i], 0, Vbid(i), {}),
+                dcp->add_stream(
+                        *cookie[i], 0, Vbid(gsl::narrow<Vbid::id_type>(i)), {}),
                 "Failed to set up stream");
 
         MockDcpMessageProducers producers;
@@ -1883,7 +1892,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
     // (itemsPerCheckpoint + 1) items has mem_usage >= ep_checkpoint_max_size.
 
     uint64_t firstCkptNumItems = 0;
-    for (uint64_t seqno = 1;
+    for (int seqno = 1;
          get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint") < 2;
          ++seqno) {
         write_items(h, 1, seqno, "key", value.c_str());
@@ -1901,8 +1910,9 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
               "0");
-    wait_for_stat_to_be_gte(
-            h, "ep_items_rm_from_checkpoints", firstCkptNumItems);
+    wait_for_stat_to_be_gte(h,
+                            "ep_items_rm_from_checkpoints",
+                            gsl::narrow<int>(firstCkptNumItems));
     set_param(h,
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
@@ -1912,7 +1922,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
     for (uint64_t seqno = firstCkptNumItems + secondCkptNumItems + 1;
          get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint") < 3;
          ++seqno) {
-        write_items(h, 1, seqno, "key", value.c_str());
+        write_items(h, 1, gsl::narrow_cast<int>(seqno), "key", value.c_str());
         ++secondCkptNumItems;
     }
     // 3nd checkpoint created with 1 item
@@ -1932,9 +1942,10 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
               EngineParamCategory::Checkpoint,
               "checkpoint_memory_recovery_upper_mark",
               "0");
-    wait_for_stat_to_be_gte(h,
-                            "ep_items_rm_from_checkpoints",
-                            firstCkptNumItems + secondCkptNumItems);
+    wait_for_stat_to_be_gte(
+            h,
+            "ep_items_rm_from_checkpoints",
+            gsl::narrow<int>(firstCkptNumItems + secondCkptNumItems));
 
     // Stop persistece (so the persistence cursor cannot advance into the
     // deletions below, and hence de-dupe them with respect to the
@@ -2934,8 +2945,8 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
     verifyStat("passivestream_count", 0);
     verifyStat("producer_count", 5);
     verifyStat("ready_queue_bytes", 0);
-    verifyStat("total_bytes", total_bytes);
-    verifyStat("total_uncompressed_data_size", total_bytes);
+    verifyStat("total_bytes", gsl::narrow<int>(total_bytes));
+    verifyStat("total_uncompressed_data_size", gsl::narrow<int>(total_bytes));
     verifyStat("paused_count", 0);
     verifyStat("unpaused_count", 0);
 
@@ -6028,7 +6039,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
 static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     mutation_descr_t mut_info = {};
     uint64_t cas = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
     const int num_items = 3;
     const char* key[3] = {"k1", "k2", "k3"};
 
@@ -6089,7 +6100,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     mutation_descr_t mut_info;
     uint64_t vb_uuid = 0;
     uint64_t cas = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
     const int num_items = 3;
     const char* key[3] = {"k1", "k2", "k3"};
 
@@ -6628,7 +6639,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
     // 1 item so that we will at least allow backfill to be scheduled
     const int num_items = 1;
     uint64_t vbuuid[streams];
-    for (int i = 0; i < streams; i++) {
+    for (Vbid::id_type i = 0; i < streams; i++) {
         check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_active),
                          "Failed to set vbucket state");
         std::stringstream statkey;
@@ -6656,7 +6667,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
             "Failed to establish connection buffer");
 
     MockDcpMessageProducers producers;
-    for (int i = 0; i < streams; i++) {
+    for (Vbid::id_type i = 0; i < streams; i++) {
         uint64_t rollback = 0;
         checkeq(cb::engine_errc::success,
                 dcp->stream_req(*cookie,
@@ -6699,7 +6710,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
 
     const int num_items = 50;
     uint64_t end_seqno = num_items + 1000;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     write_items(h, num_items);
 
@@ -7254,7 +7265,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             "Failed dcp mutate.");
 
     /* Create active vbuckets */
-    for (int i = 1; i < num_vbuckets; i++) {
+    for (Vbid::id_type i = 1; i < num_vbuckets; i++) {
         /* Active vbuckets */
         check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_active),
                          "Failed to set vbucket state.");
@@ -7295,7 +7306,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // Now insert items
-    for (int i = 1; i < num_vbuckets; i++) {
+    for (Vbid::id_type i = 1; i < num_vbuckets; i++) {
         // All inserts are into the default collection, testsuite doesn't yet
         // have the capability to properly write to collections
         for (int j = 0; j < i; j++) {

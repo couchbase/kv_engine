@@ -18,6 +18,7 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
 #include <ep_engine.h>
+#include <ep_time.h>
 #include <executor/executorpool.h>
 #include <fmt/format.h>
 #include <libcouchstore/couch_db.h>
@@ -1608,7 +1609,7 @@ static enum test_result test_MB_33919(EngineIface* h) {
                   nullptr,
                   0,
                   Vbid(0),
-                  fourDaysAgo),
+                  gsl::narrow<uint32_t>(fourDaysAgo)),
             "Failed to set expiring key");
 
     // Force it to expire
@@ -1701,7 +1702,8 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].db_file_id = Vbid(static_cast<Vbid>(i).get() % num_shards);
+        ctx[i].db_file_id =
+                Vbid(gsl::narrow_cast<Vbid::id_type>(i % num_shards));
         threads[i] = create_thread([c = &ctx[i]]() { compaction_thread(c); },
                                    "t:" + std::to_string(i));
     }
@@ -1769,9 +1771,9 @@ static enum test_result test_multi_vb_compactions_with_workload(
     std::array<std::thread, n_threads> threads;
     struct comp_thread_ctx ctx[n_threads];
 
-    for (int i = 0; i < n_threads; i++) {
+    for (Vbid::id_type i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].db_file_id = static_cast<Vbid>(i);
+        ctx[i].db_file_id = Vbid(i);
         threads[i] = create_thread([c = &ctx[i]]() { compaction_thread(c); },
                                    "t:" + std::to_string(i));
     }
@@ -2153,7 +2155,7 @@ static enum test_result test_mem_stats(EngineIface* h) {
         std::mt19937 generator; // Using the default seed is fine
         std::uniform_int_distribution<int> distribution{'0', 'z'};
         for (auto& dis : value) {
-            dis = distribution(generator);
+            dis = gsl::narrow_cast<char>(distribution(generator));
         }
     }
 
@@ -2968,7 +2970,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             ItemMetaData itm_meta;
             itm_meta.revSeqno = 10;
             itm_meta.cas = 0xdeadbeef;
-            itm_meta.exptime = time(nullptr) + 300;
+            itm_meta.exptime = ep_convert_to_expiry_time(300);
             itm_meta.flags = 0xdeadbeef;
 
             const std::string key = "swm-" + std::to_string(j);
@@ -3606,7 +3608,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
             "Item count mismatch");
 
     std::string start_key("key_" + std::to_string(start_key_idx));
-    const uint16_t keylen = start_key.length();
+    const auto keylen = gsl::narrow_cast<uint16_t>(start_key.length());
     uint32_t count = htonl(num_keys);
 
     auto pkt1 = createPacket(cb::mcbp::ClientOpcode::GetKeys,
@@ -4306,13 +4308,13 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    int total_persisted = 0;
+    uint64_t total_persisted = 0;
     high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
 
     if (isPersistentBucket(h)) {
         total_persisted = get_int_stat(h, "ep_total_persisted");
         checkeq(total_persisted,
-                num_items,
+                uint64_t(num_items),
                 "Expected ep_total_persisted equals the number of items");
     } else {
         total_persisted = high_seqno;
@@ -5749,7 +5751,7 @@ static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
                      "Failed to set vbucket state (vb 2).");
 
     int num_items = 10;
-    for (int vb = 0; vb < 3; ++vb) {
+    for (Vbid::id_type vb = 0; vb < 3; ++vb) {
         for (int j = 0; j < num_items; ++j) {
             std::stringstream ss;
             ss << "key_" << j;

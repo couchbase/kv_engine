@@ -472,7 +472,7 @@ void wait_for_persisted_value(EngineIface* h,
 
 void wait_for_memory_usage_below(
         EngineIface* h,
-        int mem_threshold,
+        size_t mem_threshold,
         const std::chrono::seconds max_wait_time_in_secs = std::chrono::seconds{
                 60});
 

@@ -15,6 +15,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "hlc.h"
+#include <ep_time.h>
 #include <executor/executorpool.h>
 #include <platform/cb_malloc.h>
 #include <xattr/blob.h>
@@ -535,8 +536,6 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     const char *key2 = "delete_with_meta_key2";
     const char* key3 = "delete_with_meta_key3";
     ItemMetaData itemMeta;
-    uint64_t vb_uuid;
-    uint32_t high_seqno;
     // check the stat
     auto temp = get_int_stat(h, "ep_num_ops_del_meta");
     checkeq(0, temp, "Expect zero setMeta ops");
@@ -560,8 +559,8 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Set, key3, "somevalue3"),
             "Failed set.");
 
-    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
+    auto vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    auto high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     auto* cookie = testHarness->create_cookie(h);
 
@@ -985,7 +984,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     const char* val = "somevalue";
     const char* newVal = R"({"json":"yes"})";
     uint64_t vb_uuid;
-    uint32_t high_seqno;
+    uint64_t high_seqno;
 
     // check the stat
     checkeq(0, get_int_stat(h, "ep_num_ops_set_meta"), "Expect zero ops");
@@ -1010,7 +1009,8 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = errorMetaPair.second.cas;
     // init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
+    ItemMetaData itm_meta(
+            0xdeadbeef, 10, 0xdeadbeef, ep_convert_to_expiry_time(300));
 
     char *bigValue = new char[32*1024*1024];
     // do set with meta with the value size bigger than the max size allowed.
@@ -1128,7 +1128,8 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     const char* val = "somevalue";
 
     // init some random metadata
-    ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
+    ItemMetaData itm_meta(
+            0xdeadbeef, 10, 0xdeadbeef, ep_convert_to_expiry_time(300));
 
     // Pass true to force SetWithMeta.
     checkeq(cb::engine_errc::success,
@@ -1928,7 +1929,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
-    itemMeta.exptime = time(nullptr) + 10;
+    itemMeta.exptime = ep_convert_to_expiry_time(10);
     checkeq(cb::engine_errc::success,
             set_with_meta(h, "key", {}, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
@@ -2224,7 +2225,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
         EngineIface* h) {
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
-    for (int ii = 1; ii < n_vbuckets; ii++) {
+    for (Vbid::id_type ii = 1; ii < n_vbuckets; ii++) {
         check_expression(set_vbucket_state(h, Vbid(ii), vbucket_state_active),
                          "Failed to set vbucket state.");
     }
@@ -2245,7 +2246,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
             get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
     // Create n keys
     const int n_keys = 5;
-    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+    for (Vbid::id_type ii = 0; ii < n_vbuckets; ii++) {
         for (int k = 0; k < n_keys; k++) {
             std::string key = "key_" + std::to_string(k);
             ItemMetaData itm_meta;
@@ -2329,7 +2330,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
         EngineIface* h) {
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
-    for (int ii = 1; ii < n_vbuckets; ii++) {
+    for (Vbid::id_type ii = 1; ii < n_vbuckets; ii++) {
         check_expression(set_vbucket_state(h, Vbid(ii), vbucket_state_active),
                          "Failed to set vbucket state.");
     }
@@ -2350,7 +2351,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
             get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
     // Create n keys * n_vbuckets
     const int n_keys = 5;
-    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+    for (Vbid::id_type ii = 0; ii < n_vbuckets; ii++) {
         for (int k = 0; k < n_keys; k++) {
             std::string key = "key_" + std::to_string(k);
 
@@ -2384,7 +2385,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
             "Expected behind counter to match mutations");
 
     // Del_with_meta n_keys to n_vbuckets
-    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+    for (Vbid::id_type ii = 0; ii < n_vbuckets; ii++) {
         for (int k = 0; k < n_keys; k++) {
             std::string key = "key_" + std::to_string(k);
             ItemMetaData itm_meta;
