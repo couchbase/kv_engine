@@ -274,8 +274,10 @@ private:
     /**
      * Seqno of the highest prepare. Used at backfill if the client has
      * negotiated to receive SnapshotMarker V2.2
+     * WeaklyMonotonic as we update to snapEnd in some cases, which can be ==
+     * the current HPS.
      */
-    Monotonic<uint64_t> highPreparedSeqno{0};
+    WEAKLY_MONOTONIC2(uint64_t, highPreparedSeqno) { 0 };
 
     /**
      * Indicates the number of elements in the list that are stale (old,

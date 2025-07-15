@@ -298,6 +298,21 @@ void EphemeralVBucket::notifyAllPendingConnsFailed(
     fireAllOps(e);
 }
 
+void EphemeralVBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
+                                                        OptionalSeqno hps) {
+    VBucket::notifyPassiveDMOfSnapEndReceived(snapEnd, hps);
+
+    // When we finish processing a snapshot, we update the HPS with the value
+    // received from the active, or the snapEnd if no prepare was received.
+    // This logic is equivalent to what the PDM does and what persistent buckets
+    // do, and it ensures that if this replica is promoted, it can correctly
+    // send the HPS to a replica (since we use the value from the seqlist not
+    // the PDM in replication).
+    std::lock_guard<std::mutex> lh(sequenceLock);
+    std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+    seqList->updateHighPreparedSeqno(lh, listWriteLg, hps.value_or(snapEnd));
+}
+
 std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
         EventuallyPersistentEngine& e,
         std::shared_ptr<ActiveStream> stream,
