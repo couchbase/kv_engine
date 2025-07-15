@@ -529,22 +529,14 @@ void RangeScanTest::testRangeScan(
                 "RangeScanContinueTask");
 }
 
-// Define many "subsets" so we can reduce the size of this test group to
-// aid CV stability (reducing timeouts)
-#define RANGE_SCAN_CREATE_AND_CONTINUE_TEST_CLASS(number)                 \
-    class RangeScanCreateAndContinueTest##number : public RangeScanTest { \
-    public:                                                               \
-        void TearDown() override {                                        \
-            runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),      \
-                        "RangeScanContinueTask");                         \
-            RangeScanTest::TearDown();                                    \
-        }                                                                 \
-    };
-
-RANGE_SCAN_CREATE_AND_CONTINUE_TEST_CLASS(0)
-RANGE_SCAN_CREATE_AND_CONTINUE_TEST_CLASS(1)
-RANGE_SCAN_CREATE_AND_CONTINUE_TEST_CLASS(2)
-RANGE_SCAN_CREATE_AND_CONTINUE_TEST_CLASS(3)
+class RangeScanCreateAndContinueTest : public RangeScanTest {
+public:
+    void TearDown() override {
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                    "RangeScanContinueTask");
+        RangeScanTest::TearDown();
+    }
+};
 
 class RangeScanCreateTest : public RangeScanTest {
 public:
@@ -554,11 +546,11 @@ public:
 };
 
 // Scan for the user prefixed keys
-TEST_P(RangeScanCreateAndContinueTest0, user_prefix) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix) {
     testRangeScan(getUserKeys(), scanCollection, {"user"}, {"user\xFF"});
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, exclusive_start) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_start) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
     testRangeScan(expectedKeys,
@@ -567,7 +559,7 @@ TEST_P(RangeScanCreateAndContinueTest1, exclusive_start) {
                   {"user\xFF"});
 }
 
-TEST_P(RangeScanCreateAndContinueTest2, exclusive_end) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("users", scanCollection));
     testRangeScan(expectedKeys,
@@ -576,7 +568,7 @@ TEST_P(RangeScanCreateAndContinueTest2, exclusive_end) {
                   {"users", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, exclusive_end_2) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end_2) {
     // Check this zero suffixed key isn't included if it's set as the end
     // of an exclusive range
     store_item(vbid, makeStoredDocKey("users\0", scanCollection), "value");
@@ -590,7 +582,7 @@ TEST_P(RangeScanCreateAndContinueTest3, exclusive_end_2) {
                   {"users\0", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, exclusive_end_non_ascii) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end_non_ascii) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("users", scanCollection));
     expectedKeys.erase(makeStoredDocKey("useralan", scanCollection));
@@ -600,7 +592,7 @@ TEST_P(RangeScanCreateAndContinueTest0, exclusive_end_non_ascii) {
                   {"user:;", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, exclusive_range) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_range) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("users", scanCollection));
     expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
@@ -611,7 +603,7 @@ TEST_P(RangeScanCreateAndContinueTest0, exclusive_range) {
                   {"users", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, user_prefix_with_item_limit_1) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_1) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -623,7 +615,7 @@ TEST_P(RangeScanCreateAndContinueTest1, user_prefix_with_item_limit_1) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanCreateAndContinueTest2, user_prefix_with_item_limit_2) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_2) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -636,7 +628,7 @@ TEST_P(RangeScanCreateAndContinueTest2, user_prefix_with_item_limit_2) {
 }
 
 // Test has a smaller byte-limit which must take affect before the item count
-TEST_P(RangeScanCreateAndContinueTest3, user_prefix_with_two_limits) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_two_limits) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -648,7 +640,7 @@ TEST_P(RangeScanCreateAndContinueTest3, user_prefix_with_two_limits) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, user_prefix_with_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_time_limit) {
     // Replace time with a function that ticks per call, forcing the scan to
     // yield for every item
     RangeScan::setClockFunction([]() {
@@ -667,7 +659,7 @@ TEST_P(RangeScanCreateAndContinueTest0, user_prefix_with_time_limit) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, user_prefix_with_byte_limit) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_byte_limit) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -680,7 +672,7 @@ TEST_P(RangeScanCreateAndContinueTest1, user_prefix_with_byte_limit) {
 }
 
 // Test ensures callbacks cover disk read case
-TEST_P(RangeScanCreateAndContinueTest2, user_prefix_evicted) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_evicted) {
     for (const auto& key : generateTestKeys()) {
         evict_key(vbid, key);
     }
@@ -695,7 +687,7 @@ TEST_P(RangeScanCreateAndContinueTest2, user_prefix_evicted) {
                   expectedKeys.size() / 2);
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, scan_is_throttled) {
+TEST_P(RangeScanCreateAndContinueTest, scan_is_throttled) {
     testHook = [](size_t) { return TestRangeScanHandler::Status::Throttle; };
     // Scan with no continue limits, but the scan will yield for every key
     // as the testHook returns true meaning "throttle"
@@ -711,7 +703,7 @@ TEST_P(RangeScanCreateAndContinueTest3, scan_is_throttled) {
 }
 
 // Run a >= user scan by setting the keys to user and the end (255)
-TEST_P(RangeScanCreateAndContinueTest0, greater_than_or_equal) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than_or_equal) {
     auto expectedKeys = getUserKeys();
     auto rangeStart = makeStoredDocKey("user", scanCollection);
     for (const auto& key : generateTestKeys()) {
@@ -727,7 +719,7 @@ TEST_P(RangeScanCreateAndContinueTest0, greater_than_or_equal) {
 }
 
 // Run a <= user scan y setting the keys to 0 and user\xFF
-TEST_P(RangeScanCreateAndContinueTest1, less_than_or_equal) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_or_equal) {
     auto expectedKeys = getUserKeys();
     auto rangeEnd = makeStoredDocKey("user\xFF", scanCollection);
     for (const auto& key : generateTestKeys()) {
@@ -744,7 +736,7 @@ TEST_P(RangeScanCreateAndContinueTest1, less_than_or_equal) {
 }
 
 // Perform > uuu, this simulates a request for an exclusive start range-scan
-TEST_P(RangeScanCreateAndContinueTest2, greater_than) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than) {
     // Here the client could of specified "aaa" and flag to set exclusive-start
     // so we set the start to "skip" aaa and start from the next key
 
@@ -780,7 +772,7 @@ TEST_P(RangeScanCreateAndContinueTest2, greater_than) {
 }
 
 // Run a > "user" scan using the KeyType
-TEST_P(RangeScanCreateAndContinueTest3, greater_than_using_KeyType) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than_using_KeyType) {
     auto expectedKeys = getUserKeys();
     auto rangeStart = makeStoredDocKey("user", scanCollection);
     expectedKeys.erase(rangeStart);
@@ -833,18 +825,18 @@ void RangeScanTest::testLessThan(std::string key) {
     testRangeScan(expectedKeys, scanCollection, start, std::string_view{key});
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, less_than) {
+TEST_P(RangeScanCreateAndContinueTest, less_than) {
     testLessThan("uuu");
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, less_than_with_zero_suffix) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_with_zero_suffix) {
     std::string key = "uuu";
     key += char(0);
     testLessThan(key);
 }
 
 // Run a < "users" scan using the KeyType
-TEST_P(RangeScanCreateAndContinueTest2, less_than_using_KeyType) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_using_KeyType) {
     auto expectedKeys = getUserKeys();
     auto rangeEnd = makeStoredDocKey("users", scanCollection);
     expectedKeys.erase(rangeEnd);
@@ -864,7 +856,7 @@ TEST_P(RangeScanCreateAndContinueTest2, less_than_using_KeyType) {
 }
 
 // Test that we reject continue whilst a scan is already being continued
-TEST_P(RangeScanCreateAndContinueTest3, continue_must_be_serialised) {
+TEST_P(RangeScanCreateAndContinueTest, continue_must_be_serialised) {
     auto uuid = createScan(scanCollection, {"a"}, {"b"});
     auto vb = store->getVBucket(vbid);
 
@@ -887,7 +879,7 @@ TEST_P(RangeScanCreateAndContinueTest3, continue_must_be_serialised) {
 }
 
 // Create and then straight to cancel
-TEST_P(RangeScanCreateAndContinueTest0, create_cancel) {
+TEST_P(RangeScanCreateAndContinueTest, create_cancel) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
     EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
@@ -911,7 +903,7 @@ TEST_P(RangeScanCreateTest, create_no_data) {
 
 // Check that if a scan has been continue (but is waiting to run), it can be
 // cancelled. When the task runs the scan cancels.
-TEST_P(RangeScanCreateAndContinueTest1, create_continue_is_cancelled) {
+TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -938,7 +930,7 @@ TEST_P(RangeScanCreateAndContinueTest1, create_continue_is_cancelled) {
 
 // Test that a scan doesn't keep on reading if a cancel occurs during the I/O
 // task run
-TEST_P(RangeScanCreateAndContinueTest2, create_continue_is_cancelled_2) {
+TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -1010,7 +1002,7 @@ TEST_P(RangeScanCreateTest, snapshot_does_not_contain_seqno) {
                cb::engine_errc::not_stored);
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, snapshot_upto_seqno) {
+TEST_P(RangeScanCreateAndContinueTest, snapshot_upto_seqno) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno()),
@@ -1025,7 +1017,7 @@ TEST_P(RangeScanCreateAndContinueTest3, snapshot_upto_seqno) {
     EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, snapshot_contains_seqno) {
+TEST_P(RangeScanCreateAndContinueTest, snapshot_contains_seqno) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno()),
@@ -1085,7 +1077,7 @@ TEST_P(RangeScanCreateTest, vb_uuid_check) {
                       .first);
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, random_sample_less_keys_than_samples) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_less_keys_than_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request more samples than keys. Everything gets returned
     auto sampleSize = stats[scanCollection].itemCount + 1;
@@ -1105,7 +1097,7 @@ TEST_P(RangeScanCreateAndContinueTest1, random_sample_less_keys_than_samples) {
 
 // MB-54543: Test covers updated sampling behaviour where we can return more
 // samples than requested
-TEST_P(RangeScanCreateAndContinueTest2,
+TEST_P(RangeScanCreateAndContinueTest,
        random_sample_return_more_keys_than_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request nearly the whole collection
@@ -1126,7 +1118,7 @@ TEST_P(RangeScanCreateAndContinueTest2,
     }
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, random_sample_keys_equal_samples) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_keys_equal_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request samples == keys. Everything gets returned
     auto sampleSize = stats[scanCollection].itemCount;
@@ -1143,7 +1135,7 @@ TEST_P(RangeScanCreateAndContinueTest3, random_sample_keys_equal_samples) {
     }
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, random_sample) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // We'll sample up to 1/2 of the keys from the collection, we may not get
     // exactly 50% of the keys returned though.
@@ -1176,7 +1168,7 @@ TEST_P(RangeScanCreateAndContinueTest0, random_sample) {
     }
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, random_sample_with_limit_1) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_with_limit_1) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // We'll sample 1/2 of the keys from the collection
     auto sampleSize = (stats[scanCollection].itemCount / 2) + 1;
@@ -1240,7 +1232,7 @@ TEST_P(RangeScanCreateTest, unknown_collection) {
 }
 
 // Test that the collection going away after part 1 of create, cleans up
-TEST_P(RangeScanCreateAndContinueTest2, scan_cancels_after_create) {
+TEST_P(RangeScanCreateAndContinueTest, scan_cancels_after_create) {
     EXPECT_EQ(cb::engine_errc::would_block,
               store->createRangeScan(
                            *cookie,
@@ -1351,7 +1343,7 @@ TEST_P(RangeScanCreateTest, create_on_replica) {
 // aware of, the scan would also need to ignore any in-memory values, simpler
 // to just end the scan and report the vbucket change to the client.
 // Note for this test, no snapshot requirements are needed.
-TEST_P(RangeScanCreateAndContinueTest3,
+TEST_P(RangeScanCreateAndContinueTest,
        scan_detects_vbucket_change_during_continue) {
     // Create the scan
     auto uuid = createScan(scanCollection,
@@ -1391,7 +1383,7 @@ TEST_P(RangeScanCreateAndContinueTest3,
               store->continueRangeScan(*cookie, continueParams));
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, wait_for_persistence_success) {
+TEST_P(RangeScanCreateAndContinueTest, wait_for_persistence_success) {
     auto vb = store->getVBucket(vbid);
 
     // Create a scan that requires +1 from high-seqno. We are willing to wait
@@ -1492,7 +1484,7 @@ TEST_P(RangeScanCreateTest, wait_for_persistence_timeout) {
 
 // Prior to this test, a cancel as the scan attempts to yield could hit an
 // exception in the state change code, this test covers that path
-TEST_P(RangeScanCreateAndContinueTest1, cancel_when_yielding) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -1606,7 +1598,7 @@ RangeScanTest::setupConcurrencyMaxxed() {
 
 // Create lots and lots of scans, continue them all and check only max tasks
 // are scheduled
-TEST_P(RangeScanCreateAndContinueTest2, concurrency_maxxed) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed) {
     auto scans = setupConcurrencyMaxxed();
 
     // Now clean-up
@@ -1628,7 +1620,7 @@ TEST_P(RangeScanCreateAndContinueTest2, concurrency_maxxed) {
     }
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, concurrency_maxxed_cancel_only) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_cancel_only) {
     auto vb = store->getVBucket(vbid);
 
     std::vector<cb::rangescan::Id> scans;
@@ -1661,7 +1653,7 @@ TEST_P(RangeScanCreateAndContinueTest3, concurrency_maxxed_cancel_only) {
 // Create enough scans to max out the default concurrency and then reduce the
 // concurrent limit. We should observe that tasks don't pickup scans, but
 // instead exit until only the correct number of tasks remain.
-TEST_P(RangeScanCreateAndContinueTest0, concurrency_maxxed_and_reduce) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_and_reduce) {
     ASSERT_NE(1, task_executor->getNumAuxIO());
 
     auto scans = setupConcurrencyMaxxed();
@@ -1698,7 +1690,7 @@ TEST_P(RangeScanCreateAndContinueTest0, concurrency_maxxed_and_reduce) {
 
 // Dropped collection detection is noted by privilege check when we process a
 // range scan continue (different to detection whilst a scan is continuing)
-TEST_P(RangeScanCreateAndContinueTest1, dropped_collection_for_continue) {
+TEST_P(RangeScanCreateAndContinueTest, dropped_collection_for_continue) {
     // Create the scan
     auto uuid1 = createScan(scanCollection,
                             {"user"},
@@ -1741,7 +1733,7 @@ TEST_P(RangeScanCreateAndContinueTest1, dropped_collection_for_continue) {
 }
 
 // Lose access to a collection after create
-TEST_P(RangeScanCreateAndContinueTest2, lose_access_to_scan) {
+TEST_P(RangeScanCreateAndContinueTest, lose_access_to_scan) {
     // Create the scan
     auto uuid = createScan(scanCollection,
                            {"user"},
@@ -1777,7 +1769,7 @@ TEST_P(RangeScanCreateAndContinueTest2, lose_access_to_scan) {
     }
 }
 
-TEST_P(RangeScanCreateAndContinueTest3, cancel_scan_due_to_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_scan_due_to_time_limit) {
     // Create the scan
     auto uuid = createScan(scanCollection,
                            {"user"},
@@ -1797,7 +1789,7 @@ TEST_P(RangeScanCreateAndContinueTest3, cancel_scan_due_to_time_limit) {
               store->continueRangeScan(*cookie, continueParams));
 }
 
-TEST_P(RangeScanCreateAndContinueTest0, cancel_scans_due_to_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
     cb::time::steady_clock::use_chrono = false;
     auto scopeGuard = folly::makeGuard(
             []() { cb::time::steady_clock::use_chrono = true; });
@@ -1895,7 +1887,7 @@ TEST_P(RangeScanCreateAndContinueTest0, cancel_scans_due_to_time_limit) {
                 "RangeScanContinueTask");
 }
 
-TEST_P(RangeScanCreateAndContinueTest1, rangeScanWithXattrs) {
+TEST_P(RangeScanCreateAndContinueTest, rangeScanWithXattrs) {
     auto keyXattr = makeStoredDocKey("xattrsIncluded", scanCollection);
     auto keyNoXattr = makeStoredDocKey("xattrsExcluded", scanCollection);
 
@@ -1918,7 +1910,7 @@ TEST_P(RangeScanCreateAndContinueTest1, rangeScanWithXattrs) {
     testRangeScan(expectedKeys, scanCollection, {"xattrs"}, {"xattrs\xFF"});
 }
 
-TEST_P(RangeScanCreateAndContinueTest2, randomSampleWithXattrs) {
+TEST_P(RangeScanCreateAndContinueTest, randomSampleWithXattrs) {
     // Empty collection
     setCollections(cookie, cm.remove(CollectionEntry::vegetable));
     setCollections(cookie, cm.add(CollectionEntry::vegetable));
@@ -2373,47 +2365,17 @@ INSTANTIATE_TEST_SUITE_P(RangeScanCreateKeyScan,
                          keyScanConfig,
                          RangeScanTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
+                         RangeScanCreateAndContinueTest,
+                         valueScanConfig,
+                         RangeScanTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
+                         RangeScanCreateAndContinueTest,
+                         keyScanConfig,
+                         RangeScanTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_SUITE_P(RangeScanTestSimpleKeyScan,
                          RangeScanTestSimple,
-                         keyScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
-                         RangeScanCreateAndContinueTest0,
-                         valueScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
-                         RangeScanCreateAndContinueTest0,
-                         keyScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
-                         RangeScanCreateAndContinueTest1,
-                         valueScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
-                         RangeScanCreateAndContinueTest1,
-                         keyScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
-                         RangeScanCreateAndContinueTest2,
-                         valueScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
-                         RangeScanCreateAndContinueTest2,
-                         keyScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
-                         RangeScanCreateAndContinueTest3,
-                         valueScanConfig,
-                         RangeScanTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
-                         RangeScanCreateAndContinueTest3,
                          keyScanConfig,
                          RangeScanTest::PrintToStringParamName);
