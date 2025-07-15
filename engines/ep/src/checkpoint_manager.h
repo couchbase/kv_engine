@@ -570,6 +570,8 @@ public:
 
     uint64_t getMaxVisibleSeqno() const;
 
+    uint64_t getHighPreparedSeqno() const;
+
     /// @return the persistence cursor which can be null
     CheckpointCursor* getPersistenceCursor() const {
         return persistenceCursor;

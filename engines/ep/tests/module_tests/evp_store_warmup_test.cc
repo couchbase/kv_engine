@@ -958,6 +958,7 @@ protected:
 DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
     EXPECT_TRUE(vb);
     preHPS = vb->getHighPreparedSeqno();
+    EXPECT_EQ(preHPS, vb->getPersistedHighPreparedSeqno());
     preHCS = vb->getHighCompletedSeqno();
 }
 
@@ -969,6 +970,10 @@ DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
     EXPECT_EQ(preHPS, vb->getHighPreparedSeqno())
             << "PrePostStateChecker: Found that post warmup the HPS does not "
                "match the pre-warmup value";
+    EXPECT_EQ(preHPS, vb->getPersistedHighPreparedSeqno())
+            << "PrePostStateChecker: Found that post warmup the HPS does not "
+               "match the pre-warmup value";
+    // CM HPS is initialised from PPS.
     EXPECT_EQ(preHCS, vb->getHighCompletedSeqno())
             << "PrePostStateChecker: Found that post warmup the HCS does not "
                "match the pre-warmup value";
@@ -1701,6 +1706,7 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
     // disk -> HPS set to snap_end
     // memory -> HPS set to seqno of last prepare
     EXPECT_EQ(1, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(1, vb->getPersistedHighPreparedSeqno());
 }
 
 void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
@@ -1745,6 +1751,7 @@ void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     // HPS loaded from disk should not have moved, snapshot is incomplete
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getPersistedHighPreparedSeqno());
 }
 
 void DurabilityWarmupTest::testPromotedReplicaMidSnapshotHPS(
@@ -1777,6 +1784,7 @@ void DurabilityWarmupTest::testPromotedReplicaMidSnapshotHPS(
     // an entire snapshot. However, if the vb was previously a replica,
     // hps != pps may be found on disk.
     EXPECT_EQ(hps, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(hps, vb->getPersistedHighPreparedSeqno());
 }
 
 void DurabilityWarmupTest::testPromotedReplicaCompleteSnapshotHPS(
@@ -1809,6 +1817,7 @@ void DurabilityWarmupTest::testPromotedReplicaCompleteSnapshotHPS(
     // an entire snapshot. However, if the vb was previously a replica,
     // hps != pps may be found on disk.
     EXPECT_EQ(hps, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(hps, vb->getPersistedHighPreparedSeqno());
 }
 
 TEST_P(DurabilityWarmupTest, TestCheckpointTypePersistedMemory) {
@@ -1844,6 +1853,14 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Check hps matches the pre-warmup value
     EXPECT_EQ(hps1,
               engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(hps1,
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->getPersistedHighPreparedSeqno());
+    EXPECT_EQ(hps1,
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->checkpointManager->getHighPreparedSeqno());
 
     auto checkHCS = [this](int64_t hcs) -> void {
         auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1882,6 +1899,14 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
               engine->getKVBucket()->getVBucket(vbid)->getHighCompletedSeqno());
     EXPECT_EQ(preparedSeqno,
               engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(preparedSeqno,
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->getPersistedHighPreparedSeqno());
+    EXPECT_EQ(preparedSeqno,
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->checkpointManager->getHighPreparedSeqno());
 }
 
 TEST_P(DurabilityWarmupTest, HCSPersistedAndLoadedIntoVBState_Commit) {
@@ -2258,6 +2283,10 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
     // We should not have loaded the prepare at seqno 1.
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(0, vb->getPersistedHighPreparedSeqno());
+    // CM HPS is initialised from PPS. This is fine however, since we will
+    // set the HPS to that when the snapshot is completed.
+    EXPECT_EQ(1, vb->checkpointManager->getHighPreparedSeqno());
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
     // Check our warmup stats, should have visited both the prepare and the
@@ -2350,6 +2379,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
     EXPECT_EQ(2, vb->getDurabilityMonitor().getHighCompletedSeqno());
     EXPECT_EQ(3, vb->getDurabilityMonitor().getHighPreparedSeqno());
+    EXPECT_EQ(3, vb->getPersistedHighPreparedSeqno());
+    EXPECT_EQ(3, vb->checkpointManager->getHighPreparedSeqno());
     const auto& pdm = static_cast<const PassiveDurabilityMonitor&>(
             vb->getDurabilityMonitor());
     EXPECT_EQ(3, pdm.getHighestTrackedSeqno());

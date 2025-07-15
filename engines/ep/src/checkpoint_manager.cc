@@ -1341,6 +1341,12 @@ uint64_t CheckpointManager::getMaxVisibleSeqno() const {
     return maxVisibleSeqno;
 }
 
+uint64_t CheckpointManager::getHighPreparedSeqno() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    auto& ckpt = getOpenCheckpoint(lh);
+    return ckpt.getHighPreparedSeqno();
+}
+
 std::shared_ptr<CheckpointCursor>
 CheckpointManager::getBackupPersistenceCursor() {
     std::lock_guard<std::mutex> lh(queueLock);
