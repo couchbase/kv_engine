@@ -2907,13 +2907,15 @@ TEST_P(VBucketDurabilityTest, TouchAfterCommitIsNormalMutation) {
     doSyncWriteAndCommit();
 
     using namespace std::chrono;
+    // test suite not using mock_server, so use the system_clock and narrow the
+    // result to uint32_t.
     auto expiry = system_clock::now() + seconds(10);
 
     // prior to fix, fails expects when queueDirty-ing a
     // queue_op::commit_sync_write after fix, succeeds, stores the item as a
     // normal mutation.
-    auto [status, gv] =
-            public_getAndUpdateTtl(key, system_clock::to_time_t(expiry));
+    auto [status, gv] = public_getAndUpdateTtl(
+            key, gsl::narrow<uint32_t>(system_clock::to_time_t(expiry)));
 
     ASSERT_EQ(MutationStatus::WasClean, status);
     EXPECT_EQ(CommittedState::CommittedViaMutation, gv.item->getCommitted());

@@ -72,7 +72,7 @@ public:
 
     KVStoreRandomizedTest(const std::string& loggerName)
         : rngSeed(std::chrono::system_clock::now().time_since_epoch().count()),
-          rng(rngSeed),
+          rng(gsl::narrow_cast<RandomNumberGenerator::result_type>(rngSeed)),
           logger(loggerName),
           defaultCreateItemCallback(
                   KVStoreIface::getDefaultCreateItemCallback()) {

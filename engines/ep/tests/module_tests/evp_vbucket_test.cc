@@ -50,7 +50,8 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     auto mockEPBucket =
             engine->public_makeMockBucket(engine->getConfiguration());
     KVShard kvShard(engine->getConfiguration(),
-                    engine->getConfiguration().getMaxNumShards(),
+                    gsl::narrow_cast<uint16_t>(
+                            engine->getConfiguration().getMaxNumShards()),
                     0,
                     {},
                     {});

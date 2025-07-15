@@ -289,14 +289,14 @@ void KVStoreBackend::setup(const std::string& dataDir,
     configStr += "max_vbuckets=16;max_num_shards=2";
 
     config.parseConfiguration(configStr);
-    WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                            config.getMaxNumShards());
+    WorkLoadPolicy workload(gsl::narrow_cast<int>(config.getMaxNumWorkers()),
+                            gsl::narrow_cast<int>(config.getMaxNumShards()));
 
-    kvstoreConfig =
-            KVStoreConfig::createKVStoreConfig(config,
-                                               config.getBackendString(),
-                                               workload.getNumShards(),
-                                               0 /*shardId*/);
+    kvstoreConfig = KVStoreConfig::createKVStoreConfig(
+            config,
+            config.getBackendString(),
+            gsl::narrow_cast<uint16_t>(workload.getNumShards()),
+            0 /*shardId*/);
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 

@@ -43,9 +43,9 @@ std::shared_ptr<ConnHandler> ConnStoreTest::addConnHandler(
 
 void ConnStoreTest::removeConnHandler(CookieIface* cookie) {
     auto handle = connStore->getCookieToConnectionMapHandle();
-    int startSize = handle->copyCookieToConn().size();
+    auto startSize = handle->copyCookieToConn().size();
     handle->removeConnByCookie(cookie);
-    auto max = std::max(0, startSize - 1);
+    auto max = std::max(size_t(0), startSize - 1);
     ASSERT_EQ(max, handle->copyCookieToConn().size());
 }
 
@@ -86,9 +86,9 @@ void ConnStoreTest::removeVbConn(Vbid vb, CookieIface* cookie) {
         return cookie == conn.connHandler.getCookie();
     });
 
-    int expectedSize = list.size();
+    auto expectedSize = list.size();
     if (itr != list.end()) {
-        expectedSize = std::max(0, expectedSize - 1);
+        expectedSize = std::max(size_t(0), expectedSize - 1);
     }
 
     ASSERT_NO_THROW(connStore->removeVBConnByVbid(vb, cookie));
@@ -127,10 +127,12 @@ TEST_F(ConnStoreTest, AddVBConnInvalidVbid) {
     auto consumer = addConnHandler(cookie, "consumer");
     EXPECT_THROW(connStore->addVBConnByVbid(Vbid(-1), *consumer.get()),
                  std::out_of_range);
-    EXPECT_THROW(connStore->addVBConnByVbid(
-                         Vbid(engine->getConfiguration().getMaxVbuckets() + 1),
-                         *consumer.get()),
-                 std::out_of_range);
+    EXPECT_THROW(
+            connStore->addVBConnByVbid(
+                    Vbid(gsl::narrow_cast<Vbid::id_type>(
+                            engine->getConfiguration().getMaxVbuckets() + 1)),
+                    *consumer.get()),
+            std::out_of_range);
 }
 
 TEST_F(ConnStoreTest, AddVbConnValid) {
@@ -177,10 +179,12 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
 TEST_F(ConnStoreTest, RemoveVBConnInvalidVbid) {
     EXPECT_THROW(connStore->removeVBConnByVbid(Vbid(-1), cookie),
                  std::out_of_range);
-    EXPECT_THROW(connStore->removeVBConnByVbid(
-                         Vbid(engine->getConfiguration().getMaxVbuckets() + 1),
-                         cookie),
-                 std::out_of_range);
+    EXPECT_THROW(
+            connStore->removeVBConnByVbid(
+                    Vbid(gsl::narrow_cast<Vbid::id_type>(
+                            engine->getConfiguration().getMaxVbuckets() + 1)),
+                    cookie),
+            std::out_of_range);
 }
 
 // It's okay to attempt to remove an invalid cookie. Should be a no-op
@@ -207,9 +211,8 @@ TEST_F(ConnStoreTest, RemoveConnHandlerWithVbConns) {
 
     auto consumer = addConnHandler(cookie, "consumer");
 
-    for (size_t i = 0; i < map.size(); i++) {
-        Vbid vb(i);
-        addVbConn(vb, *consumer);
+    for (Vbid::id_type i = 0; i < map.size(); i++) {
+        addVbConn(Vbid(i), *consumer);
     }
 
     for (const auto& list : map) {
@@ -236,9 +239,8 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     auto consumer1 = addConnHandler(cookie, "consumer1");
 
     // Add the vbConns
-    for (size_t i = 0; i < map.size(); i++) {
-        Vbid vb(i);
-        addVbConn(vb, *consumer1);
+    for (Vbid::id_type i = 0; i < map.size(); i++) {
+        addVbConn(Vbid(i), *consumer1);
     }
 
     // Check we added something
@@ -250,9 +252,8 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     auto consumer2 = addConnHandler(cookie2, "consumer2");
 
     // Add the vbConns
-    for (size_t i = 0; i < map.size(); i++) {
-        Vbid vb(i);
-        addVbConn(vb, *consumer2);
+    for (Vbid::id_type i = 0; i < map.size(); i++) {
+        addVbConn(Vbid(i), *consumer2);
     }
 
     // Check we added something

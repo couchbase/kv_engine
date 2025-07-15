@@ -345,7 +345,7 @@ void KVBucketTest::storeItems(CollectionID collection,
                               size_t valueSize) {
     std::string value(valueSize, 0);
     for (auto& element : value) {
-        element = folly::Random::rand32();
+        element = gsl::narrow_cast<char>(folly::Random::rand32());
     }
     for (int ii = 0; ii < items; ii++) {
         std::string key = "key" + std::to_string(ii);
@@ -362,7 +362,7 @@ void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
 }
 
 int KVBucketTest::flushVBucket(Vbid vbid) {
-    size_t actualFlushed = 0;
+    int actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = cb::time::steady_clock::now() + time_limit;
 
@@ -1558,8 +1558,8 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
                           {cb::engine_errc::success},
                           PROTOCOL_BINARY_RAW_BYTES);
 
-    GetValue gv =
-            store->getAndUpdateTtl(key, vbid, cookie, ep_real_time() + 10000);
+    GetValue gv = store->getAndUpdateTtl(
+            key, vbid, cookie, ep_convert_to_expiry_time(10000));
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     auto docCas = gv.item->getCas();
 
@@ -1738,8 +1738,10 @@ TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
 
     //Check that the temp item is removed for getAndUpdateTtl
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    GetValue gv = store->getAndUpdateTtl(
-            makeStoredDocKey("key"), vbid, cookie, time(nullptr));
+    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"),
+                                         vbid,
+                                         cookie,
+                                         gsl::narrow<uint32_t>(time(nullptr)));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
@@ -1991,7 +1993,7 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
     // Create a document with TTL=10s, then advance clock by 20s so it is
     // past it expiration.
     auto key = makeStoredDocKey("key");
-    store_item(vbid, key, "value", ep_real_time() + 10);
+    store_item(vbid, key, "value", ep_convert_to_expiry_time(10));
     // Flush so item is clean and can be evicted.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -2191,7 +2193,7 @@ TEST_P(KVBucketParamTest, MB_34346) {
             vbid,
             key,
             {output.data(), output.size()},
-            ep_abs_time(ep_current_time() + 10),
+            ep_convert_to_expiry_time(10),
             {cb::engine_errc::success},
             PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_SNAPPY);
 

@@ -2294,7 +2294,8 @@ void PassiveDurabilityMonitorTest::testResolvePrepare(
     }
 
     // Commit all Prepares now
-    uint8_t numTracked = monitor->getNumTracked();
+    size_t numTracked = monitor->getNumTracked();
+    ASSERT_LE(numTracked, std::numeric_limits<uint8_t>::max());
     for (const auto s : seqnos) {
         pdm.completeSyncWrite(
                 makeStoredDocKey("key" + std::to_string(s)), res, s);

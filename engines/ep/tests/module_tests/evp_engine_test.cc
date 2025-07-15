@@ -550,7 +550,7 @@ TEST_P(EPEnginePersistentTest, ShardCountsOnSecondBucketInit) {
     auto newShardCount = originalShardCount + 1;
 
     // We populate the config with shards from this value in the initialize fn
-    numShards = newShardCount;
+    numShards = gsl::narrow_cast<int>(newShardCount);
     shutdownEngine();
     initializeEngine();
 

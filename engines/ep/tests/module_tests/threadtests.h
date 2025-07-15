@@ -13,13 +13,13 @@
 #include "utility.h"
 #include <platform/syncobject.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/cbassert.h>
 #include <platform/platform_thread.h>
 
 #include <algorithm>
 #include <iostream>
 #include <vector>
-
 
 template <typename T>
 class Generator {
@@ -109,7 +109,7 @@ static void waiter(SyncTestThread<T> &t) { t.join(); }
 
 template <typename T>
 std::vector<T> getCompletedThreads(size_t n, Generator<T> *gen) {
-    CountDownLatch startingLine(n), pistol(1);
+    CountDownLatch startingLine(gsl::narrow_cast<int>(n)), pistol(1);
 
     SyncTestThread<T> proto(&startingLine, &pistol, gen);
     std::vector<SyncTestThread<T> > threads(n, proto);

@@ -1326,9 +1326,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectExpiry) {
     // Non-durable write with expiry
     auto committed = makeCommittedItem(key, "some_other_value");
 
-    using namespace std::chrono;
-    auto expiry = system_clock::now() + seconds(1);
-    committed->setExpTime(system_clock::to_time_t(expiry));
+    committed->setExpTime(ep_convert_to_expiry_time(1));
 
     ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
 
@@ -1409,9 +1407,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectExpiry) {
     // Non-durable write with expiry
     auto committed = makeCommittedItem(key, "some_other_value");
 
-    using namespace std::chrono;
-    auto expiry = system_clock::now() + seconds(1);
-    committed->setExpTime(system_clock::to_time_t(expiry));
+    committed->setExpTime(ep_convert_to_expiry_time(1));
 
     ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
 
@@ -1453,9 +1449,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
     // Non-durable write with expiry
     auto committed = makeCommittedItem(key, "some_other_value");
 
-    using namespace std::chrono;
-    auto expiry = system_clock::now() + seconds(1);
-    committed->setExpTime(system_clock::to_time_t(expiry));
+    committed->setExpTime(ep_convert_to_expiry_time(1));
 
     ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
 
@@ -3583,10 +3577,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
 
-    using namespace std::chrono;
-    auto expiry = system_clock::now() + seconds(1);
-
-    item->setExpTime(system_clock::to_time_t(expiry));
+    item->setExpTime(ep_convert_to_expiry_time(1));
 
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
@@ -5173,7 +5164,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     // Load a SyncWrite with exptime != 0
     const auto item = makePendingItem(
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
-    item->setExpTime(ep_real_time() + 3600);
+    item->setExpTime(ep_convert_to_expiry_time(3600));
     item->setPreparedMaybeVisible();
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::would_block,

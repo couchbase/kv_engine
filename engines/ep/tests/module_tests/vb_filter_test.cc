@@ -18,7 +18,7 @@ class VBucketFilterTest : public ::testing::Test {};
 
 TEST_F(VBucketFilterTest, Slice) {
     VBucketFilter filter;
-    for (int i = 0; i < 10; i++) {
+    for (Vbid::id_type i = 0; i < 10; i++) {
         filter.addVBucket(Vbid(i));
     }
 
@@ -50,7 +50,7 @@ TEST_F(VBucketFilterTest, Split) {
         // Expected: {0}, {1}, {2}, {3}
         auto filters = filter.split(4);
         EXPECT_THAT(filters, SizeIs(4));
-        for (int i = 0; i < 4; ++i) {
+        for (Vbid::id_type i = 0; i < 4; ++i) {
             EXPECT_THAT(filters.at(i), SizeIs(1));
             EXPECT_TRUE(filters.at(i)(Vbid(i)));
         }
@@ -62,7 +62,7 @@ TEST_F(VBucketFilterTest, Split) {
         auto filters = filter.split(5);
         // Never return an empty filter -- empty filter objects match everything
         EXPECT_THAT(filters, SizeIs(4));
-        for (int i = 0; i < 4; ++i) {
+        for (Vbid::id_type i = 0; i < 4; ++i) {
             EXPECT_THAT(filters.at(i), SizeIs(1));
             EXPECT_TRUE(filters.at(i)(Vbid(i)));
         }
@@ -79,7 +79,7 @@ TEST_F(VBucketFilterTest, Split) {
         EXPECT_TRUE(filters.at(0)(Vbid(0)));
         EXPECT_TRUE(filters.at(0)(Vbid(3)));
 
-        for (int i = 1; i < 3; ++i) {
+        for (Vbid::id_type i = 1; i < 3; ++i) {
             EXPECT_THAT(filters.at(i), SizeIs(1));
             EXPECT_TRUE(filters.at(i)(Vbid(i)));
         }

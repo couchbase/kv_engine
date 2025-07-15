@@ -2054,7 +2054,7 @@ TEST_F(CouchstoreTest, getVbucketRevisions) {
 TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
     struct CouchstoreFile {
         uint16_t id;
-        uint64_t revision;
+        int revision;
     };
     // We'll create these as minimal couchstore files (they all need vbstate)
     std::vector<CouchstoreFile> filenames = {

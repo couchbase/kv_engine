@@ -800,7 +800,7 @@ protected:
     enum class EngineOp : uint8_t { Store, StoreIf, Remove };
 
     // Test replicating delete times.
-    void test_replicateDeleteTime(time_t deleteTime);
+    void test_replicateDeleteTime(uint32_t deleteTime);
 
     /**
      * Verifies that invalid items with empty payload and (datatype != raw) fail

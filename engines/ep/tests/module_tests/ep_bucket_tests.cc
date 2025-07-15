@@ -548,7 +548,8 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
 
     // Travel forward in time - want to set takeoverBackedUp to block front end
     // ops
-    TimeTraveller t(engine->getConfiguration().getDcpTakeoverMaxTime() + 1);
+    TimeTraveller t(gsl::narrow_cast<int>(
+            engine->getConfiguration().getDcpTakeoverMaxTime() + 1));
 
     // Send the snapshot marker
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));

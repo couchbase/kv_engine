@@ -44,8 +44,9 @@ protected:
         }
         Configuration config;
         config.parseConfiguration(configStr);
-        WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                config.getMaxNumShards());
+        WorkLoadPolicy workload(
+                gsl::narrow_cast<int>(config.getMaxNumWorkers()),
+                gsl::narrow_cast<int>(config.getMaxNumShards()));
         kvstoreConfig =
                 std::make_unique<MagmaKVStoreConfig>(config,
                                                      config.getBackendString(),

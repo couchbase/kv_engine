@@ -491,7 +491,6 @@ TEST_P(EPBucketTest, MB_21976) {
 TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
     const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
     const int numTouchCmds = 2;
-    auto expiryTime = time(nullptr) + 1000;
 
     // Store an item
     store_item(vbid, dockey, "value");
@@ -504,8 +503,11 @@ TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
 
     // Issue 2 touch commands
     for (int i = 0; i < numTouchCmds; ++i) {
-        GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
-                                             (i + 1) * expiryTime);
+        GetValue gv = store->getAndUpdateTtl(
+                dockey,
+                vbid,
+                cookie,
+                ep_convert_to_expiry_time(1000 * (i + 1)));
         EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     }
 
@@ -515,8 +517,11 @@ TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
 
     // Issue 2 touch commands again to mock actions post notify from bgFetch
     for (int i = 0; i < numTouchCmds; ++i) {
-        GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
-                                             (i + 1) * (expiryTime));
+        GetValue gv = store->getAndUpdateTtl(
+                dockey,
+                vbid,
+                cookie,
+                ep_convert_to_expiry_time(1000 * (i + 1)));
         EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     }
     EXPECT_EQ(numTouchCmds + 1 /* Initial item store */,
@@ -587,8 +592,10 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
                           (PROTOCOL_BINARY_DATATYPE_JSON |
                            PROTOCOL_BINARY_DATATYPE_XATTR));
 
-    GetValue gv = store->getAndUpdateTtl(
-            makeStoredDocKey("key"), vbid, cookie, time(nullptr) + 120);
+    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"),
+                                         vbid,
+                                         cookie,
+                                         ep_convert_to_expiry_time(120));
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     std::unique_ptr<Item> get_itm(std::move(gv.item));
 
@@ -1790,9 +1797,9 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
 //           both value and full eviction.
 TEST_P(EPBucketTest, expiredItemCount) {
     // Create a item with an expiry time
-    auto expiryTime = time(nullptr) + 290;
     auto key = makeStoredDocKey("key");
-    auto item = make_item(vbid, key, "expire value", expiryTime);
+    auto item = make_item(
+            vbid, key, "expire value", ep_convert_to_expiry_time(290));
     ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     flush_vbucket_to_disk(vbid);

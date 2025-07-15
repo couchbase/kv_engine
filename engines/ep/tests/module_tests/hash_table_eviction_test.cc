@@ -109,7 +109,7 @@ protected:
         ASSERT_TRUE(cb::ArenaMalloc::canTrackAllocations())
                 << "Memory tracker not enabled - cannot continue";
 
-        for (int ii = 0; ii < noOfVBs; ii++) {
+        for (Vbid::id_type ii = 0; ii < noOfVBs; ii++) {
             store->setVBucketState(Vbid(ii), vbucket_state_active);
         }
 
@@ -184,7 +184,7 @@ protected:
         --noOfDocs;
 
         if (!isEphemeral) {
-            for (int ii = 0; ii < noOfVBs; ii++) {
+            for (Vbid::id_type ii = 0; ii < noOfVBs; ii++) {
                 store->getVBucket(Vbid(ii))
                         ->checkpointManager->createNewCheckpoint();
                 while (getEPBucket().flushVBucket(Vbid(ii)).numFlushed != 0)
@@ -264,7 +264,7 @@ protected:
             runNextTask(lpNonioQ);
             current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
             lower = static_cast<double>(stats.mem_low_wat);
-            int vbucketcount = 0;
+            Vbid::id_type vbucketcount = 0;
             // Note:  The reason for the /2 in while condition below is that
             // only half the vbuckets are active (the other half being
             // replica).  We evict from these different types of vbuckets in
@@ -326,7 +326,7 @@ protected:
      * vbucket.
      */
     void printNoOfResidentDocs() {
-        for (uint16_t ii = 0; ii < noOfVBs; ii++) {
+        for (Vbid::id_type ii = 0; ii < noOfVBs; ii++) {
             auto vb = engine->getVBucket(Vbid(ii));
             const auto numResidentItems =
                     vb->getNumItems() - vb->getNumNonResidentItems();
@@ -355,7 +355,7 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     printNoOfResidentDocs();
     accessPattern();
 
-    for (int ii = 0; ii < noOfVBs / 2; ii++) {
+    for (Vbid::id_type ii = 0; ii < noOfVBs / 2; ii++) {
         store->setVBucketState(Vbid(ii), vbucket_state_replica);
     }
 

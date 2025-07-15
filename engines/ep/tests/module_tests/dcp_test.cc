@@ -434,7 +434,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      * Create a DCP response and check that a new item is created and
      * the message size is less than the size of original item
      */
-    uint32_t keyAndValueMessageSize = getItemSize(*item2);
+    auto keyAndValueMessageSize = getItemSize(*item2);
     qi = queued_item(std::move(item2));
     dcpResponse = stream->public_makeResponseFromItem(
             qi, SendCommitSyncWriteAs::Commit);
@@ -927,7 +927,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     const auto send_time = producer->getNoopSendTime();
     // Advance time so when we call maybeSendNoop, it appears as if sufficient
     // time has advanced that we should attempt to send noop.
-    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
+    TimeTraveller marty(gsl::narrow_cast<int>(
+            engine->getConfiguration().getDcpIdleTimeout() + 1));
     // Attempt to send no-op - should fail as mock claims buffer is full.
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::too_big, ret)
@@ -956,7 +957,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     const auto send_time = producer->getNoopSendTime();
     // Advance time so when we call maybeSendNoop, it appears as if sufficient
     // time has advanced that we should attempt to send noop.
-    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
+    TimeTraveller marty(gsl::narrow_cast<int>(
+            engine->getConfiguration().getDcpIdleTimeout() + 1));
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::success, ret)
@@ -977,7 +979,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
 
     MockDcpMessageProducers producers;
     const auto send_time = ep_uptime_now();
-    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
+    TimeTraveller marty(gsl::narrow_cast<int>(
+            engine->getConfiguration().getDcpIdleTimeout() + 1));
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);

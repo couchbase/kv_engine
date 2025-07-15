@@ -917,12 +917,12 @@ protected:
         flush_vbucket_to_disk(vbid, 2);
 
         const auto totalItems = 1000;
-        const size_t fruitItems = std::round(osoCollectionRatio * totalItems);
+        const int fruitItems = std::round(osoCollectionRatio * totalItems);
         ASSERT_GT(fruitItems, 0)
                 << "Cannot populate 'fruit' collection at ratio "
                 << osoCollectionRatio << "with only " << totalItems
                 << " items total";
-        const size_t vegetableItems =
+        const int vegetableItems =
                 std::round(seqnoCollectionRatio * totalItems);
         ASSERT_GT(vegetableItems, 0)
                 << "Cannot populate 'fruit' collection at ratio "

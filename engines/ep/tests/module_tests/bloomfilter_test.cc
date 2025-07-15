@@ -117,7 +117,7 @@ TEST_P(BloomFilterDocKeyTest, check_hashing) {
         // has no match in the set.
         key1_hashes.insert(hashDocKey(key1, 0));
         key2_hashes.insert(hashDocKey(key2, 0));
-        for (size_t i = 1; i < noOfHashes; i++)  {
+        for (uint32_t i = 1; i < noOfHashes; i++) {
             EXPECT_EQ(0, key1_hashes.count(hashDocKey(key1, i)));
             EXPECT_EQ(0, key2_hashes.count(hashDocKey(key1, i)));
             EXPECT_EQ(0, key1_hashes.count(hashDocKey(key2, i)));

@@ -76,11 +76,11 @@ enum class Rev : uint64_t {
     Any = std::numeric_limits<uint64_t>::max(),
 };
 
-enum class ExpTime : time_t {
+enum class ExpTime : uint32_t {
     Lower = 999,
     Same = 1000,
     Higher = 1001,
-    Any = std::numeric_limits<time_t>::max(),
+    Any = std::numeric_limits<uint32_t>::max(),
 };
 
 enum class Flags : uint32_t {
@@ -250,7 +250,7 @@ public:
                 Vbid(0), makeStoredDocKey("someKey"), "someValue", 0, datatype);
         item.setCas(uint64_t(std::get<Cas>(GetParam())));
         item.setRevSeqno(uint64_t(std::get<Rev>(GetParam())));
-        item.setExpTime(time_t(std::get<ExpTime>(GetParam())));
+        item.setExpTime(uint32_t(std::get<ExpTime>(GetParam())));
         item.setFlags(uint32_t(std::get<Flags>(GetParam())));
         return item;
     }

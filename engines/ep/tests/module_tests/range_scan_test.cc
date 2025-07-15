@@ -1569,8 +1569,8 @@ RangeScanTest::setupConcurrencyMaxxed() {
     std::vector<std::pair<cb::rangescan::Id, MockCookie*>> scans;
     // At time of writing, getNumAuxIO was 8
     EXPECT_GT(task_executor->getNumAuxIO(), 2);
-    const int numScans = task_executor->getNumAuxIO() + 1;
-    for (int ii = 0; ii < numScans; ii++) {
+    const size_t numScans = task_executor->getNumAuxIO() + 1;
+    for (size_t ii = 0; ii < numScans; ii++) {
         // Create the scan and a cookie
         scans.emplace_back(createScan(scanCollection,
                                       {"user"},
@@ -1626,8 +1626,8 @@ TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_cancel_only) {
     std::vector<cb::rangescan::Id> scans;
     // At time of writing, getNumAuxIO was 8
     ASSERT_GT(task_executor->getNumAuxIO(), 2);
-    const int numScans = task_executor->getNumAuxIO() + 1;
-    for (int ii = 0; ii < numScans; ii++) {
+    const size_t numScans = task_executor->getNumAuxIO() + 1;
+    for (size_t ii = 0; ii < numScans; ii++) {
         // Create the scan
         scans.emplace_back(createScan(scanCollection,
                                       {"user"},

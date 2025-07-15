@@ -634,7 +634,7 @@ TEST_F(EphTombstoneTest, DoNotPurgeLastDelete) {
 
     /* Delete a key, it will be the last element in the sequence list */
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
-    int expectedItems = keys.size() - 1 /*deleted key*/;
+    auto expectedItems = keys.size() - 1 /*deleted key*/;
     ASSERT_EQ(expectedItems, vbucket->getNumItems());
     ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
 
@@ -689,7 +689,7 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
     softDeleteOne(keys.at(0), MutationStatus::WasDirty);
 
     setOne(makeStoredDocKey("last_key1"));
-    int expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
+    auto expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
     ASSERT_EQ(expectedItems, vbucket->getNumItems());
     ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
 
@@ -803,7 +803,7 @@ TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
     softDeleteOne(keys.at(2), MutationStatus::WasDirty);
 
     setOne(makeStoredDocKey("last_key1"));
-    int expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
+    auto expectedItems = keys.size() - 1 /*deleted key*/ + 1 /*last_key*/;
 
     // Run the tombstone purger.
     ASSERT_EQ(1, mockEpheVB->markOldTombstonesStale(0));

@@ -350,7 +350,7 @@ TEST_F(BasicLinkedListTest, DeletedItem) {
     const std::string keyPrefix("key");
     const int numItems = 1;
 
-    int numDeleted = basicLL->getNumDeletedItems();
+    auto numDeleted = basicLL->getNumDeletedItems();
 
     /* Add an item */
     addNewItemsToList(numItems, keyPrefix, 1);

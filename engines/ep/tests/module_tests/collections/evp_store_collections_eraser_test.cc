@@ -1345,7 +1345,7 @@ protected:
             return vbstate->onDiskPrepares;
         };
 
-        int initPendingDocOnDisk = 0;
+        size_t initPendingDocOnDisk = 0;
         if (persistent() && !isMagma()) {
             initPendingDocOnDisk = getOnDiskPrepares();
         }

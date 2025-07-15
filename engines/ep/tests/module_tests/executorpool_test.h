@@ -117,7 +117,7 @@ protected:
 
     void SetUp() override {
         ExecutorPoolTest<T>::SetUp();
-        this->makePool(MaxThreads, 2, 2, 2, 2);
+        this->makePool(gsl::narrow_cast<int>(MaxThreads), 2, 2, 2, 2);
         this->pool->registerTaskable(taskable);
     }
 

@@ -118,7 +118,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
 
     auto blob = sv->getValue();
     ASSERT_EQ(191, blob->getSize());
-    int before = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
+    size_t before = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
 
     /* While the initial bug in MB-25143 would only increase the size of
      * the blob once, by two bytes, we iterate here to ensure that there
@@ -130,7 +130,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
         sv->reallocate();
 
         blob = sv->getValue();
-        int after = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
+        size_t after = cb::ArenaMalloc::malloc_usable_size(blob.get().get());
 
         EXPECT_EQ(before, after);
     }
@@ -147,7 +147,7 @@ TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
 
     sv->setAge(this->ageInitialValue);
     auto blob = sv->getValue();
-    int beforeValueSize = blob->valueSize();
+    auto beforeValueSize = blob->valueSize();
     sv->setUncompressible();
     sv->reallocate();
     EXPECT_EQ(this->ageInitialValue, sv->getAge());
@@ -414,8 +414,8 @@ TEST(StoredValueTest, StoredValuesAllocatedInExpectedBin) {
 #else
 TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
 #endif
-    for (auto keySize : {22, 23, 24, 25}) {
-        const int expectedBin = 80;
+    for (size_t keySize : {22, 23, 24, 25}) {
+        const size_t expectedBin = 80;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -423,12 +423,12 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
                           ""),
                 {});
 
-        int usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
+        size_t usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
         EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
     }
 
-    for (auto keySize : {26, 27, 28, 29, 30}) {
-        const int expectedBin = 96;
+    for (size_t keySize : {26, 27, 28, 29, 30}) {
+        const size_t expectedBin = 96;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -436,7 +436,7 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
                           ""),
                 {});
 
-        int usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
+        size_t usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
         EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
     }
 }

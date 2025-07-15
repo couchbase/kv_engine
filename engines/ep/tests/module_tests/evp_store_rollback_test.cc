@@ -880,7 +880,8 @@ TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
                    "not rolled back");
     }
 
-    flushVBucketToDiskIfPersistent(vbid, maxFailoverEntries + 1);
+    flushVBucketToDiskIfPersistent(
+            vbid, gsl::narrow_cast<int>(maxFailoverEntries + 1));
     auto htState = getHtState();
     auto vb = store->getVBucket(vbid);
     auto rollbackSeqno = vb->getHighSeqno();

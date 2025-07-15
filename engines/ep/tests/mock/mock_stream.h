@@ -121,7 +121,7 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    int getNumBackfillItems() const {
+    size_t getNumBackfillItems() const {
         return backfillItems.memory + backfillItems.disk;
     }
 

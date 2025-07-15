@@ -160,7 +160,7 @@ public:
 
     ~TimeTraveller();
 
-    int get() const {
+    auto get() const {
         return by;
     }
 

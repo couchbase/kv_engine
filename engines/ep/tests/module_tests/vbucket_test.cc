@@ -138,7 +138,7 @@ std::vector<StoredDocKey> VBucketTestBase::generateKeys(int num, int start) {
 queued_item VBucketTestBase::makeQueuedItem(const char* key) {
     std::string val("x");
     uint32_t flags = 0;
-    time_t expiry = 0;
+    uint32_t expiry = 0;
     return queued_item(new Item(makeStoredDocKey(key),
                                 flags,
                                 expiry,
@@ -292,7 +292,7 @@ bool VBucketTestBase::public_deleteStoredValue(const DocKeyView& key) {
 }
 
 std::pair<MutationStatus, GetValue> VBucketTestBase::public_getAndUpdateTtl(
-        const DocKeyView& key, time_t exptime) {
+        const DocKeyView& key, uint32_t exptime) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto hbl = lockAndFind(StoredDocKey(key));
@@ -384,21 +384,21 @@ TEST_P(VBucketTest, AddExpiry) {
     }
     StoredDocKey k = makeStoredDocKey("aKey");
 
-    ASSERT_EQ(AddStatus::Success, addOne(k, ep_real_time() + 5));
-    EXPECT_EQ(AddStatus::Exists, addOne(k, ep_real_time() + 5));
+    ASSERT_EQ(AddStatus::Success, addOne(k, ep_convert_to_expiry_time(5)));
+    EXPECT_EQ(AddStatus::Exists, addOne(k, ep_convert_to_expiry_time(5)));
 
     const auto* v = this->vbucket->ht.findForRead(k).storedValue;
     EXPECT_TRUE(v);
-    EXPECT_FALSE(v->isExpired(ep_real_time()));
-    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
+    EXPECT_FALSE(v->isExpired(gsl::narrow<uint32_t>(ep_real_time())));
+    EXPECT_TRUE(v->isExpired(ep_convert_to_expiry_time(6)));
 
     TimeTraveller biffTannen(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
-    EXPECT_EQ(AddStatus::UnDel, addOne(k, ep_real_time() + 5));
+    EXPECT_EQ(AddStatus::UnDel, addOne(k, ep_convert_to_expiry_time(5)));
     EXPECT_TRUE(v);
-    EXPECT_FALSE(v->isExpired(ep_real_time()));
-    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
+    EXPECT_FALSE(v->isExpired(gsl::narrow<uint32_t>(ep_real_time())));
+    EXPECT_TRUE(v->isExpired(ep_convert_to_expiry_time(6)));
 }
 
 /**
@@ -440,13 +440,17 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
 TEST_P(VBucketTest, updateExpiredItem) {
     // Setup - create a key
     StoredDocKey key = makeStoredDocKey("key");
-    Item stored_item(key, 0, ep_real_time() - 1, "value", strlen("value"));
+    Item stored_item(key,
+                     0,
+                     gsl::narrow<uint32_t>(ep_real_time() - 1),
+                     "value",
+                     strlen("value"));
     ASSERT_EQ(MutationStatus::WasClean,
               this->public_processSet(stored_item, stored_item.getCas()));
 
     const auto* v = this->vbucket->ht.findForRead(key).storedValue;
     EXPECT_TRUE(v);
-    EXPECT_TRUE(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(gsl::narrow<uint32_t>(ep_real_time())));
 
     auto cas = v->getCas();
     // Create an item and set its state to deleted.

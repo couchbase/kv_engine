@@ -702,9 +702,9 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(
  */
 void DCPLoopbackStreamTest::takeoverTest(
         EnableExpiryOutput enableExpiryOutput) {
-    uint32_t exp_time = 0;
+    auto exp_time = 0;
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
-        exp_time = time(nullptr) + 256;
+        exp_time = ep_convert_to_expiry_time(256);
     }
 
     // Add some items to the source Bucket.

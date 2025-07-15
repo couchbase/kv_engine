@@ -243,7 +243,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     } while (stats.getCheckpointManagerEstimatedMemUsage() <
              checkpointMemoryLimit);
 
-    flushVBucketToDiskIfPersistent(vbid, numItems);
+    flushVBucketToDiskIfPersistent(vbid, gsl::narrow_cast<int>(numItems));
 
     auto vb = store->getVBucket(vbid);
     ASSERT_GT(vb->getNumItems(), 0);

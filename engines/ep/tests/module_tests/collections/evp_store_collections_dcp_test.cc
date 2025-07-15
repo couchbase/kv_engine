@@ -2375,8 +2375,8 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     setCollections(cookie, cm.add(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    TimeTraveller bill(
-            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+    TimeTraveller bill(gsl::narrow_cast<int>(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1));
     runCollectionsEraser(vbid);
 
     // Clear everything from CP manager so DCP backfills - here we are streaming
@@ -2400,7 +2400,9 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     flushVBucketToDiskIfPersistent(replicaVB, 2);
 
     TimeTraveller ted(
-            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+            gsl::narrow_cast<int>(
+                    engine->getConfiguration().getPersistentMetadataPurgeAge() +
+                    1));
     // No items are transferred - the default collection is empty and no purge
     // is triggered.
 

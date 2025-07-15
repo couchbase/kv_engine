@@ -51,15 +51,15 @@ public:
         return mockLL->registerFakeRangeLock(start, end);
     }
 
-    int public_getNumStaleItems() {
+    auto public_getNumStaleItems() {
         return mockLL->getNumStaleItems();
     }
 
-    int public_getNumListItems() {
+    auto public_getNumListItems() {
         return mockLL->getNumItems();
     }
 
-    int public_getNumListDeletedItems() {
+    auto public_getNumListDeletedItems() {
         return mockLL->getNumDeletedItems();
     }
 

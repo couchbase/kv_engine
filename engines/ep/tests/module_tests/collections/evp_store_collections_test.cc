@@ -1323,7 +1323,8 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
 TEST_P(CollectionsParameterizedTest, basic) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
-    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
+    for (Vbid::id_type vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets);
+         vb++) {
         store->setVBucketState(Vbid(vb), vbucket_state_active);
     }
 
@@ -1331,7 +1332,8 @@ TEST_P(CollectionsParameterizedTest, basic) {
     setCollections(cookie, cm);
 
     // Check all vbuckets got the collections
-    for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
+    for (Vbid::id_type vb = vbid.get(); vb <= (vbid.get() + extraVbuckets);
+         vb++) {
         auto vbp = store->getVBucket(Vbid(vb));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                 StoredDocKey{"meat:bacon", CollectionEntry::meat}));
@@ -1348,7 +1350,8 @@ TEST_P(CollectionsParameterizedTest, basic2) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     // Add active and replica
-    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
+    for (Vbid::id_type vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets);
+         vb++) {
         if (vb & 1) {
             store->setVBucketState(Vbid(vb), vbucket_state_active);
         } else {
@@ -1360,7 +1363,8 @@ TEST_P(CollectionsParameterizedTest, basic2) {
     setCollections(cookie, cm);
 
     // Check all vbuckets got the collections
-    for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
+    for (Vbid::id_type vb = vbid.get(); vb <= (vbid.get() + extraVbuckets);
+         vb++) {
         auto vbp = store->getVBucket(Vbid(vb));
         if (vbp->getState() == vbucket_state_active) {
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
@@ -1386,7 +1390,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
     StoredDocKey key{"lamb", CollectionEntry::meat};
-    store_item(vbid, key, "value", ep_real_time() + 100);
+    store_item(vbid, key, "value", ep_convert_to_expiry_time(100));
     flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
     setCollections(cookie, cm.remove(CollectionEntry::meat));
@@ -1473,9 +1477,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactNewPrepare) {
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    auto postCommitDairySize = 0;
-    auto preCompactionMeatSize = 0;
-    auto postFlushMeatSize = 0;
+    size_t postCommitDairySize = 0;
+    size_t preCompactionMeatSize = 0;
+    size_t postFlushMeatSize = 0;
 
     {
         Collections::Summary summary;
@@ -1577,9 +1581,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactPrepareAbort) {
               store->set(*meatPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    auto postCommitDairySize = 0;
-    auto preCompactionMeatSize = 0;
-    auto postFlushMeatSize = 0;
+    size_t postCommitDairySize = 0;
+    size_t preCompactionMeatSize = 0;
+    size_t postFlushMeatSize = 0;
 
     {
         Collections::Summary summary;
@@ -1677,9 +1681,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    auto postCommitDairySize = 0;
-    auto preCompactionMeatSize = 0;
-    auto postFlushMeatSize = 0;
+    size_t postCommitDairySize = 0;
+    size_t preCompactionMeatSize = 0;
+    size_t postFlushMeatSize = 0;
 
     {
         Collections::Summary summary;
@@ -2420,7 +2424,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
     StoredDocKey key{"lamb", CollectionEntry::meat};
-    store_item(vbid, key, "value", ep_real_time() + 100);
+    store_item(vbid, key, "value", ep_convert_to_expiry_time(100));
     flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
     setCollections(cookie, cm.remove(CollectionEntry::meat));

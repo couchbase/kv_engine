@@ -764,7 +764,7 @@ class WarmupOrderTest : public SingleThreadedKVBucketTest {
     void SetUp() override {
         config_string = "max_vbuckets=32";
         SingleThreadedKVBucketTest::SetUp();
-        for (size_t ii = 0; ii < store->getVBMapSize(); ++ii) {
+        for (Vbid::id_type ii = 0; ii < store->getVBMapSize(); ++ii) {
             setVBucketStateAndRunPersistTask(
                     Vbid(ii),
                     (ii & 4) ? vbucket_state_active : vbucket_state_replica);
@@ -790,8 +790,9 @@ TEST_F(WarmupOrderTest, pauseResumeVisit) {
     } visitor;
 
     std::vector<Vbid> toVisit;
-    for (int ii = store->getVBMapSize() - 1; ii >= 0; ii -= 3) {
-        toVisit.emplace_back(ii);
+    for (int ii = gsl::narrow_cast<int>(store->getVBMapSize() - 1); ii >= 0;
+         ii -= 3) {
+        toVisit.emplace_back(gsl::narrow_cast<Vbid::id_type>(ii));
     }
     EXPECT_EQ(11, toVisit.size());
 
@@ -2476,7 +2477,7 @@ TEST_P(MB_34718_WarmupTest, getTest) {
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
-    store_item(vbid, key, "meh", ep_real_time() + 3600);
+    store_item(vbid, key, "meh", ep_convert_to_expiry_time(3600));
     flush_vbucket_to_disk(vbid);
     resetEngineAndEnableWarmup("bfilter_enabled=false");
 

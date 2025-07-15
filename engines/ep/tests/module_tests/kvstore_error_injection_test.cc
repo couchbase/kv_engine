@@ -1033,7 +1033,8 @@ TEST_P(KVStoreErrorInjectionTest, WarmupScanCancelled) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Second vBucket will not be deleted, and must belong to the same shard
-    Vbid secondVbid(engine->getConfiguration().getMaxNumShards());
+    Vbid secondVbid(gsl::narrow_cast<Vbid::id_type>(
+            engine->getConfiguration().getMaxNumShards()));
     setVBucketStateAndRunPersistTask(secondVbid, vbucket_state_active);
     store_item(secondVbid, makeStoredDocKey("keyVb2"), "value");
     flushVBucketToDiskIfPersistent(secondVbid, 1);

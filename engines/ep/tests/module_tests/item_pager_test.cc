@@ -35,6 +35,7 @@
 #include "vb_adapters.h"
 #include "vbucket.h"
 #include "vbucket_utils.h"
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/semaphore.h>
@@ -143,13 +144,11 @@ protected:
         EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
         const std::string value(valueSize, 'x');
 
-        const auto expiry =
-                (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
-
         cb::engine_errc result = cb::engine_errc::success;
         while (result == cb::engine_errc::success) {
             auto key = makeStoredDocKey(fmt::format("{}{}", keyPrefix, count));
-            auto item = make_item(vbid, key, value, expiry);
+            auto item =
+                    make_item(vbid, key, value, ep_convert_to_expiry_time(ttl));
             // Set freqCount to 0 so will be a candidate for paging out straight
             // away.
             item.setFreqCounterValue(0);
@@ -588,7 +587,7 @@ protected:
         numConcurrentPagers = num;
     }
 
-    int getNumConcurrentExpiryPagers() const {
+    size_t getNumConcurrentExpiryPagers() const {
         return numConcurrentExpiryPagers;
     }
 
@@ -604,7 +603,7 @@ protected:
     void pagerEvictsSomething(bool dropCollection);
 
     size_t numConcurrentPagers = 1;
-    int numConcurrentExpiryPagers = 1;
+    size_t numConcurrentExpiryPagers = 1;
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
     /// Paging visitor set up to visit VBucket(`vbid`).
@@ -1997,14 +1996,14 @@ TEST_P(STItemPagerTest, EligibleForEvictionAndExpiration) {
     }
 
     for (auto& sv : cb::testing::sv::createAll(makeStoredDocKey("key"))) {
+        const auto now = gsl::narrow<uint32_t>(ep_real_time());
         // We do not expire deleted or temp items.
-        bool expectToExpire = !sv->isDeleted() && !sv->isTempItem() &&
-                              sv->isExpired(ep_real_time());
+        bool expectToExpire =
+                !sv->isDeleted() && !sv->isTempItem() && sv->isExpired(now);
         // We cannot evict and expire. We cannot evict dirty SVs.
         bool expectToEvict =
                 !expectToExpire && !sv->isDirty() &&
-                (!sv->isLocked(ep_real_time()) ||
-                 (sv->isLocked(ep_real_time()) && sv->isResident()));
+                (!sv->isLocked(now) || (sv->isLocked(now) && sv->isResident()));
         // Under value eviction, we can only evict the value.
         // Deletes can also be removed entirely.
         if (store->getItemEvictionPolicy() == EvictionPolicy::Value) {
@@ -2019,7 +2018,7 @@ TEST_P(STItemPagerTest, EligibleForEvictionAndExpiration) {
                 (store->getItemEvictionPolicy() == EvictionPolicy::Value &&
                  expectToEvict && sv->isDeleted()) ||
                 (store->getItemEvictionPolicy() == EvictionPolicy::Full &&
-                 expectToEvict && !sv->isLocked(ep_real_time()));
+                 expectToEvict && !sv->isLocked(now));
 
         auto [expired, evicted, unlinked] = mockVisitSV(*sv);
         EXPECT_EQ(expectToExpire, expired) << *sv;
@@ -2481,15 +2480,13 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     // Populate bucket with three documents - one with no expiry, one with an
     // expiry in 10 seconds, and one with an expiry in 20 seconds.
     std::string value = createXattrValue("body");
-    for (size_t ii = 0; ii < 3; ii++) {
+    for (uint32_t ii = 0; ii < 3; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
-        const uint32_t expiry =
-                ii > 0 ? ep_abs_time(ep_current_time() + ii * 10) : 0;
         auto item = make_item(
                 vbid,
                 key,
                 value,
-                expiry,
+                ii > 0 ? ep_convert_to_expiry_time(ii * 10) : 0,
                 PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
         ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
@@ -2742,15 +2739,8 @@ TEST_P(STExpiryPagerTest, ProcessExpiredListBeforeVisitingHashTable) {
     config.setExpiryVisitorItemsOnlyDurationMs(0);
     config.setExpiryVisitorExpireAfterVisitDurationMs(0);
 
-    auto expirySemaphore = std::make_shared<cb::Semaphore>();
-    MockExpiredPagingVisitor expiryVisitor(*store,
-                                           engine->getEpStats(),
-                                           expirySemaphore,
-                                           true,
-                                           VBucketFilter());
-
-    // Store items with an expiry time in the past
-    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    // Store items with an expiry time of now + 10s
+    const auto expiry = ep_convert_to_expiry_time(10);
     for (size_t i = 0; i < 102; i++) {
         auto key = makeStoredDocKey("key_" + std::to_string(i + 1));
         auto item = make_item(
@@ -2764,6 +2754,17 @@ TEST_P(STExpiryPagerTest, ProcessExpiredListBeforeVisitingHashTable) {
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 102});
     EXPECT_EQ(102, engine->getVBucket(vbid)->getNumItems())
             << "Should begin with 102 items in the bucket";
+
+    // Time-travel and initialise the visitor, this will pick up a future time
+    // ahead of the item expiry
+    TimeTraveller tedTheodoreLogan(100);
+    auto expirySemaphore = std::make_shared<cb::Semaphore>();
+    MockExpiredPagingVisitor expiryVisitor(*store,
+                                           engine->getEpStats(),
+                                           expirySemaphore,
+                                           true,
+                                           VBucketFilter());
+    EXPECT_CALL(expiryVisitor, visitBucket(testing::_)).Times(3);
 
     // First run of expiry pager should accumulate expired items and pause after
     // expiring 101 items. This is because we have
@@ -2827,8 +2828,8 @@ TEST_P(STExpiryPagerTest, MB_67191) {
     config.setExpiryVisitorItemsOnlyDurationMs(0);
     config.setExpiryVisitorExpireAfterVisitDurationMs(0);
 
-    // Store 203 items with an expiry time in the past
-    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    // Store 203 items with an expiry time
+    const auto expiry = ep_convert_to_expiry_time(10);
     for (size_t i = 0; i < 203; i++) {
         auto key = makeStoredDocKey("key_" + std::to_string(i + 1));
         auto item = make_item(
@@ -2842,7 +2843,7 @@ TEST_P(STExpiryPagerTest, MB_67191) {
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 203});
     EXPECT_EQ(203, engine->getVBucket(vbid)->getNumItems())
             << "Should begin with 203 items in the bucket";
-
+    TimeTraveller tedTheodoreLogan(100);
     store->wakeUpExpiryPager();
     auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpNonioQ, "Paging expired items.");
@@ -2896,11 +2897,11 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     resetEngineAndWarmup("max_vbuckets=18");
     std::vector<Vbid> allVBs(18);
 
-    for (int i = 0; i < 18; i++) {
+    for (Vbid::id_type i = 0; i < 18; i++) {
         allVBs[i] = Vbid(i);
     }
 
-    for (int i = 0; i < 6; i++) {
+    for (Vbid::id_type i = 0; i < 6; i++) {
         setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
         setVBucketStateAndRunPersistTask(Vbid(i + 6), vbucket_state_pending);
         setVBucketStateAndRunPersistTask(Vbid(i + 12), vbucket_state_replica);
@@ -3103,7 +3104,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
             vbid,
             key,
             value,
-            ep_abs_time(ep_current_time() + 10),
+            ep_convert_to_expiry_time(10),
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
@@ -3129,8 +3130,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
 TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     // Populate bucket with a TTL'd document, and then evict that document.
     auto key = makeStoredDocKey("key");
-    auto expiry = ep_abs_time(ep_current_time() + 5);
-    auto item = make_item(vbid, key, "value", expiry);
+    auto item = make_item(vbid, key, "value", ep_convert_to_expiry_time(5));
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
@@ -3189,7 +3189,7 @@ public:
 TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     // 1) Add bucket a TTL'd xattr document
     auto key = makeStoredDocKey("key");
-    auto expiry = ep_abs_time(ep_current_time() + 5);
+    auto expiry = ep_convert_to_expiry_time(5);
     auto value = createXattrValue(std::string(100, 'a'), true /*sys xattrs*/);
     auto item =
             make_item(vbid, key, value, expiry, PROTOCOL_BINARY_DATATYPE_XATTR);
@@ -3437,15 +3437,17 @@ TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
     }
 
     auto& stats = engine->getEpStats();
-    const uint32_t expiry = ep_abs_time(ep_current_time() - 10);
+    // expiry in the past
+    const auto expiry = ep_convert_to_expiry_time(10);
     std::string value = "foobar";
 
-    for (int i = 0; i < 4; ++i) {
+    for (Vbid::id_type i = 0; i < 4; ++i) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
         auto item = make_item(Vbid(i), key, value, expiry);
         ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
 
+    TimeTraveller tedTheodoreLogan(100);
     store->enableExpiryPager();
     store->wakeUpExpiryPager();
 

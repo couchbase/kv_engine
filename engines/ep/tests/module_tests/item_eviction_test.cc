@@ -11,6 +11,7 @@
 #include "learning_age_and_mfu_based_eviction.h"
 
 #include <folly/portability/GTest.h>
+#include <gsl/gsl-lite.hpp>
 #include <limits>
 
 /*
@@ -28,7 +29,7 @@ TEST(ItemEvictionClassTest, initialisation) {
 TEST(ItemEvictionClassTest, addValue) {
     LearningAgeAndMFUBasedEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
-        itemEv.addFreqAndAgeToHistograms(ii, ii);
+        itemEv.addFreqAndAgeToHistograms(gsl::narrow_cast<uint8_t>(ii), ii);
     }
     EXPECT_EQ(256, itemEv.getFreqHistogramValueCount());
 }
@@ -37,7 +38,7 @@ TEST(ItemEvictionClassTest, addValue) {
 TEST(ItemEvictionClassTest, freqThreshold) {
     LearningAgeAndMFUBasedEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
-        itemEv.addFreqAndAgeToHistograms(ii, ii * 2);
+        itemEv.addFreqAndAgeToHistograms(gsl::narrow_cast<uint8_t>(ii), ii * 2);
     }
     ASSERT_EQ(256, itemEv.getFreqHistogramValueCount());
     auto result50 = itemEv.getThresholds(50.0, 50.0);

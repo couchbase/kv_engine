@@ -106,7 +106,7 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     // same shard. The distribution algorithm is a simple modulus so we can just
     // pick the vBucket with id == number of shards and vBucket 0.
     auto shards = engine->getKVBucket()->getVBuckets().getNumShards();
-    const auto lpVbid = Vbid(shards);
+    const auto lpVbid = Vbid(gsl::narrow<Vbid::id_type>(shards));
 
     auto kvBucket = engine->getKVBucket();
     ASSERT_TRUE(kvBucket);

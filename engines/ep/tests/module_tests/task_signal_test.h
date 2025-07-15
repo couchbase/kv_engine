@@ -29,8 +29,8 @@ public:
     }
 
     void TearDown() override {
-        ExecutorPool::get()->setNumNonIO(
-                ThreadPoolConfig::NonIoThreadCount{originalThreadCount});
+        ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{
+                gsl::narrow<int>(originalThreadCount)});
         KVBucketTest::TearDown();
     }
 
@@ -41,5 +41,5 @@ public:
                                std::chrono::seconds timeout = 30s);
 
 private:
-    int originalThreadCount;
+    size_t originalThreadCount;
 };

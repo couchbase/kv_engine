@@ -120,7 +120,7 @@ protected:
     bool public_deleteStoredValue(const DocKeyView& key);
 
     std::pair<MutationStatus, GetValue> public_getAndUpdateTtl(
-            const DocKeyView& key, time_t exptime);
+            const DocKeyView& key, uint32_t exptime);
 
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
     public_processExpiredItem(HashTable::FindUpdateResult& htRes,

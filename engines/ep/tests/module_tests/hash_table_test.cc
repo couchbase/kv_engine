@@ -75,7 +75,7 @@ private:
     bool verify;
 };
 
-static int count(HashTable &h, bool verify=true) {
+static auto count(HashTable& h, bool verify = true) {
     Counter c(verify);
     h.visit(c);
     EXPECT_EQ(h.getNumItems(), c.count + c.deleted);
@@ -1593,11 +1593,11 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
         auto key = makeStoredDocKey(std::to_string(ii));
         auto res = ht.findForWrite(key);
         v = res.storedValue;
-        ht.setSVFreqCounter(res.lock, *v, ii);
+        ht.setSVFreqCounter(res.lock, *v, gsl::narrow_cast<uint8_t>(ii));
     }
 
-    ItemFreqDecayerVisitor itemFreqDecayerVisitor(
-            Configuration().getItemFreqDecayerPercent());
+    ItemFreqDecayerVisitor itemFreqDecayerVisitor(gsl::narrow_cast<uint16_t>(
+            Configuration().getItemFreqDecayerPercent()));
     itemFreqDecayerVisitor.setCurrentHT(ht);
     // Decay the frequency count of each document by the configuration
     // default of 50%

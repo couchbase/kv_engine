@@ -993,7 +993,7 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
     }
 
     for (size_t i = 0; i < primaryVbStates.size(); i++) {
-        auto vbid = Vbid(gsl::narrow_cast<uint16_t>(
+        auto vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(
                 i * configuration.getMaxShards() + configuration.getShardId()));
         if (primaryVbStates[i] == nullptr || secondaryVbStates[i] == nullptr) {
             if (primaryVbStates[i] != secondaryVbStates[i]) {

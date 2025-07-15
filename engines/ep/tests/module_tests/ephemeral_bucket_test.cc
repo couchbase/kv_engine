@@ -867,7 +867,7 @@ protected:
         SingleThreadedKVBucketTest::SetUp();
 
         /* Set up 4 vbuckets */
-        for (int vbid = 0; vbid < numVbs; ++vbid) {
+        for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
             setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
         }
 
@@ -886,7 +886,7 @@ protected:
     }
 
     bool checkAllPurged(uint64_t expPurgeUpto) {
-        for (int vbid = 0; vbid < numVbs; ++vbid) {
+        for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
             if (store->getVBucket(Vbid(vbid))->getPurgeSeqno() < expPurgeUpto) {
                 return false;
             }
@@ -933,7 +933,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
        our ProgressTracker checks whether to pause only after
        INITIAL_VISIT_COUNT_CHECK = 100 */
     const int numItems = 100;
-    for (int vbid = 0; vbid < numVbs; ++vbid) {
+    for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
         for (int i = 0; i < numItems; ++i) {
             const std::string key("key" + std::to_string(vbid) +
                                   std::to_string(i));
@@ -942,7 +942,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     }
 
     /* Add and delete an item in every vbucket */
-    for (int vbid = 0; vbid < numVbs; ++vbid) {
+    for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
         const std::string key("keydelete" + std::to_string(vbid));
         storeAndDeleteItem(Vbid(vbid), makeStoredDocKey(key), "value");
     }
@@ -951,7 +951,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     const uint64_t expPurgeUpto = numItems + 2;
 
     /* Add another item as we do not purge last element in the list */
-    for (int vbid = 0; vbid < numVbs; ++vbid) {
+    for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
         const std::string key("afterdelete" + std::to_string(vbid));
         store_item(Vbid(vbid), makeStoredDocKey(key), "value");
     }

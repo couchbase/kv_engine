@@ -1137,7 +1137,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     //         checkpoints here
     //     2) we carry on with processing a second disk-snapshot, which
     //         involves checkpoints
-    int openCheckpointSize = snapshotEnd - snapshotStart;
+    auto openCheckpointSize = snapshotEnd - snapshotStart;
     if (isFlagSet(flags, DcpSnapshotMarkerFlag::Disk)) {
         // Just process the first half of mutations as vbSeqno-0
         // disk-snapshot
@@ -5104,7 +5104,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
 
     const size_t numVbuckets = 4;
     // setup 4 vbuckets
-    for (size_t i = 0; i < numVbuckets; ++i) {
+    for (Vbid::id_type i = 0; i < numVbuckets; ++i) {
         setVBucketState(Vbid(i), vbucket_state_active);
     }
 
@@ -5118,7 +5118,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
     }
 
     // queue an item, then destroy the checkpoint for each of the vbuckets
-    for (size_t i = 0; i < numVbuckets; ++i) {
+    for (Vbid::id_type i = 0; i < numVbuckets; ++i) {
         auto currVbid = Vbid(i);
 
         auto vb = store->getVBuckets().getBucket(currVbid);
