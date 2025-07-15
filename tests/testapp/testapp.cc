@@ -30,6 +30,7 @@
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <protocol/mcbp/ewb_encode.h>
+#include <utilities/fusion_support.h>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -500,8 +501,6 @@ nlohmann::json TestappTest::generate_config() {
             {"active_external_users_push_interval", "30 m"},
             {"external_auth_slow_duration", "5 s"},
             {"external_auth_request_timeout", "30 s"},
-            {"fusion_migration_rate_limit", 75_MiB},
-            {"fusion_sync_rate_limit", 75_MiB},
             {"error_maps_dir", get_errmaps_dir()},
             {"audit_file", mcd_env->getAuditFilename().string()},
             {"rbac_file", mcd_env->getRbacFilename().string()},
@@ -535,6 +534,11 @@ nlohmann::json TestappTest::generate_config() {
         ret["logger"]["console"] = false;
     } else {
         ret["verbosity"] = memcached_verbose - 1;
+    }
+
+    if (isFusionSupportEnabled()) {
+        ret["fusion_migration_rate_limit"] = 75_MiB;
+        ret["fusion_sync_rate_limit"] = 75_MiB;
     }
 
     return ret;
