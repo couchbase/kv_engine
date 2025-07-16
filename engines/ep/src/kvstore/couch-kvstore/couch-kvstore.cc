@@ -742,12 +742,8 @@ void CouchKVStore::getMulti(Vbid vb,
 
     GetMultiCbCtx ctx(*this, vb, itms, std::move(createItemCb));
     // narrow to couchstore API (throwing if we could not narrow)
-    errCode = couchstore_docinfos_by_id(db,
-                                        ids.data(),
-                                        gsl::narrow<unsigned int>(itms.size()),
-                                        0,
-                                        getMultiCallback,
-                                        &ctx);
+    errCode = couchstore_docinfos_by_id(
+            db, ids.data(), itms.size(), 0, getMultiCallback, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += itms.size();
         logger.warn(
@@ -3239,7 +3235,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                                                        docs.data(),
                                                        docinfos.data(),
                                                        kvReqs.data(),
-                                                       (unsigned)docs.size(),
+                                                       docs.size(),
                                                        flags,
                                                        &saveDocsCallback,
                                                        &kvctx);
