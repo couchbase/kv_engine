@@ -937,6 +937,17 @@ public:
     // Set from the JSON value, which is base64 encoded
     void setDcpDisconnectWhenStuckNameRegexFromBase64(const std::string& val);
 
+    bool isMagmaBlindWriteOptimisationEnabled() const {
+        return magma_blind_write_optimisation_enabled.load(
+                std::memory_order_acquire);
+    }
+    void setMagmaBlindWriteOptimisationEnabled(bool val) {
+        magma_blind_write_optimisation_enabled.store(val,
+                                                     std::memory_order_release);
+        has.magma_blind_write_optimisation_enabled = true;
+        notify_changed("magma_blind_write_optimisation_enabled");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1182,6 +1193,9 @@ protected:
     folly::Synchronized<std::string, std::mutex>
             dcp_disconnect_when_stuck_name_regex;
 
+    /// Magma's blind write optimisation, on or off. Default is off.
+    std::atomic_bool magma_blind_write_optimisation_enabled{false};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1255,5 +1269,6 @@ public:
         bool dcp_disconnect_when_stuck_timeout_seconds = false;
         bool dcp_disconnect_when_stuck_name_regex = false;
         bool clustermap_push_notifications_enabled = false;
+        bool magma_blind_write_optimisation_enabled = false;
     } has;
 };

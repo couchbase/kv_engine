@@ -91,6 +91,10 @@ public:
     bool getNotLockedReturnsTmpfail() override {
         return false;
     }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {

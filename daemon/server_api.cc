@@ -83,6 +83,10 @@ struct ServerCoreApi : public ServerCoreIface {
     bool getNotLockedReturnsTmpfail() override {
         return Settings::instance().getNotLockedReturnsTmpfail();
     }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return Settings::instance().isMagmaBlindWriteOptimisationEnabled();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

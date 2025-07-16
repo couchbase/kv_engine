@@ -155,6 +155,11 @@ void mock_set_not_locked_returns_tmpfail(bool value) {
     not_locked_returns_tmpfail = value;
 }
 
+static std::atomic_bool magma_blind_write_optimisation_enabled{true};
+void mock_set_magma_blind_write_optimisation_enabled(bool enabled) {
+    magma_blind_write_optimisation_enabled = enabled;
+}
+
 struct MockServerCoreApi : public ServerCoreIface {
     std::chrono::steady_clock::time_point get_uptime_now() override {
         return mock_get_uptime_now();
@@ -198,6 +203,10 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     bool getNotLockedReturnsTmpfail() override {
         return not_locked_returns_tmpfail;
+    }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return magma_blind_write_optimisation_enabled.load();
     }
 };
 

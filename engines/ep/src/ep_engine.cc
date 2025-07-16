@@ -7726,3 +7726,7 @@ cb::engine_errc EventuallyPersistentEngine::getNotLockedError() const {
     return useTmpfail ? cb::engine_errc::temporary_failure
                       : cb::engine_errc::not_locked;
 }
+
+bool EventuallyPersistentEngine::isMagmaBlindWriteOptimisationEnabled() const {
+    return serverApi->core->isMagmaBlindWriteOptimisationEnabled();
+}

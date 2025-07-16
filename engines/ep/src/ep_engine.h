@@ -1082,6 +1082,11 @@ public:
      */
     cb::engine_errc getNotLockedError() const;
 
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    bool isMagmaBlindWriteOptimisationEnabled() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 

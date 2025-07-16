@@ -98,4 +98,9 @@ struct ServerCoreIface {
      * error where possible.
      */
     virtual bool getNotLockedReturnsTmpfail() = 0;
+
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    virtual bool isMagmaBlindWriteOptimisationEnabled() = 0;
 };
