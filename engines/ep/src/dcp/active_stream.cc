@@ -306,13 +306,15 @@ static bool mustAssignEndSeqno(SnapshotType source,
     folly::assume_unreachable();
 }
 
-bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
-                                    uint64_t diskEndSeqno,
-                                    std::optional<uint64_t> highCompletedSeqno,
-                                    std::optional<uint64_t> highPreparedSeqno,
-                                    uint64_t maxVisibleSeqno,
-                                    uint64_t purgeSeqno,
-                                    SnapshotType snapshotType) {
+bool ActiveStream::markDiskSnapshot(
+        uint64_t diskStartSeqno,
+        uint64_t diskEndSeqno,
+        std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highPreparedSeqno,
+        std::optional<uint64_t> persistedPreparedSeqno,
+        uint64_t maxVisibleSeqno,
+        uint64_t purgeSeqno,
+        SnapshotType snapshotType) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -388,8 +390,25 @@ bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
         auto sendHCS = supportSyncReplication() && highCompletedSeqno;
         auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
 
-        auto hpsToSend =
-                supportHPSInSnapshot() ? highPreparedSeqno : std::nullopt;
+        // The HPS on disk is updated when an entire snapshot has been processed
+        // & flushed to disk. A node which was previously a replica could have
+        // been promoted to active and the entire snapshot must not have been
+        // persisted to disk yet. Adjust the HPS to the max of HPS on disk &
+        // PPS.
+        std::optional<uint64_t> hpsToSend = std::nullopt;
+
+        if (supportHPSInSnapshot()) {
+            if (highPreparedSeqno < persistedPreparedSeqno) {
+                logWithContext(
+                        spdlog::level::level_enum::info,
+                        "ActiveStream::markDiskSnapshot: HPS is less than PPS",
+                        {{"hps", highPreparedSeqno},
+                         {"pps", persistedPreparedSeqno}});
+                hpsToSend = persistedPreparedSeqno;
+            } else {
+                hpsToSend = highPreparedSeqno;
+            }
+        }
 
         // The diskEndSeqno & purgeSeqno are derived from the same
         // BySeqnoScanContext and therefore purge seqno will always be <= end

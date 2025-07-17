@@ -2039,6 +2039,146 @@ TEST_P(DCPLoopbackStreamTest,
     HpsSentForInMemoryDiskSnapshot(MarkerVersion::V2_2);
 }
 
+TEST_P(DCPLoopbackStreamTest,
+       MB_67467_HpsInDiskSnapshotConsistentAfterHardFailover) {
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    // Add some items to the vbucket
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k3));
+    auto k4 = makeStoredDocKey("k4");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k4));
+
+    route0_1.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+    route0_1.transferPrepare(k3, 3);
+    route0_1.transferMutation(k4, 4);
+
+    // flush the mutations to disk
+    flushNodeIfPersistent(Node0);
+
+    // clear the checkpoint to force the start of a new in-memory checkpoint
+    auto activeVb = engines[Node0]->getVBucket(vbid);
+    activeVb->checkpointManager->clear();
+
+    // Add a few more items
+    auto k5 = makeStoredDocKey("k5");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k5));
+    auto k6 = makeStoredDocKey("k6");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k6));
+    auto k7 = makeStoredDocKey("k7");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k7));
+
+    // transfer the snapshot marker to the consumer
+    route0_1.transferSnapshotMarker(
+            5,
+            7,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_1.transferMutation(k5, 5);
+    route0_1.transferPrepare(k6, 6);
+
+    // flush the mutations on the replica
+    flushNodeIfPersistent(Node1);
+
+    // Check the HPS on the replica - should be 3, PPS should be 6
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+
+    auto getPersistedPreparedSeqno = [&]() {
+        return replicaVB->getShard()
+                ->getRWUnderlying()
+                ->getCachedVBucketState(vbid)
+                ->persistedPreparedSeqno;
+    };
+
+    ASSERT_EQ(3, replicaVB->getHighPreparedSeqno());
+    if (isPersistent()) {
+        ASSERT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
+        ASSERT_EQ(6, getPersistedPreparedSeqno());
+    } else {
+        ASSERT_EQ(6, replicaVB->getPersistedHighPreparedSeqno());
+    }
+
+    // Assert the snapsEnd in the checkpoint snapshotRange info is 7
+    auto checkpoint = replicaVB->checkpointManager->getSnapshotInfo();
+    ASSERT_EQ(7, checkpoint.range.getEnd());
+
+    // Simulate a hard failover, promote Node1 to active & make Node2 a replica
+
+    route0_1.destroy();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    createNode(Node2, vbucket_state_replica);
+
+    // Run the flusher on the new active, none of the prepare seqno (HPS or PPS)
+    // should change
+    ASSERT_EQ(3, replicaVB->getHighPreparedSeqno());
+    if (isPersistent()) {
+        ASSERT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
+    } else {
+        ASSERT_EQ(6, replicaVB->getPersistedHighPreparedSeqno());
+    }
+
+    EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
+
+    auto newActiveVB = engines[Node1]->getVBucket(vbid);
+
+    auto getPersistedPreparedSeqnoNewActive = [&]() {
+        return newActiveVB->getShard()
+                ->getRWUnderlying()
+                ->getCachedVBucketState(vbid)
+                ->persistedPreparedSeqno;
+    };
+
+    ASSERT_EQ(3, newActiveVB->getHighPreparedSeqno());
+    if (isPersistent()) {
+        ASSERT_EQ(3, newActiveVB->getPersistedHighPreparedSeqno());
+        ASSERT_EQ(6, getPersistedPreparedSeqnoNewActive());
+    }
+
+    // Clear all the checkpoints to force a backfill from disk
+    newActiveVB->checkpointManager->clear();
+
+    // create a route between Node 1 and Node 2
+    auto route1_2 = createDcpRoute(Node1,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route1_2.doStreamRequest().first);
+
+    // We'll be sending out a pre: 6 and the HPS is adjusted to the PPS (6)
+    route1_2.transferSnapshotMarker(
+            0,
+            6,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            6);
+
+    route1_2.transferMutation(k1, 1);
+    route1_2.transferMutation(k2, 2);
+    route1_2.transferPrepare(k3, 3);
+    route1_2.transferMutation(k4, 4);
+    route1_2.transferMutation(k5, 5);
+    // This is the last op in the snapshot, so we try to set the HPS on the
+    // checkpoint to the HPS received in the snapshot marker
+    ASSERT_NO_THROW(route1_2.transferPrepare(k6, 6));
+}
+
 // Ideally this class would've inherited STParameterizedBucketTest which already
 // covers (bucket type, eviction) as parameters, while an extra flushRatio
 // parameter. But it doesn't for similar reasons as described over

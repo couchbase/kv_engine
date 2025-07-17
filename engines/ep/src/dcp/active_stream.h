@@ -226,6 +226,8 @@ public:
      * @param highCompletedSeqno seqno of last commit/abort in the backfill
      * range
      * @param highPreparedSeqno seqno of the last prepare in the backfill range
+     * @param persistedPreparedSeqno seqno of the last prepare that has been
+     * persisted to disk
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
      * @param purgeSeqno current purgeSeqno of the vbucket.
@@ -237,6 +239,7 @@ public:
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
                           std::optional<uint64_t> highPreparedSeqno,
+                          std::optional<uint64_t> persistedPreparedSeqno,
                           uint64_t maxVisibleSeqno,
                           uint64_t purgeSeqno,
                           SnapshotType snapshotType);

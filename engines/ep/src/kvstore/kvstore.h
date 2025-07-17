@@ -542,6 +542,14 @@ public:
     const uint64_t persistedCompletedSeqno;
 
     const uint64_t highPreparedSeqno;
+
+    /**
+     * The highest prepare seqno that has been persisted to disk.
+     * This is used to determine the HPS of a disk snapshot, in case the
+     * an entire snapshot hasn't been persisted to disk yet, when a replica is
+     * promoted to an active.
+     */
+    const uint64_t persistedPreparedSeqno;
 };
 
 /**

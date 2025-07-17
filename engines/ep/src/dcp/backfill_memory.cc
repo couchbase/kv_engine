@@ -170,14 +170,16 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             endSeqno = rangeItr.back();
 
             // Send SnapMarker
-            bool markerSent =
-                    stream->markDiskSnapshot(startSeqno,
-                                             endSeqno,
-                                             rangeItr.getHighCompletedSeqno(),
-                                             rangeItr.getHighPreparedSeqno(),
-                                             rangeItr.getMaxVisibleSeqno(),
-                                             evb->getPurgeSeqno(),
-                                             SnapshotType::NoHistory);
+            bool markerSent = stream->markDiskSnapshot(
+                    startSeqno,
+                    endSeqno,
+                    rangeItr.getHighCompletedSeqno(),
+                    rangeItr.getHighPreparedSeqno(),
+                    // HPS == PPS for ephemeral vbuckets
+                    rangeItr.getHighPreparedSeqno(),
+                    rangeItr.getMaxVisibleSeqno(),
+                    evb->getPurgeSeqno(),
+                    SnapshotType::NoHistory);
 
             if (markerSent) {
                 // @todo: This value may be an overestimate, as it includes
