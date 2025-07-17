@@ -170,8 +170,8 @@ std::unordered_map<std::string, StatProperties> stat_tests = {
         make_stat_pair("failovers", {"failovers", StatRuntime::Slow, {}}),
 };
 
-static void fillLineWith(const char c, int spaces) {
-    for (int i = 0; i < spaces; ++i) {
+static void fillLineWith(const char c, size_t spaces) {
+    for (size_t i = 0; i < spaces; ++i) {
         putchar(c);
     }
 }
@@ -212,14 +212,14 @@ void renderToText(const std::string& name,
 
         // Calculate and render Sparkline (requires UTF-8 terminal).
         const int nbins = 32;
-        int prev_distance = 0;
+        size_t prev_distance = 0;
         std::vector<size_t> histogram;
         for (unsigned int bin = 0; bin < nbins; bin++) {
             const T max_for_bin = (spark_end / nbins) * bin;
             auto it = std::lower_bound(stats.values->begin(),
                                        stats.values->end(),
                                        max_for_bin);
-            const int distance = std::distance(stats.values->begin(), it);
+            const auto distance = std::distance(stats.values->begin(), it);
             histogram.push_back(distance - prev_distance);
             prev_distance = distance;
         }
@@ -228,10 +228,10 @@ void renderToText(const std::string& name,
         const size_t range = *minmax.second - *minmax.first + 1;
         const int levels = 8;
         for (const auto& h : histogram) {
-            int bar_size = ((h - *minmax.first + 1) * (levels - 1)) / range;
+            auto bar_size = ((h - *minmax.first + 1) * (levels - 1)) / range;
             putchar('\xe2');
             putchar('\x96');
-            putchar('\x81' + bar_size);
+            putchar('\x81' + gsl::narrow_cast<int>(bar_size));
         }
         putchar('\n');
     }
@@ -365,7 +365,7 @@ static void add_sentinel_doc(EngineIface* h, Vbid vbid) {
  */
 static void perf_latency_core(EngineIface* h,
                               int key_prefix,
-                              int num_docs,
+                              size_t num_docs,
                               std::vector<hrtime_t>& add_timings,
                               std::vector<hrtime_t>& get_timings,
                               std::vector<hrtime_t>& replace_timings,
@@ -375,7 +375,7 @@ static void perf_latency_core(EngineIface* h,
 
     // Build vector of keys
     std::vector<std::string> keys;
-    for (int i = 0; i < num_docs; i++) {
+    for (size_t i = 0; i < num_docs; i++) {
         keys.push_back(std::to_string(key_prefix) + std::to_string(i));
     }
 
@@ -661,7 +661,8 @@ enum class Doc_format {
 class UniformCharacterDistribution {
 public:
     explicit UniformCharacterDistribution(std::string alphabet_)
-        : alphabet(std::move(alphabet_)), uid(0, alphabet.size()) {
+        : alphabet(std::move(alphabet_)),
+          uid(0, gsl::narrow_cast<int>(alphabet.size())) {
     }
 
     template< class Generator >
@@ -1378,7 +1379,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
 
     insert_timings.reserve(iterations_for_fast_stats);
 
-    for (int vb = 0; vb < active_vbuckets; vb++) {
+    for (Vbid::id_type vb = 0; vb < active_vbuckets; vb++) {
         check_expression(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
                          "Failed set_vbucket_state for vbucket");
     }
@@ -1533,7 +1534,7 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
     // Create active vbuckets and add items to them so that they can be warmed
     // up
     std::string keyBase("key");
-    for (size_t i = 0; i < numVbucket; i++) {
+    for (Vbid::id_type i = 0; i < numVbucket; i++) {
         Vbid vb(i);
         check_expression(set_vbucket_state(h, vb, vbucket_state_active),
                          "Failed to set vbucket state for vb");
