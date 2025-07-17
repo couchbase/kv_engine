@@ -11,6 +11,7 @@
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/json_utilities.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -486,6 +487,17 @@ static void setupVBMap(MemcachedConnection& connection,
     }
 }
 
+cb::mcbp::DcpOpenFlag parseExtraOpenFlags(std::string_view value) {
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(value);
+    } catch (const std::exception&) {
+        json = value;
+    }
+    cb::mcbp::DcpOpenFlag flag = json;
+    return flag;
+}
+
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
@@ -522,6 +534,7 @@ int main(int argc, char** argv) {
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SNAPPY,
              cb::mcbp::Feature::JSON}};
+    auto dcpOpenFlag = cb::mcbp::DcpOpenFlag::Producer;
 
     McProgramGetopt options;
     using namespace cb::getopt;
@@ -588,6 +601,13 @@ int main(int argc, char** argv) {
                        Argument::Required,
                        "name",
                        "The DCP name to use"});
+    options.addOption({[&dcpOpenFlag](auto value) {
+                           dcpOpenFlag |= parseExtraOpenFlags(value);
+                       },
+                       "open-flags",
+                       Argument::Required,
+                       "flag",
+                       "Extra flags to pass to DCP open command"});
 
     options.addOption(
             {[](auto) { verbose = true; }, 'v', "verbose", "Add more output"});
@@ -793,8 +813,8 @@ int main(int argc, char** argv) {
                             ->queryServerAndSetupStreamRequestInsideSnapshot();
                 }
 
-                auto rsp = c.execute(BinprotDcpOpenCommand{
-                        streamname, cb::mcbp::DcpOpenFlag::Producer});
+                auto rsp = c.execute(
+                        BinprotDcpOpenCommand{streamname, dcpOpenFlag});
                 if (!rsp.isSuccess()) {
                     std::cerr
                             << "Failed to open DCP stream: " << rsp.getStatus()

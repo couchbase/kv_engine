@@ -9,6 +9,7 @@
  */
 
 #include <mcbp/protocol/json_utilities.h>
+#include <platform/split_string.h>
 #include <platform/uuid.h>
 
 namespace cb::mcbp {
@@ -60,6 +61,77 @@ void to_json(nlohmann::json& json, const DcpOpenFlag& flags) {
     } else {
         json = array;
     }
+}
+
+DcpOpenFlag toDcpOpenFlag(std::string value) {
+    for (auto& c : value) {
+        c = std::tolower(c);
+    }
+
+    if (value == "none" || value.empty()) {
+        return DcpOpenFlag::None;
+    }
+
+    if (std::isdigit(value.front())) {
+        return static_cast<DcpOpenFlag>(std::stoul(value, nullptr, 0));
+    }
+
+    if (value == "producer") {
+        return DcpOpenFlag::Producer;
+    }
+    if (value == "includexattrs") {
+        return DcpOpenFlag::IncludeXattrs;
+    }
+    if (value == "novalue") {
+        return DcpOpenFlag::NoValue;
+    }
+    if (value == "includedeletetimes") {
+        return DcpOpenFlag::IncludeDeleteTimes;
+    }
+    if (value == "novaluewithunderlyingdatatype") {
+        return DcpOpenFlag::NoValueWithUnderlyingDatatype;
+    }
+    if (value == "includedeleteduserxattrs") {
+        return DcpOpenFlag::IncludeDeletedUserXattrs;
+    }
+    if (value == "pitr") {
+        return DcpOpenFlag::PiTR_Unsupported;
+    }
+    if (value.starts_with("unknown:")) {
+        return static_cast<DcpOpenFlag>(
+                std::stoul(value.substr(8), nullptr, 0));
+    }
+
+    throw std::runtime_error("Unknown JSON value '" + value + "'");
+}
+
+void from_json(const nlohmann::json& json, DcpOpenFlag& flags) {
+    flags = DcpOpenFlag::None;
+    if (json.is_string()) {
+        std::string value = json.get<std::string>();
+        auto pieces = cb::string::split(value, ',');
+        for (auto element : pieces) {
+            if (element.empty()) {
+                continue;
+            }
+
+            flags |= toDcpOpenFlag(std::string(element));
+        }
+        return;
+    }
+    if (json.is_array()) {
+        for (const auto& item : json) {
+            flags |= item.get<DcpOpenFlag>();
+        }
+        return;
+    }
+
+    if (json.is_number()) {
+        flags = static_cast<DcpOpenFlag>(json.get<int>());
+        return;
+    }
+
+    throw std::runtime_error("Error: Unsupported DcpOpenFlag JSON type");
 }
 
 void to_json(nlohmann::json& json, const DcpAddStreamFlag& flags) {

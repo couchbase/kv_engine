@@ -55,6 +55,7 @@ cb_add_test_executable(mcbp_unit_tests
                feature_test.cc
                formatters_test.cc
                framebuilder_test.cc
+               json_utilities_test.cc
                magic_test.cc
                mcbp_dump_parser_test.cc
                request_test.cc

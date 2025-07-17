@@ -16,6 +16,7 @@
 
 namespace cb::mcbp {
 void to_json(nlohmann::json& json, const DcpOpenFlag& flags);
+void from_json(const nlohmann::json& json, DcpOpenFlag& flags);
 void to_json(nlohmann::json& json, const DcpAddStreamFlag& flags);
 }
 
