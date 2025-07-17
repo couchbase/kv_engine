@@ -886,6 +886,12 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
 
 static void execute_client_response_packet(Cookie& cookie,
                                            const cb::mcbp::Response& response) {
+    auto& c = cookie.getConnection();
+    if (!c.isAuthenticated()) {
+        c.shutdown();
+        c.setTerminationReason("Not authenticated");
+        return;
+    }
     const auto opcode = response.getClientOpcode();
     auto handler = response_handlers[uint8_t(opcode)];
     if (handler) {
@@ -907,6 +913,11 @@ static void execute_client_response_packet(Cookie& cookie,
 static void execute_server_response_packet(Cookie& cookie,
                                            const cb::mcbp::Response& response) {
     auto& c = cookie.getConnection();
+    if (!c.isAuthenticated()) {
+        c.shutdown();
+        c.setTerminationReason("Not authenticated");
+        return;
+    }
     const auto opcode = response.getServerOpcode();
     switch (opcode) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
@@ -915,16 +926,12 @@ static void execute_server_response_packet(Cookie& cookie,
         return;
     case cb::mcbp::ServerOpcode::Authenticate:
     case cb::mcbp::ServerOpcode::GetAuthorization:
-        externalAuthManager->responseReceived(response);
+        if (cookie.checkPrivilege(cb::rbac::Privilege::SecurityManagement)
+                    .success()) {
+            externalAuthManager->responseReceived(response);
+        }
         return;
     }
-
-    LOG_INFO(
-            "{}: Ignoring unsupported server response packet received with "
-            "opcode: {:#x} ({})",
-            c.getId(),
-            uint32_t(opcode),
-            is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>");
 }
 
 /**
