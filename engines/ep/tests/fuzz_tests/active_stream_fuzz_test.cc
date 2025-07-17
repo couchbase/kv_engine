@@ -90,15 +90,9 @@ public:
 void ActiveStreamFuzzTest::reset() {
     // Clears checkpoint and HT.
     EXPECT_TRUE(store->resetVBucket(vbid));
-    // Run checkpoint destroyer and VBucket deletion tasks.
-    runReadyTasks(TaskType::NonIO);
-    runReadyTasks(TaskType::AuxIO);
     // Resets the task executor (clears any remaining tasks).
-    for (auto& [taskId, _pair] : task_executor->getTaskLocator()) {
-        task_executor->cancel(taskId, true);
-    }
-    task_executor->unregisterTaskable(engine->getTaskable(), true);
-    task_executor->registerTaskable(engine->getTaskable());
+    // Runs checkpoint destroyer and VBucket deletion tasks.
+    shutdownAndPurgeTasks(engine.get());
 
     setCollections(cookie, cb::fuzzing::createManifest());
 }
