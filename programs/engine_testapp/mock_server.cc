@@ -129,7 +129,7 @@ static uint32_t mock_limit_expiry_time(uint32_t t, std::chrono::seconds limit) {
     auto upperbound = mock_abstime(mock_get_current_time()) + limit.count();
 
     if (t == 0 || t > upperbound) {
-        t = upperbound;
+        t = gsl::narrow<uint32_t>(upperbound);
     }
 
     return t;

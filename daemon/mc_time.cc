@@ -62,12 +62,18 @@ std::chrono::steady_clock::time_point mc_time_uptime_now() {
  * The value returned represents seconds since memcached started.
  */
 rel_time_t mc_time_get_current_time() {
-    return cb::time::UptimeClock::instance().getUptime().count();
+    // Narrowing note: For now narrow_cast and accept this has always been a
+    // technical "risk" against a narrowing bug as we mix 64/32 time keeping.
+    // MB-67520 aims to minimise use of narrow as that adds a new failure.
+    // Later MB-67776 /could/ add explicit prevention code to stop the uptime
+    // clock exceeding 2^32 (136 years).
+    return gsl::narrow_cast<rel_time_t>(
+            cb::time::UptimeClock::instance().getUptime().count());
 }
 
 /// @return true if a + b would overflow type A
 template <class A, class B>
-static bool would_overflow(A a, B b) {
+static bool would_overflow(B a, B b) {
     return a > (std::numeric_limits<A>::max() - b);
 }
 
@@ -120,10 +126,14 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
             t, instance.getEpoch(), instance.getUptime());
 }
 
-uint32_t mc_time_limit_expiry_time(uint32_t expiry,
-                                   seconds limit,
-                                   seconds uptime) {
-    auto upperbound = mc_time_convert_to_abs_time(uptime.count());
+uint32_t mc_time_limit_expiry_time(uint32_t expiry, seconds limit) {
+    // Narrowing note: For now narrow_cast and accept this has always been a
+    // technical "risk" against a narrowing bug as we mix 64/32 time keeping.
+    // MB-67520 aims to minimise use of gsl::narrow as that adds a new failure.
+    // Later MB-67776 /could/ add explicit prevention code to stop the uptime
+    // clock exceeding 2^32 (136 years) and the narrow_cast is then safe.
+    auto upperbound = mc_time_convert_to_abs_time(gsl::narrow_cast<rel_time_t>(
+            cb::time::UptimeClock::instance().getUptime().count()));
 
     if (would_overflow<uint32_t, seconds::rep>(upperbound, limit.count())) {
         upperbound = std::numeric_limits<uint32_t>::max();
@@ -132,15 +142,12 @@ uint32_t mc_time_limit_expiry_time(uint32_t expiry,
     }
 
     if (expiry == 0 || expiry > upperbound) {
-        expiry = upperbound;
+        // overflow has been handled above. upperbound doesn't exceed 2^32 so
+        // safe to cast down to 32-bit time representation.
+        expiry = gsl::narrow_cast<uint32_t>(upperbound);
     }
 
     return expiry;
-}
-
-uint32_t mc_time_limit_expiry_time(uint32_t t, seconds limit) {
-    return mc_time_limit_expiry_time(
-            t, limit, cb::time::UptimeClock::instance().getUptime());
 }
 
 /*

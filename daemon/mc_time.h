@@ -91,13 +91,6 @@ rel_time_t mc_time_convert_to_real_time(
  */
 uint32_t mc_time_limit_expiry_time(uint32_t t, std::chrono::seconds limit);
 
-/**
- * As above, but provide the uptime
- */
-uint32_t mc_time_limit_expiry_time(uint32_t t,
-                                   std::chrono::seconds limit,
-                                   std::chrono::seconds uptime);
-
 namespace cb::time {
 
 // Define the duration type used in the core time-keeping, e.g tick frequency
