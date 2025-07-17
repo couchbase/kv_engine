@@ -620,9 +620,9 @@ public:
 
     /// Set time until the first probe is sent
     void setTcpKeepAliveIdle(std::chrono::seconds val) {
-        // This setting is used in setsockopt TCP_KEEPIDLE and is limited to
-        // 4-bytes
-        if (val.count() > std::numeric_limits<uint32_t>::max()) {
+        // This setting is used in setsockopt TCP_KEEPIDLE and is limited to int
+        // representation
+        if (val.count() > std::numeric_limits<int>::max()) {
             throw std::invalid_argument(fmt::format(
                     "setTcpKeepAliveIdle: value {} is too large", val.count()));
         }
@@ -639,8 +639,8 @@ public:
     /// Set the interval between the probes is sent
     void setTcpKeepAliveInterval(std::chrono::seconds val) {
         // This setting is used in setsockopt TCP_KEEPINTVL and is limited to
-        // 4-bytes
-        if (val.count() > std::numeric_limits<uint32_t>::max()) {
+        // int representation
+        if (val.count() > std::numeric_limits<int>::max()) {
             throw std::invalid_argument(fmt::format(
                     "setTcpKeepAliveInterval: value {} is too large",
                     val.count()));
@@ -669,6 +669,12 @@ public:
 
     /// Set time to use for TCP_USER_TIMEOUT
     void setTcpUserTimeout(std::chrono::milliseconds val) {
+        // This setting is used in setsockopt and is limited to int
+        // representation
+        if (val.count() > std::numeric_limits<int>::max()) {
+            throw std::invalid_argument(fmt::format(
+                    "setTcpUserTimeout: value {} is too large", val.count()));
+        }
         tcp_user_timeout.store(val, std::memory_order_release);
         has.tcp_user_timeout = true;
         notify_changed("tcp_user_timeout");
@@ -680,6 +686,13 @@ public:
 
     /// Set time to use for TCP_USER_TIMEOUT for unauthenticated users
     void setTcpUnauthenticatedUserTimeout(std::chrono::milliseconds val) {
+        // This setting is used in setsockopt and is limited to int
+        // representation
+        if (val.count() > std::numeric_limits<int>::max()) {
+            throw std::invalid_argument(fmt::format(
+                    "setTcpUnauthenticatedUserTimeout: value {} is too large",
+                    val.count()));
+        }
         tcp_unauthenticated_user_timeout.store(val, std::memory_order_release);
         has.tcp_unauthenticated_user_timeout = true;
         notify_changed("tcp_unauthenticated_user_timeout");

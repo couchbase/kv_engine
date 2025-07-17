@@ -138,10 +138,13 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
         // Set the current configured value so that it appears in the logs.
         // We will however try to set it to the "current" value once the
         // client connects (as the value is dynamic)
-        uint32_t timeout =
+        auto timeout =
                 Settings::instance().getTcpUnauthenticatedUserTimeout().count();
         if (!cb::net::setSocketOption<uint32_t>(
-                    sfd, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
+                    sfd,
+                    IPPROTO_TCP,
+                    TCP_USER_TIMEOUT,
+                    gsl::narrow_cast<uint32_t>(timeout))) {
             LOG_WARNING_CTX(
                     "Failed to set TCP_USER_TIMEOUT",
                     {"socket", sfd},
@@ -293,8 +296,10 @@ void LibeventServerSocketImpl::acceptNewClient() {
         setTcpKeepalive(client);
 
 #ifdef __linux__
-        uint32_t timeout =
-                Settings::instance().getTcpUnauthenticatedUserTimeout().count();
+        auto timeout = gsl::narrow_cast<uint32_t>(
+                Settings::instance()
+                        .getTcpUnauthenticatedUserTimeout()
+                        .count());
         if (!cb::net::setSocketOption<uint32_t>(
                     sfd, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
             LOG_WARNING_CTX(

@@ -1124,10 +1124,11 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
 #ifdef __linux__
         if (!listening_port->system) {
             auto timeout = Settings::instance().getTcpUserTimeout();
-            if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
-                                                    IPPROTO_TCP,
-                                                    TCP_USER_TIMEOUT,
-                                                    timeout.count())) {
+            if (!cb::net::setSocketOption<uint32_t>(
+                        socketDescriptor,
+                        IPPROTO_TCP,
+                        TCP_USER_TIMEOUT,
+                        gsl::narrow_cast<uint32_t>(timeout.count()))) {
                 LOG_WARNING_CTX(
                         "Failed to set TCP_USER_TIMEOUT",
                         {"conn_id", getId()},

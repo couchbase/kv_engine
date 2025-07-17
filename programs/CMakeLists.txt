@@ -25,6 +25,17 @@ add_test(NAME mc_program_utils_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND mc_program_utils_test)
 
+# MB-67520: Enable warnings for narrowing conversions and
+# implicit int conversions when building with MSVC and Clang/AppleClang.
+# This is limited to a subset of targets whilst we make progress towards
+# being able to globally enable such flags.
+if (WIN32)
+# Set Compiler warning level to /W4
+target_compile_options(mc_program_utils_test PRIVATE /W4)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+target_compile_options(mc_program_utils_test PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
+endif()
+
 add_subdirectory(dbfill)
 add_subdirectory(dcpdrain)
 add_subdirectory(dcplatency)
