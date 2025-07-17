@@ -66,12 +66,13 @@ static int parseThreadConfigSpec(const std::string& variable,
         // to support default for backwards compatibility.
         return 0;
     }
-    uint64_t val;
-    if (!safe_strtoull(spec, val)) {
+    int32_t val;
+    if (!safe_strtol(spec, val)) {
         throw std::invalid_argument(
                 variable +
                 R"( must be specified as a numeric value, "balanced" or "disk_io_optimized")");
     }
+
     return val;
 }
 
@@ -257,7 +258,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setOpcodeAttributesOverride(value.dump());
         } else if (key == "num_reader_threads"sv) {
             if (value.is_number_unsigned()) {
-                setNumReaderThreads(value.get<size_t>());
+                setNumReaderThreads(value.get<int>());
             } else {
                 const auto val = value.get<std::string>();
                 setNumReaderThreads(
@@ -265,7 +266,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "num_writer_threads"sv) {
             if (value.is_number_unsigned()) {
-                setNumWriterThreads(value.get<size_t>());
+                setNumWriterThreads(value.get<int>());
             } else {
                 const auto val = value.get<std::string>();
                 setNumWriterThreads(
@@ -273,7 +274,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "num_storage_threads"sv) {
             if (value.is_number_unsigned()) {
-                setNumStorageThreads(value.get<size_t>());
+                setNumStorageThreads(value.get<int>());
             } else if (value.is_string() &&
                        value.get<std::string>() == "default") {
                 setNumStorageThreads(static_cast<int>(
@@ -286,7 +287,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "num_auxio_threads"sv) {
             if (value.is_number_unsigned()) {
-                setNumAuxIoThreads(value.get<size_t>());
+                setNumAuxIoThreads(value.get<int>());
             } else if (value.is_string() &&
                        value.get<std::string>() == "default") {
                 setNumAuxIoThreads(static_cast<int>(
@@ -299,7 +300,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "num_nonio_threads"sv) {
             if (value.is_number_unsigned()) {
-                setNumNonIoThreads(value.get<size_t>());
+                setNumNonIoThreads(value.get<int>());
             } else if (value.is_string() &&
                        value.get<std::string>() == "default") {
                 setNumNonIoThreads(static_cast<int>(

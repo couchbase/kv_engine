@@ -14,6 +14,7 @@
 #include "logger/logger_config.h"
 #include "network_interface.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>
 #include <platform/timeutils.h>
 #include <relaxed_atomic.h>
@@ -619,6 +620,12 @@ public:
 
     /// Set time until the first probe is sent
     void setTcpKeepAliveIdle(std::chrono::seconds val) {
+        // This setting is used in setsockopt TCP_KEEPIDLE and is limited to
+        // 4-bytes
+        if (val.count() > std::numeric_limits<uint32_t>::max()) {
+            throw std::invalid_argument(fmt::format(
+                    "setTcpKeepAliveIdle: value {} is too large", val.count()));
+        }
         tcp_keepalive_idle.store(val, std::memory_order_release);
         has.tcp_keepalive_idle = true;
         notify_changed("tcp_keepalive_idle");
@@ -631,6 +638,13 @@ public:
 
     /// Set the interval between the probes is sent
     void setTcpKeepAliveInterval(std::chrono::seconds val) {
+        // This setting is used in setsockopt TCP_KEEPINTVL and is limited to
+        // 4-bytes
+        if (val.count() > std::numeric_limits<uint32_t>::max()) {
+            throw std::invalid_argument(fmt::format(
+                    "setTcpKeepAliveInterval: value {} is too large",
+                    val.count()));
+        }
         tcp_keepalive_interval.store(val, std::memory_order_release);
         has.tcp_keepalive_interval = true;
         notify_changed("tcp_keepalive_interval");
@@ -825,7 +839,7 @@ public:
         return num_writer_threads.load(std::memory_order_acquire);
     }
 
-    void setNumWriterThreads(size_t val) {
+    void setNumWriterThreads(int val) {
         num_writer_threads.store(val, std::memory_order_release);
         has.num_writer_threads = true;
         notify_changed("num_writer_threads");
@@ -835,7 +849,7 @@ public:
         return num_auxio_threads.load(std::memory_order_acquire);
     }
 
-    void setNumAuxIoThreads(size_t val) {
+    void setNumAuxIoThreads(int val) {
         num_auxio_threads.store(val, std::memory_order_release);
         has.num_auxio_threads = true;
         notify_changed("num_auxio_threads");
@@ -845,7 +859,7 @@ public:
         return num_nonio_threads.load(std::memory_order_acquire);
     }
 
-    void setNumNonIoThreads(size_t val) {
+    void setNumNonIoThreads(int val) {
         num_nonio_threads.store(val, std::memory_order_release);
         has.num_nonio_threads = true;
         notify_changed("num_nonio_threads");
@@ -871,7 +885,7 @@ public:
         return num_storage_threads.load(std::memory_order_acquire);
     }
 
-    void setNumStorageThreads(size_t val) {
+    void setNumStorageThreads(int val) {
         num_storage_threads.store(val, std::memory_order_release);
         has.num_storage_threads = true;
         notify_changed("num_storage_threads");
@@ -954,7 +968,7 @@ public:
     }
 
     void setQuotaSharingPagerSleepTime(std::chrono::milliseconds val) {
-        quota_sharing_pager_sleep_time_ms = val.count();
+        quota_sharing_pager_sleep_time_ms = gsl::narrow_cast<int>(val.count());
         has.quota_sharing_pager_sleep_time_ms = true;
         notify_changed("quota_sharing_pager_sleep_time_ms");
     }

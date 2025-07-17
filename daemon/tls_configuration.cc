@@ -130,7 +130,7 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     }
 
     std::ranges::copy(password, buf);
-    return password.size();
+    return gsl::narrow_cast<int>(password.size());
 }
 
 nlohmann::json getOpenSslError() {

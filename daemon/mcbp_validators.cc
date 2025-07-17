@@ -2189,13 +2189,14 @@ static Status ewb_validator(Cookie& cookie) {
 
 static Status get_random_key_validator(Cookie& cookie) {
     const auto extdata = cookie.getRequest().getExtdata();
-    const auto status = McbpValidator::verify_header(cookie,
-                                                     extdata.size(),
-                                                     ExpectedKeyLen::Zero,
-                                                     ExpectedValueLen::Zero,
-                                                     ExpectedCas::NotSet,
-                                                     GeneratesDocKey::No,
-                                                     PROTOCOL_BINARY_RAW_BYTES);
+    const auto status = McbpValidator::verify_header(
+            cookie,
+            gsl::narrow_cast<uint8_t>(extdata.size()),
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::NotSet,
+            GeneratesDocKey::No,
+            PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }

@@ -322,7 +322,7 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
     auto& settings = Settings::instance();
     const auto idle = settings.getTcpKeepAliveIdle();
     if (idle.count() != 0) {
-        uint32_t t = idle.count();
+        auto t = gsl::narrow_cast<uint32_t>(idle.count());
         if (cb::net::setsockopt(
                     client, IPPROTO_TCP, TCP_KEEPIDLE, &t, sizeof(t)) == -1) {
             LOG_WARNING_CTX(
@@ -333,7 +333,7 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
     }
     const auto interval = settings.getTcpKeepAliveInterval();
     if (interval.count() != 0) {
-        uint32_t val = interval.count();
+        auto val = gsl::narrow_cast<uint32_t>(interval.count());
         if (cb::net::setsockopt(
                     client, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) ==
             -1) {

@@ -1012,7 +1012,7 @@ void SubdocCommandContext::send_multi_lookup_response() {
             Header h(op.status);
 
             if (op.traits.responseHasValue()) {
-                h.setLength((mloc.length));
+                h.setLength(gsl::narrow_cast<uint32_t>(mloc.length));
                 connection.copyToOutputStream(h.getBuffer(),
                                               {mloc.at, mloc.length});
             } else {

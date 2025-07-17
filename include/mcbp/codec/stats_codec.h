@@ -10,7 +10,9 @@
 
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/response.h>
+#include <cstdint>
 
 namespace cb::mcbp::response {
 
@@ -23,8 +25,8 @@ public:
         setStatus(cb::mcbp::Status::Success);
         setFramingExtraslen(0);
         setExtlen(0);
-        setKeylen(keyLen);
-        setBodylen(keyLen + valueLen);
+        setKeylen(gsl::narrow_cast<uint16_t>(keyLen));
+        setBodylen(gsl::narrow_cast<uint32_t>(keyLen + valueLen));
     }
 
     cb::const_byte_buffer getBuffer() const {

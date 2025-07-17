@@ -1582,8 +1582,8 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
             framing_extras_size += ThrottleDurationFrameInfoSize;
         }
         response.setFramingExtraslen(framing_extras_size);
-        response.setBodylen(value_len + extras_len + key_len +
-                            framing_extras_size);
+        response.setBodylen(gsl::narrow_cast<uint32_t>(
+                value_len + extras_len + key_len + framing_extras_size));
         auto* ptr = wbuf.data() + sizeof(cb::mcbp::Response);
 
         auto add_frame_info = [&ptr](auto id, uint16_t val) {
@@ -1621,7 +1621,8 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     } else {
         response.setMagic(cb::mcbp::Magic::ClientResponse);
         response.setFramingExtraslen(0);
-        response.setBodylen(value_len + extras_len + key_len);
+        response.setBodylen(
+                gsl::narrow_cast<uint32_t>(value_len + extras_len + key_len));
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
     }
     ++getBucket().responseCounters[uint16_t(status)];
@@ -1994,7 +1995,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         auto buf = frameInfo.getBuf();
         std::ranges::copy(buf, ptr);
         ptr += buf.size();
-        req.setFramingExtraslen(buf.size());
+        req.setFramingExtraslen(gsl::narrow_cast<uint8_t>(buf.size()));
     }
 
     std::copy(extdata.getBuffer().begin(), extdata.getBuffer().end(), ptr);
