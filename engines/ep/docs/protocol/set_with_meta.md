@@ -36,8 +36,10 @@ else if (command.CAS == document.CAS)
     if (command.Expiry > document.Expiry)
       command succeeds
     else if (command.Expiry == document.Expiry)
-      // Finally check flags
+      // Check flags
       if (command.Flags < document.Flags)
+        command succeeds
+      else if (command.has_xattr && !document.has_xattr)
         command succeeds
 
 command fails
