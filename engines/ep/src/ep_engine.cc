@@ -8170,3 +8170,7 @@ bool EventuallyPersistentEngine::isDcpSnapshotMarkerHPSEnabled() const {
 bool EventuallyPersistentEngine::isDcpSnapshotMarkerPurgeSeqnoEnabled() const {
     return serverApi->core->isDcpSnapshotMarkerPurgeSeqnoEnabled();
 }
+
+bool EventuallyPersistentEngine::isMagmaBlindWriteOptimisationEnabled() const {
+    return serverApi->core->isMagmaBlindWriteOptimisationEnabled();
+}
