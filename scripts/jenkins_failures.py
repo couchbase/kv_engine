@@ -120,11 +120,15 @@ def get_node_name(server, job, number, session):
         response = session.get(console_url, stream=True, timeout=30)
         response.raise_for_status()
 
-        # Node name in the first ~5000 bytes, however load 10000 bytes to be safe.
+        # Node name and VM name in the first ~5000 bytes, however load 10000 bytes to be safe.
         for chunk in response.iter_content(decode_unicode=True, chunk_size=10000):
-            match = re.search(r'NODE_NAME=([^\s]+)', chunk)
-            if match:
-                return match.group(1)
+            node_match = re.search(r'NODE_NAME=([^\s]+)', chunk)
+            labels_match = re.search(r'NODE_LABELS=([^\r\n]+)', chunk)
+            node_name = node_match.group(1) if node_match else "Unknown"
+            labels = labels_match.group(1) if labels_match else None
+
+            if node_name:
+                return {'node_name': node_name, 'labels': labels}
             break
 
         logging.warning(f"Failed to find NODE_NAME for {job}-{number}")
@@ -156,12 +160,15 @@ def get_build_info(build):
         return
 
     session = get_build_info.request_session
-    node_name = get_node_name(get_build_info.server, job, number, session)
-    if node_name:
-        info['node_name'] = node_name
-        logging.debug("Build: {}-{}: Node: {}".format(job, number, node_name))
+    node_info = get_node_name(get_build_info.server, job, number, session)
+    if node_info:
+        info['node_name'] = node_info['node_name']
+        info['labels'] = node_info['labels']
+        logging.debug("Build: {}-{}: Node: {}, Labels: {}"
+                      .format(job, number, node_info['node_name'], node_info['labels']))
     else:
         info['node_name'] = 'Unknown'
+        info['labels'] = None
 
     key = job + "-" + str(number)
     return (key, info)
@@ -248,7 +255,8 @@ def extract_failed_builds(details):
                                                   'gerrit_patch': gerrit_patch,
                                                   'timestamp': timestamp,
                                                   'url': info['url'],
-                                                  'node_name': info['node_name']})
+                                                  'node_name': info['node_name'],
+                                                  'labels': info['labels']})
         if not description:
             logging.warning(
                 "extract_failed_builds: Did not find failure cause for " +
@@ -519,8 +527,9 @@ if __name__ == '__main__':
         for d_idx, d in enumerate(details[:100]):
             human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
             node_name = d['node_name']
-            print("* Time: {}, Jenkins job: {}, patch: {}, node: {}".format(human_time,
-                  d['url'], d['gerrit_patch'], node_name))
+            labels = d['labels']
+            print("* Time: {}, Jenkins job: {}, patch: {}, node: {}, labels: [{}]".format(human_time,
+                  d['url'], d['gerrit_patch'], node_name, labels))
             if len(d['variables']) > 0:
                 print(' `- where ', end='')
                 for name, value in d['variables'].items():
