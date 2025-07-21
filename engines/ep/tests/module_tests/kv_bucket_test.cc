@@ -113,6 +113,8 @@ void KVBucketTest::initialise(std::string_view baseConfig,
         }
         config += "dbname=" + test_dbname;
 
+        // Initialize mock server settings to default values.
+        init_mock_server();
         // Need to initialize ep_real_time and friends.
         initialize_time_functions(get_mock_server_api()->core);
 

@@ -10199,10 +10199,10 @@ TEST_P(SingleThreadedPassiveStreamTest,
 class TestStuckProducer : public SingleThreadedActiveStreamTest {
 public:
     void SetUp() override {
+        SingleThreadedActiveStreamTest::SetUp();
         // Set the timeout to 0 and regex to only match a specific name
         mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds{0});
         mock_set_dcp_disconnect_when_stuck_name_regex(".*:disconnect-me:.*");
-        SingleThreadedActiveStreamTest::SetUp();
 
         store_item(vbid, makeStoredDocKey("keyA"), "value");
         store_item(vbid, makeStoredDocKey("keyB"), "value");

@@ -58,6 +58,8 @@ void EventuallyPersistentEngineTest::SetUp() {
 }
 
 void EventuallyPersistentEngineTest::initializeEngine() {
+    // Initialize mock server settings to default values.
+    init_mock_server();
     // Setup an engine with a single active vBucket.
     EXPECT_EQ(cb::engine_errc::success,
               create_ep_engine_instance(get_mock_server_api, &handle))

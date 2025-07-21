@@ -139,13 +139,13 @@ void mock_time_travel(int by) {
     time_travel_offset += by;
 }
 
-static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
+static std::chrono::seconds dcp_disconnect_when_stuck_timeout;
 static std::string dcp_disconnect_when_stuck_name_regex;
-static bool not_locked_returns_tmpfail{false};
-static double dcp_consumer_enable_max_marker_version{2.2};
-static bool dcp_snapshot_marker_hps_enabled{true};
-static bool dcp_snapshot_marker_purge_seqno_enabled{true};
-static std::atomic_bool magma_blind_write_optimisation_enabled{true};
+static bool not_locked_returns_tmpfail;
+static double dcp_consumer_enable_max_marker_version;
+static bool dcp_snapshot_marker_hps_enabled;
+static bool dcp_snapshot_marker_purge_seqno_enabled;
+static std::atomic_bool magma_blind_write_optimisation_enabled;
 
 void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
     dcp_disconnect_when_stuck_timeout = timeout;
@@ -312,4 +312,12 @@ void init_mock_server() {
 
     time_travel_offset = 0;
     log_level = spdlog::level::level_enum::critical;
+
+    dcp_disconnect_when_stuck_timeout = std::chrono::seconds(720);
+    dcp_disconnect_when_stuck_name_regex = "";
+    not_locked_returns_tmpfail = false;
+    dcp_consumer_enable_max_marker_version = 2.2;
+    dcp_snapshot_marker_hps_enabled = true;
+    dcp_snapshot_marker_purge_seqno_enabled = true;
+    magma_blind_write_optimisation_enabled = true;
 }
