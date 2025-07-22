@@ -64,7 +64,13 @@ int compareAtom(FwdIt1& it1, FwdIt1 end1, FwdIt2& it2, FwdIt2 end2) {
     auto num1 = parseNumber(it1, end1);
     auto num2 = parseNumber(it2, end2);
 
-    return num1 - num2;
+    if (num1 < num2) {
+        return -1;
+    }
+    if (num1 > num2) {
+        return 1;
+    }
+    return 0;
 }
 
 } // namespace detail
