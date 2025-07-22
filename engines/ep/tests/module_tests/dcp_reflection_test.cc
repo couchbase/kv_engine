@@ -2453,6 +2453,168 @@ TEST_P(DCPLoopbackSnapshots, testSnapshots) {
     testSnapshots(flushRatio);
 }
 
+class DCPRollbackTest : public DCPLoopbackTestHelper,
+                        public ::testing::WithParamInterface<
+                                std::tuple<std::string, std::string>> {
+public:
+    std::string getBucketTypeString() {
+        return std::get<0>(GetParam());
+    }
+
+    std::string getEvictionPolicy() {
+        return std::get<1>(GetParam());
+    }
+
+    void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+
+        if (getBucketTypeString() == "persistent_magma") {
+            config_string += magmaRollbackConfig + ";";
+        }
+
+        DCPLoopbackTestHelper::SetUp();
+    }
+
+    static std::string PrintToStringParamName(
+            const ::testing::TestParamInfo<
+                    std::tuple<std::string, std::string>>& info) {
+        auto bucket = std::get<0>(info.param);
+        auto evictionPolicy = std::get<1>(info.param);
+
+        return bucket + "_" + evictionPolicy;
+    }
+
+    static auto allConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Combine(
+                ::testing::Values("persistent_couchstore"s,
+                                  "ephemeral"s
+#ifdef EP_USE_MAGMA
+                                  ,
+                                  "persistent_magma"s
+#endif
+                                  ),
+                ::testing::Values("value_only"s, "full_eviction"s));
+    }
+};
+
+TEST_P(DCPRollbackTest, CheckHPSPostRollback) {
+    createNode(Node2, vbucket_state_replica);
+
+    // Create a route between node0 and node1
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    // Create a route between node1 and node2
+    auto route0_2 = createDcpRoute(Node0,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_2.doStreamRequest().first);
+
+    // Add some items to the vbucket
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k3));
+
+    // Create a snapshot marker
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+    route0_1.transferPrepare(k3, 3);
+
+    // Flush this checkpoint to disk
+    flushNodeIfPersistent(Node1);
+
+    route0_2.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_2.transferMutation(k1, 1);
+    route0_2.transferMutation(k2, 2);
+    route0_2.transferPrepare(k3, 3);
+
+    // Flush this checkpoint to disk
+    flushNodeIfPersistent(Node2);
+    flushNodeIfPersistent(Node2);
+
+    // Add a few more keys
+    auto k4 = makeStoredDocKey("k4");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k4));
+    auto k5 = makeStoredDocKey("k5");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k5));
+    auto k6 = makeStoredDocKey("k6");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k6));
+
+    // Transfer partial snapshot to node1
+    route0_1.transferSnapshotMarker(4, 6, DcpSnapshotMarkerFlag::Memory);
+
+    route0_1.transferMutation(k4, 4);
+    route0_1.transferMutation(k5, 5);
+
+    // Flush the mutations to disk
+    flushNodeIfPersistent(Node1);
+
+    // Transfer full snapshot to node2
+    route0_2.transferSnapshotMarker(4, 6, DcpSnapshotMarkerFlag::Memory);
+
+    route0_2.transferMutation(k4, 4);
+    route0_2.transferMutation(k5, 5);
+    route0_2.transferPrepare(k6, 6);
+
+    // Flush the mutations to disk
+    flushNodeIfPersistent(Node2);
+
+    // Node2 has processed the entire snapshot, so the HPS should be 6
+    auto replicaVB = engines[Node2]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(6, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(6, replicaVB->getPersistedHighPreparedSeqno());
+
+    // Clear checkpoints on node1
+    auto activeVb = engines[Node1]->getVBucket(vbid);
+
+    // Simulate a graceful failover, promote Node1 to active & make Node2
+    // replica
+    route0_1.destroy();
+    route0_2.destroy();
+
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+
+    // Create a route between node1 and node2
+    auto route1_2 = createDcpRoute(Node1,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    auto result = route1_2.doStreamRequest();
+    EXPECT_EQ(cb::engine_errc::rollback, result.first);
+    EXPECT_EQ(3, result.second);
+
+    // Get KVBucket for node2
+    auto* kvBucket = engines[Node2]->getKVBucket();
+    ASSERT_EQ(TaskStatus::Complete, kvBucket->rollback(vbid, 3));
+
+    // We have rolled back the entire last snapshot [4, 6] - the HPS should have
+    // moved back to 3
+    EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
+}
+
 INSTANTIATE_TEST_SUITE_P(DCPLoopbackStreamTests,
                          DCPLoopbackStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
@@ -2462,3 +2624,8 @@ INSTANTIATE_TEST_SUITE_P(DCPLoopbackSnapshot,
                          DCPLoopbackSnapshots,
                          DCPLoopbackSnapshots::allConfigValues(),
                          DCPLoopbackSnapshots::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(DCPRollbackTest,
+                         DCPRollbackTest,
+                         DCPRollbackTest::allConfigValues(),
+                         DCPRollbackTest::PrintToStringParamName);
