@@ -50,12 +50,6 @@ public:
     void reset();
 
     /**
-     * Writes the checkpoint actions into the CM.
-     */
-    std::shared_ptr<CheckpointCursor> processCheckpointActions(
-            const std::vector<CheckpointAction>& actions);
-
-    /**
      * Create a mock producer.
      */
     std::shared_ptr<MockDcpProducer> createProducer(
@@ -95,35 +89,6 @@ void ActiveStreamFuzzTest::reset() {
     shutdownAndPurgeTasks(engine.get());
 
     setCollections(cookie, cb::fuzzing::createManifest());
-}
-
-std::shared_ptr<CheckpointCursor>
-ActiveStreamFuzzTest::processCheckpointActions(
-        const std::vector<CheckpointAction>& actions) {
-    auto& vb = *store->getVBucket(vbid);
-    auto& cm = *vb.checkpointManager;
-
-    // Register cursor with randomly generated name.
-    auto cursor = cm.registerCursorBySeqno(
-                            fmt::format("backup_cursor_{}", fmt::ptr(&actions)),
-                            0,
-                            CheckpointCursor::Droppable::No)
-                          .takeCursor()
-                          .lock();
-
-    for (const auto& action : actions) {
-        if (action.type == CheckpointActionType::CreateCheckpoint) {
-            cm.createNewCheckpoint();
-            action.bySeqno = cm.getHighSeqno();
-            continue;
-        }
-
-        auto item = createItem(action.key, action.type);
-        cm.queueDirty(item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr);
-        action.bySeqno = item->getBySeqno();
-    }
-
-    return cursor;
 }
 
 std::shared_ptr<MockDcpProducer> ActiveStreamFuzzTest::createProducer(
@@ -172,7 +137,7 @@ void ActiveStreamFuzzTest::backfillAndMemoryStream(
     auto& vb = *store->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
 
-    auto backupCursor = processCheckpointActions(preActions);
+    auto backupCursor = processCheckpointActions(cm, preActions);
     if (persistent()) {
         flushVBucket(vbid);
     }
@@ -220,7 +185,7 @@ void ActiveStreamFuzzTest::backfillAndMemoryStream(
     // Process the first set of mutations and drain the readyQ.
     driveActiveStream(producer, stream);
 
-    auto postCursor = processCheckpointActions(postActions);
+    auto postCursor = processCheckpointActions(cm, postActions);
     EXPECT_TRUE(cm.removeCursor(*postCursor));
 
     // Process the second set of mutations and drain the readyQ.

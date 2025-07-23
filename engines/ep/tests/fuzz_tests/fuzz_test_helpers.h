@@ -65,6 +65,17 @@ queued_item createItem(DocKeyView key, CheckpointActionType type);
 std::string createJsonFilter(std::optional<CollectionID> collectionFilter);
 
 /**
+ * Processes a list of checkpoint actions and returns a cursor to a saved
+ * position before processing the actions.
+ *
+ * @param cm The checkpoint manager.
+ * @param actions The actions to perform.
+ * @return A cursor to a saved position before processing the actions.
+ */
+std::shared_ptr<CheckpointCursor> processCheckpointActions(
+        CheckpointManager& cm, const std::vector<CheckpointAction>& actions);
+
+/**
  * Type alias for the result of fuzztest::ElementOf.
  * Allows us to un-inline the function definition of simple domains.
  */

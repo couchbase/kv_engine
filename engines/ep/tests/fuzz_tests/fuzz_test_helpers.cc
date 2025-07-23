@@ -9,6 +9,7 @@
  */
 
 #include "fuzz_test_helpers.h"
+#include "checkpoint_manager.h"
 
 namespace cb::fuzzing {
 
@@ -84,6 +85,31 @@ std::string createJsonFilter(std::optional<CollectionID> collectionFilter) {
                            collectionFilter->to_string(false));
     }
     return {};
+}
+
+std::shared_ptr<CheckpointCursor> processCheckpointActions(
+        CheckpointManager& cm, const std::vector<CheckpointAction>& actions) {
+    // Register cursor with randomly generated name.
+    auto cursor = cm.registerCursorBySeqno(
+                            fmt::format("backup_cursor_{}", fmt::ptr(&actions)),
+                            0,
+                            CheckpointCursor::Droppable::No)
+                          .takeCursor()
+                          .lock();
+
+    for (const auto& action : actions) {
+        if (action.type == CheckpointActionType::CreateCheckpoint) {
+            cm.createNewCheckpoint();
+            action.bySeqno = cm.getHighSeqno();
+            continue;
+        }
+
+        auto item = createItem(action.key, action.type);
+        cm.queueDirty(item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr);
+        action.bySeqno = item->getBySeqno();
+    }
+
+    return cursor;
 }
 
 ElementOfDomain<CollectionEntry::Entry> collectionEntry() {
