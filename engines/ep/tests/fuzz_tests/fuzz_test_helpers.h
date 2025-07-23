@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "dcp/response.h"
 #include "fuzz_test_stringify.h"
 #include "tests/module_tests/test_helpers.h"
 
@@ -60,6 +61,12 @@ CollectionsManifest createManifest();
 queued_item createItem(DocKeyView key, CheckpointActionType type);
 
 /**
+ * Creates a MutationConsumerMessage from a CheckpointAction.
+ */
+MutationConsumerMessage createMutationConsumerMessage(
+        StoredDocKey key, CheckpointActionType type);
+
+/**
  * Creates a json filter for an ActiveStream.
  */
 std::string createJsonFilter(std::optional<CollectionID> collectionFilter);
@@ -74,6 +81,40 @@ std::string createJsonFilter(std::optional<CollectionID> collectionFilter);
  */
 std::shared_ptr<CheckpointCursor> processCheckpointActions(
         CheckpointManager& cm, const std::vector<CheckpointAction>& actions);
+
+/**
+ * Creates a DcpSnapshotMarkerFlag.
+ */
+DcpSnapshotMarkerFlag createSnapshotMarkerFlag(bool isMemory,
+                                               bool isCheckpoint);
+
+/**
+ * Creates a snapshot marker.
+ *
+ * @param baseSeqno The base sequence number of the snapshot.
+ * @param mutations The number of mutations (end = baseSeqno + mutations).
+ * @param flags The flags of the snapshot.
+ * @param maxVisible The index of the max visible item (msv = baseSeqno +
+ * maxVisible).
+ * @param highCompleted The index of the high completed item (hcs = baseSeqno +
+ * highCompleted).
+ * @param highPrepared The index of the high prepared item (hps = baseSeqno +
+ * highPrepared).
+ * @param purge The index of the purge item (purge = baseSeqno + purge).
+ * @note Any index out of range will be set to nullopt.
+ */
+SnapshotMarker createSnapshotMarkerFromOffset(uint64_t baseSeqno,
+                                              uint64_t mutations,
+                                              DcpSnapshotMarkerFlag flags,
+                                              uint64_t maxVisible,
+                                              uint64_t highCompleted,
+                                              uint64_t highPrepared,
+                                              uint64_t purge);
+
+/**
+ * Re-bases a snapshot marker to a new base sequence number.
+ */
+SnapshotMarker rebaseSnapshotMarker(SnapshotMarker marker, uint64_t baseSeqno);
 
 /**
  * Type alias for the result of fuzztest::ElementOf.
@@ -91,7 +132,8 @@ ElementOfDomain<CollectionEntry::Entry> collectionEntry();
 /**
  * Domain for generating CheckpointActionTypes.
  */
-ElementOfDomain<CheckpointActionType> checkpointActionType();
+ElementOfDomain<CheckpointActionType> checkpointActionType(
+        bool createCheckpoint = true);
 
 /**
  * Domain for generating datatypes.
@@ -101,7 +143,7 @@ ElementOfDomain<protocol_binary_datatype_t> datatype();
 /**
  * Domain for generating DocKeys.
  */
-inline auto docKey() {
+inline auto docKey(bool defaultCollectionOnly = false) {
     return fuzztest::Map(
             [](char key, CollectionID collectionId) {
                 return StoredDocKey(std::string_view(&key, &key + 1),
@@ -109,7 +151,8 @@ inline auto docKey() {
             },
             // Operate on up to 4 doc keys.
             fuzztest::InRange<char>('a', 'c'),
-            collectionEntry());
+            defaultCollectionOnly ? fuzztest::Just(CollectionEntry::defaultC)
+                                  : collectionEntry());
 }
 
 /** Domain for generating CheckpointActions */
@@ -118,4 +161,33 @@ inline auto checkpointAction() {
             docKey(), checkpointActionType(), fuzztest::Just(uint64_t(0)));
 }
 
+inline auto snapshotMarkerFlag() {
+    return fuzztest::Map(createSnapshotMarkerFlag,
+                         fuzztest::Arbitrary<bool>(),
+                         fuzztest::Arbitrary<bool>());
+}
+
+constexpr uint64_t snapshotMarkerMaxMutations = 3;
+
+inline auto snapshotMarker() {
+    auto range = fuzztest::InRange<uint64_t>(1, snapshotMarkerMaxMutations);
+    return fuzztest::Map(createSnapshotMarkerFromOffset,
+                         range,
+                         range,
+                         snapshotMarkerFlag(),
+                         range,
+                         range,
+                         range,
+                         range);
+}
+
+inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {
+    return fuzztest::Map(createMutationConsumerMessage,
+                         docKey(defaultCollectionOnly),
+                         checkpointActionType(false));
+}
+
 } // namespace cb::fuzzing
+
+std::string format_as(const SnapshotMarker& marker);
+std::string format_as(const MutationConsumerMessage& mutation);
