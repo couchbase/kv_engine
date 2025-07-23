@@ -7890,6 +7890,7 @@ void STPassiveStreamPersistentTest::SetUp() {
 // Test that we issue Magma insert operations for items streamed in initial disk
 // snapshot.
 TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
+    ASSERT_TRUE(engine->isMagmaBlindWriteOptimisationEnabled());
     const std::string value("value");
 
     // Receive initial disk snapshot. Expect inserts for items in this snapshot.
@@ -7978,6 +7979,48 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     store->getKVStoreStat("magma_NSets", upserts);
     EXPECT_EQ(inserts, 2);
     EXPECT_EQ(upserts, 4);
+}
+
+// Test that we issue Magma insert operations for items streamed in initial disk
+// snapshot.
+TEST_P(STPassiveStreamMagmaTest, DisableBlindWriteOptimisation) {
+    mock_set_magma_blind_write_optimisation_enabled(false);
+    ASSERT_FALSE(engine->isMagmaBlindWriteOptimisationEnabled());
+
+    const std::string value("value");
+    // Receive initial disk snapshot. Expect inserts for items in this snapshot.
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            0 /*snapStart*/,
+            3 /*snapEnd*/,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            0 /*HCS*/,
+            {}, /*highPreparedSeqno*/
+            {}, /*maxVisibleSeqno*/
+            {}, /*purgeSeqno*/
+            {} /*streamId*/);
+
+    stream->processMarker(&marker);
+    auto vb = engine->getVBucket(vbid);
+    ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointInitialDisk());
+
+    for (uint64_t seqno = 1; seqno <= 2; seqno++) {
+        auto ret = stream->messageReceived(
+                makeMutationConsumerMessage(seqno, vbid, value, 0));
+        ASSERT_EQ(cb::engine_errc::success, ret);
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(vb->getNumItems(), 2);
+
+    size_t inserts = 0;
+    size_t upserts = 0;
+    store->getKVStoreStat("magma_NInserts", inserts);
+    store->getKVStoreStat("magma_NSets", upserts);
+    EXPECT_EQ(inserts, 0);
+    EXPECT_EQ(upserts, 2);
+    mock_set_magma_blind_write_optimisation_enabled(true);
 }
 #endif /*EP_USE_MAGMA*/
 

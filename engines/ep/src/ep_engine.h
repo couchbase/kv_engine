@@ -1172,6 +1172,11 @@ public:
      */
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() const;
 
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    bool isMagmaBlindWriteOptimisationEnabled() const;
+
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
         cb::engine_errc status;

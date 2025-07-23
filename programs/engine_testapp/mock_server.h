@@ -66,3 +66,5 @@ void mock_set_dcp_consumer_max_marker_version(double value);
 void mock_set_dcp_snapshot_marker_hps_enabled(bool value);
 
 void mock_set_dcp_snapshot_marker_purge_seqno_enabled(bool value);
+
+void mock_set_magma_blind_write_optimisation_enabled(bool enabled);

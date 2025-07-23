@@ -474,6 +474,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDcpSnapshotMarkerHPSEnabled(value.get<bool>());
         } else if (key == "dcp_snapshot_marker_purge_seqno_enabled"sv) {
             setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
+        } else if (key == "magma_blind_write_optimisation_enabled"sv) {
+            setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1214,6 +1216,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFileFragmentMaxChunkSize()},
                          {"to", other.getFileFragmentMaxChunkSize()});
             setFileFragmentMaxChunkSize(other.getFileFragmentMaxChunkSize());
+        }
+    }
+
+    if (other.has.magma_blind_write_optimisation_enabled) {
+        if (other.isMagmaBlindWriteOptimisationEnabled() !=
+            isMagmaBlindWriteOptimisationEnabled()) {
+            LOG_INFO_CTX("Change magma_blind_write_optimisation_enabled",
+                         {"from", isMagmaBlindWriteOptimisationEnabled()},
+                         {"to", other.isMagmaBlindWriteOptimisationEnabled()});
+            setMagmaBlindWriteOptimisationEnabled(
+                    other.isMagmaBlindWriteOptimisationEnabled());
         }
     }
 }

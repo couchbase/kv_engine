@@ -96,6 +96,10 @@ struct ServerCoreApi : public ServerCoreIface {
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
         return Settings::instance().isDcpSnapshotMarkerPurgeSeqnoEnabled();
     }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return Settings::instance().isMagmaBlindWriteOptimisationEnabled();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

@@ -113,4 +113,9 @@ struct ServerCoreIface {
      * If true, send the Purge Seqno in Snapshot Marker.
      */
     virtual bool isDcpSnapshotMarkerPurgeSeqnoEnabled() = 0;
+
+    /**
+     * Whether blind write optimisation is enabled.
+     */
+    virtual bool isMagmaBlindWriteOptimisationEnabled() = 0;
 };

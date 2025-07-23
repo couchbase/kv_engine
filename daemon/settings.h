@@ -1067,6 +1067,17 @@ public:
         notify_changed("dcp_snapshot_marker_purge_seqno_enabled");
     }
 
+    bool isMagmaBlindWriteOptimisationEnabled() const {
+        return magma_blind_write_optimisation_enabled.load(
+                std::memory_order_acquire);
+    }
+    void setMagmaBlindWriteOptimisationEnabled(bool val) {
+        magma_blind_write_optimisation_enabled.store(val,
+                                                     std::memory_order_release);
+        has.magma_blind_write_optimisation_enabled = true;
+        notify_changed("magma_blind_write_optimisation_enabled");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1349,6 +1360,9 @@ protected:
     /// The maximum size of a chunk when reading file fragments
     std::atomic<size_t> file_fragment_max_chunk_size{20_MiB};
 
+    /// Magma's blind write optimisation, on or off. Default is on.
+    std::atomic_bool magma_blind_write_optimisation_enabled{true};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1432,5 +1446,6 @@ public:
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
+        bool magma_blind_write_optimisation_enabled = false;
     } has;
 };

@@ -109,6 +109,10 @@ public:
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
         return true;
     }
+
+    bool isMagmaBlindWriteOptimisationEnabled() override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {
