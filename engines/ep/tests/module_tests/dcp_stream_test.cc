@@ -10406,6 +10406,13 @@ public:
         flushAndRemoveCheckpoints(vbid);
     }
 
+    void TearDown() override {
+        // Reset the DCP snapshot marker feature settings
+        mock_set_dcp_snapshot_marker_purge_seqno_enabled(true);
+        mock_set_dcp_snapshot_marker_hps_enabled(true);
+        SingleThreadedActiveStreamTest::TearDown();
+    }
+
     void testDcpSnapshotMarkerHPSEnabled(bool enabled) {
         auto& vb = *store->getVBucket(vbid);
         stream.reset();
