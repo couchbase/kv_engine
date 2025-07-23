@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "fuzz_test_stringify.h"
 #include "tests/module_tests/test_helpers.h"
 
 #include <fuzztest/domain.h>
@@ -46,8 +47,6 @@ struct CheckpointAction {
 };
 
 std::string format_as(const CheckpointAction& action);
-
-std::string format_as(const std::vector<CheckpointAction>& actions);
 
 /**
  * Creates a test manifest which contains the collections used in the fuzz

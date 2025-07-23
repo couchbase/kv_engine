@@ -230,8 +230,8 @@ void ActiveStreamFuzzTest::backfillAndMemoryStream(
     EXPECT_EQ(cb::engine_errc::success, producer->closeStream(0, vbid));
 } catch (const std::exception& e) {
     auto logger = cb::logger::get();
-    logger->error("PreActions: {}", preActions);
-    logger->error("PostActions: {}", postActions);
+    logger->error("PreActions: {}", fmt::to_string(preActions));
+    logger->error("PostActions: {}", fmt::to_string(postActions));
     throw;
 }
 
