@@ -109,6 +109,20 @@ BySeqnoScanContext::BySeqnoScanContext(
       timestamp(std::move(timestamp)) {
 }
 
+void BySeqnoScanContext::maybeLogFirstSeqno(BucketLogger& logger,
+                                            uint64_t seqno) {
+    if (firstSeqnoLogged) {
+        return;
+    }
+    firstSeqnoLogged = true;
+    if (seqno != startSeqno) {
+        logger.info("BySeqnoScanContext: {} startSeqno:{} started at {}",
+                    vbid,
+                    startSeqno,
+                    seqno);
+    }
+}
+
 ByIdScanContext::ByIdScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,

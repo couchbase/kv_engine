@@ -469,6 +469,14 @@ public:
             std::optional<uint64_t> timestamp = {},
             uint64_t historyStartSeqno = 0);
 
+    /**
+     * Log the first seqno returned in the scan only if it is different from the
+     * requested start.
+     * @param logger The logger to use.
+     * @param seqno The seqno to log when different from the startSeqno member
+     */
+    void maybeLogFirstSeqno(BucketLogger& logger, uint64_t seqno);
+
     const uint64_t startSeqno;
     const uint64_t purgeSeqno;
     const uint64_t documentCount;
@@ -495,6 +503,10 @@ public:
 
     /// Timestamp for the data (if available)
     const std::optional<uint64_t> timestamp;
+
+    /// trip wire so we only log the first call to maybeLogFirstSeqno, which
+    /// should be the first seqno returned in the scan
+    bool firstSeqnoLogged{false};
 };
 
 /**
