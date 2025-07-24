@@ -87,12 +87,18 @@ uint64_t CollectionsDcpTest::writeTwoCollectios(bool endOnTarget) {
 // Run through how we expect OSO to work, this is a minimal test which will
 // use the default collection
 TEST_P(CollectionsOSODcpTest, basic) {
+    const auto maxKeyWithoutCollectionId =
+            std::string(MaxCollectionsKeyLen - 1, '\xff');
+    const auto maxDefaultCollectionKey =
+            makeStoredDocKey(maxKeyWithoutCollectionId);
+
     // Write to default collection and deliberately not in lexicographical order
     store_item(vbid, makeStoredDocKey("b"), "q");
-    store_item(vbid, makeStoredDocKey("d"), "a");
+    store_item(vbid, makeStoredDocKey("\xfft"), "a");
+    store_item(vbid, maxDefaultCollectionKey, "a");
     store_item(vbid, makeStoredDocKey("a"), "w");
     store_item(vbid, makeStoredDocKey("c"), "y");
-    flush_vbucket_to_disk(vbid, 4);
+    flush_vbucket_to_disk(vbid, 5);
 
     std::array<cb::mcbp::DcpAddStreamFlag, 2> flags = {
             {cb::mcbp::DcpAddStreamFlag::None,
@@ -112,7 +118,7 @@ TEST_P(CollectionsOSODcpTest, basic) {
         // OSO snapshots are never really used in KV to KV replication, but this
         // test is using KV to KV test code, hence we need to set a snapshot so
         // that any transferred items don't trigger a snapshot exception.
-        consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
+        consumer->snapshotMarker(1, replicaVB, 0, 5, {}, 0, 4, 0, 0);
 
         // Manually step the producer and inspect all callbacks
         EXPECT_EQ(cb::engine_errc::success,
@@ -123,7 +129,8 @@ TEST_P(CollectionsOSODcpTest, basic) {
 
         // We don't expect a collection create, this is the default collection
         // which clients assume exists unless deleted.
-        std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
+        std::array<std::string, 5> keys = {
+                {"a", "b", "c", "\xfft", maxKeyWithoutCollectionId}};
         for (auto& k : keys) {
             // Now we get the mutations, they aren't guaranteed to be in seqno
             // order, but we know that for now they will be in key order.

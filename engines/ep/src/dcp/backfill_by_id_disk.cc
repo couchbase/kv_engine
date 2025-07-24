@@ -34,20 +34,19 @@ static ByIdRange createCollectionRange(CollectionID cid) {
     // Create the start and end keys for the collection itself
     cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
 
-    // The end key is the "start key" + "\xff", so we clone the start key into
-    // an array that is 1 byte larger than the largest possible leb128 prefix
-    // and set the byte after the leb128 prefix to be 0xff.
-    std::array<uint8_t,
-               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() + 1>
-            end;
-    std::ranges::copy(start, end.begin());
-    end[start.size()] = std::numeric_limits<uint8_t>::max();
-    return ByIdRange{DiskDocKey{{start.data(),
-                                 start.size(),
-                                 DocKeyEncodesCollectionId::Yes}},
-                     DiskDocKey{{end.data(),
-                                 start.size() + 1,
-                                 DocKeyEncodesCollectionId::Yes}}};
+    // The end key is the start key followed by '\xff' chars up to the maximum
+    // key size, so that it compares no smaller than any valid key.
+    std::array<uint8_t, MaxCollectionsKeyLen> end;
+    std::copy(start.begin(), start.end(), end.begin());
+    std::fill(end.begin() + start.size(),
+              end.end(),
+              std::numeric_limits<uint8_t>::max());
+    return ByIdRange{
+            DiskDocKey{{start.data(),
+                        start.size(),
+                        DocKeyEncodesCollectionId::Yes}},
+            DiskDocKey{
+                    {end.data(), end.size(), DocKeyEncodesCollectionId::Yes}}};
 }
 
 backfill_status_t DCPBackfillByIdDisk::create() {

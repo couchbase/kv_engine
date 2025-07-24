@@ -555,11 +555,11 @@ public:
 /**
  * ByIdRange describes a sub-set of 'keys' from the lexicographically ordered
  * ById index.
- *    keys = {k | k >= startKey and k < endKey}
+ *    keys = {k | k >= startKey and k <= endKey}
  * E.g. startKey="b" and endKey="c" when the ById index is:
- *    {"a", "b", "ba", "bb", "c" }
+ *    {"a", "b", "ba", "bb", "c", "ca"}
  * yields:
- *    {"b", "ba", "bb"}
+ *    {"b", "ba", "bb", "c"}
  */
 struct ByIdRange {
     ByIdRange(DiskDocKey start, DiskDocKey end)
