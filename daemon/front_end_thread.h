@@ -205,6 +205,9 @@ struct FrontEndThread {
 protected:
     void do_dispatch(SOCKET sfd, std::shared_ptr<ListeningPort> descr);
 
+    /// Add a connection to the thread.
+    void add_connection(std::unique_ptr<Connection> connection);
+
     /// Shared validator used by all connections serviced by this thread
     /// when they need to validate a JSON document
     std::unique_ptr<cb::json::SyntaxValidator> validator;

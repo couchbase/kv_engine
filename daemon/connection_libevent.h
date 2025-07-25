@@ -59,6 +59,9 @@ protected:
     void rw_callback();
     static void rw_callback(bufferevent* bev, void* ctx);
 
+    /// The callback method called from bufferevent for "other" callbacks.
+    void event_callback(short event);
+
     /**
      * The callback method called from bufferevent for "other" callbacks
      *
