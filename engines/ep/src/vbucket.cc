@@ -560,7 +560,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxMaxItems,
             result.items, approxMaxItems, approxMaxBytes);
 
     if (result.items.size() > 0 &&
-        rangeInfo.purgeSeqno > rangeInfo.ranges.front().getStart()) {
+        rangeInfo.purgeSeqno >= rangeInfo.ranges.front().getStart()) {
         // The purge-seqno is inside the snapshot range, we must expose this to
         // the flusher, but cap it to the end of the flushed range (which can
         // be a subset of the snapshot range)

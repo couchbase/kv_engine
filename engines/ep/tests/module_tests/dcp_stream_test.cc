@@ -3421,14 +3421,14 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            0 /*HCS*/,
                            0 /*HPS*/,
                            20, /*MVS*/
-                           15, /* purge */
+                           14, /* purge */
                            cb::mcbp::DcpStreamId{});
     stream->processMarker(&marker4);
     mutation(1, makeStoredDocKey("key4"), vbid, 20);
     flushVBucketToDiskIfPersistent(vbid, 1);
-    // local purge is now 15
-    EXPECT_EQ(15, store->getVBucket(vbid)->getPurgeSeqno());
-    EXPECT_EQ(15, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+    // local purge is now 14
+    EXPECT_EQ(14, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(14, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
 }
 
 /**
