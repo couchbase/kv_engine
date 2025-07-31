@@ -8960,8 +8960,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;checkpoint_memory_recovery_"
-                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
-                 "chk_expel_enabled=false",
+                 "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM update paged-out",
