@@ -3182,13 +3182,13 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
 
     const auto flushMaxBytes = config.getFlushBatchMaxBytes();
     if (newComputedCheckpointMaxSize > flushMaxBytes) {
-        EP_LOG_WARN(
+        EP_LOG_INFO_CTX(
                 "KVBucket::autoConfigCheckpointMaxSize: "
-                "checkpoint_computed_max_size {} can't cross "
-                "flush_batch_max_bytes {}, capping to {}",
-                newComputedCheckpointMaxSize,
-                flushMaxBytes,
-                flushMaxBytes);
+                "checkpoint_computed_max_size can't cross "
+                "flush_batch_max_bytes, capping to flush_batch_max_bytes",
+                {"checkpoint_computed_max_size", newComputedCheckpointMaxSize},
+                {"flush_batch_max_bytes", flushMaxBytes},
+                {"capped_to", flushMaxBytes});
     }
     const auto newSize = std::min(newComputedCheckpointMaxSize, flushMaxBytes);
     engine.getCheckpointConfig().setCheckpointMaxSize(newSize);
