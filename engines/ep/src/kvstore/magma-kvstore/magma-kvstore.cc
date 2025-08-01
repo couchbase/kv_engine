@@ -2338,6 +2338,7 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
         itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
+        ctx.maybeLogFirstSeqno(*logger, seqno);
         const auto result =
                 scanOne(ctx,
                         keySlice,

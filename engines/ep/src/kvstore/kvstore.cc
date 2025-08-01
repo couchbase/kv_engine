@@ -111,6 +111,20 @@ BySeqnoScanContext::BySeqnoScanContext(
       persistedPreparedSeqno(vbucketState.persistedPreparedSeqno) {
 }
 
+void BySeqnoScanContext::maybeLogFirstSeqno(BucketLogger& logger,
+                                            uint64_t seqno) {
+    if (firstSeqnoLogged) {
+        return;
+    }
+    firstSeqnoLogged = true;
+    if (seqno != startSeqno) {
+        logger.infoWithContext("BySeqnoScanContext: scan started",
+                               {{"vbid", vbid},
+                                {"start_seqno", startSeqno},
+                                {"first_seqno", seqno}});
+    }
+}
+
 ByIdScanContext::ByIdScanContext(
         std::unique_ptr<StatusCallback<GetValue>> cb,
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
