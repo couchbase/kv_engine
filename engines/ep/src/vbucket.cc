@@ -1136,6 +1136,7 @@ void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
 }
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
+    std::shared_lock lh(getStateLock());
     getPassiveDM().notifySnapshotEndReceived(snapEnd);
 }
 

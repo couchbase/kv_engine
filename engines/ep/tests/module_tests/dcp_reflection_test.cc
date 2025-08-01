@@ -28,12 +28,13 @@
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
+#include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "test_helpers.h"
-#include "vbucket.h"
+#include "vbucket_utils.h"
 
 // Indexes for the engines we will use in the tests, a single array allows test
 // code to locate the engine for the Node
@@ -1329,6 +1330,42 @@ TEST_P(DCPLoopbackStreamTest,
     auto newActiveVB = engines[Node1]->getVBucket(vbid);
     auto failoverEntry = newActiveVB->failovers->getLatestEntry();
     EXPECT_EQ(0, failoverEntry.by_seqno);
+}
+
+// MB-67710
+TEST_P(DCPLoopbackStreamTest, VBucketBecomesActiveWhileSnapEndReceived) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
+    // persist them to disk
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    // Clear out the checkpoints to eventually forces a disk backfill on a
+    // stream connect
+    engines[Node0]->getVBucket(vbid)->checkpointManager->clear();
+    std::optional<std::thread> bgThread;
+    // Set up the hook which will promote replica to active while processing
+    // snap end
+    VBucketTestIntrospector::public_getPassiveDM(
+            *engines[Node1]->getVBucket(vbid))
+            .notifySnapEndSeqnoAckPreProcessHook = [this, &bgThread]() {
+        bgThread = std::thread([this]() {
+            EXPECT_EQ(cb::engine_errc::success,
+                      engines[Node1]->setVBucket(
+                              *cookie, vbid, 0, vbucket_state_active, nullptr));
+        });
+    };
+    // Create DCP producer and consumer connection and add a stream request
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    runBackfill();
+    route0_1.transferSnapshotMarker(0, 2, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+    if (bgThread) {
+        bgThread->join();
+    }
 }
 
 // Ideally this class would've inherited STParameterizedBucketTest which already
