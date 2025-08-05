@@ -200,6 +200,7 @@ add_subdirectory(tracing)
 add_subdirectory(snapshot)
 add_subdirectory(statistics)
 add_subdirectory(cluster_framework)
+add_subdirectory(fuzzing)
 
 add_subdirectory(tests)
 enable_code_coverage_report()

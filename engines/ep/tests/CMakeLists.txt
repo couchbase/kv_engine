@@ -184,8 +184,8 @@ if (NUMA_FOUND)
 endif()
 
 # Fuzz tests are linked into the ep-engine_ep_unit_tests executable.
+target_link_libraries(ep-engine_ep_unit_tests PRIVATE mcd_fuzzing)
 if(HAVE_FUZZTEST)
-    cb_link_fuzztest(ep-engine_ep_unit_tests)
     add_subdirectory(fuzz_tests)
 endif()
 

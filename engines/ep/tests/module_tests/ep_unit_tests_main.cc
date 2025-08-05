@@ -20,6 +20,7 @@
 #include <engines/ep/src/environment.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/Stdlib.h>
+#include <fuzzing/init.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -29,10 +30,6 @@
 #include <platform/cb_time.h>
 #include <platform/cbassert.h>
 #include <array>
-
-#ifdef HAVE_FUZZTEST
-#include <fuzztest/init_fuzztest.h>
-#endif
 
 using namespace std::chrono_literals;
 
@@ -125,11 +122,7 @@ int main(int argc, char **argv) {
     // it owns before we check our own.
     ::testing::InitGoogleMock(&argc, argv);
 
-#ifdef HAVE_FUZZTEST
-    // Initialise fuzztest. This should match fuzztest_gtest_main.cc.
-    fuzztest::ParseAbslFlags(argc, argv);
-    fuzztest::InitFuzzTest(&argc, &argv);
-#endif
+    cb::fuzzing::initialize(argc, argv);
 
     // Parse command-line options.
     int cmd;
