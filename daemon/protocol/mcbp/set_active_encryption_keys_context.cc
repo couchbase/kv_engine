@@ -161,10 +161,13 @@ cb::engine_errc SetActiveEncryptionKeysContext::execute() {
                      {"config", loggable_json});
     } else if (status != cb::engine_errc::disconnect &&
                status != cb::engine_errc::encryption_key_not_available) {
-        LOG_WARNING_CTX("Failed to update encryption keys",
+        LOG_WARNING_CTX(status == cb::engine_errc::no_such_key
+                                ? "Cannot update encryption keys for "
+                                  "non-existent bucket"
+                                : "Failed to update encryption keys",
                         {"conn_id", cookie.getConnectionId()},
                         {"entity", entity},
-                        {"status", to_string(status)},
+                        {"status", status},
                         {"entity", entity},
                         {"config", loggable_json});
     }
