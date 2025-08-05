@@ -219,6 +219,10 @@ static nlohmann::json BevEvent2Json(short event) {
 
 void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
     auto& instance = *static_cast<LibeventConnection*>(ctx);
+    instance.event_callback(event);
+}
+
+void LibeventConnection::event_callback(short event) {
     std::string details;
 
     auto term = (event & BEV_EVENT_EOF) == BEV_EVENT_EOF;
@@ -232,8 +236,8 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
     }
 
     std::string ssl_errors;
-    if (instance.isTlsEnabled() && !term) {
-        auto errors = instance.getOpenSslErrorCodes();
+    if (isTlsEnabled() && !term) {
+        auto errors = getOpenSslErrorCodes();
         for (const auto& err : errors) {
             if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
                 details.append("TLS unexpected EOF,");
@@ -243,7 +247,7 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         }
 
         if (!term) {
-            ssl_errors = instance.formatOpenSslErrorCodes(errors);
+            ssl_errors = formatOpenSslErrorCodes(errors);
         }
     }
 
@@ -251,7 +255,7 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         if (!details.empty() && details.back() == ',') {
             details.pop_back();
         }
-        instance.setTerminationReason(
+        setTerminationReason(
                 fmt::format("Client closed connection: {}", details));
     } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
         // Note: SSL connections may fail for reasons different than socket
@@ -262,37 +266,37 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
             LOG_WARNING_CTX(
                     "Unrecoverable error encountered, socket_error, "
                     "shutting down connection",
-                    {"conn_id", instance.getId()},
-                    {"description", instance.getDescription()},
+                    {"conn_id", getId()},
+                    {"description", getDescription()},
                     {"event", BevEvent2Json(event)},
                     {"error_code", sockErr},
                     {"error", errStr});
-            instance.setTerminationReason(
+            setTerminationReason(
                     fmt::format("socket_error: {}: {}", sockErr, errStr));
         } else if (!ssl_errors.empty()) {
             LOG_WARNING_CTX(
                     "Unrecoverable error encountered, ssl_error, shutting "
                     "down connection",
-                    {"conn_id", instance.getId()},
-                    {"description", instance.getDescription()},
+                    {"conn_id", getId()},
+                    {"description", getDescription()},
                     {"event", BevEvent2Json(event)},
                     {"error", ssl_errors});
-            instance.setTerminationReason("ssl_error: " + ssl_errors);
+            setTerminationReason("ssl_error: " + ssl_errors);
         } else {
             LOG_WARNING_CTX(
                     "Unrecoverable error encountered, shutting down "
                     "connection",
-                    {"conn_id", instance.getId()},
-                    {"description", instance.getDescription()},
+                    {"conn_id", getId()},
+                    {"description", getDescription()},
                     {"event", BevEvent2Json(event)});
-            instance.setTerminationReason("Network error");
+            setTerminationReason("Network error");
         }
 
         term = true;
     }
 
     if (term) {
-        auto& thread = instance.getThread();
+        auto& thread = getThread();
         TRACE_LOCKGUARD_TIMED(thread.mutex,
                               "mutex",
                               "LibeventConnection::event_callback::threadLock",
@@ -308,14 +312,14 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         //           disconnect the socket once all data was sent to the
         //           client (and bufferevent performs the actual send/recv
         //           on the socket after the callback returned)
-        instance.sendQueueInfo.term = true;
+        sendQueueInfo.term = true;
 
-        if (instance.state == State::running) {
-            instance.shutdown();
+        if (state == State::running) {
+            shutdown();
         }
 
-        if (!instance.executeCommandsCallback()) {
-            thread.destroy_connection(instance);
+        if (!executeCommandsCallback()) {
+            thread.destroy_connection(*this);
         }
     }
 }
@@ -346,7 +350,7 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
 }
 
 void LibeventConnection::triggerCallback(bool force) {
-    if (!force && getSendQueueSize() != 0) {
+    if (!force && state == State::running && getSendQueueSize() != 0) {
         // The framework will send a notification once the data is sent
         return;
     }

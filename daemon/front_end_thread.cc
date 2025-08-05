@@ -302,7 +302,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
     try {
         auto connection = Connection::create(sfd, *this, std::move(descr));
         auto* c = connection.get();
-        connections.insert({c, std::move(connection)});
+        add_connection(std::move(connection));
         stats.total_conns++;
         associate_initial_bucket(*c);
         success = true;
@@ -322,9 +322,13 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
     }
 }
 
+void FrontEndThread::add_connection(std::unique_ptr<Connection> connection) {
+    connections.insert({connection.get(), std::move(connection)});
+}
+
 void FrontEndThread::destroy_connection(Connection& connection) {
     auto node = connections.extract(&connection);
-    if (node.key() != &connection) {
+    if (node.empty() || node.key() != &connection) {
         throw std::logic_error("destroy_connection: Connection not found");
     }
 }
