@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -10,12 +9,13 @@
  */
 #include "testapp_client_test.h"
 
+#include <fmt/format.h>
 #include <memcached/limits.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <utilities/json_utilities.h>
 
-#include <fmt/format.h>
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -358,4 +358,33 @@ TEST_P(BucketTest, DeleteSelectedBucket) {
     mcd_env->getTestBucket().createBucket("bucket", {}, *adminConnection);
     adminConnection->selectBucket("bucket");
     deleteBucket(*adminConnection, "bucket", [](const std::string&) {});
+}
+
+/// Verify that we log the bucket configuration as JSON when creating the bucket
+TEST_P(BucketTest, MB67942) {
+    bool found = false;
+    bool success = false;
+    if (!cb::waitForPredicateUntil(
+                [&found, &success]() {
+                    mcd_env->iterateLogLines([&found,
+                                              &success](const auto& log) {
+                        auto idx = log.find("Initialize bucket {");
+                        if (idx == std::string_view::npos) {
+                            return true;
+                        }
+                        found = true;
+                        auto view = log.substr(idx + 18);
+                        auto json = nlohmann::json::parse(view);
+                        success = json.contains("configuration") &&
+                                  json["configuration"].is_object() &&
+                                  json["configuration"].contains("dbname");
+                        return true;
+                    });
+                    return found;
+                },
+                std::chrono::seconds{5},
+                std::chrono::milliseconds{10})) {
+        FAIL() << "Timed out waiting bucket create message";
+    }
+    EXPECT_TRUE(success);
 }

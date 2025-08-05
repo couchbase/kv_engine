@@ -597,24 +597,37 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         bucket.state = Bucket::State::Initializing;
     }
 
-    cb::logger::Json details = {
-            {"conn_id", cid}, {"bucket", name}, {"type", type}};
+    cb::logger::Json details = {{"conn_id", cid},
+                                {"bucket", name},
+                                {"type", type},
+                                {"chronicle_auth_token", "not-set"},
+                                {"collection_manifest", "not-set"}};
 
     // Parse the configuration string and strip out various sensitive data to
     // avoid that being logged
     nlohmann::json encryption;
     std::string chronicleAuthToken;
     nlohmann::json collectionManifest;
+
     const auto stripped = cb::config::filter(
             config,
-            [&encryption, &chronicleAuthToken, &collectionManifest](
+            [&details, &encryption, &chronicleAuthToken, &collectionManifest](
                     auto k, auto v) -> bool {
                 if (k == "encryption") {
                     encryption = nlohmann::json::parse(v);
+
+                    auto no_keys = encryption;
+                    if (no_keys.contains("keys")) {
+                        for (auto& elem : no_keys["keys"]) {
+                            elem.erase("key");
+                        }
+                    }
+                    details["encryption"] = std::move(no_keys);
                     return false;
                 }
                 if (k == "chronicle_auth_token") {
                     chronicleAuthToken = v;
+                    details["chronicle_auth_token"] = "set";
                     return false;
                 }
                 if (k == "collection_manifest") {
@@ -623,25 +636,19 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                     }
                     auto decoded = cb::base64url::decode(v);
                     collectionManifest = nlohmann::json::parse(decoded);
+                    details["collection_manifest"] = "present";
                     return false;
                 }
+
+                try {
+                    details["configuration"][k] = nlohmann::json::parse(v);
+                } catch (const std::exception&) {
+                    details["configuration"][k] = v;
+                }
+
                 return true;
             });
 
-    if (!encryption.empty()) {
-        auto no_keys = encryption;
-        if (no_keys.contains("keys")) {
-            for (auto& elem : no_keys["keys"]) {
-                elem.erase("key");
-            }
-        }
-        details["encryption"] = std::move(no_keys);
-    }
-    details["chronicle_auth_token"] =
-            chronicleAuthToken.empty() ? "not-set" : "set";
-    details["configuration"] = stripped;
-    details["collection_manifest"] =
-            collectionManifest.empty() ? "not-set" : "present";
     LOG_INFO_CTX("Initialize bucket", std::move(details));
 
     start = std::chrono::steady_clock::now();
