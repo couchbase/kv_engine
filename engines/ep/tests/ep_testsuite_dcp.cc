@@ -1156,138 +1156,131 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         uint64_t exp_snap_start = 0,
                                         uint64_t exp_snap_end = 0);
 
-extern "C" {
-    static void dcp_thread_func(void *args) {
-        auto *ctx = static_cast<mb16357_ctx *>(args);
+static void dcp_thread_func(void* args) {
+    auto* ctx = static_cast<mb16357_ctx*>(args);
 
-        auto* cookie = testHarness->create_cookie(ctx->h);
-        uint32_t opaque = 0xFFFF0000;
-        cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None;
-        std::string name = "unittest";
+    auto* cookie = testHarness->create_cookie(ctx->h);
+    uint32_t opaque = 0xFFFF0000;
+    cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None;
+    std::string name = "unittest";
 
-        // Wait for compaction thread to to ready (and waiting on cv) - as
-        // we don't want the nofify_one() to be lost.
-        for (;;) {
-            std::lock_guard<std::mutex> lh(ctx->mutex);
-            if (ctx->compactor_waiting) {
-                break;
-            }
-        }
-        // Now compactor is waiting to run (and we are just about to start DCP
-        // stream, activate compaction.
-        {
-            std::lock_guard<std::mutex> lh(ctx->mutex);
-            ctx->compaction_start = true;
-        }
-        ctx->cv.notify_one();
-
-        // Switch to replica
-        check_expression(
-                set_vbucket_state(ctx->h, Vbid(0), vbucket_state_replica),
-                "Failed to set vbucket state.");
-
-        // Open consumer connection
-        checkeq(ctx->dcp->open(*cookie,
-                               opaque,
-                               0,
-                               flags,
-                               name,
-                               R"({"consumer_name":"replica1"})"),
-                cb::engine_errc::success,
-                "Failed dcp Consumer open connection.");
-
-        add_stream_for_consumer(ctx->h,
-                                cookie,
-                                opaque++,
-                                Vbid(0),
-                                {},
-                                cb::mcbp::Status::Success);
-
-        uint32_t stream_opaque =
-                get_int_stat(ctx->h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
-
-        for (int i = 1; i <= ctx->items; i++) {
-            std::stringstream ss;
-            ss << "kamakeey-" << i;
-
-            // send mutations in single mutation snapshots to race more with compaction
-            checkeq(cb::engine_errc::success,
-                    ctx->dcp->snapshot_marker(*cookie,
-                                              stream_opaque,
-                                              Vbid(0),
-                                              ctx->items + i,
-                                              ctx->items + i,
-                                              DcpSnapshotMarkerFlag::Disk,
-                                              0 /*HCS*/,
-                                              0 /*HPS*/,
-                                              {} /*maxVisibleSeqno*/,
-                                              {} /*purgeSeqno*/),
-                    "snapshot marker failed");
-
-            const std::string key = ss.str();
-            const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
-            checkeq(cb::engine_errc::success,
-                    ctx->dcp->mutation(*cookie,
-                                       stream_opaque,
-                                       docKey,
-                                       {(const uint8_t*)"value", 5},
-                                       PROTOCOL_BINARY_RAW_BYTES,
-                                       i * 3, // cas
-                                       Vbid(0),
-                                       0, // flags
-                                       i + ctx->items, // by_seqno
-                                       i + ctx->items, // rev_seqno
-                                       0, // exptime
-                                       0, // locktime
-                                       {}, // meta
-                                       INITIAL_NRU_VALUE),
-                    "mutation failed");
-        }
-
-        testHarness->destroy_cookie(cookie);
-    }
-
-    static void compact_thread_func(void *args) {
-        auto *ctx = static_cast<mb16357_ctx *>(args);
-        std::unique_lock<std::mutex> lk(ctx->mutex);
-        ctx->compactor_waiting = true;
-        ctx->cv.wait(lk, [ctx]{return ctx->compaction_start;});
-        compact_db(ctx->h, Vbid(0), 99, ctx->items, 1);
-    }
-
-    static void writer_thread(void *args) {
-        auto *wtc = static_cast<writer_thread_ctx *>(args);
-
-        for (int i = 0; i < wtc->items; ++i) {
-            std::string key("key_" + std::to_string(i));
-            checkeq(cb::engine_errc::success,
-                    store(wtc->h,
-                          nullptr,
-                          StoreSemantics::Set,
-                          key,
-                          "somevalue",
-                          nullptr,
-                          0,
-                          wtc->vbid),
-                    "Failed to store value");
+    // Wait for compaction thread to to ready (and waiting on cv) - as
+    // we don't want the nofify_one() to be lost.
+    for (;;) {
+        std::lock_guard<std::mutex> lh(ctx->mutex);
+        if (ctx->compactor_waiting) {
+            break;
         }
     }
-
-    static void continuous_dcp_thread(void *args) {
-        auto *cdc = static_cast<continuous_dcp_ctx *>(args);
-
-        DcpStreamCtx ctx;
-        ctx.vbucket = cdc->vbid;
-        std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid.get()) +
-                                 ":0:id");
-        ctx.vb_uuid = get_ull_stat(cdc->h, vbuuid_entry.c_str(), "failovers");
-        ctx.seqno = {cdc->start_seqno, std::numeric_limits<uint64_t>::max()};
-        ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
-        ctx.skip_verification = true;
-
-        cdc->dcpConsumer->addStreamCtx(ctx);
-        cdc->dcpConsumer->run();
+    // Now compactor is waiting to run (and we are just about to start DCP
+    // stream, activate compaction.
+    {
+        std::lock_guard<std::mutex> lh(ctx->mutex);
+        ctx->compaction_start = true;
     }
+    ctx->cv.notify_one();
+
+    // Switch to replica
+    check_expression(set_vbucket_state(ctx->h, Vbid(0), vbucket_state_replica),
+                     "Failed to set vbucket state.");
+
+    // Open consumer connection
+    checkeq(ctx->dcp->open(*cookie,
+                           opaque,
+                           0,
+                           flags,
+                           name,
+                           R"({"consumer_name":"replica1"})"),
+            cb::engine_errc::success,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(
+            ctx->h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
+
+    uint32_t stream_opaque =
+            get_int_stat(ctx->h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    for (int i = 1; i <= ctx->items; i++) {
+        std::stringstream ss;
+        ss << "kamakeey-" << i;
+
+        // send mutations in single mutation snapshots to race more with
+        // compaction
+        checkeq(cb::engine_errc::success,
+                ctx->dcp->snapshot_marker(*cookie,
+                                          stream_opaque,
+                                          Vbid(0),
+                                          ctx->items + i,
+                                          ctx->items + i,
+                                          DcpSnapshotMarkerFlag::Disk,
+                                          0 /*HCS*/,
+                                          0 /*HPS*/,
+                                          {} /*maxVisibleSeqno*/,
+                                          {} /*purgeSeqno*/),
+                "snapshot marker failed");
+
+        const std::string key = ss.str();
+        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+        checkeq(cb::engine_errc::success,
+                ctx->dcp->mutation(*cookie,
+                                   stream_opaque,
+                                   docKey,
+                                   {(const uint8_t*)"value", 5},
+                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   i * 3, // cas
+                                   Vbid(0),
+                                   0, // flags
+                                   i + ctx->items, // by_seqno
+                                   i + ctx->items, // rev_seqno
+                                   0, // exptime
+                                   0, // locktime
+                                   {}, // meta
+                                   INITIAL_NRU_VALUE),
+                "mutation failed");
+    }
+
+    testHarness->destroy_cookie(cookie);
+}
+
+static void compact_thread_func(void* args) {
+    auto* ctx = static_cast<mb16357_ctx*>(args);
+    std::unique_lock<std::mutex> lk(ctx->mutex);
+    ctx->compactor_waiting = true;
+    ctx->cv.wait(lk, [ctx] { return ctx->compaction_start; });
+    compact_db(ctx->h, Vbid(0), 99, ctx->items, 1);
+}
+
+static void writer_thread(void* args) {
+    auto* wtc = static_cast<writer_thread_ctx*>(args);
+
+    for (int i = 0; i < wtc->items; ++i) {
+        std::string key("key_" + std::to_string(i));
+        checkeq(cb::engine_errc::success,
+                store(wtc->h,
+                      nullptr,
+                      StoreSemantics::Set,
+                      key,
+                      "somevalue",
+                      nullptr,
+                      0,
+                      wtc->vbid),
+                "Failed to store value");
+    }
+}
+
+static void continuous_dcp_thread(void* args) {
+    auto* cdc = static_cast<continuous_dcp_ctx*>(args);
+
+    DcpStreamCtx ctx;
+    ctx.vbucket = cdc->vbid;
+    std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid.get()) + ":0:id");
+    ctx.vb_uuid = get_ull_stat(cdc->h, vbuuid_entry.c_str(), "failovers");
+    ctx.seqno = {cdc->start_seqno, std::numeric_limits<uint64_t>::max()};
+    ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
+    ctx.skip_verification = true;
+
+    cdc->dcpConsumer->addStreamCtx(ctx);
+    cdc->dcpConsumer->run();
 }
 
 /* DCP step thread that keeps running till it reads upto 'exp_mutations'.
