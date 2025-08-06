@@ -47,7 +47,8 @@ protected:
             return std::string{data};
         }
         cb::compression::Buffer buffer;
-        if (!cb::compression::inflateSnappy(data, buffer)) {
+        if (!cb::compression::inflateSnappy(
+                    data, buffer, std::numeric_limits<size_t>::max())) {
             std::abort();
         }
         std::string ret{buffer.data(), buffer.size()};

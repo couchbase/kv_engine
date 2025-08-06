@@ -337,8 +337,10 @@ bool Item::decompressValue() {
         // Attempt decompression only if datatype indicates
         // that the value is compressed.
         cb::compression::Buffer inflated;
-        if (cb::compression::inflateSnappy({getData(), getNBytes()},
-                                           inflated)) {
+        if (cb::compression::inflateSnappy(
+                    {getData(), getNBytes()},
+                    inflated,
+                    std::numeric_limits<size_t>::max())) {
             setData(inflated.data(), inflated.size());
             datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);

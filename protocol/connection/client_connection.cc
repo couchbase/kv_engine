@@ -401,7 +401,7 @@ void Document::uncompress() {
     }
 
     cb::compression::Buffer buf;
-    if (!inflateSnappy(value, buf)) {
+    if (!inflateSnappy(value, buf, std::numeric_limits<size_t>::max())) {
         throw std::runtime_error("Failed to inflate document");
     }
     value = {buf.data(), buf.size()};
@@ -1037,7 +1037,8 @@ void MemcachedConnection::doValidateReceivedFrame(
         }
         using namespace cb::compression;
         Buffer output;
-        if (!inflateSnappy(payload, output)) {
+        if (!inflateSnappy(
+                    payload, output, std::numeric_limits<size_t>::max())) {
             throw std::runtime_error(fmt::format(
                     "Received snappy compressed frame we failed to inflate: {}",
                     packet.to_json(false).dump()));

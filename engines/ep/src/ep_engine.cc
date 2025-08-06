@@ -6424,7 +6424,10 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         finalDatatype = PROTOCOL_BINARY_RAW_BYTES;
     } else {
         if (cb::mcbp::datatype::is_snappy(datatype)) {
-            if (!cb::compression::inflateSnappy(payload, uncompressedValue)) {
+            if (!cb::compression::inflateSnappy(
+                        payload,
+                        uncompressedValue,
+                        std::numeric_limits<size_t>::max())) {
                 setErrorContext(cookie, "Failed to inflate document");
                 return cb::engine_errc::invalid_arguments;
             }
@@ -6556,7 +6559,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
             if (!cb::compression::inflateSnappy(
                         {reinterpret_cast<const char*>(value.data()),
                          value.size()},
-                        uncompressedValue)) {
+                        uncompressedValue,
+                        std::numeric_limits<size_t>::max())) {
                 setErrorContext(cookie, "Failed to inflate data");
                 return cb::engine_errc::invalid_arguments;
             }

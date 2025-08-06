@@ -42,7 +42,8 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
     }
 
     if (compressed) {
-        auto payload = cb::compression::inflateSnappy(buffer);
+        auto payload = cb::compression::inflateSnappy(
+                buffer, std::numeric_limits<size_t>::max());
         if (!payload) {
             throw std::runtime_error(fmt::format(
                     "Blob::assign failed to inflate.  buffer.size:{}",

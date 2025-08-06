@@ -183,7 +183,9 @@ void GetExTest::verify(MemcachedConnection& conn,
     if (wait_for_compressed) {
         EXPECT_TRUE(is_snappy(rsp.getDatatype()));
         cb::compression::Buffer buffer;
-        if (!inflateSnappy(returned_value, buffer)) {
+        if (!inflateSnappy(returned_value,
+                           buffer,
+                           std::numeric_limits<size_t>::max())) {
             throw std::runtime_error("Failed to inflate value");
         }
         returned_value.assign(buffer);

@@ -396,7 +396,8 @@ void check_key_value(EngineIface* h,
         (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         if (!inflateSnappy({static_cast<const char*>(info.value[0].iov_base),
                             info.value[0].iov_len},
-                           inflated)) {
+                           inflated,
+                           std::numeric_limits<size_t>::max())) {
             throw std::runtime_error("Failed to inflate document");
         }
         payload = inflated;

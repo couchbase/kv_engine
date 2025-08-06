@@ -407,7 +407,8 @@ size_t RangeScanTest::drainItemResponse(
                     << "Snappy is disabled but a RangeScan value is "
                     << "snappy compressed";
             cb::compression::Buffer buffer;
-            EXPECT_TRUE(cb::compression::inflateSnappy(record.value, buffer));
+            EXPECT_TRUE(cb::compression::inflateSnappy(
+                    record.value, buffer, std::numeric_limits<size_t>::max()));
             value = std::string{std::string_view{buffer}};
         } else {
             value = record.value;
