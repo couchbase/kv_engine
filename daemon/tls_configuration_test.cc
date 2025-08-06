@@ -144,6 +144,28 @@ TEST_F(TlsConfigurationFormatTest, PasswordNotBase64) {
     expectFail(legalSpec);
 }
 
+TEST_F(TlsConfigurationFormatTest, SecurityLevel) {
+    legalSpec["security level"] = 2;
+    expectSuccess(legalSpec);
+}
+
+TEST_F(TlsConfigurationFormatTest, SecurityLevelTooLow) {
+    legalSpec["security level"] =
+            TlsConfiguration::OpenSSL_MinimumSecurityLevel - 1;
+    expectFail(legalSpec);
+}
+
+TEST_F(TlsConfigurationFormatTest, SecurityLevelToHigh) {
+    legalSpec["security level"] =
+            TlsConfiguration::OpenSSL_MaximumSecurityLevel + 1;
+    expectFail(legalSpec);
+}
+
+TEST_F(TlsConfigurationFormatTest, SecurityLevelNotNumber) {
+    legalSpec["security level"] = "foo";
+    expectFail(legalSpec);
+}
+
 TEST_F(TlsConfigurationFormatTest, UnknownKeys) {
     legalSpec["foo"] = "bar";
     expectFail(legalSpec);
@@ -218,5 +240,35 @@ TEST_F(TlsConfigurationTest, MissingCertificateChain) {
         FAIL() << "Invalid file should be detected";
     } catch (const CreateSslContextException& e) {
         EXPECT_EQ("SSL_CTX_use_certificate_chain_file", e.error["function"]);
+    }
+}
+
+TEST_F(TlsConfigurationTest, SecurityLevelSetToTwo) {
+    try {
+        legalSpec["security level"] = 2;
+        TlsConfiguration configuration(legalSpec);
+        auto ssl = configuration.createClientSslHandle();
+        ASSERT_TRUE(ssl);
+        auto* ctx = SSL_get_SSL_CTX(ssl.get());
+        ASSERT_NE(nullptr, ctx);
+        EXPECT_EQ(2, SSL_CTX_get_security_level(ctx));
+    } catch (const std::exception& e) {
+        FAIL() << e.what() << std::endl << legalSpec.dump();
+    }
+}
+
+TEST_F(TlsConfigurationTest, SecurityLevelSetToMaximum) {
+    try {
+        legalSpec["security level"] =
+                TlsConfiguration::OpenSSL_MaximumSecurityLevel;
+        TlsConfiguration configuration(legalSpec);
+        auto ssl = configuration.createClientSslHandle();
+        FAIL() << "The provided certificate should not meet the criteras for "
+                  "the maximum security level";
+    } catch (const std::exception& e) {
+        const std::string error_message = e.what();
+        EXPECT_TRUE(error_message.contains(
+                R"("error":["error:0A00018F:SSL routines::ee key too small"])"))
+                << error_message;
     }
 }

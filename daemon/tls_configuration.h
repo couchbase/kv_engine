@@ -39,6 +39,10 @@ protected:
 
 class TlsConfiguration {
 public:
+    static constexpr int OpenSSL_MinimumSecurityLevel = 0;
+    static constexpr int OpenSSL_MaximumSecurityLevel = 5;
+    static constexpr int OpenSSL_DefaultSecurityLevel = 1;
+
     enum class ClientCertMode { Mandatory, Enabled, Disabled };
     /**
      * Create a new instance of the TLS configuration (this would
@@ -79,6 +83,7 @@ protected:
     const std::string cipher_suites;
     const bool cipher_order;
     const ClientCertMode clientCertMode;
+    const int security_level;
 
     cb::openssl::unique_ssl_ctx_ptr serverContext;
 };

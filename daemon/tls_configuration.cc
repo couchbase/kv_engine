@@ -101,7 +101,8 @@ nlohmann::json TlsConfiguration::to_json() const {
             {"cipher list",
              {{"TLS 1.2", cipher_list}, {"TLS 1.3", cipher_suites}}},
             {"cipher order", cipher_order},
-            {"client cert auth", to_string(clientCertMode)}};
+            {"client cert auth", to_string(clientCertMode)},
+            {"security_level", security_level}};
 }
 
 TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
@@ -114,6 +115,8 @@ TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
       cipher_suites(getCipherList(spec, "TLS 1.3", false)),
       cipher_order(getBoolean(spec, "cipher order")),
       clientCertMode(from_string(getString(spec, "client cert auth"))),
+      security_level(
+              spec.value("security level", OpenSSL_DefaultSecurityLevel)),
       serverContext(createServerContext(spec)) {
 }
 
@@ -154,6 +157,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
     }
     options |= SSL_OP_IGNORE_UNEXPECTED_EOF;
+    SSL_CTX_set_security_level(server_ctx, security_level);
     SSL_CTX_set_options(server_ctx, options);
     SSL_CTX_set_mode(server_ctx,
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
@@ -280,6 +284,23 @@ void TlsConfiguration::validate(const nlohmann::json& spec) {
     getBoolean(spec, "cipher order");
     from_string(getString(spec, "client cert auth"));
 
+    if (spec.contains("security level")) {
+        if (!spec["security level"].is_number()) {
+            throw std::invalid_argument(
+                    "TLS configuration for \"security level\" must be a "
+                    "number");
+        }
+
+        int value = spec["security level"].get<int>();
+        if (value < OpenSSL_MinimumSecurityLevel ||
+            value > OpenSSL_MaximumSecurityLevel) {
+            throw std::invalid_argument(fmt::format(
+                    R"(TLS configuration for "security level" must be in the range [{}, {}])",
+                    OpenSSL_MinimumSecurityLevel,
+                    OpenSSL_MaximumSecurityLevel));
+        }
+    }
+
     const std::vector<std::string> keys{{"private key"},
                                         {"certificate chain"},
                                         {"CA file"},
@@ -287,7 +308,8 @@ void TlsConfiguration::validate(const nlohmann::json& spec) {
                                         {"minimum version"},
                                         {"cipher list"},
                                         {"cipher order"},
-                                        {"client cert auth"}};
+                                        {"client cert auth"},
+                                        {"security level"}};
     auto isLegalKey = [&keys](const std::string& key) {
         for (const auto& k : keys) {
             if (k == key) {
