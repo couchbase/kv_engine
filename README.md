@@ -38,6 +38,7 @@ built via the Couchbase
 * [Connections](docs/Connections.md)
 * [Audit](auditd/README.md)
 * [Event Tracing / Phosphor](docs/Tracing.md)
+* [Document size limits](docs/DocumentSizeLimits.md)
 * [Document attributes](docs/Document.md)
 * [Environment variables](docs/EnvironmentVariables.md)
 * [Role Based Access Control (RBAC)](docs/rbac.md)
