@@ -9,6 +9,7 @@
  */
 
 #include "connection_libevent.h"
+#include "daemon/external_auth_manager_thread.h"
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
@@ -38,47 +39,97 @@ public:
 
         bufferevent_enable(bev.get(), EV_READ);
     }
+
+    /// Simulates a connection reset.
+    void mockConnReset() {
+        EVUTIL_SET_SOCKET_ERROR(ECONNRESET);
+        event_callback(BEV_EVENT_EOF | BEV_EVENT_ERROR);
+    }
+
+    /// Allocates a cookie.
+    Cookie& allocateCookie() {
+        cookies.emplace_back(std::make_unique<Cookie>(*this));
+        return *cookies.back();
+    }
+
+    /// Returns the current state of the connection.
+    auto getState() const {
+        return state;
+    }
+};
+
+class MockFrontEndThread : public FrontEndThread {
+public:
+    /// Adds a mock connection to the front end thread.
+    MockConnection& addMockConnection() {
+        auto connection = std::make_unique<MockConnection>(*this);
+        auto* conn = connection.get();
+        add_connection(std::move(connection));
+        return *conn;
+    }
+
+    void removeMockConnection(MockConnection& connection) {
+        destroy_connection(connection);
+    }
 };
 
 class ConnectionUnitTests : public ::testing::Test {
 public:
-    ConnectionUnitTests()
-        : frontEndThread(std::make_unique<FrontEndThread>()),
-          connection(*frontEndThread) {
-    }
-
     static void SetUpTestCase() {
         cb::logger::createBlackholeLogger();
+        // Initialize the RBAC subsystem.
+        cb::rbac::initialize();
+        if (!externalAuthManager) {
+            // Initialize the external authentication manager.
+            externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
+        }
         // Make sure that we have the buckets submodule initialized and
         // have no-bucket available.
         BucketManager::instance();
+    }
+
+    void SetUp() override {
+        frontEndThread = std::make_unique<MockFrontEndThread>();
+        connection = &frontEndThread->addMockConnection();
+    }
+
+    void TearDown() override {
+        try {
+            frontEndThread->removeMockConnection(*connection);
+        } catch (const std::logic_error& e) {
+            // Mock connection was already removed.
+        }
+        connection = nullptr;
+        frontEndThread.reset();
     }
 
     static void TearDownTestCase() {
         cleanup_buckets();
     }
 
+    void resetConnectionTest(bool emptySendQueue);
+
 protected:
-    std::unique_ptr<FrontEndThread> frontEndThread;
-    MockConnection connection;
+    std::unique_ptr<MockFrontEndThread> frontEndThread;
+    MockConnection* connection{nullptr};
 };
 
 TEST_F(ConnectionUnitTests, MB43374) {
-    EXPECT_STREQ("unknown:0", connection.getConnectionId().data());
+    EXPECT_STREQ("unknown:0", connection->getConnectionId().data());
     // Verify that the client can't mess up the output by providing "
-    connection.setConnectionId(R"(This "is" my life)");
-    auto msg = fmt::format("{}", connection.getConnectionId().data());
+    connection->setConnectionId(R"(This "is" my life)");
+    auto msg = fmt::format("{}", connection->getConnectionId().data());
     EXPECT_EQ("This  is  my life", msg);
 }
 
 TEST_F(ConnectionUnitTests, CpuTime) {
     using namespace std::chrono_literals;
-    connection.addCpuTime(40ns);
-    connection.addCpuTime(30ns);
-    connection.addCpuTime(10ns);
-    connection.addCpuTime(20ns);
+    connection->addCpuTime(40ns);
+    connection->addCpuTime(30ns);
+    connection->addCpuTime(10ns);
+    connection->addCpuTime(20ns);
 
-    nlohmann::json json = connection;
+    nlohmann::json json = *connection;
     EXPECT_EQ("10", json["min_sched_time"]);
     EXPECT_EQ("40", json["max_sched_time"]);
     EXPECT_EQ("100", json["total_cpu_time"]);
@@ -97,7 +148,7 @@ TEST_F(ConnectionUnitTests, NotificationOrder) {
     auto& evb = frontEndThread->eventBase;
     std::thread fakeFrontendThread([&] { evb.loopForever(); });
 
-    auto cookie = std::make_unique<Cookie>(connection);
+    auto cookie = std::make_unique<Cookie>(*connection);
     // fake the engine creating a ConnHandler and reserving the cookie
     cookie->reserve();
 
@@ -166,4 +217,73 @@ TEST_F(ConnectionUnitTests, NotificationOrder) {
 
     // confirm that the cookie _was_ actually released
     EXPECT_EQ(0, cookie->getRefcount());
+}
+
+/**
+ * Tests that a connection is closed promptly when the connection is reset.
+ *
+ * Bug: When the connection is reset with non-empty send queue, we did not
+ * trigger a libevent callback to fully close the connection.
+ *
+ * @param emptySendQueue Whether the send queue should be empty.
+ */
+void ConnectionUnitTests::resetConnectionTest(bool emptySendQueue) {
+    if (!emptySendQueue) {
+        connection->copyToOutputStream(std::string_view("hello"));
+    }
+
+    auto& cookie = connection->allocateCookie();
+    // Reserve the cookie to ensure that the connection reset happens with
+    // a blocked command (could be DCP also).
+    cookie.reserve();
+    cookie.setEwouldblock();
+
+    auto& evb = frontEndThread->eventBase;
+
+    bool releaseCalled = false;
+    evb.runInEventBaseThread([&] {
+        // Send CONNRESET to the connection while we have a blocked cookie.
+        ASSERT_EQ(Connection::State::running, connection->getState());
+        connection->mockConnReset();
+        ASSERT_EQ(Connection::State::pending_close, connection->getState());
+
+        // Clear the blocked state, and release the cookie.
+        cookie.clearEwouldblock();
+        // The blocked cookie has only 1 reference, since we called .reserve().
+        // We call release() to drop the reference, however note that this
+        // schedules a callback to be run later on the front-end thread.
+        ASSERT_EQ(1, cookie.getRefcount());
+        cookie.release();
+        // Expect no change in the refcount, since the callback has not been
+        // run yet.
+        ASSERT_EQ(1, cookie.getRefcount());
+        releaseCalled = true;
+        // The connection is still pending close, since the callback has not
+        // been run yet.
+        EXPECT_EQ(Connection::State::pending_close, connection->getState());
+    });
+
+    EXPECT_FALSE(releaseCalled);
+    // The first loop iteration will run our callback above, which will
+    // trigger the connection reset and call cookie.release().
+    evb.loopOnce(EVLOOP_NONBLOCK);
+    EXPECT_TRUE(releaseCalled);
+    // The second loop iteration is needed to run the connection callback
+    // libevent read callback, which will move the connection to
+    // immediate_close.
+    evb.loopOnce(EVLOOP_NONBLOCK);
+
+    // The connection should be closed and the object will be deleted.
+    // If we try to delete the connection object again, it should throw an
+    // exception since it was already deleted.
+    EXPECT_THROW(frontEndThread->destroy_connection(*connection),
+                 std::logic_error);
+}
+
+TEST_F(ConnectionUnitTests, MB_67796_emptySendQueue) {
+    resetConnectionTest(true);
+}
+
+TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
+    resetConnectionTest(false);
 }
