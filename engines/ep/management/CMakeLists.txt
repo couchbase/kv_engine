@@ -1,5 +1,13 @@
 SET (KV_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/../../..")
 
+# Python scripts necessary for cbepctl
+SET (cbepctl_files
+  clitool.py
+  cli_auth_utils.py
+  mc_bin_client.py
+  memcacheConstants.py
+)
+
 # Python scripts necessary for running cbstats - other tools may require
 # these as well, that's fine
 SET (cbstats_files
@@ -15,6 +23,15 @@ SET (py_files
   mc_bin_server.py
 )
 
+# Install cbepctl, including adding to admin_tools package
+PyWrapper(
+  BUILD_DIR "${KV_BINARY_DIR}"
+  ADD_TO_STANDALONE_PACKAGE admin_tools
+  SCRIPTS
+    cbepctl
+  EXTRA_SCRIPTS ${cbepctl_files}
+)
+
 # Install cbstats, including adding to admin_tools package
 PyWrapper(
   BUILD_DIR "${KV_BINARY_DIR}"
@@ -28,7 +45,6 @@ PyWrapper(
 PyWrapper(
   BUILD_DIR "${KV_BINARY_DIR}"
   SCRIPTS
-    cbepctl
     cbcompact
     cbvdiff
     cbvbucketctl
