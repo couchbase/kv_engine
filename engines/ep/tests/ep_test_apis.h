@@ -74,9 +74,9 @@ template <typename T>
 class WaitTimeAccumulator
 {
 public:
-    WaitTimeAccumulator(const char* compare_name,
-                        const char* stat_,
-                        const char* stat_key,
+    WaitTimeAccumulator(const std::string_view compare_name,
+                        const std::string_view stat_,
+                        const std::string_view stat_key,
                         const T final_,
                         const std::chrono::seconds wait_time_in_secs)
         : compareName(compare_name),
@@ -94,7 +94,7 @@ public:
             std::cerr << "Exceeded maximum wait time of "
                       << cb::time2text(maxWaitTime) << " waiting for stat '"
                       << stat;
-            if (statKey != nullptr) {
+            if (!statKey.empty()) {
                 std::cerr << "(" << statKey << ")";
             }
             std::cerr << "' " << compareName << " " << final
@@ -105,9 +105,9 @@ public:
     }
 
 private:
-    const char* compareName;
-    const char* stat;
-    const char* statKey;
+    const std::string_view compareName;
+    const std::string_view stat;
+    const std::string_view statKey;
     const T final;
     const std::chrono::microseconds maxWaitTime;
     std::chrono::microseconds totalSleepTime;
@@ -360,23 +360,23 @@ cb::engine_errc seqnoPersistence(EngineIface* h,
 
 // Stats Operations
 int get_int_stat(EngineIface* h,
-                 const char* statname,
-                 const char* statkey = nullptr);
+                 std::string_view statname,
+                 std::string_view statkey = {});
 float get_float_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey = nullptr);
+                     std::string_view statname,
+                     std::string_view statkey = {});
 uint32_t get_ul_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey = nullptr);
+                     std::string_view statname,
+                     std::string_view statkey = {});
 uint64_t get_ull_stat(EngineIface* h,
-                      const char* statname,
-                      const char* statkey = nullptr);
+                      std::string_view statname,
+                      std::string_view statkey = {});
 std::string get_str_stat(EngineIface* h,
-                         const char* statname,
-                         const char* statkey = nullptr);
+                         std::string_view statname,
+                         std::string_view statkey = {});
 bool get_bool_stat(EngineIface* h,
-                   const char* statname,
-                   const char* statkey = nullptr);
+                   std::string_view statname,
+                   std::string_view statkey = {});
 
 cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
                           std::string_view key,
@@ -389,70 +389,68 @@ using statistic_map = std::map<std::string, std::string>;
  * @param statset The set of statistics to fetch. May be nullptr, in which case
  *                the default set will be returned.
  */
-statistic_map get_all_stats(EngineIface* h, const char* statset = nullptr);
+statistic_map get_all_stats(EngineIface* h, std::string_view statset = {});
 
 // Returns the value of the given stat, or the default value if the stat isn't
 // present.
 int get_int_stat_or_default(EngineIface* h,
                             int default_value,
-                            const char* statname,
-                            const char* statkey = nullptr);
+                            std::string_view statname,
+                            std::string_view statkey = {});
 
 /**
  * Templated function prototype to return a stat of the given type.
  * Should replace above uses of get_XXX_stat with this.
  */
 template <typename T>
-T get_stat(EngineIface* h,
-           const char* statname,
-           const char* statkey = nullptr);
+T get_stat(EngineIface* h, std::string_view statname, std::string_view = {});
 
 // Explicit template instantiations declarations of get_stat<T>
 template <>
 std::string get_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey);
+                     std::string_view statname,
+                     std::string_view statkey);
 template <>
 int get_stat(EngineIface* h,
-             const char* statname,
-             const char* statkey);
+             std::string_view statname,
+             std::string_view statkey);
 
 template <>
 uint64_t get_stat(EngineIface* h,
-                  const char* statname,
-                  const char* statkey);
+                  std::string_view statname,
+                  std::string_view statkey);
 
 void verify_curr_items(EngineIface* h,
                        int exp,
                        const char* msg);
 template <typename T>
 void wait_for_stat_change(EngineIface* h,
-                          const char* stat,
+                          std::string_view stat,
                           T initial,
-                          const char* stat_key = nullptr,
+                          std::string_view stat_key = {},
                           const std::chrono::seconds max_wait_time_in_secs =
                                   std::chrono::seconds{60});
 
 template <typename T>
 void wait_for_stat_to_be(EngineIface* h,
-                         const char* stat,
+                         std::string_view stat,
                          T final,
-                         const char* stat_key = nullptr,
+                         std::string_view stat_key = {},
                          const std::chrono::seconds max_wait_time_in_secs =
                                  std::chrono::seconds{60});
 
 void wait_for_stat_to_be_gte(EngineIface* h,
-                             const char* stat,
+                             std::string_view stat,
                              int final,
-                             const char* stat_key = nullptr,
+                             std::string_view stat_key = {},
                              const std::chrono::seconds max_wait_time_in_secs =
                                      std::chrono::seconds{60});
 
 template <typename T>
 void wait_for_stat_to_be_lte(EngineIface* h,
-                             const char* stat,
+                             std::string_view stat,
                              T final,
-                             const char* stat_key = nullptr,
+                             std::string_view stat_key = {},
                              const std::chrono::seconds max_wait_time_in_secs =
                                      std::chrono::seconds{60});
 
@@ -605,12 +603,11 @@ void write_items(EngineIface* h,
 int write_items_upto_mem_perc(EngineIface* h, int mem_thresh_perc);
 
 template <typename T>
-inline void wait_for_stat_change(
-        EngineIface* h,
-        const char* stat,
-        T initial,
-        const char* stat_key,
-        const std::chrono::seconds max_wait_time_in_secs) {
+void wait_for_stat_change(EngineIface* h,
+                          std::string_view stat,
+                          T initial,
+                          std::string_view stat_key,
+                          const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
                                          initial, max_wait_time_in_secs);
@@ -626,9 +623,9 @@ inline void wait_for_stat_change(
 
 template <typename T>
 void wait_for_stat_to_be(EngineIface* h,
-                         const char* stat,
+                         std::string_view stat,
                          T final,
-                         const char* stat_key,
+                         std::string_view stat_key,
                          const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
@@ -645,9 +642,9 @@ void wait_for_stat_to_be(EngineIface* h,
 
 template <typename T>
 void wait_for_stat_to_be_lte(EngineIface* h,
-                             const char* stat,
+                             std::string_view stat,
                              T final,
-                             const char* stat_key,
+                             std::string_view stat_key,
                              const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to be less than or equal to",
@@ -681,7 +678,7 @@ void wait_for_val_to_be(const char* val_description,
                                 std::chrono::seconds{60}) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator(
-            "to be", val_description, nullptr, expected, max_wait_time_in_secs);
+            "to be", val_description, {}, expected, max_wait_time_in_secs);
     for (;;) {
         if (val == expected) {
             break;

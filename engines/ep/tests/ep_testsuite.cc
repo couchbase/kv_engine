@@ -1084,7 +1084,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
 
     // Wait for the expiry pager to run and expire our item.
     wait_for_stat_to_be_gte(
-            h, "ep_expired_pager", 1, nullptr, std::chrono::seconds{10});
+            h, "ep_expired_pager", 1, {}, std::chrono::seconds{10});
 
     // Note: previously we checked that curr_items was zero here (immediately
     // after waiting for ep_expired_pager == 1), however we cannot assume that
@@ -7528,7 +7528,7 @@ static enum test_result test_mb65737_check_flush_fails(EngineIface* h) {
     // Wait for flusher to run
     std::chrono::microseconds sleepTime{128};
     while (true) {
-        if (get_str_stat(h, "ep_flusher_state", nullptr) == "running") {
+        if (get_str_stat(h, "ep_flusher_state") == "running") {
             break;
         }
         decayingSleep(&sleepTime);

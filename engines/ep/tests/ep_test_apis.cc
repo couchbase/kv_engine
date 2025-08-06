@@ -113,20 +113,6 @@ CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
 std::mutex vals_mutex;
 statistic_map vals;
 
-// get_stat and get_histo_stat can only be called one at a time as they use
-// the three global variables (requested_stat_name, actual_stat_value and
-// histogram_stat_int_value).  Therefore the two functions need to acquire a
-// lock and keep it for the whole function duration.
-
-// The requested_stat_name and actual_stat_value are used in an optimized
-// add_stats callback (add_individual_stat) which checks for one stat
-// (and hence doesn't have to keep a map of all of them).
-struct {
-    std::mutex mutex;
-    std::string requested_stat_name;
-    std::string actual_stat_value;
-} get_stat_context;
-
 bool dump_stats = false;
 std::atomic<cb::mcbp::Status> last_status(cb::mcbp::Status::Success);
 std::string last_key;
@@ -223,24 +209,6 @@ void add_stats(std::string_view key, std::string_view value, CookieIface&) {
 
     std::lock_guard<std::mutex> lh(vals_mutex);
     vals[k] = v;
-}
-
-/* Callback passed to engine interface `get_stats`, used by get_int_stat and
- * friends to lookup a specific stat. If `key` matches the requested key name,
- * then record its value in actual_stat_value.
- */
-static void add_individual_stat(std::string_view key,
-                                std::string_view value,
-                                CookieIface&) {
-    if (get_stat_context.actual_stat_value.empty() &&
-        get_stat_context.requested_stat_name.compare(
-                0,
-                get_stat_context.requested_stat_name.size(),
-                key.data(),
-                key.size()) == 0) {
-        get_stat_context.actual_stat_value =
-                std::string(value.data(), value.size());
-    }
 }
 
 void encodeExt(char* buffer, uint32_t val, size_t offset) {
@@ -898,7 +866,7 @@ void stop_persistence(EngineIface* h) {
 
     std::chrono::microseconds sleepTime{128};
     while (true) {
-        if (get_str_stat(h, "ep_flusher_state", nullptr) == "running") {
+        if (get_str_stat(h, "ep_flusher_state") == "running") {
             break;
         }
         decayingSleep(&sleepTime);
@@ -1234,97 +1202,95 @@ void sendDcpAck(EngineIface* h,
  */
 template <>
 int get_stat(EngineIface* h,
-             const char* statname,
-             const char* statkey) {
+             const std::string_view statname,
+             const std::string_view statkey) {
     return std::stoi(get_str_stat(h, statname, statkey));
 }
 template <>
 uint64_t get_stat(EngineIface* h,
-                  const char* statname,
-                  const char* statkey) {
+                  const std::string_view statname,
+                  const std::string_view statkey) {
     return std::stoull(get_str_stat(h, statname, statkey));
 }
 
 template <>
 bool get_stat(EngineIface* h,
-              const char* statname,
-              const char* statkey) {
+              const std::string_view statname,
+              const std::string_view statkey) {
     return get_str_stat(h, statname, statkey) == "true";
 }
 
 template <>
-float get_stat(EngineIface* h, const char* statname, const char* statkey) {
+float get_stat(EngineIface* h,
+               const std::string_view statname,
+               const std::string_view statkey) {
     return std::stof(get_str_stat(h, statname, statkey));
 }
 
 template <>
 std::string get_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey) {
-    std::lock_guard<std::mutex> lh(get_stat_context.mutex);
-
-    get_stat_context.requested_stat_name = statname;
-    get_stat_context.actual_stat_value.clear();
-
+                     const std::string_view statname,
+                     const std::string_view statkey) {
+    std::optional<std::string> stat_value;
     auto* cookie = testHarness->create_cookie(h);
-    cb::engine_errc err = get_stats_wrapper(
+    const auto err = get_stats_wrapper(
             h,
             *cookie,
-            {statkey, statkey == nullptr ? 0 : strlen(statkey)},
+            statkey,
             {},
-            add_individual_stat);
+            [statname, &stat_value](auto key, auto value, auto&) {
+                if (statname == key) {
+                    stat_value = std::string(value);
+                }
+            });
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
         throw cb::engine_error(err, "get_stats failed");
     }
 
-    if (get_stat_context.actual_stat_value.empty()) {
-        throw std::out_of_range(std::string("Failed to find requested statname '") +
-                                statname + "'");
+    if (!stat_value) {
+        throw std::out_of_range(fmt::format(
+                "Failed to find requested statname '{}'", statname));
     }
 
-    // Here we are explictly forcing a copy of the object to work
-    // around std::string copy-on-write data-race issues seen on some
-    // versions of libstdc++ - see MB-18510 / MB-19688.
-    return {get_stat_context.actual_stat_value.begin(),
-            get_stat_context.actual_stat_value.end()};
+    return stat_value.value();
 }
 
 /// Backward-compatible functions (encode type name in function name).
 int get_int_stat(EngineIface* h,
-                 const char* statname,
-                 const char* statkey) {
+                 const std::string_view statname,
+                 const std::string_view statkey) {
     return get_stat<int>(h, statname, statkey);
 }
 
 float get_float_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey) {
+                     const std::string_view statname,
+                     const std::string_view statkey) {
     return std::stof(get_str_stat(h, statname, statkey));
 }
 
 uint32_t get_ul_stat(EngineIface* h,
-                     const char* statname,
-                     const char* statkey) {
+                     const std::string_view statname,
+                     const std::string_view statkey) {
     return std::stoul(get_str_stat(h, statname, statkey));
 }
 
 uint64_t get_ull_stat(EngineIface* h,
-                      const char* statname,
-                      const char* statkey) {
+                      const std::string_view statname,
+                      const std::string_view statkey) {
     return get_stat<uint64_t>(h, statname, statkey);
 }
 
 std::string get_str_stat(EngineIface* h,
-                         const char* statname,
-                         const char* statkey) {
+                         const std::string_view statname,
+                         const std::string_view statkey) {
     return get_stat<std::string>(h, statname, statkey);
 }
 
 bool get_bool_stat(EngineIface* h,
-                   const char* statname,
-                   const char* statkey) {
+                   const std::string_view statname,
+                   const std::string_view statkey) {
     return cb_stob(get_str_stat(h, statname, statkey));
 }
 
@@ -1334,8 +1300,8 @@ bool get_bool_stat(EngineIface* h,
  */
 int get_int_stat_or_default(EngineIface* h,
                             int default_value,
-                            const char* statname,
-                            const char* statkey) {
+                            const std::string_view statname,
+                            const std::string_view statkey) {
     try {
         return get_int_stat(h, statname, statkey);
     } catch (std::out_of_range&) {
@@ -1343,18 +1309,13 @@ int get_int_stat_or_default(EngineIface* h,
     }
 }
 
-statistic_map get_all_stats(EngineIface* h, const char* statset) {
+statistic_map get_all_stats(EngineIface* h, const std::string_view statset) {
     {
         std::lock_guard<std::mutex> lh(vals_mutex);
         vals.clear();
     }
     auto* cookie = testHarness->create_cookie(h);
-    auto err = get_stats_wrapper(
-            h,
-            *cookie,
-            {statset, statset == nullptr ? 0 : strlen(statset)},
-            {},
-            add_stats);
+    auto err = get_stats_wrapper(h, *cookie, statset, {}, add_stats);
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
@@ -1377,9 +1338,9 @@ void verify_curr_items(EngineIface* h,
 }
 
 void wait_for_stat_to_be_gte(EngineIface* h,
-                             const char* stat,
+                             std::string_view stat,
                              int final,
-                             const char* stat_key,
+                             std::string_view stat_key,
                              const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<int> accumulator("to be greater or equal than", stat,
@@ -1400,9 +1361,8 @@ void wait_for_expired_items_to_be(
         int final,
         const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
-    WaitTimeAccumulator<int> accumulator("to be", "expired items",
-                                         nullptr, final,
-                                         max_wait_time_in_secs);
+    WaitTimeAccumulator<int> accumulator(
+            "to be", "expired items", {}, final, max_wait_time_in_secs);
     for (;;) {
         auto current = get_int_stat(h, "ep_expired_access") +
                        get_int_stat(h, "ep_expired_compactor") +
@@ -1420,7 +1380,9 @@ void wait_for_memory_usage_below(
         size_t mem_threshold,
         const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
-    WaitTimeAccumulator<int> accumulator("to be below", "mem_used", nullptr,
+    WaitTimeAccumulator<int> accumulator("to be below",
+                                         "mem_used",
+                                         {},
                                          mem_threshold,
                                          max_wait_time_in_secs);
     for (;;) {
@@ -1445,9 +1407,8 @@ bool wait_for_warmup_complete(EngineIface* h) {
         try {
             if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
                 if (!waitForSecondary ||
-                    (waitForSecondary &&
-                     get_str_stat(h, "ep_secondary_warmup_status", "warmup") ==
-                             "complete")) {
+                    get_str_stat(h, "ep_secondary_warmup_status", "warmup") ==
+                            "complete") {
                     return true;
                 }
             }

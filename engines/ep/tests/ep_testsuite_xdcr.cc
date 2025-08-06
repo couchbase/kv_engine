@@ -2241,7 +2241,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold =
-            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
+            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us");
     // Create n keys
     const int n_keys = 5;
     for (Vbid::id_type ii = 0; ii < n_vbuckets; ii++) {
@@ -2346,7 +2346,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold =
-            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
+            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us");
     // Create n keys * n_vbuckets
     const int n_keys = 5;
     for (Vbid::id_type ii = 0; ii < n_vbuckets; ii++) {
@@ -2496,8 +2496,7 @@ static enum test_result test_setting_drift_threshold(EngineIface* h) {
                     "Expected set_param success");
 
             checkeq(int64_t(data.second.count()),
-                    int64_t(get_ull_stat(
-                            h, std::get<0>(conf).c_str(), nullptr)),
+                    int64_t(get_ull_stat(h, std::get<0>(conf).c_str())),
                     "Expected the stat to change to the new value");
 
             // The VB stat values are in nanoseconds
