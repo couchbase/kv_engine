@@ -1395,30 +1395,24 @@ void wait_for_memory_usage_below(
     }
 }
 
-bool wait_for_warmup_complete(EngineIface* h) {
+void wait_for_warmup_complete(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
-        return true;
+        return;
     }
 
     bool waitForSecondary = isSecondaryWarmupEnabled(h);
 
     std::chrono::microseconds sleepTime{128};
     do {
-        try {
-            if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
-                if (!waitForSecondary ||
-                    get_str_stat(h, "ep_secondary_warmup_status", "warmup") ==
-                            "complete") {
-                    return true;
-                }
+        if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
+            if (!waitForSecondary ||
+                get_str_stat(h, "ep_secondary_warmup_status", "warmup") ==
+                        "complete") {
+                return;
             }
-        } catch (const cb::engine_error&) {
-            // If the stat call failed then the warmup stats group no longer
-            // exists and hence warmup is complete.
-            return true;
         }
         decayingSleep(&sleepTime);
-    } while(true);
+    } while (true);
 }
 
 void wait_for_flusher_to_settle(EngineIface* h) {

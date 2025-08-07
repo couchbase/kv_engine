@@ -459,7 +459,7 @@ void wait_for_expired_items_to_be(
         int final,
         const std::chrono::seconds max_wait_time_in_secs = std::chrono::seconds{
                 60});
-bool wait_for_warmup_complete(EngineIface* h);
+void wait_for_warmup_complete(EngineIface* h);
 void wait_for_flusher_to_settle(EngineIface* h);
 void wait_for_item_compressor_to_settle(EngineIface* h);
 void wait_for_rollback_to_finish(EngineIface* h);
