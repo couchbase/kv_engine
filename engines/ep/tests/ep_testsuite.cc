@@ -2320,7 +2320,7 @@ static enum test_result test_vb_file_stats(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_vb_file_stats_after_warmup(EngineIface* h) {
+static test_result test_vb_file_stats_after_warmup(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
@@ -2334,15 +2334,17 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h) {
     }
     wait_for_flusher_to_settle(h);
 
+    // Force compaction on the vbucket to ensure it won't shrink at some
+    // point by implicit compaction or something inside the underlying
+    // storage engine.
+    compact_db(h, Vbid(0), 0, 0, 0);
+
     int fileSize = get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0");
     int spaceUsed = get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0");
 
     // Restart the engine.
-    testHarness->reload_engine(&h,
-
-                               testHarness->get_current_testcase()->cfg,
-                               true,
-                               false);
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
 
     wait_for_warmup_complete(h);
 
