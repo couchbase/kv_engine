@@ -39,8 +39,8 @@ void initialize(int argc, char** argv) {
     if (isWildcardFilter) {
         GTEST_FLAG_SET(filter, originalFilter);
     }
-    // When specified, log to a file.
-    if (getenv("CB_FUZZTEST_LOG_FILE")) {
+    // When specified, log to a file. Do not log if we are listing tests.
+    if (getenv("CB_FUZZTEST_LOG_FILE") && !GTEST_FLAG_GET(list_tests)) {
         auto fileSuffix =
                 isWildcardFilter
                         ? originalFilter
