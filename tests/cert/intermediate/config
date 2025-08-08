@@ -1,8 +1,6 @@
 # Configuration file for the root CA used in the unit tests
 [req]
-default_bits = 2048
 encrypt_key = no
-default_md = sha256
 utf8 = yes
 string_mask = utf8only
 prompt = no

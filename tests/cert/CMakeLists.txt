@@ -5,6 +5,20 @@ set(OPENSSL_BINARY
     "Path to the openssl binary in use (from cbdep)"
     FORCE)
 
+set(OPENSSL_NUMBER_OF_BITS
+        2048
+        CACHE
+        STRING
+        "Number of bits in the generated RSA key (default: 2048)"
+        FORCE)
+
+set(OPENSSL_SIGNING_ALGORITHM
+        "sha256"
+        CACHE
+        STRING
+        "Signing algorithm used when generating X.509 certificates (default: sha256)"
+        FORCE)
+
 # Unfortunately openssl don't provide a -quiet option, but will always
 # spam the terminal with progress output. We can "easily" work around
 # that on *nix by creating a wrapper script and redirect output/error
@@ -44,7 +58,8 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        COMMAND ${QUIET_OPENSSL_BINARY}
                        req
                        -new
-                       -newkey rsa:2048
+                       -newkey rsa:${OPENSSL_NUMBER_OF_BITS}
+                       -${OPENSSL_SIGNING_ALGORITHM}
                        -keyout ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key.tmp
                        -config ${CMAKE_CURRENT_SOURCE_DIR}/${Cert_CONFIG}
                        -out ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr.tmp

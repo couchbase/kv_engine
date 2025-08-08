@@ -28,7 +28,8 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert
                    -new
                    -x509
                    -days 365
-                   -newkey rsa:2048
+                   -newkey rsa:${OPENSSL_NUMBER_OF_BITS}
+                   -${OPENSSL_SIGNING_ALGORITHM}
                    -keyout ${CMAKE_CURRENT_BINARY_DIR}/ca_root.key.tmp
                    -config ${CMAKE_CURRENT_SOURCE_DIR}/config
                    -out ${CMAKE_CURRENT_BINARY_DIR}/ca_root.cert.tmp
