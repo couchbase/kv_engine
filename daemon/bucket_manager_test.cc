@@ -38,6 +38,21 @@ public:
         remove_all(bucketPath);
     }
 
+    static void TearDownTestSuite() {
+        // Nuke temporary test files created by previous runs of
+        // the test suite
+        std::error_code ec;
+        for (const auto& p : std::filesystem::directory_iterator(
+                     std::filesystem::current_path())) {
+            if (is_directory(p.path(), ec)) {
+                if (p.path().filename().string().starts_with(
+                            "BucketManagerTest")) {
+                    remove_all(p.path(), ec);
+                }
+            }
+        }
+    }
+
     cb::engine_errc public_resume(std::string_view cid, std::string_view name) {
         return BucketManager::resume(cid, name);
     }

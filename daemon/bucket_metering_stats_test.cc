@@ -26,6 +26,18 @@ protected:
     }
     static void TearDownTestSuite() {
         cb::serverless::setEnabled(false);
+        // Nuke temporary test files created by previous runs of
+        // the test suite
+        std::error_code ec;
+        for (const auto& p : std::filesystem::directory_iterator(
+                     std::filesystem::current_path())) {
+            if (is_directory(p.path(), ec)) {
+                if (p.path().filename().string().starts_with(
+                            "BucketMeteringStatsTest")) {
+                    remove_all(p.path(), ec);
+                }
+            }
+        }
     }
     void SetUp() override {
         bucketPath = cb::io::mkdtemp("BucketMeteringStatsTest");
@@ -49,6 +61,7 @@ protected:
 
     void TearDown() override {
         BucketManager::instance().destroyAll();
+        remove_all(bucketPath);
     }
 
     Bucket* bucket = nullptr;
