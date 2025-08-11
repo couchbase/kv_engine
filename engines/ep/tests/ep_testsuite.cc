@@ -5905,9 +5905,9 @@ static enum test_result test_MB34173_warmup(EngineIface* h) {
         auto key1 = statKey + ":high_seqno";
         auto key2 = statKey + ":last_persisted_snap_start";
         auto key3 = statKey + ":last_persisted_snap_end";
-        uint64_t highSeq = get_ull_stat(h, key1.c_str(), "vbucket-seqno");
-        uint64_t snapStart = get_ull_stat(h, key2.c_str(), "vbucket-seqno");
-        uint64_t snapEnd = get_ull_stat(h, key3.c_str(), "vbucket-seqno");
+        uint64_t highSeq = get_ull_stat(h, key1, "vbucket-seqno");
+        uint64_t snapStart = get_ull_stat(h, key2, "vbucket-seqno");
+        uint64_t snapEnd = get_ull_stat(h, key3, "vbucket-seqno");
         check_expression(highSeq <= snapEnd && highSeq >= snapStart,
                          "Invalid snapshot range");
     };
@@ -7790,7 +7790,7 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
 
     const auto checkHPSAndHighSeqno =
             [h, &statSet, &vbPrefix](int expectedHPS, int expectedHS) -> void {
-        const auto durStats = get_all_stats(h, statSet.c_str());
+        const auto durStats = get_all_stats(h, statSet);
         checkeq(expectedHPS,
                 std::stoi(durStats.at(vbPrefix + "high_prepared_seqno")),
                 "HPS must be 0");

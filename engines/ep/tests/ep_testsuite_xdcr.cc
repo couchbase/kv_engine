@@ -2289,14 +2289,12 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
         std::string total_abs_drift = vbAheadName + ":total_abs_drift";
         std::string details = "vbucket-details " + std::to_string(aheadVb);
         checkeq(uint64_t(n_keys),
-                get_ull_stat(
-                        h, ahead_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, ahead_threshold_exceeded, details),
                 "Expected ahead threshold to match mutations");
         checkeq(uint64_t(0),
-                get_ull_stat(
-                        h, behind_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, behind_threshold_exceeded, details),
                 "Expected no behind exceptions");
-        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+        checkge(get_ull_stat(h, total_abs_drift, details),
                 uint64_t(0),
                 "Expected some drift");
     }
@@ -2308,14 +2306,12 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
         std::string total_abs_drift = vbBehindName + ":total_abs_drift";
         std::string details = "vbucket-details " + std::to_string(behindVb);
         checkeq(uint64_t(n_keys),
-                get_ull_stat(
-                        h, behind_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, behind_threshold_exceeded, details),
                 "Expected behind threshold to match mutations");
         checkeq(uint64_t(0),
-                get_ull_stat(
-                        h, ahead_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, ahead_threshold_exceeded, details),
                 "Expected no ahead exceptions");
-        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+        checkge(get_ull_stat(h, total_abs_drift, details),
                 uint64_t(0),
                 "Expected some drift");
     }
@@ -2436,10 +2432,9 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
         std::string details = "vbucket-details " + std::to_string(aheadVb);
 
         checkeq(uint64_t(n_keys),
-                get_ull_stat(
-                        h, ahead_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, ahead_threshold_exceeded, details),
                 "Expected ahead threshold to match mutations");
-        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+        checkge(get_ull_stat(h, total_abs_drift, details),
                 uint64_t(0),
                 "Expected some drift");
     }
@@ -2453,14 +2448,12 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
 
         // *2 behind due to the initial set_with_meta
         checkeq(uint64_t(n_keys * 2),
-                get_ull_stat(
-                        h, behind_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, behind_threshold_exceeded, details),
                 "Expected behind threshold to match mutations");
         checkeq(uint64_t(0),
-                get_ull_stat(
-                        h, ahead_threshold_exceeded.data(), details.data()),
+                get_ull_stat(h, ahead_threshold_exceeded, details),
                 "Expected no ahead exceptions");
-        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+        checkge(get_ull_stat(h, total_abs_drift, details),
                 uint64_t(0),
                 "Expected some drift");
     }
@@ -2496,13 +2489,13 @@ static enum test_result test_setting_drift_threshold(EngineIface* h) {
                     "Expected set_param success");
 
             checkeq(int64_t(data.second.count()),
-                    int64_t(get_ull_stat(h, std::get<0>(conf).c_str())),
+                    int64_t(get_ull_stat(h, std::get<0>(conf))),
                     "Expected the stat to change to the new value");
 
             // The VB stat values are in nanoseconds
             checkeq(int64_t(std::chrono::nanoseconds(data.second).count()),
                     int64_t(get_ull_stat(
-                            h, std::get<2>(conf).c_str(), "vbucket-details 0")),
+                            h, std::get<2>(conf), "vbucket-details 0")),
                     "Expected the VB stats to change to the new value");
         }
     }

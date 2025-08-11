@@ -1938,15 +1938,15 @@ static enum test_result warmup_mb21769(EngineIface* h) {
         std::string failovers_key = "failovers " + std::to_string(vb);
 
         checkeq(high_seqnos[vb],
-                get_ull_stat(h, high_seqno.c_str(), vb_group_key.c_str()),
+                get_ull_stat(h, high_seqno, vb_group_key),
                 "high_seqno incorrect vb:" + std::to_string(vb));
         checkeq(snap_starts[vb],
-                get_ull_stat(h, snap_start.c_str(), vb_group_key.c_str()),
+                get_ull_stat(h, snap_start, vb_group_key),
                 "snap_start incorrect vb:" + std::to_string(vb));
         checkeq(snap_ends[vb],
-                get_ull_stat(h, snap_end.c_str(), vb_group_key.c_str()),
+                get_ull_stat(h, snap_end, vb_group_key),
                 "snap_end incorrect vb:" + std::to_string(vb));
-        auto failoverTable = get_all_stats(h, failovers_key.c_str());
+        auto failoverTable = get_all_stats(h, failovers_key);
         if (failoverTable[fail0] != std::to_string(failover_entry0[vb])) {
             std::cerr << "failover table entry 0 is incorrect for vb:" << vb
                       << " expected:" << failover_entry0[vb]
@@ -1956,7 +1956,7 @@ static enum test_result warmup_mb21769(EngineIface* h) {
                 std::cerr << stat.first << ":" << stat.second << std::endl;
             }
             std::string detail = "vbucket-details " + std::to_string(vb);
-            auto details = get_all_stats(h, detail.c_str());
+            auto details = get_all_stats(h, detail);
             std::cerr << detail << std::endl;
             for (const auto& stat : details) {
                 std::cerr << stat.first << ":" << stat.second << std::endl;
