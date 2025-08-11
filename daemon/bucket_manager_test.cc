@@ -520,7 +520,7 @@ void BucketManagerTest::testPauseBucketCancellable(
 
 /// Basic smoke test to see what happens if two threads both attempt to pause/
 /// resume simulataneously....
-TEST_F(BucketManagerTest, DISABLED_PauseResumeFight) {
+TEST_F(BucketManagerTest, PauseResumeFight) {
     auto err = create(1, "mybucket", config, BucketType::Couchbase);
     ASSERT_EQ(cb::engine_errc::success, err);
 

@@ -1172,6 +1172,22 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
 
     bucketPausingListener(name, "before_cancellation_callback");
 
+    auto rollbackToResumed = [this, &bucket, cid, name] {
+        LOG_INFO_CTX("Cancelling pause of bucket",
+                     {"conn_id", cid},
+                     {"bucket", name});
+        Expects(bucket->state == Bucket::State::Pausing ||
+                bucket->state == Bucket::State::Paused);
+        bucket->management_operation_in_progress = false;
+        bucketStateChangeListener(*bucket, bucket->state);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
+        if (bucket->getEngine().resume() == cb::engine_errc::success) {
+            bucket->state = Bucket::State::Ready;
+        }
+        return cb::engine_errc::cancelled;
+    };
+
     // Setup a cancellationCallback which, if pause is cancelled will restore
     // bucket to the state before pause() was started.
     //
@@ -1185,19 +1201,7 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
     //   before requesting cancellation - see BucketManager::resume().
     folly::CancellationCallback cancellationCallback = [&] {
         std::lock_guard guard(bucket->mutex);
-        return folly::CancellationCallback{
-                cancellationToken, [this, cid, bucket, name] {
-                    LOG_INFO_CTX("Cancelling pause of bucket",
-                                 {"conn_id", cid},
-                                 {"bucket", name});
-                    Expects(bucket->state == Bucket::State::Pausing ||
-                            bucket->state == Bucket::State::Paused);
-                    bucket->management_operation_in_progress = false;
-                    bucketStateChangeListener(*bucket, bucket->state);
-                    bucket->pause_cancellation_source =
-                            folly::CancellationSource::invalid();
-                    bucket->state = Bucket::State::Ready;
-                }};
+        return folly::CancellationCallback{cancellationToken, [] {}};
     }();
 
     bucketPausingListener(name, "before_disconnect");
@@ -1217,6 +1221,7 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
             // Cancel (fail) the pause() request. Registered callback(s) above
             // (and potentially others registered at lower levels) will "undo"
             // any necessary partial pause.
+            rollbackToResumed();
             return cb::engine_errc::cancelled;
         }
     }
@@ -1232,6 +1237,7 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         // then return a failure status - note cleanup back to state ready etc
         // is done by cancellationCallback above.
         if (cancellationToken.isCancellationRequested()) {
+            rollbackToResumed();
             return cb::engine_errc::cancelled;
         }
         LOG_INFO_CTX("Paused bucket",
@@ -1246,6 +1252,7 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
     } else {
         std::lock_guard bucketguard(bucket->mutex);
         if (cancellationToken.isCancellationRequested()) {
+            rollbackToResumed();
             return cb::engine_errc::cancelled;
         }
         LOG_WARNING_CTX("Pausing bucket failed",
@@ -1255,7 +1262,9 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         bucketStateChangeListener(*bucket, Bucket::State::Ready);
         bucket->pause_cancellation_source =
                 folly::CancellationSource::invalid();
-        bucket->state = Bucket::State::Ready;
+        if (bucket->getEngine().resume() == cb::engine_errc::success) {
+            bucket->state = Bucket::State::Ready;
+        }
     }
 
     return status;
