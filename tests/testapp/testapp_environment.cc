@@ -440,12 +440,6 @@ std::string McdEnvironment::readConcurrentUpdatedFile(
                     path.generic_string()));
         }
         auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
-        if (!file_reader->is_encrypted()) {
-            throw std::runtime_error(
-                    fmt::format("Expected the file to be encrypted: {}",
-                                path.generic_string()));
-        }
-
         std::string chunk;
         while (!(chunk = file_reader->nextChunk()).empty()) {
             content.append(chunk);

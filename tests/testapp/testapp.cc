@@ -801,6 +801,10 @@ void TestappTest::delete_object(const std::string& key, bool ignore_missing) {
 }
 
 void TestappTest::start_memcached_server() {
+    setenv("BOOTSTRAP_DEK",
+           mcd_env->getDekManager().to_json().dump().c_str(),
+           1);
+
     write_config_to_file(memcached_cfg.dump(2));
 
     server_start_time = time(nullptr);
@@ -1322,10 +1326,6 @@ int main(int argc, char** argv) {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
-
-    setenv("BOOTSTRAP_DEK",
-           mcd_env->getDekManager().to_json().dump().c_str(),
-           1);
 
     MemcachedConnection::setLookupUserPasswordFunction(
             [](const auto& user) { return mcd_env->getPassword(user); });
