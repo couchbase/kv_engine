@@ -42,14 +42,19 @@ ADD_CUSTOM_COMMAND(
             genstats
         COMMENT "Generating stat definitions from json")
 
+add_custom_target(generated_stats_source_files
+        DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
+        ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json)
+
 AddMetricsMetadata(
         JSON "${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json"
         COMPONENT kv)
 
-add_custom_target(generated_stats_source_files
-        DEPENDS
-        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h)
+# Prevent race condition where AddMetricsMetadata and generated_stats_source_files
+# both trigger the same custom command simultaneously
+add_dependencies(kv_metrics_metadata generated_stats_source_files)
 
 add_library(statistics STATIC
             collector.cc
