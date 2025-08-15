@@ -11,16 +11,30 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
 
 /**
  * Decodes the local doc if it needs decoding (determined by the key)
- * @param id key
- * @param v value
- * @param decodedData [out]
+ * @param key of the local document (needed to select the correct decoder)
+ * @param value string_view of the decompressed local document value
  * @return pair of bool status and decoded doc
  */
 std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
                                                     std::string_view value);
+
+/**
+ * Decodes the doc if it needs decoding (determined by the key) Only system
+ * events would be decoded.
+ * @param key of the document
+ * @param value string_view of the decompressed document value
+ * @param deleted true if the doc is deleted
+ * @param datatype the datatype of the doc (after decompression)
+ * @return pair of bool status and decoded doc
+ */
+std::pair<bool, std::string> maybe_decode_doc(std::string_view key,
+                                              std::string_view value,
+                                              bool deleted,
+                                              uint8_t datatype);

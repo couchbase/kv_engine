@@ -15,8 +15,13 @@
  * Warning generated code
  *
  * collections_kvstore_schema stores a copy of "ep/src/collections/kvstore.fbs"
+ * collections_vb_schema stores a copy of "ep/src/collections/events.fbs"
  */
 
 extern const std::string collections_kvstore_schema = R"(
-${COLLECTIONS_EVENTS_RAW_SCHEMA}
+${COLLECTIONS_KVSTORE_RAW_SCHEMA}
+)";
+
+extern const std::string collections_vb_schema = R"(
+${COLLECTIONS_VB_RAW_SCHEMA}
 )";

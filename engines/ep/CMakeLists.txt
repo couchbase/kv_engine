@@ -126,7 +126,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 # Generate the flatbuffers data used by at least couchstore for storing the collection manifest
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
-                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/flatbuffers_schema.cc
                   COMMAND
                      ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/kvstore.fbs
                   COMMAND
@@ -136,7 +136,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/generate_flatbuffers_raw_schema.cmake
                   DEPENDS
                     src/collections/kvstore.fbs
-                    src/collections/kvstore.in
+                    src/collections/flatbuffers_schema.in
                   COMMENT "Generating flatbuffers kvstore data")
 
 ADD_CUSTOM_COMMAND(OUTPUT
@@ -176,14 +176,14 @@ add_custom_target(ep_generated_source_files
             src/generated_enums.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
-            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/flatbuffers_schema.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
             generate_audit_descriptors)
 
 # Collections library for things required outside of ep-engine
 ADD_LIBRARY(ep-engine_collections STATIC
-        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/flatbuffers_schema.cc
         src/collections/collection_persisted_stats.cc)
 
 SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
@@ -199,6 +199,7 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
 add_library(ep-engine_storage_common STATIC
             src/kvstore/storage_common/storage_common/local_doc_parser.cc
             src/kvstore/storage_common/storage_common/doc_key_encoder.cc)
+add_dependencies(ep-engine_storage_common ep_generated_source_files)
 SET_PROPERTY(TARGET ep-engine_storage_common PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(ep-engine_storage_common)
 target_link_libraries(ep-engine_storage_common PRIVATE
