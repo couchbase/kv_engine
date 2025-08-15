@@ -718,7 +718,7 @@ TEST_P(DcpStreamSyncReplPersistentTest,
 
 void DcpStreamSyncReplTest::testBackfillPrepareAbort(
         DocumentState docState, cb::durability::Level level) {
-    // Store a pending item, commit it and then remove the checkpoint to force
+    // Store a pending item, abort it and then remove the checkpoint to force
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
@@ -732,6 +732,9 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
                              vb0->lockCollections(prepared->getKey())));
     }
     removeCheckpoint();
+
+    // Make sure both the prepare & abort are persisted to disk
+    cb::waitForPredicate([&] { return vb0->getPersistenceSeqno() == 2; });
 
     // Create sync repl DCP stream
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
