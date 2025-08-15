@@ -787,13 +787,6 @@ TEST_P(CollectionsDcpStreamsTest, two_streams) {
 }
 
 TEST_P(CollectionsDcpStreamsTest, two_streams_different) {
-    if (!isPersistent()) {
-        // This was originally mis-categorized as to be fixed with
-        // MB-62963. With the fix for MB-62963, the test still fails, since the
-        // test below doesn't need a backfill. Opened MB-65365 to investigate
-        // why the test fails for ephemeral buckets.
-        GTEST_SKIP();
-    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
