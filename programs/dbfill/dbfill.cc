@@ -11,6 +11,7 @@
 
 #include <folly/MPMCQueue.h>
 #include <folly/io/async/EventBase.h>
+#include <json/random_document_builder.h>
 #include <libevent/utilities.h>
 #include <platform/random.h>
 #include <platform/terminal_color.h>
@@ -18,7 +19,6 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/cluster_config_map_utils.h>
-#include <deque>
 #include <iostream>
 #ifndef WIN32
 #include <csignal>
@@ -43,7 +43,9 @@ static std::size_t num_connections = 10;
 std::string document_value;
 
 enum class RandomValue { Off, On, PerDocument };
+enum class DocumentType { Raw, Json };
 RandomValue random_value = RandomValue::Off;
+DocumentType document_type = DocumentType::Raw;
 
 using cb::terminal::TerminalColor;
 
@@ -188,9 +190,13 @@ protected:
         BinprotMutationCommand cmd;
         if (random_value == RandomValue::PerDocument) {
             std::string value;
-            value.resize(document_value.size());
-            cb::RandomGenerator random_generator;
-            random_generator.getBytes(value.data(), value.size());
+            if (document_type == DocumentType::Json) {
+                value = json_builder.generate(document_value.size(), 32).dump();
+            } else {
+                value.resize(document_value.size());
+                cb::RandomGenerator random_generator;
+                random_generator.getBytes(value.data(), value.size());
+            }
             cmd.addValueBuffer(value);
         } else {
             cmd.addValueBuffer(document_value);
@@ -291,6 +297,7 @@ protected:
     std::vector<cb::libevent::unique_bufferevent_ptr> bevs;
     uint32_t opaque = 0;
     size_t round_robin = 0;
+    cb::json::RandomDocumentBuilder json_builder;
 };
 
 std::unique_ptr<Node> create_node(std::string_view host,
@@ -363,6 +370,22 @@ int main(int argc, char** argv) {
                       "per-document",
                       "Use a random value which don't compress well"});
 
+    getopt.addOption({[](auto value) {
+                          if (value == "raw") {
+                              document_type = DocumentType::Raw;
+                          } else if (value == "json") {
+                              document_type = DocumentType::Json;
+                          } else {
+                              std::cerr << "Unknown document type: " << value
+                                        << std::endl;
+                              std::exit(EXIT_FAILURE);
+                          }
+                      },
+                      "document-type",
+                      Argument::Required,
+                      "json/raw",
+                      "Use JSON or raw value for document type"});
+
     getopt.addOption({[&getopt](auto value) { usage(getopt, EXIT_SUCCESS); },
                       "help",
                       "This help text"});
@@ -387,6 +410,19 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    if (random_value == RandomValue::Off) {
+        if (document_type == DocumentType::Raw) {
+            document_value = std::string(size, 'a');
+        } else {
+            cb::json::RandomDocumentBuilder builder;
+            document_value = builder.generate(size, 32).dump();
+        }
+    } else {
+        document_value.resize(size);
+        cb::RandomGenerator random_generator;
+        random_generator.getBytes(document_value.data(), document_value.size());
+    }
+
     try {
         getopt.assemble();
 
@@ -406,15 +442,6 @@ int main(int argc, char** argv) {
 
         node_locator->iterate(
                 [&getopt, &bucket](auto& node) { node.start(getopt, bucket); });
-
-        if (random_value == RandomValue::Off) {
-            document_value = std::string(size, 'a');
-        } else {
-            document_value.resize(size);
-            cb::RandomGenerator random_generator;
-            random_generator.getBytes(document_value.data(),
-                                      document_value.size());
-        }
 
         auto dispatcher =
                 [&node_locator, documents, offset](Node& destination) {
@@ -461,7 +488,7 @@ int main(int argc, char** argv) {
         done = true;
 
         // Now wait for all of them to complete its work...
-        node_locator->iterate([&documents](auto& node) {
+        node_locator->iterate([](auto& node) {
             while (!node.isIdle()) {
                 std::this_thread::sleep_for(std::chrono::seconds{1});
             }

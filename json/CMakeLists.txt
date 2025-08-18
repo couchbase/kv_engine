@@ -6,6 +6,12 @@ target_link_libraries(json_validator PRIVATE
                       JSON_checker nlohmann_json::nlohmann_json)
 target_include_directories(json_validator PRIVATE ${Platform_SOURCE_DIR}/include)
 
+add_library(json_generator OBJECT
+        random_document_builder.cc
+        random_document_builder.h)
+set_target_properties(json_generator PROPERTIES POSITION_INDEPENDENT_CODE 1)
+target_link_libraries(json_generator PUBLIC nlohmann_json::nlohmann_json PRIVATE Folly::headers fmt::fmt)
+
 cb_add_test_executable(json_validator_test syntax_validator_test.cc)
 target_link_libraries(json_validator_test PRIVATE
         json_validator Folly::headers GTest::gtest GTest::gtest_main)
