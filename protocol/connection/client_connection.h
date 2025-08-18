@@ -19,6 +19,7 @@
 #include <memcached/rbac.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
+#include <platform/backtrace.h>
 #include <platform/socket.h>
 #include <atomic>
 #include <chrono>
@@ -243,13 +244,24 @@ struct ValidationError : public std::runtime_error {
     }
 };
 
+/**
+ * Get the timeout message to use (this includes a callstack when
+ * the environment variable MEMCACHED_UNIT_TESTS is set to true)
+ *
+ * @param message the provided message to use (which will be appended to)
+ * @return The message to put in the exception
+ */
+std::string getTimeoutExceptionMessage(std::string message);
+
 /// Exception thrown when the timer for receiving data from the network times
 /// out
-struct TimeoutException : public std::runtime_error {
-    TimeoutException(const std::string& msg,
+struct TimeoutException : std::runtime_error {
+    TimeoutException(std::string msg,
                      cb::mcbp::ClientOpcode op,
                      std::chrono::milliseconds ms)
-        : std::runtime_error(msg), opcode(op), timeout(ms) {
+        : std::runtime_error(getTimeoutExceptionMessage(std::move(msg))),
+          opcode(op),
+          timeout(ms) {
     }
 
     const cb::mcbp::ClientOpcode opcode;

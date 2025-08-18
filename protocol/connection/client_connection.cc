@@ -1108,6 +1108,15 @@ void MemcachedConnection::doValidateReceivedFrame(
     }
 }
 
+std::string getTimeoutExceptionMessage(std::string message) {
+    if (is_unit_test_mode()) {
+        return fmt::format(
+                "{}\nCallstack:\n{}", message, cb::backtrace::current());
+    }
+
+    return message;
+}
+
 void MemcachedConnection::recvFrame(Frame& frame,
                                     cb::mcbp::ClientOpcode opcode,
                                     std::chrono::milliseconds readTimeout) {
