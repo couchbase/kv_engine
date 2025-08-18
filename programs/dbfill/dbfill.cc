@@ -87,6 +87,15 @@ public:
                               write_callback,
                               event_callback,
                               this);
+
+            if (!tls) {
+                // Allow bufferevent to pass more than the default 16k in a
+                // single write. This doesn't work with TLS (should probably
+                // look into why... could be related to the TLS frame size of
+                // 16k, but bufferevent should have worked around that
+                // internally)
+                bufferevent_set_max_single_write(bevs.back().get(), 1_MiB);
+            }
             bufferevent_enable(bevs.back().get(), EV_READ | EV_WRITE);
         }
 
@@ -205,17 +214,27 @@ protected:
     }
 
     void fill_command_pipeline() {
+        std::size_t bev_size = 0;
         do {
             std::pair<std::string, Vbid> element;
+            bev_size = 0;
             while (active_commands.size() < 100 &&
-                   command_queue.read(element)) {
+                   command_queue.read(element) && bev_size < 100_MiB) {
                 sendCommand(element.first, element.second, opaque);
                 active_commands[opaque] = {std::move(element.first),
                                            element.second};
                 ++opaque;
+                for (const auto& bev : bevs) {
+                    bev_size += evbuffer_get_length(
+                            bufferevent_get_output(bev.get()));
+                }
             }
             idle = active_commands.empty();
-        } while (idle && !done);
+            for (const auto& bev : bevs) {
+                bev_size +=
+                        evbuffer_get_length(bufferevent_get_output(bev.get()));
+            }
+        } while (idle && !done && bev_size < 100_MiB);
     }
 
     void run() {
