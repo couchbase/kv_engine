@@ -395,9 +395,11 @@ int main(int argc, char** argv) {
         auto node_locator = NodeLocator<Node>::create(
                 *connection, create_node, [&vbucket](std::string_view key) {
                     if (!vbucket) {
-                        return crc32buf(
-                                reinterpret_cast<const uint8_t*>(key.data()),
-                                key.length());
+                        return (crc32buf(reinterpret_cast<const uint8_t*>(
+                                                 key.data()),
+                                         key.length()) >>
+                                16) &
+                               0x7fff;
                     }
                     return static_cast<uint32_t>(*vbucket);
                 });
