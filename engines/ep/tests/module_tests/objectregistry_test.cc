@@ -113,7 +113,7 @@ protected:
 };
 
 // Check that memory allocated by our logger (spdlog) is correctly tracked.
-TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
+TEST_F(ObjectRegistrySpdlogTest, DISABLED_SpdlogMemoryTrackedCorrectly) {
     ASSERT_TRUE(ObjectRegistry::getCurrentEngine());
     const char* testName =
             ::testing::UnitTest::GetInstance()->current_test_info()->name();

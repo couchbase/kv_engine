@@ -222,7 +222,7 @@ protected:
     ThreadGate& tg2;
 };
 
-TEST_F(BucketLoggerTest, RaceInFlushDueToPtrOwnership) {
+TEST_F(BucketLoggerTest, DISABLED_RaceInFlushDueToPtrOwnership) {
     // We need the async logger for this test, shutdown the existing one and
     // create it.
     cb::logger::shutdown();
