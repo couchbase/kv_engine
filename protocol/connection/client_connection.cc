@@ -691,7 +691,8 @@ void MemcachedConnection::connect() {
         if (context == nullptr) {
             throw std::runtime_error("Failed to create openssl client context");
         }
-
+        // Allow anything on the client side ;)
+        SSL_CTX_set_security_level(context, 0);
         // Ensure read/write operations only return after the
         // handshake and successful completion.
         SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);

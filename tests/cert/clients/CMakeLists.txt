@@ -9,10 +9,12 @@ Generate_kv_engine_X509_Certificate(NAME john
                                     ROOT ../root/ca_root
                                     EXTFILE ca.ext
                                     CA_TARGET Generate_kv_engine_X509_Test_Root_Certificate)
+# Generate jane certificate with 1024 bits (which won't work if the OpenSSL require security level 2)
 Generate_kv_engine_X509_Certificate(NAME jane
                                     CONFIG jane.config
                                     ROOT ../intermediate/intermediate
                                     EXTFILE ca.ext
+                                    BITS 1024
                                     CA_TARGET Generate_kv_engine_X509_Test_Intermediate_Certificate)
 
 Generate_kv_engine_X509_Certificate(NAME internal

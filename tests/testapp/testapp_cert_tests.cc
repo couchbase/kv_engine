@@ -359,3 +359,33 @@ TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
             cb::mcbp::ClientOpcode::SelectBucket, "default"));
     EXPECT_TRUE(rsp.isSuccess());
 }
+
+TEST_F(SslCertTest, TestSecurityLevel2) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+
+    const auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+
+    // Put the intermediate certificate and the root certificate in the
+    // trusted ca store
+    const auto cafile = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert" /
+                        "intermediate" / "client_intermediate_ca.pem";
+    setClientCertData(*connection, "jane", {}, {}, cafile);
+    connection->connect();
+    connection->setXerrorSupport(true);
+
+    reconfigure_security_level(2);
+    try {
+        connection->reconnect();
+        connection->setXerrorSupport(true);
+        FAIL() << "Should not be able to connect this certificate with "
+                  "security level 2";
+    } catch (const std::exception&) {
+    }
+
+    // But we should be able to connect with a user which a certificate meeting
+    // the security level 2 requirements
+    setClientCertData(*connection, "trond");
+    connection->connect();
+    connection->setXerrorSupport(true);
+}

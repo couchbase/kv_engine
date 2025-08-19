@@ -45,7 +45,10 @@ else ()
 endif ()
 
 MACRO (Generate_kv_engine_X509_Certificate)
-    cmake_parse_arguments(Cert "" "NAME;CONFIG;ROOT;EXTFILE;CA_TARGET" "" ${ARGN})
+    cmake_parse_arguments(Cert "" "NAME;CONFIG;ROOT;EXTFILE;CA_TARGET;BITS" "" ${ARGN})
+    if (NOT Cert_BITS)
+        set(Cert_BITS ${OPENSSL_NUMBER_OF_BITS})
+    endif ()
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key
                        COMMAND
@@ -58,7 +61,7 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        COMMAND ${QUIET_OPENSSL_BINARY}
                        req
                        -new
-                       -newkey rsa:${OPENSSL_NUMBER_OF_BITS}
+                       -newkey rsa:${Cert_BITS}
                        -${OPENSSL_SIGNING_ALGORITHM}
                        -keyout ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key.tmp
                        -config ${CMAKE_CURRENT_SOURCE_DIR}/${Cert_CONFIG}

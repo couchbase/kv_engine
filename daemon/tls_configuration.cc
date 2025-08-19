@@ -102,7 +102,7 @@ nlohmann::json TlsConfiguration::to_json() const {
              {{"TLS 1.2", cipher_list}, {"TLS 1.3", cipher_suites}}},
             {"cipher order", cipher_order},
             {"client cert auth", to_string(clientCertMode)},
-            {"security_level", security_level}};
+            {"security level", security_level}};
 }
 
 TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)

@@ -305,14 +305,27 @@ void TestappTest::TearDownTestCase() {
 void TestappTest::reconfigure_client_cert_auth(const std::string& state,
                                                const std::string& path,
                                                const std::string& prefix,
-                                               const std::string& delimiter) {
+                                               const std::string& delimiter,
+                                               int level) {
     memcached_cfg["client_cert_auth"] = {};
     memcached_cfg["client_cert_auth"]["prefixes"] =
             nlohmann::json::array({nlohmann::json{{"path", path},
                                                   {"prefix", prefix},
                                                   {"delimiter", delimiter}}});
     tls_properties["client cert auth"] = state;
+    tls_properties["security level"] =
+            std::clamp(level,
+                       TlsConfiguration::OpenSSL_MinimumSecurityLevel,
+                       TlsConfiguration::OpenSSL_MaximumSecurityLevel);
     // update the server to use this!
+    reconfigure();
+}
+
+void TestappTest::reconfigure_security_level(int level) {
+    tls_properties["security level"] =
+            std::clamp(level,
+                       TlsConfiguration::OpenSSL_MinimumSecurityLevel,
+                       TlsConfiguration::OpenSSL_MaximumSecurityLevel);
     reconfigure();
 }
 

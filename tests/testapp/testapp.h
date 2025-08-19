@@ -22,6 +22,7 @@
 #include <protocol/connection/client_connection_map.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
+#include <daemon/tls_configuration.h>
 #include <fmt/format.h>
 #include <sys/types.h>
 #include <atomic>
@@ -124,10 +125,19 @@ public:
      * @param prefix the prefix to map
      * @param delimiter the delimiter in the field
      */
-    void reconfigure_client_cert_auth(const std::string& state,
-                                      const std::string& path,
-                                      const std::string& prefix,
-                                      const std::string& delimiter);
+    void reconfigure_client_cert_auth(
+            const std::string& state,
+            const std::string& path,
+            const std::string& prefix,
+            const std::string& delimiter,
+            int level = TlsConfiguration::OpenSSL_DefaultSecurityLevel);
+
+    /**
+     * Reconfigure the server to use the given Security Level
+     *
+     * @param level The level to use (must be in the range 0-5)
+     */
+    void reconfigure_security_level(int level);
 
     /**
      * Make sure that the provided connection use our client certificates
