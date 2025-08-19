@@ -1667,9 +1667,17 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               userConnection->execute(cmd).getStatus());
 
-    // Should now only be XATTR datatype
+    // The delete will have removed the value from the HashTable, so getMeta
+    // should fetch it again. However, if getMeta finds the key before the
+    // delete is flushed to disk, the data type will be XATTR.
+    // But if it is found after the deleted is flushed to disk, the data type
+    // will also be SNAPPY compressed. Therefore, we check for either value.
     auto meta = get_meta();
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.getDatatype());
+    auto dtype = meta.getDatatype();
+    EXPECT_TRUE(dtype == PROTOCOL_BINARY_DATATYPE_XATTR ||
+                dtype == (PROTOCOL_BINARY_DATATYPE_XATTR |
+                          PROTOCOL_BINARY_DATATYPE_SNAPPY));
+
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.getDeleted());
 
