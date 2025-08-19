@@ -36,24 +36,28 @@ public:
         // Enable consumer control so we can force buffering.
         // Also configure 0 bytes for consumers buffers, so that every input
         // will generate an ACK.
-        TestappTest::doSetUpTestCaseWithConfiguration(
+        doSetUpTestCaseWithConfiguration(
                 generate_config(),
-                "dcp_consumer_control_enabled=true;"
                 "dcp_consumer_buffer_ratio=0.0;"
                 "dcp_consumer_flow_control_ack_ratio=0.0");
     }
+
     void SetUp() override {
         // Test has to run on a connection which can create a consumer and the
         // test fixtures must use the same connection as the consumer is
         // associated with a connection.
-        conn = &getAdminConnection();
+        conn = adminConnection->clone();
+        conn->authenticate("@admin");
         conn->selectBucket(bucketName);
 
         // Enable all the datatypes we may need and collections
-        conn->setFeature(cb::mcbp::Feature::JSON, true);
-        conn->setFeature(cb::mcbp::Feature::SNAPPY, true);
-        conn->setFeature(cb::mcbp::Feature::XATTR, true);
-        conn->setFeature(cb::mcbp::Feature::Collections, true);
+        using cb::mcbp::Feature;
+        conn->setFeatures({Feature::JSON,
+                           Feature::SNAPPY,
+                           Feature::XATTR,
+                           Feature::Collections,
+                           Feature::MUTATION_SEQNO,
+                           Feature::XERROR});
 
         // vbucket must be replica for addStream
         conn->setVbucket(Vbid{0}, vbucket_state_replica, {/*no json*/});
@@ -65,8 +69,8 @@ public:
             bucket.setMutationMemRatio(*conn, "1.0");
         }
 
-        setupConsumer(*conn, "replication:test_consumer", {});
-        setupConsumerStream(*conn, Vbid(0), {{0xdeadbeefull, 0}});
+        setupConsumer("replication:test_consumer", {});
+        setupConsumerStream(Vbid(0), {{0xdeadbeefull, 0}});
 
         // Setup a Document
         doc.info.id =
@@ -76,21 +80,19 @@ public:
     }
 
     void setupConsumer(
-            MemcachedConnection& connection,
             std::string_view name,
             const std::vector<std::pair<std::string, std::string>>& controls) {
-        connection.dcpOpenConsumer(name);
+        conn->dcpOpenConsumer(name);
 
-        for (const auto& control : controls) {
-            connection.dcpControl(control.first, control.second);
+        for (const auto& [key, value] : controls) {
+            conn->dcpControl(key, value);
         }
     }
 
     void setupConsumerStream(
-            MemcachedConnection& connection,
             Vbid id,
             const std::vector<std::pair<uint64_t, uint64_t>>& failovers) {
-        connection.dcpAddStream(id);
+        conn->dcpAddStream(id);
 
         // After AddStream the consumer will send back a number of control
         // messages and one GetErrorMap (for producer version detection).
@@ -98,8 +100,8 @@ public:
         // the stream-request. The stream-request is given success and our dummy
         // failover table.
         Frame frame;
-        auto stepDcp = [&frame, &connection]() {
-            connection.recvFrame(frame);
+        auto stepDcp = [&frame, this]() {
+            conn->recvFrame(frame);
             EXPECT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic());
             return frame.getRequest();
         };
@@ -108,17 +110,16 @@ public:
             const auto* request = stepDcp();
             if (request->getClientOpcode() ==
                 cb::mcbp::ClientOpcode::DcpStreamReq) {
-                connection.dcpStreamRequestResponse(request->getOpaque(),
-                                                    failovers);
+                conn->dcpStreamRequestResponse(request->getOpaque(), failovers);
                 break;
             }
-            connection.sendCommand(BinprotCommandResponse{
-                    request->getClientOpcode(), request->getOpaque()});
+            conn->sendCommand(BinprotCommandResponse{request->getClientOpcode(),
+                                                     request->getOpaque()});
         }
 
         // And finally AddStream response now that the stream is ready.
         BinprotResponse rsp;
-        connection.recvResponse(rsp);
+        conn->recvResponse(rsp);
         ASSERT_TRUE(rsp.isSuccess());
     }
 
@@ -215,7 +216,7 @@ public:
         return cas++;
     }
 
-    MemcachedConnection* conn{nullptr};
+    std::unique_ptr<MemcachedConnection> conn;
     Document doc;
     static uint64_t seqno;
     static uint64_t cas;
