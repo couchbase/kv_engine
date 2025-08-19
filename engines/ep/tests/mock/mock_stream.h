@@ -352,10 +352,6 @@ public:
         return readyQ;
     }
 
-    const std::string public_createStreamReqValue() const {
-        return createStreamReqValue();
-    }
-
     bool getCurSnapshotPrepare() const {
         return cur_snapshot_prepare.load(std::memory_order_relaxed);
     }

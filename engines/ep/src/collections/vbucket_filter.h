@@ -270,6 +270,14 @@ public:
     }
 
     /**
+     * @return the free memory available for cache transfer (value provided by
+     * peer)
+     */
+    std::optional<size_t> getCacheTransferFreeMemory() const {
+        return cacheTransferFreeMemory;
+    }
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
@@ -367,6 +375,7 @@ protected:
     bool scopeIsDropped = false;
     bool defaultAllowed = false;
     uint64_t remotePurgeSeqno{0};
+    std::optional<size_t> cacheTransferFreeMemory;
 
     enum class FilterType {
         // The "bucket stream" - everything is allowed

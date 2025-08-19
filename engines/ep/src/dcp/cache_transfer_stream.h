@@ -91,10 +91,20 @@ public:
         /// memory. Caller should yield visiting.
         OOM,
 
+        /// maybeQueueItem() has detected that no more items will fit in the
+        /// client's cache. Caller should stop visiting and evaluate next steps.
+        ReachedClientMemoryLimit,
+
         /// maybeQueueItem() has not queued an item. Caller should stop
         /// visiting, e.g. the stream has been closed.
         Stop
     };
+
+    static bool isFinished(Status status) {
+        return status == Status::Stop ||
+               status == Status::ReachedClientMemoryLimit;
+    }
+
     Status maybeQueueItem(const StoredValue&, Collections::VB::ReadHandle&);
 
     /**
@@ -177,6 +187,10 @@ protected:
     /// Total bytes queued
     size_t totalBytesQueued{0};
 
+    /// Optional track how much remaining memory is available (this is the
+    /// target cache size provided by the client).
+    std::optional<size_t> availableBytes{0};
+
     /// Filter to apply to the items in the stream.
     Collections::VB::Filter filter;
 
@@ -186,3 +200,8 @@ protected:
     /// The last sequence number popped/sent from the stream.
     uint64_t lastSeqno{0};
 };
+
+std::string to_string(CacheTransferStream::Status status);
+inline auto format_as(CacheTransferStream::Status status) {
+    return to_string(status);
+}

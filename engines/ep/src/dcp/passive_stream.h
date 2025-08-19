@@ -310,7 +310,15 @@ protected:
      */
     void notifyStreamReady();
 
-    [[nodiscard]] std::string createStreamReqValue() const;
+    /**
+     * Create a stream request value (JSON - see stream-request-value.md)
+     * @param cacheTransferEnabled whether cache transfer is enabled (set in
+     * stream request flags)
+     * @param freeMem free-memory available for a cache transfer
+     * @return The stream request JSON as a string.
+     */
+    [[nodiscard]] std::string createStreamReqValue(bool cacheTransferEnabled,
+                                                   size_t freeMem) const;
 
     /**
      * RAII class. At dtor the logic triggers post-processMessage steps.
@@ -370,6 +378,21 @@ protected:
      * Check if the event is a CachedValue and the eviction policy is Full.
      */
     bool isCacheTransferAndFullEviction(const DcpResponse& resp) const;
+
+    /**
+     * Add any cache transfer request configuration to the given json object.
+     * @param stream_req_json [outin] The stream request
+     *                        json to add the cache* transfer request to.
+     */
+    void generateCacheTransferRequest(nlohmann::json& stream_req_json,
+                                      size_t freeMem) const;
+
+    /**
+     * Setup the stream request for a new stream request. Checks current memory
+     * conditions, generates the JSON value and maybe tweaks the flags
+     * @return the flags for the new stream request
+     */
+    cb::mcbp::DcpAddStreamFlag setupForNewStreamRequest();
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
@@ -454,6 +477,8 @@ protected:
 
     // Flag indicating if the CacheTransfer has logged out of memory.
     bool hasLoggedCacheTransferOutOfMemory{false};
+
+    std::string stream_req_value;
 
     // Set of states that the vbucket must match for a PassiveStream to attempt
     // processing messages.

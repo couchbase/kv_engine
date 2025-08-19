@@ -19,6 +19,7 @@
 #include "ep_time.h"
 #include "executor/executorpool.h"
 #include "hash_table.h"
+#include "kv_bucket.h"
 #include "progress_tracker.h"
 #include "stored-value.h"
 #include "vbucket.h"
@@ -146,9 +147,11 @@ bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
 
     // Pass v to the stream which may queue the item, ignore it or request that
     // visiting yields/stops.
-    switch (stream->maybeQueueItem(v, readHandle)) {
+    status = stream->maybeQueueItem(v, readHandle);
+    switch (status) {
     case CacheTransferStream::Status::OOM:
     case CacheTransferStream::Status::Stop:
+    case CacheTransferStream::Status::ReachedClientMemoryLimit:
         return false;
     case CacheTransferStream::Status::QueuedItem:
         ++queuedCount;
@@ -235,7 +238,8 @@ bool CacheTransferTask::run() {
                 return reschedule;
             };
 
-    if (position == vb->ht.endPosition()) {
+    if (position == vb->ht.endPosition() ||
+        CacheTransferStream::isFinished(visitor.getStatus())) {
         // Calculate total runtime
         auto endTime = cb::time::steady_clock::now();
         auto totalRuntimeMs =
@@ -246,10 +250,13 @@ bool CacheTransferTask::run() {
         // Reached end of HT
         OBJ_LOG_INFO_CTX(
                 stream,
-                "CacheTransferTask::run: Reached HT end.",
+                "CacheTransferTask::run: completed.",
                 {{"vb", vbid},
+                 {"ht_end", position == vb->ht.endPosition()},
+                 {"status", visitor.getStatus()},
                  {"visited_count", visitedCount},
                  {"queued_count", queuedCount},
+                 {"ht_num_items", vb->ht.getNumItems()},
                  {"total_runtime_ms", totalRuntimeMs},
                  {"total_bytes_queued", stream.getTotalBytesQueued()}});
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
@@ -292,16 +299,20 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                      req.vbucket_uuid),
       engine(engine),
       includeValue(includeValue),
+      availableBytes(filter.getCacheTransferFreeMemory()),
       filter(std::move(filter)),
       request(req) {
     Expects(p);
-    OBJ_LOG_INFO_CTX(p->getLogger(),
-                     "Creating CacheTransferStream",
-                     {"max_seqno", request.start_seqno},
-                     {"end_seqno", request.end_seqno},
-                     {"vb", vbid},
-                     {"vbucket_uuid", request.vbucket_uuid},
-                     {"include_value", includeValue});
+    OBJ_LOG_INFO_CTX(
+            p->getLogger(),
+            "Creating CacheTransferStream",
+            {"max_seqno", request.start_seqno},
+            {"end_seqno", request.end_seqno},
+            {"vb", vbid},
+            {"vbucket_uuid", request.vbucket_uuid},
+            {"include_value", includeValue},
+            {"available_bytes",
+             availableBytes.value_or(std::numeric_limits<size_t>::max())});
 }
 
 void CacheTransferStream::setActive() {
@@ -394,7 +405,8 @@ void CacheTransferStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     size_t streamTid{0};
     size_t streamTotalBytesQueued{0};
     size_t streamLastSeqno{0};
-    IncludeValue streamIncludeValue{IncludeValue::Yes};
+    auto streamIncludeValue{IncludeValue::Yes};
+    std::optional<size_t> streamAvailableBytes;
 
     {
         std::lock_guard<std::mutex> lh(streamMutex);
@@ -402,12 +414,16 @@ void CacheTransferStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
         streamIncludeValue = includeValue;
         streamTotalBytesQueued = totalBytesQueued;
         streamLastSeqno = lastSeqno;
+        streamAvailableBytes = availableBytes;
     }
     add_casted_stat("tid", streamTid, add_stat, c);
     add_casted_stat(
             "include_value", to_string(streamIncludeValue), add_stat, c);
     add_casted_stat("total_bytes_queued", streamTotalBytesQueued, add_stat, c);
     add_casted_stat("last_sent_seqno", streamLastSeqno, add_stat, c);
+    if (streamAvailableBytes) {
+        add_casted_stat("available_bytes", *streamAvailableBytes, add_stat, c);
+    }
 }
 
 std::string CacheTransferStream::getStreamTypeName() const {
@@ -533,6 +549,17 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         return Status::KeepVisiting;
     }
 
+    if (availableBytes && *availableBytes < sv.size()) {
+        // We could KeepVisiting and maybe hope to "find" items that fit,
+        // but let's just call it a day.
+        OBJ_LOG_INFO_CTX(*this,
+                         "CacheTransferStream stopping as have reached "
+                         "requested transfer limit",
+                         {"sv_size", sv.size()},
+                         {"available_bytes", *availableBytes});
+        return Status::ReachedClientMemoryLimit;
+    }
+
     OBJ_LOG_DEBUG_CTX(
             *this, "CacheTransferStream queuing", {"sv", nlohmann::json{sv}});
 
@@ -563,6 +590,12 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             return Status::Stop;
         }
         totalBytesQueued += response->getMessageSize();
+        if (availableBytes) {
+            // reduce to 0 (we may go over by max value but maybe that's ok)
+            *availableBytes = (*availableBytes > sv.size())
+                                      ? (*availableBytes - sv.size())
+                                      : 0;
+        }
         pushToReadyQ(std::move(response));
     }
 
@@ -597,4 +630,20 @@ void CacheTransferStream::logWithContext(spdlog::level::level_enum level,
             getGlobalBucketLogger()->logWithContext(level, msg, std::move(ctx));
         }
     }
+}
+
+std::string to_string(CacheTransferStream::Status status) {
+    switch (status) {
+    case CacheTransferStream::Status::QueuedItem:
+        return "QueuedItem";
+    case CacheTransferStream::Status::KeepVisiting:
+        return "KeepVisiting";
+    case CacheTransferStream::Status::OOM:
+        return "OOM";
+    case CacheTransferStream::Status::ReachedClientMemoryLimit:
+        return "ReachedClientMemoryLimit";
+    case CacheTransferStream::Status::Stop:
+        return "Stop";
+    }
+    folly::assume_unreachable();
 }

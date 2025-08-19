@@ -96,13 +96,13 @@ void PassiveStream::streamRequest(uint64_t vb_uuid) {
 }
 
 void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
-    auto stream_req_value = createStreamReqValue();
+    const auto flags = setupForNewStreamRequest();
 
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
     pushToReadyQ(std::make_unique<StreamRequest>(
             vb_,
             opaque_,
-            flags_,
+            flags,
             start_seqno_,
             std::numeric_limits<uint64_t>::max(),
             start_seqno_ ? vb_uuid : 0,
@@ -121,9 +121,8 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                      {"vb_uuid", vb_uuid},
                      {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
                      {"last_seqno", last_seqno.load()},
-                     {"stream_req_value",
-                      stream_req_value.empty() ? "none" : stream_req_value},
-                     {"flags", flags_});
+                     {"stream_req_value", stream_req_value},
+                     {"flags", flags});
 }
 
 void PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
@@ -247,7 +246,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
         info.range.setStart(info.start);
     }
 
-    auto stream_req_value = createStreamReqValue();
+    const auto flags = setupForNewStreamRequest();
 
     {
         std::lock_guard<std::mutex> lh(streamMutex);
@@ -267,12 +266,13 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
                          {"start_seqno", start_seqno},
                          {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
                          {"value", stream_req_value},
-                         {"vb_uuid", vb_uuid_});
+                         {"vb_uuid", vb_uuid_},
+                         {"flags", flags});
 
         pushToReadyQ(std::make_unique<StreamRequest>(
                 vb_,
                 new_opaque,
-                flags_,
+                flags,
                 start_seqno,
                 std::numeric_limits<uint64_t>::max(),
                 vb_uuid_,
@@ -1203,12 +1203,7 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
                         add_stat,
                         c);
 
-        auto stream_req_value = createStreamReqValue();
-
-        if (!stream_req_value.empty()) {
-            add_casted_stat(
-                    "vb_manifest_uid", stream_req_value.c_str(), add_stat, c);
-        }
+        add_casted_stat("request_value", stream_req_value, add_stat, c);
 
     } catch (std::exception& error) {
         OBJ_LOG_INFO_CTX(*this,
@@ -1281,12 +1276,21 @@ void PassiveStream::notifyStreamReady() {
     }
 }
 
-std::string PassiveStream::createStreamReqValue() const {
+std::string PassiveStream::createStreamReqValue(bool cacheTransferEnabled,
+                                                size_t freeMem) const {
     nlohmann::json stream_req_json;
-    std::ostringstream ostr;
-    ostr << std::hex << static_cast<uint64_t>(vb_manifest_uid);
-    stream_req_json["uid"] = ostr.str();
+    stream_req_json["uid"] = fmt::format("{:x}", vb_manifest_uid);
+    if (cacheTransferEnabled) {
+        generateCacheTransferRequest(stream_req_json, freeMem);
+    }
     return stream_req_json.dump();
+}
+
+void PassiveStream::generateCacheTransferRequest(
+        nlohmann::json& stream_req_json, size_t freeMem) const {
+    nlohmann::json cts;
+    cts["free_memory"] = freeMem;
+    stream_req_json["cts"] = std::move(cts);
 }
 
 void PassiveStream::logWithContext(spdlog::level::level_enum severity,
@@ -1502,4 +1506,59 @@ cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
     }
 
     return cb::engine_errc::success;
+}
+
+cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest() {
+    size_t freeMem = 0;
+    auto flags = flags_; // copy flags and tweak them as needed
+
+    if (isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+        // CacheTransfer we can check memory and provide guidance to the
+        // producer so they don't just dump the entire cache that may not fit.
+        const auto mem_high_wat = engine->getEpStats().mem_high_wat.load();
+        const auto totalMem =
+                engine->getEpStats().getEstimatedTotalMemoryUsed();
+
+        if (totalMem >= mem_high_wat) {
+            // Full-Eviction. Disable doing a cache transfer as we're over HWM.
+            // Note we could also add a threshold in the detection, it's likely
+            // a cache transfer is not much use if we're some small number of
+            // bytes under HWM...
+            if (engine->getKVBucket()->isFullEviction()) {
+                flags = flags & ~cb::mcbp::DcpAddStreamFlag::CacheTransfer;
+            }
+            // else value-eviction must keep the cache transfer enabled but we
+            // must set freeMem to 0 in both cases.
+            freeMem = 0;
+        } else {
+            // How much memory available below HWM?
+            const auto totalFreeMem = mem_high_wat - totalMem;
+
+            // freeMem is the amount of memory available per vbucket.
+            // Note we could possibly tweak this for takeover vs non-takeover
+            // (takeover will become active and could try and inflate freeMem).
+            freeMem = totalFreeMem /
+                      (engine->getKVBucket()->getNumOfVBucketsInState(
+                               vbucket_state_active) +
+                       engine->getKVBucket()->getNumOfVBucketsInState(
+                               vbucket_state_replica) +
+                       engine->getKVBucket()->getNumOfVBucketsInState(
+                               vbucket_state_pending));
+        }
+
+        OBJ_LOG_INFO_CTX(*this,
+                         "PassiveStream::"
+                         "setupForNewStreamRequest "
+                         "CacheTransfer",
+                         {"freeMem", freeMem},
+                         {"totalMem", totalMem},
+                         {"mem_high_wat", mem_high_wat},
+                         {"flags", flags});
+    }
+
+    stream_req_value = createStreamReqValue(
+            isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer),
+            freeMem);
+
+    return flags;
 }

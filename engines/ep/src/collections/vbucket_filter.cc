@@ -200,14 +200,30 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         remotePurgeSeqno = std::stoull(purgeString.get<std::string>());
     }
 
+    // Look for any CacheTransferStream customisation.
+    const auto ctsObject = json.find("cts");
+    if (ctsObject != json.end()) {
+        auto cts = cb::getJsonObject(json,
+                                     "cts",
+                                     nlohmann::json::value_t::object,
+                                     "Filter::constructFromJson");
+        if (const auto entry = cts.find("free_memory"); entry != cts.end()) {
+            cb::throwIfWrongType("free_memory",
+                                 *entry,
+                                 nlohmann::json::value_t::number_unsigned,
+                                 "Filter::constructFromJson");
+            cacheTransferFreeMemory = entry->get<size_t>();
+        }
+    }
+
     // The input JSON must of contained at least a sid, uid, scope,
     // collections or purge_seqno key
     if (uidObject == json.end() && collectionsObject == json.end() &&
         scopesObject == json.end() && streamIdObject == json.end() &&
-        purgeSeqnoObject == json.end()) {
+        purgeSeqnoObject == json.end() && ctsObject == json.end()) {
         throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                "Filter::constructFromJson no sid, uid, scope, "
-                               "collections or purge_seqno found");
+                               "collections, purge_seqno or cts key found");
     }
 
     return {cb::engine_errc::success, rh.getManifestUid()};

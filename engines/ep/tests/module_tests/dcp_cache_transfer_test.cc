@@ -462,6 +462,46 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
     EXPECT_EQ(producers.last_dockey, k4);
 }
 
+TEST_P(DcpCacheTransferTest, free_memory_limit) {
+    auto item = store_item(Vbid(0), makeStoredDocKey("k2"), "2");
+    expectedItems.insert(item);
+
+    // CTS options are expressed in the JSON stream-request value.
+    // This test requires to reach the client memory limit after queuing one of
+    // the two possible items.
+    nlohmann::json ctsJson = {{"cts",
+                               {{"free_memory",
+                                 sizeof(StoredValue) + item.getKey().size() +
+                                         item.getValMemSize()}}}};
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                      1,
+                      Vbid(0),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->failovers->getLatestUUID(),
+                      0,
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      nullptr,
+                      mock_dcp_add_failover_log,
+                      ctsJson.dump()));
+
+    runCacheTransferTask();
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpCachedValue));
+    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
+                  return item.getKey() == producers.last_dockey;
+              }));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as
 // we cannot transfer the linked list or system events...
 INSTANTIATE_TEST_SUITE_P(

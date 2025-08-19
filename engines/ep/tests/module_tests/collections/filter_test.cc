@@ -112,17 +112,21 @@ public:
  * Test invalid JSON formats as an input
  */
 TEST_F(CollectionsVBFilterTest, junk_in) {
-    std::vector<std::string> inputs = {"not json",
-                                       "{}",
-                                       R"({"collections":1})",
-                                       R"({"collections:"this"})",
-                                       R"({"collections:{"a":1})",
-                                       R"({"collection:["a"])",
-                                       R"({"collections:[a])",
-                                       R"({"collections:[a]})",
-                                       R"({"scope":"1", "collections:[a])",
-                                       R"({"purge_seqno":1})",
-                                       R"({"purge_seqno":"p"})"};
+    std::vector<std::string> inputs = {
+            "not json",
+            "{}",
+            R"({"collections":1})",
+            R"({"collections:"this"})",
+            R"({"collections:{"a":1})",
+            R"({"collection:["a"])",
+            R"({"collections:[a])",
+            R"({"collections:[a]})",
+            R"({"scope":"1", "collections:[a])",
+            R"({"purge_seqno":1})",
+            R"({"purge_seqno":"p"})",
+            R"({"cts":{"free_memory":true}})",
+            R"({"cts":{"free_memory":"100"}})",
+    };
 
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
@@ -343,6 +347,14 @@ TEST_F(CollectionsVBFilterTest, purge_seqno) {
     Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
     EXPECT_EQ(8, f.getRemotePurgeSeqno());
 }
+
+TEST_F(CollectionsVBFilterTest, cache_transfer_free_memory) {
+    std::string input = R"({"cts":{"free_memory":100}})";
+    std::optional<std::string_view> json(input);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
+    EXPECT_EQ(f.getCacheTransferFreeMemory(), 100);
+}
+
 // class exposes some of the internal state flags
 class CollectionsTestFilter : public Collections::VB::Filter {
 public:

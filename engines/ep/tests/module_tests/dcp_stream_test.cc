@@ -1869,7 +1869,7 @@ TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
     expectStreamStat("snap_start_seqno");
     expectStreamStat("start_seqno");
     expectStreamStat("state");
-    expectStreamStat("vb_manifest_uid");
+    expectStreamStat("request_value");
     expectStreamStat("vb_uuid");
 
     EXPECT_TRUE(stats.empty());
