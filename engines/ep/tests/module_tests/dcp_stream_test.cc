@@ -892,16 +892,15 @@ TEST_P(StreamTest, DiskBackfillFail) {
    However small the backfill buffer is, backfill must not stop, it must
    proceed to completion eventually */
 TEST_P(StreamTest, BackfillSmallBuffer) {
-    GTEST_SKIP_("Skipping due to MB-53543");
     if (bucketType == "ephemeral") {
         /* Ephemeral buckets is not memory managed for now. Will be memory
            managed soon and then this test will be enabled */
-        return;
+        GTEST_SKIP();
     }
 
     /* Add 2 items */
     uint64_t numItems = 2;
-    addItemsAndRemoveCheckpoint(numItems);
+    addItemsAndRemoveCheckpoint(static_cast<int>(numItems));
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
@@ -932,14 +931,16 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
        the item in the backfill buffer */
     EXPECT_FALSE(producer->getBackfillBufferFullStatus());
 
+    /* Wait for the backfill to scan again */
+    cb::waitForPredicate(
+            [&] { return numItems == stream->getLastBackfilledSeqno(); });
+    /* Read the other item */
+    stream->consumeBackfillItems(*producer, 1);
     /* Finish up with the backilling of the remaining item */
     cb::waitForPredicate(
             [&] { return numItems == stream->getLastReadSeqno(); });
 
-    /* Read the other item */
-    stream->consumeBackfillItems(*producer, 1);
-
-    EXPECT_EQ(stream->getNumBackfillPauses(), 1);
+    EXPECT_EQ(stream->getNumBackfillPauses(), 2);
 
     // Ensure next backfill starts off with a 0 pause count.
     stream->handleSlowStream();
