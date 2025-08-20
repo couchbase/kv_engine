@@ -1202,29 +1202,28 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                                      std::string_view key,
                                      std::string_view value) {
     lastReceiveTime = ep_uptime_now();
-    const char* param = key.data();
-    std::string keyStr(key.data(), key.size());
-    std::string valueStr(value.data(), value.size());
 
-    if (strncmp(param, "backfill_order", key.size()) == 0) {
+    if (key == DcpControlKeys::BackfillOrder) {
         using ScheduleOrder = BackfillManager::ScheduleOrder;
-        if (valueStr == "round-robin") {
+        if (value == "round-robin") {
             backfillMgr->setBackfillOrder(ScheduleOrder::RoundRobin);
-        } else if (valueStr == "sequential") {
+        } else if (value == "sequential") {
             backfillMgr->setBackfillOrder(ScheduleOrder::Sequential);
         } else {
             engine_.setErrorContext(
                     *getCookie(),
-                    "Unsupported value '" + keyStr +
-                            "' for ctrl parameter 'backfill_order'");
+                    fmt::format("Unsupported value '{}' for ctrl parameter "
+                                "'{}'",
+                                value,
+                                key));
             return cb::engine_errc::invalid_arguments;
         }
         return cb::engine_errc::success;
     }
 
-    if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
+    if (key == DcpControlKeys::ConnectionBufferSize) {
         uint32_t size;
-        if (safe_strtoul(valueStr, size)) {
+        if (safe_strtoul(value, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
             log.wlock()->setBufferSize(size);
@@ -1232,20 +1231,20 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             getCookie()->getConnectionIface().setDcpFlowControlBufferSize(size);
             return cb::engine_errc::success;
         }
-    } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {
+    } else if (key == DcpControlKeys::StreamBufferSize) {
         logger->warnWithContext(
                 "The ctrl parameter stream_buffer_size is"
                 "not supported by this engine",
                 cb::logger::Json::object());
         return cb::engine_errc::not_supported;
-    } else if (strncmp(param, "enable_noop", key.size()) == 0) {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::EnableNoop) {
+        if (value == "true") {
             noopCtx.enabled = true;
         } else {
             noopCtx.enabled = false;
         }
         return cb::engine_errc::success;
-    } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
+    } else if (key == DcpControlKeys::ForceValueCompression) {
         if (!isSnappyEnabled()) {
             engine_.setErrorContext(
                     *getCookie(),
@@ -1254,27 +1253,27 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                     "snappy is enabled on the connection");
             return cb::engine_errc::invalid_arguments;
         }
-        if (valueStr == "true") {
+        if (value == "true") {
             forceValueCompression = true;
         } else {
             forceValueCompression = false;
         }
         return cb::engine_errc::success;
         // vulcan onwards we accept two cursor_dropping control keys.
-    } else if (keyStr == "supports_cursor_dropping_vulcan" ||
-               keyStr == "supports_cursor_dropping") {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::SupportsCursorDropping ||
+               key == DcpControlKeys::SupportsCursorDroppingVulcan) {
+        if (value == "true") {
             supportsCursorDropping = true;
         } else {
             supportsCursorDropping = false;
         }
         return cb::engine_errc::success;
-    } else if (strncmp(param, "supports_hifi_MFU", key.size()) == 0) {
-        consumerSupportsHifiMfu = (valueStr == "true");
+    } else if (key == DcpControlKeys::SupportsHifiMfu) {
+        consumerSupportsHifiMfu = (value == "true");
         return cb::engine_errc::success;
-    } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
+    } else if (key == DcpControlKeys::SetNoopInterval) {
         float noopInterval;
-        if (safe_strtof(valueStr, noopInterval)) {
+        if (safe_strtof(std::string{value}, noopInterval)) {
             /*
              * We need to ensure that we only set the noop interval to a value
              * that is greater or equal to the connection manager interval.
@@ -1300,24 +1299,24 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                      {"error", cb::engine_errc::invalid_arguments}});
             return cb::engine_errc::invalid_arguments;
         }
-    } else if (strncmp(param, "set_priority", key.size()) == 0) {
-        if (valueStr == "high") {
+    } else if (key == DcpControlKeys::SetPriority) {
+        if (value == "high") {
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::High);
             return cb::engine_errc::success;
         }
-        if (valueStr == "medium") {
+        if (value == "medium") {
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::Medium);
             return cb::engine_errc::success;
         }
-        if (valueStr == "low") {
+        if (value == "low") {
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::Low);
             return cb::engine_errc::success;
         }
-    } else if (keyStr == "send_stream_end_on_client_close_stream") {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::SendStreamEndOnClientCloseStream) {
+        if (value == "true") {
             sendStreamEndOnClientStreamClose = true;
         }
         /* Do not want to give an option to the client to disable this.
@@ -1325,18 +1324,18 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
            This is a one time setting and there is no point giving the client an
            option to toggle it back mid way during the connection */
         return cb::engine_errc::success;
-    } else if (strncmp(param, "enable_expiry_opcode", key.size()) == 0) {
+    } else if (key == DcpControlKeys::EnableExpiryOpcode) {
         // Expiry opcode uses the same encoding as deleteV2 (includes
         // delete time); therefore a client can only enable expiry_opcode
         // if the dcpOpen flags have includeDeleteTime set.
-        enableExpiryOpcode = valueStr == "true" &&
-                             includeDeleteTime == IncludeDeleteTime::Yes;
+        enableExpiryOpcode =
+                value == "true" && includeDeleteTime == IncludeDeleteTime::Yes;
 
         return cb::engine_errc::success;
-    } else if (keyStr == "enable_stream_id") {
+    } else if (key == DcpControlKeys::EnableStreamId) {
         // For simplicity, user cannot turn this off, it is by default off
         // and can only be enabled one-way per Producer.
-        if (valueStr == "true") {
+        if (value == "true") {
             if (supportsSyncReplication != SyncReplication::No) {
                 // MB-32318: stream-id and sync-replication denied
                 return cb::engine_errc::not_supported;
@@ -1344,8 +1343,8 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             multipleStreamRequests = MultipleStreamRequests::Yes;
             return cb::engine_errc::success;
         }
-    } else if (key == "enable_sync_writes") {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::EnableSyncWrites) {
+        if (value == "true") {
             if (multipleStreamRequests != MultipleStreamRequests::No) {
                 // MB-32318: stream-id and sync-replication denied
                 return cb::engine_errc::not_supported;
@@ -1360,24 +1359,24 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             }
             return cb::engine_errc::success;
         }
-    } else if (key == "consumer_name" && !valueStr.empty()) {
-        consumerName = valueStr;
+    } else if (key == DcpControlKeys::ConsumerName && !value.empty()) {
+        consumerName = std::string{value};
         if (supportsSyncReplication == SyncReplication::SyncWrites) {
             supportsSyncReplication = SyncReplication::SyncReplication;
         }
         return cb::engine_errc::success;
-    } else if (key == "enable_out_of_order_snapshots") {
+    } else if (key == DcpControlKeys::EnableOutOfOrderSnapshots) {
         // For simplicity, only enabling is allowed (it is off by default)
-        if (valueStr == "true") {
+        if (value == "true") {
             outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
             return cb::engine_errc::success;
         }
-        if (valueStr == "true_with_seqno_advanced") {
+        if (value == "true_with_seqno_advanced") {
             outOfOrderSnapshots = OutOfOrderSnapshots::YesWithSeqnoAdvanced;
             return cb::engine_errc::success;
         }
-    } else if (key == "include_deleted_user_xattrs") {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::IncludeDeletedUserXattrs) {
+        if (value == "true") {
             if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::Yes) {
                 return cb::engine_errc::success;
             }
@@ -1386,17 +1385,17 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             // IncludeDeletedUserXattrs, so we do not want to log as below
             return cb::engine_errc::invalid_arguments;
         }
-    } else if (key == "v7_dcp_status_codes") {
-        if (valueStr == "true") {
+    } else if (key == DcpControlKeys::V7DcpStatusCodes) {
+        if (value == "true") {
             enabledV7DcpStatus = true;
             return cb::engine_errc::success;
         }
         return cb::engine_errc::invalid_arguments;
     } else if (key == DcpControlKeys::FlatBuffersSystemEvents &&
-               valueStr == "true") {
+               value == "true") {
         flatBuffersSystemEventsEnabled = true;
         return cb::engine_errc::success;
-    } else if (key == DcpControlKeys::ChangeStreams && valueStr == "true") {
+    } else if (key == DcpControlKeys::ChangeStreams && value == "true") {
         if (!engine_.getKVBucket()->getStorageProperties().canRetainHistory()) {
             return cb::engine_errc::not_supported;
         }
@@ -1404,7 +1403,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         changeStreams = true;
         return cb::engine_errc::success;
     } else if (key == DcpControlKeys::SnapshotMaxMarkerVersion &&
-               valueStr == "2.2") {
+               value == "2.2") {
         // Only allow this snapshot marker if collections are enabled. This is
         // primarily to avoid having to deal with purge-seqno from
         // markLegacyDiskSnapshot
@@ -1412,7 +1411,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             logger->warn(
                     "Rejected control {}={} because collections are disabled",
                     key,
-                    valueStr);
+                    value);
             return cb::engine_errc::not_supported;
         }
         maxMarkerVersion = MarkerVersion::V2_2;
@@ -1420,7 +1419,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
     }
 
     logger->warnWithContext("Invalid ctrl parameter",
-                            {{"value", valueStr}, {"key", keyStr}});
+                            {{"value", value}, {"key", key}});
 
     return cb::engine_errc::invalid_arguments;
 }

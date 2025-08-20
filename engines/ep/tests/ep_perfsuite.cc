@@ -879,8 +879,10 @@ static void perf_dcp_client(EngineIface* h,
             cb::engine_errc::success,
             "Failed dcp producer open connection");
 
-    checkeq(dcp.control(
-                    *cookie, ++streamOpaque, "connection_buffer_size", "1024"),
+    checkeq(dcp.control(*cookie,
+                        ++streamOpaque,
+                        DcpControlKeys::ConnectionBufferSize,
+                        "1024"),
             cb::engine_errc::success,
             "Failed to establish connection buffer");
 

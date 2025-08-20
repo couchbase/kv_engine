@@ -175,22 +175,32 @@ std::string to_string(MarkerVersion);
 // See docs/dcp/documentation/commands/control.md for more information on
 // control keys.
 namespace DcpControlKeys {
+using namespace std::string_view_literals;
+constexpr std::string_view BackfillOrder = "backfill_order"sv;
+constexpr std::string_view ConnectionBufferSize = "connection_buffer_size"sv;
+constexpr std::string_view StreamBufferSize = "stream_buffer_size"sv;
+constexpr std::string_view EnableNoop = "enable_noop"sv;
+constexpr std::string_view ForceValueCompression = "force_value_compression"sv;
+constexpr std::string_view SupportsCursorDropping =
+        "supports_cursor_dropping"sv;
+constexpr std::string_view SupportsCursorDroppingVulcan =
+        "supports_cursor_dropping_vulcan"sv;
+constexpr std::string_view SupportsHifiMfu = "supports_hifi_MFU"sv;
+constexpr std::string_view SetNoopInterval = "set_noop_interval"sv;
+constexpr std::string_view SetPriority = "set_priority"sv;
+constexpr std::string_view SendStreamEndOnClientCloseStream =
+        "send_stream_end_on_client_close_stream"sv;
+constexpr std::string_view EnableExpiryOpcode = "enable_expiry_opcode"sv;
+constexpr std::string_view EnableStreamId = "enable_stream_id"sv;
+constexpr std::string_view ConsumerName = "consumer_name"sv;
+constexpr std::string_view EnableOutOfOrderSnapshots =
+        "enable_out_of_order_snapshots"sv;
+constexpr std::string_view IncludeDeletedUserXattrs =
+        "include_deleted_user_xattrs"sv;
+constexpr std::string_view V7DcpStatusCodes = "v7_dcp_status_codes"sv;
 constexpr std::string_view FlatBuffersSystemEvents =
-        "flatbuffers_system_events";
-constexpr std::string_view ChangeStreams = "change_streams";
-constexpr std::string_view Priority = "set_priority";
-constexpr std::string_view CursorDropping = "supports_cursor_dropping_vulcan";
-constexpr std::string_view HifiMfu = "supports_hifi_MFU";
-constexpr std::string_view SendStreamEndOnClientStream =
-        "send_stream_end_on_client_close_stream";
-constexpr std::string_view ExpiryOpcode = "enable_expiry_opcode";
-constexpr std::string_view SyncReplication = "enable_sync_writes";
-constexpr std::string_view ConsumerName = "consumer_name";
-constexpr std::string_view V7DcpStatusCodes = "v7_dcp_status_codes";
-constexpr std::string_view DeletedUserXattrs = "include_deleted_user_xattrs";
-constexpr std::string_view EnableNoop = "enable_noop";
-constexpr std::string_view NoopInterval = "set_noop_interval";
-constexpr std::string_view ConnBufferSize = "connection_buffer_size";
-constexpr std::string_view SnapshotMaxMarkerVersion = "max_marker_version";
-
+        "flatbuffers_system_events"sv;
+constexpr std::string_view ChangeStreams = "change_streams"sv;
+constexpr std::string_view EnableSyncWrites = "enable_sync_writes"sv;
+constexpr std::string_view SnapshotMaxMarkerVersion = "max_marker_version"sv;
 } // namespace DcpControlKeys

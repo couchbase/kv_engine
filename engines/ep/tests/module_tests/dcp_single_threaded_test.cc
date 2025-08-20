@@ -488,7 +488,8 @@ void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
             *engine, cookie, "test_producer", dcpOpenFlags);
     EXPECT_EQ(producerState, producer->public_getIncludeDeletedUserXattrs());
     EXPECT_EQ(expectedControlResp,
-              producer->control(0, "include_deleted_user_xattrs", "true"));
+              producer->control(
+                      0, DcpControlKeys::IncludeDeletedUserXattrs, "true"));
 
     destroy_mock_cookie(cookie);
 }
@@ -680,13 +681,11 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
 
     /* Send a control message to the producer indicating that the DCP client
        expects a "DCP_STREAM_END" upon stream close */
-    const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
-            "send_stream_end_on_client_close_stream");
-    const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0,
-                                sendStreamEndOnClientStreamCloseCtrlMsg,
-                                sendStreamEndOnClientStreamCloseCtrlValue));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->control(0,
+                              DcpControlKeys::SendStreamEndOnClientCloseStream,
+                              "true"));
 
     /* Open stream */
     EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -1077,13 +1076,11 @@ TEST_P(STDcpTest, MB_45863) {
 
     /* Send a control message to the producer indicating that the DCP client
        expects a "DCP_STREAM_END" upon stream close */
-    const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
-            "send_stream_end_on_client_close_stream");
-    const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0,
-                                sendStreamEndOnClientStreamCloseCtrlMsg,
-                                sendStreamEndOnClientStreamCloseCtrlValue));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->control(0,
+                              DcpControlKeys::SendStreamEndOnClientCloseStream,
+                              "true"));
 
     /* Open stream */
     EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -1196,7 +1193,7 @@ TEST_P(STDcpConsumerTest,
        ConsumerNegotiatesDeletedUserXattrs_DisabledAtProducer) {
     testConsumerNegotiates(
             cb::mcbp::Status::UnknownCommand,
-            DcpControlKeys::DeletedUserXattrs,
+            DcpControlKeys::IncludeDeletedUserXattrs,
             "true",
             [](const MockDcpConsumer& consumer) {
                 return consumer.public_getIncludeDeletedUserXattrs() ==
@@ -1208,7 +1205,7 @@ TEST_P(STDcpConsumerTest,
        ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
     testConsumerNegotiates(
             cb::mcbp::Status::Success,
-            DcpControlKeys::DeletedUserXattrs,
+            DcpControlKeys::IncludeDeletedUserXattrs,
             "true",
             [](const MockDcpConsumer& consumer) {
                 return consumer.public_getIncludeDeletedUserXattrs() ==
@@ -1275,7 +1272,7 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesV7StatusCodes_EnabledAtProducer) {
 TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerAccepts) {
     // Validate that there is no seconds negotiation pending
     for (const auto& control : *consumer->public_getPendingControls().lock()) {
-        if (control.key == DcpControlKeys::NoopInterval &&
+        if (control.key == DcpControlKeys::SetNoopInterval &&
             control.value == "1") {
             FAIL() << "Expected millisecond negotiation";
         }
@@ -1283,14 +1280,14 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerAccepts) {
 
     testConsumerNegotiates(
             cb::mcbp::Status::Success,
-            DcpControlKeys::NoopInterval,
+            DcpControlKeys::SetNoopInterval,
             "0.100000",
             [](const MockDcpConsumer& consumer) {
                 // validate that the consumer's pendingControl
                 // does not include the seconds negotiate
                 for (const auto& control :
                      *consumer.public_getPendingControls().lock()) {
-                    if (control.key == DcpControlKeys::NoopInterval &&
+                    if (control.key == DcpControlKeys::SetNoopInterval &&
                         control.value == "1") {
                         return false;
                     }
@@ -1302,7 +1299,7 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerAccepts) {
 TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerFails) {
     // Validate that there is no seconds negotiation pending
     for (const auto& control : *consumer->public_getPendingControls().lock()) {
-        if (control.key == DcpControlKeys::NoopInterval &&
+        if (control.key == DcpControlKeys::SetNoopInterval &&
             control.value == "1") {
             FAIL() << "Expected millisecond negotiation";
         }
@@ -1310,14 +1307,14 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerFails) {
 
     testConsumerNegotiates(
             cb::mcbp::Status::Einval,
-            DcpControlKeys::NoopInterval,
+            DcpControlKeys::SetNoopInterval,
             "0.100000",
             [](const MockDcpConsumer& consumer) {
                 // validate that the consumer's pendingControl
                 // now includes the seconds negotiate
                 for (const auto& control :
                      *consumer.public_getPendingControls().lock()) {
-                    if (control.key == DcpControlKeys::NoopInterval &&
+                    if (control.key == DcpControlKeys::SetNoopInterval &&
                         control.value == "1") {
                         return true;
                     }
@@ -1327,7 +1324,7 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerFails) {
 
     // Now we should get the seconds negotiated
     testConsumerNegotiates(cb::mcbp::Status::Einval,
-                           DcpControlKeys::NoopInterval,
+                           DcpControlKeys::SetNoopInterval,
                            "1",
                            [](const MockDcpConsumer& consumer) {
                                return true; // @todo: what can we check?

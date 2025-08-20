@@ -98,10 +98,12 @@ void DcpProducerConfig::configure(MockDcpProducer& producer) const {
     }
 
     if (useSyncReplication()) {
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                producer.control(1, DcpControlKeys::EnableSyncWrites, "true"));
         EXPECT_EQ(cb::engine_errc::success,
-                  producer.control(1, "enable_sync_writes", "true"));
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer.control(1, "consumer_name", "mock_replication"));
+                  producer.control(
+                          1, DcpControlKeys::ConsumerName, "mock_replication"));
     }
 
     if (useFlatBufferEvents()) {

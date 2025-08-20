@@ -581,7 +581,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
         EXPECT_EQ(cb::engine_errc::success,
                   producer->control(
                           1,
-                          "connection_buffer_size",
+                          DcpControlKeys::ConnectionBufferSize,
                           std::to_string(producer->getBytesOutstanding())));
     });
 
@@ -596,7 +596,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(
                       1,
-                      "connection_buffer_size",
+                      DcpControlKeys::ConnectionBufferSize,
                       std::to_string(producer->getBytesOutstanding() * 2)));
 
     // Resetting hook to unblock buffer log check

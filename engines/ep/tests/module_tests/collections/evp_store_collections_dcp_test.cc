@@ -959,7 +959,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
     createDcpObjects({{nullptr, 0}});
 
     ASSERT_EQ(cb::engine_errc::success,
-              producer->control(0, "force_value_compression", "true"));
+              producer->control(
+                      0, DcpControlKeys::ForceValueCompression, "true"));
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
     // delete. So check DCP sends only 1 collection create (of dairy2) and the
@@ -2067,7 +2068,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009_deny_sync_writes) {
             cookieP, IncludeDeleteTime::No);
 
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0 /*opaque*/, "enable_sync_writes", "true"));
+              producer->control(
+                      0 /*opaque*/, DcpControlKeys::EnableSyncWrites, "true"));
 
     uint64_t rollbackSeqno;
     EXPECT_EQ(cb::engine_errc::not_supported,

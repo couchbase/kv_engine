@@ -260,8 +260,8 @@ public:
     /* if clear is true, it will also clear the stream vector */
     cb::engine_errc closeStreams(bool fClear = false);
 
-    cb::engine_errc sendControlMessage(const std::string& name,
-                                       const std::string& value);
+    cb::engine_errc sendControlMessage(std::string_view key,
+                                       std::string_view value);
 
     const std::vector<int>& getNruCounters() const {
         return nruCounter;
@@ -345,9 +345,9 @@ private:
                             DeletionOpcode delOrExpire);
 };
 
-cb::engine_errc TestDcpConsumer::sendControlMessage(const std::string& name,
-                                                    const std::string& value) {
-    return dcp->control(*cookie, ++opaque, name, value);
+cb::engine_errc TestDcpConsumer::sendControlMessage(
+        const std::string_view key, const std::string_view value) {
+    return dcp->control(*cookie, ++opaque, key, value);
 }
 
 void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
@@ -392,7 +392,8 @@ void TestDcpConsumer::run(bool openConn) {
     if (collectionFilter) {
         // Enable noop ops needed for collections
         checkeq(cb::engine_errc::success,
-                dcp->control(*cookie, opaque, "enable_noop", "true"),
+                dcp->control(
+                        *cookie, opaque, DcpControlKeys::EnableNoop, "true"),
                 "Failed to enable noop");
     }
     /* Open streams in the above open connection */
@@ -754,7 +755,7 @@ void TestDcpConsumer::openConnection(cb::mcbp::DcpOpenFlag flags) {
     checkeq(cb::engine_errc::success,
             dcp->control(*cookie,
                          ++opaque,
-                         "connection_buffer_size",
+                         DcpControlKeys::ConnectionBufferSize,
                          flow_control_buf_sz),
             "Failed to establish connection buffer");
     char stats_buffer[50] = {0};
@@ -1495,10 +1496,12 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                         "Expected DcpControl to be initiated");
                 simulateProdRespToDcpControlBlockingNegotiation(
                         h, cookie[i], producers);
-            } while (producers.last_key != "connection_buffer_size");
+            } while (producers.last_key !=
+                     DcpControlKeys::ConnectionBufferSize);
 
             checkeq(0,
-                    producers.last_key.compare("connection_buffer_size"),
+                    producers.last_key.compare(
+                            DcpControlKeys::ConnectionBufferSize),
                     "Flow ctl buf size change control message key error");
             checkeq(expectedBufferSize,
                     static_cast<uint64_t>(atoll(producers.last_value.c_str())),
@@ -1610,12 +1613,12 @@ static enum test_result test_dcp_noop(EngineIface* h) {
                       name,
                       R"({"consumer_name":"replica1"})"),
             "Failed dcp producer open connection.");
-    const std::string param1_name("connection_buffer_size");
+    const std::string param1_name(DcpControlKeys::ConnectionBufferSize);
     const std::string param1_value("1024");
     checkeq(cb::engine_errc::success,
             dcp->control(*cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
-    const std::string param2_name("enable_noop");
+    const std::string param2_name(DcpControlKeys::EnableNoop);
     const std::string param2_value("true");
     checkeq(cb::engine_errc::success,
             dcp->control(*cookie, ++opaque, param2_name, param2_value),
@@ -1671,12 +1674,12 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
                       name,
                       R"({"consumer_name":"replica1"})"),
             "Failed dcp producer open connection.");
-    const std::string param1_name("connection_buffer_size");
+    const std::string param1_name(DcpControlKeys::ConnectionBufferSize);
     const std::string param1_value("1024");
     checkeq(cb::engine_errc::success,
             dcp->control(*cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
-    const std::string param2_name("enable_noop");
+    const std::string param2_name(DcpControlKeys::EnableNoop);
     const std::string param2_value("true");
     checkeq(cb::engine_errc::success,
             dcp->control(*cookie, ++opaque, param2_name, param2_value),
@@ -1776,7 +1779,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
 
     // Setup noop on the DCP connection.
     checkeq(cb::engine_errc::success,
-            tdc.sendControlMessage("enable_noop",
+            tdc.sendControlMessage(DcpControlKeys::EnableNoop,
                                    enableNoop ? "true" : "false"),
             "Failed to configure noop");
 
@@ -2174,7 +2177,8 @@ static test_result testDcpProducerExpiredItemBackfill(
 
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
         checkeq(cb::engine_errc::success,
-                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                tdc.sendControlMessage(DcpControlKeys::EnableExpiryOpcode,
+                                       "true"),
                 "Failed to enable_expiry_opcode");
     }
 
@@ -2428,7 +2432,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     tdc.openConnection(flags);
 
     checkeq(cb::engine_errc::success,
-            tdc.sendControlMessage("supports_hifi_MFU", "true"),
+            tdc.sendControlMessage(DcpControlKeys::SupportsHifiMfu, "true"),
             "Failed to configure MFU");
 
     DcpStreamCtx ctx;
@@ -3091,16 +3095,17 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
 
     auto dcpStepAndExpectControlMsg =
             [&engine, cookie, opaque, &producers](
-                    const std::string& controlKey) {
+                    const std::string_view& controlKey) {
                 dcp_step(engine, cookie, producers);
                 checkeq(cb::mcbp::ClientOpcode::DcpControl,
                         producers.last_op,
                         "Unexpected last_op");
-                checkeq(controlKey, producers.last_key, "Unexpected key");
+                checkeq(std::string(controlKey),
+                        producers.last_key,
+                        "Unexpected key");
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
                 simulateProdRespToDcpControlBlockingNegotiation(
                         engine, cookie, producers);
-
             };
 
     if (get_bool_stat(engine, "ep_dcp_enable_noop")) {
@@ -3122,10 +3127,10 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
         dcpHandleResponse(engine, cookie, resp, producers);
 
         // Check that the enable noop message is sent
-        dcpStepAndExpectControlMsg("enable_noop"s);
+        dcpStepAndExpectControlMsg(DcpControlKeys::EnableNoop);
 
         // Check that the set noop interval message is sent
-        dcpStepAndExpectControlMsg("set_noop_interval"s);
+        dcpStepAndExpectControlMsg(DcpControlKeys::SetNoopInterval);
         // MB-56973: Consumer ewouldblocks waiting for a response from producer,
         // so send a response so setup can continue.
         resp.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -3135,22 +3140,21 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
         dcpHandleResponse(engine, cookie, resp, producers);
     }
 
-    dcpStepAndExpectControlMsg("set_priority"s);
-    dcpStepAndExpectControlMsg("supports_cursor_dropping_vulcan"s);
-    dcpStepAndExpectControlMsg("supports_hifi_MFU"s);
-    dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
-    dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
-    dcpStepAndExpectControlMsg("enable_sync_writes"s);
-    dcpStepAndExpectControlMsg("consumer_name"s);
-    dcpStepAndExpectControlMsg("include_deleted_user_xattrs"s);
-    dcpStepAndExpectControlMsg("v7_dcp_status_codes"s);
+    dcpStepAndExpectControlMsg(DcpControlKeys::SetPriority);
+    dcpStepAndExpectControlMsg(DcpControlKeys::SupportsCursorDroppingVulcan);
+    dcpStepAndExpectControlMsg(DcpControlKeys::SupportsHifiMfu);
     dcpStepAndExpectControlMsg(
-            std::string{DcpControlKeys::FlatBuffersSystemEvents});
-    dcpStepAndExpectControlMsg(std::string(DcpControlKeys::ChangeStreams));
-    dcpStepAndExpectControlMsg(
-            std::string(DcpControlKeys::SnapshotMaxMarkerVersion));
+            DcpControlKeys::SendStreamEndOnClientCloseStream);
+    dcpStepAndExpectControlMsg(DcpControlKeys::EnableExpiryOpcode);
+    dcpStepAndExpectControlMsg(DcpControlKeys::EnableSyncWrites);
+    dcpStepAndExpectControlMsg(DcpControlKeys::ConsumerName);
+    dcpStepAndExpectControlMsg(DcpControlKeys::IncludeDeletedUserXattrs);
+    dcpStepAndExpectControlMsg(DcpControlKeys::V7DcpStatusCodes);
+    dcpStepAndExpectControlMsg(DcpControlKeys::FlatBuffersSystemEvents);
+    dcpStepAndExpectControlMsg(DcpControlKeys::ChangeStreams);
+    dcpStepAndExpectControlMsg(DcpControlKeys::SnapshotMaxMarkerVersion);
     if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
-        dcpStepAndExpectControlMsg("connection_buffer_size"s);
+        dcpStepAndExpectControlMsg(DcpControlKeys::ConnectionBufferSize);
     }
 
     dcp_step(engine, cookie, producers);
@@ -4274,7 +4278,10 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(*cookie, ++opaque, "connection_buffer_size", "0"),
+            dcp->control(*cookie,
+                         ++opaque,
+                         DcpControlKeys::ConnectionBufferSize,
+                         "0"),
             "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
@@ -4282,7 +4289,10 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(*cookie, ++opaque, "connection_buffer_size", "512"),
+            dcp->control(*cookie,
+                         ++opaque,
+                         DcpControlKeys::ConnectionBufferSize,
+                         "512"),
             "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
@@ -4293,7 +4303,10 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Buffer Size did not get set");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(*cookie, ++opaque, "connection_buffer_size", "1024"),
+            dcp->control(*cookie,
+                         ++opaque,
+                         DcpControlKeys::ConnectionBufferSize,
+                         "1024"),
             "Failed to establish connection buffer");
 
     checkeq(1024,
@@ -4302,7 +4315,10 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
 
     /* Set flow control buffer size to zero which implies disable it */
     checkeq(cb::engine_errc::success,
-            dcp->control(*cookie, ++opaque, "connection_buffer_size", "0"),
+            dcp->control(*cookie,
+                         ++opaque,
+                         DcpControlKeys::ConnectionBufferSize,
+                         "0"),
             "Failed to establish connection buffer");
     status = get_str_stat(h, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
@@ -5771,7 +5787,8 @@ static test_result test_dcp_replica_stream_expiries(
     tdc.openConnection(flags | cb::mcbp::DcpOpenFlag::Producer);
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
         checkeq(cb::engine_errc::success,
-                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                tdc.sendControlMessage(DcpControlKeys::EnableExpiryOpcode,
+                                       "true"),
                 "Failed to enable_expiry_opcode");
     }
     tdc.addStreamCtx(ctx);
@@ -5854,7 +5871,8 @@ static test_result test_stream_deleteWithMeta_expiration(
 
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
         checkeq(cb::engine_errc::success,
-                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                tdc.sendControlMessage(DcpControlKeys::EnableExpiryOpcode,
+                                       "true"),
                 "Failed to enable_expiry_opcode");
     }
 
@@ -6650,7 +6668,10 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(*cookie, ++opaque, "connection_buffer_size", "1024"),
+            dcp->control(*cookie,
+                         ++opaque,
+                         DcpControlKeys::ConnectionBufferSize,
+                         "1024"),
             "Failed to establish connection buffer");
 
     MockDcpMessageProducers producers;
@@ -7906,7 +7927,8 @@ static enum test_result testDcpOsoBackfill(EngineIface* h) {
     tdc.openConnection(cb::mcbp::DcpOpenFlag::Producer);
 
     checkeq(cb::engine_errc::success,
-            tdc.sendControlMessage("enable_out_of_order_snapshots", "true"),
+            tdc.sendControlMessage(DcpControlKeys::EnableOutOfOrderSnapshots,
+                                   "true"),
             "Failed control enable_out_of_order_snapshots");
 
     tdc.addStreamCtx(ctx);

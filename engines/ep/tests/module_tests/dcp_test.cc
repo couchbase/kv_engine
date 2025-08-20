@@ -92,7 +92,8 @@ void DCPTest::create_dcp_producer(
         cb::mcbp::DcpOpenFlag flags,
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
-        std::vector<std::pair<std::string, std::string>> controls) {
+        const std::vector<std::pair<std::string_view, std::string_view>>&
+                controls) {
     if (includeVal == IncludeValue::No) {
         flags |= cb::mcbp::DcpOpenFlag::NoValue;
     }
@@ -122,9 +123,8 @@ void DCPTest::create_dcp_producer(
     producer->scheduleCheckpointProcessorTask();
 
     // Now set any controls before creating any streams
-    for (const auto& control : controls) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(0, control.first, control.second));
+    for (const auto& [key, value] : controls) {
+        EXPECT_EQ(cb::engine_errc::success, producer->control(0, key, value));
     }
 }
 
@@ -132,7 +132,8 @@ void DCPTest::setup_dcp_stream(
         cb::mcbp::DcpAddStreamFlag flags,
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
-        std::vector<std::pair<std::string, std::string>> controls) {
+        const std::vector<std::pair<std::string_view, std::string_view>>&
+                controls) {
     auto open_flags = cb::mcbp::DcpOpenFlag::None;
     if (isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
         open_flags = cb::mcbp::DcpOpenFlag::Producer;
@@ -559,7 +560,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      includeValue,
                      IncludeXattrs::Yes,
-                     {{"force_value_compression", "true"}});
+                     {{DcpControlKeys::ForceValueCompression, "true"}});
 
     EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers;
@@ -657,7 +658,7 @@ TEST_P(CompressionStreamTest,
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::NoWithUnderlyingDatatype,
                      IncludeXattrs::Yes,
-                     {{"force_value_compression", "true"}});
+                     {{DcpControlKeys::ForceValueCompression, "true"}});
 
     ASSERT_TRUE(producer->isSnappyEnabled());
     ASSERT_TRUE(producer->isCompressionEnabled());
@@ -754,7 +755,7 @@ TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
                      IncludeXattrs::No,
-                     {{"force_value_compression", "true"}});
+                     {{DcpControlKeys::ForceValueCompression, "true"}});
 
     ASSERT_TRUE(producer->isSnappyEnabled());
     ASSERT_TRUE(producer->isCompressionEnabled());
@@ -886,7 +887,7 @@ TEST_P(ConnectionTest, test_mb19955) {
     // "1" is not a multiple of "2" and so we should return
     // cb::engine_errc::invalid_arguments
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
-              producer->control(0, "set_noop_interval", "1"))
+              producer->control(0, DcpControlKeys::SetNoopInterval, "1"))
             << "Expected producer.control to return "
                "cb::engine_errc::invalid_arguments";
     destroy_mock_cookie(cookie);
@@ -1555,8 +1556,9 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
     // ConnHandler reference from the vbToConns map if we do not set
     // "send_stream_end_on_client_close_stream". We can purposefully leave it
     // in by setting this control flag.
-    producer->control(
-            0 /*opaque*/, "send_stream_end_on_client_close_stream", "true");
+    producer->control(0 /*opaque*/,
+                      DcpControlKeys::SendStreamEndOnClientCloseStream,
+                      "true");
 
     // Create a stream
     uint64_t rollbackSeqno;
@@ -1705,7 +1707,8 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     auto producer = engine->getDcpConnMap().newProducer(
             *producerCookie, "producerA", cb::mcbp::DcpOpenFlag::None);
 
-    producer->control(0xdead, "send_stream_end_on_client_close_stream", "true");
+    producer->control(
+            0xdead, DcpControlKeys::SendStreamEndOnClientCloseStream, "true");
 
     uint64_t rollbackSeqno = 0;
 
@@ -1785,8 +1788,8 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
     // DcpConnMap::disconnect) only if SyncRepl is enabled
-    producer->control(opaque, "enable_sync_writes", "true");
-    producer->control(opaque, "consumer_name", "consumer");
+    producer->control(opaque, DcpControlKeys::EnableSyncWrites, "true");
+    producer->control(opaque, DcpControlKeys::ConsumerName, "consumer");
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
@@ -1834,8 +1837,8 @@ TEST_F(DcpConnMapTest,
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
     // DcpConnMap::disconnect) only if SyncRepl is enabled
-    producer->control(opaque, "enable_sync_writes", "true");
-    producer->control(opaque, "consumer_name", "consumer");
+    producer->control(opaque, DcpControlKeys::EnableSyncWrites, "true");
+    producer->control(opaque, DcpControlKeys::ConsumerName, "consumer");
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
@@ -2005,8 +2008,8 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     const uint32_t opaque = 0;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
     // DcpConnMap::newProducer) only if SyncRepl is enabled
-    producer->control(opaque, "enable_sync_writes", "true");
-    producer->control(opaque, "consumer_name", "consumer");
+    producer->control(opaque, DcpControlKeys::EnableSyncWrites, "true");
+    producer->control(opaque, DcpControlKeys::ConsumerName, "consumer");
 
     const auto streamRequest = [this, opaque](DcpProducer& producer) -> void {
         uint64_t rollbackSeqno = 0;

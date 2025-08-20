@@ -13,6 +13,7 @@
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <engines/ep/src/dcp/dcp-types.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <thread>
@@ -66,13 +67,13 @@ public:
         conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacBucket");
-        conn->dcpControl("enable_noop", "true");
+        conn->dcpControl(DcpControlKeys::EnableNoop, "true");
 
         connNoStream = getConnection();
         connNoStream->authenticate(usernameNoStream);
         connNoStream->selectBucket("default");
         connNoStream->dcpOpenProducer("CollectionsRbacBucketNoStream");
-        connNoStream->dcpControl("enable_noop", "true");
+        connNoStream->dcpControl(DcpControlKeys::EnableNoop, "true");
     }
 
     void TearDown() override {
@@ -163,7 +164,7 @@ public:
         conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacScope");
-        conn->dcpControl("enable_noop", "true");
+        conn->dcpControl(DcpControlKeys::EnableNoop, "true");
     }
 
     void TearDown() override {
@@ -241,7 +242,7 @@ public:
         conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacCollection");
-        conn->dcpControl("enable_noop", "true");
+        conn->dcpControl(DcpControlKeys::EnableNoop, "true");
 
         connNoStream = getConnection();
         connNoStream->authenticate(username);
@@ -407,7 +408,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacCollectionsSuccess) {
     conn->authenticate(username);
     conn->selectBucket("default");
     conn->dcpOpenProducer("TestBasicRbacCollectionsSuccess");
-    conn->dcpControl("enable_noop", "true");
+    conn->dcpControl(DcpControlKeys::EnableNoop, "true");
     conn->dcpStreamRequest(
             Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
     cluster->getAuthProviderService().removeUser(username);
@@ -432,7 +433,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacFail) {
     conn->authenticate(username);
     conn->selectBucket("default");
     conn->dcpOpenProducer("TestBasicRbacFail");
-    conn->dcpControl("enable_noop", "true");
+    conn->dcpControl(DcpControlKeys::EnableNoop, "true");
     try {
         conn->dcpStreamRequest(
                 Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);

@@ -226,7 +226,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     Expects(conn);
     auto* producer = dynamic_cast<DcpProducer*>(conn.get());
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0, "enable_sync_writes", "true"));
+              producer->control(0, DcpControlKeys::EnableSyncWrites, "true"));
 
     GMockDcpMsgProducers producers; // no expectations set.
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -358,8 +358,8 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see a snapshot marker
@@ -410,8 +410,8 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare.
@@ -480,8 +480,8 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare
@@ -552,8 +552,8 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
 
     MockDcpMessageProducers producers;
 
@@ -643,8 +643,8 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
 
     MockDcpMessageProducers producers;
 
@@ -740,8 +740,8 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
 
     MockDcpMessageProducers producers;
 
@@ -807,11 +807,11 @@ TEST_P(DcpStreamSyncReplPersistentTest,
 }
 
 TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
-    setup_dcp_stream(
-            {} /*flags*/,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes,
-            {{"enable_sync_writes", "true"}, {"consumer_name", "replica1"}});
+    setup_dcp_stream({} /*flags*/,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes,
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "replica1"}});
 
     stream = producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
                                            /*opaque*/ 0,

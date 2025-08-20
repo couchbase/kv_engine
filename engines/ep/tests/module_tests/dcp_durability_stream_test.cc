@@ -58,9 +58,9 @@ void DurabilityActiveStreamTest::setUp(bool persist) {
     }
 
     // Enable SyncReplication and flow-control (Producer BufferLog)
-    setupProducer({{"enable_sync_writes", "true"},
-                   {"connection_buffer_size", "52428800"},
-                   {"consumer_name", "test_consumer"}});
+    setupProducer({{DcpControlKeys::EnableSyncWrites, "true"},
+                   {DcpControlKeys::ConnectionBufferSize, "52428800"},
+                   {DcpControlKeys::ConsumerName, "test_consumer"}});
     ASSERT_TRUE(stream->public_supportSyncReplication());
 }
 

@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <engines/ep/src/dcp/dcp-types.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -509,13 +510,14 @@ int main(int argc, char** argv) {
     std::string bucket{};
     bool json = false;
     std::vector<std::pair<std::string, std::string>> controls = {
-            {"set_priority", "high"},
-            {"supports_cursor_dropping_vulcan", "true"},
-            {"supports_hifi_MFU", "true"},
-            {"send_stream_end_on_client_close_stream", "true"},
-            {"enable_expiry_opcode", "true"},
-            {"set_noop_interval", "60"},
-            {"enable_noop", "true"}};
+            {std::string{DcpControlKeys::SetPriority}, "high"},
+            {std::string{DcpControlKeys::SupportsCursorDroppingVulcan}, "true"},
+            {std::string{DcpControlKeys::SupportsHifiMfu}, "true"},
+            {std::string{DcpControlKeys::SendStreamEndOnClientCloseStream},
+             "true"},
+            {std::string{DcpControlKeys::EnableExpiryOpcode}, "true"},
+            {std::string{DcpControlKeys::SetNoopInterval}, "60"},
+            {std::string{DcpControlKeys::EnableNoop}, "true"}};
     std::string name = "dcpdrain:" + std::to_string(::getpid());
     EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
@@ -841,10 +843,13 @@ int main(int argc, char** argv) {
                         std::cout << "Using DCP flow control with buffer size: "
                                   << buffersize << std::endl;
                     }
-                    if (!c.execute(BinprotGenericCommand{
-                                           cb::mcbp::ClientOpcode::DcpControl,
-                                           "connection_buffer_size",
-                                           std::to_string(buffersize)})
+                    if (!c
+                                 .execute(BinprotGenericCommand{
+                                         cb::mcbp::ClientOpcode::DcpControl,
+                                         std::string{
+                                                 DcpControlKeys::
+                                                         ConnectionBufferSize},
+                                         std::to_string(buffersize)})
                                  .isSuccess()) {
                         std::cerr << "Failed to set connection buffer size to "
                                   << buffersize << std::endl;
@@ -853,28 +858,38 @@ int main(int argc, char** argv) {
                 }
 
                 if (streamIdConfig) {
-                    controls.emplace_back("enable_stream_id", "true");
+                    controls.emplace_back(
+                            std::string{DcpControlKeys::EnableStreamId},
+                            "true");
                 }
 
                 switch (enableOso) {
                 case EnableOSO::False:
                     break;
                 case EnableOSO::True:
-                    controls.emplace_back("enable_out_of_order_snapshots",
-                                          "true");
+                    controls.emplace_back(
+                            std::string{
+                                    DcpControlKeys::EnableOutOfOrderSnapshots},
+                            "true");
                     break;
                 case EnableOSO::TrueWithSeqnoAdvanced:
-                    controls.emplace_back("enable_out_of_order_snapshots",
-                                          "true_with_seqno_advanced");
+                    controls.emplace_back(
+                            std::string{
+                                    DcpControlKeys::EnableOutOfOrderSnapshots},
+                            "true_with_seqno_advanced");
                     break;
                 }
 
                 if (enableFlatbufferSysEvents) {
-                    controls.emplace_back("flatbuffers_system_events", "true");
+                    controls.emplace_back(
+                            std::string{
+                                    DcpControlKeys::FlatBuffersSystemEvents},
+                            "true");
                 }
 
                 if (enableChangeStreams) {
-                    controls.emplace_back("change_streams", "true");
+                    controls.emplace_back(
+                            std::string{DcpControlKeys::ChangeStreams}, "true");
                 }
 
                 setControlMessages(c, controls);

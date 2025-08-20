@@ -157,7 +157,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
         // The control has an empty success callback, but failure injects the
         // pre 7.6 seconds negotiation.
         controls->emplace_back(
-                DcpControlKeys::NoopInterval,
+                DcpControlKeys::SetNoopInterval,
                 std::to_string(interval.count()),
                 []() { /*nothing on success*/ },
                 [this](Controls& controls) {
@@ -169,12 +169,13 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
         // producer is the correct version.
         getErrorMapState = GetErrorMapState::PendingRequest;
     }
-    controls->emplace_back(DcpControlKeys::Priority, "high");
-    controls->emplace_back(DcpControlKeys::CursorDropping, "true");
-    controls->emplace_back(DcpControlKeys::HifiMfu, "true");
-    controls->emplace_back(DcpControlKeys::SendStreamEndOnClientStream,
-                                   "true");
-    controls->emplace_back(DcpControlKeys::ExpiryOpcode, "true");
+    controls->emplace_back(DcpControlKeys::SetPriority, "high");
+    controls->emplace_back(DcpControlKeys::SupportsCursorDroppingVulcan,
+                           "true");
+    controls->emplace_back(DcpControlKeys::SupportsHifiMfu, "true");
+    controls->emplace_back(DcpControlKeys::SendStreamEndOnClientCloseStream,
+                           "true");
+    controls->emplace_back(DcpControlKeys::EnableExpiryOpcode, "true");
     if (!consumerName.empty()) {
         // If a consumer_name was provided then tell the producer about it.
         // Having a consumer name determines if we should support
@@ -185,7 +186,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
         // upgraded to MadHatter+, ns_server will tear down DCP connections and
         // recreate them with the consumer name.
         controls->emplace_back(
-                DcpControlKeys::SyncReplication, "true", [this]() {
+                DcpControlKeys::EnableSyncWrites, "true", [this]() {
                     supportsSyncReplication.store(
                             SyncReplication::SyncReplication);
                 });
@@ -193,7 +194,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                                        consumerName);
     }
     controls->emplace_back(
-            DcpControlKeys::DeletedUserXattrs, "true", [this]() {
+            DcpControlKeys::IncludeDeletedUserXattrs, "true", [this]() {
                 includeDeletedUserXattrs = IncludeDeletedUserXattrs::Yes;
             });
     controls->emplace_back(DcpControlKeys::V7DcpStatusCodes,
@@ -1758,7 +1759,7 @@ void DcpConsumer::addNoopSecondsPendingControl(Controls& controls) {
 
     // Always put new controls to the back of the queue
     controls.emplace_back(
-            DcpControlKeys::NoopInterval,
+            DcpControlKeys::SetNoopInterval,
             std::to_string(interval.count()),
             []() { /*nothing on success*/ },
             [this](Controls&) {
@@ -1768,6 +1769,6 @@ void DcpConsumer::addNoopSecondsPendingControl(Controls& controls) {
 }
 
 void DcpConsumer::addBufferSizeControl(size_t bufferSize) {
-    pendingControls.lock()->emplace_back(DcpControlKeys::ConnBufferSize,
+    pendingControls.lock()->emplace_back(DcpControlKeys::ConnectionBufferSize,
                                          std::to_string(bufferSize));
 }

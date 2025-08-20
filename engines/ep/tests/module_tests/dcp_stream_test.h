@@ -47,8 +47,8 @@ protected:
     void TearDown() override;
 
     void setupProducer(
-            const std::vector<std::pair<std::string, std::string>>& controls =
-                    {},
+            const std::vector<std::pair<std::string_view, std::string_view>>&
+                    controls = {},
             cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None);
 
     /**
@@ -62,8 +62,8 @@ protected:
     void recreateProducer(
             VBucket& vb,
             cb::mcbp::DcpOpenFlag flags,
-            const std::vector<std::pair<std::string, std::string>>& controls =
-                    {});
+            const std::vector<std::pair<std::string_view, std::string_view>>&
+                    controls = {});
 
     /**
      * Reset the current producer and stream and recreate with the given params.
@@ -79,8 +79,8 @@ protected:
             VBucket& vb,
             cb::mcbp::DcpOpenFlag flags,
             std::optional<std::string_view> config = {},
-            const std::vector<std::pair<std::string, std::string>>& controls =
-                    {});
+            const std::vector<std::pair<std::string_view, std::string_view>>&
+                    controls = {});
 
     /**
      * @param vb

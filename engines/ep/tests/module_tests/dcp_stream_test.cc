@@ -105,13 +105,12 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
 // Test the compression control error case
 TEST_P(StreamTest, validate_compression_control_message_denied) {
     setup_dcp_stream();
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
     EXPECT_FALSE(producer->isCompressionEnabled());
 
     // Sending a control message without actually enabling SNAPPY must fail
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
+              producer->control(
+                      0, DcpControlKeys::ForceValueCompression, "true"));
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
@@ -151,7 +150,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     setup_dcp_stream();
 
     ASSERT_EQ(cb::engine_errc::success,
-              producer->control(0, "force_value_compression", "true"));
+              producer->control(
+                      0, DcpControlKeys::ForceValueCompression, "true"));
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -266,8 +266,8 @@ TEST_P(StreamTest, VerifyProducerStats) {
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
                      IncludeXattrs::No,
-                     {{"enable_sync_writes", "true"},
-                      {"consumer_name", "test_consumer"}});
+                     {{DcpControlKeys::EnableSyncWrites, "true"},
+                      {DcpControlKeys::ConsumerName, "test_consumer"}});
     store_item(vbid, "key1", "value1");
     store_item(vbid, "key2", "value2");
     using namespace cb::durability;
@@ -1060,7 +1060,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
                      IncludeXattrs::No,
-                     {{"enable_noop", "true"}});
+                     {{DcpControlKeys::EnableNoop, "true"}});
 
     /* Store 4 items */
     const int numItems = 4;
@@ -1162,13 +1162,12 @@ TEST_P(StreamTest, validate_compression_control_message_allowed) {
     // For success enable the snappy datatype on the connection
     cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     setup_dcp_stream();
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
     EXPECT_TRUE(producer->isCompressionEnabled());
 
     // Sending a control message after enabling SNAPPY should succeed
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
+              producer->control(
+                      0, DcpControlKeys::ForceValueCompression, "true"));
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
@@ -1301,12 +1300,13 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
 }
 
 TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
-    create_dcp_producer(cb::mcbp::DcpOpenFlag::None,
-                        IncludeValue::Yes,
-                        IncludeXattrs::Yes,
-                        {{"send_stream_end_on_client_close_stream", "true"},
-                         {"enable_sync_writes", "true"},
-                         {"consumer_name", "replica1"}});
+    create_dcp_producer(
+            cb::mcbp::DcpOpenFlag::None,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            {{DcpControlKeys::SendStreamEndOnClientCloseStream, "true"},
+             {DcpControlKeys::EnableSyncWrites, "true"},
+             {DcpControlKeys::ConsumerName, "replica1"}});
 
     // Need to do a stream request to put the stream in the producers map
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -1659,7 +1659,8 @@ void SingleThreadedActiveStreamTest::TearDown() {
 }
 
 void SingleThreadedActiveStreamTest::setupProducer(
-        const std::vector<std::pair<std::string, std::string>>& controls,
+        const std::vector<std::pair<std::string_view, std::string_view>>&
+                controls,
         cb::mcbp::DcpOpenFlag flags) {
     // We don't set the startTask flag here because we will create the task
     // manually. We do this because the producer actually creates the task on
@@ -1672,9 +1673,9 @@ void SingleThreadedActiveStreamTest::setupProducer(
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
-    for (const auto& c : controls) {
+    for (const auto& [key, value] : controls) {
         EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(0 /*opaque*/, c.first, c.second));
+                  producer->control(0 /*opaque*/, key, value));
     }
 
     auto vb = engine->getVBucket(vbid);
@@ -1692,7 +1693,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
 void SingleThreadedActiveStreamTest::recreateProducer(
         VBucket& vb,
         cb::mcbp::DcpOpenFlag flags,
-        const std::vector<std::pair<std::string, std::string>>& controls) {
+        const std::vector<std::pair<std::string_view, std::string_view>>&
+                controls) {
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
@@ -1701,10 +1703,10 @@ void SingleThreadedActiveStreamTest::recreateProducer(
     producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
 
-    for (const auto& c : controls) {
+    for (const auto& [key, value] : controls) {
         EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(0 /*opaque*/, c.first, c.second))
-                << c.first << "=" << c.second;
+                  producer->control(0 /*opaque*/, key, value))
+                << key << "=" << value;
     }
 }
 
@@ -1712,7 +1714,8 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(
         VBucket& vb,
         cb::mcbp::DcpOpenFlag flags,
         std::optional<std::string_view> jsonFilter,
-        const std::vector<std::pair<std::string, std::string>>& controls) {
+        const std::vector<std::pair<std::string_view, std::string_view>>&
+                controls) {
     recreateProducer(vb, flags, controls);
     recreateStream(vb, true /*enforceProducerFlags*/, jsonFilter);
 }
@@ -2334,7 +2337,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     // Re-create producer now we have items only on disk, setting a scan buffer
     // which can only hold 1 item (so backfill doesn't complete a VB in one
     // scan).
-    setupProducer({{"backfill_order", "sequential"}});
+    setupProducer({{DcpControlKeys::BackfillOrder, "sequential"}});
     producer->public_getBackfillScanBuffer().maxItems = 1;
 
     // setupProducer creates a stream for vb0. Also need streams for vb1 and
@@ -6462,10 +6465,11 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
-    recreateProducerAndStream(vb,
-                              cb::mcbp::DcpOpenFlag::None,
-                              {},
-                              {{"max_marker_version", "2.2"}});
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            {},
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     EXPECT_EQ(0, stream->public_readyQSize());
@@ -6526,7 +6530,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
             cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::defaultC.getId())),
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6570,7 +6574,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
             cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::defaultC.getId())),
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6680,8 +6684,9 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     //! 2. Test the snapshot marker includes the purgeSeqno & advance seqno
     //! message is sent. All the mutations are filtered out.
-    recreateProducer(
-            vb, cb::mcbp::DcpOpenFlag::None, {{"max_marker_version", "2.2"}});
+    recreateProducer(vb,
+                     cb::mcbp::DcpOpenFlag::None,
+                     {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
     stream = producer->addMockActiveStream(
             cb::mcbp::DcpAddStreamFlag::None,
             0 /*opaque*/,
@@ -6757,7 +6762,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::vegetable.getId())),
 
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     EXPECT_EQ(0, stream->public_readyQSize());
@@ -6821,7 +6826,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::defaultC.getId())),
 
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     resp = stream->next(*producer);
@@ -6923,7 +6928,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::vegetable.getId())),
 
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6968,7 +6973,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             fmt::format(R"({{"collections":["{:x}"]}})",
                         uint32_t(CollectionEntry::vegetable.getId())),
 
-            {{"max_marker_version", "2.2"}});
+            {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -7215,7 +7220,9 @@ TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
                                                  false /*startTask*/);
 
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0 /*opaque*/, "max_marker_version", "2.2"));
+              producer->control(0 /*opaque*/,
+                                DcpControlKeys::SnapshotMaxMarkerVersion,
+                                "2.2"));
 
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
@@ -8234,12 +8241,12 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
 TEST_P(StreamTest, multi_stream_control_denied) {
     setup_dcp_stream();
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0, "enable_sync_writes", "true"));
+              producer->control(0, DcpControlKeys::EnableSyncWrites, "true"));
     EXPECT_TRUE(producer->isSyncWritesEnabled());
     EXPECT_FALSE(producer->isMultipleStreamEnabled());
 
     EXPECT_EQ(cb::engine_errc::not_supported,
-              producer->control(0, "enable_stream_id", "true"));
+              producer->control(0, DcpControlKeys::EnableStreamId, "true"));
     EXPECT_TRUE(producer->isSyncWritesEnabled());
     EXPECT_FALSE(producer->isMultipleStreamEnabled());
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
@@ -8248,12 +8255,12 @@ TEST_P(StreamTest, multi_stream_control_denied) {
 TEST_P(StreamTest, sync_writes_denied) {
     setup_dcp_stream();
     EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0, "enable_stream_id", "true"));
+              producer->control(0, DcpControlKeys::EnableStreamId, "true"));
     EXPECT_FALSE(producer->isSyncWritesEnabled());
     EXPECT_TRUE(producer->isMultipleStreamEnabled());
 
     EXPECT_EQ(cb::engine_errc::not_supported,
-              producer->control(0, "enable_sync_writes", "true"));
+              producer->control(0, DcpControlKeys::EnableSyncWrites, "true"));
     EXPECT_FALSE(producer->isSyncWritesEnabled());
     EXPECT_TRUE(producer->isMultipleStreamEnabled());
     EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid, destroy_dcp_stream());
@@ -10226,8 +10233,10 @@ TEST_P(TestStuckProducer, producerDisconnected) {
     // The snapshot and first mutation will fill the buffer, the 2nd mutation
     // (final step) will then trigger the producer to disconnect when the flow
     // control is seen to be in the paused state with no change for 0 seconds
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->control(
+                    0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
     producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
@@ -10266,8 +10275,10 @@ TEST_P(TestStuckProducer, producerNotDisconnected) {
     // The snapshot and first mutation will fill the buffer, the 2nd mutation
     // (final step) will then trigger the producer to disconnect when the flow
     // control is seen to be in the paused state with no change for 0 seconds
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->control(
+                    0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
     producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
@@ -10309,8 +10320,10 @@ TEST_P(TestStuckProducer, producerNotDisconnectedClientAcked) {
     // The snapshot and first mutation will fill the buffer, the 2nd mutation
     // (final step) will then trigger the producer to disconnect when the flow
     // control is seen to be in the paused state with no change for 0 seconds
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(0 /*opaque*/, "connection_buffer_size", "100"));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            producer->control(
+                    0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
     producer->addMockActiveStream(
                     cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
@@ -10366,7 +10379,8 @@ public:
 
         auto maxMarkerVersionControl = std::find_if(
                 controls->begin(), controls->end(), [](const auto& control) {
-                    return control.key == "max_marker_version";
+                    return control.key ==
+                           DcpControlKeys::SnapshotMaxMarkerVersion;
                 });
 
         bool foundSnapshotMarkerVersion =
@@ -10424,7 +10438,7 @@ public:
         // Create producer and stream
         recreateProducer(vb,
                          cb::mcbp::DcpOpenFlag::None,
-                         {{"max_marker_version", "2.2"}});
+                         {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
         producer->createCheckpointProcessorTask();
         // Requirement for HPS to be included in snapshot marker
         producer->setSyncReplication(SyncReplication::SyncReplication);
@@ -10453,7 +10467,7 @@ public:
         // Create producer and stream
         recreateProducer(vb,
                          cb::mcbp::DcpOpenFlag::None,
-                         {{"max_marker_version", "2.2"}});
+                         {{DcpControlKeys::SnapshotMaxMarkerVersion, "2.2"}});
         producer->createCheckpointProcessorTask();
         // Requirement for purge seqno to be included in snapshot marker
         producer->setMaxMarkerVersion(MarkerVersion::V2_2);

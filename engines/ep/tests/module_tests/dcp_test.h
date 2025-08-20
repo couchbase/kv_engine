@@ -38,14 +38,16 @@ protected:
             cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None,
             IncludeValue includeVal = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-            std::vector<std::pair<std::string, std::string>> controls = {});
+            const std::vector<std::pair<std::string_view, std::string_view>>&
+                    controls = {});
 
     // Setup a DCP producer and attach a stream and cursor to it.
     void setup_dcp_stream(
             cb::mcbp::DcpAddStreamFlag flags = {},
             IncludeValue includeVal = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-            std::vector<std::pair<std::string, std::string>> controls = {});
+            const std::vector<std::pair<std::string_view, std::string_view>>&
+                    controls = {});
 
     cb::engine_errc destroy_dcp_stream();
 
