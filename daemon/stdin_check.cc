@@ -24,6 +24,22 @@
 #include <functional>
 #include <string_view>
 
+#define PRINT_ERROR(msg, ...)                     \
+    do {                                          \
+        try {                                     \
+            fmt::print(stderr, msg, __VA_ARGS__); \
+        } catch (const std::exception&) {         \
+        }                                         \
+    } while (false)
+
+#define PRINT_ERROR_RAW(msg)              \
+    do {                                  \
+        try {                             \
+            fmt::print(stderr, msg);      \
+        } catch (const std::exception&) { \
+        }                                 \
+    } while (false)
+
 std::function<void()> exit_function;
 static constexpr int command_buffer_size = 80;
 std::atomic<std::chrono::milliseconds> max_abnormal_shutdown_duration;
@@ -67,9 +83,8 @@ static char* get_command(char* buffer) {
         case 0:
             break;
         default:
-            fmt::print(stderr,
-                       "ERROR: Failed to run poll() on standard input {}\n",
-                       strerror(errno));
+            PRINT_ERROR("ERROR: Failed to run poll() on standard input {}\n",
+                        strerror(errno));
             /* sleep(6) to avoid busywait */
             sleep(1);
         }
@@ -104,28 +119,27 @@ static void check_stdin_thread() {
         std::string_view cmd(command.data(), strlen(command.data()));
         /* Handle the command */
         if (cmd.starts_with("die!")) {
-            fmt::print(stderr, "'die!' on stdin. Exiting super-quickly\n");
+            PRINT_ERROR_RAW("'die!' on stdin. Exiting super-quickly\n");
             fflush(stderr);
             std::_Exit(0);
         }
         if (cmd.starts_with("shutdown")) {
             if (call_exit_handler) {
-                fmt::print(stderr, "EOL on stdin. Initiating shutdown\n");
+                PRINT_ERROR_RAW("EOL on stdin. Initiating shutdown\n");
                 exit_function();
                 call_exit_handler = false;
             }
         } else if (cmd.starts_with("get_abnormal_timeout")) {
-            fmt::print(stderr,
-                       "{}ms\n",
-                       max_abnormal_shutdown_duration.load().count());
+            PRINT_ERROR("{}ms\n",
+                        max_abnormal_shutdown_duration.load().count());
         } else {
-            fmt::print(stderr, "Unknown command received on stdin. Ignored\n");
+            PRINT_ERROR_RAW("Unknown command received on stdin. Ignored\n");
         }
     }
 
     /* The stream is closed.. do a nice shutdown */
     if (call_exit_handler) {
-        fmt::print(stderr, "EOF on stdin. Initiating shutdown\n");
+        PRINT_ERROR_RAW("EOF on stdin. Initiating shutdown\n");
         exit_function();
     }
 
@@ -133,9 +147,8 @@ static void check_stdin_thread() {
             max_abnormal_shutdown_duration.load(std::memory_order_acquire);
     if (timeout != std::chrono::milliseconds::zero()) {
         std::this_thread::sleep_for(timeout);
-        fmt::print(stderr,
-                   "Shutdown timed out! Exit({})\n",
-                   abnormal_exit_handler_exit_code);
+        PRINT_ERROR("Shutdown timed out! Exit({})\n",
+                    abnormal_exit_handler_exit_code);
         std::_Exit(abnormal_exit_handler_exit_code);
     }
 }

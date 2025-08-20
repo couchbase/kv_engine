@@ -13,6 +13,7 @@
 #include <fmt/format.h>
 #include <folly/portability/GTest.h>
 #include <cctype>
+#include <csignal>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -56,6 +57,11 @@ public:
         child_stdin = nullptr;
     }
 
+    void closeStderr() {
+        fclose(child_stderr);
+        child_stderr = nullptr;
+    }
+
     void send(const std::string& command) {
         fmt::print(child_stdin, "{}\n", command);
         fflush(child_stdin);
@@ -64,7 +70,9 @@ public:
     std::string read() {
         std::array<char, 1024> buffer;
         if (fgets(buffer.data(), buffer.size(), child_stderr) == nullptr) {
-            throw std::runtime_error("Failed to read from child process");
+            throw std::system_error(errno,
+                                    std::system_category(),
+                                    "Failed to read from child process");
         }
         return trim(buffer.data());
     }
@@ -77,7 +85,11 @@ public:
     std::string readTestProgramMessage() {
         std::array<char, 1024> buffer;
         if (fgets(buffer.data(), buffer.size(), child_stdout) == nullptr) {
-            throw std::runtime_error("Failed to read from child process");
+            std::cout << "Failed to read from child process stdout: "
+                      << strerror(errno) << std::endl;
+            throw std::system_error(errno,
+                                    std::system_category(),
+                                    "Failed to read from child process");
         }
         return trim(buffer.data());
     }
@@ -98,6 +110,13 @@ protected:
     boost::process::ipstream out;
     boost::process::ipstream err;
     std::unique_ptr<boost::process::child> child;
+};
+
+class StdinCheck : public ::testing::Test {
+public:
+    void SetUpTestSuite() {
+        sigignore(SIGPIPE);
+    }
 };
 
 TEST(StdinCheck, NormalShutdown) {
@@ -162,4 +181,13 @@ TEST(StdinCheck, AbnormalShutdownTimeout) {
                           abnormal_exit_handler_exit_code),
               message);
     EXPECT_EQ(abnormal_exit_handler_exit_code, runner.wait());
+}
+
+TEST(StdinCheck, MB68173_stderr_closed) {
+    StdinCheckRunner runner;
+    runner.closeStderr();
+    runner.hangup();
+    const auto message = runner.readTestProgramMessage();
+    EXPECT_EQ("Shutdown started, sleep before exit", message);
+    EXPECT_EQ(1, runner.wait());
 }

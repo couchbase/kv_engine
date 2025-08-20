@@ -13,6 +13,7 @@
 #include <platform/command_line_options_parser.h>
 #include <chrono>
 #include <condition_variable>
+#include <csignal>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -22,6 +23,7 @@
  * writing tests which to verify that it works as expected.
  */
 int main(int argc, char** argv) {
+    sigignore(SIGPIPE);
     std::mutex mutex;
     std::unique_lock lock(mutex);
     std::condition_variable condition;
