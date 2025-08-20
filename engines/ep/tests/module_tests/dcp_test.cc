@@ -807,18 +807,9 @@ protected:
         config_string += sanitizeTestParamConfigString(GetParam());
 
         DCPTest::SetUp();
-        vbid = Vbid(0);
-    }
-
-    cb::engine_errc set_vb_state(Vbid vbid, vbucket_state_t state) {
-        return engine->getKVBucket()->setVBucketState(
-                vbid, state, {}, TransferVB::Yes);
     }
 
     void testConsumerDcpControlSyncRepl(const std::string& name);
-
-    /* vbucket associated with this connection */
-    Vbid vbid;
 };
 
 TEST_P(ConnectionTest, connection_cleanup_interval_config) {
