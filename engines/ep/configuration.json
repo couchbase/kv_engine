@@ -68,7 +68,7 @@
         },
         "alog_resident_ratio_threshold": {
             "default": "95",
-            "desr": "Resident ratio percentage above which we do not generate access log",
+            "descr": "Resident ratio percentage above which we do not generate access log",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -83,7 +83,7 @@
         },
         "alog_max_stored_items": {
             "default": "1024",
-            "desr": "The maximum number of items the Access Scanner will hold in memory before commiting them to disk",
+            "descr": "The maximum number of items the Access Scanner will hold in memory before commiting them to disk",
             "type": "size_t",
             "dynamic": true,
             "validator": {
@@ -97,7 +97,7 @@
         },
         "backend": {
             "default": "couchdb",
-            "desr": "The storage backend to use. The \"nexus\" variant is a test only backend which will run two backends for a single bucket and compare the results of their operations.",
+            "descr": "The storage backend to use. The \"nexus\" variant is a test only backend which will run two backends for a single bucket and compare the results of their operations.",
             "dynamic": false,
             "type": "std::string",
             "validator": {
@@ -110,7 +110,7 @@
         },
         "backfill_mem_threshold": {
             "default": "96",
-            "desr": "Memory usage threshold (percentage of bucket quota) after which backfill will be snoozed.",
+            "descr": "Memory usage threshold (percentage of bucket quota) after which backfill will be snoozed.",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -122,13 +122,13 @@
         },
         "bfilter_enabled": {
             "default": "true",
-            "desr": "Enable or disable the bloom filter",
+            "descr": "Enable or disable the bloom filter",
             "dynamic": true,
             "type": "bool"
         },
         "bfilter_key_count": {
             "default": "10000",
-            "desr": "Bloomfilter: Estimated key count per vbucket",
+            "descr": "Bloomfilter: Estimated key count per vbucket",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -139,13 +139,13 @@
         },
         "bfilter_fp_prob": {
             "default": "0.01",
-            "desr": "Bloomfilter: Allowed probability for false positives",
+            "descr": "Bloomfilter: Allowed probability for false positives",
             "dynamic": true,
             "type": "float"
         },
         "bfilter_residency_threshold": {
             "default": "0.1",
-            "desr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
+            "descr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
             "dynamic": true,
             "type" : "float",
             "validator": {
@@ -282,7 +282,7 @@
         },
         "compaction_max_concurrent_ratio": {
             "default": "0.5",
-            "desr" : "Maximum number of CompactVBucketTask tasks which can run concurrently, as a fraction of the possible Writer task concurrency. Note that a minimum of 1, and a maximum of N-1 CompactVBucketTasks will be run (where N is the possible Writer task concurrency), to ensure both forward progress for Compaction and Flushing.",
+            "descr" : "Maximum number of CompactVBucketTask tasks which can run concurrently, as a fraction of the possible Writer task concurrency. Note that a minimum of 1, and a maximum of N-1 CompactVBucketTasks will be run (where N is the possible Writer task concurrency), to ensure both forward progress for Compaction and Flushing.",
             "dynamic": true,
             "type" : "float",
             "validator": {
@@ -317,7 +317,7 @@
         },
         "conflict_resolution_type": {
             "default": "seqno",
-            "desr": "Conflict resolution mode to use for this Bucket",
+            "descr": "Conflict resolution mode to use for this Bucket",
             "dynamic": false,
             "type": "std::string",
             "validator": {
@@ -1260,7 +1260,7 @@
         },
         "dcp_min_compression_ratio": {
             "default": "0.85",
-            "desr": "Compression ratio to be achieved above which producer will ship documents as is",
+            "descr": "Compression ratio to be achieved above which producer will ship documents as is",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -1302,7 +1302,7 @@
         },
         "dcp_oso_backfill_large_value_ratio": {
             "default": "0.04",
-            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'large' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
+            "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'large' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -1314,7 +1314,7 @@
         },
         "dcp_oso_backfill_small_value_ratio": {
             "default": "0.005",
-            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'small' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
+            "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'small' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -1326,13 +1326,13 @@
         },
         "dcp_oso_backfill_small_item_size_threshold": {
             "default": "256",
-            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection, should the items in the collection be considered 'small' or 'large' and subsequently should backfill use 'dcp_oso_backfill_small_value_collection_ratio' or 'dcp_oso_backfill_large_value_collection_ratio' when deciding ot use OSO or not? Collections whoss mean on-disk value size is less than this parameter are considered 'small', otherwise they are considered 'large'",
+            "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection, should the items in the collection be considered 'small' or 'large' and subsequently should backfill use 'dcp_oso_backfill_small_value_collection_ratio' or 'dcp_oso_backfill_large_value_collection_ratio' when deciding ot use OSO or not? Collections whoss mean on-disk value size is less than this parameter are considered 'small', otherwise they are considered 'large'",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_oso_max_collections_per_backfill": {
             "default": "1",
-            "desr": "This is the maximum number of collections that a DCP stream can be filtering to be eligible for OSO",
+            "descr": "This is the maximum number of collections that a DCP stream can be filtering to be eligible for OSO",
             "dynamic": true,
             "type": "size_t"
         },
@@ -1491,19 +1491,19 @@
         },
         "magma_enable_group_commit": {
             "default": "false",
-            "desr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
+            "descr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
             "dynamic": false,
             "type": "bool"
         },
         "magma_group_commit_max_sync_wait_duration_ms": {
             "default": "20",
-            "desr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are transactions waiting and the oldest transaction has been waiting for magma_group_commit_max_sync_wait_duration ms or more, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start. Unit is milliseconds.",
+            "descr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are transactions waiting and the oldest transaction has been waiting for magma_group_commit_max_sync_wait_duration ms or more, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start. Unit is milliseconds.",
             "dynamic": false,
             "type": "size_t"
         },
         "magma_group_commit_max_transaction_count": {
             "default": "20",
-            "desr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are magma_group_commit_max_transaction_count including the current transaction waiting, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start.",
+            "descr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are magma_group_commit_max_transaction_count including the current transaction waiting, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start.",
             "dynamic": false,
             "type": "size_t"
         },
@@ -1662,13 +1662,13 @@
         },
         "magma_bloom_filter_accuracy": {
             "default": "0.99",
-            "desr": "Magma maintains a bloom filter per sstable in the LSMTree. The bloom filters are used to reduce IO in case of non-existent  This config sets the accuracy of the bloom filters ie. (1 - accuracy) = false positive rate",
+            "descr": "Magma maintains a bloom filter per sstable in the LSMTree. The bloom filters are used to reduce IO in case of non-existent  This config sets the accuracy of the bloom filters ie. (1 - accuracy) = false positive rate",
             "dynamic": false,
             "type": "float"
         },
         "magma_bloom_filter_accuracy_for_bottom_level": {
             "default": "0.95",
-            "desr": "The bloom filters at the bottom level are used to avoid IO in case of non-existent keys. Also most of the data resides in the bottom level. This config allows for lowering of bloom filter accuracy of sstables residing in the lowermost level of the LSMTree.",
+            "descr": "The bloom filters at the bottom level are used to avoid IO in case of non-existent keys. Also most of the data resides in the bottom level. This config allows for lowering of bloom filter accuracy of sstables residing in the lowermost level of the LSMTree.",
             "dynamic": false,
             "type": "float"
         },
