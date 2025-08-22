@@ -46,6 +46,54 @@ RELEASES_INDEX = 'https://releases.service.couchbase.com/builds/releases/'
 LATESTBUILDS_INDEX = 'https://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/'
 
 
+class OSInfo:
+    def __init__(self, os_string, image, package_manager):
+        self.os_string = os_string
+        self.image = image
+        self.package_manager = package_manager
+
+    def matches(self, os_info) -> bool:
+        return self.os_string in os_info
+
+    def get_image(self, os_info) -> tuple[str, str]:
+        version = re.search(r'VERSION_ID="([\d\.]+)"', os_info).groups()[0]
+        return self.image, version, self.package_manager
+
+
+# To add a new image, add a new ImageInfo object to the list.
+SUPPORTED_IMAGES = [
+    OSInfo(
+        os_string='Amazon Linux',
+        image='amazonlinux',
+        package_manager='rpm'
+    ),
+    OSInfo(
+        os_string='Debian',
+        image='debian',
+        package_manager='dpkg'
+    ),
+    OSInfo(
+        os_string='Ubuntu',
+        image='ubuntu',
+        package_manager='dpkg'
+    ),
+    OSInfo(
+        os_string='Red Hat Enterprise Linux 9',
+        image='redhat/ubi9',
+        package_manager='rpm'
+    ),
+    OSInfo(
+        os_string='Red Hat Enterprise Linux 8',
+        image='redhat/ubi8',
+        package_manager='rpm'
+    ),
+    OSInfo(
+        os_string='Red Hat Enterprise Linux Server 7',
+        image='registry.access.redhat.com/ubi7/ubi',
+        package_manager='rpm'
+    ),
+]
+
 def dbg(*args, **kwargs):
     """
     Prints to stderr.
@@ -94,23 +142,6 @@ def match_outputs(outputs, keys_and_substrings):
                 yield key, body
 
 
-# Map supported base images to the native package manager.
-PACKAGE_MANAGERS = {
-    'amazonlinux': 'rpm',
-    'debian': 'dpkg',
-    'ubuntu': 'dpkg',
-    'redhat/ubi8': 'rpm',
-    'registry.access.redhat.com/ubi7/ubi': 'rpm',
-}
-
-
-def detect_package_manager(image):
-    """
-    Determines which package manager is in use, based on the base image.
-    """
-    return PACKAGE_MANAGERS[image]
-
-
 def select_docker_image(os_info):
     """
     Selects the appropriate Docker image to use for supported distros based on
@@ -118,35 +149,18 @@ def select_docker_image(os_info):
 
     Returns: (image, tag)
     """
-    def get_version_id(os_info):
-        try:
-            return re.search(r'VERSION_ID="([\d\.]+)"', os_info).groups()[0]
-        except BaseException:
-            raise ValueError(
-                f'Expected to find VERSION_ID in the OS version info:\n{os_info}')
-
-    if 'Amazon Linux' in os_info:
-        version_id = get_version_id(os_info)
-        return 'amazonlinux', version_id
-    if 'Debian' in os_info:
-        version_id = get_version_id(os_info)
-        return 'debian', version_id
-    if 'Ubuntu' in os_info:
-        version_id = get_version_id(os_info)
-        return 'ubuntu', version_id
-    if 'Red Hat Enterprise Linux 8' in os_info:
-        version_id = get_version_id(os_info)
-        return 'redhat/ubi8', version_id
-    if 'Red Hat Enterprise Linux Server 7' in os_info:
-        version_id = get_version_id(os_info)
-        return 'registry.access.redhat.com/ubi7/ubi', version_id
+    for image_info in SUPPORTED_IMAGES:
+        if image_info.matches(os_info):
+            return image_info.get_image(os_info)
 
     dbg(f'Unknown OS\n++++{os_info}++++')
     dbg('Docker image to use [e.g. ubuntu]: ', end='')
     image = input().strip()
     dbg(f'Tag of {image} to use [e.g. 20.04]: ', end='')
     version = input().strip()
-    return image, version
+    dbg(f'Package manager to use [e.g. dpkg/rpm]: ', end='')
+    package_manager = input().strip()
+    return image, version, package_manager
 
 
 def detect_platform(uname):
@@ -322,7 +336,7 @@ def write_dockerfile(logfile, dockerfile):
     releases_index = fetch_releases_index()
 
     # Choose the docker image to match the OS
-    image, tag = select_docker_image(''.join(cblog_data['os_info']))
+    image, tag, pkg_manager = select_docker_image(''.join(cblog_data['os_info']))
     dbg(f'Using Docker image {image}:{tag}')
 
     # Choose the same CPU arch
@@ -330,7 +344,6 @@ def write_dockerfile(logfile, dockerfile):
     dbg(f'Detected platform: {platform}')
 
     # Parse the list of installed packages
-    pkg_manager = detect_package_manager(image)
     dbg(f'Detected package manager: {pkg_manager}')
 
     candidate_versions = [
@@ -444,7 +457,6 @@ def write_dockerfile(logfile, dockerfile):
                     f'(apt-get -y -f install --no-install-recommends \'{pkg}\')',
                     command_separator,
                     end='', file=dockerfile)
-        print('true', file=dockerfile)
     elif pkg_manager == 'rpm':
         # check-update retuns 100 on success, so use an OR.
         print(
@@ -461,7 +473,7 @@ def write_dockerfile(logfile, dockerfile):
                     f'(yum install -y \'{pkg}\')',
                     command_separator,
                     end='', file=dockerfile)
-        print('true')
+    print('true', file=dockerfile)
 
     # Use a cache for the CB Server package downloads.
     run_package_cache_command = ' '.join((
