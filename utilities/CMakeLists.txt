@@ -2,6 +2,7 @@ if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
 endif ()
 
 add_library(mcd_util STATIC
+            ${PROJECT_SOURCE_DIR}/include/memcached/configuration_iface.h
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h
             ${PROJECT_SOURCE_DIR}/include/memcached/vbucket.h
             ${PROJECT_SOURCE_DIR}/include/memcached/util.h
@@ -9,6 +10,7 @@ add_library(mcd_util STATIC
             breakpad_common.cc
             breakpad_settings.cc
             breakpad_settings.h
+            configuration_iface.cc
             config_parser.cc
             connection_iface.cc
             cookie_iface.cc

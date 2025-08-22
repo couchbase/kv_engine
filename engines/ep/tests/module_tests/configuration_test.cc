@@ -14,9 +14,13 @@
 #include "configuration_impl.h"
 #include "ep_parameters.h"
 
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <nlohmann/json.hpp>
 #include <memory>
+
+using namespace std::string_view_literals;
 
 /* Like EXPECT_THROW except you can check the exception's `what()` */
 # define CB_EXPECT_THROW_MSG(EXPR, ETYPE, MSG) \
@@ -281,6 +285,12 @@ public:
     using Configuration::Configuration;
     using Configuration::getParameter;
     using Configuration::setParameter;
+    using Configuration::setParametersInternal;
+    using Configuration::setRequirements;
+
+    void public_clear() {
+        attributes.clear();
+    }
 
     template <class T>
     void public_addParameter(std::string_view key, T value, bool dynamic) {
@@ -302,6 +312,27 @@ public:
                                     defaultDevAssert,
                                     dynamic);
         initialized = true;
+    }
+
+    void public_setRequirements(const std::string& key,
+                                Requirement* requirement) {
+        initialized = false;
+        Configuration::setRequirements(key, requirement);
+        initialized = true;
+    }
+
+    /**
+     * For testing, we cannot use the validateParameters method directly,
+     * because it validates against the default set of parameters, initialized
+     * by the Configuration constructor.
+     *
+     * Instead, we use this method, which sets the parameters against this
+     * object.
+     */
+    ParameterValidationMap setAndValidate(const ParameterMap& parameters) {
+        auto [map, success] = setParametersInternal(parameters);
+        fillDefaults(map);
+        return map;
     }
 
     ValueChangedValidator* public_setValueValidator(
@@ -553,4 +584,171 @@ TEST(ConfigurationTest, DynamicParametersAreSettable) {
                 << " is listed as settable but is not dynamic in the "
                    "configuration";
     }
+}
+
+TEST(ConfigurationTest, ValidateSuccess) {
+    ConfigurationShim configuration;
+    ParameterMap params = {{"bucket_type", "ephemeral"}};
+    auto validation = nlohmann::json(
+            configuration.validateParameters(params));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_GT(validation.size(), 10);
+    EXPECT_EQ(validation["bucket_type"]["value"], "ephemeral");
+}
+
+TEST(ConfigurationTest, ValidateInvalidValue) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(configuration.validateParameters(
+            {{"item_eviction_policy", "invalid"}}));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_EQ(validation.size(), 1);
+    EXPECT_EQ(validation["item_eviction_policy"]["error"],
+              "invalid_arguments");
+    EXPECT_EQ(validation["item_eviction_policy"]["message"],
+              "Invalid value for item_eviction_policy: invalid");
+}
+
+TEST(ConfigurationTest, ValidateNonExistent) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(
+            configuration.validateParameters({{"non_existent", "1234"}}));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_GT(validation.size(), 10);
+    EXPECT_EQ(validation["non_existent"]["error"], "unsupported");
+    EXPECT_EQ(validation["non_existent"]["message"],
+              "Parameter not supported by this bucket");
+}
+
+TEST(ConfigurationTest, ValidateDefaults) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(configuration.validateParameters({}));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_GT(validation.size(), 10);
+}
+
+TEST(ConfigurationTest, ValidateOutOfRange) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(
+            configuration.validateParameters({{"mutation_mem_ratio", "1000"}}));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_EQ(validation["mutation_mem_ratio"]["error"], "invalid_arguments");
+    EXPECT_TRUE(validation["mutation_mem_ratio"]["message"]
+                        .get<std::string>()
+                        .contains("Validation Error"))
+            << validation.dump(4);
+}
+
+TEST(ConfigurationTest, ValidateInvalidType) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(configuration.validateParameters(
+            {{"access_scanner_enabled", "bool"},
+             {"alog_sleep_time", "int"},
+             {"checkpoint_memory_ratio", "double"}}));
+    auto exitGuard = folly::makeGuard([validation]() {
+        if (HasFailure()) {
+            FAIL() << validation.dump(4);
+        }
+    });
+
+    EXPECT_EQ(validation["access_scanner_enabled"]["error"],
+              "invalid_arguments");
+    EXPECT_EQ(validation["alog_sleep_time"]["error"], "invalid_arguments");
+    EXPECT_EQ(validation["checkpoint_memory_ratio"]["error"],
+              "invalid_arguments");
+}
+
+TEST(ConfigurationTest, ValidateModifiedDefaultsReturned) {
+    ConfigurationShim configuration;
+    configuration.setParameter("max_item_size", size_t(1234));
+    auto validation = nlohmann::json(configuration.validateParameters({}));
+    EXPECT_EQ(validation["max_item_size"]["value"], 1234);
+}
+
+static ConfigurationShim createTestConfiguration() {
+    ConfigurationShim configuration;
+    configuration.public_clear();
+    configuration.public_addParameter(
+            "bucket_type", (std::string) "persistent", false);
+    configuration.public_addParameter(
+            "backend", (std::string) "couchdb", false);
+    configuration.public_setRequirements(
+            "backend",
+            (new Requirement)->add("bucket_type", (std::string) "persistent"));
+    return configuration;
+}
+
+// "backend" depends on "bucket_type" being "persistent".
+// Check that when "bucket_type" is "not_persistent", "backend" does not
+// exist in the validation result.
+TEST(ConfigurationTest, ValidateWithRequirementsMet) {
+    auto validation = nlohmann::json(createTestConfiguration().setAndValidate(
+            {{"bucket_type", "not_persistent"}}));
+    EXPECT_EQ(validation.size(), 1) << validation.dump(4);
+    EXPECT_TRUE(validation["bucket_type"]["error"].is_null())
+            << validation.dump(4);
+}
+
+// Check that when "bucket_type" is "persistent", "backend" exists in the
+// validation result.
+TEST(ConfigurationTest, ValidateWithRequirementsHidesParameter) {
+    auto validation = nlohmann::json(createTestConfiguration().setAndValidate(
+            {{"bucket_type", "persistent"}}));
+    EXPECT_EQ(validation.size(), 2) << validation.dump(4);
+    EXPECT_TRUE(validation["bucket_type"]["error"].is_null())
+            << validation.dump(4);
+}
+
+// Check that when "bucket_type" is "not_persistent", "backend" is not
+// allowed to be set.
+TEST(ConfigurationTest, ValidateWithRequirementsNotMet) {
+    auto validation = nlohmann::json(createTestConfiguration().setAndValidate(
+            {{"bucket_type", "not_persistent"}, {"backend", "couchdb"}}));
+    EXPECT_EQ(validation.size(), 2) << validation.dump(4);
+    EXPECT_EQ(validation["backend"]["error"], "invalid_arguments")
+            << validation.dump(4);
+}
+
+TEST(ConfigurationTest, ValidateDynamic) {
+    ConfigurationShim configuration;
+    configuration.public_clear();
+    configuration.public_addParameter("param", size_t(1), true);
+    auto validation = nlohmann::json(configuration.setAndValidate({}));
+    EXPECT_EQ(validation.size(), 1) << validation.dump(4);
+    EXPECT_EQ(validation["param"]["value"], 1);
+    EXPECT_EQ(validation["param"]["requiresRestart"], false);
+}
+
+TEST(ConfigurationTest, ValidateNonDynamic) {
+    ConfigurationShim configuration;
+    configuration.public_clear();
+    configuration.public_addParameter("param", size_t(1), false);
+    auto validation = nlohmann::json(configuration.setAndValidate({}));
+    EXPECT_EQ(validation.size(), 1) << validation.dump(4);
+    EXPECT_EQ(validation["param"]["value"], 1);
+    EXPECT_EQ(validation["param"]["requiresRestart"], true);
 }

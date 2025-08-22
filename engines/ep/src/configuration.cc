@@ -22,6 +22,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <sstream>
+#include <utility>
 
 // Used to get a name from a type to use in logging
 template <typename T>
@@ -52,6 +53,10 @@ std::string to_string(const value_variant_t& value) {
     }
     return std::visit([](auto&& elem) { return fmt::format("{}", elem); },
                       value);
+}
+
+static nlohmann::json to_json(const value_variant_t& value) {
+    return std::visit([](auto&& elem) { return nlohmann::json(elem); }, value);
 }
 
 void ValueChangedListener::booleanValueChanged(std::string_view key, bool) {
@@ -320,6 +325,16 @@ void Configuration::addValueChangedListener(
     it->second->addChangeListener(std::move(val));
 }
 
+Configuration::Configuration(const Configuration& other)
+    : isServerless(other.isServerless),
+      isDevAssertEnabled(other.isDevAssertEnabled) {
+    initialize();
+    initialized = true;
+    for (const auto& [key, value] : other.attributes) {
+        (void)attributes[key]->setValue(value->getValue());
+    }
+}
+
 ValueChangedValidator* Configuration::setValueValidator(
         std::string_view key, ValueChangedValidator* validator) {
     Expects(!initialized);
@@ -470,6 +485,80 @@ void Configuration::parseAndSetParameter(std::string_view key,
     auto newValue = it->second->getValue();
     parseParameter(std::string(value), newValue);
     std::visit([this, key](auto&& val) { setParameter(key, val); }, newValue);
+}
+
+ParameterValidationMap Configuration::validateParameters(
+        const ParameterMap& parameters) const {
+    // Validate against a copy of this configuration.
+    Configuration config(*this);
+    auto [map, success] = config.setParametersInternal(parameters);
+
+    if (success) {
+        // Now do the conditional init, which is last so it can read all current
+        // state.
+        config.runConditionalInitialize();
+
+        // Fill in the defaults for parameters that were not set.
+        config.fillDefaults(map);
+    }
+
+    return map;
+}
+
+void Configuration::fillDefaults(ParameterValidationMap& map) const {
+    for (const auto& [key, attr] : attributes) {
+        if (map.find(key) == map.end() && requirementsMet(*attr)) {
+            map.emplace(
+                    key,
+                    ParameterInfo(to_json(attr->getValue()), !attr->dynamic));
+        }
+    }
+}
+
+std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
+        const ParameterMap& parameters) {
+    ParameterValidationMap result;
+
+    bool failed = false;
+
+    for (const auto& [key, value] : parameters) {
+        auto it = attributes.find(key);
+        if (it == attributes.end()) {
+            result.emplace(key, ParameterError::unsupported());
+            continue;
+        }
+
+        const auto& attribute = *it->second;
+        auto newValue = attribute.getValue();
+        try {
+            parseParameter(value, newValue);
+            std::visit([this, key](auto&& val) { setParameter(key, val); },
+                       newValue);
+        } catch (const std::exception& e) {
+            result.emplace(key, ParameterError::invalidValue(e.what()));
+            failed = true;
+            continue;
+        }
+
+        // We've successfully set the parameter.
+        result.emplace(key,
+                       ParameterInfo(to_json(newValue), !attribute.dynamic));
+    }
+
+    // Check the all requirements are met - note this may override the success
+    // ParameterInfo for a parameter if the requirements are not met.
+    for (const auto& [key, value] : parameters) {
+        auto it = attributes.find(key);
+        if (it != attributes.end()) {
+            if (!requirementsMet(*it->second)) {
+                result.at(key) = ParameterError::invalidValue(
+                        "Parameter requirements not met");
+                failed = true;
+            }
+        }
+    }
+
+    return {result, !failed};
 }
 
 Configuration::~Configuration() = default;

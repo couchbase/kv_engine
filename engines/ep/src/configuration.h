@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <memcached/configuration_iface.h>
 #include <memcached/engine.h>
 #include <relaxed_atomic.h>
 #include <iostream>
@@ -177,7 +178,7 @@ class Requirement;
  * The configuration class represents and provides access to the
  * entire configuration of the server.
  */
-class Configuration {
+class Configuration : public ConfigurationIface {
 public:
     struct Attribute;
 
@@ -188,7 +189,7 @@ public:
      */
     explicit Configuration(bool isServerless = false,
                            bool isDevAssertEnabled = false);
-    ~Configuration();
+    ~Configuration() override;
 
     // Include the generated prototypes for the member functions
 #include "generated_configuration.h" // NOLINT(*)
@@ -288,11 +289,28 @@ public:
      */
     static std::unordered_set<std::string> getDynamicParametersForTesting();
 
+    ParameterValidationMap validateParameters(
+            const ParameterMap& parameters) const override;
+
     const bool isServerless;
 
     const bool isDevAssertEnabled = false;
 
 protected:
+    /**
+     * Copy constructor.
+     *
+     * Note only the values are copied. Listeners are not copied.
+     *
+     * @param other The configuration to copy
+     */
+    Configuration(const Configuration& other);
+
+    std::pair<ParameterValidationMap, bool> setParametersInternal(
+            const ParameterMap& parameters);
+
+    void fillDefaults(ParameterValidationMap& map) const;
+
     /**
      * Set a validator for a specific key. The configuration class
      * will release the memory for the ValueChangedValidator by calling
@@ -385,7 +403,6 @@ protected:
      */
     cb::RelaxedAtomic<bool> initialized{false};
 
-private:
     void initialize();
 
     /**
