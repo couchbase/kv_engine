@@ -525,6 +525,16 @@ public:
     std::vector<cb::mcbp::Feature> getFeatures() const;
 };
 
+class BinprotValidateBucketConfigCommand : public BinprotGenericCommand {
+public:
+    explicit BinprotValidateBucketConfigCommand(const std::string& module,
+                                                const std::string& config);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    std::vector<uint8_t> module_config;
+};
+
 class BinprotCreateBucketCommand : public BinprotGenericCommand {
 public:
     explicit BinprotCreateBucketCommand(std::string name,

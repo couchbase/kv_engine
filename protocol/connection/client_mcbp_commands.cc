@@ -524,6 +524,25 @@ void BinprotSaslStepCommand::setChallenge(std::string_view data) {
     challenge = data;
 }
 
+BinprotValidateBucketConfigCommand::BinprotValidateBucketConfigCommand(
+        const std::string& module, const std::string& config)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::ValidateBucketConfig) {
+    module_config.assign(module.begin(), module.end());
+    module_config.push_back(0x00);
+    module_config.insert(module_config.end(), config.begin(), config.end());
+}
+
+void BinprotValidateBucketConfigCommand::encode(
+        std::vector<uint8_t>& buf) const {
+    if (module_config.empty()) {
+        throw std::logic_error(
+                "BinprotValidateBucketConfigCommand::encode: Missing bucket "
+                "module and config");
+    }
+    writeHeader(buf, module_config.size(), 0);
+    buf.insert(buf.end(), module_config.begin(), module_config.end());
+}
+
 void BinprotCreateBucketCommand::encode(std::vector<uint8_t>& buf) const {
     if (module_config.empty()) {
         throw std::logic_error(

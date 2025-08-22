@@ -279,6 +279,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::CollectionsGetManifest, empty);
     setup(ClientOpcode::CollectionsGetID, empty);
     setup(ClientOpcode::CollectionsGetScopeID, empty);
+    setup(ClientOpcode::ValidateBucketConfig,
+          require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::RangeScanCreate, empty);
     setup(ClientOpcode::RangeScanContinue, empty);
     setup(ClientOpcode::RangeScanCancel, empty);

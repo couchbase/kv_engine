@@ -2146,6 +2146,16 @@ static Status collections_get_id_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status bucket_config_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::NonZero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
 static Status adjust_timeofday_validator(Cookie& cookie) {
     using cb::mcbp::request::AdjustTimePayload;
     auto status = McbpValidator::verify_header(cookie,
@@ -3300,6 +3310,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::CollectionsGetID, collections_get_id_validator);
     setup(ClientOpcode::CollectionsGetScopeID,
           collections_get_id_validator); // same rules as GetID
+    setup(ClientOpcode::ValidateBucketConfig, bucket_config_validator);
     setup(ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
     setup(ClientOpcode::EwouldblockCtl, ewb_validator);
     setup(ClientOpcode::GetRandomKey, get_random_key_validator);

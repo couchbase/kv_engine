@@ -12,8 +12,26 @@
 #include "engines/ep/src/ep_engine_public.h"
 #include "engines/ewouldblock_engine/ewouldblock_engine_public.h"
 #include "engines/nobucket/nobucket_public.h"
+#include "memcached/configuration_iface.h"
+#include <folly/lang/Assume.h>
 #include <nlohmann/json.hpp>
 #include <string>
+
+std::unique_ptr<ConfigurationIface> create_bucket_configuration(
+        BucketType type) {
+    switch (type) {
+    case BucketType::NoBucket:
+    case BucketType::EWouldBlock:
+        return createDummyConfiguration();
+    case BucketType::Couchbase:
+        return create_ep_bucket_configuration();
+    case BucketType::ClusterConfigOnly:
+    case BucketType::Unknown:
+        throw std::invalid_argument(
+                "create_bucket_configuration: Invalid bucket type");
+    }
+    folly::assume_unreachable();
+}
 
 unique_engine_ptr new_engine_instance(BucketType type,
                                       GET_SERVER_API get_server_api) {

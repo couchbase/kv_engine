@@ -111,3 +111,11 @@ public:
     virtual ParameterValidationMap validateParameters(
             const ParameterMap& parameters) const = 0;
 };
+
+/**
+ * Create a configuration which accepts all parameters.
+ *
+ * This is used for components which do not support more complicated validation
+ * logic.
+ */
+std::unique_ptr<ConfigurationIface> createDummyConfiguration();

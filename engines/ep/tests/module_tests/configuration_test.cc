@@ -685,7 +685,7 @@ TEST(ConfigurationTest, ValidateInvalidType) {
 TEST(ConfigurationTest, ValidateModifiedDefaultsReturned) {
     ConfigurationShim configuration;
     configuration.setParameter("max_item_size", size_t(1234));
-    auto validation = nlohmann::json(configuration.validateParameters({}));
+    auto validation = nlohmann::json(configuration.setAndValidate({}));
     EXPECT_EQ(validation["max_item_size"]["value"], 1234);
 }
 

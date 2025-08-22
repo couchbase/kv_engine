@@ -464,6 +464,15 @@ public:
     void authenticateWithToken();
 
     /**
+     * Validate bucket configuration.
+     *
+     * @param config the configuration to validate
+     * @param type the kind of bucket for the configuration
+     */
+    nlohmann::json validateBucketConfig(const std::string& config,
+                                        BucketType type);
+
+    /**
      * Create a bucket
      *
      * @param name the name of the bucket

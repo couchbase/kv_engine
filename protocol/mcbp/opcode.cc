@@ -649,6 +649,8 @@ public:
               {"COLLECTIONS_GET_ID"sv, {Attribute::Supported}});
         setup(ClientOpcode::CollectionsGetScopeID,
               {"COLLECTIONS_GET_SCOPE_ID"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ValidateBucketConfig,
+              {"VALIDATE_BUCKET_CONFIG"sv, {Attribute::Supported}});
         setup(ClientOpcode::SetDriftCounterState_Unsupported,
               {"SET_DRIFT_COUNTER_STATE"sv, {}});
         setup(ClientOpcode::GetAdjustedTime_Unsupported,

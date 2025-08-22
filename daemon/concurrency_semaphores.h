@@ -55,6 +55,10 @@ public:
     cb::AwaitableSemaphore fusion_management{4};
     /// Used for limiting the number of IOCTL commands to run in parallel
     cb::AwaitableSemaphore ioctl{1};
+    /// Allows use of BackgroundThreadCommandContext for Bucket config
+    /// validation. The task has no inherent concurrency limitation, so the
+    /// semaphore has a large number of tokens
+    cb::AwaitableSemaphore bucket_config_validation{100};
 
 protected:
     ConcurrencySemaphores();

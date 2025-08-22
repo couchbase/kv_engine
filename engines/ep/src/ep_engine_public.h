@@ -15,6 +15,10 @@
 #pragma once
 #include <memcached/engine.h>
 
+class ConfigurationIface;
+
+std::unique_ptr<ConfigurationIface> create_ep_bucket_configuration();
+
 cb::engine_errc create_ep_engine_instance(GET_SERVER_API get_server_api,
                                           EngineIface** handle);
 

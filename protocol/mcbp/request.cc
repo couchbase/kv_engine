@@ -384,6 +384,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::GetAdjustedTime_Unsupported:
         case ClientOpcode::CollectionsGetID:
         case ClientOpcode::CollectionsGetScopeID:
+        case ClientOpcode::ValidateBucketConfig:
         case ClientOpcode::Scrub_Unsupported:
         case ClientOpcode::IsaslRefresh:
         case ClientOpcode::SslCertsRefresh_Unsupported:

@@ -180,6 +180,20 @@ enum class ClientOpcode : uint8_t {
     PauseBucket = 0x8a,
     ResumeBucket = 0x8b,
 
+    /**
+     * Command to validate a bucket configuration
+     */
+    ValidateBucketConfig = 0x8c,
+
+    /**
+     * In the future, it would be good to support setting an entire bucket
+     * config for an existing bucket with a single command, SetBucketConfig.
+     * This doesn't exist yet, but it would be nice to reserve the following
+     * opcode for that purpose.
+     *
+     * SetBucketConfig = 0x8d,
+     */
+
     ObserveSeqno = 0x91,
     Observe = 0x92,
 

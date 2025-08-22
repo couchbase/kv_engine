@@ -30,6 +30,7 @@ cb_add_test_executable(memcached_testapp
     testapp_binprot.cc
     testapp_binprot.h
     testapp_bucket.cc
+    testapp_bucket_config.cc
     testapp_cert_tests.cc
     testapp_client_test.cc
     testapp_client_test.h

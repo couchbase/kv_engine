@@ -13,6 +13,14 @@
 #include "buckets.h"
 #include <memcached/engine.h>
 
+class ConfigurationIface;
+
+/**
+ * Create a new instance of the bucket configuration.
+ */
+std::unique_ptr<ConfigurationIface> create_bucket_configuration(
+        BucketType type);
+
 /**
  * Create a new instance of the given bucket type
  *

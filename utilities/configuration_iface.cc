@@ -76,3 +76,19 @@ ParameterError::ParameterError(ParameterErrorType type, std::string message)
 ParameterInfo::ParameterInfo(nlohmann::json value, bool requiresRestart)
     : value(std::move(value)), requiresRestart(requiresRestart) {
 }
+
+class PassthroughBucketConfiguration : public ConfigurationIface {
+public:
+    ParameterValidationMap validateParameters(
+            const ParameterMap& parameters) const override {
+        ParameterValidationMap result;
+        for (const auto& [key, value] : parameters) {
+            result.emplace(key, ParameterInfo(nlohmann::json(value), false));
+        }
+        return result;
+    }
+};
+
+std::unique_ptr<ConfigurationIface> createDummyConfiguration() {
+    return std::make_unique<PassthroughBucketConfiguration>();
+}

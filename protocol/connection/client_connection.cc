@@ -1384,6 +1384,18 @@ static std::string bucketTypeToModule(BucketType type) {
                              std::to_string(int(type)));
 }
 
+nlohmann::json MemcachedConnection::validateBucketConfig(
+        const std::string& config, BucketType type) {
+    BinprotValidateBucketConfigCommand command(bucketTypeToModule(type),
+                                               config);
+    const auto response = execute(command);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Validate bucket config failed", response);
+    }
+
+    return nlohmann::json::parse(response.getDataView());
+}
+
 void MemcachedConnection::createBucket(const std::string& bucketName,
                                        const std::string& config,
                                        BucketType type) {

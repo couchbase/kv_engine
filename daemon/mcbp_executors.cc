@@ -20,6 +20,7 @@
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
+#include "protocol/mcbp/bucket_config_command_context.h"
 #include "protocol/mcbp/bucket_management_command_context.h"
 #include "protocol/mcbp/dcp_cached_value.h"
 #include "protocol/mcbp/dcp_deletion.h"
@@ -584,6 +585,10 @@ static void set_cluster_config_executor(Cookie& cookie) {
     cookie.obtainContext<SetClusterConfigCommandContext>(cookie).drive();
 }
 
+static void validate_bucket_config_executor(Cookie& cookie) {
+    cookie.obtainContext<BucketConfigCommandContext>(cookie).drive();
+}
+
 static void auth_provider_executor(Cookie& cookie) {
     if (!Settings::instance().isExternalAuthServiceEnabled()) {
         cookie.setErrorContext(
@@ -980,6 +985,9 @@ void initialize_mbcp_lookup_map() {
                   get_cluster_config_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetClusterConfig,
                   set_cluster_config_executor);
+
+    setup_handler(cb::mcbp::ClientOpcode::ValidateBucketConfig,
+                  validate_bucket_config_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::SubdocGet, subdoc_get_executor);
     setup_handler(cb::mcbp::ClientOpcode::SubdocExists, subdoc_exists_executor);

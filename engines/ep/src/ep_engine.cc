@@ -1427,6 +1427,14 @@ cb::engine_errc EventuallyPersistentEngine::cached_key_meta(
                                  expiration);
 }
 
+std::unique_ptr<ConfigurationIface> create_ep_bucket_configuration() {
+#ifdef CB_DEVELOPMENT_ASSERTS
+    return std::make_unique<Configuration>(cb::serverless::isEnabled(), true);
+#else
+    return std::make_unique<Configuration>(cb::serverless::isEnabled(), false);
+#endif
+}
+
 cb::engine_errc EventuallyPersistentEngine::cache_transfer_end(
         CookieIface& cookie, uint32_t opaque, Vbid vbucket) {
     auto engine = acquireEngine(this);
