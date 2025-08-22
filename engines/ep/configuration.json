@@ -12,7 +12,8 @@
  *     "default": "parameter_default",
  *     "requires": {
  *         "bucket_type": "persistent"
- *     }
+ *     },
+ *     "public_since": "major.minor"
  * }
  *
  * * "key" - the name of the parameter
@@ -59,6 +60,10 @@
  *     values that the parameter can take.
  * * "aliases" - the aliases for the parameter; allows the parameter to be
  *     set using an alias name.
+ * * "public_since" - the version of the parameter that was made public.
+ *     When the compat_version is after the public_since version, then
+ *     the parameter is reported with visibility "public"; otherwise it is
+ *     reported with visibility "internal".
  */
 {
     "params": {

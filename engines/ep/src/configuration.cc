@@ -131,7 +131,9 @@ Configuration::Configuration(bool isServerless, bool isDevAssertEnabled)
 }
 
 struct Configuration::Attribute {
-    explicit Attribute(bool dynamic) : dynamic(dynamic) {
+    explicit Attribute(bool dynamic,
+                       std::optional<cb::config::FeatureVersion> publicSince)
+        : dynamic(dynamic), publicSince(publicSince) {
     }
 
     /// The validator cannot be changed after initialization.
@@ -141,6 +143,9 @@ struct Configuration::Attribute {
 
     /// Is this parameter dynamic (can be changed at runtime?)
     const bool dynamic;
+
+    /// The parameter has public visibility as of this version.
+    const std::optional<cb::config::FeatureVersion> publicSince;
 
     value_variant_t getValue() const {
         return valueAndListeners.withRLock(
@@ -195,15 +200,18 @@ Configuration::getDynamicParametersForTesting() {
 }
 
 template <class T>
-void Configuration::addParameter(std::string_view key,
-                                 T defaultVal,
-                                 std::optional<T> defaultServerless,
-                                 std::optional<T> defaultTSAN,
-                                 std::optional<T> defaultDevAssert,
-                                 bool dynamic) {
+void Configuration::addParameter(
+        std::string_view key,
+        T defaultVal,
+        std::optional<T> defaultServerless,
+        std::optional<T> defaultTSAN,
+        std::optional<T> defaultDevAssert,
+        bool dynamic,
+        std::optional<cb::config::FeatureVersion> publicSince) {
     Expects(!initialized);
     auto [itr, success] = attributes.insert(
-            {std::string{key}, std::make_shared<Attribute>(dynamic)});
+            {std::string{key},
+             std::make_shared<Attribute>(dynamic, publicSince)});
     if (!success) {
         throw std::logic_error("Configuration::addParameter(" +
                                std::string{key} + ") already exists.");
@@ -522,9 +530,20 @@ void Configuration::fillDefaults(ParameterValidationMap& map) const {
         if (map.find(key) == map.end() && requirementsMet(*attr)) {
             map.emplace(
                     key,
-                    ParameterInfo(to_json(attr->getValue()), !attr->dynamic));
+                    ParameterInfo(to_json(attr->getValue()),
+                                  !attr->dynamic,
+                                  getParameterVisibility(attr->publicSince)));
         }
     }
+}
+
+ParameterVisibility Configuration::getParameterVisibility(
+        const std::optional<cb::config::FeatureVersion>& publicSince) const {
+    auto version = getEffectiveCompatVersion();
+    if (publicSince && *publicSince <= version) {
+        return ParameterVisibility::Public;
+    }
+    return ParameterVisibility::Internal;
 }
 
 std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
@@ -553,8 +572,11 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
         }
 
         // We've successfully set the parameter.
-        result.emplace(key,
-                       ParameterInfo(to_json(newValue), !attribute.dynamic));
+        result.emplace(
+                key,
+                ParameterInfo(to_json(newValue),
+                              !attribute.dynamic,
+                              getParameterVisibility(attribute.publicSince)));
     }
 
     // Check the all requirements are met - note this may override the success
@@ -760,13 +782,15 @@ cb::config::FeatureVersion Configuration::getEffectiveCompatVersion() const {
 }
 
 // Explicit instantiations for addParameter for supported types.
-#define INSTANTIATE_TEMPLATES(T)                                \
-    template void Configuration::addParameter(std::string_view, \
-                                              T,                \
-                                              std::optional<T>, \
-                                              std::optional<T>, \
-                                              std::optional<T>, \
-                                              bool)
+#define INSTANTIATE_TEMPLATES(T)               \
+    template void Configuration::addParameter( \
+            std::string_view,                  \
+            T,                                 \
+            std::optional<T>,                  \
+            std::optional<T>,                  \
+            std::optional<T>,                  \
+            bool,                              \
+            std::optional<cb::config::FeatureVersion>)
 
 INSTANTIATE_TEMPLATES(bool);
 INSTANTIATE_TEMPLATES(size_t);

@@ -325,6 +325,12 @@ protected:
     void fillDefaults(ParameterValidationMap& map) const;
 
     /**
+     * Get the visibility of a parameter based on the public since version.
+     */
+    ParameterVisibility getParameterVisibility(
+            const std::optional<cb::config::FeatureVersion>& publicSince) const;
+
+    /**
      * Set a validator for a specific key. The configuration class
      * will release the memory for the ValueChangedValidator by calling
      * delete in its destructor (so you have to allocate it by using
@@ -373,6 +379,7 @@ protected:
      * CB_DEVELOPMENT_ASSERTS
      * @param dynamic True if this parameter can be changed at runtime,
      *        False if the value cannot be changed once object is constructed.
+     * @param publicSince the version since which the parameter is public
      */
     template <class T>
     void addParameter(std::string_view key,
@@ -380,7 +387,8 @@ protected:
                       std::optional<T> defaultServerless,
                       std::optional<T> defaultTSAN,
                       std::optional<T> defaultDevAssert,
-                      bool dynamic);
+                      bool dynamic,
+                      std::optional<cb::config::FeatureVersion> publicSince);
 
     /**
      * Set the configuration parameter for a given key to

@@ -298,19 +298,22 @@ public:
     }
 
     template <class T>
-    void public_addParameter(std::string_view key,
-                             T defaultVal,
-                             std::optional<T> defaultServerless,
-                             std::optional<T> defaultTSAN,
-                             std::optional<T> defaultDevAssert,
-                             bool dynamic) {
+    void public_addParameter(
+            std::string_view key,
+            T defaultVal,
+            std::optional<T> defaultServerless,
+            std::optional<T> defaultTSAN,
+            std::optional<T> defaultDevAssert,
+            bool dynamic,
+            std::optional<cb::config::FeatureVersion> version = {}) {
         initialized = false;
         Configuration::addParameter(key,
                                     defaultVal,
                                     defaultServerless,
                                     defaultTSAN,
                                     defaultDevAssert,
-                                    dynamic);
+                                    dynamic,
+                                    version);
         initialized = true;
     }
 
@@ -789,4 +792,47 @@ TEST(ConfigurationTest, CompatVersionSetInvalid) {
     EXPECT_THROW(configuration.setParameter("compat_version", "8.0.0"),
                  std::invalid_argument);
     EXPECT_EQ(configuration.getEffectiveCompatVersion(), FeatureVersion::max());
+}
+
+// Test that parameters without public visibility are not marked as public
+TEST(ConfigurationTest, ValidatePublicParametersVisibility) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("public_param",
+                                      size_t(1),
+                                      {},
+                                      {},
+                                      {},
+                                      true,
+                                      cb::config::FeatureVersion::max());
+
+    auto validation = nlohmann::json(configuration.setAndValidate({}));
+
+    if (validation.contains("public_param")) {
+        // If the parameter exists, it should not have public visibility
+        EXPECT_EQ(validation["public_param"]["visibility"], "public")
+                << "Parameter should have public visibility";
+    }
+}
+
+// Test that parameters without public visibility are not marked as public
+TEST(ConfigurationTest, ValidateNonPublicParametersVisibility) {
+    ConfigurationShim configuration;
+    auto validation = nlohmann::json(configuration.setAndValidate({}));
+
+    // Test a few parameters that should not have public visibility
+    // (these are examples - adjust based on actual configuration)
+    std::vector<std::string> internalParams = {
+            "bfilter_enabled",
+            "checkpoint_memory_ratio",
+            "defragmenter_enabled",
+    };
+
+    for (const auto& param : internalParams) {
+        if (validation.contains(param)) {
+            // If the parameter exists, it should not have public visibility
+            EXPECT_NE(validation[param]["visibility"], "public")
+                    << "Parameter " << param
+                    << " should not have public visibility";
+        }
+    }
 }

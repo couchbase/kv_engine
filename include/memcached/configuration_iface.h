@@ -47,16 +47,29 @@ private:
 
 void to_json(nlohmann::json& j, const ParameterError& error);
 
+enum class ParameterVisibility {
+    /// The parameter is user-accessible.
+    Public,
+    /// The parameter is for internal use only.
+    Internal,
+};
+
+void to_json(nlohmann::json& j, const ParameterVisibility& visibility);
+
 /**
  * Encodes the validation information for a parameter.
  */
 struct ParameterInfo {
-    ParameterInfo(nlohmann::json value, bool requiresRestart);
+    ParameterInfo(nlohmann::json value,
+                  bool requiresRestart,
+                  ParameterVisibility visibility);
 
     /// The value to set for the parameter.
     nlohmann::json value;
     /// Whether the parameter requires a restart to take effect.
     bool requiresRestart{false};
+    /// The visibility of the parameter.
+    ParameterVisibility visibility{ParameterVisibility::Internal};
 };
 
 void to_json(nlohmann::json& j, const ParameterInfo& info);

@@ -30,6 +30,18 @@ void to_json(nlohmann::json& json, const ParameterErrorType& type) {
 void to_json(nlohmann::json& json, const ParameterInfo& info) {
     json["value"] = info.value;
     json["requiresRestart"] = info.requiresRestart;
+    json["visibility"] = info.visibility;
+}
+
+void to_json(nlohmann::json& json, const ParameterVisibility& visibility) {
+    switch (visibility) {
+    case ParameterVisibility::Public:
+        json = "public";
+        break;
+    case ParameterVisibility::Internal:
+        json = "internal";
+        break;
+    }
 }
 
 void to_json(nlohmann::json& json, const ParameterError& error) {
@@ -73,8 +85,12 @@ ParameterError::ParameterError(ParameterErrorType type, std::string message)
     : type(type), message(std::move(message)) {
 }
 
-ParameterInfo::ParameterInfo(nlohmann::json value, bool requiresRestart)
-    : value(std::move(value)), requiresRestart(requiresRestart) {
+ParameterInfo::ParameterInfo(nlohmann::json value,
+                             bool requiresRestart,
+                             ParameterVisibility visibility)
+    : value(std::move(value)),
+      requiresRestart(requiresRestart),
+      visibility(visibility) {
 }
 
 class PassthroughBucketConfiguration : public ConfigurationIface {
@@ -83,7 +99,10 @@ public:
             const ParameterMap& parameters) const override {
         ParameterValidationMap result;
         for (const auto& [key, value] : parameters) {
-            result.emplace(key, ParameterInfo(nlohmann::json(value), false));
+            result.emplace(key,
+                           ParameterInfo(nlohmann::json(value),
+                                         false,
+                                         ParameterVisibility::Public));
         }
         return result;
     }

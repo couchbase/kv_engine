@@ -575,9 +575,10 @@ static std::string generateAddParameter(
         const std::optional<std::string>& defaultValServerless,
         const std::optional<std::string>& defaultValTSAN,
         const std::optional<std::string>& defaultValDevAssert,
-        bool dynamic) {
+        bool dynamic,
+        std::string publicSince) {
     return fmt::format(
-            "addParameter(\"{}\", {}, {{{}}}, {{{}}}, {{{}}}, {});",
+            "addParameter(\"{}\", {}, {{{}}}, {{{}}}, {{{}}}, {}, {});",
             key,
             formatValue(defaultValStr, type),
             (defaultValServerless ? formatValue(*defaultValServerless, type)
@@ -585,7 +586,8 @@ static std::string generateAddParameter(
             (defaultValTSAN ? formatValue(*defaultValTSAN, type) : ""),
             (defaultValDevAssert ? formatValue(*defaultValDevAssert, type)
                                  : ""),
-            dynamic);
+            dynamic,
+            publicSince);
 }
 
 static void generate(const nlohmann::json& params, const std::string& key) {
@@ -670,6 +672,11 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                               cppName,
                               getterSuffix);
     const auto dynamic = !isReadOnly(json);
+    const auto publicSince =
+            json["public_since"].is_string()
+                    ? "cb::config::FeatureVersion::parse(\"" +
+                              json["public_since"].get<std::string>() + "\")"
+                    : "{}";
 
     if (dynamic) {
         prototypes +=
@@ -735,10 +742,16 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
         // And still need to add "this" parameter, otherwise it cannot be
         // written to by the conditional init
-        initialization += fmt::format(
-                "   /*1*/ {}\n",
-                generateAddParameter(
-                        key, conditional.elseValue, type, {}, {}, {}, dynamic));
+        initialization +=
+                fmt::format("   /*1*/ {}\n",
+                            generateAddParameter(key,
+                                                 conditional.elseValue,
+                                                 type,
+                                                 {},
+                                                 {},
+                                                 {},
+                                                 dynamic,
+                                                 publicSince));
 
     } else if (defaultVal.is_object()) {
         initialization += fmt::format("    {}\n",
@@ -748,12 +761,18 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                                                            defaultValServerless,
                                                            defaultValTSAN,
                                                            defaultValDevAssert,
-                                                           dynamic));
+                                                           dynamic,
+                                                           publicSince));
     } else {
-        initialization += fmt::format(
-                "    {}\n",
-                generateAddParameter(
-                        key, defaultValStr, type, {}, {}, {}, dynamic));
+        initialization += fmt::format("    {}\n",
+                                      generateAddParameter(key,
+                                                           defaultValStr,
+                                                           type,
+                                                           {},
+                                                           {},
+                                                           {},
+                                                           dynamic,
+                                                           publicSince));
     }
 
     if (!validatorCode.empty()) {
