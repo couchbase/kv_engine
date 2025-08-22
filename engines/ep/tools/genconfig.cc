@@ -556,6 +556,26 @@ static ConditionalDefault getConditionalDefault(
     return rv;
 }
 
+static std::string generateAddParameter(
+        const std::string& key,
+        const std::string& defaultValStr,
+        const std::string& type,
+        const std::optional<std::string>& defaultValServerless,
+        const std::optional<std::string>& defaultValTSAN,
+        const std::optional<std::string>& defaultValDevAssert,
+        bool dynamic) {
+    return fmt::format(
+            "addParameter(\"{}\", {}, {{{}}}, {{{}}}, {{{}}}, {});",
+            key,
+            formatValue(defaultValStr, type),
+            (defaultValServerless ? formatValue(*defaultValServerless, type)
+                                  : ""),
+            (defaultValTSAN ? formatValue(*defaultValTSAN, type) : ""),
+            (defaultValDevAssert ? formatValue(*defaultValDevAssert, type)
+                                 : ""),
+            dynamic);
+}
+
 static void generate(const nlohmann::json& params, const std::string& key) {
     auto cppName = getCppName(key);
 
@@ -703,28 +723,25 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
         // And still need to add "this" parameter, otherwise it cannot be
         // written to by the conditional init
-        initialization +=
-                fmt::format("   /*1*/ addParameter(\"{}\", {}, {});\n",
-                            key,
-                            formatValue(conditional.elseValue, type),
-                            dynamic);
+        initialization += fmt::format(
+                "   /*1*/ {}\n",
+                generateAddParameter(
+                        key, conditional.elseValue, type, {}, {}, {}, dynamic));
 
     } else if (defaultVal.is_object()) {
-        initialization += fmt::format(
-                "    addParameter(\"{}\", {}, {{{}}}, {{{}}}, {{{}}}, {});\n",
-                key,
-                formatValue(defaultValStr, type),
-                (defaultValServerless ? formatValue(*defaultValServerless, type)
-                                      : ""),
-                (defaultValTSAN ? formatValue(*defaultValTSAN, type) : ""),
-                (defaultValDevAssert ? formatValue(*defaultValDevAssert, type)
-                                     : ""),
-                dynamic);
+        initialization += fmt::format("    {}\n",
+                                      generateAddParameter(key,
+                                                           defaultValStr,
+                                                           type,
+                                                           defaultValServerless,
+                                                           defaultValTSAN,
+                                                           defaultValDevAssert,
+                                                           dynamic));
     } else {
-        initialization += fmt::format("    addParameter(\"{}\", {}, {});\n",
-                                      key,
-                                      formatValue(defaultValStr, type),
-                                      dynamic);
+        initialization += fmt::format(
+                "    {}\n",
+                generateAddParameter(
+                        key, defaultValStr, type, {}, {}, {}, dynamic));
     }
 
     if (!validatorCode.empty()) {

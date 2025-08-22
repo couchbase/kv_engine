@@ -283,9 +283,7 @@ public:
 
     template <class T>
     void public_addParameter(std::string_view key, T value, bool dynamic) {
-        initialized = false;
-        Configuration::addParameter(key, value, dynamic);
-        initialized = true;
+        public_addParameter(key, value, {}, {}, {}, dynamic);
     }
 
     template <class T>

@@ -177,13 +177,6 @@ private:
 };
 
 template <class T>
-void Configuration::addParameter(std::string_view key, T value, bool dynamic) {
-    Expects(!initialized);
-    addParameter<T>(
-            key, value, std::nullopt, std::nullopt, std::nullopt, dynamic);
-}
-
-template <class T>
 void Configuration::addParameter(std::string_view key,
                                  T defaultVal,
                                  std::optional<T> defaultServerless,
@@ -573,8 +566,7 @@ template void Configuration::addValueChangedFunc(
                                               std::optional<T>, \
                                               std::optional<T>, \
                                               std::optional<T>, \
-                                              bool);            \
-    template void Configuration::addParameter(std::string_view, T, bool)
+                                              bool)
 
 INSTANTIATE_TEMPLATES(bool);
 INSTANTIATE_TEMPLATES(size_t);

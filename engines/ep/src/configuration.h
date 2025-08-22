@@ -308,16 +308,6 @@ protected:
     void addAlias(const std::string& key, const std::string& alias);
 
     /**
-     * Add a new configuration parameter (size_t, ssize_t, float, bool, string)
-     * @param key the key to specify
-     * @param value the new value
-     * @param dynamic True if this parameter can be changed at runtime,
-     *        False if the value cannot be changed once object is constructed.
-     */
-    template <class T>
-    void addParameter(std::string_view key, T value, bool dynamic);
-
-    /**
      * Add a new configuration parameter that has different defaults values for
      * on-prem and serverless (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
