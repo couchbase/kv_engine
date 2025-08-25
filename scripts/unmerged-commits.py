@@ -55,13 +55,15 @@ class bcolors:
 # one for the main release train and one for each MP branch.
 sequences = {
     'couchstore': [
-        [('couchbase/trinity', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
         [('couchbase/neo', 'couchbase/trinity')]
     ],
 
     'kv_engine': [
         # main kv_engine release train sequence
-        [('couchbase/trinity', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
         [('couchbase/neo', 'couchbase/trinity')],
 
         # 7.6 release train (trinity)
@@ -88,7 +90,8 @@ sequences = {
 
     'platform': [
         # main platform release train
-        [('couchbase/trinity', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
         [('couchbase/neo', 'couchbase/trinity')],
 
         # platform 7.1.x maintenance train
@@ -98,7 +101,9 @@ sequences = {
 
     'sigar': [
         # main sigar release train
-        [('couchbase/neo', 'couchbase/master')]
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
+        [('couchbase/neo', 'couchbase/trinity')]
     ]
 }
 
