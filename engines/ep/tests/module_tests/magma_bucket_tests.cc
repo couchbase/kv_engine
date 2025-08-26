@@ -1178,13 +1178,55 @@ public:
         }
     }
 
+    // Copy log files from logstore to N guest volumes for the vbucket under
+    // test.
+    std::vector<std::string> setupGuestVolumes(size_t n) {
+        std::filesystem::remove_all(fusionGuestVolumes);
+        std::filesystem::create_directories(fusionGuestVolumes);
+
+        std::vector<std::string> guestVolumePaths;
+        for (size_t i = 0; i < n; i++) {
+            auto volumePath = fusionGuestVolumes / std::to_string(i);
+            std::filesystem::create_directories(volumePath);
+            guestVolumePaths.push_back(volumePath.string());
+        }
+
+        auto fusionVolumeID = engine->getFusionNamespace() + "/kvstore-" +
+                              std::to_string(vbid.get());
+        size_t guestVolumeIndex = 0;
+        std::filesystem::path logstorePath =
+                fusionLogstoreURI.substr(uriPrefix.length());
+        logstorePath /= fusionVolumeID;
+        for (const auto& entry :
+             std::filesystem::directory_iterator(logstorePath)) {
+            if (entry.is_regular_file()) {
+                const auto filename = entry.path().filename().string();
+                if (filename.starts_with("log")) {
+                    const auto targetDir =
+                            fusionGuestVolumes /
+                            std::to_string(guestVolumeIndex % n) /
+                            fusionVolumeID;
+                    std::filesystem::create_directories(targetDir);
+                    const auto targetPath = targetDir / filename;
+                    std::filesystem::copy_file(entry.path(), targetPath);
+                    guestVolumeIndex++;
+                }
+            }
+        }
+
+        return guestVolumePaths;
+    }
+
 protected:
     const std::filesystem::path dbPath = std::filesystem::absolute(test_dbname);
     const std::string dbPathString = dbPath.string();
+
+    const std::string uriPrefix = "local://";
     const std::string fusionLogstoreURI =
-            "local://" + dbPathString + "/logstore";
+            uriPrefix + dbPathString + "/logstore";
     const std::string fusionMetadatastoreURI =
-            "local://" + dbPathString + "/metadatastore";
+            uriPrefix + dbPathString + "/metadatastore";
+    const std::filesystem::path fusionGuestVolumes = dbPath / "guestVolumes";
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
     const float fusionLogstoreFragmentationThreshold = 0.3f;
@@ -1391,6 +1433,8 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
                         .isFusionUploader(vbid));
     EXPECT_EQ(cb::engine_errc::success, engine->syncFusionLogstore(vbid));
 
+    auto guestVolumePaths = setupGuestVolumes(3);
+
     shutdownAndPurgeTasks(engine.get());
     std::filesystem::remove_all(dbPath / "magma.0");
     std::filesystem::remove_all(dbPath / "magma.1");
@@ -1399,7 +1443,8 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     auto* cookie2 = create_mock_cookie(engine.get());
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
-        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        auto ret = engine->mountVBucket(
+                *cookie, vbid, guestVolumePaths, [](const auto&) {});
         if (ret != cb::engine_errc::would_block) {
             EXPECT_EQ(cb::engine_errc::success, ret);
             break;
@@ -1419,6 +1464,7 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
         EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
         runNextTask(auxIoQ, "Loading VBucket vb:0");
     }
+
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active));

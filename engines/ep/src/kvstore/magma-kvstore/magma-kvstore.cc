@@ -4810,7 +4810,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
         config.Source = Type::Local;
         break;
     case VBucketSnapshotSource::Fusion:
-        config.Source = Type::Fusion;
+        config.Source = Type::FusionGuestVolumes;
         break;
     }
     config.MountPaths = paths;
