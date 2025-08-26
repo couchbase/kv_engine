@@ -8109,9 +8109,8 @@ std::string EventuallyPersistentEngine::getCachedChronicleAuthToken() const {
 
 std::string EventuallyPersistentEngine::getFusionNamespace() const {
     // FusionNamespace is in the form:
-    // <service_prefix>/<bucket_name>/<bucket_uuid>.
-    return generateFusionNamespace(configuration.getCouchBucket(),
-                                   configuration.getUuid());
+    // <service_prefix>/<bucket_uuid>.
+    return generateFusionNamespace(configuration.getUuid());
 }
 
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(Vbid vbid) {

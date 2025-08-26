@@ -234,8 +234,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_fusion_metadatastore_uri",
             std::make_unique<ConfigChangeListener>(*this));
 
-    fusionNamespace =
-            generateFusionNamespace(config.getCouchBucket(), config.getUuid());
+    fusionNamespace = generateFusionNamespace(config.getUuid());
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
     fusionLogCheckpointInterval =

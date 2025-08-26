@@ -586,8 +586,7 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     ASSERT_FALSE(snapshotData.empty());
     ASSERT_TRUE(snapshotData.contains("volumeID"));
     const auto volumeId = snapshotData["volumeID"].get<std::string>();
-    ASSERT_EQ("kv/" + bucketName + "/" + bucketUuid + "/kvstore-" +
-                      std::to_string(vbid.get()),
+    ASSERT_EQ(fmt::format("kv/{}/kvstore-{}", bucketUuid, vbid.get()),
               volumeId);
 
     // In the next few steps we set up a fake "volume" with some magma data that
@@ -987,7 +986,7 @@ TEST_P(FusionTest, DeleteInvalidFusionNamespace) {
     json["metadatastore_uri"] = "uri2";
     json["metadatastore_auth_token"] = "some-token";
     // Invalid namespace: does not begin with "kv/"
-    json["namespace"] = "cbas/namespace-to-delete/uuid";
+    json["namespace"] = "cbas/uuid";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     auto resp = adminConnection->execute(cmd);
@@ -1003,7 +1002,7 @@ TEST_P(FusionTest, DeleteFusionNamespace) {
     json["logstore_uri"] = "local://" + dbPath + "/logstore";
     json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
     json["metadatastore_auth_token"] = "some-token";
-    json["namespace"] = "kv/namespace-to-delete/uuid";
+    json["namespace"] = "kv/uuid";
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);

@@ -3015,7 +3015,7 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
     if (!isValidFusionNamespace(ns)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: namespace must be in "
-                "format 'kv/bucketName/bucketUUID'");
+                "format 'kv/bucketUUID'");
         return Status::Einval;
     }
     return status;

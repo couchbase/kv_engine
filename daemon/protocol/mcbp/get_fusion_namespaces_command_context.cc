@@ -31,14 +31,11 @@ cb::engine_errc GetFusionNamespacesCommandContext::execute() {
     const auto request = nlohmann::json::parse(req.getValueString());
     const auto metadatastore = request["metadatastore_uri"];
     const auto token = request["metadatastore_auth_token"];
-    // Namespaces for data service have a depth of 3 because they are in the
-    // form of “kv/bucketName/bucketUUID”.
-    const auto namespaceDepth = 3;
     const auto [status, json] =
             magma::Magma::GetFusionNamespaces(metadatastore,
                                               token,
                                               magma_fusion_namespace_prefix,
-                                              namespaceDepth);
+                                              magma_fusion_namespace_depth);
     if (status.IsOK()) {
         response = json.dump();
         datatype = cb::mcbp::Datatype::JSON;
