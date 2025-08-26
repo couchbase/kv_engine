@@ -948,13 +948,13 @@ int main(int argc, char** argv) {
         fmt::println("{}", report.dump());
     } else {
         for (const auto& entry : individual) {
+            std::chrono::milliseconds dur{entry["duration_ms"].get<size_t>()};
             fmt::print(
-                    "Connection took {} ms - {} mutations with a total of {} "
-                    "bytes "
-                    "received in {} snapshots and {} oso snapshots (overhead "
-                    "{} "
-                    "bytes, {})\n",
-                    entry["duration_ms"].get<size_t>(),
+                    "Connection took {} ms ({}) - {} mutations with a total of "
+                    "{} bytes received in {} snapshots and {} oso snapshots "
+                    "(overhead {} bytes, {})\n",
+                    dur.count(),
+                    cb::time2text(dur),
                     entry["mutations"].get<size_t>(),
                     entry["total_bytes"].get<size_t>(),
                     entry["snapshots"].get<size_t>(),
@@ -964,10 +964,11 @@ int main(int argc, char** argv) {
         }
 
         fmt::print(
-                "Execution took {} ms - {} mutations with a total of {} bytes "
-                "received in {} snapshots and {} oso snapshots (overhead {} "
-                "bytes, {})\n",
+                "Execution took {} ms ({}) - {} mutations with a total of {} "
+                "bytes received in {} snapshots and {} oso snapshots (overhead "
+                "{} bytes, {})\n",
                 duration.count(),
+                cb::time2text(duration),
                 mutations,
                 total_bytes,
                 snapshots,
