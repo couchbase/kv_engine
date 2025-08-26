@@ -1820,14 +1820,6 @@ bool EPVBucket::shouldWarnForFlushFailure() {
     return false;
 }
 
-failover_entry_t EPVBucket::processFailover() {
-    const auto range = getPersistedSnapshot();
-    createFailoverEntry(range.getEnd() == getPersistenceSeqno()
-                                ? range.getEnd()
-                                : range.getStart());
-    return failovers->getLatestEntry();
-}
-
 void EPVBucket::createFailoverEntry(uint64_t seqno) {
     failovers->createEntry(seqno);
     checkpointManager->queueSetVBState();

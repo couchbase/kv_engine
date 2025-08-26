@@ -425,6 +425,8 @@ public:
 
     void HpsSentForInMemoryDiskSnapshot(MarkerVersion markerVersion);
 
+    void CheckFailoverEntry(bool snapshotFullyProcessed);
+
     // Setup the node0/node1 active/replica to simulate FBR transfer
     std::vector<StoredDocKey> setupFBR(int nKeys);
 };
@@ -2249,6 +2251,57 @@ TEST_P(DCPLoopbackStreamTest, VBucketBecomesActiveWhileSnapEndReceived) {
     }
 }
 
+TEST_P(DCPLoopbackStreamTest, FailoverEntry_snapshotFullyProcessed) {
+    CheckFailoverEntry(true);
+}
+
+TEST_P(DCPLoopbackStreamTest, FailoverEntry_PartiallyProcessedSnapshot) {
+    CheckFailoverEntry(false);
+}
+
+/*
+ * Starting MB-53189, when we have fully processed a snapshot in memory & a
+ * replica become active, we can add a failover entry using the
+ * CM.lastSnapEndSeqno. Previously we would have waited till the flusher
+ * persists to disk the entire snapshot.
+ */
+
+// Test checks this new behavior.
+void DCPLoopbackStreamTest::CheckFailoverEntry(bool snapshotFullyProcessed) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
+
+    // Create DCP producer and consumer connection and add a stream request
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+
+    route0_1.transferMutation(k1, 1);
+    if (snapshotFullyProcessed) {
+        route0_1.transferMutation(k2, 2);
+    }
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+
+    auto expectedSeqno = snapshotFullyProcessed ? 2 : 0;
+    EXPECT_EQ(expectedSeqno, replicaVB->checkpointManager->getFailoverSeqno());
+
+    route0_1.destroy();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+
+    // Check the failover entry is set to the end seqno of the last fully
+    // processed snapshot
+
+    auto failoverEntry = replicaVB->failovers->getLatestEntry();
+    EXPECT_EQ(expectedSeqno, failoverEntry.by_seqno);
+}
+
 // Ideally this class would've inherited STParameterizedBucketTest which already
 // covers (bucket type, eviction) as parameters, while an extra flushRatio
 // parameter. But it doesn't for similar reasons as described over
@@ -2453,19 +2506,11 @@ void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
                           // from all snapshots received. Expected fail-over
                           // seqno is 6.
 
-    uint64_t expectedFailoverSeqno = 0;
+    uint64_t expectedFailoverSeqno = 6;
     snapshot_range_t expectedRange = {0, 0};
 
     if (persistent()) {
-        expectedFailoverSeqno =
-                expectedSeqnos[flushRatio - 1].expectedFailoverSeqno;
         expectedRange = expectedSeqnos[flushRatio - 1].expectedRange;
-    } else {
-        // With the fix in MB-64353 - the failover entry is created based on the
-        // high seqno of the last fully processed snapshot; in the above case we
-        // have processed all the mutations in checkpoint & therefore the
-        // expectedFailoverSeqno should be 6.
-        expectedFailoverSeqno = 6;
     }
 
     const auto failoverSeqno =

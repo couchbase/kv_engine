@@ -2086,6 +2086,307 @@ TEST_P(STParamPersistentBucketTest, CheckFailoverSeqno_FlushPartialSnapshot) {
     checkFailoverSeqno(false);
 }
 
+class CheckFailoverSeqnoTest : public STParameterizedBucketTest {
+public:
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+    }
+    void TearDown() override {
+        STParameterizedBucketTest::TearDown();
+    }
+    void checkFailoverEntriesOnReplicaWarmup(bool flusherRun);
+    void checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(bool flusherRun);
+};
+
+/*
+ * The test does the following:
+ * 1. Replica receives a snapshot marker [1,2] & processes the 2 mutations.
+ * 2. Run flusher if flusherRun is true.
+ * 3. Reset the engine & warmup again.
+ * 4. Promote replica to active.
+ * 5. Check if a new failover entry is added. If flusherRun is true, the
+ * failover entry should be 2, otherwise 0.
+ */
+
+void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup(
+        bool flusherRun) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto* cookie = create_mock_cookie();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ {}));
+
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 1,
+            /*end_seqno*/ 2,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {},
+            {},
+            {});
+
+    // Store value with an xattr
+    auto k1 = makeStoredDocKey("k1");
+    consumer->mutation(1, // opaque
+                       k1,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       1, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto k2 = makeStoredDocKey("k2");
+    consumer->mutation(1, // opaque
+                       k2,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       2, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(2, vb->checkpointManager->getFailoverSeqno());
+
+    // if the flusher isn't run, when the replica warms-up and is promoted to
+    // active, the failover seqno should be 0.
+    if (flusherRun) {
+        flushVBucketToDiskIfPersistent(vbid, 2);
+    }
+
+    auto expectedSeqno = flusherRun ? 2 : 0;
+    if (persistent()) {
+        EXPECT_EQ(expectedSeqno, vb->getPersistenceSeqno());
+    } else {
+        EXPECT_EQ(2, vb->getPersistenceSeqno());
+    }
+
+    // Simulate a replica bounce
+    vb.reset();
+    consumer.reset();
+    resetEngineAndWarmup();
+
+    // recreate the vbucket if it's an ephemeral bucket
+    if (!persistent()) {
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    }
+
+    vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // Nothing was persisted, check the persisted seqno is still 0.
+    if (persistent()) {
+        EXPECT_EQ(expectedSeqno, vb->getHighSeqno());
+        EXPECT_EQ(expectedSeqno, vb->getPersistenceSeqno());
+        ASSERT_EQ(expectedSeqno, vb->checkpointManager->getFailoverSeqno());
+    } else {
+        EXPECT_EQ(0, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getPersistenceSeqno());
+        ASSERT_EQ(0, vb->checkpointManager->getFailoverSeqno());
+    }
+
+    // set the vbucket state to active
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // Check the failover table has the new entry
+    auto failoverEntry = vb->failovers->getLatestEntry();
+    if (persistent()) {
+        EXPECT_EQ(expectedSeqno, failoverEntry.by_seqno);
+    } else {
+        EXPECT_EQ(0, failoverEntry.by_seqno);
+    }
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(CheckFailoverSeqnoTest, CheckFailoverEntries_FlusherRunYes) {
+    checkFailoverEntriesOnReplicaWarmup(true);
+}
+
+TEST_P(CheckFailoverSeqnoTest, CheckFailoverEntries_FlusherRunNo) {
+    checkFailoverEntriesOnReplicaWarmup(false);
+}
+
+// Same as the above test, but with two snapshots.
+void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(
+        bool flusherRun) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto* cookie = create_mock_cookie();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ {}));
+
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 1,
+            /*end_seqno*/ 2,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {},
+            {},
+            {});
+
+    // Store value with an xattr
+    auto k1 = makeStoredDocKey("k1");
+    consumer->mutation(1, // opaque
+                       k1,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       1, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto k2 = makeStoredDocKey("k2");
+    consumer->mutation(1, // opaque
+                       k2,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       2, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(2, vb->checkpointManager->getFailoverSeqno());
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(2, vb->getPersistenceSeqno());
+
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 3,
+            /*end_seqno*/ 4,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {},
+            {},
+            {});
+
+    // Store value with an xattr
+    auto k3 = makeStoredDocKey("k3");
+    consumer->mutation(1, // opaque
+                       k3,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       3, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto k4 = makeStoredDocKey("k4");
+    consumer->mutation(1, // opaque
+                       k4,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       4, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    if (flusherRun) {
+        flushVBucketToDiskIfPersistent(vbid, 2);
+    }
+
+    if (persistent()) {
+        auto expectedPersistenceSeqno = flusherRun ? 4 : 2;
+        EXPECT_EQ(expectedPersistenceSeqno, vb->getPersistenceSeqno());
+    } else {
+        EXPECT_EQ(4, vb->getPersistenceSeqno());
+    }
+
+    int expectedSeqno = 0;
+    if (persistent()) {
+        expectedSeqno = flusherRun ? 4 : 2;
+    }
+
+    // Simulate a replica restart
+    vb.reset();
+    consumer.reset();
+    resetEngineAndWarmup();
+
+    if (!persistent()) {
+        setVBucketState(vbid, vbucket_state_replica);
+    }
+
+    vb = engine->getKVBucket()->getVBucket(vbid);
+
+    EXPECT_EQ(expectedSeqno, vb->getHighSeqno());
+    EXPECT_EQ(expectedSeqno, vb->getPersistenceSeqno());
+
+    ASSERT_EQ(expectedSeqno, vb->checkpointManager->getFailoverSeqno());
+
+    // set the vbucket state to active
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // Check the failover table has the new entry
+    auto failoverEntry = vb->failovers->getLatestEntry();
+    EXPECT_EQ(expectedSeqno, failoverEntry.by_seqno);
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(CheckFailoverSeqnoTest,
+       checkFailoverEntriesOnReplicaWarmup_TwoSnapshots_FlusherRunYes) {
+    checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(true);
+}
+
+TEST_P(CheckFailoverSeqnoTest,
+       checkFailoverEntriesOnReplicaWarmup_TwoSnapshots_FlusherRunNo) {
+    checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(false);
+}
+
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         CheckFailoverSeqnoTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 /* The following is a regression test for MB25056, which came about due the fix
  * for MB22960 having a bug where it is set pendingBackfill to true too often.
  *
@@ -6015,15 +6316,7 @@ TEST_P(STParameterizedBucketTest,
     // because we merged the snapshots on the replica. We don't rollback to 0
     // since the active initally sent {1, 2} snapshot & we have fully processed
     // that.
-    // There is difference in behavior here between ephemeral and persistent
-    // buckets & that's ok, we are updating the failover entry to the most
-    // consistent snapshot in both the cases.
-
-    if (ephemeral()) {
-        EXPECT_EQ(2, failovers.getLatestEntry().by_seqno);
-    } else {
-        EXPECT_EQ(0, failovers.getLatestEntry().by_seqno);
-    }
+    EXPECT_EQ(2, failovers.getLatestEntry().by_seqno);
 }
 
 TEST_P(STParamPersistentBucketTest, MB_47134) {

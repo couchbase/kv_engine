@@ -24,6 +24,7 @@
 #include "ephemeral_mem_recovery.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
+#include "failover-table.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_checkpoint_manager.h"

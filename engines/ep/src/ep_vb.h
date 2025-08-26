@@ -390,12 +390,6 @@ public:
     bool shouldWarnForFlushFailure();
 
     /**
-     * Persistent buckets process failover from data that the flusher
-     * maintains
-     */
-    failover_entry_t processFailover() override;
-
-    /**
      * Create a new failover entry in the vbucket and generate a
      * set_vbucket_state item to persist the state.
      *

@@ -1979,7 +1979,7 @@ public:
      *
      * @return new failover entry
      */
-    virtual failover_entry_t processFailover() = 0;
+    failover_entry_t processFailover();
 
 protected:
     /**

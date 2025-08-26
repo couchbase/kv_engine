@@ -4423,3 +4423,8 @@ void VBucket::setOrForceMaxCasAndTrackDrift(uint64_t cas) {
         hlc.forceMaxHLCAndTrackDrift(cas);
     }
 }
+
+failover_entry_t VBucket::processFailover() {
+    createFailoverEntry(checkpointManager->getFailoverSeqno());
+    return failovers->getLatestEntry();
+}
