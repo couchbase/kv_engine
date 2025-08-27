@@ -337,8 +337,8 @@ protected:
     }
 
 #ifdef WIN32
-    static HANDLE TestappTest::pidTToHandle(pid_t pid);
-    static pid_t TestappTest::handleToPidT(HANDLE handle);
+    static HANDLE pidTToHandle(pid_t pid);
+    static pid_t handleToPidT(HANDLE handle);
 #endif
 
     std::string name;
