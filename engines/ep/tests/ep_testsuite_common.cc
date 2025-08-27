@@ -114,7 +114,7 @@ bool test_setup(EngineIface* h) {
     wait_for_warmup_complete(h);
     wait_for_flusher_to_settle(h);
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set VB0 state.");
 
     const auto bucket_type = get_str_stat(h, "ep_bucket_type");
@@ -125,7 +125,7 @@ bool test_setup(EngineIface* h) {
     } else if (bucket_type == "ephemeral") {
         // No persistence to wait for here.
     } else {
-        check(false,
+        check_expression(false,
               (std::string("test_setup: unknown bucket_type '") + bucket_type +
                "' - cannot continue.")
                       .c_str());
@@ -381,7 +381,7 @@ void check_key_value(EngineIface* h,
             getResult.first,
             "Failed to fetch document");
     item_info info;
-    check(h->get_item_info(*getResult.second.get(), info),
+    check_expression(h->get_item_info(*getResult.second.get(), info),
           "Failed to get_item_info");
 
     std::string_view payload;

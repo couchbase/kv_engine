@@ -805,7 +805,7 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
             }
             break;
         default:
-            check(false, "Unknown DATA requested!");
+            check_expression(false, "Unknown DATA requested!");
     }
     return vals;
 }
@@ -1065,7 +1065,7 @@ single_dcp_latency_bw_test(EngineIface* h,
                            bool retrieveCompressed) {
     std::vector<size_t> received;
 
-    check(set_vbucket_state(h, vb, vbucket_state_active),
+    check_expression(set_vbucket_state(h, vb, vbucket_state_active),
           "Failed set_vbucket_state for vbucket");
     wait_for_flusher_to_settle(h);
 
@@ -1196,7 +1196,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     const Vbid vbid = Vbid(0);
     const uint32_t opaque = 1;
 
-    check(set_vbucket_state(h, vbid, vbucket_state_replica),
+    check_expression(set_vbucket_state(h, vbid, vbucket_state_replica),
           "set_vbucket_state failed");
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
@@ -1432,7 +1432,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
     insert_timings.reserve(iterations_for_fast_stats);
 
     for (int vb = 0; vb < active_vbuckets; vb++) {
-        check(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
+        check_expression(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
               "Failed set_vbucket_state for vbucket");
     }
     if (isPersistentBucket(h)) {
@@ -1588,7 +1588,7 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
     std::string keyBase("key");
     for (size_t i = 0; i < numVbucket; i++) {
         Vbid vb(i);
-        check(set_vbucket_state(h, vb, vbucket_state_active),
+        check_expression(set_vbucket_state(h, vb, vbucket_state_active),
               "Failed to set vbucket state for vb");
         write_items(h,
                     numDocs,

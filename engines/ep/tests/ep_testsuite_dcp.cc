@@ -14,7 +14,7 @@
 // name 'check' indirectly.
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
-// Similary for format.h which defines a 'check()' function:
+// Similary for format.h which defines a 'cb_check()' function:
 #include <fmt/format.h>
 
 /*
@@ -55,7 +55,7 @@ static void dcp_step(EngineIface* h,
                      MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
     cb::engine_errc err = dcp->step(*cookie, false, producers);
-    check(err == cb::engine_errc::success ||
+    check_expression(err == cb::engine_errc::success ||
                   err == cb::engine_errc::would_block,
           "Expected success or engine_ewouldblock");
     if (err == cb::engine_errc::would_block) {
@@ -73,7 +73,7 @@ static void dcpHandleResponse(EngineIface* h,
                               MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
     auto erroCode = dcp->response_handler(*cookie, response);
-    check(erroCode == cb::engine_errc::success ||
+    check_expression(erroCode == cb::engine_errc::success ||
                   erroCode == cb::engine_errc::would_block,
           "Expected 'success' or 'engine_ewouldblock'");
     if (erroCode == cb::engine_errc::would_block) {
@@ -462,7 +462,7 @@ void TestDcpConsumer::run(bool openConn) {
                     std::cerr << int(entry.first) << " " << entry.second
                               << std::endl;
                 }
-                check(false, "Aborting");
+                check_expression(false, "Aborting");
             }
             total_acked_bytes += bytes_read;
             bytes_read = 0;
@@ -626,7 +626,7 @@ void TestDcpConsumer::run(bool openConn) {
                 // Aborting ...
                 std::stringstream ss;
                 ss << "Unknown DCP operation: " << to_string(producers.last_op);
-                check(false, ss.str().c_str());
+                check_expression(false, ss.str().c_str());
             }
             producers.last_op = cb::mcbp::ClientOpcode::Invalid;
             producers.last_nru = 0;
@@ -736,7 +736,7 @@ void TestDcpConsumer::run(bool openConn) {
                     "Number of expected OSO markers sent to the consumer "
                     "is incorrect");
             if (!ctx.exp_collection_ids.empty()) {
-                check(ctx.exp_collection_ids == stats.collections,
+                check_expression(ctx.exp_collection_ids == stats.collections,
                       "Expected collections IDs does not match the ones seen "
                       "from SystemEvents");
             }
@@ -1060,7 +1060,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                         " last_key: " + producers.last_key + " last_value: " +
                         producers.last_value + " last_flags: " +
                         std::to_string(producers.last_flags));
-                check(false, err_string.c_str());
+                check_expression(false, err_string.c_str());
             }
             if (producers.last_byseqno >= end) {
                 done = true;
@@ -1189,7 +1189,7 @@ extern "C" {
         ctx->cv.notify_one();
 
         // Switch to replica
-        check(set_vbucket_state(ctx->h, Vbid(0), vbucket_state_replica),
+        check_expression(set_vbucket_state(ctx->h, Vbid(0), vbucket_state_replica),
               "Failed to set vbucket state.");
 
         // Open consumer connection
@@ -1351,7 +1351,7 @@ static void dcp_waiting_step(EngineIface* h,
                 // Aborting ...
                 std::string err_string("Unexpected DCP operation: " +
                                        to_string(producers.last_op));
-                check(false, err_string.c_str());
+                check_expression(false, err_string.c_str());
             }
             if (num_mutations >= exp_mutations) {
                 done = true;
@@ -1463,7 +1463,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     std::vector<CookieIface*> cookie(numConsumers);
 
     for (size_t i = 0; i < numConsumers; ++i) {
-        check(set_vbucket_state(h, Vbid(i), vbucket_state_replica),
+        check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_replica),
               "Failed to set VBucket state.");
     }
 
@@ -1687,7 +1687,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
 }
 
 static enum test_result test_dcp_consumer_noop(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
     auto* cookie = testHarness->create_cookie(h);
     const std::string name("unittest");
@@ -2444,7 +2444,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
     const char* name = "unittest";
 
     // Set vbucket 0 to a replica so we can consume a mutation over DCP
-    check(set_vbucket_state(h, vbid, vbucket_state_replica),
+    check_expression(set_vbucket_state(h, vbid, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -2500,7 +2500,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
             "Failed to send dcp mutation");
 
     // Set vbucket 0 to active so we can perform a get
-    check(set_vbucket_state(h, vbid, vbucket_state_active),
+    check_expression(set_vbucket_state(h, vbid, vbucket_state_active),
           "Failed to set vbucket state.");
 
     // Perform a get to retrieve the frequency counter value
@@ -2620,7 +2620,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Part (i):  Set up replica vbucket such that it has items to be streamed
                   from backfill and memory. */
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -2885,7 +2885,7 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
     auto verifyStat = [&stats](auto key, int expectedValue) {
         for (auto name : {"unittest:"s + key, "_total:"s + key}) {
             auto stat = stats.extract(name);
-            check(stat,
+            check_expression(stat,
                   fmt::format("Missing stat key '{}' for dcpagg stat group",
                               name)
                           .c_str());
@@ -2912,7 +2912,7 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
 
     // Check for any unexpected stats not covered above.
     for (auto& stat : stats) {
-        check(false,
+        check_expression(false,
               fmt::format("Unexpected extra dcpagg stat '{}'", stat.first)
                       .c_str());
     }
@@ -2941,7 +2941,7 @@ static test_result test_dcp_takeover(EngineIface* h) {
     tdc.addStreamCtx(ctx);
     tdc.run();
 
-    check(verify_vbucket_state(h, Vbid(0), vbucket_state_dead),
+    check_expression(verify_vbucket_state(h, Vbid(0), vbucket_state_dead),
           "Wrong vb state");
 
     testHarness->destroy_cookie(cookie);
@@ -3037,7 +3037,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
     checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
 
-    check(verify_vbucket_state(h, Vbid(0), vbucket_state_dead),
+    check_expression(verify_vbucket_state(h, Vbid(0), vbucket_state_dead),
           "Wrong vb state");
     testHarness->destroy_cookie(cookie);
 
@@ -3273,7 +3273,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                            bool full,
                                            bool restart) {
     // Test reconnect when we were disconnected after receiving a full snapshot
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -3405,7 +3405,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -3556,7 +3556,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -3620,7 +3620,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
 
     // Simulating a failover scenario, where the replica vbucket will
     // be marked as active.
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state.");
 
     checkeq(cb::engine_errc::success,
@@ -3635,7 +3635,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
 }
 
 static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
 
@@ -3698,7 +3698,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Simulate failover
     int openCkptId = get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
     checkeq(openCkptId + 1,
@@ -3738,7 +3738,7 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
     uint32_t flags = 0;
     std::string name("unittest");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -3781,7 +3781,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -3850,7 +3850,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -4057,7 +4057,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -4176,7 +4176,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
             get_int_stat(h, "curr_items"),
             "Item count should've been 110");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -4445,7 +4445,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
     const char *name = "unittest";
     Vbid vbucket = Vbid(0);
 
-    check(set_vbucket_state(h, vbucket, vbucket_state_replica),
+    check_expression(set_vbucket_state(h, vbucket, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     /* Open consumer connection */
@@ -4508,7 +4508,7 @@ static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -4538,7 +4538,7 @@ static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -4564,7 +4564,7 @@ static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto dcp = requireDcpIface(h);
@@ -4613,7 +4613,7 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto dcp = requireDcpIface(h);
@@ -4650,7 +4650,7 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
     Vbid vbucket = Vbid(0);
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto dcp = requireDcpIface(h);
@@ -4684,7 +4684,7 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
 }
 
 static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -4814,7 +4814,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state.");
 
     check_key_value(h, "key", data, dataLen);
@@ -4833,7 +4833,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, 1, "one item stored");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -4924,7 +4924,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
  * the success of handling the expiration.
  */
 static enum test_result test_dcp_consumer_expire(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5011,7 +5011,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
 }
 
 static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5068,7 +5068,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
 // less than the size of the first batch.
 static enum test_result test_dcp_replica_stream_backfill_MB_34173(
         EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
     const int items = 100;
 
@@ -5146,7 +5146,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
 }
 
 static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5198,7 +5198,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
 }
 
 static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5302,7 +5302,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
  */
 static enum test_result test_dcp_replica_stream_all_collection_enabled(
         EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5430,7 +5430,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
             h->set_collection_manifest(*cookie, manifest),
             "Failed to set collection manifest");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     uint32_t opaque = 0xFFFF0000;
@@ -5577,7 +5577,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to set collection manifest");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     uint32_t opaque = 0xFFFF0000;
@@ -5718,7 +5718,7 @@ static test_result test_dcp_replica_stream_expiries(
     const char* name = "unittest";
     const uint32_t expiryTime = 256;
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
@@ -5936,7 +5936,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
 static enum test_result test_dcp_persistence_seqno_backfillItems(
         EngineIface* h) {
     /* we want backfill items on a replica vbucket */
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     /* set up a DCP consumer connection */
@@ -6198,7 +6198,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
 }
 
 static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h);
 
@@ -6326,7 +6326,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
 }
 
 static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h);
 
@@ -6463,7 +6463,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
 }
 
 static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h);
 
@@ -6528,7 +6528,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
 }
 
 static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h);
 
@@ -6613,7 +6613,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
     const int num_items = 1;
     uint64_t vbuuid[streams];
     for (int i = 0; i < streams; i++) {
-        check(set_vbucket_state(h, Vbid(i), vbucket_state_active),
+        check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_active),
               "Failed to set vbucket state");
         std::stringstream statkey;
         statkey << "vb_" << i <<  ":0:id";
@@ -6865,7 +6865,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     std::string name = "test_mb17517_cas_minus_1";
 
     // Switch vb 0 to replica (to accept DCP mutaitons).
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state to replica.");
 
     // Open consumer connection
@@ -6957,7 +6957,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     wait_for_stat_to_be(h, "vb_replica_curr_items", 1);
 
     // Flip vBucket to active so we can access the documents in it.
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state to active.");
 
     // Check that a valid CAS was regenerated for the (non-deleted) mutation.
@@ -6975,9 +6975,9 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
  * between a single producer and consumer.
  */
 static enum test_result test_dcp_multiple_streams(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(1), vbucket_state_active),
           "Failed set vbucket state on 1");
-    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(2), vbucket_state_active),
           "Failed set vbucket state on 2");
     wait_for_flusher_to_settle(h);
 
@@ -7072,7 +7072,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
     wait_for_stat_to_be(h, items_sent_str.c_str(), 1, "dcp");
 
     // Change vbucket state to pending
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_pending),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_pending),
           "Failed set vbucket state on 1");
 
     // Expect DcpTestConsumer to close
@@ -7080,7 +7080,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
 
     // Expect producers->last_end_status to carry StateChanged as reason
     // for stream closure
-    check(cb::mcbp::DcpStreamEndStatus::StateChanged ==
+    check_expression(cb::mcbp::DcpStreamEndStatus::StateChanged ==
                   cdc.dcpConsumer->producers.last_end_status,
           "Last DCP flag not StateChanged");
 
@@ -7090,7 +7090,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
 }
 
 static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
 
@@ -7166,7 +7166,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     /* Replica vbucket 0; snapshot 0 to 10, but write just 1 item */
     const Vbid rep_vb_num = Vbid(0);
-    check(set_vbucket_state(h, rep_vb_num, vbucket_state_replica),
+    check_expression(set_vbucket_state(h, rep_vb_num, vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h);
 
@@ -7228,7 +7228,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     /* Create active vbuckets */
     for (int i = 1; i < num_vbuckets; i++) {
         /* Active vbuckets */
-        check(set_vbucket_state(h, Vbid(i), vbucket_state_active),
+        check_expression(set_vbucket_state(h, Vbid(i), vbucket_state_active),
               "Failed to set vbucket state.");
     }
 
@@ -7285,7 +7285,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     }
 
     /* Create a pending vbucket */
-    check(set_vbucket_state(h, Vbid(num_vbuckets), vbucket_state_pending),
+    check_expression(set_vbucket_state(h, Vbid(num_vbuckets), vbucket_state_pending),
           "Failed to set vbucket state.");
 
     /* Create request to get vb seqno of all alive vbuckets without supplying
@@ -7510,7 +7510,7 @@ static enum test_result test_mb19982(EngineIface* h) {
     uint32_t flags = 0;
     std::string name = "unittest";
     // Switch to replica
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -7632,7 +7632,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
     Vbid vb(0);
 
     // 1) Begin with our victim vbucket in pending state
-    check(set_vbucket_state(h, vb, vbucket_state_pending),
+    check_expression(set_vbucket_state(h, vb, vbucket_state_pending),
           "Failed to set vbucket to pending");
 
     // 2) Create a DCP Consumer and add a stream so we can send DCP traffic to
@@ -7764,7 +7764,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
     uint32_t flags = 0;
     std::string name = "unittest";
     // Switch to replica
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -7836,7 +7836,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
             dcp->close_stream(*cookie, opaque, Vbid(0), {}),
             "DCP consumer failed the close_stream request");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket to active");
 
     wait_for_flusher_to_settle(h);

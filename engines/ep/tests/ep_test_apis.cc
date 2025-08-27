@@ -475,7 +475,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
 
     if (ret.first == cb::engine_errc::success) {
         item_info info;
-        check(h->get_item_info(*ret.second.get(), info),
+        check_expression(h->get_item_info(*ret.second.get(), info),
               "gat Failed to get item info");
 
         last_body.assign((const char*)info.value[0].iov_base,
@@ -963,7 +963,7 @@ cb::engine_errc storeCasOut(EngineIface* h,
     auto ret = allocate(h, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info), "Unable to get item_info");
+    check_expression(h->get_item_info(*ret.second.get(), info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     cb::engine_errc res = h->store(*cookie,
                                    *ret.second.get(),
@@ -1076,7 +1076,7 @@ cb::engine_errc touch(EngineIface* h,
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h->get_item_info(*result.second.get(), info),
+        check_expression(h->get_item_info(*result.second.get(), info),
               "Failed to get item info");
         last_cas.store(info.cas);
     }
@@ -1534,7 +1534,7 @@ void validate_store_resp(cb::engine_errc ret, int& num_items) {
         /* TMPFAIL means we are hitting high memory usage; retry */
         break;
     default:
-        check(false,
+        check_expression(false,
               ("validate_store_resp: Unexpected response from store(): " +
                cb::to_string(ret))
                       .c_str());
@@ -1609,7 +1609,7 @@ uint64_t get_CAS(EngineIface* h, std::string_view key) {
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info),
+    check_expression(h->get_item_info(*ret.second.get(), info),
           "get_CAS: Failed to get item info for key");
 
     return info.cas;
