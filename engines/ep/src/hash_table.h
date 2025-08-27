@@ -326,7 +326,54 @@ public:
         size_t getUncompressedMemSize() const;
 
     private:
-        struct CacheLocalStatistics;
+        struct CacheLocalStatistics {
+            // Many of these stats should logically be NonNegativeCounters,
+            // but as they are used inside a LastLevelCacheStore there are
+            // multiple copies of each stat; one copy _may_ go negative
+            // even though the sum across cores remains non-negative.
+
+            /// Count of alive & deleted, in-memory non-resident and resident
+            /// items. Excludes temporary and prepared items.
+            CopyableAtomic<ssize_t> numItems;
+
+            /// Count of alive, non-resident items.
+            CopyableAtomic<ssize_t> numNonResidentItems;
+
+            /// Count of deleted items.
+            CopyableAtomic<ssize_t> numDeletedItems;
+
+            /// Count of items where StoredValue::isTempItem() is true.
+            CopyableAtomic<ssize_t> numTempItems;
+
+            /// Count of items where StoredValue resides in system namespace
+            CopyableAtomic<ssize_t> numSystemItems;
+
+            /// Count of items where StoredValue is a prepared SyncWrite.
+            CopyableAtomic<ssize_t> numPreparedSyncWrites;
+
+            /**
+             * Number of documents of a given datatype. Includes alive
+             * (non-deleted), committed documents in the HashTable.
+             * (Prepared documents are not counted).
+             * For value eviction includes resident & non-resident items (as the
+             * datatype is part of the metadata), for full-eviction will only
+             * include resident items.
+             */
+            AtomicDatatypeCombo datatypeCounts = {};
+
+            //! Cache size (fixed-length fields in StoredValue + keylen +
+            //! valuelen).
+            CopyableAtomic<ssize_t> cacheSize = {};
+
+            //! Meta-data size (fixed-length fields in StoredValue + keylen).
+            CopyableAtomic<ssize_t> metaDataMemory = {};
+
+            //! Memory consumed by items in this hashtable.
+            CopyableAtomic<ssize_t> memSize = {};
+
+            /// Memory consumed if the items were uncompressed.
+            CopyableAtomic<ssize_t> uncompressedMemSize = {};
+        };
 
         LastLevelCacheStore<CacheLocalStatistics> llcLocal;
 
