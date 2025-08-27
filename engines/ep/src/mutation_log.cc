@@ -322,7 +322,7 @@ MutationLog::~MutationLog() {
 }
 
 void MutationLog::disable() {
-    if (file >= 0) {
+    if (file != INVALID_FILE_VALUE) {
         close();
         disabled = true;
     }

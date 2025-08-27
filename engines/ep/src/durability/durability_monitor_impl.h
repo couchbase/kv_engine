@@ -715,6 +715,7 @@ public:
     const ActiveDurabilityMonitor& adm;
 
     struct SeqnoAckQueueLabeller {
+        SeqnoAckQueueLabeller() = default;
         SeqnoAckQueueLabeller(std::string nodeName, Vbid vbid);
         std::string getLabel(const char* l) const;
 
