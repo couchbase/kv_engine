@@ -20,6 +20,7 @@
 #include <folly/portability/GTest.h>
 #include <platform/syncobject.h>
 #include <spdlog/fmt/fmt.h>
+#include <fmt/format.h>
 
 // Benchmarks inserting items into a HashTable
 class HashTableBench : public benchmark::Fixture {
@@ -50,7 +51,7 @@ public:
         // Use fmtlib to format key with stack-local (non-heap) buffer to
         // minimise the cost of constructing keys for Items.
         fmt::memory_buffer keyBuf;
-        format_to(std::back_inserter(keyBuf), "{}{}", keyPrefix, i);
+        fmt::format_to(std::back_inserter(keyBuf), "{}{}", keyPrefix, i);
         // Note: fmt::memory_buffer is not null-terminated, cannot use the
         // cstring-ctor
         return StoredDocKey(to_string(keyBuf), collection);

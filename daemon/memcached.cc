@@ -792,7 +792,7 @@ void disconnect_clients() {
             if (c.maybeInitiateShutdown("System is shutting down", false) &&
                 dump_details) {
                 LOG_INFO("Waiting for connection to shut down: details: {}",
-                         c.to_json());
+                         c.to_json().dump());
             }
         });
         if (num_clients) {

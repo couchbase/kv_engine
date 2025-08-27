@@ -648,7 +648,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     const auto addStat = [&prefix, &collector](const auto& statKey,
                                                auto statValue) {
         fmt::memory_buffer key;
-        format_to(std::back_inserter(key),
+        fmt::format_to(std::back_inserter(key),
                   "{}:{}",
                   std::string_view{prefix.data(), prefix.size()},
                   statKey);
@@ -929,7 +929,7 @@ void RangeScan::ContinueRunState::addStats(
     const auto addStat = [&prefix, &collector](const auto& statKey,
                                                auto statValue) {
         fmt::memory_buffer key;
-        format_to(std::back_inserter(key), "{}:{}", prefix, statKey);
+        fmt::format_to(std::back_inserter(key), "{}:{}", prefix, statKey);
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
     addStat("crs_item_count", itemCount);

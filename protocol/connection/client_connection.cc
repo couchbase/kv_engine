@@ -13,6 +13,7 @@
 #include <cbsasl/client.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <json/syntax_validator.h>
@@ -313,7 +314,8 @@ void MemcachedConnection::enterMessagePumpMode(
 ::std::ostream& operator<<(::std::ostream& os, const Frame& frame) {
     auto magic = frame.getMagic();
     if (!cb::mcbp::is_legal(magic)) {
-        return os << fmt::format("Frame(magic={}, payload={{{0:x}}})",
+        return os << fmt::format("Frame(magic={0:x} payload={{{0:x}}})",
+                                 frame.payload.front(),
                                  fmt::join(frame.payload, " "));
     } else if (cb::mcbp::is_request(magic)) {
         return os << "Frame(" << frame.getRequest()->to_json(false).dump()

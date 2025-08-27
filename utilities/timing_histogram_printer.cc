@@ -12,7 +12,7 @@
 #include "json_utilities.h"
 #include <fmt/format.h>
 
-const static std::string_view legend = R"(Histogram Legend:
+static constexpr std::string_view legend = R"(Histogram Legend:
 [1. - 2.]3. (4.)    5.|
     1. All values in this bucket were recorded for a higher value than this.
     2. The maximum value inclusive that could have been recorded in this bucket.
