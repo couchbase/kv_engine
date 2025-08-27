@@ -10,8 +10,10 @@
 
 #include "dcp/response.h"
 #include "evp_store_single_threaded_test.h"
+#include "failover-table.h"
 #include "item.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
+#include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
@@ -229,6 +231,94 @@ TEST_P(DcpCacheTransferTest, skip_expired_items) {
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
     ASSERT_TRUE(expectedItems.empty());
+}
+
+// Validate CacheTranfer via DcpProducer::streamRequest
+// The test requests a cache transfer upto and including the high seqno.
+TEST_P(DcpCacheTransferTest, viaStreamRequest) {
+    store_item(Vbid(0), makeStoredDocKey("k2"), "2");
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                      1,
+                      Vbid(0),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->failovers->getLatestUUID(),
+                      0,
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      nullptr,
+                      mock_dcp_add_failover_log,
+                      std::nullopt));
+
+    runCacheTransferTask();
+
+    MockDcpMessageProducers producers;
+
+    // There is no order... check two keys and values are found, no more, no
+    // less.
+    std::unordered_map<std::string, std::pair<std::string, uint64_t>>
+            expectedValues = {{"1", {"1", 1}}, {"k2", {"2", 2}}};
+
+    while (!expectedValues.empty()) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepAndExpect(producers,
+                                          cb::mcbp::ClientOpcode::DcpMutation));
+        // Check that the key is one of the expected keys
+        auto keyIt = expectedValues.find(producers.last_key);
+        ASSERT_NE(keyIt, expectedValues.end())
+                << "Unexpected key: " << producers.last_key;
+        // Check that the value matches the key
+        EXPECT_EQ(expectedValues[producers.last_key].first,
+                  producers.last_value);
+        EXPECT_EQ(expectedValues[producers.last_key].second,
+                  producers.last_byseqno);
+        // Remove the key so we don't see it again
+        expectedValues.erase(keyIt);
+    }
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
+TEST_P(DcpCacheTransferTest, viaStreamRequest_with_filter) {
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    store_item(Vbid(0), makeStoredDocKey("veg", CollectionUid::vegetable), "v");
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                      1,
+                      Vbid(0),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->failovers->getLatestUUID(),
+                      0,
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      nullptr,
+                      mock_dcp_add_failover_log,
+                      R"({"collections":["a"]})"));
+
+    runCacheTransferTask();
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    // seq is 3 as create-veg added a system-event
+    EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_EQ(CollectionUid::vegetable, producers.last_collection_id);
+    EXPECT_EQ("veg", producers.last_key);
+    EXPECT_EQ("v", producers.last_value);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
 }
 
 INSTANTIATE_TEST_SUITE_P(DcpCacheTransferTest,

@@ -276,6 +276,45 @@ The following example tries to initiate a stream for vbucket 0 that continues fr
       vb UUID    (72-79): 0x00000000deadbeef
       vb seqno   (80-87): 0x0000000000006524
 
+### Cache Transfer option
+
+As well as changes from the source that satisfy the start-seqno a stream can
+be configured to transfer relevant items from the source's cache. The use of
+the CacheTransfer flag will enable this feature.
+
+The use-case for CacheTransfer is to permit memory to memory copying of the
+relevant documents avoiding the need for a replica vbucket to populate its
+cache from disk. This situation occurs when a vbucket is transferred to a new
+node not using DCP, e.g. file-based rebalance or fusion.
+
+For example the replica vbucket will have an empty cache but data on disk, and
+it will use the high sequence number of that data in any takeover. Crucially
+before the takeover, the cache could be transferred. The normal stream-request
+sets the start-seqno to be the high-seqno and enables CacheTransfer. The source
+will now send the items it has in cache which are below the high-seqno, best
+effort copying the cache from source to destination.
+
+For example:
+
+* vb = 1
+* flags = 0x100 (cache transfer)
+* start-seqno = 100
+* end-seqno = inf (-1)
+* snap-start = 100
+* end-start = 100
+* vb-uuid = X (assumed to match active)
+
+Creates a cache-transfer that will visit the hash-table of vbucket 1 and send
+all _live_ documents that have a seqno <= 100. These documents are sent using a
+DcpCachedValue message and there is no ordering or "snapshot" semantics. Once
+the hash-table has been fully visited and all eligible documents transmitted,
+the DCP stream will then send documents > seqno 100 conforming to "regular
+DCP", that is DcpSnapshot containing sequences of DcpMutation, Expiration, Deletion,
+Prepare, Abort or Commit.
+
+If only a CacheTransfer was desired, the end-seqno should equal the start and then
+the source knows there is no need to switch to regular DCP after the CacheTransfer.
+
 ### Returns
 
 A status code indicating whether or not the operation was successful.

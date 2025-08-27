@@ -270,8 +270,9 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
             {static_cast<uint32_t>(
                      cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones),
              true},
-            // 0x100 is the first of the undefined flags.
-            {0x100, false},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::CacheTransfer),
+             true},
+            // 0x200 is the first of the undefined flags.
             {0x200, false},
             {0x400, false},
             {0x800, false},
@@ -306,6 +307,40 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
         EXPECT_EQ(info.valid ? Status::NotSupported : Status::Einval,
                   validate())
                 << "for flag " << std::to_string(info.flag);
+    }
+}
+
+TEST_P(DcpStreamReqValidatorTest, FlagsWithCacheTransfer) {
+    cb::mcbp::request::DcpStreamReqPayload extras;
+
+    const std::array<uint32_t, 6> invalid = {
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::DiskOnly),
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ToLatest),
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::NoValue),
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::StrictVbUuid),
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::FromLatest),
+            static_cast<uint32_t>(
+                    cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)};
+    const std::array<uint32_t, 2> valid = {
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::TakeOver),
+            static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ActiveVbOnly)};
+
+    for (const auto& flag : invalid) {
+        extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(flag) |
+                        cb::mcbp::DcpAddStreamFlag::CacheTransfer);
+        builder.setExtras(extras.getBuffer());
+        using cb::mcbp::Status;
+        EXPECT_EQ(Status::Einval, validate())
+                << "for flag " << std::to_string(flag);
+    }
+
+    for (const auto& flag : valid) {
+        extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(flag) |
+                        cb::mcbp::DcpAddStreamFlag::CacheTransfer);
+        builder.setExtras(extras.getBuffer());
+        using cb::mcbp::Status;
+        EXPECT_EQ(Status::NotSupported, validate())
+                << "for flag " << std::to_string(flag);
     }
 }
 

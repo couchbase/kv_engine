@@ -164,6 +164,35 @@ std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
         VBucketPtr vb,
         Collections::VB::Filter filter) {
     EXPECT_FALSE(vb->getStateLock().try_lock());
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+        return std::make_shared<MockCacheTransferStream>(
+                std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
+                opaque,
+                req.start_seqno,
+                req.vbucket_uuid,
+                vb->getId(),
+                engine_,
+                includeValue,
+                std::move(filter));
+    }
+    return std::make_shared<MockActiveStream>(
+            &engine_,
+            std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
+            getName(),
+            req.flags,
+            opaque,
+            *vb,
+            req.start_seqno,
+            req.end_seqno,
+            req.vbucket_uuid,
+            req.snap_start_seqno,
+            req.snap_end_seqno,
+            includeValue,
+            includeXattrs,
+            includeDeleteTime,
+            includeDeletedUserXattrs,
+            maxMarkerVersion,
+            std::move(filter));
     return std::make_shared<MockActiveStream>(&engine_,
                                               shared_from_base<DcpProducer>(),
                                               getName(),

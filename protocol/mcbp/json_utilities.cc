@@ -170,6 +170,9 @@ void to_json(nlohmann::json& json, const DcpAddStreamFlag& flags) {
             case DcpAddStreamFlag::IgnorePurgedTombstones:
                 array.push_back("IgnorePurgedTombstones");
                 break;
+            case DcpAddStreamFlag::CacheTransfer:
+                array.push_back("CacheTransfer");
+                break;
             default:
                 array.emplace_back(fmt::format("unknown:{:#x}",
                                                static_cast<unsigned int>(bit)));

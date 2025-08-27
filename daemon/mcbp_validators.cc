@@ -516,7 +516,8 @@ static Status verify_common_dcp_stream_restrictions(
             DcpAddStreamFlag::TakeOver | DcpAddStreamFlag::DiskOnly |
             DcpAddStreamFlag::ToLatest | DcpAddStreamFlag::ActiveVbOnly |
             DcpAddStreamFlag::StrictVbUuid | DcpAddStreamFlag::FromLatest |
-            DcpAddStreamFlag::IgnorePurgedTombstones;
+            DcpAddStreamFlag::IgnorePurgedTombstones |
+            DcpAddStreamFlag::CacheTransfer;
     const auto unknown = flags & ~mask;
 
     if (unknown != DcpAddStreamFlag::None) {
@@ -540,6 +541,32 @@ static Status verify_common_dcp_stream_restrictions(
                     fmt::format("Request contains invalid flags: {}", flags));
         }
         return Status::Einval;
+    }
+    if (isFlagSet(flags, DcpAddStreamFlag::CacheTransfer)) {
+        // CacheTransfer only to be combined with TakeOver or ActiveVbOnly
+        constexpr auto allowed_with_cache_transfer =
+                DcpAddStreamFlag::TakeOver | DcpAddStreamFlag::ActiveVbOnly;
+        const auto other_flags = flags & ~DcpAddStreamFlag::CacheTransfer;
+        const auto invalid_combination =
+                other_flags & ~allowed_with_cache_transfer;
+
+        if (invalid_combination != DcpAddStreamFlag::None) {
+            if (cookie.getConnection().isAuthenticated()) {
+                LOG_INFO_CTX(
+                        "CacheTransfer flag can only be combined "
+                        "with TakeOver or ActiveVbOnly flags. ",
+                        {"flags", flags},
+                        {"invalid_combination", invalid_combination},
+                        {"description",
+                         cookie.getConnection().getDescription()});
+            }
+            cookie.setErrorContext(
+                    fmt::format("CacheTransfer flag can only be combined "
+                                "with TakeOver or ActiveVbOnly flags. "
+                                "Invalid combination: {}",
+                                invalid_combination));
+            return Status::Einval;
+        }
     }
     return Status::Success;
 }

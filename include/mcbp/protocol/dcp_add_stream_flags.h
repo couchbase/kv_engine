@@ -61,6 +61,19 @@ enum class DcpAddStreamFlag : uint32_t {
      * them being behind the purge seqno.
      */
     IgnorePurgedTombstones = 128,
+
+    /**
+     * Request that the server transfers the cache before "regular" streaming.
+     * The stream's start seqno is the limit used for cache transfer, resident
+     * values with a seqno below or equal the start will be considered eligible
+     * for the transfer (other configuration options may apply in the final
+     * decision to transfer a resident value).
+     * This flags has very limited use-cases, e.g. combining with
+     * ToLatest/FromLatest will fail.
+     *
+     * stream-request documentation is where this flag will be fully described.
+     */
+    CacheTransfer = 256
 };
 std::string format_as(DcpAddStreamFlag flag);
 DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpAddStreamFlag);

@@ -448,6 +448,18 @@ std::shared_ptr<ProducerStream> DcpProducer::makeStream(
         StreamRequestInfo& req,
         VBucketPtr vb,
         Collections::VB::Filter filter) {
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+        return std::make_shared<CacheTransferStream>(
+                shared_from_base<DcpProducer>(),
+                getName(),
+                opaque,
+                req.start_seqno,
+                req.vbucket_uuid,
+                vb->getId(),
+                engine_,
+                IncludeValue::Yes,
+                std::move(filter));
+    }
     return std::make_shared<ActiveStream>(&engine_,
                                           shared_from_base<DcpProducer>(),
                                           getName(),

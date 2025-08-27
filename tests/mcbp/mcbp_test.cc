@@ -2290,10 +2290,10 @@ TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {
     EXPECT_EQ("DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 
-    // 256 is not a defined flag
-    extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(256));
+    // 0x200 is not a defined flag
+    extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(0x200));
     builder.setExtras(extras.getBuffer());
-    EXPECT_EQ("Request contains invalid flags: \"unknown:0x100\"",
+    EXPECT_EQ("Request contains invalid flags: \"unknown:0x200\"",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 }
 

@@ -77,7 +77,7 @@ TEST(DcpAddStreamFlag, format_as) {
     EXPECT_EQ(
             "[\"Takeover\",\"DiskOnly\",\"ToLatest\",\"NoValue\","
             "\"ActiveVbOnly\",\"StrictVbUuid\",\"FromLatest\","
-            "\"IgnorePurgedTombstones\",\"unknown:0x100\",\"unknown:0x200\","
+            "\"IgnorePurgedTombstones\",\"CacheTransfer\",\"unknown:0x200\","
             "\"unknown:0x400\",\"unknown:0x800\",\"unknown:0x1000\",\"unknown:"
             "0x2000\",\"unknown:0x4000\",\"unknown:0x8000\",\"unknown:"
             "0x10000\",\"unknown:0x20000\",\"unknown:0x40000\",\"unknown:"

@@ -2798,7 +2798,7 @@ bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
         std::unique_lock lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         lh.unlock();
-        notifyStreamReady();
+        notifyStreamReady(false, &producer);
         return true;
     }
     return false;

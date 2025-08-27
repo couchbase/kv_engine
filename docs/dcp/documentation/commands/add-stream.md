@@ -29,6 +29,8 @@ bitmask in network byte order with the following bits defined:
 * 0x20 (Strict VBUUID match) - Specifies that the server should check for vb_uuid match even at start_seqno 0 before adding the stream. Upon mismatch the sever should return ENGINE_ROLLBACK error. This flag was added in Couchbase Server 5.1.
 * 0x40 (From Latest) - Specifies that the server should stream mutations from the current sequence number, this means the start parameter is ignored. This flag was added in Couchbase Server 7.2.
 * 0x80 (Ignore Purged Tombstones) - Specifies that the server should skip rollback if the client is behind the purge seqno, but the request is otherwise satisfiable (i.e. no other rollback checks such as UUID mismatch fail).
+* 0x100 (CacheTransfer) - Requests that the stream should also transfer the cache of the active vbucket. Full details are in [Stream Request documentation.](stream-request.md)
+
 The client could end up missing purged tombstones (and hence could end up never being told about a document deletion).
 The intent of this flag is to allow clients who ignore deletes to avoid rollbacks to zero which are solely due to them being behind the purge seqno. This flag was added in Couchbase Server 7.2.
 
