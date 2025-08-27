@@ -14,7 +14,7 @@
 #include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/wrapped_fileops_test.h"
-#include <gtest/gtest.h>
+#include <folly/portability/GTest.h>
 
 class TestStatsOps : public StatsOps {
 public:
