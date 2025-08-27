@@ -26,7 +26,8 @@ public:
                             uint64_t vbucketUuid,
                             Vbid vbid,
                             EventuallyPersistentEngine& engine,
-                            IncludeValue includeValue);
+                            IncludeValue includeValue,
+                            Collections::VB::Filter filter);
 
     /**
      * Perform some checks and then lookup the next response in the stream.

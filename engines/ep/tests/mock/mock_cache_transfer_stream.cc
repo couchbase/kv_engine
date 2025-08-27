@@ -21,7 +21,8 @@ MockCacheTransferStream::MockCacheTransferStream(
         uint64_t vbucketUuid,
         Vbid vbid,
         EventuallyPersistentEngine& engine,
-        IncludeValue includeValue)
+        IncludeValue includeValue,
+        Collections::VB::Filter filter)
     : CacheTransferStream(p,
                           "MockCacheTransferStream",
                           opaque,
@@ -29,7 +30,8 @@ MockCacheTransferStream::MockCacheTransferStream(
                           vbucketUuid,
                           vbid,
                           engine,
-                          includeValue) {
+                          includeValue,
+                          std::move(filter)) {
 }
 
 std::shared_ptr<MockDcpProducer> MockCacheTransferStream::preValidateSteps() {

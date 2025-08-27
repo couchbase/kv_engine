@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/producer_stream.h"
 
@@ -43,7 +44,8 @@ public:
                         uint64_t vbucketUuid,
                         Vbid vbid,
                         EventuallyPersistentEngine& engine,
-                        IncludeValue includeValue);
+                        IncludeValue includeValue,
+                        Collections::VB::Filter filter);
 
     void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
@@ -151,4 +153,7 @@ protected:
 
     /// Total bytes queued
     size_t totalBytesQueued{0};
+
+    /// Filter to apply to the items in the stream.
+    Collections::VB::Filter filter;
 };

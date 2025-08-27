@@ -270,17 +270,21 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                                          uint64_t uuid,
                                          Vbid vbid,
                                          EventuallyPersistentEngine& engine,
-                                         IncludeValue includeValue)
-    : ProducerStream(name + ":cts",
+                                         IncludeValue includeValue,
+                                         Collections::VB::Filter filter)
+    : ProducerStream(filter.getStreamId()
+                             ? name + filter.getStreamId().to_string() + ":cts"
+                             : name + ":cts",
                      p,
-                     cb::mcbp::DcpStreamId{},
+                     filter.getStreamId(),
                      cb::mcbp::DcpAddStreamFlag::None,
                      opaque,
                      vbid,
                      maxSeqno,
                      uuid),
       engine(engine),
-      includeValue(includeValue) {
+      includeValue(includeValue),
+      filter(std::move(filter)) {
     Expects(p);
     OBJ_LOG_INFO_CTX(p->getLogger(),
                      "Creating CacheTransferStream",
@@ -315,7 +319,16 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
 }
 
 bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
-    // @todo: can later link to the filter
+    // Does this stream still have the appropriate privileges to operate?
+    if (filter.checkPrivileges(*producer.getCookie(), engine) !=
+        cb::engine_errc::success) {
+        std::unique_lock lh(streamMutex);
+        pushToReadyQ(makeEndStreamResponse(
+                cb::mcbp::DcpStreamEndStatus::LostPrivileges));
+        lh.unlock();
+        notifyStreamReady(false, &producer);
+        return true;
+    }
     return false;
 }
 
@@ -427,6 +440,11 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     }
 
     // If the item is not allowed by the filter, skip it.
+    if (!filter.check(sv.getKey())) {
+        debugLogSv("CacheTransferStream skipping as not allowed by filter", sv);
+        return Status::KeepVisiting;
+    }
+
     debugLogSv("CacheTransferStream queuing", sv);
 
     // Generate a MutationResponse. It carries all the required information to

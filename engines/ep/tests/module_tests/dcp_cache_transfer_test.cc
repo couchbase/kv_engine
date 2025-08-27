@@ -44,8 +44,15 @@ public:
             Vbid vbid,
             uint64_t maxSeqno,
             IncludeValue includeValue) {
-        auto stream = producer.mockCacheTransferStreamRequest(
-                1, Vbid(0), maxSeqno, 0 /*uuid not used*/, includeValue);
+        Collections::VB::Filter f(
+                "", store->getVBucket(vbid)->getManifest(), *cookie, *engine);
+        auto stream =
+                producer.mockCacheTransferStreamRequest(1,
+                                                        Vbid(0),
+                                                        maxSeqno,
+                                                        0 /*uuid not used*/,
+                                                        includeValue,
+                                                        std::move(f));
         EXPECT_TRUE(stream->isActive());
         EXPECT_EQ(0, stream->getItemsRemaining());
         EXPECT_FALSE(stream->next(producer));

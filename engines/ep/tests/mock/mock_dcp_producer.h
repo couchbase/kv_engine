@@ -241,7 +241,8 @@ public:
             Vbid vbid,
             uint64_t maxSeqno,
             uint64_t vbucketUuid,
-            IncludeValue includeValue);
+            IncludeValue includeValue,
+            Collections::VB::Filter filter);
 
     /**
      * Step the producer and expect the opcode to be returned
