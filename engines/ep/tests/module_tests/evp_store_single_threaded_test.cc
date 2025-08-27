@@ -183,7 +183,7 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
 
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
-        auto runTasks = [=](TaskQueue& queue) {
+        auto runTasks = [this](TaskQueue& queue) {
             while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
                 runNextTask(queue);
             }
@@ -229,7 +229,7 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
 
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
-        auto runTasks = [=](TaskQueue& queue) {
+        auto runTasks = [this](TaskQueue& queue) {
             while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
                 runNextTask(queue);
             }
@@ -6249,7 +6249,7 @@ void STParamPersistentBucketTest::testCancelCompaction(
     }
 
     // Drive all the tasks through the queue
-    auto runTasks = [=](TaskQueue& queue) {
+    auto runTasks = [this](TaskQueue& queue) {
         while (queue.getFutureQueueSize() > 0 ||
                queue.getReadyQueueSize() > 0) {
             ObjectRegistry::onSwitchThread(engine.get());

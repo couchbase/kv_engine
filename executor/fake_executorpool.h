@@ -159,12 +159,12 @@ public:
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName() == "Snapshotting vbucket states" ||
             getTaskName() == "Adjusting hash table sizes.") {
-            checker = [=](bool taskRescheduled) {
+            checker = [this](bool taskRescheduled) {
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
             };
         } else if (getTaskName() == "CheckpointMemRecoveryTask:0") {
-            checker = [=](bool taskRescheduled) {
+            checker = [this](bool taskRescheduled) {
                 // This task _may_ schedule or wake a CheckpointDestroyer, to
                 // destroy checkpoints made unreferenced by cursor dropping
                 this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 2);
@@ -173,14 +173,14 @@ public:
                    getTaskName() == "Paging out items (quota sharing)." ||
                    getTaskName() == "Paging expired items." ||
                    getTaskName() == "Generating access log") {
-            checker = [=](bool taskRescheduled) {
+            checker = [this](bool taskRescheduled) {
                 // This task _may_ schedule N subsequent tasks.
                 // Bound it at 10 as a sanity check. If tests wish to configure
                 // more than 10 concurrent visitors, this can be bumped.
                 this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 10);
             };
         } else {
-            checker = [=](bool taskRescheduled) {
+            checker = [this](bool taskRescheduled) {
                 this->oneExecutes(taskRescheduled, 0);
             };
         }
