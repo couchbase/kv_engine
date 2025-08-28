@@ -236,7 +236,7 @@ void range_scan_create_executor(Cookie& cookie) {
                 cb::mcbp::Status::Success,
                 {},
                 {},
-                {reinterpret_cast<const char*>(status.second.data),
+                {reinterpret_cast<const char*>(status.second.begin()),
                  status.second.size()},
                 PROTOCOL_BINARY_RAW_BYTES,
                 nullptr);
