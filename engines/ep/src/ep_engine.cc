@@ -7816,10 +7816,11 @@ cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshot(
 cb::engine_errc EventuallyPersistentEngine::mountVBucket(
         CookieIface& cookie,
         Vbid vbid,
+        VBucketSnapshotSource source,
         const std::vector<std::string>& paths,
         const std::function<void(const nlohmann::json&)>& setResponse) {
     auto eng = acquireEngine(this);
-    const auto result = kvBucket->mountVBucket(cookie, vbid, paths);
+    const auto result = kvBucket->mountVBucket(cookie, vbid, source, paths);
     if (result.hasError()) {
         return result.error();
     }

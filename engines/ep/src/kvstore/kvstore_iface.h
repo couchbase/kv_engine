@@ -119,8 +119,6 @@ protected:
     uint64_t rev;
 };
 
-enum class VBucketSnapshotSource { Local, Fusion };
-
 /**
  * The following status codes can be returned by compactDB
  * Success - Compaction was successful, vbucket switched over to the new

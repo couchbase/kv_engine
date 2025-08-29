@@ -1867,7 +1867,10 @@ VBucketPtr EPBucket::makeVBucket(
 }
 
 KVBucketResult<std::vector<std::string>> EPBucket::mountVBucket(
-        CookieIface& cookie, Vbid vbid, const std::vector<std::string>& paths) {
+        CookieIface& cookie,
+        Vbid vbid,
+        VBucketSnapshotSource source,
+        const std::vector<std::string>& paths) {
     if (!getStorageProperties().supportsFusion()) {
         return folly::Unexpected(cb::engine_errc::not_supported);
     }
@@ -1883,6 +1886,7 @@ KVBucketResult<std::vector<std::string>> EPBucket::mountVBucket(
                     {"conn_id", connId},
                     {"task_conn_id", task.getCookie().getConnectionId()},
                     {"vb", vbid},
+                    {"source", source},
                     {"paths", paths});
             return folly::Unexpected(cb::engine_errc::key_already_exists);
         }
@@ -1911,18 +1915,15 @@ KVBucketResult<std::vector<std::string>> EPBucket::mountVBucket(
         EP_LOG_WARN_CTX("Received mount vbucket request for existing vbucket",
                         {"conn_id", connId},
                         {"vb", vbid},
+                        {"source", source},
                         {"paths", paths});
         return folly::Unexpected(cb::engine_errc::key_already_exists);
     }
     if (vbid.get() >= vbMap.getSize()) {
         return folly::Unexpected(cb::engine_errc::out_of_range);
     }
-    auto task =
-            VBucketLoadingTask::makeMountingTask(cookie,
-                                                 *this,
-                                                 vbid,
-                                                 VBucketSnapshotSource::Fusion,
-                                                 std::move(paths));
+    auto task = VBucketLoadingTask::makeMountingTask(
+            cookie, *this, vbid, source, paths);
     vbucketsLoading[vbid] = task;
     ExecutorPool::get()->schedule(std::move(task));
     EP_LOG_INFO_CTX("Scheduled vbucket mounting task",
@@ -1981,7 +1982,9 @@ static void from_json(const nlohmann::json& meta, LoadVBucketOptions& options) {
     if (value == "fbr"sv) {
         options.source = VBucketSnapshotSource::Local;
     } else if (value == "fusion"sv) {
-        options.source = VBucketSnapshotSource::Fusion;
+        // Can be any of the Fusion ones as mounting was already done with the
+        // right one.
+        options.source = VBucketSnapshotSource::FusionGuestVolumes;
     } else {
         options.status = cb::engine_errc::not_supported;
         return;

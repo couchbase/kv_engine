@@ -311,6 +311,7 @@ public:
     cb::engine_errc mountVBucket(
             CookieIface& cookie,
             Vbid vbid,
+            VBucketSnapshotSource source,
             const std::vector<std::string>& paths,
             const std::function<void(const nlohmann::json&)>& setResponse)
             override;

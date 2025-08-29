@@ -277,6 +277,7 @@ public:
     virtual KVBucketResult<std::vector<std::string>> mountVBucket(
             CookieIface& cookie,
             Vbid vbid,
+            VBucketSnapshotSource source,
             const std::vector<std::string>& paths) {
         return folly::Unexpected(cb::engine_errc::not_supported);
     }

@@ -1348,13 +1348,22 @@ TEST_P(STMagmaFusionTest, MountVbucket) {
     auto* cookie2 = create_mock_cookie(engine.get());
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
-        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        auto ret =
+                engine->mountVBucket(*cookie,
+                                     vbid,
+                                     VBucketSnapshotSource::FusionGuestVolumes,
+                                     {},
+                                     [](const auto&) {});
         if (ret != cb::engine_errc::would_block) {
             EXPECT_EQ(cb::engine_errc::success, ret);
             break;
         }
         auto retDup =
-                engine->mountVBucket(*cookie2, vbid, {}, [](const auto&) {});
+                engine->mountVBucket(*cookie2,
+                                     vbid,
+                                     VBucketSnapshotSource::FusionGuestVolumes,
+                                     {},
+                                     [](const auto&) {});
         EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
         runNextTask(auxIoQ, "Mounting VBucket vb:0");
     }
@@ -1376,7 +1385,12 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
     auto* cookie2 = create_mock_cookie(engine.get());
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
-        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        auto ret =
+                engine->mountVBucket(*cookie,
+                                     vbid,
+                                     VBucketSnapshotSource::FusionGuestVolumes,
+                                     {},
+                                     [](const auto&) {});
         if (ret != cb::engine_errc::would_block) {
             EXPECT_EQ(cb::engine_errc::success, ret);
             break;
@@ -1392,7 +1406,11 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
             break;
         }
         auto retDup =
-                engine->mountVBucket(*cookie2, vbid, {}, [](const auto&) {});
+                engine->mountVBucket(*cookie2,
+                                     vbid,
+                                     VBucketSnapshotSource::FusionGuestVolumes,
+                                     {},
+                                     [](const auto&) {});
         EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
         runNextTask(auxIoQ, "Loading VBucket vb:0");
     }
@@ -1433,7 +1451,7 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
                         .isFusionUploader(vbid));
     EXPECT_EQ(cb::engine_errc::success, engine->syncFusionLogstore(vbid));
 
-    auto guestVolumePaths = setupGuestVolumes(3);
+    const auto guestVolumePaths = setupGuestVolumes(3);
 
     shutdownAndPurgeTasks(engine.get());
     std::filesystem::remove_all(dbPath / "magma.0");
@@ -1443,8 +1461,12 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     auto* cookie2 = create_mock_cookie(engine.get());
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
-        auto ret = engine->mountVBucket(
-                *cookie, vbid, guestVolumePaths, [](const auto&) {});
+        auto ret =
+                engine->mountVBucket(*cookie,
+                                     vbid,
+                                     VBucketSnapshotSource::FusionGuestVolumes,
+                                     guestVolumePaths,
+                                     [](const auto&) {});
         if (ret != cb::engine_errc::would_block) {
             EXPECT_EQ(cb::engine_errc::success, ret);
             break;

@@ -16,7 +16,16 @@ MountFusionVbucketCommandContext::MountFusionVbucketCommandContext(
         Cookie& cookie)
     : SteppableCommandContext(cookie), state(State::Mount) {
     const auto& req = cookie.getRequest();
-    paths = nlohmann::json::parse(req.getValueString()).at("mountPaths");
+    const auto json = nlohmann::json::parse(req.getValueString());
+    source = VBucketSnapshotSource::FusionGuestVolumes;
+    if (json.contains("source")) {
+        source = json.at("source");
+    }
+    if (source == VBucketSnapshotSource::FusionGuestVolumes) {
+        paths = json.at("mountPaths");
+    } else if (source == VBucketSnapshotSource::FusionLogStore) {
+        paths.push_back(json.at("snapshotUUID").get<std::string>());
+    }
 }
 
 cb::engine_errc MountFusionVbucketCommandContext::step() {
@@ -41,6 +50,7 @@ cb::engine_errc MountFusionVbucketCommandContext::mount() {
     auto ret = connection.getBucketEngine().mountVBucket(
             cookie,
             cookie.getRequest().getVBucket(),
+            source,
             paths,
             [this](const nlohmann::json& json) {
                 // The engine needs to use NonBucketAllocationGuard

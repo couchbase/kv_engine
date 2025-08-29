@@ -217,6 +217,7 @@ public:
     cb::engine_errc mountVBucket(
             CookieIface& cookie,
             Vbid vbid,
+            VBucketSnapshotSource source,
             const std::vector<std::string>& paths,
             const std::function<void(const nlohmann::json&)>& setResponse)
             override;
@@ -1395,9 +1396,10 @@ cb::engine_errc EWB_Engine::releaseFusionStorageSnapshot(
 cb::engine_errc EWB_Engine::mountVBucket(
         CookieIface& cookie,
         Vbid vbid,
+        VBucketSnapshotSource source,
         const std::vector<std::string>& paths,
         const std::function<void(const nlohmann::json&)>& setResponse) {
-    return real_engine->mountVBucket(cookie, vbid, paths, setResponse);
+    return real_engine->mountVBucket(cookie, vbid, source, paths, setResponse);
 }
 
 cb::engine_errc EWB_Engine::unmountVBucket(Vbid vbid) {

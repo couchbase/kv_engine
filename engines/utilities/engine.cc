@@ -69,6 +69,7 @@ cb::engine_errc EngineIface::releaseFusionStorageSnapshot(
 cb::engine_errc EngineIface::mountVBucket(
         CookieIface& cookie,
         Vbid vbid,
+        VBucketSnapshotSource source,
         const std::vector<std::string>& paths,
         const std::function<void(const nlohmann::json&)>& setResponse) {
     return cb::engine_errc::not_supported;
@@ -123,4 +124,33 @@ std::string to_string(const TrafficControlMode mode) {
 std::ostream& operator<<(std::ostream& os, const TrafficControlMode& mode) {
     os << to_string(mode);
     return os;
+}
+
+std::string_view format_as(VBucketSnapshotSource source) {
+#define X(name)                       \
+    case VBucketSnapshotSource::name: \
+        return #name
+    switch (source) {
+        X(Local);
+        X(FusionGuestVolumes);
+        X(FusionLogStore);
+    }
+#undef X
+    return {};
+}
+
+void from_json(const nlohmann::json& json, VBucketSnapshotSource& source) {
+    if (!json.is_string()) {
+        throw std::logic_error("VBucketSnapshotSource: not a string");
+    }
+    const auto& str = json.get<std::string>();
+    if (str == "Local") {
+        source = VBucketSnapshotSource::Local;
+    } else if (str == "FusionGuestVolumes") {
+        source = VBucketSnapshotSource::FusionGuestVolumes;
+    } else if (str == "FusionLogStore") {
+        source = VBucketSnapshotSource::FusionLogStore;
+    } else {
+        throw std::logic_error("VBucketSnapshotSource: unknown: " + str);
+    }
 }

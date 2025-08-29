@@ -4808,12 +4808,25 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
         using Type = magma::Magma::KVStoreMountConfig::Type;
     case VBucketSnapshotSource::Local:
         config.Source = Type::Local;
+        config.MountPaths = paths;
         break;
-    case VBucketSnapshotSource::Fusion:
+    case VBucketSnapshotSource::FusionGuestVolumes:
         config.Source = Type::FusionGuestVolumes;
+        config.MountPaths = paths;
+        break;
+    case VBucketSnapshotSource::FusionLogStore:
+        if (paths.size() != 1) {
+            EP_LOG_WARN_CTX(
+                    "MagmaKVStore::mountVBucket: "
+                    "Expected just the snapshot uuid in paths",
+                    {"vb", vbid.get()},
+                    {"paths", paths});
+            return {cb::engine_errc::failed, {}};
+        }
+        config.Source = Type::FusionLogStore;
+        config.SnapshotUUID = paths.front();
         break;
     }
-    config.MountPaths = paths;
 
     const auto res = magma->MountKVStore(Magma::KVStoreID(vbid.get()),
                                          magma::Magma::KVStoreRevision(rev),

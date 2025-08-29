@@ -40,7 +40,8 @@ std::shared_ptr<VBucketLoadingTask> VBucketLoadingTask::makeCreationTask(
         vbucket_state_t toState,
         nlohmann::json replicationTopology) {
     auto state = LoadingState::MountVBucket;
-    if (source == VBucketSnapshotSource::Fusion) {
+    if (source == VBucketSnapshotSource::FusionGuestVolumes ||
+        source == VBucketSnapshotSource::FusionLogStore) {
         state = LoadingState::CreateVBucket;
     }
     return std::make_shared<VBucketLoadingTask>(false,
@@ -172,7 +173,8 @@ void VBucketLoadingTask::transition(LoadingState newState) {
         checkTransition(newState,
                         {LoadingState::CreateVBucket, LoadingState::Done});
         if (newState == LoadingState::Done) {
-            Expects(source == VBucketSnapshotSource::Fusion);
+            Expects(source == VBucketSnapshotSource::FusionGuestVolumes ||
+                    source == VBucketSnapshotSource::FusionLogStore);
         }
         break;
     case LoadingState::CreateVBucket:

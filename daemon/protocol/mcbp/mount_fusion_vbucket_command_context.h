@@ -11,6 +11,8 @@
 
 #include "steppable_command_context.h"
 
+#include <memcached/engine.h>
+
 /**
  * Mounts a vbucket using the paths in the request and responds with the DEK ids
  * used by the snapshot.
@@ -30,6 +32,7 @@ protected:
 
     cb::engine_errc sendResponse();
 
+    VBucketSnapshotSource source;
     std::vector<std::string> paths;
     std::string response;
     State state;

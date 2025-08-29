@@ -169,6 +169,14 @@ inline auto format_as(const TrafficControlMode mode) {
     return to_string(mode);
 }
 
+enum class VBucketSnapshotSource { Local, FusionGuestVolumes, FusionLogStore };
+std::string_view format_as(VBucketSnapshotSource);
+void from_json(const nlohmann::json& json, VBucketSnapshotSource& source);
+template <typename BasicJsonType>
+static void to_json(BasicJsonType& json, VBucketSnapshotSource source) {
+    json = format_as(source);
+}
+
 /**
  * Definition of the first version of the engine interface
  */
@@ -794,6 +802,7 @@ struct EngineIface {
     [[nodiscard]] virtual cb::engine_errc mountVBucket(
             CookieIface& cookie,
             Vbid vbid,
+            VBucketSnapshotSource source,
             const std::vector<std::string>& paths,
             const std::function<void(const nlohmann::json&)>& setResponse);
 

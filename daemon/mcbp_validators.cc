@@ -2789,34 +2789,70 @@ static Status mount_vbucket_validator(Cookie& cookie) {
     try {
         json = nlohmann::json::parse(value);
     } catch (const nlohmann::json::exception& e) {
-        const auto msg =
-                fmt::format("mount_vbucket_validator: Invalid json '{}' {}",
-                            value,
-                            e.what());
-        cookie.setErrorContext(msg);
-        return Status::Einval;
-    }
-
-    if (!json.contains("mountPaths")) {
-        cookie.setErrorContext("mount_vbucket_validator: Missing mountPaths");
-        return Status::Einval;
-    }
-
-    if (!json["mountPaths"].is_array()) {
         cookie.setErrorContext(
-                "mount_vbucket_validator: mountPaths not an array");
+                fmt::format("Invalid json '{}' {}", value, e.what()));
         return Status::Einval;
     }
 
-    try {
-        std::vector<std::string> paths = json["mountPaths"];
-    } catch (const std::exception& e) {
-        const auto msg =
-                fmt::format("mount_vbucket_validator: Invalid json '{}' {}",
-                            value,
-                            e.what());
-        cookie.setErrorContext(msg);
-        return Status::Einval;
+    std::unordered_set<std::string_view> allowedFields;
+    auto source = VBucketSnapshotSource::FusionGuestVolumes;
+    if (json.contains("source")) {
+        try {
+            source = json["source"];
+        } catch (const std::logic_error& ex) {
+            cookie.setErrorContext(ex.what());
+            return Status::Einval;
+        }
+        switch (source) {
+        case VBucketSnapshotSource::Local:
+            cookie.setErrorContext("Local source not supported");
+            return cb::mcbp::Status::NotSupported;
+        case VBucketSnapshotSource::FusionGuestVolumes:
+            allowedFields.emplace("mountPaths");
+            break;
+        case VBucketSnapshotSource::FusionLogStore:
+            allowedFields.emplace("snapshotUUID");
+            break;
+        }
+        allowedFields.emplace("source");
+    } else {
+        allowedFields.emplace("mountPaths");
+    }
+
+    for (const auto& item : json.items()) {
+        if (!allowedFields.contains(item.key())) {
+            cookie.setErrorContext("Unexpected key: " + item.key());
+            return Status::Einval;
+        }
+    }
+
+    if (source == VBucketSnapshotSource::FusionGuestVolumes) {
+        if (!json.contains("mountPaths")) {
+            cookie.setErrorContext("Missing mountPaths");
+            return Status::Einval;
+        }
+        if (!json["mountPaths"].is_array()) {
+            cookie.setErrorContext("mountPaths not an array");
+            return Status::Einval;
+        }
+        try {
+            std::vector<std::string> paths = json["mountPaths"];
+        } catch (const std::exception& ex) {
+            cookie.setErrorContext(
+                    fmt::format("Invalid json '{}' {}", value, ex.what()));
+            return Status::Einval;
+        }
+    } else if (source == VBucketSnapshotSource::FusionLogStore) {
+        if (!json.contains("snapshotUUID")) {
+            cookie.setErrorContext("Missing snapshotUUID");
+            return Status::Einval;
+        }
+        if (!json["snapshotUUID"].is_string()) {
+            cookie.setErrorContext("snapshotUUID not a string");
+            return Status::Einval;
+        }
+    } else {
+        status = cb::mcbp::Status::NotSupported;
     }
 
     return status;
@@ -2841,7 +2877,6 @@ static Status sync_fusion_logstore_validator(Cookie& cookie) {
                                         GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
-
 
 static Status start_fusion_uploader_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(cookie,

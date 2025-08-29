@@ -229,6 +229,7 @@ public:
     KVBucketResult<std::vector<std::string>> mountVBucket(
             CookieIface& cookie,
             Vbid vbid,
+            VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override;
 
     cb::engine_errc unmountVBucket(Vbid vbid) override;
