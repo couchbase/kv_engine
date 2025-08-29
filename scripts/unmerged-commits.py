@@ -88,6 +88,12 @@ sequences = {
          ('couchbase/7.1.x', 'couchbase/neo')]
     ],
 
+    'phosphor': [
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
+        [('couchbase/neo', 'couchbase/trinity')]
+    ],
+
     'platform': [
         # main platform release train
         [('couchbase/morpheus', 'couchbase/master')],
