@@ -307,9 +307,11 @@ public:
             // given StoredValue.
             // Default values are such that a default-constructed object is
             // equivlent to a non-existent SV.
-            size_t size = 0;
-            size_t metaDataSize = 0;
-            size_t uncompressedSize = 0;
+            // size, metaDataSize and uncompressedSize are signed to allow for
+            // negative values (e.g. when an item is deleted).
+            ssize_t size = 0;
+            ssize_t metaDataSize = 0;
+            ssize_t uncompressedSize = 0;
             CollectionID cid;
             protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
             bool isValid = false;
