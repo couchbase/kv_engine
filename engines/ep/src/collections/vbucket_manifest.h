@@ -150,7 +150,7 @@ public:
      * stats which will be copied it's better to err on the side of caution and
      * take the write lock.
      */
-    Manifest(Manifest& other);
+    Manifest(const Manifest& other);
 
     /**
      * @return ReadHandle, no iterator is held on the collection container
