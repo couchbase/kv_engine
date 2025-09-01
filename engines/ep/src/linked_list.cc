@@ -235,7 +235,9 @@ size_t BasicLinkedList::purgeTombstones(
     size_t purgedCount = 0;
     bool stale;
     for (auto it = startIt; it != seqList.end();) {
-        if (it->getBySeqno() > lastLockedSeqno) {
+        // read the seqno once and use that value in all checks.
+        const auto itemSeqno = it->getBySeqno();
+        if (itemSeqno > lastLockedSeqno) {
             if (lastLockedSeqno != purgeUpToSeqno) {
                 //  have reached the end of the locked range, but the original
                 //  requested end was higher i.e., the range lock was partial. Pause
@@ -249,7 +251,7 @@ size_t BasicLinkedList::purgeTombstones(
             break;
         }
 
-        if (it->getBySeqno() <= 0) {
+        if (itemSeqno <= 0) {
             /* last item with no valid seqno yet */
             break;
         }
@@ -257,8 +259,8 @@ size_t BasicLinkedList::purgeTombstones(
         // As we move past the items in the list, increment the begin of
         // the range lock to reduce the window of creating stale items during
         // updates
-        if (it->getBySeqno() > startSeqno) {
-            range.updateRangeStart(it->getBySeqno());
+        if (itemSeqno > startSeqno) {
+            range.updateRangeStart(itemSeqno);
         }
 
         bool replaced = false;
@@ -272,7 +274,7 @@ size_t BasicLinkedList::purgeTombstones(
 
         bool isDropped = false;
         if (!stale && isDroppedKeyCb) {
-            isDropped = isDroppedKeyCb(it->getKey(), it->getBySeqno());
+            isDropped = isDroppedKeyCb(it->getKey(), itemSeqno);
         }
 
         // Only stale or dropped items are purged, but they _cannot_ be
