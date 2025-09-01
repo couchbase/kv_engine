@@ -370,7 +370,8 @@ TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
             "connections self");
     EXPECT_FALSE(json.empty());
     EXPECT_TRUE(json["internal"]);
-    EXPECT_EQ("@internal", json["user"]["name"]) << json["user"].dump(2);
+    EXPECT_EQ("@internal", json["user"]["name"].get<std::string>())
+            << json["user"].dump(2);
 
     // the internal user should not be allowed to select any buckets
     auto rsp = connection->execute(BinprotGenericCommand(
@@ -386,7 +387,8 @@ TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
             "connections self");
     EXPECT_FALSE(json.empty());
     EXPECT_TRUE(json["internal"]);
-    EXPECT_EQ("@fts", json["user"]["name"]) << json["user"].dump(2);
+    EXPECT_EQ("@fts", json["user"]["name"].get<std::string>())
+            << json["user"].dump(2);
     rsp = connection->execute(BinprotGenericCommand(
             cb::mcbp::ClientOpcode::SelectBucket, "default"));
     EXPECT_TRUE(rsp.isSuccess());

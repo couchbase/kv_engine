@@ -252,7 +252,9 @@ TEST(MiscTest, StopClientDataIngress) {
         admin->stats(
                 [reason](auto k, auto v) {
                     auto json = nlohmann::json::parse(v);
-                    EXPECT_EQ(::to_string(reason), json["data_ingress_status"]);
+                    EXPECT_EQ(::to_string(reason),
+                              json["data_ingress_status"]
+                                      .template get<std::string>());
                 },
                 "bucket_details bucket-0");
 
