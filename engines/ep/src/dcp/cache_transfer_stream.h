@@ -96,6 +96,27 @@ public:
         return totalBytesQueued;
     }
 
+    /**
+     * Required method for OBJ_LOG macros.
+     * @param level The level to check.
+     * @param msg The message to log.
+     * @param ctx The context to log.
+     */
+    void logWithContext(spdlog::level::level_enum level,
+                        std::string_view msg,
+                        cb::logger::Json ctx) const override {
+        // @todo: Will be implemented by later changes from MB-64001
+    }
+
+    /**
+     * Required method for OBJ_LOG macros.
+     * @param level The level to check.
+     * @param msg The message to log.
+     */
+    void log(spdlog::level::level_enum level, std::string_view msg) const {
+        logWithContext(level, msg, cb::logger::Json::object());
+    }
+
     std::function<void(const StoredValue&)> preQueueCallback =
             [](const auto&) { /*nothing*/ };
 

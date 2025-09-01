@@ -46,6 +46,7 @@
 #include <platform/timeutils.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
+
 #include <numeric>
 
 #include <regex>
@@ -98,14 +99,14 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
 
 void DcpProducer::BufferLog::release(size_t bytes) {
     if (bytes > bytesOutstanding) {
-        producer.getLogger().logWithContext(
-                spdlog::level::warn,
+        OBJ_LOG_WARN_CTX(
+                producer.getLogger(),
                 "Attempting to release number of bytes which is greater than "
                 "bytesOutstanding",
-                {{"dcp", "producer"},
-                 {"dcp_name", producer.getName()},
-                 {"bytes", uint64_t(bytes)},
-                 {"bytes_outstanding", uint64_t(bytesOutstanding)}});
+                {"dcp", "producer"},
+                {"dcp_name", producer.getName()},
+                {"bytes", uint64_t(bytes)},
+                {"bytes_outstanding", uint64_t(bytesOutstanding)});
     }
 
     bytesOutstanding -= bytes;
@@ -319,12 +320,12 @@ DcpProducer::~DcpProducer() {
                 now - noopCtx.sendTime,
                 now - noopCtx.recvTime);
     }
-    logger->infoWithContext(
-            "Destroying connection",
-            {{"since_created", (now - created)},
-             {"total_bytes_sent", totalBytesSent},
-             {"noop_descr", noopDescr},
-             {"paused_details", getPausedDetailsDescription()}});
+    OBJ_LOG_INFO_CTX(*logger,
+                     "Destroying connection",
+                     {"since_created", (now - created)},
+                     {"total_bytes_sent", totalBytesSent},
+                     {"noop_descr", noopDescr},
+                     {"paused_details", getPausedDetailsDescription()});
 
     backfillMgr.reset();
 }
@@ -362,9 +363,10 @@ cb::engine_errc DcpProducer::streamRequest(
     }
     auto vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed because this vbucket doesn't exist",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::not_my_vbucket;
     }
     std::shared_lock vbStateReadLock{vb->getStateLock()};
@@ -402,17 +404,19 @@ cb::engine_errc DcpProducer::streamRequest(
 
     if (!engine_.getMemoryTracker().isBelowBackfillThreshold() &&
         getAuthenticatedUser() != "@ns_server") {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed because memory usage is above quota",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::no_memory;
     }
 
     auto stream = makeStream(opaque, req, vb, std::move(filter));
     if (!stream) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed because the stream was not created",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::failed;
     }
 
@@ -473,10 +477,11 @@ cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
     }
 
     if (!permittedVBStates.test(vb.getState())) {
-        logger->infoWithContext("Stream request failed due to vbucket state",
-                                {{"vb", vb.getId()},
-                                 {"vb_state", vb.toString(vb.getState())},
-                                 {"flags", fmt::to_string(req.flags)}});
+        OBJ_LOG_INFO_CTX(*logger,
+                         "Stream request failed due to vbucket state",
+                         {"vb", vb.getId()},
+                         {"vb_state", vb.toString(vb.getState())},
+                         {"flags", fmt::to_string(req.flags)});
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -493,10 +498,11 @@ cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
     if ((includeXattrs == IncludeXattrs::Yes) || json.has_value()) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
-            logger->warnWithContext(
+            OBJ_LOG_WARN_CTX(
+                    *logger,
                     "noop is mandatory for v5 features like xattrs and "
                     "collections",
-                    {{"vb", vb.getId()}});
+                    {"vb", vb.getId()});
             return cb::engine_errc::not_supported;
         }
     }
@@ -515,12 +521,13 @@ cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
 
     if (!(req.snap_start_seqno <= req.start_seqno &&
           req.start_seqno <= req.snap_end_seqno)) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed because the snap start seqno <= start "
                 "seqno <= snap end seqno is required",
-                {{"vb", vb.getId()},
-                 {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
-                 {"start_seqno", req.start_seqno}});
+                {"vb", vb.getId()},
+                {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
+                {"start_seqno", req.start_seqno});
         return cb::engine_errc::out_of_range;
     }
 
@@ -538,27 +545,29 @@ DcpProducer::constructFilterForStreamRequest(
 
     if (!filter.getStreamId() &&
         multipleStreamRequests == MultipleStreamRequests::Yes) {
-        logger->warnWithContext(
-                "Stream request failed because a valid stream-ID is "
-                "required",
-                {{"vb", vbucket}});
+        OBJ_LOG_WARN_CTX(*logger,
+                         "Stream request failed because a valid stream-ID is "
+                         "required",
+                         {"vb", vbucket});
         return cb::engine_errc::dcp_streamid_invalid;
     }
     if (filter.getStreamId() &&
         multipleStreamRequests == MultipleStreamRequests::No) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed because a stream-ID is present but "
                 "not required",
-                {{"vb", vbucket},
-                 {"stream_id", fmt::to_string(filter.getStreamId())}});
+                {"vb", vbucket},
+                {"stream_id", fmt::to_string(filter.getStreamId())});
         return cb::engine_errc::dcp_streamid_invalid;
     }
     if (filter.isCollectionFilter() && isSyncWritesEnabled()) {
         // These two don't (or may not) quite work together (very little
         // coverage and never required)
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request failed for filtered collections + sync-writes",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::not_supported;
     }
 
@@ -582,12 +591,13 @@ std::pair<cb::engine_errc, bool> DcpProducer::shouldAddVBToProducerConnection(
                 if (sp->compareStreamId(filter.getStreamId())) {
                     // Error if found and active
                     if (sp->isActive()) {
-                        logger->warnWithContext(
+                        OBJ_LOG_WARN_CTX(
+                                *logger,
                                 "Stream request failed because a stream "
                                 "already exists for this vbucket",
-                                {{"vb", vbucket},
-                                 {"stream_id",
-                                  filter.getStreamId().to_string()}});
+                                {"vb", vbucket},
+                                {"stream_id",
+                                 filter.getStreamId().to_string()});
                         return {cb::engine_errc::key_already_exists, false};
                     }
                     // Found a 'dead' stream which can be replaced.
@@ -635,15 +645,16 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
 
     if (needsRollback) {
         *rollback_seqno = needsRollback->rollbackSeqno;
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Stream request requires rollback to seqno",
-                {{"vb", vbucket},
-                 {"rollback_seqno", *rollback_seqno},
-                 {"rollback_reason", needsRollback->rollbackReason},
-                 {"start_seqno", req.start_seqno},
-                 {"end_seqno", req.end_seqno},
-                 {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
-                 {"vb_uuid", req.vbucket_uuid}});
+                {"vb", vbucket},
+                {"rollback_seqno", *rollback_seqno},
+                {"rollback_reason", needsRollback->rollbackReason},
+                {"start_seqno", req.start_seqno},
+                {"end_seqno", req.end_seqno},
+                {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
+                {"vb_uuid", req.vbucket_uuid});
         return cb::engine_errc::rollback;
     }
 
@@ -670,10 +681,12 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
                 // specified in the filter ("race" where collection was dropped
                 // between constructing filter above and requesting seqnos
                 // here).
-                logger->warnWithContext(
+                OBJ_LOG_WARN_CTX(
+                        *logger,
                         "Stream request for failed while calculating latest "
                         "seqno for filtered collections",
-                        {{"vb", vbucket}, {"filter", fmt::to_string(filter)}});
+                        {"vb", vbucket},
+                        {"filter", fmt::to_string(filter)});
                 return cb::engine_errc::unknown_collection;
             }
             req.end_seqno = highFilteredSeqno.value();
@@ -723,25 +736,27 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
     if (req.start_seqno == req.snap_start_seqno &&
         req.snap_end_seqno > req.high_seqno) {
         if (isSeqnoAdvancedEnabled()) {
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "Stream request start seqno is at the beginning of a "
                     "snapshot which extends past the vb highSeqno; "
                     "avoiding rollback and setting snapEndSeqno",
-                    {{"vb", vbucket},
-                     {"start_seqno", req.start_seqno},
-                     {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
-                     {"high_seqno", req.high_seqno},
-                     {"new_snap_end_seqno", req.snap_start_seqno}});
+                    {"vb", vbucket},
+                    {"start_seqno", req.start_seqno},
+                    {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
+                    {"high_seqno", req.high_seqno},
+                    {"new_snap_end_seqno", req.snap_start_seqno});
             req.snap_end_seqno = req.snap_start_seqno;
         } else {
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "Stream request start seqno is at the beginning of a "
                     "snapshot which extends past the vb highSeqno; "
                     "allowing to continue",
-                    {{"vb", vbucket},
-                     {"start_seqno", req.start_seqno},
-                     {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
-                     {"high_seqno", req.high_seqno}});
+                    {"vb", vbucket},
+                    {"start_seqno", req.start_seqno},
+                    {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
+                    {"high_seqno", req.high_seqno});
         }
     }
 
@@ -764,10 +779,11 @@ cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
     }
 
     if (vb.isReceivingInitialDiskSnapshot()) {
-        logger->infoWithContext(
+        OBJ_LOG_INFO_CTX(
+                *logger,
                 "Stream request failed because this vbucket is currently "
                 "receiving its initial disk snapshot",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::temporary_failure;
     }
 
@@ -791,9 +807,11 @@ cb::engine_errc DcpProducer::sendFailoverLog(
     auto rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
     if (rv != cb::engine_errc::success) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Couldn't add failover log to stream request due to error",
-                {{"vb", vbucket}, {"error", rv}});
+                {"vb", vbucket},
+                {"error", rv});
     }
 
     return rv;
@@ -861,10 +879,11 @@ cb::engine_errc DcpProducer::step(bool throttled,
                 PausedReason::BufferLogFull)];
 #ifdef CB_DEVELOPMENT_ASSERTS
         if (nextLogBufferAggregatedFull < duration) {
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "Wait time so far for the consumer to free up space "
                     "in the buffer window",
-                    {{"duration", duration}});
+                    {"duration", duration});
             ++nextLogBufferFull;
             ++nextLogBufferAggregatedFull;
         }
@@ -873,10 +892,11 @@ cb::engine_errc DcpProducer::step(bool throttled,
         if (details.reason == PausedReason::BufferLogFull) {
             const auto now = cb::time::steady_clock::now();
             if (details.lastPaused + nextLogBufferFull < now) {
-                logger->warnWithContext(
+                OBJ_LOG_WARN_CTX(
+                        *logger,
                         "Waited for the consumer to free up space in the "
                         "buffer window",
-                        {{"since_last_paused", now - details.lastPaused}});
+                        {"since_last_paused", now - details.lastPaused});
                 nextLogBufferFull += logBufferFullInterval;
             }
         }
@@ -1127,8 +1147,9 @@ cb::engine_errc DcpProducer::step(bool throttled,
         }
         default:
         {
-            logger->warnWithContext("Unexpected dcp event, disconnecting",
-                                    {{"event", resp->to_string()}});
+            OBJ_LOG_WARN_CTX(*logger,
+                             "Unexpected dcp event, disconnecting",
+                             {"event", resp->to_string()});
             ret = cb::engine_errc::disconnect;
             break;
         }
@@ -1233,10 +1254,10 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             return cb::engine_errc::success;
         }
     } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {
-        logger->warnWithContext(
-                "The ctrl parameter stream_buffer_size is"
-                "not supported by this engine",
-                cb::logger::Json::object());
+        OBJ_LOG_WARN_CTX(*logger,
+                         "The ctrl parameter stream_buffer_size is"
+                         "not supported by this engine",
+                         cb::logger::Json::object());
         return cb::engine_errc::not_supported;
     } else if (strncmp(param, "enable_noop", key.size()) == 0) {
         if (valueStr == "true") {
@@ -1288,16 +1309,16 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                             std::chrono::duration<float>(noopInterval));
                     return cb::engine_errc::success;
             }
-            logger->warnWithContext(
+            OBJ_LOG_WARN_CTX(
+                    *logger,
                     "Attempt to set DCP control set_noop_interval to value "
                     "which "
                     "is less than the connectionManagerInterval - "
                     "rejecting",
-                    {{"noop_interval", noopInterval},
-                     {"connection_manager_interval",
-                      engine_.getConfiguration()
-                              .getConnectionManagerInterval()},
-                     {"error", cb::engine_errc::invalid_arguments}});
+                    {"noop_interval", noopInterval},
+                    {"connection_manager_interval",
+                     engine_.getConfiguration().getConnectionManagerInterval()},
+                    {"error", cb::engine_errc::invalid_arguments});
             return cb::engine_errc::invalid_arguments;
         }
     } else if (strncmp(param, "set_priority", key.size()) == 0) {
@@ -1409,18 +1430,21 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         // primarily to avoid having to deal with purge-seqno from
         // markLegacyDiskSnapshot
         if (!collectionsEnabled) {
-            logger->warn(
-                    "Rejected control {}={} because collections are disabled",
-                    key,
-                    valueStr);
+            OBJ_LOG_WARN_CTX(
+                    *logger,
+                    "Rejected control because collections are disabled",
+                    {"value", valueStr},
+                    {"key", keyStr});
             return cb::engine_errc::not_supported;
         }
         maxMarkerVersion = MarkerVersion::V2_2;
         return cb::engine_errc::success;
     }
 
-    logger->warnWithContext("Invalid ctrl parameter",
-                            {{"value", valueStr}, {"key", keyStr}});
+    OBJ_LOG_WARN_CTX(*logger,
+                     "Invalid ctrl parameter",
+                     {"value", valueStr},
+                     {"key", keyStr});
 
     return cb::engine_errc::invalid_arguments;
 }
@@ -1429,32 +1453,34 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
                                                 Vbid vbucket,
                                                 uint64_t prepared_seqno) {
     if (!isSyncReplicationEnabled()) {
-        logger->warnWithContext(
-                "seqno_acknowledge failed because SyncReplication is"
-                " not enabled on this Producer",
-                {{"vb", vbucket}});
+        OBJ_LOG_WARN_CTX(*logger,
+                         "seqno_acknowledge failed because SyncReplication is"
+                         " not enabled on this Producer",
+                         {"vb", vbucket});
         return cb::engine_errc::invalid_arguments;
     }
 
     if (consumerName.lock()->empty()) {
-        logger->warnWithContext(
-                "seqno_acknowledge failed because this producer does"
-                " not have an associated consumer name",
-                {{"vb", vbucket}});
+        OBJ_LOG_WARN_CTX(*logger,
+                         "seqno_acknowledge failed because this producer does"
+                         " not have an associated consumer name",
+                         {"vb", vbucket});
         return cb::engine_errc::invalid_arguments;
     }
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "seqno_acknowledge failed because this vbucket doesn't exist",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::not_my_vbucket;
     }
 
-    logger->debugWithContext(
-            "seqno_acknowledged",
-            {{"vb", vbucket}, {"prepared_seqno", prepared_seqno}});
+    OBJ_LOG_DEBUG_CTX(*logger,
+                      "seqno_acknowledged",
+                      {"vb", vbucket},
+                      {"prepared_seqno", prepared_seqno});
 
     // Confirm that we only receive ack seqnos we have sent
     auto rv = streams->find(vbucket.get());
@@ -1545,19 +1571,20 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
             responseStatus == cb::mcbp::Status::NotMyVbucket ||
             responseStatus == cb::mcbp::Status::DcpStreamNotFound ||
             responseStatus == cb::mcbp::Status::OpaqueNoMatch) {
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "DcpProducer::handleResponse received unexpected response, "
                     "Will not disconnect as will affect only one stream",
-                    {{"status", responseStatus},
-                     {"response", response.to_json(true)},
-                     {"stream_info", streamInfo}});
+                    {"status", responseStatus},
+                    {"response", response.to_json(true)},
+                    {"stream_info", streamInfo});
             return true;
         }
-        logger->errorWithContext(
-                "DcpProducer::handleResponse disconnecting, received "
-                "unexpected response: for stream",
-                {{"dump", response.to_json(true).dump()},
-                 {"stream_info", streamInfo}});
+        OBJ_LOG_ERROR_CTX(*logger,
+                          "DcpProducer::handleResponse disconnecting, received "
+                          "unexpected response: for stream",
+                          {"dump", response.to_json(true).dump()},
+                          {"stream_info", streamInfo});
         return false;
     };
 
@@ -1656,17 +1683,20 @@ cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
     }
 
     if (!sid && multipleStreamRequests == MultipleStreamRequests::Yes) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "closeStream request failed because a valid stream-ID is "
                 "required",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
         return cb::engine_errc::dcp_streamid_invalid;
     }
     if (sid && multipleStreamRequests == MultipleStreamRequests::No) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "closeStream request failed because a stream-ID is present "
                 "but not required",
-                {{"vb", vbucket}, {"stream_id", fmt::to_string(sid)}});
+                {"vb", vbucket},
+                {"stream_id", fmt::to_string(sid)});
         return cb::engine_errc::dcp_streamid_invalid;
     }
 
@@ -1678,16 +1708,20 @@ cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
 
     cb::engine_errc ret;
     if (!rv.first) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Cannot close stream because no stream exists for this vbucket",
-                {{"vb", vbucket}, {"stream_id", fmt::to_string(sid)}});
+                {"vb", vbucket},
+                {"stream_id", fmt::to_string(sid)});
         return sid && rv.second ? cb::engine_errc::dcp_streamid_invalid
                                 : cb::engine_errc::no_such_key;
     }
     if (!rv.first->isActive()) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Cannot close stream because stream is already marked as dead",
-                {{"vb", vbucket}, {"stream_id", fmt::to_string(sid)}});
+                {"vb", vbucket},
+                {"stream_id", fmt::to_string(sid)});
         ret = cb::engine_errc::no_such_key;
     } else {
         rv.first->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
@@ -1729,7 +1763,7 @@ uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
     case BackfillManager::ScheduleResult::Active:
         break;
     case BackfillManager::ScheduleResult::Pending:
-        s->logWithContext(spdlog::level::info, "Backfill is pending");
+        OBJ_LOG_INFO_RAW(*s, "Backfill is pending");
         break;
     }
     return backfillUID;
@@ -1884,9 +1918,9 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
                 stream->addTakeoverStats(add_stat, c, vb);
                 return;
             }
-            logger->warnWithContext(
-                    "DcpProducer::addTakeoverStats no stream found",
-                    {{"vb", vb.getId()}});
+            OBJ_LOG_WARN_CTX(*logger,
+                             "DcpProducer::addTakeoverStats no stream found",
+                             {"vb", vb.getId()});
         } else if (handle.size() > 1) {
             throw std::logic_error(
                     "DcpProducer::addTakeoverStats unexpected size streams:(" +
@@ -1895,14 +1929,15 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
         } else {
             // Logically, finding a StreamContainer with no stream is similar to
             // not finding a StreamContainer at all, both should return does_not_exist
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "DcpProducer::addTakeoverStats empty streams list found",
-                    {{"vb", vb.getId()}});
+                    {"vb", vb.getId()});
         }
     } else {
-        logger->infoWithContext(
-                "DcpProducer::addTakeoverStats Unable to find stream",
-                {{"vb", vb.getId()}});
+        OBJ_LOG_INFO_CTX(*logger,
+                         "DcpProducer::addTakeoverStats Unable to find stream",
+                         {"vb", vb.getId()});
     }
     // Error path - return status of does_not_exist to ensure rebalance does not
     // hang.
@@ -1961,18 +1996,20 @@ void DcpProducer::closeStreamDueToVbStateChange(
     if (setStreamDeadStatus(vbucket,
                             cb::mcbp::DcpStreamEndStatus::StateChanged,
                             vbstateLock)) {
-        logger->debugWithContext(
-                "State changed, closing active stream",
-                {{"vb", vbucket}, {"state", VBucket::toString(state)}});
+        OBJ_LOG_DEBUG_CTX(*logger,
+                          "State changed, closing active stream",
+                          {"vb", vbucket},
+                          {"state", VBucket::toString(state)});
     }
 }
 
 void DcpProducer::closeStreamDueToRollback(Vbid vbucket) {
     if (setStreamDeadStatus(vbucket, cb::mcbp::DcpStreamEndStatus::Rollback)) {
-        logger->debugWithContext(
+        OBJ_LOG_DEBUG_CTX(
+                *logger,
                 "Rollback occurred, closing stream (downstream must rollback "
                 "too)",
-                {{"vb", vbucket}});
+                {"vb", vbucket});
     }
 }
 
@@ -2217,13 +2254,14 @@ void DcpProducer::notifyStreamReady(Vbid vbucket) {
                 });
 
         if (full) {
-            logger->infoWithContext(
+            OBJ_LOG_INFO_CTX(
+                    *logger,
                     "Unable to notify paused connection because "
                     "DcpProducer::BufferLog is full; ackedBytes, bytesSent, "
                     "maxBytes",
-                    {{"acked_bytes", ackedBytes},
-                     {"outstanding", outstanding},
-                     {"max", max}});
+                    {"acked_bytes", ackedBytes},
+                    {"outstanding", outstanding},
+                    {"max", max});
         } else {
             scheduleNotify();
         }
@@ -2235,19 +2273,20 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
     auto elapsedTime = now - lastReceiveTime.load();
     auto dcpIdleTimeout = getIdleTimeout();
     if (noopCtx.enabled && elapsedTime > dcpIdleTimeout) {
-        logger->warnWithContext(
+        OBJ_LOG_WARN_CTX(
+                *logger,
                 "Disconnecting because a message has not been received for the "
                 "DCP idle timeout",
-                {{"dcp_idle_timeout", dcpIdleTimeout},
-                 {"since_last_send", (now - lastSendTime.load())},
-                 {"since_last_recv", elapsedTime},
-                 {"since_noop_last_send", (now - noopCtx.sendTime)},
-                 {"since_noop_last_recv", (now - noopCtx.recvTime)},
-                 {"dcp_noop_tx_interval", noopCtx.dcpNoopTxInterval},
-                 {"opaque", noopCtx.opaque},
-                 {"pending_recv", noopCtx.pendingRecv.load()},
-                 {"paused", isPaused()},
-                 {"paused_reason", to_string(getPausedReason())}});
+                {"dcp_idle_timeout", dcpIdleTimeout},
+                {"since_last_send", (now - lastSendTime.load())},
+                {"since_last_recv", elapsedTime},
+                {"since_noop_last_send", (now - noopCtx.sendTime)},
+                {"since_noop_last_recv", (now - noopCtx.recvTime)},
+                {"dcp_noop_tx_interval", noopCtx.dcpNoopTxInterval},
+                {"opaque", noopCtx.opaque},
+                {"pending_recv", noopCtx.pendingRecv.load()},
+                {"paused", isPaused()},
+                {"paused_reason", to_string(getPausedReason())});
         return cb::engine_errc::disconnect;
     }
     // Returning cb::engine_errc::failed means ignore and continue
@@ -2413,14 +2452,14 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
                     // Error if found - given we just checked this
                     // in the pre-flight checks for streamRequest.
                     auto msg = fmt::format(
-                            "({}) Stream ({}) request failed"
+                            "DcpProducer::updateStreamsMap: ({}) Stream ({}) "
+                            "request failed"
                             " because a stream unexpectedly exists in "
                             "StreamContainer for this vbucket",
                             vbid,
                             sid.to_string());
-                    logger->warn(msg);
-                    throw std::logic_error("DcpProducer::updateStreamsMap " +
-                                           msg);
+                    OBJ_LOG_WARN_RAW(*logger, msg);
+                    throw std::logic_error(msg);
                 }
             }
 

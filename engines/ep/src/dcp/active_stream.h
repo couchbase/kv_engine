@@ -341,10 +341,7 @@ public:
 
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg,
-                        cb::logger::Json ctx) const;
-
-    void logWithContext(spdlog::level::level_enum severity,
-                        std::string_view msg) const;
+                        cb::logger::Json ctx) const override;
 
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();

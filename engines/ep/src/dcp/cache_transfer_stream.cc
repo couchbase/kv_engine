@@ -281,12 +281,12 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
       engine(engine),
       includeValue(includeValue) {
     Expects(p);
-    p->getLogger().logWithContext(spdlog::level::info,
-                                  "Creating CacheTransferStream",
-                                  {{"max_seqno", maxSeqno},
-                                   {"vbid", vbid},
-                                   {"vbucket_uuid", uuid},
-                                   {"include_value", includeValue}});
+    OBJ_LOG_INFO_CTX(p->getLogger(),
+                     "Creating CacheTransferStream",
+                     {"max_seqno", maxSeqno},
+                     {"vbid", vbid},
+                     {"vbucket_uuid", uuid},
+                     {"include_value", includeValue});
 }
 
 void CacheTransferStream::setActive() {
