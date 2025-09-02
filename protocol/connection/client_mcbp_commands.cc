@@ -2183,8 +2183,9 @@ void BinprotRangeScanContinue::encode(std::vector<uint8_t>& buf) const {
 BinprotRangeScanCancel::BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::RangeScanCancel) {
     setVBucket(vbid);
-    setExtras(std::string_view{reinterpret_cast<const char*>(id.data),
-                               sizeof(id)});
+    // Create a string_view from the uuid's begin() pointer as raw bytes
+    setExtras(std::string_view{reinterpret_cast<const char*>(id.begin()),
+                               id.size()});
 }
 
 BinprotGetKeysCommand::BinprotGetKeysCommand(std::string start,
