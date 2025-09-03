@@ -43,6 +43,7 @@ public:
     }
 
     void SetUp() override {
+        TestappTest::SetUp();
         // Test has to run on a connection which can create a consumer and the
         // test fixtures must use the same connection as the consumer is
         // associated with a connection.
@@ -69,10 +70,7 @@ public:
             bucket.setMutationMemRatio(*conn, "1.0");
         }
 
-        consumerName = "replication:test_consumer" +
-                       std::string(::testing::UnitTest::GetInstance()
-                                           ->current_test_info()
-                                           ->test_case_name());
+        consumerName = "consumer:" + name;
         setupConsumer(consumerName, {});
         setupConsumerStream(Vbid(0), {{0xdeadbeefull, 0}});
 
