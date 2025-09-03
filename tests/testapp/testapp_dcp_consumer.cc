@@ -69,7 +69,11 @@ public:
             bucket.setMutationMemRatio(*conn, "1.0");
         }
 
-        setupConsumer("replication:test_consumer", {});
+        consumerName = "replication:test_consumer" +
+                       std::string(::testing::UnitTest::GetInstance()
+                                           ->current_test_info()
+                                           ->test_case_name());
+        setupConsumer(consumerName, {});
         setupConsumerStream(Vbid(0), {{0xdeadbeefull, 0}});
 
         // Setup a Document
@@ -204,7 +208,7 @@ public:
     size_t getUnackedBytes() const {
         const auto dcpStats = conn->stats("dcp");
         const auto statName =
-                "eq_dcpq:replication:test_consumer:stream_0_unacked_bytes";
+                "eq_dcpq:" + consumerName + ":stream_0_unacked_bytes";
         return dcpStats[statName].get<size_t>();
     }
 
@@ -218,6 +222,7 @@ public:
 
     std::unique_ptr<MemcachedConnection> conn;
     Document doc;
+    std::string consumerName;
     static uint64_t seqno;
     static uint64_t cas;
 };
