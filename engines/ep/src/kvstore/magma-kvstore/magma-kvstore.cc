@@ -948,11 +948,11 @@ void MagmaKVStore::deinitialize() {
 }
 
 bool MagmaKVStore::pause() {
-    logger->infoWithContext("MagmaKVStore:pause()",
+    logger->infoWithContext("MagmaKVStore::pause",
                             {{"shard", configuration.getShardId()}});
     auto status = magma->Pause();
     if (!status.IsOK()) {
-        logger->warnWithContext("MagmaKVStore::pause() ailed",
+        logger->warnWithContext("MagmaKVStore::pause failed",
                                 {{"shard", configuration.getShardId()},
                                  {"error", status.String()}});
         return false;
@@ -961,7 +961,7 @@ bool MagmaKVStore::pause() {
 }
 
 void MagmaKVStore::resume() {
-    logger->infoWithContext("MagmaKVStore:resume()",
+    logger->infoWithContext("MagmaKVStore::resume",
                             {{"shard", configuration.getShardId()}});
     magma->Resume();
 }
@@ -1462,10 +1462,9 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
     if (vbstate) {
         vbstate->reset();
     }
-    kvstoreRevList[getCacheSlot(vbid)]++;
-    logger->debug("MagmaKVStore::prepareToCreateImpl {} kvstoreRev:{}",
-                  vbid,
-                  kvstoreRevList[getCacheSlot(vbid)]);
+    const auto rev = ++kvstoreRevList[getCacheSlot(vbid)];
+    logger->infoWithContext("MagmaKVStore::prepareToCreateImpl",
+                            {{"vb", vbid}, {"rev", rev}});
 }
 
 std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
@@ -2122,17 +2121,17 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         DocumentFilter options,
         ValueFilter valOptions,
         SnapshotSource source,
-        std::unique_ptr<KVFileHandle> fileHandle) const {
-    auto handle = std::move(fileHandle);
+        std::unique_ptr<KVFileHandle> handle) const {
+    const auto startTime = std::chrono::steady_clock::now();
     if (!handle) {
         handle = makeFileHandle(vbid);
     }
 
     if (!handle) {
-        logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} Failed to get file "
-                "handle",
-                vbid);
+        logger->warnWithContext(
+                "MagmaKVStore::initBySeqnoScanContext failed makeFileHandle",
+                {{"vb", vbid},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
 
@@ -2140,11 +2139,12 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
 
     auto readState = readVBStateFromDisk(vbid, snapshot);
     if (readState.status != ReadVBStateStatus::Success) {
-        logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} failed to read "
-                "vbstate from disk. Status:{}",
-                vbid,
-                to_string(readState.status));
+        logger->warnWithContext(
+                "MagmaKVStore::initBySeqnoScanContext failed "
+                "readVBStateFromDisk",
+                {{"vb", vbid},
+                 {"error", to_string(readState.status)},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
 
@@ -2154,11 +2154,12 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
     if (!getDroppedStatus) {
-        logger->warn(
-                "MagmaKVStore::initBySeqnoScanContext {} failed to get "
-                "dropped collections from disk. Status:{}",
-                vbid,
-                getDroppedStatus.String());
+        logger->warnWithContext(
+                "MagmaKVStore::initBySeqnoScanContext failed "
+                "getDroppedCollections",
+                {{"vb", vbid},
+                 {"error", getDroppedStatus.String()},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
     }
 
     std::vector<Collections::KVStore::OpenCollection> openCollections;
@@ -2169,30 +2170,28 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         magma::Status status;
         std::tie(status, openCollections) = getOpenCollections(vbid, snapshot);
         if (!status) {
-            logger->warn(
-                    "MagmaKVStore::initBySeqnoScanContext {} failed to get "
-                    "open collections from disk. Status:{}",
-                    vbid,
-                    status.String());
+            logger->warnWithContext(
+                    "MagmaKVStore::initBySeqnoScanContext failed "
+                    "getOpenCollections",
+                    {{"vb", vbid},
+                     {"error", status.String()},
+                     {"duration",
+                      std::chrono::steady_clock::now() - startTime}});
         }
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
-    if (logger->should_log(spdlog::level::debug)) {
-        logger->debug(
-                "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
-                " purgeSeqno:{}, historyStartSeqno:{} nDocsToRead:{}"
-                " docFilter:{} valFilter:{}",
-                vbid,
-                startSeqno,
-                highSeqno,
-                purgeSeqno,
-                historyStartSeqno,
-                nDocsToRead,
-                options,
-                valOptions);
-    }
-
+    logger->infoWithContext(
+            "MagmaKVStore::initBySeqnoScanContext finishing",
+            {{"vb", vbid},
+             {"start_seqno", startSeqno},
+             {"high_seqno", highSeqno},
+             {"purge_seqno", purgeSeqno},
+             {"history_start_seqno", historyStartSeqno},
+             {"docs_to_read", nDocsToRead},
+             {"doc_filter", options},
+             {"val_filter", valOptions},
+             {"duration", std::chrono::steady_clock::now() - startTime}});
     return std::make_unique<MagmaScanContext>(
             std::move(cb),
             std::move(cl),
@@ -2250,14 +2249,16 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         DocumentFilter options,
         ValueFilter valOptions,
         std::unique_ptr<KVFileHandle> handle) const {
+    const auto startTime = std::chrono::steady_clock::now();
     if (!handle) {
         handle = makeFileHandle(vbid);
     }
 
     if (!handle) {
-        logger->warn(
-                "MagmaKVStore::initByIdScanContext {} Failed makeFileHandle",
-                vbid);
+        logger->warnWithContext(
+                "MagmaKVStore::initByIdScanContext failed makeFileHandle",
+                {{"vb", vbid},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
 
@@ -2265,28 +2266,31 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
 
     auto readState = readVBStateFromDisk(vbid, snapshot);
     if (readState.status != ReadVBStateStatus::Success) {
-        logger->warn(
-                "MagmaKVStore::initByIdcanContext {} Failed readVBStateFromDisk"
-                " Status:{}",
-                vbid,
-                to_string(readState.status));
+        logger->warnWithContext(
+                "MagmaKVStore::initByIdScanContext failed readVBStateFromDisk",
+                {{"vb", vbid},
+                 {"error", to_string(readState.status)},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
     if (!getDroppedStatus) {
-        logger->warn(
-                "MagmaKVStore::initByIdcanContext {} Failed "
-                "getDroppedCollections Status:{}",
-                vbid,
-                getDroppedStatus.String());
+        logger->warnWithContext(
+                "MagmaKVStore::initByIdScanContext failed "
+                "getDroppedCollections",
+                {{"vb", vbid},
+                 {"error", getDroppedStatus.String()},
+                 {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
-    logger->debugWithContext(
-            "MagmaKVStore::initByIdScanContext",
-            {{"vb", vbid}, {"historyStartSeqno", historyStartSeqno}});
+    logger->infoWithContext(
+            "MagmaKVStore::initByIdScanContext finishing",
+            {{"vb", vbid},
+             {"history_start_seqno", historyStartSeqno},
+             {"duration", std::chrono::steady_clock::now() - startTime}});
     return std::make_unique<MagmaByIdScanContext>(std::move(cb),
                                                   std::move(cl),
                                                   vbid,
