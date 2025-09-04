@@ -868,6 +868,13 @@ protected:
      */
     void testSanitizeOnDiskDeletedDocWithIncorrectXATTR(bool fetchMetaOnly);
 
+    /*
+     * Test the vbucket persisted snapshot is correctly updated on warmup.
+     * @param flushFullSnapshot If true then flush the entire snapshot to disk,
+     * before a engine reset & vbucket warmed up from disk.
+     */
+    void checkFailoverSeqno(bool flushFullSnapshot);
+
 protected:
     EPBucket& getEPBucket();
 };

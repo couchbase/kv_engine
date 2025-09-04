@@ -1953,6 +1953,139 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     producer->cancelCheckpointCreatorTask();
 }
 
+void STParamPersistentBucketTest::checkFailoverSeqno(bool flushFullSnapshot) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto* cookie = create_mock_cookie();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ {}));
+
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 1,
+            /*end_seqno*/ 2,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {},
+            {},
+            {});
+
+    // Store value with an xattr
+    auto k1 = makeStoredDocKey("k1");
+    consumer->mutation(1, // opaque
+                       k1,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       1, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    auto k2 = makeStoredDocKey("k2");
+    consumer->mutation(1, // opaque
+                       k2,
+                       {},
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       2, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(1,
+                                     vbid,
+                                     3,
+                                     4,
+                                     DcpSnapshotMarkerFlag::Disk |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {},
+                                     {},
+                                     {}));
+
+    auto k3 = makeStoredDocKey("k3");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(1, // opaque
+                                 k3,
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 1, // cas
+                                 vbid, // vbucket
+                                 0, // flags
+                                 3, // by_seqno
+                                 0, // rev seqno
+                                 0, // expiration
+                                 0, // lock time
+                                 {}, // meta
+                                 0)); // nru
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (flushFullSnapshot) {
+        auto k4 = makeStoredDocKey("k4");
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->mutation(1, // opaque
+                                     k4,
+                                     {},
+                                     PROTOCOL_BINARY_DATATYPE_XATTR,
+                                     1, // cas
+                                     vbid, // vbucket
+                                     0, // flags
+                                     4, // by_seqno
+                                     0, // rev seqno
+                                     0, // expiration
+                                     0, // lock time
+                                     {}, // meta
+                                     0)); // nru
+
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    }
+
+    consumer.reset();
+    resetEngineAndWarmup();
+
+    auto expectedLastStartSeqno = flushFullSnapshot ? 4 : 2;
+    auto expectedLastEndSeqno = 4;
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(expectedLastStartSeqno, vb->getPersistedSnapshot().getStart());
+    EXPECT_EQ(expectedLastEndSeqno, vb->getPersistedSnapshot().getEnd());
+
+    auto& manager = *vb->checkpointManager;
+
+    auto expectedFailoverSeqno = flushFullSnapshot ? 4 : 2;
+    ASSERT_EQ(expectedFailoverSeqno, manager.getFailoverSeqno());
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STParamPersistentBucketTest, CheckFailoverSeqno_FlushFullSnapshot) {
+    checkFailoverSeqno(true);
+}
+
+TEST_P(STParamPersistentBucketTest, CheckFailoverSeqno_FlushPartialSnapshot) {
+    checkFailoverSeqno(false);
+}
+
 /* The following is a regression test for MB25056, which came about due the fix
  * for MB22960 having a bug where it is set pendingBackfill to true too often.
  *

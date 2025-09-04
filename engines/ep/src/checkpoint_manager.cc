@@ -72,7 +72,10 @@ CheckpointManager::CheckpointManager(EPStats& st,
       numItems(0),
       lastBySeqno(lastSeqno, {vb.getId()}),
       maxVisibleSeqno(maxVisibleSeqno, {vb.getId()}),
-      lastSnapshotHighSeqno(0, {vb.getId()}),
+      lastSnapshotHighSeqno(static_cast<uint64_t>(lastSeqno) == lastSnapEnd
+                                    ? lastSnapEnd
+                                    : lastSnapStart,
+                            {vb.getId()}),
       flusherCB(std::move(cb)),
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
