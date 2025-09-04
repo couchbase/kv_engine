@@ -5686,11 +5686,14 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key.starts_with("fusion")) {
         return doFusionStats(c, add_stat, key);
     }
-    if (key == "snapshot-details"sv) {
-        return getKVBucket()->doSnapshotDebugStats(bucketCollector);
+    if (key.starts_with("snapshot-details")) {
+        return getKVBucket()->doSnapshotDebugStats(bucketCollector, key);
     }
     if (key.starts_with("snapshot-status")) {
         return getKVBucket()->doSnapshotStatus(bucketCollector, key);
+    }
+    if (key == "snapshot-deks"sv) {
+        return getKVBucket()->doSnapshotDeks(bucketCollector);
     }
 
     // Unknown stat requested

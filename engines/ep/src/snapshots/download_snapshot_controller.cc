@@ -9,6 +9,8 @@
  */
 
 #include "download_snapshot_controller.h"
+#include "vb_filter.h"
+
 #include <nlohmann/json.hpp>
 #include <statistics/collector.h>
 #include <optional>
@@ -104,11 +106,13 @@ void DownloadSnapshotController::removeListener(
     });
 }
 
-void DownloadSnapshotController::addStats(
-        const StatCollector& collector) const {
-    listeners.withLock([&collector](auto& map) {
+void DownloadSnapshotController::addStats(const StatCollector& collector,
+                                          const VBucketFilter& filter) const {
+    listeners.withLock([&collector, &filter](auto& map) {
         for (const auto& [vbid, listener] : map) {
-            listener->addStats(collector);
+            if (filter(vbid)) {
+                listener->addStats(collector);
+            }
         }
     });
 }

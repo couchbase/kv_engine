@@ -11,6 +11,8 @@
 #include "cache.h"
 
 #include <bucket_logger.h>
+#include <vb_filter.h>
+
 #include <cbcrypto/digest.h>
 #include <folly/ScopeGuard.h>
 #include <folly/Synchronized.h>
@@ -213,14 +215,17 @@ std::filesystem::path Cache::make_absolute(
     return path / uuid / relative;
 }
 
-void Cache::addDebugStats(const StatCollector& collector) const {
+void Cache::addDebugStats(const StatCollector& collector,
+                          const VBucketFilter& filter) const {
     // Lock the map, in general would prefer keep locking scope minimal but
     // this stat collection is for debug usage (cbcollect) and not operational
-    snapshots.withLock([&collector, time = time()](auto& map) {
+    snapshots.withLock([&collector, &filter, time = time()](auto& map) {
         collector.addStat("snapshots_size", map.size());
 
         for (const auto& [uuid, entry] : map) {
-            entry.addDebugStats(collector, time);
+            if (filter(entry.manifest.vbid)) {
+                entry.addDebugStats(collector, time);
+            }
         }
     });
 }

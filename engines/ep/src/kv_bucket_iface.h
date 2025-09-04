@@ -979,12 +979,17 @@ public:
     }
 
     [[nodiscard]] virtual cb::engine_errc doSnapshotDebugStats(
-            const StatCollector&) {
+            const StatCollector&,
+            std::string_view) {
         return cb::engine_errc::not_supported;
     }
 
     [[nodiscard]] virtual cb::engine_errc doSnapshotStatus(const StatCollector&,
                                                            std::string_view) {
+        return cb::engine_errc::not_supported;
+    }
+
+    [[nodiscard]] virtual cb::engine_errc doSnapshotDeks(const StatCollector&) {
         return cb::engine_errc::not_supported;
     }
 

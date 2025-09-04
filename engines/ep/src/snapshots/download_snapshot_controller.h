@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 class StatCollector;
+class VBucketFilter;
 
 namespace cb ::snapshot {
 
@@ -47,7 +48,8 @@ public:
      * Add statistics information about the current registered snapshot
      * downloads.
      */
-    void addStats(const StatCollector& collector) const;
+    void addStats(const StatCollector& collector,
+                  const VBucketFilter& filter) const;
 
     /**
      * Lookup the state of the snapshot associated with vbid. There may not

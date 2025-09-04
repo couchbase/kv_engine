@@ -83,6 +83,7 @@ enum class StatGroupId {
     Fusion,
     SnapshotDetails,
     SnapshotStatus,
+    SnapshotDeks,
 
     // stat command timings
 

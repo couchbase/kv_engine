@@ -95,6 +95,8 @@ struct Manifest {
 
     /// Add the state of this Manifest to the collector
     void addDebugStats(const StatCollector&) const;
+    void addDekStats(const StatCollector&) const;
+    void addUuidStat(const StatCollector&) const;
 
     void setIncomplete() {
         status = Status::Incomplete;

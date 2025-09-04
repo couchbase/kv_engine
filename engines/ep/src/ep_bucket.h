@@ -467,7 +467,8 @@ public:
 
     cb::engine_errc initialiseSnapshots();
 
-    cb::engine_errc doSnapshotDebugStats(const StatCollector&) override;
+    cb::engine_errc doSnapshotDebugStats(const StatCollector&,
+                                         std::string_view) override;
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
@@ -487,6 +488,15 @@ public:
      */
     cb::engine_errc doSnapshotStatus(const StatCollector&,
                                      std::string_view) override;
+
+    /**
+     * Handle the brief snapshot-deks stat which is used by ns_server to
+     * determine which deks are in use in snapshots. Deks are returned
+     * regardless of snapshot state, but it's only really necessary for them to
+     * be returned when the snapshot download is reported as complete. The use
+     * of the dek ID in the path is key.
+     */
+    cb::engine_errc doSnapshotDeks(const StatCollector&) override;
 
     /**
      * @return the cached disk space info (non-const as this call may change the

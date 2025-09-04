@@ -19,6 +19,8 @@
 #include <string>
 #include <variant>
 
+class VBucketFilter;
+
 namespace cb::snapshot {
 
 /**
@@ -140,7 +142,8 @@ public:
     void purge(std::chrono::seconds age);
 
     /// produce stats for the cache which may be useful for debugging/cbcollect
-    void addDebugStats(const StatCollector& collector) const;
+    void addDebugStats(const StatCollector& collector,
+                       const VBucketFilter& filter) const;
 
     void dump(std::ostream& os = std::cerr) const;
 

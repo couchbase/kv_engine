@@ -88,11 +88,19 @@ Manifest::Manifest(const nlohmann::json& json) {
 }
 
 void Manifest::addDebugStats(const StatCollector& collector) const {
-    collector.addStat(std::string_view{fmt::format("vb_{}:uuid", vbid.get())},
-                      uuid);
+    addUuidStat(collector);
     for (const auto& file : files) {
         file.addDebugStats(fmt::format("vb_{}", vbid.get()), collector);
     }
+    addDekStats(collector);
+}
+
+void Manifest::addUuidStat(const StatCollector& collector) const {
+    collector.addStat(std::string_view{fmt::format("vb_{}:uuid", vbid.get())},
+                      uuid);
+}
+
+void Manifest::addDekStats(const StatCollector& collector) const {
     for (const auto& dek : deks) {
         dek.addDebugStats(fmt::format("vb_{}:dek:", vbid.get()), collector);
     }

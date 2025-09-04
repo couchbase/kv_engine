@@ -3231,9 +3231,28 @@ cb::engine_errc EPBucket::releaseSnapshot(
             std::string{std::get<std::string_view>(snapshotToRelease)});
 }
 
-cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector) {
-    snapshotCache.addDebugStats(collector);
-    snapshotController.addStats(collector);
+cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector,
+                                               std::string_view input) {
+    const std::string_view stat_key = "snapshot-details ";
+    VBucketFilter filter;
+    if (input.size() > stat_key.size()) {
+        // input should be a vbid
+        input.remove_prefix(stat_key.size());
+        uint16_t vbucket_id(0);
+        if (!safe_strtous(input, vbucket_id)) {
+            return cb::engine_errc::invalid_arguments;
+        }
+        filter.addVBucket(Vbid(vbucket_id));
+    } else {
+        // Populate for all possible vbuckets.
+        for (Vbid::id_type i = 0; i < vbMap.getSize(); i++) {
+            filter.addVBucket(Vbid(i));
+        }
+    }
+
+
+    snapshotCache.addDebugStats(collector, filter);
+    snapshotController.addStats(collector, filter);
     return cb::engine_errc::success;
 }
 
@@ -3279,6 +3298,18 @@ cb::engine_errc EPBucket::doSnapshotStatus(const StatCollector& collector,
             }
         } else {
             collector.addStat(std::string_view(key.data(), key.size()), "none");
+        }
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::doSnapshotDeks(const StatCollector& collector) {
+    // Populate for all possible vbuckets.
+    for (Vbid::id_type i = 0; i < vbMap.getSize(); i++) {
+        auto manifest = snapshotCache.lookup(Vbid(i));
+        if (manifest) {
+            manifest->addDekStats(collector);
         }
     }
 
