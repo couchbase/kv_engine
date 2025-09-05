@@ -669,8 +669,7 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
     // alloc issues.
     const auto nonexistentUuid = std::string(1024, 'u');
     auto resp = releaseFusionStorageSnapshot(vbid, nonexistentUuid);
-    // @todo MB-66688: Return less generic error
-    EXPECT_EQ(cb::mcbp::Status::Einternal, resp.getStatus());
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
