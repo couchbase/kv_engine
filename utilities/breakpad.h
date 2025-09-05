@@ -32,4 +32,17 @@ void initialize(const cb::breakpad::Settings& settings,
  */
 void destroy();
 
+namespace internal {
+class BreakpadInstance {
+public:
+    virtual ~BreakpadInstance() = default;
+    static std::unique_ptr<BreakpadInstance> create(
+            const std::string& minidump_dir, const std::string& log_name);
+
+protected:
+    BreakpadInstance() = default;
+};
+
+} // namespace internal
+
 } // namespace cb::breakpad

@@ -1,12 +1,4 @@
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-    # Breakpad has headers (which are dependencies for our breakpad integration
-    # code) that don't compile cleanly as C++11, so the GNU standard is
-    # used instead.
-    # This also means precompiled headers must be disabled given
-    # the compile flags differ from the other source files.
-    set_source_files_properties(breakpad.cc PROPERTIES
-        COMPILE_FLAGS ${CB_GNU_CXX11_OPTION}
-        SKIP_PRECOMPILE_HEADERS ON)
 endif ()
 
 add_library(mcd_util STATIC
@@ -14,7 +6,7 @@ add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/vbucket.h
             ${PROJECT_SOURCE_DIR}/include/memcached/util.h
             breakpad.h
-            breakpad.cc
+            breakpad_common.cc
             breakpad_settings.cc
             breakpad_settings.h
             config_parser.cc
@@ -53,10 +45,34 @@ add_library(mcd_util STATIC
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(mcd_util)
 
-if (BREAKPAD_FOUND)
-  target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
-  target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
+if (APPLE)
+    target_sources(mcd_util PRIVATE breakpad_not_supported.cc)
+else ()
+    if (WIN32)
+        target_sources(mcd_util PRIVATE breakpad_win32.cc)
+        # make sure we build breakpad_win32.cc outside of unity builds
+        # and without including precompiled headers (as it may include
+        # more headers we don't want)
+        set_source_files_properties(breakpad_win32.cc PROPERTIES
+                SKIP_UNITY_BUILD_INCLUSION TRUE
+                SKIP_PRECOMPILE_HEADERS TRUE)
+    else ()
+        # Breakpad has headers (which are dependencies for our breakpad
+        # integration code) that don't compile cleanly as C++11, so the
+        # GNU standard is used instead.
+        # This also means precompiled headers must be disabled given
+        # the compile flags differ from the other source files.
+        set_source_files_properties(breakpad_linux.cc PROPERTIES
+                COMPILE_FLAGS ${CB_GNU_CXX11_OPTION}
+                SKIP_PRECOMPILE_HEADERS TRUE
+                SKIP_UNITY_BUILD_INCLUSION TRUE)
+        target_sources(mcd_util PRIVATE breakpad_linux.cc)
+    endif ()
+
+    target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
+    target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
 endif()
+
 target_link_libraries(mcd_util
         PUBLIC
                 platform
