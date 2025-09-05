@@ -12,13 +12,11 @@
 
 #include "dcp/stream.h"
 #include "permitted_vb_states.h"
-#include "spdlog/common.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
 
 #include <engines/ep/src/collections/collections_types.h>
 #include <memcached/engine_error.h>
-#include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
 
 namespace cb::mcbp {
@@ -275,7 +273,7 @@ protected:
 
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg,
-                        cb::logger::Json ctx) const;
+                        cb::logger::Json ctx) const override;
 
     /**
      * Log when the stream backs off or resumes processing items.

@@ -90,16 +90,16 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         } else {
             // Multiple range iterators are permitted, so if one could not be
             // created purgeTombstones must have acquired an exclusive range
-            stream->logWithContext(
-                    spdlog::level::level_enum::debug,
+            OBJ_LOG_DEBUG_RAW(
+                    *stream,
                     "Deferring backfill creation as another task needs "
                     "exclusive access to a range of the seqlist");
             return backfill_snooze;
         }
     } catch (const std::bad_alloc&) {
-        stream->logWithContext(spdlog::level::level_enum::warn,
-                               "Alloc error when trying to create a range "
-                               "iterator on the sequence list for");
+        OBJ_LOG_WARN_RAW(*stream,
+                         "Alloc error when trying to create a range "
+                         "iterator on the sequence list for");
         /* Try backfilling again later; here we snooze because system has
            hit ENOMEM */
         return backfill_snooze;
@@ -116,11 +116,11 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         // For a filtered stream we can avoid scanning if the stats show us that
         // the collection(s) have no data above the startSeqno
         if (collHigh.value() < startSeqno) {
-            stream->logWithContext(spdlog::level::level_enum::info,
-                                   "DCPBackfillMemoryBuffered: skipping as "
-                                   "collection_high < start",
-                                   {{"collection_high_seqno", collHigh.value()},
-                                    {"start_seqno", startSeqno}});
+            OBJ_LOG_INFO_CTX(*stream,
+                             "DCPBackfillMemoryBuffered: skipping as "
+                             "collection_high < start",
+                             {"collection_high_seqno", collHigh.value()},
+                             {"start_seqno", startSeqno});
             complete(*stream);
             return backfill_finished;
         }
@@ -315,10 +315,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                 item->setExpTime(osv.getCompletedOrDeletedTime());
             }
         } catch (const std::bad_alloc&) {
-            stream->logWithContext(spdlog::level::level_enum::warn,
-                                   "Alloc error when trying to create an item "
-                                   "copy from hash table",
-                                   {{"seqno", osv.getBySeqno()}});
+            OBJ_LOG_WARN_CTX(*stream,
+                             "Alloc error when trying to create an item "
+                             "copy from hash table",
+                             {"seqno", osv.getBySeqno()});
             /* Try backfilling again later; here we snooze because system has
                hit ENOMEM */
             return backfill_snooze;
@@ -334,11 +334,11 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                want to check if other backfills can be run by the
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
-            stream->logWithContext(
-                    spdlog::level::level_enum::debug,
+            OBJ_LOG_DEBUG_CTX(
+                    *stream,
                     "Backfill yields after processing seqno: as scan buffer or "
                     "backfill buffer is full",
-                    {{"seqno", seqnoDbg}});
+                    {"seqno", seqnoDbg});
             stream->incrementNumBackfillPauses();
             return backfill_success;
         }
@@ -362,10 +362,10 @@ void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
     runtime += (cb::time::steady_clock::now() - runStart);
     stream.completeBackfill(endSeqno, runtime, 0, 0);
-    stream.logWithContext(
-            spdlog::level::level_enum::debug,
-            "Backfill memory task complete",
-            {{"start_seqno", startSeqno}, {"end_seqno", endSeqno}});
+    OBJ_LOG_DEBUG_CTX(stream,
+                      "Backfill memory task complete",
+                      {"start_seqno", startSeqno},
+                      {"end_seqno", endSeqno});
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::scanHistory() {
@@ -419,11 +419,11 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     }
 
     // No change and outside of threshold.
-    stream.logWithContext(spdlog::level::level_enum::warn,
-                          "DCPBackfillMemoryBuffered::isSlow true, no progress"
-                          " has been made on the scan for more than the no "
-                          "progress duration",
-                          {{"max_no_progress_duration", *maxNoProgressDuration},
-                           {"tracked_position", trackedPosition}});
+    OBJ_LOG_WARN_CTX(stream,
+                     "DCPBackfillMemoryBuffered::isSlow true, no progress"
+                     " has been made on the scan for more than the no "
+                     "progress duration",
+                     {"max_no_progress_duration", *maxNoProgressDuration},
+                     {"tracked_position", trackedPosition});
     return true;
 }

@@ -246,13 +246,13 @@ backfill_status_t DCPBackfillDiskToStream::doHistoryScan(KVBucket& bucket,
     case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
         // propagate error to stream and (unsuccessfully) finish scan.
-        stream->logWithContext(spdlog::level::err,
-                               "DCPBackfillDiskToStream::doHistoryScan(): Scan "
-                               "failed. Setting "
-                               "stream to dead state.",
-                               {{"start_seqno", bySeqnoCtx.startSeqno},
-                                {"max_seqno", bySeqnoCtx.maxSeqno},
-                                {"last_read_seqno", bySeqnoCtx.lastReadSeqno}});
+        OBJ_LOG_ERROR_CTX(*stream,
+                          "DCPBackfillDiskToStream::doHistoryScan(): Scan "
+                          "failed. Setting "
+                          "stream to dead state.",
+                          {"start_seqno", bySeqnoCtx.startSeqno},
+                          {"max_seqno", bySeqnoCtx.maxSeqno},
+                          {"last_read_seqno", bySeqnoCtx.lastReadSeqno});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -280,10 +280,10 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                                                 uint64_t maxSeqno) {
     runtime += (cb::time::steady_clock::now() - runStart);
     stream.completeBackfill(maxSeqno, runtime, bytesRead, keysScanned);
-    stream.logWithContext(
-            spdlog::level::level_enum::debug,
-            "Backfill task complete",
-            {{"start_seqno", startSeqno}, {"end_seqno", endSeqno}});
+    OBJ_LOG_DEBUG_CTX(stream,
+                      "Backfill task complete",
+                      {"start_seqno", startSeqno},
+                      {"end_seqno", endSeqno});
 }
 
 bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
@@ -298,26 +298,26 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
     if (historyScan && historyScan->scanCtx &&
         isProgressStalled(historyScan->scanCtx->getPosition()) &&
         shouldEndStreamToReclaimDisk(*historyScan->scanCtx, stream)) {
-        stream.logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                stream,
                 "Backfill task cancelled as no progress has been made on the "
                 "history-scan for more than the no progress duration and disk "
                 "space should be reclaimed",
-                {{"max_no_progress_duration", *maxNoProgressDuration},
-                 {"position", historyScan->scanCtx->getPosition().getValue()},
-                 {"trackedPosition", trackedPosition->getValue()}});
+                {"max_no_progress_duration", *maxNoProgressDuration},
+                {"position", historyScan->scanCtx->getPosition().getValue()},
+                {"trackedPosition", trackedPosition->getValue()});
         return true;
     }
     if (scanCtx && isProgressStalled(scanCtx->getPosition()) &&
         shouldEndStreamToReclaimDisk(*scanCtx, stream)) {
-        stream.logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                stream,
                 "Backfill task cancelled as no progress has been made on the "
                 "scan for more than the no progress duration and disk "
                 "space should be reclaimed",
-                {{"max_no_progress_duration", *maxNoProgressDuration},
-                 {"position", scanCtx->getPosition().getValue()},
-                 {"trackedPosition", trackedPosition->getValue()}});
+                {"max_no_progress_duration", *maxNoProgressDuration},
+                {"position", scanCtx->getPosition().getValue()},
+                {"trackedPosition", trackedPosition->getValue()});
         return true;
     }
     return false;
@@ -378,14 +378,14 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
     auto usage = diskUsagePercent(si);
     if (!usage) {
         // space_info not usable, log it
-        stream.logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                stream,
                 "DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk cannot "
                 "get disk usage",
-                {{"directory", config.getDbname()},
-                 {"capacity", si.capacity},
-                 {"free", si.free},
-                 {"available", si.available}});
+                {"directory", config.getDbname()},
+                {"capacity", si.capacity},
+                {"free", si.free},
+                {"available", si.available});
         return false;
     }
 
@@ -393,15 +393,15 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
     if (*usage < threshold) {
         return false;
     }
-    stream.logWithContext(spdlog::level::level_enum::warn,
-                          "DCPBackfillDiskToStream::"
-                          "shouldEndStreamToReclaimDisk and usage >= threshold",
-                          {{"directory", config.getDbname()},
-                           {"capacity", si.capacity},
-                           {"free", si.free},
-                           {"available", si.available},
-                           {"percent_used", *usage},
-                           {"threshold", threshold},
-                           {"bytes_to_free", bytesToFree}});
+    OBJ_LOG_WARN_CTX(stream,
+                     "DCPBackfillDiskToStream::"
+                     "shouldEndStreamToReclaimDisk and usage >= threshold",
+                     {"directory", config.getDbname()},
+                     {"capacity", si.capacity},
+                     {"free", si.free},
+                     {"available", si.available},
+                     {"percent_used", *usage},
+                     {"threshold", threshold},
+                     {"bytes_to_free", bytesToFree});
     return true;
 }

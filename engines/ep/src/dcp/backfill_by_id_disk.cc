@@ -102,9 +102,8 @@ backfill_status_t DCPBackfillByIdDisk::create() {
             log << "vb not found!!";
         }
 
-        stream->logWithContext(spdlog::level::level_enum::warn,
-                               "DCPBackfillByIdDisk::create()",
-                               {{"error", log.str()}});
+        OBJ_LOG_WARN_CTX(
+                *stream, "DCPBackfillByIdDisk::create()", {"error", log.str()});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -131,10 +130,9 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_finished;
     }
     if (!stream->isActive()) {
-        stream->logWithContext(
-                spdlog::level::warn,
-                "DCPBackfillByIdDisk::scan(): ended prematurely as "
-                "stream is not active");
+        OBJ_LOG_WARN_RAW(*stream,
+                         "DCPBackfillByIdDisk::scan(): ended prematurely as "
+                         "stream is not active");
         return backfill_finished;
     }
 
@@ -155,10 +153,9 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_success;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Propagate error to stream.
-        stream->logWithContext(
-                spdlog::level::err,
-                "DCPBackfillByIdDisk::scan(): Scan failed Setting "
-                "stream to dead state.");
+        OBJ_LOG_ERROR_RAW(*stream,
+                          "DCPBackfillByIdDisk::scan(): Scan failed Setting "
+                          "stream to dead state.");
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -173,8 +170,7 @@ void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
                                runtime,
                                scanCtx->diskBytesRead,
                                scanCtx->keysScanned);
-    stream.logWithContext(spdlog::level::level_enum::debug,
-                          "DCPBackfillByIdDisk task complete");
+    OBJ_LOG_DEBUG_RAW(stream, "DCPBackfillByIdDisk task complete");
 }
 
 backfill_status_t DCPBackfillByIdDisk::scanHistory() {

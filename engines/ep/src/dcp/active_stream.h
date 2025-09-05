@@ -334,6 +334,11 @@ public:
     uint64_t getLastSentSnapEndSeqno() const {
         return lastSentSnapEndSeqno;
     }
+
+    void logWithContext(spdlog::level::level_enum severity,
+                        std::string_view msg,
+                        cb::logger::Json ctx) const override;
+
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
