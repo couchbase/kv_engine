@@ -117,7 +117,7 @@ public:
     /**
      * Cancels this task by marking it dead.
      */
-    void cancel() {
+    virtual void cancel() {
         state = TASK_DEAD;
     }
 

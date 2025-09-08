@@ -136,6 +136,16 @@ bool CompactTask::isTaskDone(const std::vector<CookieIface*>& cookies) {
     return !shouldReschedule && handle->cookiesWaiting.empty();
 }
 
+void CompactTask::cancel() {
+    EpLimitedConcurrencyTask::cancel();
+
+    // Notify any cookie blocked on this compaction
+    const auto cookies = takeCookies();
+    for (const auto& c : cookies) {
+        engine->notifyIOComplete(c, cb::engine_errc::cancelled);
+    }
+}
+
 CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
