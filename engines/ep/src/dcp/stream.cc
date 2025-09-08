@@ -132,3 +132,11 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
                         {"error", error.what()});
     }
 }
+
+bool Stream::shouldLog(spdlog::level::level_enum severity) const {
+    // Even though stream classes may have their own loggers (or at least their
+    // owning objects e.g. Producer do) just ask the global bucket logger as
+    // the config will be the same. Otherwise we would need to lock the owning
+    // shared_ptr just to check the log level.
+    return getGlobalBucketLogger()->should_log(severity);
+}

@@ -95,6 +95,10 @@ public:
                         std::string_view msg,
                         cb::logger::Json ctx) override;
 
+    bool shouldLog(spdlog::level::level_enum lvl) const {
+        return should_log(lvl);
+    }
+
     /**
      * Creates a BucketLogger with the given name and then register it in the
      * spdlog registry within the logging library.
@@ -253,3 +257,74 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 #define EP_LOG_ERR_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::err, msg)
 #define EP_LOG_CRITICAL_RAW(msg) \
     EP_LOG_RAW(spdlog::level::level_enum::critical, msg)
+
+/**
+ * Some objects may own their own logger instance, for example to inject
+ * further context, such as in the case of DCP objects, they add data like
+ * name and stream-id to the log message.
+ *
+ * These macros exist to add protection against unnescary allocations and
+ * processing for logging through these objects when the requred logging
+ * level is not enabled.
+ *
+ * These macros require the class to proide the following public member
+ * functions (BicketLogger itself supports these methods).
+ * - shouldLog(spdlog::level::level_enum severity) const
+ * - logWithContext(spdlog::level::level_enum severity,
+ *                  std::string_view msg,
+ *                  cb::logger::Json ctx) const
+ * - log(spdlog::level::level_enum severity, std::string_view msg) const
+ *
+ * The macros will wrap the log calls in a check of shouldLog and only then
+ * enter logging (and JSON processing) if that level is enabled.
+ *
+ * Two types of message are supported:
+ * 1) *_WITH_CTX which will provide JSON formatted output in the log message.
+ * 2) *RAW which will just log the message as is.
+ */
+
+#define OBJ_LOG_CTX(obj, severity, msg, ...)                                  \
+    do {                                                                      \
+        if ((obj).shouldLog(severity)) {                                      \
+            (obj).logWithContext(severity,                                    \
+                                 msg,                                         \
+                                 cb::logger::detail::context({__VA_ARGS__})); \
+        }                                                                     \
+    } while (false)
+
+#define OBJ_LOG_RAW(obj, severity, msg)  \
+    do {                                 \
+        if ((obj).shouldLog(severity)) { \
+            (obj).log(severity, msg);    \
+        }                                \
+    } while (false)
+
+#define OBJ_LOG_INFO_CTX(obj, msg, ...) \
+    OBJ_LOG_CTX(obj, spdlog::level::level_enum::info, msg, __VA_ARGS__)
+
+#define OBJ_LOG_WARN_CTX(obj, msg, ...) \
+    OBJ_LOG_CTX(obj, spdlog::level::level_enum::warn, msg, __VA_ARGS__)
+
+#define OBJ_LOG_ERROR_CTX(obj, msg, ...) \
+    OBJ_LOG_CTX(obj, spdlog::level::level_enum::err, msg, __VA_ARGS__)
+
+#define OBJ_LOG_CRITICAL_CTX(obj, msg, ...) \
+    OBJ_LOG_CTX(obj, spdlog::level::level_enum::critical, msg, __VA_ARGS__)
+
+#define OBJ_LOG_DEBUG_CTX(obj, msg, ...) \
+    OBJ_LOG_CTX(obj, spdlog::level::level_enum::debug, msg, __VA_ARGS__)
+
+#define OBJ_LOG_INFO_RAW(obj, msg) \
+    OBJ_LOG_RAW(obj, spdlog::level::level_enum::info, msg)
+
+#define OBJ_LOG_WARN_RAW(obj, msg) \
+    OBJ_LOG_RAW(obj, spdlog::level::level_enum::warn, msg)
+
+#define OBJ_LOG_ERROR_RAW(obj, msg) \
+    OBJ_LOG_RAW(obj, spdlog::level::level_enum::err, msg)
+
+#define OBJ_LOG_CRITICAL_RAW(obj, msg) \
+    OBJ_LOG_RAW(obj, spdlog::level::level_enum::critical, msg)
+
+#define OBJ_LOG_DEBUG_RAW(obj, msg) \
+    OBJ_LOG_RAW(obj, spdlog::level::level_enum::debug, msg)

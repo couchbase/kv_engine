@@ -15,6 +15,7 @@
 #include <cbcrypto/key_store.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 
 DomainAwareFetchBuffer::DomainAwareFetchBuffer() {
@@ -273,6 +274,7 @@ magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
         const magma::Magma::KVStoreID kvID,
         DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {
     Expects(!snap);
+    TRACE_EVENT1("magma", "Magma::GetDiskSnapshot", "vbid", kvID);
     cb::UseArenaMallocSecondaryDomain domainGuard;
     // Call magma with its unique_ptr type and then hand any pointer over to
     // the domain aware type
@@ -297,6 +299,7 @@ magma::Status MagmaMemoryTrackingProxy::GetSnapshot(
         const magma::Magma::KVStoreID kvID,
         DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {
     Expects(!snap);
+    TRACE_EVENT1("magma", "Magma::GetSnapshot", "vbid", kvID);
     cb::UseArenaMallocSecondaryDomain domainGuard;
     std::unique_ptr<magma::Magma::Snapshot> snapshot;
     auto status = magma->GetSnapshot(kvID, snapshot);
@@ -526,12 +529,15 @@ void MagmaMemoryTrackingProxy::SetHistoryRetentionTime(
 }
 
 magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll, bool fusion) {
+    TRACE_EVENT2(
+            "magma", "Magma::Sync", "flushAll", flushAll, "fusion", fusion);
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->Sync(flushAll, fusion);
 }
 
 magma::Status MagmaMemoryTrackingProxy::SyncKVStore(
         const magma::Magma::KVStoreID kvID, bool fusion) {
+    TRACE_EVENT1("magma", "Magma::SyncKVStore", "vbid", kvID);
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->SyncKVStore(kvID, fusion);
 }

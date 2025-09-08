@@ -48,11 +48,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     uint64_t lastPersistedSeqno = bucket.getLastPersistedSeqno(getVBucketId());
 
     if (lastPersistedSeqno < endSeqno) {
-        stream->logWithContext(
-                spdlog::level::level_enum::info,
+        OBJ_LOG_INFO_CTX(
+                *stream,
                 "Rescheduling backfill because the end seqno is not persisted",
-                {{"end_seqno", endSeqno},
-                 {"last_persisted_seqno", lastPersistedSeqno}});
+                {"end_seqno", endSeqno},
+                {"last_persisted_seqno", lastPersistedSeqno});
         return backfill_snooze;
     }
 
@@ -76,10 +76,9 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             SnapshotSource::Head);
 
     if (!scanCtx) {
-        stream->logWithContext(
-                spdlog::level::level_enum::warn,
-                "DCPBackfillBySeqnoDisk::create failed to create scan",
-                {{"start_seqno", startSeqno}});
+        OBJ_LOG_WARN_CTX(*stream,
+                         "DCPBackfillBySeqnoDisk::create failed to create scan",
+                         {"start_seqno", startSeqno});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -92,8 +91,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     auto [collHighSuccess, collHigh] =
             getHighSeqnoOfCollections(*scanCtx, *kvstore, stream->getFilter());
     if (!collHighSuccess) {
-        stream->logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_RAW(
+                *stream,
                 "DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(): failed "
                 "to access collections stats on disk");
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
@@ -105,11 +104,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         // For a filtered stream we can avoid scanning if the stats show us that
         // the collection(s) on disk have no data above the startSeqno
         if (collHigh.value() < startSeqno) {
-            stream->logWithContext(spdlog::level::level_enum::info,
-                                   "DCPBackfillBySeqnoDisk: skipping as "
-                                   "collection_high < start",
-                                   {{"collection_high_seqno", collHigh.value()},
-                                    {"start_seqno", startSeqno}});
+            OBJ_LOG_INFO_CTX(*stream,
+                             "DCPBackfillBySeqnoDisk: skipping as "
+                             "collection_high < start",
+                             {"collection_high_seqno", collHigh.value()},
+                             {"start_seqno", startSeqno});
             complete(*stream);
             return backfill_finished;
         }
@@ -160,16 +159,16 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         !allowNonRollBackStream &&
         (stream->getRemotePurgeSeqno() != scanCtx->purgeSeqno)) {
         auto vb = bucket.getVBucket(getVBucketId());
-        stream->logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                *stream,
                 "DCPBackfillBySeqnoDisk::create(): cannot be scanned. "
                 "Associated stream is set to dead state. startSeqno < "
                 "purgeSeqno",
-                {{"start_seqno", startSeqno},
-                 {"purge_seqno", scanCtx->purgeSeqno},
-                 {"vb_state",
-                  vb ? VBucket::toString(vb->getState()) : "vb not found!!"},
-                 {"collection_high_seqno", collHigh}});
+                {"start_seqno", startSeqno},
+                {"purge_seqno", scanCtx->purgeSeqno},
+                {"vb_state",
+                 vb ? VBucket::toString(vb->getState()) : "vb not found!!"},
+                {"collection_high_seqno", collHigh});
 
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
     } else if (!setupForHistoryScan(*stream, *scanCtx, startSeqno)) {
@@ -207,9 +206,9 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         return backfill_finished;
     }
     if (!(stream->isActive())) {
-        stream->logWithContext(spdlog::level::level_enum::warn,
-                               "DCPBackfillBySeqnoDisk::scan(): ended "
-                               "prematurely as stream is not active");
+        OBJ_LOG_WARN_RAW(*stream,
+                         "DCPBackfillBySeqnoDisk::scan(): ended "
+                         "prematurely as stream is not active");
         return backfill_finished;
     }
 
@@ -237,13 +236,13 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
         // propagate error to stream and (unsuccessfully) finish scan.
-        stream->logWithContext(spdlog::level::err,
-                               "DCPBackfillBySeqnoDisk::create(): Scan failed "
-                               "at lastReadSeqno. Setting "
-                               "stream to dead state.",
-                               {{"start_seqno", bySeqnoCtx.startSeqno},
-                                {"max_seqno", bySeqnoCtx.maxSeqno},
-                                {"last_read_seqno", bySeqnoCtx.lastReadSeqno}});
+        OBJ_LOG_ERROR_CTX(*stream,
+                          "DCPBackfillBySeqnoDisk::create(): Scan failed "
+                          "at lastReadSeqno. Setting "
+                          "stream to dead state.",
+                          {"start_seqno", bySeqnoCtx.startSeqno},
+                          {"max_seqno", bySeqnoCtx.maxSeqno},
+                          {"last_read_seqno", bySeqnoCtx.lastReadSeqno});
         scanCtx.reset();
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
@@ -365,21 +364,21 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
 
     if (!uid.has_value()) {
         // KVStore logs details
-        stream.logWithContext(spdlog::level::level_enum::warn,
-                              "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot: "
-                              "aborting stream as failed to read uid");
+        OBJ_LOG_WARN_RAW(stream,
+                         "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot: "
+                         "aborting stream as failed to read uid");
         stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return false;
     }
     // Note: Replication streams will flip to collection aware after upgrade so
     // won't be here if the uid is > 0
     if (stream.supportSyncWrites() && uid != 0) {
-        stream.logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                stream,
                 "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot: aborting "
                 "stream as it has requested sync-writes + legacy filtering and "
                 "manifest-uid is not zero",
-                {{"value", uid.value().load()}});
+                {"value", uid.value().load()});
         stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return false;
     }
@@ -414,8 +413,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         if (status == KVStore::GetCollectionStatsStatus::Failed) {
             stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         } else {
-            stream.logWithContext(
-                    spdlog::level::level_enum::info,
+            OBJ_LOG_INFO_RAW(
+                    stream,
                     "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot found no "
                     "stats for default collection");
         }
@@ -438,8 +437,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         // manifest
         auto vb = bucket.getVBucket(vbid);
         if (!vb) {
-            stream.logWithContext(
-                    spdlog::level::level_enum::warn,
+            OBJ_LOG_WARN_RAW(
+                    stream,
                     "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot unable to "
                     "get vbucket");
             stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
@@ -449,8 +448,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         // default collection
         auto handle = vb->getManifest().lock(CollectionID::Default);
         if (!handle.valid()) {
-            stream.logWithContext(
-                    spdlog::level::level_enum::warn,
+            OBJ_LOG_WARN_RAW(
+                    stream,
                     "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(): failed "
                     "to find Default collection, in the manifest");
             // We can't end the stream early as the collection is being dropped
@@ -486,11 +485,11 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                            SnapshotType::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
-        stream.logWithContext(
-                spdlog::level::level_enum::warn,
+        OBJ_LOG_WARN_CTX(
+                stream,
                 "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot failed "
                 "getBySeqno",
-                {{"status", gv.getStatus()}});
+                {"status", gv.getStatus()});
         stream.setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return false;
     }
@@ -504,12 +503,12 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     // Possible improvements if required could be to do a key index scan in the
     // default collection range (maybe if the default collection was a small %
     // of the total vbucket).
-    stream.logWithContext(
-            spdlog::level::level_enum::info,
+    OBJ_LOG_INFO_CTX(
+            stream,
             "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot is scanning for "
             "the highest committed default item from to",
-            {{"start_seqno", startSeqno},
-             {"high_seqno", stats.highSeqno.load()}});
+            {"start_seqno", startSeqno},
+            {"high_seqno", stats.highSeqno.load()});
 
     // Basic callback that checks for the default collection's highest
     // committed item
@@ -553,8 +552,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
             SnapshotSource::Head,
             std::move(scanCtx.handle));
     if (!scanForHighestCommitttedItem) {
-        stream.logWithContext(
-                spdlog::level::level_enum::err,
+        OBJ_LOG_ERROR_RAW(
+                stream,
                 "DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot "
                 "initBySeqnoScanContext() didn't return a scan context");
         // scan_again can be returned, but that is expected when the scan goes

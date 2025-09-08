@@ -17,6 +17,8 @@
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
+#include <platform/json_log.h>
+#include <spdlog/common.h>
 
 #include <atomic>
 #include <memory>
@@ -117,6 +119,32 @@ public:
 
     virtual bool compareStreamId(cb::mcbp::DcpStreamId id) const {
         return id == cb::mcbp::DcpStreamId(0);
+    }
+
+    /**
+     * Required method for OBJ_LOG macros.
+     * @param level The level to check.
+     * @return true if the stream should log the given level.
+     */
+    bool shouldLog(spdlog::level::level_enum level) const;
+
+    /**
+     * Required method for OBJ_LOG macros.
+     * @param level The level to check.
+     * @param msg The message to log.
+     * @param ctx The context to log.
+     */
+    virtual void logWithContext(spdlog::level::level_enum level,
+                                std::string_view msg,
+                                cb::logger::Json ctx) const = 0;
+
+    /**
+     * Required method for OBJ_LOG macros.
+     * @param level The level to check.
+     * @param msg The message to log.
+     */
+    void log(spdlog::level::level_enum level, std::string_view msg) const {
+        logWithContext(level, msg, cb::logger::Json::object());
     }
 
     size_t getReadyQueueMemory() const;
