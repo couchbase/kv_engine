@@ -24,14 +24,18 @@
 using cb::getopt::Argument;
 using cb::getopt::Option;
 
-std::filesystem::path passphrase_file =
-        fmt::format("{}/.couchbase/shared_secret", getenv("HOME"));
-std::filesystem::path skeleton_file =
-        fmt::format("{}/.couchbase/token-skeleton.json", getenv("HOME"));
+static std::filesystem::path passphrase_file = ".";
+static std::filesystem::path skeleton_file = ".";
 
 McProgramGetopt::~McProgramGetopt() = default;
 
 McProgramGetopt::McProgramGetopt() {
+    const auto* home = getenv("HOME");
+    if (home) {
+        passphrase_file = fmt::format("{}/.couchbase/shared_secret", home);
+        skeleton_file = fmt::format("{}/.couchbase/token-skeleton.json", home);
+    }
+
     addOption({[this](auto value) { host = std::string{value}; },
                'h',
                "host",
