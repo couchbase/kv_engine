@@ -148,11 +148,6 @@ private:
     // between 1 and 5 (inclusive).
     static const int ageSignificantFigures = 1;
 
-    // The value units per bucket that we use when creating the iterator
-    // that traverses over the frequency histogram in the copyToHistogram
-    // method.
-    static const int valueUnitsPerBucket = 1;
-
     // The execution frequency "histogram". As we have a fixed and
     // relatively low number of frequency counter values (sizeof(uint8_t)) we
     // track these in an array rather than a HdrHistogram as it saves space
