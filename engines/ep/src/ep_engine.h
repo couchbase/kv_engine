@@ -746,18 +746,13 @@ public:
                                       std::string_view value,
                                       Vbid vbucket);
 
+    cb::engine_errc setConfigurationParameter(std::string_view key,
+                                              const std::string& val,
+                                              std::string& msg);
+
     cb::engine_errc setFlushParam(std::string_view key,
                                   const std::string& val,
                                   std::string& msg);
-    cb::engine_errc setFusionFlushParam(std::string_view key,
-                                        const std::string& val,
-                                        std::string& msg);
-    cb::engine_errc setMagmaFlushParam(std::string_view key,
-                                       const std::string& val,
-                                       std::string& msg);
-    cb::engine_errc setDefragmenterFlushParam(std::string_view key,
-                                              const std::string& val,
-                                              std::string& msg);
 
     cb::engine_errc setCheckpointParam(std::string_view key,
                                        const std::string& val,

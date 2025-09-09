@@ -12,6 +12,7 @@
 #include "configuration.h"
 
 #include "configuration_impl.h"
+#include "ep_parameters.h"
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
@@ -533,4 +534,23 @@ TEST(ConfigurationTest, conditionals) {
 
     ASSERT_FALSE(configuration1.isDcpBackfillIdleProtectionEnabled());
     ASSERT_TRUE(configuration2.isDcpBackfillIdleProtectionEnabled());
+}
+
+TEST(ConfigurationTest, DynamicParametersAreSettable) {
+    auto parameters = Configuration::getDynamicParametersForTesting();
+    auto settableParameters = getSetParameterKeys();
+
+    EXPECT_EQ(parameters.size(), settableParameters.size());
+    for (const auto& parameter : parameters) {
+        EXPECT_TRUE(settableParameters.contains(parameter))
+                << "Parameter " << parameter
+                << " is dynamic in the configuration but is not listed as "
+                   "settable";
+    }
+    for (const auto& parameter : settableParameters) {
+        EXPECT_TRUE(parameters.contains(std::string(parameter)))
+                << "Parameter " << parameter
+                << " is listed as settable but is not dynamic in the "
+                   "configuration";
+    }
 }

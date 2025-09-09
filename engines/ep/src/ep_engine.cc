@@ -10,6 +10,7 @@
  */
 
 #include "ep_engine.h"
+#include "ep_parameters.h"
 #include "kv_bucket.h"
 
 #include "bucket_logger.h"
@@ -566,30 +567,12 @@ void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
     acquireEngine(this)->resetStats();
 }
 
-cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
+cb::engine_errc EventuallyPersistentEngine::setConfigurationParameter(
         std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
 
     try {
-        auto& config = getConfiguration();
-
-        if (key == "max_checkpoints") {
-            config.setMaxCheckpoints(std::stoull(val));
-        } else if (key == "checkpoint_memory_ratio") {
-            config.setCheckpointMemoryRatio(std::stof(val));
-        } else if (key == "checkpoint_memory_recovery_upper_mark") {
-            config.setCheckpointMemoryRecoveryUpperMark(std::stof(val));
-        } else if (key == "checkpoint_memory_recovery_lower_mark") {
-            config.setCheckpointMemoryRecoveryLowerMark(std::stof(val));
-        } else if (key == "checkpoint_max_size") {
-            config.setCheckpointMaxSize(std::stoull(val));
-        } else if (key == "checkpoint_destruction_tasks") {
-            config.setCheckpointDestructionTasks(std::stoull(val));
-        } else {
-            msg = "Unknown config param";
-            rv = cb::engine_errc::no_such_key;
-        }
-
+        getConfiguration().parseAndSetParameter(key, val);
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
@@ -617,10 +600,17 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
     return rv;
 }
 
+cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
+        std::string_view key, const std::string& val, std::string& msg) {
+    if (!checkSetParameterCategory(key, EngineParamCategory::Checkpoint)) {
+        msg = "Unknown checkpoint param";
+        return cb::engine_errc::no_such_key;
+    }
+    return setConfigurationParameter(key, val, msg);
+}
+
 cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         std::string_view key, const std::string& val, std::string& msg) {
-    auto rv = cb::engine_errc::success;
-
     // Handle the actual mutation.
     try {
         configuration.requirementsMetOrThrow(key);
@@ -628,25 +618,16 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
             kvBucket->processBucketQuotaChange(vsize);
-        } else if (key == "mem_low_wat" || key == "mem_high_wat") {
+            return cb::engine_errc::success;
+        }
+        if (key == "mem_low_wat" || key == "mem_high_wat") {
             msg = fmt::format(
                     "Setting of key '{}' is no longer supported "
                     "using set flush param. Use the Buckets REST API instead.",
                     key);
             return cb::engine_errc::invalid_arguments;
-        } else if (key == "mem_low_wat_percent") {
-            configuration.setMemLowWatPercent(std::stof(val));
-        } else if (key == "mem_high_wat_percent") {
-            configuration.setMemHighWatPercent(std::stof(val));
-        } else if (key == "backfill_mem_threshold") {
-            configuration.setBackfillMemThreshold(std::stoull(val));
-        } else if (key == "durability_min_level") {
-            configuration.setDurabilityMinLevel(val);
-        } else if (key == "durability_impossible_fallback") {
-            configuration.setDurabilityImpossibleFallback(val);
-        } else if (key == "mutation_mem_ratio") {
-            configuration.setMutationMemRatio(std::stof(val));
-        } else if (key == "timing_log") {
+        }
+        if (key == "timing_log") {
             EPStats& epStats = getEpStats();
             epStats.timingLog = nullptr;
             if (val == "off") {
@@ -663,76 +644,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                                     {"error", strerror(errno)});
                 }
             }
-        } else if (key == "exp_pager_enabled") {
-            configuration.setExpPagerEnabled(cb_stob(val));
-        } else if (key == "exp_pager_stime") {
-            configuration.setExpPagerStime(std::stoull(val));
-        } else if (key == "exp_pager_initial_run_time") {
-            configuration.setExpPagerInitialRunTime(std::stoll(val));
-        } else if (key == "flusher_total_batch_limit") {
-            configuration.setFlusherTotalBatchLimit(std::stoll(val));
-        } else if (key == "flush_batch_max_bytes") {
-            configuration.setFlushBatchMaxBytes(std::stoll(val));
-        } else if (key == "getl_default_timeout") {
-            configuration.setGetlDefaultTimeout(std::stoull(val));
-        } else if (key == "getl_max_timeout") {
-            configuration.setGetlMaxTimeout(std::stoull(val));
-        } else if (key == "ht_resize_interval") {
-            configuration.setHtResizeInterval(std::stof(val));
-        } else if (key == "ht_resize_algo") {
-            configuration.setHtResizeAlgo(val);
-        } else if (key == "ht_size") {
-            configuration.setHtSize(std::stoull(val));
-        } else if (key == "ht_size_decrease_delay") {
-            configuration.setHtSizeDecreaseDelay(std::stoull(val));
-        } else if (key == "ht_temp_items_allowed_percent") {
-            configuration.setHtTempItemsAllowedPercent(std::stoull(val));
-        } else if (key == "max_item_privileged_bytes") {
-            configuration.setMaxItemPrivilegedBytes(std::stoull(val));
-        } else if (key == "max_item_size") {
-            configuration.setMaxItemSize(std::stoull(val));
-        } else if (key == "not_locked_returns_tmpfail") {
-            configuration.setNotLockedReturnsTmpfail(cb_stob(val));
-        } else if (key == "access_scanner_enabled") {
-            configuration.setAccessScannerEnabled(cb_stob(val));
-        } else if (key == "alog_path") {
-            configuration.setAlogPath(val);
-        } else if (key == "alog_max_stored_items") {
-            configuration.setAlogMaxStoredItems(std::stoull(val));
-        } else if (key == "alog_resident_ratio_threshold") {
-            configuration.setAlogResidentRatioThreshold(std::stoull(val));
-        } else if (key == "alog_sleep_time") {
-            configuration.setAlogSleepTime(std::stoull(val));
-        } else if (key == "alog_task_time") {
-            configuration.setAlogTaskTime(std::stoull(val));
-            /* Start of ItemPager parameters */
-        } else if (key == "bfilter_fp_prob") {
-            configuration.setBfilterFpProb(std::stof(val));
-        } else if (key == "bfilter_key_count") {
-            configuration.setBfilterKeyCount(std::stoull(val));
-        } else if (key == "paging_visitor_pause_check_count") {
-            configuration.setPagingVisitorPauseCheckCount(std::stoull(val));
-        } else if (key == "expiry_visitor_items_only_duration_ms") {
-            configuration.setExpiryVisitorItemsOnlyDurationMs(std::stoull(val));
-        } else if (key == "expiry_visitor_expire_after_visit_duration_ms") {
-            configuration.setExpiryVisitorExpireAfterVisitDurationMs(
-                    std::stoull(val));
-        } else if (key == "item_eviction_age_percentage") {
-            configuration.setItemEvictionAgePercentage(std::stoull(val));
-        } else if (key == "item_eviction_freq_counter_age_threshold") {
-            configuration.setItemEvictionFreqCounterAgeThreshold(
-                    std::stoull(val));
-        } else if (key == "item_eviction_initial_mfu_percentile") {
-            configuration.setItemEvictionInitialMfuPercentile(std::stoul(val));
-        } else if (key == "item_eviction_initial_mfu_update_interval") {
-            configuration.setItemEvictionInitialMfuUpdateInterval(std::stof(val));
-        } else if (key == "item_freq_decayer_chunk_duration") {
-            configuration.setItemFreqDecayerChunkDuration(std::stoull(val));
-        } else if (key == "item_freq_decayer_percent") {
-            configuration.setItemFreqDecayerPercent(std::stoull(val));
-            /* End of ItemPager parameters */
-        } else if (key == "warmup_min_memory_threshold" ||
-                   key == "warmup_min_items_threshold") {
+            return cb::engine_errc::success;
+        }
+        if (key == "warmup_min_memory_threshold" ||
+            key == "warmup_min_items_threshold") {
             // warn for legacy parameter
             msg = fmt::format(
                     "Setting of key '{}' is no longer supported "
@@ -740,20 +655,9 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                     "set warmup_behavior",
                     key);
             return cb::engine_errc::invalid_arguments;
-        } else if (key == "primary_warmup_min_items_threshold") {
-            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
-        } else if (key == "primary_warmup_min_memory_threshold") {
-            configuration.setPrimaryWarmupMinMemoryThreshold(std::stoull(val));
-        } else if (key == "primary_warmup_min_items_threshold") {
-            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
-        } else if (key == "secondary_warmup_min_memory_threshold") {
-            configuration.setSecondaryWarmupMinMemoryThreshold(std::stoull(val));
-        } else if (key == "secondary_warmup_min_items_threshold") {
-            configuration.setSecondaryWarmupMinItemsThreshold(std::stoull(val));
-        } else if (key == "warmup_behavior") {
-            configuration.setWarmupBehavior(val);
-        } else if (key == "num_reader_threads" || key == "num_writer_threads" ||
-                   key == "num_auxio_threads" || key == "num_nonio_threads") {
+        }
+        if (key == "num_reader_threads" || key == "num_writer_threads" ||
+            key == "num_auxio_threads" || key == "num_nonio_threads") {
             msg = fmt::format(
                     "Setting of key '{0}' is no longer supported "
                     "using set flush param, a post request to the REST API "
@@ -762,335 +666,69 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                     "global with payload {0}=N) should be made instead",
                     key);
             return cb::engine_errc::invalid_arguments;
-        } else if (key == "bfilter_enabled") {
-            configuration.setBfilterEnabled(cb_stob(val));
-        } else if (key == "bfilter_residency_threshold") {
-            configuration.setBfilterResidencyThreshold(std::stof(val));
-        } else if (key == "item_compressor_interval") {
-            size_t v = std::stoull(val);
-            // Adding separate validation as external limit is minimum 1
-            // to prevent setting item compressor to constantly run
-            validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            configuration.setItemCompressorInterval(v);
-        } else if (key == "item_compressor_chunk_duration") {
-            configuration.setItemCompressorChunkDuration(std::stoull(val));
-        } else if (key == "compaction_max_concurrent_ratio") {
-            configuration.setCompactionMaxConcurrentRatio(std::stof(val));
-        } else if (key == "chk_expel_enabled") {
-            configuration.setChkExpelEnabled(cb_stob(val));
-        } else if (key == "dcp_min_compression_ratio") {
-            configuration.setDcpMinCompressionRatio(std::stof(val));
-        } else if (key == "dcp_noop_mandatory_for_v5_features") {
-            configuration.setDcpNoopMandatoryForV5Features(cb_stob(val));
-        } else if (key == "access_scanner_run") {
+        }
+        if (key == "access_scanner_run") {
             if (!(runAccessScannerTask())) {
-                rv = cb::engine_errc::temporary_failure;
+                return cb::engine_errc::temporary_failure;
             }
-        } else if (key == "vb_state_persist_run") {
+            return cb::engine_errc::success;
+        }
+        if (key == "vb_state_persist_run") {
             size_t vbid = std::stoi(val);
             if (vbid >= kvBucket->getVBMapSize()) {
-                rv = cb::engine_errc::invalid_arguments;
-            } else {
-                runVbStatePersistTask(
-                        Vbid(gsl::narrow_cast<Vbid::id_type>(vbid)));
+                return cb::engine_errc::invalid_arguments;
             }
-        } else if (key == "ephemeral_full_policy") {
-            configuration.setEphemeralFullPolicy(val);
-        } else if (key == "ephemeral_mem_recovery_enabled") {
-            configuration.setEphemeralMemRecoveryEnabled(cb_stob(val));
-        } else if (key == "ephemeral_mem_recovery_sleep_time") {
-            configuration.setEphemeralMemRecoverySleepTime(std::stoull(val));
-        } else if (key == "ephemeral_metadata_mark_stale_chunk_duration") {
-            configuration.setEphemeralMetadataMarkStaleChunkDuration(
-                    std::stoull(val));
-        } else if (key == "ephemeral_metadata_purge_age") {
-            configuration.setEphemeralMetadataPurgeAge(std::stoull(val));
-        } else if (key == "ephemeral_metadata_purge_interval") {
-            configuration.setEphemeralMetadataPurgeInterval(std::stoull(val));
-        } else if (key == "ephemeral_metadata_purge_stale_chunk_duration") {
-            configuration.setEphemeralMetadataPurgeStaleChunkDuration(
-                    std::stoull(val));
-        } else if (key == "fsync_after_every_n_bytes_written") {
-            configuration.setFsyncAfterEveryNBytesWritten(std::stoull(val));
-        } else if (key == "xattr_enabled") {
-            configuration.setXattrEnabled(cb_stob(val));
-        } else if (key == "compression_mode") {
-            configuration.setCompressionMode(val);
-        } else if (key == "min_compression_ratio") {
-            float min_comp_ratio;
-            if (safe_strtof(val, min_comp_ratio)) {
-                configuration.setMinCompressionRatio(min_comp_ratio);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "max_ttl") {
-            configuration.setMaxTtl(std::stoull(val));
-        } else if (key == "mem_used_merge_threshold_percent") {
-            configuration.setMemUsedMergeThresholdPercent(std::stof(val));
-        } else if (key == "retain_erroneous_tombstones") {
-            configuration.setRetainErroneousTombstones(cb_stob(val));
-        } else if (key == "couchstore_tracing") {
-            configuration.setCouchstoreTracing(cb_stob(val));
-        } else if (key == "couchstore_write_validation") {
-            configuration.setCouchstoreWriteValidation(cb_stob(val));
-        } else if (key == "couchstore_mprotect") {
-            configuration.setCouchstoreMprotect(cb_stob(val));
-        } else if (key == "allow_sanitize_value_in_deletion") {
-            configuration.setAllowSanitizeValueInDeletion(cb_stob(val));
-        } else if (key == "persistent_metadata_purge_age") {
-            uint32_t value;
-            if (safe_strtoul(val, value)) {
-                configuration.setPersistentMetadataPurgeAge(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "couchstore_file_cache_max_size") {
-            uint32_t value;
-            if (safe_strtoul(val, value)) {
-                configuration.setCouchstoreFileCacheMaxSize(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "compaction_expire_from_start") {
-            configuration.setCompactionExpireFromStart(cb_stob(val));
-        } else if (key == "compaction_expiry_fetch_inline") {
-            configuration.setCompactionExpiryFetchInline(cb_stob(val));
-        } else if (key == "vbucket_mapping_sanity_checking") {
-            configuration.setVbucketMappingSanityChecking(cb_stob(val));
-        } else if (key == "vbucket_mapping_sanity_checking_error_mode") {
-            configuration.setVbucketMappingSanityCheckingErrorMode(val);
-        } else if (key == "seqno_persistence_timeout") {
-            configuration.setSeqnoPersistenceTimeout(std::stoul(val));
-        } else if (key == "range_scan_max_continue_tasks") {
-            configuration.setRangeScanMaxContinueTasks(std::stoul(val));
-        } else if (key == "bucket_quota_change_task_poll_interval") {
-            configuration.setBucketQuotaChangeTaskPollInterval(std::stof(val));
-        } else if (key == "range_scan_read_buffer_send_size") {
-            configuration.setRangeScanReadBufferSendSize(std::stoull(val));
-        } else if (key == "range_scan_max_lifetime") {
-            configuration.setRangeScanMaxLifetime(std::stoull(val));
-        } else if (key == "item_eviction_strategy") {
-            getConfiguration().setItemEvictionStrategy(val);
-        } else if (key == "history_retention_seconds") {
-            configuration.setHistoryRetentionSeconds(std::stoul(val));
-        } else if (key == "history_retention_bytes") {
-            configuration.setHistoryRetentionBytes(std::stoull(val));
-        } else if (key == "continuous_backup_enabled") {
-            configuration.setContinuousBackupEnabled(cb_stob(val));
-        } else if (key == "continuous_backup_interval") {
-            configuration.setContinuousBackupInterval(std::stoull(val));
-        } else if (key == "workload_monitor_enabled") {
-            configuration.setWorkloadMonitorEnabled(cb_stob(val));
-        } else if (key == "workload_pattern_default") {
-            configuration.setWorkloadPatternDefault(val);
-        } else if (key.starts_with("defragmenter")) {
-            setDefragmenterFlushParam(key, val, msg);
-        } else if (key.starts_with("magma_fusion")) {
-            return setFusionFlushParam(key, val, msg);
-        } else if (key.starts_with("magma")) {
-            return setMagmaFlushParam(key, val, msg);
-        } else {
-            EP_LOG_WARN_CTX("Rejecting setFlushParam request",
-                            {"key", key},
-                            {"value", val});
-            msg = "Unknown config param " + std::string{key};
-            rv = cb::engine_errc::invalid_arguments;
+            runVbStatePersistTask(Vbid(gsl::narrow_cast<Vbid::id_type>(vbid)));
+            return cb::engine_errc::success;
+        }
+        if (key == "defragmenter_run") {
+            runDefragmenterTask();
+            return cb::engine_errc::success;
         }
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
-        rv = cb::engine_errc::invalid_arguments;
+        return cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = cb::engine_errc::invalid_arguments;
+        return cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = cb::engine_errc::invalid_arguments;
+        return cb::engine_errc::invalid_arguments;
 
         // Handles any miscellaneous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = cb::engine_errc::invalid_arguments;
+        return cb::engine_errc::invalid_arguments;
     }
 
-    return rv;
-}
-
-cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
-        std::string_view key, const std::string& val, std::string& msg) {
-    auto rv = cb::engine_errc::success;
-    if (key == "magma_fusion_logstore_uri") {
-        configuration.setMagmaFusionLogstoreUri(val);
-    } else if (key == "magma_fusion_metadatastore_uri") {
-        configuration.setMagmaFusionMetadatastoreUri(val);
-    } else if (key == "magma_fusion_upload_interval") {
-        configuration.setMagmaFusionUploadInterval(std::stoull(val));
-    } else if (key == "magma_fusion_logstore_fragmentation_threshold") {
-        configuration.setMagmaFusionLogstoreFragmentationThreshold(
-                std::stof(val));
-    } else {
-        EP_LOG_WARN_CTX("Rejecting setFusionFlushParam request",
+    if (!checkSetParameterCategory(key, EngineParamCategory::Flush)) {
+        EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                         {"key", key},
                         {"value", val});
-        msg = "Unknown config param " + std::string{key};
-        rv = cb::engine_errc::invalid_arguments;
+        msg = "Unknown flush param " + std::string{key};
+        return cb::engine_errc::invalid_arguments;
     }
-    return rv;
-}
-
-cb::engine_errc EventuallyPersistentEngine::setMagmaFlushParam(
-        std::string_view key, const std::string& val, std::string& msg) {
-    auto rv = cb::engine_errc::success;
-    if (key == "magma_fragmentation_percentage") {
-        configuration.setMagmaFragmentationPercentage(std::stof(val));
-    } else if (key == "magma_flusher_thread_percentage") {
-        configuration.setMagmaFlusherThreadPercentage(std::stoul(val));
-    } else if (key == "magma_mem_quota_ratio") {
-        configuration.setMagmaMemQuotaRatio(std::stof(val));
-    } else if (key == "magma_enable_block_cache") {
-        configuration.setMagmaEnableBlockCache(cb_stob(val));
-    } else if (key == "magma_seq_tree_data_block_size") {
-        configuration.setMagmaSeqTreeDataBlockSize(std::stoull(val));
-    } else if (key == "magma_min_value_block_size_threshold") {
-        configuration.setMagmaMinValueBlockSizeThreshold(std::stoull(val));
-    } else if (key == "magma_seq_tree_index_block_size") {
-        configuration.setMagmaSeqTreeIndexBlockSize(std::stoull(val));
-    } else if (key == "magma_key_tree_data_block_size") {
-        configuration.setMagmaKeyTreeDataBlockSize(std::stoull(val));
-    } else if (key == "magma_key_tree_index_block_size") {
-        configuration.setMagmaKeyTreeIndexBlockSize(std::stoull(val));
-    } else if (key == "magma_per_document_compression_enabled") {
-        configuration.setMagmaPerDocumentCompressionEnabled(cb_stob(val));
-    } else {
-        EP_LOG_WARN_CTX("Rejecting setMagmaFlushParam request",
-                        {"key", key},
-                        {"value", val});
-        msg = "Unknown config param " + std::string{key};
-        rv = cb::engine_errc::invalid_arguments;
-    }
-    return rv;
-}
-
-cb::engine_errc EventuallyPersistentEngine::setDefragmenterFlushParam(
-        std::string_view key, const std::string& val, std::string& msg) {
-    auto rv = cb::engine_errc::success;
-    if (key == "defragmenter_enabled") {
-        configuration.setDefragmenterEnabled(cb_stob(val));
-    } else if (key == "defragmenter_interval") {
-        auto v = std::stod(val);
-        configuration.setDefragmenterInterval(v);
-    } else if (key == "defragmenter_age_threshold") {
-        configuration.setDefragmenterAgeThreshold(std::stoull(val));
-    } else if (key == "defragmenter_chunk_duration") {
-        configuration.setDefragmenterChunkDuration(std::stoull(val));
-    } else if (key == "defragmenter_stored_value_age_threshold") {
-        configuration.setDefragmenterStoredValueAgeThreshold(std::stoull(val));
-    } else if (key == "defragmenter_run") {
-        runDefragmenterTask();
-    } else if (key == "defragmenter_mode") {
-        configuration.setDefragmenterMode(val);
-    } else if (key == "defragmenter_auto_lower_threshold") {
-        configuration.setDefragmenterAutoLowerThreshold(std::stof(val));
-    } else if (key == "defragmenter_auto_upper_threshold") {
-        configuration.setDefragmenterAutoUpperThreshold(std::stof(val));
-    } else if (key == "defragmenter_auto_max_sleep") {
-        configuration.setDefragmenterAutoMaxSleep(std::stof(val));
-    } else if (key == "defragmenter_auto_min_sleep") {
-        configuration.setDefragmenterAutoMinSleep(std::stof(val));
-    } else if (key == "defragmenter_auto_pid_p") {
-        configuration.setDefragmenterAutoPidP(std::stof(val));
-    } else if (key == "defragmenter_auto_pid_i") {
-        configuration.setDefragmenterAutoPidI(std::stof(val));
-    } else if (key == "defragmenter_auto_pid_d") {
-        configuration.setDefragmenterAutoPidD(std::stof(val));
-    } else if (key == "defragmenter_auto_pid_dt") {
-        configuration.setDefragmenterAutoPidDt(std::stof(val));
-    } else {
-        EP_LOG_WARN_CTX("Rejecting setDefragmenterFlushParam request",
-                        {"key", key},
-                        {"value", val});
-        msg = "Unknown config param " + std::string{key};
-        rv = cb::engine_errc::invalid_arguments;
-    }
-    return rv;
+    return setConfigurationParameter(key, val, msg);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
                                                         const std::string& val,
                                                         std::string& msg) {
-    auto rv = cb::engine_errc::success;
-    try {
-        if (key == "dcp_backfill_in_progress_per_connection_limit") {
-            getConfiguration().setDcpBackfillInProgressPerConnectionLimit(
-                    std::stoull(val));
-        } else if (key == "dcp_consumer_buffer_ratio") {
-            getConfiguration().setDcpConsumerBufferRatio(std::stof(val));
-        } else if (key == "connection_manager_interval") {
-            getConfiguration().setConnectionManagerInterval(std::stof(val));
-        } else if (key == "connection_cleanup_interval") {
-            getConfiguration().setConnectionCleanupInterval(std::stof(val));
-        } else if (key == "dcp_enable_noop") {
-            getConfiguration().setDcpEnableNoop(cb_stob(val));
-        } else if (key == "dcp_idle_timeout") {
-            auto v = size_t(std::stoul(val));
-            checkNumeric(val.c_str());
-            validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            getConfiguration().setDcpIdleTimeout(v);
-        } else if (key == "dcp_noop_tx_interval") {
-            getConfiguration().setDcpNoopTxInterval(std::stof(val));
-        } else if (key == "dcp_oso_backfill") {
-            getConfiguration().setDcpOsoBackfill(val);
-        } else if (key == "dcp_oso_backfill_large_value_ratio") {
-            auto v = std::stod(val);
-            getConfiguration().setDcpOsoBackfillLargeValueRatio(v);
-        } else if (key == "dcp_oso_backfill_small_value_ratio") {
-            auto v = std::stod(val);
-            getConfiguration().setDcpOsoBackfillSmallValueRatio(v);
-        } else if (key == "dcp_oso_backfill_small_item_size_threshold") {
-            auto v = size_t(std::stoul(val));
-            getConfiguration().setDcpOsoBackfillSmallItemSizeThreshold(v);
-        } else if (key == "dcp_producer_processor_run_duration_us") {
-            getConfiguration().setDcpProducerProcessorRunDurationUs(
-                    std::stoull(val));
-        } else if (key == "dcp_producer_catch_exceptions") {
-            getConfiguration().setDcpProducerCatchExceptions(cb_stob(val));
-        } else if (key == "dcp_takeover_max_time") {
-            getConfiguration().setDcpTakeoverMaxTime(std::stoull(val));
-        } else if (key == "dcp_backfill_byte_limit") {
-            getConfiguration().setDcpBackfillByteLimit(std::stoull(val));
-        } else if (key == "dcp_oso_max_collections_per_backfill") {
-            getConfiguration().setDcpOsoMaxCollectionsPerBackfill(
-                    std::stoull(val));
-        } else if (key == "dcp_backfill_run_duration_limit") {
-            getConfiguration().setDcpBackfillRunDurationLimit(std::stoull(val));
-        } else if (key == "dcp_backfill_idle_protection_enabled") {
-            getConfiguration().setDcpBackfillIdleProtectionEnabled(
-                    cb_stob(val));
-        } else if (key == "dcp_backfill_idle_limit_seconds") {
-            getConfiguration().setDcpBackfillIdleLimitSeconds(std::stoull(val));
-        } else if (key == "dcp_backfill_idle_disk_threshold") {
-            getConfiguration().setDcpBackfillIdleDiskThreshold(std::stof(val));
-        } else if (key == "dcp_checkpoint_dequeue_limit") {
-            getConfiguration().setDcpCheckpointDequeueLimit(std::stoull(val));
-        } else if (key == "dcp_cache_transfer_enabled") {
-            getConfiguration().setDcpCacheTransferEnabled(cb_stob(val));
-        } else {
-            msg = "Unknown config param";
-            rv = cb::engine_errc::no_such_key;
-        }
-    } catch (std::runtime_error&) {
-        msg = "Value out of range.";
-        rv = cb::engine_errc::invalid_arguments;
+    if (!checkSetParameterCategory(key, EngineParamCategory::Dcp)) {
+        EP_LOG_WARN_CTX(
+                "Rejecting setDcpParam request", {"key", key}, {"value", val});
+        msg = "Unknown dcp param " + std::string{key};
+        return cb::engine_errc::invalid_arguments;
     }
-
-    return rv;
+    return setConfigurationParameter(key, val, msg);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
@@ -1098,25 +736,8 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         std::string_view key,
         const std::string& val,
         std::string& msg) {
-    auto rv = cb::engine_errc::success;
     try {
-        if (key == "hlc_drift_ahead_threshold_us") {
-            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
-            checkNumeric(val.c_str());
-            configuration.setHlcDriftAheadThresholdUs(v);
-        } else if (key == "hlc_drift_behind_threshold_us") {
-            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
-            checkNumeric(val.c_str());
-            configuration.setHlcDriftBehindThresholdUs(v);
-        } else if (key == "hlc_max_future_threshold_us") {
-            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
-            checkNumeric(val.c_str());
-            configuration.setHlcMaxFutureThresholdUs(v);
-        } else if (key == "hlc_invalid_strategy") {
-            configuration.setHlcInvalidStrategy(val);
-        } else if (key == "dcp_hlc_invalid_strategy") {
-            configuration.setDcpHlcInvalidStrategy(val);
-        } else if (key == "max_cas") {
+        if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
             EP_LOG_INFO_CTX("setVbucketParam",
@@ -1125,18 +746,23 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
                             {"vb", vbucket});
             if (getKVBucket()->forceMaxCas(vbucket, v) !=
                 cb::engine_errc::success) {
-                rv = cb::engine_errc::not_my_vbucket;
                 msg = "Not my vbucket";
+                return cb::engine_errc::not_my_vbucket;
             }
-        } else {
-            msg = "Unknown config param";
-            rv = cb::engine_errc::no_such_key;
         }
     } catch (std::exception& e) {
         msg = e.what();
-        rv = cb::engine_errc::invalid_arguments;
+        return cb::engine_errc::invalid_arguments;
     }
-    return rv;
+
+    if (!checkSetParameterCategory(key, EngineParamCategory::Vbucket)) {
+        EP_LOG_WARN_CTX("Rejecting setVbucketParam request",
+                        {"key", key},
+                        {"value", val});
+        msg = "Unknown vbucket param " + std::string{key};
+        return cb::engine_errc::invalid_arguments;
+    }
+    return setConfigurationParameter(key, val, msg);
 }
 
 cb::engine_errc EventuallyPersistentEngine::evictKey(CookieIface& cookie,

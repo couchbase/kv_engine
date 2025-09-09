@@ -176,6 +176,18 @@ private:
     folly::Synchronized<Value, std::shared_mutex> valueAndListeners;
 };
 
+std::unordered_set<std::string>
+Configuration::getDynamicParametersForTesting() {
+    Configuration config;
+    std::unordered_set<std::string> dynamicParameters;
+    for (const auto& [key, attribute] : config.attributes) {
+        if (attribute->dynamic) {
+            dynamicParameters.insert(key);
+        }
+    }
+    return dynamicParameters;
+}
+
 template <class T>
 void Configuration::addParameter(std::string_view key,
                                  T defaultVal,
@@ -361,6 +373,34 @@ void Configuration::requirementsMetOrThrow(std::string_view key) const {
     }
 }
 
+/**
+ * Parses the value into the variant, preserving the type of the variant.
+ *
+ * @param value The value to parse.
+ * @param variant The variant to modify.
+ * @throws std::runtime_error if the value cannot be parsed into the variant.
+ */
+static void parseParameter(const std::string& value, value_variant_t& variant) {
+    enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
+    switch (config_datatype(variant.index())) {
+    case DT_STRING:
+        variant = value;
+        break;
+    case DT_SIZE:
+        variant = cb::config::value_as_size_t(value);
+        break;
+    case DT_SSIZE:
+        variant = cb::config::value_as_ssize_t(value);
+        break;
+    case DT_BOOL:
+        variant = cb::config::value_as_bool(value);
+        break;
+    case DT_FLOAT:
+        variant = cb::config::value_as_float(value);
+        break;
+    }
+}
+
 bool Configuration::parseConfiguration(std::string_view str) {
     Expects(initialized);
     enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
@@ -372,23 +412,10 @@ bool Configuration::parseConfiguration(std::string_view str) {
             if (k == key) {
                 found = true;
                 try {
-                    switch (config_datatype(value->getValue().index())) {
-                    case DT_STRING:
-                        setParameter(key, v);
-                        break;
-                    case DT_SIZE:
-                        setParameter(key, cb::config::value_as_size_t(v));
-                        break;
-                    case DT_SSIZE:
-                        setParameter(key, cb::config::value_as_ssize_t(v));
-                        break;
-                    case DT_BOOL:
-                        setParameter(key, cb::config::value_as_bool(v));
-                        break;
-                    case DT_FLOAT:
-                        setParameter(key, cb::config::value_as_float(v));
-                        break;
-                    }
+                    auto newValue = value->getValue();
+                    parseParameter(v, newValue);
+                    std::visit([this, k](auto&& val) { setParameter(k, val); },
+                               newValue);
                 } catch (const std::exception& e) {
                     EP_LOG_WARN(
                             "Error parsing value: key: {} value: {} error: {}",
@@ -422,6 +449,27 @@ void Configuration::visit(Configuration::Visitor visitor) const {
                     to_string(attr.second->getValue()));
         }
     }
+}
+
+void Configuration::parseAndSetParameter(std::string_view key,
+                                         std::string_view value) {
+    Expects(initialized);
+    requirementsMetOrThrow(key);
+
+    auto it = attributes.find(key);
+    if (it == attributes.end()) {
+        throw std::invalid_argument("Unknown config param '" +
+                                    std::string{key} + "'");
+    }
+
+    if (!it->second->dynamic) {
+        throw std::logic_error("Parameter '" + std::string{key} +
+                               "' is not dynamic");
+    }
+
+    auto newValue = it->second->getValue();
+    parseParameter(std::string(value), newValue);
+    std::visit([this, key](auto&& val) { setParameter(key, val); }, newValue);
 }
 
 Configuration::~Configuration() = default;

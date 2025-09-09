@@ -263,7 +263,30 @@ public:
                             std::function(std::forward<Callable>(callback)));
     }
 
+    /**
+     * Throw an exception if the requirements are not met
+     *
+     * @param key the key to check
+     * @throws logic_error if the requirements are not met
+     */
     void requirementsMetOrThrow(std::string_view key) const;
+
+    /**
+     * Parse a parameter value, validate it and set it in the configuration.
+     *
+     * @param key the key to set
+     * @param value the value to set
+     * @throws std::logic_error if the requirements are not met
+     * @throws std::logic_error if the key is not dynamic
+     * @throws std::invalid_argument if the key is not found
+     * @throws std::runtime_error if the value cannot be parsed
+     */
+    void parseAndSetParameter(std::string_view key, std::string_view value);
+
+    /**
+     * Get the dynamic parameters for the configuration (for testing purposes)
+     */
+    static std::unordered_set<std::string> getDynamicParametersForTesting();
 
     const bool isServerless;
 

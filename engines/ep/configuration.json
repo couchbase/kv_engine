@@ -730,7 +730,12 @@
             "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",
             "dynamic": true,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         },
         "item_compressor_chunk_duration": {
             "default": "20",
@@ -1279,7 +1284,12 @@
             "default": "360",
             "descr": "The maximum number of seconds between dcp messages before a connection is disconnected",
             "dynamic": true,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         },
         "dcp_noop_tx_interval": {
             "default": "0.1",
