@@ -235,8 +235,8 @@ bool CacheTransferTask::run() {
                         .count();
 
         // Reached end of HT
-        stream.logWithContext(
-                spdlog::level::info,
+        OBJ_LOG_INFO_CTX(
+                stream,
                 "CacheTransferTask::run: Reached HT end.",
                 {{"vbid", vbid},
                  {"visited_count", visitedCount},
@@ -298,8 +298,8 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
 void CacheTransferStream::setActive() {
     auto producer = getProducer();
     if (!producer) {
-        logWithContext(
-                spdlog::level::warn,
+        OBJ_LOG_WARN_CTX(
+                *this,
                 "CacheTransferStream::scheduleTask: Producer cannot be locked",
                 {"vbid", getVBucket()});
         return;
@@ -405,31 +405,31 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         const StoredValue& sv, Collections::VB::ReadHandle& readHandle) {
     preQueueCallback(sv);
 
-    const auto debugLogSv = [this](const std::string_view msg,
-                                   const StoredValue& logSv) {
-        if (shouldLog(spdlog::level::debug)) {
-            logWithContext(
-                    spdlog::level::debug, msg, {{"sv", nlohmann::json{logSv}}});
-        }
-    };
-
     // Check if the sv is eligible for transfer.
     // 1. Temporary/Deleted/Pending StoredValues are not eligible.
     if (sv.isTempItem() || sv.isDeleted() || sv.isPending()) {
-        debugLogSv("CacheTransferStream skipping temp/deleted/pending", sv);
+        OBJ_LOG_DEBUG_CTX(*this,
+                          "CacheTransferStream skipping temp/deleted/pending",
+                          {"sv", nlohmann::json{sv}});
         return Status::KeepVisiting;
     }
 
     // 2. Dropped collection items are not eligible.
     if (readHandle.isLogicallyDeleted(sv.getKey(), sv.getBySeqno())) {
-        debugLogSv("CacheTransferStream skipping as in dropped collection", sv);
+        OBJ_LOG_DEBUG_CTX(
+                *this,
+                "CacheTransferStream skipping as in dropped collection",
+                {"sv", nlohmann::json{sv}});
         return Status::KeepVisiting;
     }
 
     // 3. StoredValues with a sequence number greater than the stream's maxSeqno
     // are not eligible.
     if (uint64_t(sv.getBySeqno()) > getMaxSeqno()) {
-        debugLogSv("CacheTransferStream skipping sv with seqno > maxSeqno", sv);
+        OBJ_LOG_DEBUG_CTX(
+                *this,
+                "CacheTransferStream skipping sv with seqno > maxSeqno",
+                {"sv", nlohmann::json{sv}});
         return Status::KeepVisiting;
     }
 
@@ -438,24 +438,32 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     if (includeValue == IncludeValue::Yes) {
         // 4.1 If not resident, it is not eligible.
         if (!sv.isResident()) {
-            debugLogSv("CacheTransferStream skipping non-resident", sv);
+            OBJ_LOG_DEBUG_CTX(*this,
+                              "CacheTransferStream skipping non-resident",
+                              {"sv", nlohmann::json{sv}});
             return Status::KeepVisiting;
         }
 
         // 4.2 If the sv is expired, it is not eligible.
         if (sv.isExpired(ep_real_time())) {
-            debugLogSv("CacheTransferStream skipping expired", sv);
+            OBJ_LOG_DEBUG_CTX(*this,
+                              "CacheTransferStream skipping expired",
+                              {"sv", nlohmann::json{sv}});
             return Status::KeepVisiting;
         }
     }
 
     // If the item is not allowed by the filter, skip it.
     if (!filter.check(sv.getKey())) {
-        debugLogSv("CacheTransferStream skipping as not allowed by filter", sv);
+        OBJ_LOG_DEBUG_CTX(
+                *this,
+                "CacheTransferStream skipping as not allowed by filter",
+                {"sv", nlohmann::json{sv}});
         return Status::KeepVisiting;
     }
 
-    debugLogSv("CacheTransferStream queuing", sv);
+    OBJ_LOG_DEBUG_CTX(
+            *this, "CacheTransferStream queuing", {"sv", nlohmann::json{sv}});
 
     // Generate a MutationResponse. It carries all the required information to
     // transfer the cache. Later we will tweak this so that a DcpMutation isn't
@@ -492,13 +500,31 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     const auto hwm = engine.getEpStats().mem_high_wat.load();
     const auto memoryUsed = getMemoryUsed();
     if (memoryUsed > hwm) {
-        if (shouldLog(spdlog::level::debug)) {
-            logWithContext(spdlog::level::debug,
-                           "CacheTransferStream OOM:",
-                           {{"mem_used", memoryUsed}, {"hwm", hwm}});
-        }
+        OBJ_LOG_DEBUG_CTX(*this,
+                          "CacheTransferStream OOM:",
+                          {{"mem_used", memoryUsed}, {"hwm", hwm}});
         return Status::OOM;
     }
 
     return Status::QueuedItem;
+}
+
+void CacheTransferStream::logWithContext(spdlog::level::level_enum level,
+                                         std::string_view msg,
+                                         cb::logger::Json ctx) const {
+    // Format: {"vb:"vb:X", "sid": "7", ...}
+    auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+    if (sid) {
+        object.insert(object.begin(), {"sid", sid.to_string()});
+    }
+    object.insert(object.begin(), {"vb", getVBucket()});
+
+    auto producer = producerPtr.lock();
+    if (producer) {
+        producer->getLogger().logWithContext(level, msg, std::move(ctx));
+    } else {
+        if (getGlobalBucketLogger()->should_log(level)) {
+            getGlobalBucketLogger()->logWithContext(level, msg, std::move(ctx));
+        }
+    }
 }

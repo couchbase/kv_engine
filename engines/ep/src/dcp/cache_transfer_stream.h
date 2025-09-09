@@ -110,9 +110,7 @@ public:
      */
     void logWithContext(spdlog::level::level_enum level,
                         std::string_view msg,
-                        cb::logger::Json ctx) const override {
-        // @todo: Will be implemented by later changes from MB-64001
-    }
+                        cb::logger::Json ctx) const override;
 
     /**
      * Required method for OBJ_LOG macros.
