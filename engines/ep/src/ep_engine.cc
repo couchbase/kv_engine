@@ -571,6 +571,12 @@ cb::engine_errc EventuallyPersistentEngine::setConfigurationParameter(
     auto rv = cb::engine_errc::success;
 
     try {
+        if (key == "max_size" || key == "cache_size") {
+            size_t vsize = std::stoull(val);
+            kvBucket->processBucketQuotaChange(vsize);
+            return cb::engine_errc::success;
+        }
+
         getConfiguration().parseAndSetParameter(key, val);
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
@@ -614,6 +620,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
     try {
         configuration.requirementsMetOrThrow(key);
 
+        // TODO MB-61655: This can be removed when the local ns_server (same
+        // version) always sets this via config param rather than flush param.
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
             kvBucket->processBucketQuotaChange(vsize);
@@ -821,6 +829,9 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
         break;
     case EngineParamCategory::Vbucket:
         ret = setVbucketParam(vbid, keyz, valz, msg);
+        break;
+    case EngineParamCategory::Config:
+        ret = setConfigurationParameter(keyz, valz, msg);
         break;
     }
 

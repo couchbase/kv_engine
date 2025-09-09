@@ -31,6 +31,8 @@ EngineParamCategory SetParamCommandContext::getParamCategory(Cookie& cookie) {
         return EngineParamCategory::Vbucket;
     case SetParamPayload::Type::Replication:
         Expects(false && "mcbp_validator should reject this group");
+    case SetParamPayload::Type::Config:
+        return EngineParamCategory::Config;
     }
     throw std::invalid_argument(
             "SetParamCommandContext::getParamCategory(): Invalid param "

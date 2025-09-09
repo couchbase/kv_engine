@@ -1454,7 +1454,8 @@ public:
         Replication,
         Checkpoint,
         Dcp,
-        Vbucket
+        Vbucket,
+        Config
     };
 
     Type getParamType() const {
@@ -1476,6 +1477,7 @@ public:
         case Type::Checkpoint:
         case Type::Dcp:
         case Type::Vbucket:
+        case Type::Config:
             return true;
         }
         return false;

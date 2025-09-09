@@ -49,7 +49,7 @@ inline auto format_as(ConnectionPriority cp) {
     return to_string(cp);
 }
 
-enum class EngineParamCategory { Flush, Checkpoint, Dcp, Vbucket };
+enum class EngineParamCategory { Flush, Checkpoint, Dcp, Vbucket, Config };
 
 std::string to_string(const EngineParamCategory epc);
 std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc);

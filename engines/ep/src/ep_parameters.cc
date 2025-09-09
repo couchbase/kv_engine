@@ -200,6 +200,8 @@ bool checkSetParameterCategory(std::string_view key,
         return dcpParamSet.contains(key);
     case EngineParamCategory::Vbucket:
         return vbucketParamSet.contains(key);
+    case EngineParamCategory::Config:
+        return allParamSet.contains(key);
     }
     return false;
 }

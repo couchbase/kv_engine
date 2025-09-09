@@ -107,6 +107,8 @@ std::string to_string(const EngineParamCategory epc) {
         return "DCP";
     case EngineParamCategory::Vbucket:
         return "VBucket";
+    case EngineParamCategory::Config:
+        return "Config";
     }
     throw std::invalid_argument(
             "to_string(EngineParamCategory): Invalid value: " +

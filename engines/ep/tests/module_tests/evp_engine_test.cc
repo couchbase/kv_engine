@@ -348,6 +348,20 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                            "set...Param() method - actually settable via: ["
                         << boost::algorithm::join(handled, ", ") << "]";
             }
+
+            if (engine->setConfigurationParameter(
+                        std::string(key), value, msg) !=
+                cb::engine_errc::success) {
+                // Any parameter settable via the above param methods
+                // should be settable via the setConfigurationParameter method
+                // too.
+                ADD_FAILURE()
+                        << "Dynamic config key \"" << key
+                        << "\" should be settable via "
+                           "setConfigurationParameter() - actually settable "
+                           "via: ["
+                        << boost::algorithm::join(handled, ", ") << "]";
+            }
         }
     });
 }
