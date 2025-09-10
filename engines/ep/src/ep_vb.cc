@@ -960,17 +960,6 @@ void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
     ExecutorPool::get()->schedule(task);
 }
 
-MutationStatus EPVBucket::upsertToHashTable(Item& itm,
-                                            bool eject,
-                                            bool keyMetaDataOnly,
-                                            bool checkMemUsed) {
-    if (checkMemUsed && !hasMemoryForStoredValue(itm)) {
-        return MutationStatus::NoMem;
-    }
-
-    return ht.upsertItem(itm, eject, keyMetaDataOnly, eviction);
-}
-
 void EPVBucket::loadOutstandingPrepares(
         const vbucket_state& vbs,
         std::vector<queued_item>&& outstandingPrepares) {

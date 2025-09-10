@@ -2035,6 +2035,26 @@ public:
         return creationMethod;
     }
 
+    /**
+     * Upsert an item into the VBucket's hash-table, no flush to disk occurs.
+     * If we're trying to insert a partial item we mark it as not-resident
+     *
+     * @param itm Item to insert. itm is not modified. But cannot be passed as
+     *            const because it is passed to functions that can generally
+     *            modify the itm but do not modify it due to the flags passed.
+     * @param eject true if we should eject the value immediately
+     * @param keyMetaDataOnly is this just the key and meta-data or a complete
+     *                        item
+     * @param checkMemUsed true if the insert should check if there's memory
+     *        for the item.
+     *
+     * @return the result of the operation
+     */
+    MutationStatus upsertToHashTable(Item& itm,
+                                     bool eject,
+                                     bool keyMetaDataOnly,
+                                     bool checkMemUsed);
+
 protected:
     /**
      * This function checks for the various states of the value & depending on

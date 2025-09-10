@@ -345,13 +345,39 @@ cb::engine_errc PassiveStream::messageReceived(
     }
     case KVBucket::ReplicationThrottleStatus::Pause: {
         forceMessage(*dcpResponse);
+
         // Don't ack the bytes
         unackedBytes += ufc.release();
+
+        if (isCacheTransferAndFullEviction(*dcpResponse)) {
+            maybeLogCacheTransferOutOfMemory();
+            return cb::engine_errc::no_memory;
+        }
+
         return cb::engine_errc::temporary_failure;
     }
     }
 
     folly::assume_unreachable();
+}
+
+bool PassiveStream::isCacheTransferAndFullEviction(
+        const DcpResponse& resp) const {
+    // Called from the forceMesage path when throttle instructs a pause (memory
+    // pressure). If this is a CachedValue and full eviction then the transfer
+    // should end rather than continue to increase memory pressure. Value
+    // Eviction buckets have no choice but to retry.
+    return resp.getEvent() == DcpResponse::Event::CachedValue &&
+           engine->getKVBucket()->isFullEviction();
+}
+
+void PassiveStream::maybeLogCacheTransferOutOfMemory() {
+    // Log only once as there could be many messages in flight.
+    if (hasLoggedCacheTransferOutOfMemory) {
+        OBJ_LOG_INFO_CTX(
+                *this, "CacheTransfer signalling out of memory", {"vb", vb_});
+        hasLoggedCacheTransferOutOfMemory = true;
+    }
 }
 
 ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
@@ -1371,12 +1397,12 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
                 OBJ_LOG_WARN_CTX(
                         *this,
                         "PassiveStream::processMessage: Got error while trying "
-                        "to process with seqno: cid",
+                        "to process MutationConsumerMessage",
                         {"vb_", vb_},
-                        {"cb::to_stringret", cb::to_string(ret)},
-                        {"resp-to_string", resp->to_string()},
+                        {"ret", cb::to_string(ret)},
+                        {"resp", resp->to_string()},
                         {"*seqno", *seqno},
-                        {"collection_i_d",
+                        {"collection_id",
                          mutation->getItem()->getKey().getCollectionID()});
             }
         }
@@ -1441,14 +1467,39 @@ cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
         return cb::engine_errc::not_my_vbucket;
     }
 
-    engine->getEpStats().cacheTransferBytesRead += resp.getItem()->size();
-
-    vb->ht.upsertItem(
+    // Upsert the item with no memory check.
+    // DCP should only be progressing forwards with messages when memory is
+    // available (see the normal mutation path for equivalent where
+    // EnforceMemCheck is No)
+    const auto status = vb->upsertToHashTable(
             *resp.getItem(),
-            /*eject*/ false,
-            /*keyMetaDataOnly*/ resp.getEvent() ==
-                    DcpResponse::Event::CachedKeyMeta,
-            /*evictionPolicy*/ engine->getKVBucket()->getItemEvictionPolicy());
+            false,
+            resp.getEvent() == DcpResponse::Event::CachedKeyMeta,
+            false);
+
+    switch (status) {
+    case MutationStatus::InvalidCas:
+        // CacheTransfer hit a clash... cancel and switch to regular streaming.
+        return cb::engine_errc::cancelled;
+    case MutationStatus::NotFound:
+        // This is a success case, so we can increment the cache transfer bytes
+        // read.
+        engine->getEpStats().cacheTransferBytesRead += resp.getItem()->size();
+        break;
+    case MutationStatus::NoMem:
+    case MutationStatus::WasClean:
+    case MutationStatus::WasDirty:
+    case MutationStatus::IsLocked:
+    case MutationStatus::NeedBgFetch:
+    case MutationStatus::IsPendingSyncWrite:
+        OBJ_LOG_WARN_CTX(
+                *this,
+                "PassiveStream::processCachedValue: invalid MutationStatus "
+                "returned by Vbucket::upsertToHashTable",
+                {"vb", vb_},
+                {"status", ::to_string(status)});
+        return cb::engine_errc::disconnect;
+    }
 
     return cb::engine_errc::success;
 }

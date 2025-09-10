@@ -37,8 +37,12 @@
  */
 class CacheTransferHashTableVisitor : public HashTableVisitor {
 public:
-    CacheTransferHashTableVisitor(std::shared_ptr<CacheTransferStream> stream)
-        : weakStream(std::move(stream)) {
+    CacheTransferHashTableVisitor(std::shared_ptr<CacheTransferStream> stream,
+                                  const Configuration& config)
+        : weakStream(std::move(stream)),
+          visitDurationMs(std::chrono::milliseconds(
+                  config.getDcpCacheTransferVisitDurationMs())),
+          oneVisitPerStep(config.isDcpCacheTransferOneVisitPerStep()) {
     }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
@@ -97,6 +101,8 @@ private:
     // For collection drop check. The readHandle is only valid during the run
     // and is acquired/released by setUpHashTableVisit/tearDownHashTableVisit
     Collections::VB::ReadHandle readHandle;
+    const std::chrono::milliseconds visitDurationMs;
+    const bool oneVisitPerStep{false};
 };
 
 class CacheTransferTask : public EpTask {
@@ -107,7 +113,7 @@ public:
                       std::string_view descriptionDetail)
         : EpTask(e, TaskId::CacheTransferTask),
           vbid(vbid),
-          visitor(std::move(stream)),
+          visitor(std::move(stream), e.getConfiguration()),
           descriptionDetail(descriptionDetail),
           startTime(cb::time::steady_clock::now()) {
     }
@@ -148,6 +154,9 @@ bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
         ++queuedCount;
         [[fallthrough]];
     case CacheTransferStream::Status::KeepVisiting:
+        if (oneVisitPerStep) {
+            return false;
+        }
         return progressTracker.shouldContinueVisiting(visitedCount);
     }
 
@@ -168,7 +177,7 @@ bool CacheTransferHashTableVisitor::setUpHashTableVisit(VBucket& vb) {
     queuedCount = 0;
     visitedCount = 0;
     progressTracker.setDeadline(cb::time::steady_clock::now() +
-                                std::chrono::milliseconds(25));
+                                visitDurationMs);
     return true;
 }
 
@@ -347,6 +356,29 @@ void CacheTransferStream::setDeadWithLock(
     if (status != cb::mcbp::DcpStreamEndStatus::Disconnected) {
         notifyStreamReady();
     }
+}
+
+void CacheTransferStream::cancelTransfer() {
+    size_t bytes = 0;
+    bool logMessage = false;
+    {
+        // Read stream state and determine if we should log a message.
+        std::lock_guard<std::mutex> lh(streamMutex);
+        bytes = totalBytesQueued;
+        // Log only on transition from Active. There could be many in-flight
+        // messages triggering the cancel. setDead will change the state of this
+        // stream to be !Active.
+        logMessage = state == State::Active;
+    }
+    if (logMessage) {
+        OBJ_LOG_INFO_CTX(
+                *this,
+                "CacheTransferStream::cancelTransfer: Cancelling transfer",
+                {"vbid", getVBucket()},
+                {"total_bytes_queued", bytes});
+    }
+    // setDead may next switch over to an ActiveStream.
+    setDead(cb::mcbp::DcpStreamEndStatus::Ok);
 }
 
 void CacheTransferStream::addTakeoverStats(const AddStatFn& add_stat,

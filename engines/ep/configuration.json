@@ -1289,6 +1289,18 @@
             "dynamic": true,
             "type": "bool"
         },
+        "dcp_cache_transfer_one_visit_per_step": {
+            "default": "false",
+            "descr": "Set to false for simpler unit-testing. When true CacheTransferTask to visit the hash table many times per step, when false one item per task step",
+            "dynamic": true,
+            "type": "bool"
+        },
+        "dcp_cache_transfer_visit_duration_ms": {
+            "default": "25",
+            "descr": "The upper bound in milliseconds for the CacheTransferTask hash table visitor",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_checkpoint_dequeue_limit": {
             "default": "std::numeric_limits<size_t>::max()",
             "descr": "The limit given to CheckpointManager::getNextItemsForDcp by ActiveStream",

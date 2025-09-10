@@ -170,6 +170,8 @@ static const std::unordered_set<std::string_view> dcpParamSet{
         "dcp_backfill_idle_disk_threshold",
         "dcp_checkpoint_dequeue_limit",
         "dcp_cache_transfer_enabled",
+        "dcp_cache_transfer_one_visit_per_step",
+        "dcp_cache_transfer_visit_duration_ms",
 };
 
 static const std::unordered_set<std::string_view> vbucketParamSet{

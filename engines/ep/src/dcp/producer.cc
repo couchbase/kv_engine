@@ -1745,6 +1745,21 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
             return true;
         }
         return errorMessageHandler();
+    case cb::mcbp::ClientOpcode::DcpCachedValue:
+        if (responseStatus == cb::mcbp::Status::Enomem) {
+            // A PassiveStream which has no memory available for the transfer
+            auto stream = find_if2(streamFindFn);
+            if (stream) {
+                // But only expect these responses for CacheTransferStream
+                auto* cts = dynamic_cast<CacheTransferStream*>(stream.get());
+                if (cts) {
+                    cts->cancelTransfer();
+                }
+                // We could be getting Enomem from many in-flight messages.
+                // If there is no cts available, that's ok.
+                return true;
+            }
+        }
     case cb::mcbp::ClientOpcode::DcpOpen:
     case cb::mcbp::ClientOpcode::DcpAddStream:
     case cb::mcbp::ClientOpcode::DcpCloseStream:
@@ -1760,7 +1775,6 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpPrepare:
     case cb::mcbp::ClientOpcode::DcpCommit:
     case cb::mcbp::ClientOpcode::DcpAbort:
-    case cb::mcbp::ClientOpcode::DcpCachedValue:
     case cb::mcbp::ClientOpcode::DcpCachedKeyMeta:
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;

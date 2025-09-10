@@ -48,6 +48,12 @@ public:
 
     void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
+    /**
+     * Cancel the transfer. This will stop this transfer and begin the switch to
+     * an ActiveStream.
+     */
+    void cancelTransfer();
+
     std::string getStreamTypeName() const override;
 
     std::string getStateName() const override;
