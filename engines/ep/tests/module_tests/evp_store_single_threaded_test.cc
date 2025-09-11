@@ -6480,7 +6480,27 @@ TEST_P(STParamPersistentBucketTest,
 
     store->releaseBlockedCookies();
 
-    EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
+    EXPECT_EQ(cb::engine_errc::cancelled, mock_waitfor_cookie(cookie));
+}
+
+TEST_P(STParamPersistentBucketTest,
+       PendingCompactionCookieNotifiedOnDeleteVBucket) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        epBucket->scheduleCompaction(
+                vbid, config, cookie, std::chrono::milliseconds(0));
+    }
+
+    store->deleteVBucket(vbid, cookie);
+
+    // MB-68407: Before the fix the mock_waitfor_cookie() call blocks forever
+    // as the delVB path misses to notify the cookie when the compaction is
+    // cancelled
+    EXPECT_EQ(cb::engine_errc::cancelled, mock_waitfor_cookie(cookie));
 }
 
 TEST_P(STParameterizedBucketTest, DcpStartFromLatestSeqno) {

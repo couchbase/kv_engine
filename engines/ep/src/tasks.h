@@ -148,6 +148,12 @@ public:
      */
     std::vector<CookieIface*> takeCookies();
 
+    /**
+     * Cancels this task by marking it dead and notifies any cookie blocked on
+     * this compaction.
+     */
+    void cancel() override;
+
 private:
     /**
      * Check if the requested start time of the current config has been reached,

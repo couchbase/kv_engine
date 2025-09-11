@@ -2830,7 +2830,7 @@ void EPBucket::releaseBlockedCookies() {
             // The status doesn't really matter here, it gets returned as
             // success if we are completing a blocked request but it feels wrong
             // to return success here.
-            engine.notifyIOComplete(cookie, cb::engine_errc::failed);
+            engine.notifyIOComplete(cookie, cb::engine_errc::cancelled);
         }
     }
 }
