@@ -453,35 +453,20 @@ void worker_threads_init() {
 }
 
 void threads_shutdown() {
-    // Notify all the threads and let them shut down
     for (auto& thread : threads) {
-        thread.eventBase.runInEventBaseThread([&thread]() {
-            if (thread.signal_idle_clients(false) == 0) {
-                LOG_INFO_CTX("Stopping worker thread", {"index", thread.index});
-                thread.eventBase.terminateLoopSoon();
-            }
-        });
-    }
-
-    // Wait for all of them to complete
-    for (auto& thread : threads) {
-        // When using bufferevents we need to run a few iterations here.
-        // Calling signalIfIdle won't run the event immediately, but when
-        // the control goes back to libevent. That means that some of the
-        // connections could be "stuck" for another round in the event loop.
-        while (thread.running) {
-            thread.eventBase.runInEventBaseThread([&thread]() {
-                if (thread.signal_idle_clients(false) == 0) {
-                    LOG_INFO_CTX("Stopping worker thread",
-                                 {"index", thread.index});
-                    thread.eventBase.terminateLoopSoon();
-                }
-            });
-            std::this_thread::sleep_for(std::chrono::microseconds(250));
-        }
+        LOG_INFO_CTX("Stopping worker thread", {"index", thread.index});
+        thread.eventBase.terminateLoopSoon();
         thread.thread.join();
     }
+
+    // Finally let all event base loops drain all pending functions
+    // scheduled in its event notification queue (if any)
+    for (auto& thread : threads) {
+        thread.eventBase.loop();
+    }
+    LOG_INFO_RAW("All worker threads stopped");
     threads.clear();
+    LOG_INFO_RAW("Released worker thread resources");
 }
 
 AuditEventFilter* FrontEndThread::getAuditEventFilter() {
