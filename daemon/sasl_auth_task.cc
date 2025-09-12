@@ -71,6 +71,13 @@ void SaslAuthTask::externalResponse(Status status,
             additionalAuditInformation = json["audit_props"];
         }
 
+        if (externalAuthManager->isLoggingEnabled()) {
+            LOG_INFO_CTX("External auth response",
+                         {"conn_id", cookie.getConnectionId()},
+                         {"status", status},
+                         {"payload", json});
+        }
+
         if (status == Status::Success) {
             successfull_external_auth(json);
         } else {

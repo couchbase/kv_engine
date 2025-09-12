@@ -12,6 +12,7 @@
 
 #include "connection.h"
 #include "cookie.h"
+#include "external_auth_manager_thread.h"
 #include "settings.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
@@ -140,6 +141,15 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
                     cookie, request.second, value, datatype);
         case cb::ioctl::Id::TraceDumpGet:
             return ioctlGetTraceDump(cookie, request.second, value, datatype);
+
+        case cb::ioctl::Id::ExternalAuthLogging:
+            if (externalAuthManager) {
+                value = externalAuthManager->isLoggingEnabled() ? "true"
+                                                                : "false";
+                datatype = cb::mcbp::Datatype::JSON;
+                return cb::engine_errc::success;
+            }
+            return cb::engine_errc::not_supported;
 
         case cb::ioctl::Id::JemallocProfActive: // may only be used with Set
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
@@ -289,6 +299,19 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
             return ioctlSetTracingStop(cookie, request.second, value);
         case cb::ioctl::Id::TraceDumpClear:
             return ioctlSetTracingClearDump(cookie, request.second, value);
+
+        case cb::ioctl::Id::ExternalAuthLogging:
+            if (externalAuthManager) {
+                if (value == "true") {
+                    externalAuthManager->setLoggingEnabled(true);
+                } else if (value == "false") {
+                    externalAuthManager->setLoggingEnabled(false);
+                } else {
+                    return cb::engine_errc::invalid_arguments;
+                }
+                return cb::engine_errc::success;
+            }
+            return cb::engine_errc::not_supported;
 
         case cb::ioctl::Id::TraceDumpBegin: // may only be used with Get
         case cb::ioctl::Id::TraceDumpGet: // may only be used with Get

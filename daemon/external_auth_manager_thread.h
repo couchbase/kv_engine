@@ -128,6 +128,14 @@ public:
 
     void addStats(const StatCollector& collector) const;
 
+    bool isLoggingEnabled() const {
+        return loggingEnabled.load();
+    }
+
+    void setLoggingEnabled(bool enabled) {
+        loggingEnabled.store(enabled);
+    }
+
 protected:
     /// The main loop of the thread
     void run() override;
@@ -298,6 +306,8 @@ protected:
      * number of seconds instead.
      */
     std::atomic<uint64_t> rbacCacheEpoch{{}};
+
+    std::atomic_bool loggingEnabled{false};
 };
 
 extern std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;

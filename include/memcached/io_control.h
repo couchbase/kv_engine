@@ -33,6 +33,7 @@ enum class Id {
     TraceStart,
     TraceStatus,
     TraceStop,
+    ExternalAuthLogging,
     enum_max
 };
 

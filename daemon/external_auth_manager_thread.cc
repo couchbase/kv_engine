@@ -10,6 +10,7 @@
 #include "external_auth_manager_thread.h"
 
 #include "connection.h"
+#include "cookie.h"
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
 #include "platform/timeutils.h"
@@ -233,6 +234,13 @@ void ExternalAuthManagerThread::processRequestQueue() {
             json["authentication-only"] =
                     haveRbacEntryForUser(saslTask->getUsername());
             auto payload = json.dump();
+            if (isLoggingEnabled()) {
+                LOG_INFO_CTX(
+                        "External auth request",
+                        {"conn_id", saslTask->getCookie().getConnectionId()},
+                        {"payload", json});
+            }
+
             provider->getThread().eventBase.runInEventBaseThread(
                     [provider, id = next, p = std::move(payload)]() {
                         const size_t needed =

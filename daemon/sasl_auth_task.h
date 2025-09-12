@@ -70,6 +70,10 @@ public:
         return additionalAuditInformation;
     }
 
+    const auto& getCookie() const {
+        return cookie;
+    }
+
 protected:
     void successfull_external_auth(const nlohmann::json& json);
     void unsuccessfull_external_auth(cb::mcbp::Status status,
