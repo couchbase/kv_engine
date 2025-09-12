@@ -206,4 +206,5 @@ constexpr std::string_view FlatBuffersSystemEvents =
 constexpr std::string_view ChangeStreams = "change_streams"sv;
 constexpr std::string_view EnableSyncWrites = "enable_sync_writes"sv;
 constexpr std::string_view SnapshotMaxMarkerVersion = "max_marker_version"sv;
+constexpr std::string_view CacheTransfer = "cache_transfer"sv;
 } // namespace DcpControlKeys

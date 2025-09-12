@@ -212,6 +212,10 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     if (engine.getDcpConsumerMaxMarkerVersion() >= 2.2) {
         controls->emplace_back(DcpControlKeys::SnapshotMaxMarkerVersion, "2.2");
     }
+
+    controls->emplace_back(DcpControlKeys::CacheTransfer, "true", [this]() {
+        cacheTransfer = true;
+    });
 }
 
 DcpConsumer::~DcpConsumer() {

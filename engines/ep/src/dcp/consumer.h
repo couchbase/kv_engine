@@ -386,6 +386,13 @@ public:
      */
     void addBufferSizeControl(size_t bufferSize);
 
+    /**
+     * @return true if our producer supports cache transfer.
+     */
+    bool isCacheTransferAvailable() const {
+        return cacheTransfer;
+    }
+
 protected:
     /**
      * Records when the consumer last received a message from producer.
@@ -619,6 +626,10 @@ protected:
     // Flag to state that the DCP consumer has negotiated with the producer
     // that V7 DCP status codes can be used.
     bool useDcpV7StatusCodes = false;
+
+    // True if the DCP consumer has negotiated with the producer that cache
+    // transfer is available.
+    bool cacheTransfer = false;
 
     // Sync Replication: The identifier the consumer should to identify itself
     // to the producer.

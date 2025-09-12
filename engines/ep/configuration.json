@@ -1216,6 +1216,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "dcp_cache_transfer_enabled": {
+            "default": "true",
+            "descr": "Does the producer support a cache transfer?",
+            "dynamic": true,
+            "type": "bool"
+        },
         "dcp_checkpoint_dequeue_limit": {
             "default": "std::numeric_limits<size_t>::max()",
             "descr": "The limit given to CheckpointManager::getNextItemsForDcp by ActiveStream",

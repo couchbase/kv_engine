@@ -3153,6 +3153,7 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
     dcpStepAndExpectControlMsg(DcpControlKeys::FlatBuffersSystemEvents);
     dcpStepAndExpectControlMsg(DcpControlKeys::ChangeStreams);
     dcpStepAndExpectControlMsg(DcpControlKeys::SnapshotMaxMarkerVersion);
+    dcpStepAndExpectControlMsg(DcpControlKeys::CacheTransfer);
     if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
         dcpStepAndExpectControlMsg(DcpControlKeys::ConnectionBufferSize);
     }

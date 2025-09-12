@@ -1331,6 +1331,24 @@ TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerFails) {
                            });
 }
 
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesCacheTransfer) {
+    testConsumerNegotiates(cb::mcbp::Status::Success,
+                           DcpControlKeys::CacheTransfer,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return consumer.isCacheTransferAvailable();
+                           });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesCacheTransferProducerDisabled) {
+    testConsumerNegotiates(cb::mcbp::Status::NotSupported,
+                           DcpControlKeys::CacheTransfer,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return !consumer.isCacheTransferAvailable();
+                           });
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
                          STParameterizedBucketTest::allConfigValues());

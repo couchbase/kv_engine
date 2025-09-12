@@ -78,6 +78,13 @@ Collections must be enabled to use the 2.2 marker feature.
 Note that the only value is "2.2", but the server can send 1.0 (by default) and
 2.0 if sync-replication is enabled (which has a different enablement path).
 
+* `cache_transfer` = true|false - Discover if the Producer supports and has
+enabled the cache transfer feature. Only the presence of this key matters, the
+value doesn't have any effect on enable/disable. If this control returns success
+then the consumer use the CacheTransfer flag on a stream-request. The producer can
+still choose to ignore the request, but there will be no protocol validation
+failure.
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

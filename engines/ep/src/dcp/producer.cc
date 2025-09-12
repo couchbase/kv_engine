@@ -448,7 +448,8 @@ std::shared_ptr<ProducerStream> DcpProducer::makeStream(
         StreamRequestInfo& req,
         VBucket& vb,
         Collections::VB::Filter filter) {
-    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer) &&
+        engine_.getConfiguration().isDcpCacheTransferEnabled()) {
         return std::make_shared<CacheTransferStream>(
                 shared_from_base<DcpProducer>(),
                 getName(),
@@ -1545,6 +1546,11 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         }
         maxMarkerVersion = MarkerVersion::V2_2;
         return cb::engine_errc::success;
+    } else if (key == DcpControlKeys::CacheTransfer) {
+        // Check the switch to determine if this is permitted
+        return engine_.getConfiguration().isDcpCacheTransferEnabled()
+                       ? cb::engine_errc::success
+                       : cb::engine_errc::not_supported;
     }
 
     OBJ_LOG_WARN_CTX(
