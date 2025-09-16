@@ -691,8 +691,6 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.contains("createdAt"));
     EXPECT_NE(0, json["createdAt"]);
-    ASSERT_TRUE(json.contains("logFiles"));
-    ASSERT_TRUE(json["logFiles"].is_array());
     ASSERT_TRUE(json.contains("logManifestName"));
     ASSERT_TRUE(json.contains("snapshotUUID"));
     EXPECT_EQ(snapshotUuid, json["snapshotUUID"].get<std::string>());

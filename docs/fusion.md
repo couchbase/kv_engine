@@ -122,10 +122,6 @@ following keys:
   * `"createdAt"`
   * Timestamp, in milliseconds
 
-* Log files related to the snapshot
-  * `"logFiles"`
-  * Timestamp, in milliseconds
-
 * Log manifest name
   * `"logManifestName"`
   * String
