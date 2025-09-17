@@ -4983,83 +4983,6 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats(CookieIface& cookie,
-                                                 const AddStatFn& add_stat,
-                                                 const VBucketPtr& vb) {
-    // MB-19359: An atomic read of vbucket state without acquiring the
-    // reader lock for state should suffice here.
-    uint64_t relHighSeqno = vb->getHighSeqno();
-    if (vb->getState() != vbucket_state_active) {
-        snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-        relHighSeqno = info.range.getEnd();
-    }
-
-    try {
-        std::array<char, 64> buffer;
-        failover_entry_t entry = vb->failovers->getLatestEntry();
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:high_seqno",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(), relHighSeqno, add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:abs_high_seqno",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(), vb->getHighSeqno(), add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_seqno",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(),
-                        vb->getPublicPersistenceSeqno(),
-                        add_stat,
-                        cookie);
-        checked_snprintf(
-                buffer.data(), buffer.size(), "vb_%d:uuid", vb->getId().get());
-        add_casted_stat(buffer.data(), entry.vb_uuid, add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:purge_seqno",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(), vb->getPurgeSeqno(), add_stat, cookie);
-        const snapshot_range_t range = vb->getPersistedSnapshot();
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_snap_start",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(), range.getStart(), add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_snap_end",
-                         vb->getId().get());
-        add_casted_stat(buffer.data(), range.getEnd(), add_stat, cookie);
-
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:high_prepared_seqno",
-                         vb->getId().get());
-        add_casted_stat(
-                buffer.data(), vb->getHighPreparedSeqno(), add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:high_completed_seqno",
-                         vb->getId().get());
-        add_casted_stat(
-                buffer.data(), vb->getHighCompletedSeqno(), add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:max_visible_seqno",
-                         vb->getId().get());
-        add_casted_stat(
-                buffer.data(), vb->getMaxVisibleSeqno(), add_stat, cookie);
-
-    } catch (std::exception& error) {
-        EP_LOG_WARN_CTX("addSeqnoVbStats: error building stats",
-                        {"error", error.what()});
-    }
-}
-
 void EventuallyPersistentEngine::addLookupResult(CookieIface& cookie,
                                                  std::unique_ptr<Item> result) {
     auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
@@ -5124,7 +5047,7 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
         if (vb->getState() == vbucket_state_dead) {
             return cb::engine_errc::not_my_vbucket;
         }
-        addSeqnoVbStats(cookie, add_stat, vb);
+        vb->doSeqnoStats(add_stat, cookie);
         return cb::engine_errc::success;
     }
 
@@ -5132,7 +5055,7 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
     for (auto vbid : vbuckets) {
         VBucketPtr vb = getVBucket(vbid);
         if (vb) {
-            addSeqnoVbStats(cookie, add_stat, vb);
+            vb->doSeqnoStats(add_stat, cookie);
         }
     }
     return cb::engine_errc::success;

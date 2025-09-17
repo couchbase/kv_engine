@@ -958,9 +958,9 @@ protected:
 
 DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
     EXPECT_TRUE(vb);
-    preHPS = vb->getHighPreparedSeqno();
+    preHPS = vb->acquireStateLockAndGetHighPreparedSeqno();
     EXPECT_EQ(preHPS, vb->getPersistedHighPreparedSeqno());
-    preHCS = vb->getHighCompletedSeqno();
+    preHCS = vb->acquireStateLockAndGetHighCompletedSeqno();
 }
 
 DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
@@ -968,14 +968,14 @@ DurabilityWarmupTest::PrePostStateChecker::~PrePostStateChecker() {
         return;
     }
 
-    EXPECT_EQ(preHPS, vb->getHighPreparedSeqno())
+    EXPECT_EQ(preHPS, vb->acquireStateLockAndGetHighPreparedSeqno())
             << "PrePostStateChecker: Found that post warmup the HPS does not "
                "match the pre-warmup value";
     EXPECT_EQ(preHPS, vb->getPersistedHighPreparedSeqno())
             << "PrePostStateChecker: Found that post warmup the HPS does not "
                "match the pre-warmup value";
     // CM HPS is initialised from PPS.
-    EXPECT_EQ(preHCS, vb->getHighCompletedSeqno())
+    EXPECT_EQ(preHCS, vb->acquireStateLockAndGetHighCompletedSeqno())
             << "PrePostStateChecker: Found that post warmup the HCS does not "
                "match the pre-warmup value";
 }
@@ -1847,13 +1847,17 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
 
     // Persist the Prepare and vbstate.
     flush_vbucket_to_disk(vbid);
-    auto hps1 = engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno();
+    auto hps1 = engine->getKVBucket()
+                        ->getVBucket(vbid)
+                        ->acquireStateLockAndGetHighPreparedSeqno();
     vb.reset();
     resetEngineAndWarmup();
 
     // Check hps matches the pre-warmup value
     EXPECT_EQ(hps1,
-              engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->acquireStateLockAndGetHighPreparedSeqno());
     EXPECT_EQ(hps1,
               engine->getKVBucket()
                       ->getVBucket(vbid)
@@ -1897,9 +1901,13 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // HCS must have been loaded from vbstate from disk
     checkHCS(preparedSeqno);
     EXPECT_EQ(preparedSeqno,
-              engine->getKVBucket()->getVBucket(vbid)->getHighCompletedSeqno());
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->acquireStateLockAndGetHighCompletedSeqno());
     EXPECT_EQ(preparedSeqno,
-              engine->getKVBucket()->getVBucket(vbid)->getHighPreparedSeqno());
+              engine->getKVBucket()
+                      ->getVBucket(vbid)
+                      ->acquireStateLockAndGetHighPreparedSeqno());
     EXPECT_EQ(preparedSeqno,
               engine->getKVBucket()
                       ->getVBucket(vbid)

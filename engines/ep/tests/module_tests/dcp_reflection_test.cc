@@ -1552,12 +1552,12 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForPendingItems(
     route0_1.transferMutation(k4, 4);
 
     if (isPersistent()) {
-        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(0, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     } else {
         if (markerVersion == MarkerVersion::V2_2) {
-            EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+            EXPECT_EQ(2, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         } else {
-            EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+            EXPECT_EQ(4, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         }
     }
 
@@ -1582,10 +1582,10 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForPendingItems(
     // HPS is not present in v2.0 marker & the HPS is set to the snapEnd.
     // Check the PDM and the persisted HPS.
     if (markerVersion == MarkerVersion::V2_0) {
-        EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(4, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(4, replicaVB->getPersistedHighPreparedSeqno());
     } else {
-        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(2, replicaVB->getPersistedHighPreparedSeqno());
     }
 }
@@ -1674,7 +1674,7 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForCommittedItems(
                           public_getLastReceivedSnapshotHPS(
                                   dynamic_cast<const PassiveDurabilityMonitor&>(
                                           replicaVB->getDurabilityMonitor())));
-        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(0, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         // Persist the mutations on replica, the HPS will be updated to 5,
         // before the fix for MB-51689.
         flushNodeIfPersistent(Node1);
@@ -1683,10 +1683,10 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForCommittedItems(
     }
 
     if (markerVersion == MarkerVersion::V2_0) {
-        EXPECT_EQ(5, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(5, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(5, replicaVB->getPersistedHighPreparedSeqno());
     } else {
-        EXPECT_EQ(2, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(2, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(2, replicaVB->getPersistedHighPreparedSeqno());
     }
 }
@@ -1748,10 +1748,10 @@ void DCPLoopbackStreamTest::HPSUpdatedOnReplica_ForMutations(
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
 
     if (markerVersion == MarkerVersion::V2_0) {
-        EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(3, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
     } else {
-        EXPECT_EQ(0, replicaVB->getHighPreparedSeqno());
+        EXPECT_EQ(0, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
         EXPECT_EQ(0, replicaVB->getPersistedHighPreparedSeqno());
     }
 }
@@ -1808,7 +1808,7 @@ TEST_P(DCPLoopbackStreamTest,
     flushNodeIfPersistent(Node1);
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(3, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
 
     route0_1.destroy();
     activeVb->checkpointManager->clear();
@@ -1850,7 +1850,7 @@ TEST_P(DCPLoopbackStreamTest,
 
     EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
     // Make sure the flusher has actually run & the hps is updated.
-    EXPECT_EQ(6, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(6, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
 }
 
 TEST_P(DCPLoopbackStreamTest,
@@ -1895,7 +1895,7 @@ TEST_P(DCPLoopbackStreamTest,
     flushNodeIfPersistent(Node1);
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(4, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(4, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
 
     route0_1.destroy();
     activeVb->checkpointManager->clear();
@@ -1939,7 +1939,7 @@ TEST_P(DCPLoopbackStreamTest,
     EXPECT_NO_THROW(flushNodeIfPersistent(Node1));
     // The hps in the snapshot marker is not in the snapshot range, therefore
     // the HPS should be updated to the snapEnd.
-    EXPECT_EQ(7, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(7, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
 }
 
 void DCPLoopbackStreamTest::HpsSentForInMemoryDiskSnapshot(
@@ -1995,7 +1995,8 @@ void DCPLoopbackStreamTest::HpsSentForInMemoryDiskSnapshot(
             initialMarkerVersion == MarkerVersion::V2_2 ? 2 : 4;
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(replicaExpectedHps, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(replicaExpectedHps,
+              replicaVB->acquireStateLockAndGetHighPreparedSeqno());
 
     // Tear down streams and promote replica to active.
     route0_1.destroy();
@@ -2027,7 +2028,8 @@ void DCPLoopbackStreamTest::HpsSentForInMemoryDiskSnapshot(
 
     auto replicaVB2 = engines[Node2]->getKVBucket()->getVBucket(vbid);
 
-    ASSERT_EQ(replicaExpectedHps, replicaVB2->getHighPreparedSeqno());
+    ASSERT_EQ(replicaExpectedHps,
+              replicaVB2->acquireStateLockAndGetHighPreparedSeqno());
 }
 
 TEST_P(DCPLoopbackStreamTest,
@@ -2107,7 +2109,7 @@ TEST_P(DCPLoopbackStreamTest,
                 ->persistedPreparedSeqno;
     };
 
-    ASSERT_EQ(3, replicaVB->getHighPreparedSeqno());
+    ASSERT_EQ(3, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     if (isPersistent()) {
         ASSERT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
         ASSERT_EQ(6, getPersistedPreparedSeqno());
@@ -2127,7 +2129,7 @@ TEST_P(DCPLoopbackStreamTest,
 
     // Run the flusher on the new active, none of the prepare seqno (HPS or PPS)
     // should change
-    ASSERT_EQ(3, replicaVB->getHighPreparedSeqno());
+    ASSERT_EQ(3, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     if (isPersistent()) {
         ASSERT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
     } else {
@@ -2145,7 +2147,7 @@ TEST_P(DCPLoopbackStreamTest,
                 ->persistedPreparedSeqno;
     };
 
-    ASSERT_EQ(3, newActiveVB->getHighPreparedSeqno());
+    ASSERT_EQ(3, newActiveVB->acquireStateLockAndGetHighPreparedSeqno());
     if (isPersistent()) {
         ASSERT_EQ(3, newActiveVB->getPersistedHighPreparedSeqno());
         ASSERT_EQ(6, getPersistedPreparedSeqnoNewActive());
@@ -2582,7 +2584,7 @@ TEST_P(DCPRollbackTest, CheckHPSPostRollback) {
 
     // Node2 has processed the entire snapshot, so the HPS should be 6
     auto replicaVB = engines[Node2]->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(6, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(6, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     EXPECT_EQ(6, replicaVB->getPersistedHighPreparedSeqno());
 
     // Clear checkpoints on node1
@@ -2611,7 +2613,7 @@ TEST_P(DCPRollbackTest, CheckHPSPostRollback) {
 
     // We have rolled back the entire last snapshot [4, 6] - the HPS should have
     // moved back to 3
-    EXPECT_EQ(3, replicaVB->getHighPreparedSeqno());
+    EXPECT_EQ(3, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     EXPECT_EQ(3, replicaVB->getPersistedHighPreparedSeqno());
 }
 

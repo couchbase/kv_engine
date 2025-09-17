@@ -340,14 +340,26 @@ int64_t VBucket::getHighSeqno() const {
     return checkpointManager->getHighSeqno();
 }
 
-int64_t VBucket::getHighPreparedSeqno() const {
+int64_t VBucket::acquireStateLockAndGetHighPreparedSeqno() const {
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
+    return getHighPreparedSeqno(lh);
+}
+
+int64_t VBucket::acquireStateLockAndGetHighCompletedSeqno() const {
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
+    return getHighCompletedSeqno(lh);
+}
+
+int64_t VBucket::getHighPreparedSeqno(VBucketStateLockRef lh) const {
     if (!durabilityMonitor) {
         return -1;
     }
     return durabilityMonitor->getHighPreparedSeqno();
 }
 
-int64_t VBucket::getHighCompletedSeqno() const {
+int64_t VBucket::getHighCompletedSeqno(VBucketStateLockRef lh) const {
     if (!durabilityMonitor) {
         return -1;
     }
@@ -1044,8 +1056,8 @@ cb::engine_errc VBucket::commit(
                 isReceivingDiskSnapshot(),
                 checkpointManager->getSnapshotInfo(),
                 getHighSeqno(),
-                getHighPreparedSeqno(),
-                getHighCompletedSeqno());
+                getHighPreparedSeqno(vbStateLock),
+                getHighCompletedSeqno(vbStateLock));
         return cb::engine_errc::no_such_key;
     }
 
@@ -3382,23 +3394,38 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
 
-        addStat("high_completed_seqno", getHighCompletedSeqno(), add_stat, c);
+        // We can read a number of durability stats in one lock acquistion
+        int64_t highCompletedSeqno = -1;
+        size_t syncWriteAcceptedCount = 0;
+        size_t syncWriteCommittedCount = 0;
+        size_t syncWriteCommittedNotDurableCount = 0;
+        size_t syncWriteAbortedCount = 0;
+        {
+            std::shared_lock<folly::SharedMutex> lh(
+                    const_cast<folly::SharedMutex&>(stateLock));
+            if (durabilityMonitor) {
+                highCompletedSeqno = durabilityMonitor->getHighCompletedSeqno();
+                syncWriteAcceptedCount = durabilityMonitor->getNumAccepted();
+                syncWriteCommittedCount = durabilityMonitor->getNumCommitted();
+                syncWriteCommittedNotDurableCount =
+                        durabilityMonitor->getNumCommittedNotDurable();
+                syncWriteAbortedCount = durabilityMonitor->getNumAborted();
+            }
+        }
+        addStat("high_completed_seqno", highCompletedSeqno, add_stat, c);
         addStat("sync_write_accepted_count",
-                getSyncWriteAcceptedCount(),
+                syncWriteAcceptedCount,
                 add_stat,
                 c);
         addStat("sync_write_committed_count",
-                getSyncWriteCommittedCount(),
+                syncWriteCommittedCount,
                 add_stat,
                 c);
         addStat("sync_write_committed_not_durable_count",
-                getSyncWriteCommittedNotDurableCount(),
+                syncWriteCommittedNotDurableCount,
                 add_stat,
                 c);
-        addStat("sync_write_aborted_count",
-                getSyncWriteAbortedCount(),
-                add_stat,
-                c);
+        addStat("sync_write_aborted_count", syncWriteAbortedCount, add_stat, c);
         addStat("max_visible_seqno",
                 checkpointManager->getMaxVisibleSeqno(),
                 add_stat,
@@ -3410,7 +3437,10 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
     case VBucketStatsDetailLevel::Durability:
         addStat("high_seqno", getHighSeqno(), add_stat, c);
         addStat("topology", getReplicationTopology(), add_stat, c);
-        addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
+        addStat("high_prepared_seqno",
+                acquireStateLockAndGetHighPreparedSeqno(),
+                add_stat,
+                c);
         // fallthrough
     case VBucketStatsDetailLevel::State:
         // adds the vbucket state stat (unnamed stat)
@@ -3420,6 +3450,75 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         throw std::invalid_argument(
                 "VBucket::_addStats: unexpected detail level");
         break;
+    }
+}
+
+void VBucket::doSeqnoStats(const AddStatFn& add_stat, CookieIface& c) {
+    auto relHighSeqno = getHighSeqno();
+    int64_t hps = 0;
+    int64_t hcs = 0;
+    {
+        std::shared_lock<folly::SharedMutex> lh(
+                const_cast<folly::SharedMutex&>(stateLock));
+        if (getState() != vbucket_state_active) {
+            snapshot_info_t info = checkpointManager->getSnapshotInfo();
+            relHighSeqno = info.range.getEnd();
+        }
+        hps = getHighPreparedSeqno(lh);
+        hcs = getHighCompletedSeqno(lh);
+    }
+
+    try {
+        std::array<char, 64> buffer;
+        failover_entry_t entry = failovers->getLatestEntry();
+        checked_snprintf(
+                buffer.data(), buffer.size(), "vb_%d:high_seqno", id.get());
+        add_casted_stat(buffer.data(), relHighSeqno, add_stat, c);
+        checked_snprintf(
+                buffer.data(), buffer.size(), "vb_%d:abs_high_seqno", id.get());
+        add_casted_stat(buffer.data(), getHighSeqno(), add_stat, c);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:last_persisted_seqno",
+                         id.get());
+        add_casted_stat(
+                buffer.data(), getPublicPersistenceSeqno(), add_stat, c);
+        checked_snprintf(buffer.data(), buffer.size(), "vb_%d:uuid", id.get());
+        add_casted_stat(buffer.data(), entry.vb_uuid, add_stat, c);
+        checked_snprintf(
+                buffer.data(), buffer.size(), "vb_%d:purge_seqno", id.get());
+        add_casted_stat(buffer.data(), getPurgeSeqno(), add_stat, c);
+        const snapshot_range_t range = getPersistedSnapshot();
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:last_persisted_snap_start",
+                         id.get());
+        add_casted_stat(buffer.data(), range.getStart(), add_stat, c);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:last_persisted_snap_end",
+                         id.get());
+        add_casted_stat(buffer.data(), range.getEnd(), add_stat, c);
+
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:high_prepared_seqno",
+                         id.get());
+        add_casted_stat(buffer.data(), hps, add_stat, c);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:high_completed_seqno",
+                         id.get());
+        add_casted_stat(buffer.data(), hcs, add_stat, c);
+        checked_snprintf(buffer.data(),
+                         buffer.size(),
+                         "vb_%d:max_visible_seqno",
+                         id.get());
+        add_casted_stat(buffer.data(), getMaxVisibleSeqno(), add_stat, c);
+
+    } catch (const std::exception& error) {
+        EP_LOG_WARN_CTX("VBucket::doSeqnoStats: error building stats",
+                        {"error", error.what()});
     }
 }
 

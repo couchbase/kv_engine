@@ -206,7 +206,9 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     // For SyncReplication streams lookup the highPreparedSeqno to check if
     // we need to re-ACK (after accepting the stream).
     const int64_t highPreparedSeqno =
-            supportsSyncReplication ? vb->getHighPreparedSeqno() : 0;
+            supportsSyncReplication
+                    ? vb->acquireStateLockAndGetHighPreparedSeqno()
+                    : 0;
 
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {
