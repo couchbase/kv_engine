@@ -282,7 +282,7 @@ def fetch_package_lists(release_version):
     manifest = fetch(f'{index_url}{manifest_name}')
     try:
         build_number = re.findall(
-            r'<annotation name="BLD_NUM" value="(\d+)" />', manifest)[0]
+            r'<annotation name="BLD_NUM" value="(\d+)"\s?/>', manifest)[0]
     except Exception as e:
         raise ValueError(f'Failed to find build number in manifest.xml!\n{e}')
 
