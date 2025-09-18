@@ -3257,6 +3257,8 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
         EXPECT_FALSE(task->run());
         // Expect 1 to remain as compaction cannot purge the high-seqno
         EXPECT_EQ(1, vb->getNumPersistedDeletes());
+        EXPECT_TRUE(mock_cookie_notified(cookie));
+        EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 
         // Store/delete a new key ready for next test
         storeAndDeleteItem(
@@ -3406,6 +3408,8 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     if (!engine->getConfiguration().isCompactionExpiryFetchInline()) {
         runBGFetcherTask();
     }
+    EXPECT_TRUE(mock_cookie_notified(cookie));
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 
     // bg-fetch ran
     EXPECT_EQ(1, engine->getEpStats().bg_fetched_compaction);
@@ -3455,6 +3459,9 @@ TEST_P(EPBucketFullEvictionTest, CompactionVBucketDeleted) {
     EXPECT_EQ(1, engine->getEpStats().compactionAborted);
     EXPECT_EQ(0, engine->getEpStats().compactionFailed);
     EXPECT_FALSE(postCompactionCompletionHookCalled);
+
+    EXPECT_TRUE(mock_cookie_notified(cookie));
+    EXPECT_EQ(cb::engine_errc::cancelled, mock_waitfor_cookie(cookie));
 }
 
 // Test coverage for MB-67091
@@ -3477,6 +3484,9 @@ TEST_P(EPBucketFullEvictionTest, CompactionVBucketRecreated) {
                       vbid, config, cookie, std::chrono::milliseconds(0)));
 
     EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid, nullptr));
+    EXPECT_TRUE(mock_cookie_notified(cookie));
+    EXPECT_EQ(cb::engine_errc::cancelled, mock_waitfor_cookie(cookie));
+
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     EXPECT_EQ(cb::engine_errc::would_block,
               epBucket->scheduleCompaction(
@@ -3504,6 +3514,8 @@ TEST_P(EPBucketFullEvictionTest, CompactionVBucketRecreated) {
     EXPECT_EQ(0, engine->getEpStats().compactionAborted);
     EXPECT_EQ(0, engine->getEpStats().compactionFailed);
     EXPECT_TRUE(postCompactionCompletionHookCalled);
+    EXPECT_TRUE(mock_cookie_notified(cookie));
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 }
 
 struct BFilterPrintToStringCombinedName {

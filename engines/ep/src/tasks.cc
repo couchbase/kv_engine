@@ -82,6 +82,10 @@ bool CompactTask::runInner() {
                 "CompactTask vbucket deleted/deleting",
                 {{"vb", vbid}, {"deleting", bool(compactionData->vbucket)}});
         ++bucket.getEPEngine().getEpStats().compactionAborted;
+        // call isTaskDone to synchronously update the task cookies
+        isTaskDone(compactionData->cookiesWaiting);
+        // notify any cookies waiting for compaction to complete
+        cancel();
         bucket.updateCompactionTasks(vbid);
         return false;
     }
