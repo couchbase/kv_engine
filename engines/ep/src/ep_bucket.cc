@@ -1617,6 +1617,12 @@ bool EPBucket::doCompact(Vbid vbid,
         return true;
     }
 
+    auto lh = vb->tryToAcquireLockForRollbackOrCompaction();
+    if (!lh.owns_lock()) {
+        // rollback is running for the vbucket... reschedule
+        return true;
+    }
+
     /**
      * MB-30015: Check to see if tombstones that have invalid
      * data needs to be retained. The goal is to try and retain

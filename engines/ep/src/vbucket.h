@@ -501,6 +501,15 @@ public:
     vbucket_state_t getState() const { return state.load(); }
 
     /**
+     * Try to start rollback or compaction operation, but only if one is not
+     * already in progress as that may cause a deadlock depending on
+     * the order they're requested.
+     */
+    std::unique_lock<std::mutex> tryToAcquireLockForRollbackOrCompaction() {
+        return {rollbackOrCompactionMutex, std::try_to_lock};
+    }
+
+    /**
      * Sets the vbucket state to a desired state
      *
      * @param to desired vbucket state
@@ -2710,6 +2719,7 @@ private:
 
 protected:
     KVBucket* const bucket;
+    std::mutex rollbackOrCompactionMutex;
     Vbid id;
 
 public:

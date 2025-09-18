@@ -30,6 +30,7 @@
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -939,6 +940,50 @@ TEST_P(RollbackTest, DirtyQueueAgeUnpersistedReset) {
 
     EXPECT_EQ(0, vb->dirtyQueueSize);
     EXPECT_EQ(0, vb->dirtyQueueAge);
+}
+
+// Check that rollback and compaction are mutually exclusive.
+// This is particularly important for Magma buckets, since Magma takes locks
+// internally when running either operation. These operations callback into
+// KV and can try to lock the vbStateLock which can lead to a deadlock.
+// This test used to deadlock in Magma as a result of this.
+TEST_P(RollbackTest, RollbackAndCompaction) {
+    if (!isPersistent()) {
+        GTEST_SKIP();
+    }
+
+    // Store 9 items
+    for (int i = 0; i < 9; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("key_" + std::to_string(i)),
+                   "not rolled back");
+    }
+
+    // Store item which will expire as part of compaction
+    store_item(vbid, makeStoredDocKey("key_expire"), "not rolled back", 1);
+    flushVBucketToDiskIfPersistent(vbid, 10);
+
+    auto rollbackSeqno = store->getVBucket(vbid)->getHighSeqno();
+
+    // Store a key to rollback
+    store_item(vbid, makeStoredDocKey("key_rollback"), "");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Compaction will expire items as it runs. We can hook there to try to
+    // overlap rollback.
+    bool hookCalled = false;
+    setProcessExpiredItemHook([&]() {
+        hookCalled = true;
+        EXPECT_EQ(TaskStatus::Reschedule, store->rollback(vbid, rollbackSeqno));
+    });
+
+    bool compactionRan = runCompaction(vbid, 0, false);
+    EXPECT_TRUE(compactionRan);
+    EXPECT_TRUE(hookCalled);
+
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
 }
 
 class RollbackDcpTest : public RollbackTest {

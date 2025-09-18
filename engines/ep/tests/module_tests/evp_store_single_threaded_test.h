@@ -145,8 +145,9 @@ public:
      * @param id vbucket to compact
      * @param purgeBeforeSeq purge tombstones with seqnos less than this
      * @param dropDeletes drop all deletes
+     * @return true if the compaction ran, false if it needs to be rescheduled
      */
-    void runCompaction(Vbid id,
+    bool runCompaction(Vbid id,
                        uint64_t purgeBeforeSeq = 0,
                        bool dropDeletes = false);
 
