@@ -152,7 +152,7 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
 }
 
 std::string StatsTaskBucketStats::getDescription() const {
-    return "bucket stats";
+    return fmt::format("Bucket stats: {}", key.empty() ? "*" : key);
 }
 
 std::chrono::microseconds StatsTaskBucketStats::maxExpectedDuration() const {
