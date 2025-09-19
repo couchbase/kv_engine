@@ -26,15 +26,7 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
         chkPersistRemaining++;
     }
 
-    // TODO MB-54294: This may be expensive for lots of collections.
-    // consider tracking this value "upfront".
-    {
-        // Lock needed because the manifest could change concurrently otherwise.
-        std::shared_lock rlh(vb.getStateLock());
-        for (const auto& [id, collection] : vb.getManifest().lock()) {
-            logicalDiskSize += collection.getDiskSize();
-        }
-    }
+    logicalDiskSize += vb.getLogicalDiskSize();
 
     if (desired_state != vbucket_state_dead) {
         htMemory += vb.ht.getMemoryOverhead();

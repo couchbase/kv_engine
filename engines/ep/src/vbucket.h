@@ -2004,6 +2004,12 @@ public:
      */
     virtual failover_entry_t processFailover() = 0;
 
+    /**
+     * Get the logical size of the disk data for this vbucket. This may
+     * return a cached value if we cannot lock the vbucket state mutex.
+     */
+    std::size_t getLogicalDiskSize();
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
@@ -2752,6 +2758,10 @@ protected:
 
     // Test hook for checking that softDeleteStoredValue holds the state lock
     TestingHook<folly::SharedMutex&> softDeleteStoredValueHook;
+
+    /// Cached logical disk size for this vbucket (used in the case where
+    /// the vbucket is locked)
+    std::atomic_size_t cachedLogicalDiskSize{0};
 
 private:
     /**
