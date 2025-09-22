@@ -910,6 +910,16 @@ public:
      */
     void setCompletedOrDeletedTime(time_t time);
 
+    /**
+     * Compare an Item againt a StoredValue (the key is not compared and is
+     * assumed the caller found this StoredValue from the key)
+     *
+     * @param itm The Item to compare against
+     * @return True if the Item's seqno, cas, revSeqno, exptime, and flags
+     *         match the StoredValue's seqno, cas, revSeqno, exptime, and flags
+     */
+    bool compareSeqnoAndMetaData(const Item& itm) const;
+
 protected:
     /**
      * Constructor - protected as allocation needs to be done via
