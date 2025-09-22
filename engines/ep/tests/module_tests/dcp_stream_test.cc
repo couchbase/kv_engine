@@ -8372,7 +8372,9 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                      0 /*maxDelRevSeqno*/);
     }
 
-    EXPECT_EQ(4, store->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(
+            4,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
 
     ASSERT_NE(cb::engine_errc::disconnect,
               consumer->closeStream(0 /*opaque*/, vbid));
@@ -8381,7 +8383,9 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
     resetEngineAndWarmup();
     setupConsumerAndPassiveStream();
 
-    EXPECT_EQ(4, store->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(
+            4,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
 }
 
 /**

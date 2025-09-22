@@ -2590,7 +2590,7 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
         }
 
         // Not completed yet as we have not run the task
-        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+        EXPECT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
         EXPECT_EQ(0, dm.getNumTracked());
     }
 
@@ -3851,7 +3851,7 @@ TEST_P(DurabilityBucketTest, GetReplicaWithPendingSyncWriteOnKey) {
     vb.notifyActiveDMOfLocalSyncWrite();
     vb.processResolvedSyncWrites();
     EXPECT_EQ(0, vb.getDurabilityMonitor().getNumTracked());
-    EXPECT_EQ(2, vb.getHighCompletedSeqno());
+    EXPECT_EQ(2, vb.acquireStateLockAndGetHighCompletedSeqno());
 
     // 8. Check the commit worked by getting the committed item that was pending
     auto getValueOfCommit = store->get(key, vbid, cookie, options);
@@ -5298,7 +5298,9 @@ TEST_P(DurabilityEPBucketTest, HPSAtPersistenceAndDedupeOfLastItemInSnapshot) {
             store->set(*makePendingItem(
                                keyA, "value", {Level::Majority, Timeout(4000)}),
                        cookie));
-    ASSERT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    ASSERT_EQ(
+            1,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
 
     // 2) Mutation we can dedupe at end of 1st Checkpoint
     auto key = makeStoredDocKey("key");
@@ -5311,7 +5313,9 @@ TEST_P(DurabilityEPBucketTest, HPSAtPersistenceAndDedupeOfLastItemInSnapshot) {
     // 4) Mutation deduping mutation from 2
     ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
 
-    ASSERT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    ASSERT_EQ(
+            1,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
@@ -5320,7 +5324,9 @@ TEST_P(DurabilityEPBucketTest, HPSAtPersistenceAndDedupeOfLastItemInSnapshot) {
 
     resetEngineAndWarmup();
 
-    EXPECT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(
+            1,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
     res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
     ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
     EXPECT_EQ(1, res.state.highPreparedSeqno);

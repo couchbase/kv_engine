@@ -912,8 +912,8 @@ TEST_P(DurabilityActiveStreamTest,
     stream->public_nextQueuedItem(*producer);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
-    EXPECT_EQ(1, vb->getHighPreparedSeqno());
-    EXPECT_EQ(1, vb->getHighCompletedSeqno());
+    EXPECT_EQ(1, vb->acquireStateLockAndGetHighPreparedSeqno());
+    EXPECT_EQ(1, vb->acquireStateLockAndGetHighCompletedSeqno());
 
     // Move the DCP cursor
     items = stream->getOutstandingItems(*vb);
@@ -944,8 +944,8 @@ TEST_P(DurabilityActiveStreamTest,
     stream->public_nextQueuedItem(*producer);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 3));
-    EXPECT_EQ(3, vb->getHighPreparedSeqno());
-    EXPECT_EQ(3, vb->getHighCompletedSeqno());
+    EXPECT_EQ(3, vb->acquireStateLockAndGetHighPreparedSeqno());
+    EXPECT_EQ(3, vb->acquireStateLockAndGetHighCompletedSeqno());
 
     // remove the stream and the checkpoint to force a backfill
     stream.reset();
@@ -1177,7 +1177,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // HPS not moved as we don't have a complete snapshot
-    ASSERT_EQ(0, store->getVBucket(vbid)->getHighPreparedSeqno());
+    ASSERT_EQ(
+            0,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
     auto res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
     ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
     ASSERT_EQ(0, res.state.highPreparedSeqno);
@@ -1189,7 +1191,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     resetEngineAndWarmup();
 
     // HPS state not change
-    ASSERT_EQ(0, store->getVBucket(vbid)->getHighPreparedSeqno());
+    ASSERT_EQ(
+            0,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
     res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
     ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
     ASSERT_EQ(0, res.state.highPreparedSeqno);
@@ -1225,7 +1229,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Prepare at 1 was Majority level so we should be able to move our HPS now
-    EXPECT_EQ(1, store->getVBucket(vbid)->getHighPreparedSeqno());
+    EXPECT_EQ(
+            1,
+            store->getVBucket(vbid)->acquireStateLockAndGetHighPreparedSeqno());
 
     res = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
     ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, res.status);
@@ -1319,7 +1325,7 @@ void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
     flushVBucketToDiskIfPersistent(vbid, 2);
     {
         auto vb = store->getVBucket(vbid);
-        EXPECT_EQ(2, vb->getHighCompletedSeqno());
+        EXPECT_EQ(2, vb->acquireStateLockAndGetHighCompletedSeqno());
     }
 
     // Reset and warmup to check persistence
@@ -1331,7 +1337,7 @@ void DurabilityPassiveStreamPersistentTest::testDiskSnapshotHCSPersisted() {
     setupConsumerAndPassiveStream();
     {
         auto vb = store->getVBucket(vbid);
-        EXPECT_EQ(2, vb->getHighCompletedSeqno());
+        EXPECT_EQ(2, vb->acquireStateLockAndGetHighCompletedSeqno());
         EXPECT_EQ(4, vb->getHighSeqno());
     }
 }
@@ -2446,7 +2452,8 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
 
     ASSERT_TRUE(stream->isActive());
-    const auto hcs = store->getVBucket(vbid)->getHighCompletedSeqno();
+    const auto hcs =
+            store->getVBucket(vbid)->acquireStateLockAndGetHighCompletedSeqno();
     // At Replica we don't expect multiple Durability items (for the same key)
     // within the same snapshot. That is because the Active prevents that for
     // avoiding de-duplication.

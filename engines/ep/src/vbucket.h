@@ -220,8 +220,11 @@ public:
      * Get the vBucket's high_prepared_seqno. This is the sequence number of
      * the highest prepared SyncWrite which has locally met its durability
      * requirements.
+     *
+     * @param lh vbucket state lock must be acquired for safe access to the
+     * durabilityMonitor
      */
-    int64_t getHighPreparedSeqno() const;
+    int64_t getHighPreparedSeqno(VBucketStateLockRef lh) const;
 
     /**
      * Get the high_prepared_seqno value that is persisted in the vBucket state.
@@ -238,8 +241,14 @@ public:
      * 2) or, timeout has triggered on Active for the Prepare and it has been
      *     aborted
      * 3) And (in either cases) all earlier SyncWrites have been completed.
+     *
+     * @param lh vbucket state lock must be acquired for safe access to the
+     * durabilityMonitor
      */
-    int64_t getHighCompletedSeqno() const;
+    int64_t getHighCompletedSeqno(VBucketStateLockRef lh) const;
+
+    int64_t acquireStateLockAndGetHighPreparedSeqno() const;
+    int64_t acquireStateLockAndGetHighCompletedSeqno() const;
 
     /**
      * Returns the maximum of all the high-seqnos of the collections in the
@@ -759,6 +768,11 @@ public:
     virtual void addStats(VBucketStatsDetailLevel detail,
                           const AddStatFn& add_stat,
                           CookieIface& c) = 0;
+
+    /**
+     * Handler for generating stats for "vbucket-seqno"
+     */
+    void doSeqnoStats(const AddStatFn& add_stat, CookieIface& c);
 
     /**
      * Output DurabiltyMonitor stats.

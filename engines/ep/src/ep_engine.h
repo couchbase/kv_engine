@@ -1361,12 +1361,10 @@ protected:
                                           const AddStatFn& add_stat);
     cb::engine_errc doWorkloadStats(CookieIface& cookie,
                                     const AddStatFn& add_stat);
+
     cb::engine_errc doSeqnoStats(CookieIface& cookie,
                                  const AddStatFn& add_stat,
                                  std::string_view);
-    void addSeqnoVbStats(CookieIface& cookie,
-                         const AddStatFn& add_stat,
-                         const VBucketPtr& vb);
 
     cb::engine_errc doCollectionStats(CookieIface& cookie,
                                       const AddStatFn& add_stat,
