@@ -1393,8 +1393,9 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // Need the "real" documents' CAS for expiry.
-    itm.setCas(docCas);
-    store->processExpiredItem(itm, ep_real_time() + 10001, ExpireBy::Pager);
+    gv.item->setCas(docCas);
+    store->processExpiredItem(
+            *gv.item, ep_real_time() + 10001, ExpireBy::Pager);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
