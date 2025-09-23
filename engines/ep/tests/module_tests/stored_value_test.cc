@@ -599,3 +599,10 @@ TYPED_TEST(StoredValueProtectedTest, MB_32835) {
 
     EXPECT_EQ(*this->sv, *sv2);
 }
+
+TYPED_TEST(ValueTest, MB_68655_compareSvAndItem) {
+    auto sv2 = this->factory(this->item, {});
+    EXPECT_TRUE(this->sv->compareSeqnoAndMetaData(this->item));
+    this->item.setBySeqno(this->item.getBySeqno() + 1);
+    EXPECT_FALSE(this->sv->compareSeqnoAndMetaData(this->item));
+}
