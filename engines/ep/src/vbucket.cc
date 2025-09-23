@@ -2648,7 +2648,7 @@ std::unique_ptr<CompactionBGFetchItem> VBucket::processExpiredItem(
     auto& hbl = htRes.getHBL();
 
     if (v) {
-        if (v->getCas() != it.getCas()) {
+        if (!v->compareSeqnoAndMetaData(it)) {
             return nullptr;
         }
 
