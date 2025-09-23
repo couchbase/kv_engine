@@ -536,6 +536,13 @@ void StoredValue::setCompletedOrDeletedTime(time_t time) {
     }
 }
 
+bool StoredValue::compareSeqnoAndMetaData(const Item& itm) const {
+    const auto metaData = itm.getMetaData();
+    return itm.getBySeqno() == getBySeqno() && getCas() == metaData.cas &&
+           getRevSeqno() == metaData.revSeqno &&
+           getExptime() == metaData.exptime && getFlags() == metaData.flags;
+}
+
 void to_json(nlohmann::json& json, const StoredValue& sv) {
     // Add any additional OrderedStoredValue data if required.
     if (sv.isOrdered()) {
