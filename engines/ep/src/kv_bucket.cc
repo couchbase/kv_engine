@@ -2681,6 +2681,12 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         return TaskStatus::Abort;
     }
 
+    auto lh = vb->tryToAcquireLockForRollbackOrCompaction();
+    if (!lh.owns_lock()) {
+        // Compaction is running for the vbucket... reschedule
+        return TaskStatus::Reschedule;
+    }
+
     auto ctx = prepareToRollback(vbid);
 
     // Acquire the vb stateLock in exclusive mode as we will recreate the

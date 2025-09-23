@@ -640,6 +640,24 @@ TEST_P(VBucketTest, GetItemsToPersist_ZeroLimitThrows) {
     FAIL();
 }
 
+// Verify that we don't deadlock if getLogicalDiskSize() is called while
+// someone is holding the state lock;
+TEST_P(VBucketTest, MB68561_LogicalDiskSize) {
+    if (!persistent()) {
+        return;
+    }
+
+    auto size = vbucket->getLogicalDiskSize();
+    std::unique_lock wlh(vbucket->getStateLock());
+    size_t other;
+    std::function func = [&other, this]() {
+        other = vbucket->getLogicalDiskSize();
+    };
+    std::thread thread(func);
+    thread.join();
+    EXPECT_EQ(size, other);
+}
+
 // Check that getItemsToPersist() correctly returns `moreAvailable` if we
 // hit the CheckpointManager limit early.
 TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {

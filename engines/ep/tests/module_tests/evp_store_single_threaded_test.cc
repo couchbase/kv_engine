@@ -463,7 +463,7 @@ void SingleThreadedKVBucketTest::createDcpStream(
                                      streamConfig));
 }
 
-void SingleThreadedKVBucketTest::runCompaction(Vbid id,
+bool SingleThreadedKVBucketTest::runCompaction(Vbid id,
                                                uint64_t purgeBeforeSeq,
                                                bool dropDeletes) {
     CompactionConfig compactConfig;
@@ -483,8 +483,9 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
         // correctly if other AuxIO tasks (e.g. Backfill) are also
         // scheduled.
         std::vector<CookieIface*> emptyCookies;
-        epBucket->doCompact(id, compactConfig, emptyCookies);
+        return !epBucket->doCompact(id, compactConfig, emptyCookies);
     }
+    return true;
 }
 
 void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(

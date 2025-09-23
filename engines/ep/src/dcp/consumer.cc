@@ -948,6 +948,9 @@ bool RollbackTask::run() {
         return false;
     }
     if (cons->doRollback(opaque, vbid, rollbackSeqno)) {
+        // we want to reschedule the operation as we failed to acquire the
+        // necessary locks - sleep for 500ms to avoid busy looping
+        snooze(0.5);
         return true;
     }
     ++(engine->getEpStats().rollbackCount);

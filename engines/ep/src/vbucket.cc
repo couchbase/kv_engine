@@ -2822,6 +2822,21 @@ cb::engine_errc VBucket::add(
                            : cb::engine_errc::success;
 }
 
+std::size_t VBucket::getLogicalDiskSize() {
+    std::shared_lock rlh(getStateLock(), std::try_to_lock);
+    if (rlh.owns_lock()) {
+        // TODO MB-54294: This may be expensive for lots of collections.
+        // consider tracking this value "upfront".
+        std::size_t size = 0;
+        for (const auto& [_, collection] : getManifest().lock()) {
+            size += collection.getDiskSize();
+        }
+        cachedLogicalDiskSize.store(size, std::memory_order_release);
+    }
+
+    return cachedLogicalDiskSize.load(std::memory_order_acquire);
+}
+
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         HashTable::HashBucketLock& hbl,
         StoredValue* v,
