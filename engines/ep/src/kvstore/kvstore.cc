@@ -119,7 +119,7 @@ void BySeqnoScanContext::maybeLogFirstSeqno(BucketLogger& logger,
     firstSeqnoLogged = true;
     if (seqno != startSeqno) {
         logger.infoWithContext("BySeqnoScanContext: scan started",
-                               {{"vbid", vbid},
+                               {{"vb", vbid},
                                 {"start_seqno", startSeqno},
                                 {"first_seqno", seqno}});
     }

@@ -167,7 +167,7 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
     const auto manifestPath = path / manifest.uuid / "manifest.json";
     if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
         EP_LOG_WARN_CTX("Cache::lookupOrFetch Failed to store manifest",
-                        {"vbid", vbid},
+                        {"vb", vbid},
                         {"error", ec.message()},
                         {"path", manifestPath});
         return cb::engine_errc::failed;

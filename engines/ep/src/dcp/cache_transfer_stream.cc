@@ -238,7 +238,7 @@ bool CacheTransferTask::run() {
         OBJ_LOG_INFO_CTX(
                 stream,
                 "CacheTransferTask::run: Reached HT end.",
-                {{"vbid", vbid},
+                {{"vb", vbid},
                  {"visited_count", visitedCount},
                  {"queued_count", queuedCount},
                  {"total_runtime_ms", totalRuntimeMs},
@@ -290,7 +290,7 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                      "Creating CacheTransferStream",
                      {"max_seqno", request.start_seqno},
                      {"end_seqno", request.end_seqno},
-                     {"vbid", vbid},
+                     {"vb", vbid},
                      {"vbucket_uuid", request.vbucket_uuid},
                      {"include_value", includeValue});
 }
@@ -301,7 +301,7 @@ void CacheTransferStream::setActive() {
         OBJ_LOG_WARN_CTX(
                 *this,
                 "CacheTransferStream::scheduleTask: Producer cannot be locked",
-                {"vbid", getVBucket()});
+                {"vb", getVBucket()});
         return;
     }
     std::lock_guard<std::mutex> lh(streamMutex);
