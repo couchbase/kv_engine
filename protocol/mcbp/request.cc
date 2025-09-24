@@ -61,7 +61,7 @@ std::string Request::getPrintableKey() const {
 
     std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
     for (auto& ii : buffer) {
-        if (!std::isgraph(ii)) {
+        if (!std::isprint(ii)) {
             ii = '.';
         }
     }

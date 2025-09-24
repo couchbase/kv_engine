@@ -555,3 +555,35 @@ TEST_P(StatsTest, MB59260) {
     EXPECT_EQ(max_system, stats["max_system_connections"]);
     EXPECT_EQ(max_user, stats["max_user_connections"]);
 }
+
+TEST_P(StatsTest, MB68697_json) {
+    // Do a RAW hello with a junked JSON string
+    BinprotHelloCommand cmd("{\"a\":\"8\xf8\"}");
+    const auto resp = BinprotHelloResponse(adminConnection->execute(cmd));
+    ASSERT_TRUE(resp.isSuccess());
+
+    auto stats = adminConnection->stats("connections");
+    // We have at _least_ 2 connections
+    ASSERT_LE(2, stats.size());
+
+    stats = adminConnection->stats("connections self");
+    ASSERT_EQ(1, stats.size());
+    // See sanitised agent name
+    EXPECT_EQ(R"({"a":"8."})", stats.front()["agent_name"].get<std::string>());
+}
+
+TEST_P(StatsTest, MB68697_raw) {
+    // Do a RAW hello with a junked string that later cannot be turned into JSON
+    BinprotHelloCommand cmd("\"a\":\"8\xf8\"");
+    const auto resp = BinprotHelloResponse(adminConnection->execute(cmd));
+    ASSERT_TRUE(resp.isSuccess());
+
+    auto stats = adminConnection->stats("connections");
+    // We have at _least_ 2 connections
+    ASSERT_LE(2, stats.size());
+
+    stats = adminConnection->stats("connections self");
+    ASSERT_EQ(1, stats.size());
+    // See sanitised agent name
+    EXPECT_EQ(R"("a":"8.")", stats.front()["agent_name"].get<std::string>());
+}
