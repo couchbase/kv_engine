@@ -111,6 +111,10 @@ public:
         return backend->getUsername();
     }
 
+    void setUsername(std::string user) {
+        backend->setUsername(std::move(user));
+    }
+
     void setDomain(Domain domain) {
         backend->setDomain(domain);
     }

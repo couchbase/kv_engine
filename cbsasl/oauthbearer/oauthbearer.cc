@@ -9,6 +9,7 @@
  */
 
 #include "oauthbearer.h"
+#include "parse_gs2_header.h"
 
 #include <cbsasl/username_util.h>
 #include <fmt/format.h>
@@ -24,28 +25,45 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
         return {Error::BAD_PARAM, {}};
     }
 
-    auto gs2 = fields.front();
-    if (!gs2.starts_with("n,a=")) {
+    try {
+        username = parse_gs2_header(fields.front());
+    } catch (const std::invalid_argument&) {
         return {Error::BAD_PARAM, {}};
     }
-    username = std::string(gs2.substr(4));
-    if (username.empty()) {
+
+    std::string_view token;
+    for (std::size_t index = 1; index < fields.size(); index++) {
+        auto field = fields[index];
+        if (!field.starts_with("auth=")) {
+            continue;
+        }
+        field.remove_prefix(5);
+        auto kv = cb::string::split(field, ' ');
+        if (kv.size() != 2) {
+            return {Error::BAD_PARAM, {}};
+        }
+        std::string auth;
+        for (auto& c : kv.front()) {
+            auth.push_back(std::tolower(c));
+        }
+        if (auth != "bearer") {
+            return {Error::BAD_PARAM, {}};
+        }
+        token = kv.back();
+    }
+
+    if (token.empty()) {
         return {Error::BAD_PARAM, {}};
     }
-    if (username.back() == ',') {
-        username.pop_back();
-    }
-    username = username::decode(username);
-    auto token = fields[1];
-    if (!token.starts_with("auth=Bearer ")) {
-        return {Error::BAD_PARAM, {}};
-    }
-    token.remove_prefix(12);
+
     return {context.validateUserToken(username, token), {}};
 }
 
 std::pair<Error, std::string> ClientBackend::start() {
-    std::string header = fmt::format("n,a={},", usernameCallback());
+    auto user = usernameCallback();
+    auto header = fmt::format(
+            "n,{},",
+            user.empty() ? "" : fmt::format("a={}", username::encode(user)));
     header.push_back(0x01);
     header.append(fmt::format("auth=Bearer {}", passwordCallback()));
     header.push_back(0x01);

@@ -262,7 +262,7 @@ McProgramGetopt::createAuthenticatedConnection(
     ret->connect();
     if (token_auth) {
         ret->authenticateWithToken();
-    } else if (!user.empty()) {
+    } else if (!user.empty() && !password.empty()) {
         ret->authenticate(user,
                           password,
                           sasl_mechanism.empty() ? ret->getSaslMechanisms()
@@ -278,7 +278,7 @@ std::unique_ptr<MemcachedConnection> McProgramGetopt::getConnection() {
         ret->connect();
         if (token_auth) {
             ret->authenticateWithToken();
-        } else if (!user.empty()) {
+        } else if (!user.empty() && !password.empty()) {
             ret->authenticate(user,
                               password,
                               sasl_mechanism.empty() ? ret->getSaslMechanisms()

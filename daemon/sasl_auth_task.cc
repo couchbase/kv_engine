@@ -97,6 +97,28 @@ void SaslAuthTask::successfull_external_auth(const nlohmann::json& json) {
 
     if (json.contains("token")) {
         tokenMetadata = json["token"];
+        if (getUsername().empty()) {
+            if (!json["token"].contains("rbac")) {
+                error = Error::BAD_PARAM;
+                cookie.setErrorContext("Internal error. No rbac entry");
+                return;
+            }
+
+            auto rbac = json["token"]["rbac"];
+            std::string username;
+            int count = 0;
+            for (auto it = rbac.begin(); it != rbac.end(); ++it) {
+                username = it.key();
+                ++count;
+            }
+            if (count == 1 && !username.empty()) {
+                serverContext.setUsername(std::move(username));
+            } else {
+                error = Error::BAD_PARAM;
+                cookie.setErrorContext(
+                        "Internal error. Failed to locate username");
+            }
+        }
     }
 
     externalAuthManager->login(serverContext.getUsername());

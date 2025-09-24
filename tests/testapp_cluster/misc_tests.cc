@@ -624,7 +624,7 @@ TEST_F(BasicClusterTest, SubdocReplicaReadDeletedDocument) {
     EXPECT_EQ(Status::SubdocPathEnoent, rsp.getResults()[2].status);
 }
 
-TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
+TEST_F(BasicClusterTest, OAUTHBEARER) {
     auto builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
     builder->addClaim("cb-rbac", cb::base64url::encode(R"({
   "buckets": {
@@ -667,7 +667,7 @@ TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
     const auto readNotReadyToken = builder->build();
 
     auto readOnlyConn = cluster->getBucket("default")->getConnection(Vbid{0});
-    readOnlyConn->authenticate("jwt", readOnlyToken, "OAUTHBEARER");
+    readOnlyConn->authenticate({}, readOnlyToken, "OAUTHBEARER");
     readOnlyConn->selectBucket("default");
     try {
         readOnlyConn->arithmetic("counter", 1, 0);
@@ -677,7 +677,7 @@ TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
     }
 
     auto notReadyConn = cluster->getBucket("default")->getConnection(Vbid{0});
-    notReadyConn->authenticate("jwt", readNotReadyToken, "OAUTHBEARER");
+    notReadyConn->authenticate({}, readNotReadyToken, "OAUTHBEARER");
     try {
         notReadyConn->selectBucket("default");
         FAIL() << "Token should not be ready yet";
@@ -687,7 +687,7 @@ TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
 
     // The readWrite token have write access
     auto readWriteConn = cluster->getBucket("default")->getConnection(Vbid{0});
-    readWriteConn->authenticate("jwt", readWriteToken, "OAUTHBEARER");
+    readWriteConn->authenticate({}, readWriteToken, "OAUTHBEARER");
     readWriteConn->selectBucket("default");
     readWriteConn->arithmetic("counter", 1, 0);
 
@@ -700,7 +700,7 @@ TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
     builder->setExpiration(std::chrono::system_clock::now() +
                            std::chrono::seconds(2));
     auto refreshToken = builder->build();
-    readWriteConn->authenticate("jwt", refreshToken, "OAUTHBEARER");
+    readWriteConn->authenticate({}, refreshToken, "OAUTHBEARER");
 
     // now that we've waited the "not before time" should have passed
     notReadyConn->selectBucket("default");

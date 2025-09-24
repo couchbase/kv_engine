@@ -1274,16 +1274,7 @@ void MemcachedConnection::setTokenBuilder(
 }
 
 void MemcachedConnection::authenticateWithToken() {
-    auto token = tokenBuilder->build();
-
-    auto parsed = cb::jwt::Token::parse(tokenBuilder->build());
-    if (!parsed->payload.contains("sub")) {
-        throw std::logic_error(
-                "MemcachedConnection::authenticateWithToken: "
-                "The token must contain a sub field");
-    }
-
-    doSaslAuthenticate(parsed->payload["sub"], token, "OAUTHBEARER");
+    doSaslAuthenticate({}, tokenBuilder->build(), "OAUTHBEARER");
 }
 
 void MemcachedConnection::authenticate(
