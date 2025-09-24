@@ -1217,7 +1217,7 @@
             "type": "size_t"
         },
         "dcp_cache_transfer_enabled": {
-            "default": "true",
+            "default": "false",
             "descr": "Does the producer support a cache transfer?",
             "dynamic": true,
             "type": "bool"
