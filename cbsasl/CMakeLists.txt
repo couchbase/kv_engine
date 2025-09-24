@@ -5,6 +5,8 @@ add_library(cbsasl STATIC
             mechanism.cc
             oauthbearer/oauthbearer.cc
             oauthbearer/oauthbearer.h
+            oauthbearer/parse_gs2_header.cc
+            oauthbearer/parse_gs2_header.h
             plain/check_password.cc
             plain/check_password.h
             plain/plain.cc
@@ -46,6 +48,7 @@ cb_add_test_executable(cbsasl_unit_test
                        client_server_test.cc
                        domain_test.cc
                        password_database_test.cc
+                       oauthbearer/parse_gs2_header_test.cc
                        plain/plain_test.cc
                        sasl_server_test.cc
                        scram-sha/saslprep_test.cc

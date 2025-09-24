@@ -366,13 +366,19 @@ static sasl::Error validateUserTokenFunction(
             return sasl::Error::BAD_PARAM;
         }
         const auto& claims = jwt->payload;
-        if (claims.value("user", "") != user) {
+        std::string user_str{user};
+        if (user.empty()) {
+            if (!claims.contains("user")) {
+                return sasl::Error::NO_USER;
+            }
+            user_str = claims["user"];
+        } else if (claims.value("user", "") != user) {
             return sasl::Error::NO_USER;
         }
 
         nlohmann::json metadata;
         if (claims.contains("cb-rbac")) {
-            metadata["rbac"][user] = nlohmann::json::parse(
+            metadata["rbac"][user_str] = nlohmann::json::parse(
                     base64url::decode(claims.value("cb-rbac", "")));
         } else {
             return sasl::Error::NO_RBAC_PROFILE;
