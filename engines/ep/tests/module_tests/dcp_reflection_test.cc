@@ -147,7 +147,8 @@ public:
                 uint64_t expectedStart,
                 uint64_t expectedEnd,
                 DcpSnapshotMarkerFlag expectedFlags,
-                std::optional<uint64_t> expectedHighPreparedSeqno);
+                std::optional<uint64_t> expectedHighPreparedSeqno,
+                std::optional<uint64_t> expectedHighCompletedSeqno);
 
         void transferResponseMessage();
 
@@ -429,6 +430,9 @@ public:
 
     // Setup the node0/node1 active/replica to simulate FBR transfer
     std::vector<StoredDocKey> setupFBR(int nKeys);
+
+    void CheckHCSUpdated_AllCommitted(bool fullyProcessed);
+    void CheckHCSUpdated_PartiallyCommitted(bool fullyProcessed);
 };
 
 void DCPLoopbackTestHelper::DcpRoute::destroy() {
@@ -618,7 +622,8 @@ void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         uint64_t expectedStart,
         uint64_t expectedEnd,
         DcpSnapshotMarkerFlag expectedFlags,
-        std::optional<uint64_t> expectedHighPreparedSeqno = std::nullopt) {
+        std::optional<uint64_t> expectedHighPreparedSeqno = std::nullopt,
+        std::optional<uint64_t> expectedHighCompletedSeqno = std::nullopt) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
@@ -632,6 +637,10 @@ void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
                   marker->getHighPreparedSeqno());
     } else {
         EXPECT_EQ(std::nullopt, marker->getHighPreparedSeqno());
+    }
+    if (expectedHighCompletedSeqno) {
+        EXPECT_EQ(expectedHighCompletedSeqno.value(),
+                  marker->getHighCompletedSeqno());
     }
     EXPECT_EQ(cb::engine_errc::success,
               streams.second->messageReceived(std::move(msg)));
@@ -2259,6 +2268,141 @@ TEST_P(DCPLoopbackStreamTest, FailoverEntry_snapshotFullyProcessed) {
 
 TEST_P(DCPLoopbackStreamTest, FailoverEntry_PartiallyProcessedSnapshot) {
     CheckFailoverEntry(false);
+}
+
+TEST_P(DCPLoopbackStreamTest, CheckHCSUpdated_NoneCommitted) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k3));
+    // Persist them to disk
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    // Clear the checkpoints to force a backfill from disk
+    engines[Node0]->getVBucket(vbid)->checkpointManager->clear();
+    // Create DCP producer and consumer connection and add a stream request
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            3,
+            0);
+
+    route0_1.transferPrepare(k1, 1);
+    route0_1.transferPrepare(k2, 2);
+    route0_1.transferPrepare(k3, 3);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, replicaVB->acquireStateLockAndGetHighCompletedSeqno());
+}
+
+void DCPLoopbackStreamTest::CheckHCSUpdated_AllCommitted(bool fullyProcessed) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k3));
+    // Commit the items
+    EXPECT_EQ(cb::engine_errc::success, storeCommit(k1, 1));
+    EXPECT_EQ(cb::engine_errc::success, storeCommit(k2, 2));
+    EXPECT_EQ(cb::engine_errc::success, storeCommit(k3, 3));
+    // Persist them to disk
+    flushVBucketToDiskIfPersistent(vbid, 6);
+    // Clear the checkpoints to force a backfill from disk
+    engines[Node0]->getVBucket(vbid)->checkpointManager->clear();
+    // Create DCP producer and consumer connection and add a stream request
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(
+            0,
+            6,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            3,
+            3);
+
+    route0_1.transferMutation(k1, 4);
+    route0_1.transferMutation(k2, 5);
+    if (fullyProcessed) {
+        route0_1.transferMutation(k3, 6);
+    }
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    auto expectedSeqno = fullyProcessed ? 3 : 0;
+    EXPECT_EQ(expectedSeqno,
+              replicaVB->acquireStateLockAndGetHighCompletedSeqno());
+}
+
+TEST_P(DCPLoopbackStreamTest, CheckHCSUpdated_AllCommitted_PartiallyProcessed) {
+    CheckHCSUpdated_AllCommitted(false);
+}
+
+TEST_P(DCPLoopbackStreamTest, CheckHCSUpdated_AllCommitted_FullyProcessed) {
+    CheckHCSUpdated_AllCommitted(true);
+}
+
+void DCPLoopbackStreamTest::CheckHCSUpdated_PartiallyCommitted(
+        bool fullyProcessed) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k2));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k3));
+    // Commit the items
+    EXPECT_EQ(cb::engine_errc::success, storeCommit(k1, 1));
+    EXPECT_EQ(cb::engine_errc::success, storeCommit(k2, 2));
+    // Persist them to disk
+    flushVBucketToDiskIfPersistent(vbid, 5);
+    // Clear the checkpoints to force a backfill from disk
+    engines[Node0]->getVBucket(vbid)->checkpointManager->clear();
+    // Create DCP producer and consumer connection and add a stream request
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+    route0_1.transferSnapshotMarker(
+            0,
+            5,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            3,
+            2);
+    route0_1.transferPrepare(k3, 3);
+    route0_1.transferMutation(k1, 4);
+    if (fullyProcessed) {
+        route0_1.transferMutation(k2, 5);
+    }
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    auto expectedSeqno = fullyProcessed ? 2 : 0;
+    EXPECT_EQ(expectedSeqno,
+              replicaVB->acquireStateLockAndGetHighCompletedSeqno());
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       CheckHCSUpdated_PartiallyCommitted_FullyProcessed) {
+    CheckHCSUpdated_PartiallyCommitted(true);
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       CheckHCSUpdated_PartiallyCommitted_PartiallyProcessed) {
+    CheckHCSUpdated_PartiallyCommitted(false);
 }
 
 /*

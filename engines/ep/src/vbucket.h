@@ -1621,9 +1621,13 @@ public:
      *     the PassiveStream
      * @param hps The HPS received in the snapshot marker. Has a value when the
      * snapshot marker received is v2.2 & is a disk snapshot.
+     * @param hcs The HCS received in the snapshot marker. Has a value when the
+     * snapshot is a disk snapshot.
      */
     virtual void notifyPassiveDMOfSnapEndReceived(
-            uint64_t snapEnd, OptionalSeqno hps = std::nullopt);
+            uint64_t snapEnd,
+            OptionalSeqno hps = std::nullopt,
+            OptionalSeqno hcs = std::nullopt);
 
     /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.

@@ -316,7 +316,8 @@ size_t PassiveDurabilityMonitor::getTotalMemoryUsed() const {
 }
 
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd,
-                                                         OptionalSeqno hps) {
+                                                         OptionalSeqno hps,
+                                                         OptionalSeqno hcs) {
     { // state locking scope
         auto s = state.wlock();
 
@@ -326,6 +327,10 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd,
                                       : CheckpointType::Memory,
                               snapEnd,
                               hps);
+
+        if (hcs) {
+            s->highCompletedSeqno.lastWriteSeqno = *hcs;
+        }
 
         // Store the seqno ack to send after we drop the state lock
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);

@@ -1234,9 +1234,10 @@ void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
 }
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
-                                               OptionalSeqno hps) {
+                                               OptionalSeqno hps,
+                                               OptionalSeqno hcs) {
     std::shared_lock lh(getStateLock());
-    getPassiveDM().notifySnapshotEndReceived(snapEnd, hps);
+    getPassiveDM().notifySnapshotEndReceived(snapEnd, hps, hcs);
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {

@@ -15,6 +15,7 @@
 #include "ep_bucket.h"
 #include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
+#include "failover-table.h"
 
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
@@ -48,8 +49,12 @@ void CollectionsDcpTest::internalSetUp() {
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active);
     producers = std::make_unique<CollectionsDcpTestProducers>();
-    createDcpObjects(std::make_optional(
-            std::string_view{}) /*collections on, but no filter*/);
+    createDcpObjects(
+            std::make_optional(
+                    std::string_view{}) /*collections on, but no filter*/,
+            OutOfOrderSnapshots::No,
+            {},
+            syncReplication);
 
     auto vb = store->getVBucket(vbid);
     helperCursor = vb->checkpointManager
@@ -118,6 +123,11 @@ void CollectionsDcpTest::createDcpConsumer(
     if (producerConfig.useFlatBufferEvents()) {
         consumer->enableFlatBuffersSystemEvents();
     }
+
+    if (producerConfig.useSyncReplication()) {
+        consumer->enableSyncReplication();
+    }
+
     mockConnMap.addConn(cookieC, consumer);
 
     store->setVBucketState(replicaVB, vbucket_state_replica);
@@ -125,6 +135,21 @@ void CollectionsDcpTest::createDcpConsumer(
             cb::engine_errc::success,
             consumer->addStream(
                     /*opaque*/ 0, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
+    // syncReplicationEnabled on the stream is set once the stream is accepted
+    const auto& vb = store->getVBucket(vbid);
+    const auto& failoverLog = vb->failovers->getFailoverLog();
+
+    std::vector<vbucket_failover_t> networkFailoverLog;
+    for (const auto entry : failoverLog) {
+        networkFailoverLog.push_back({htonll(entry.uuid), htonll(entry.seqno)});
+    }
+
+    consumer->public_streamAccepted(
+            1,
+            cb::mcbp::Status::Success,
+            cb::const_byte_buffer{
+                    reinterpret_cast<const uint8_t*>(networkFailoverLog.data()),
+                    networkFailoverLog.size() * sizeof(vbucket_failover_t)});
 }
 
 void CollectionsDcpTest::createDcpObjects(

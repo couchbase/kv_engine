@@ -126,7 +126,9 @@ public:
     }
 
     void notifyPassiveDMOfSnapEndReceived(
-            uint64_t snapEnd, OptionalSeqno hps = std::nullopt) override;
+            uint64_t snapEnd,
+            OptionalSeqno hps = std::nullopt,
+            OptionalSeqno hcs = std::nullopt) override;
 
     std::unique_ptr<DCPBackfillIface> createDCPBackfill(
             EventuallyPersistentEngine& e,

@@ -406,6 +406,8 @@ protected:
     // not v2.2
     OptionalSeqno cur_snapshot_hps;
 
+    OptionalSeqno cur_snapshot_hcs;
+
     // To keep the collections manifest for the Replica consistent we cannot
     // allow it to stream from an Active that is behind in terms of the
     // collections manifest. Send the collections manifest uid to the Active

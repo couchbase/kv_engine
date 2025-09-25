@@ -29,6 +29,7 @@
 #include <engines/ep/tests/ep_test_apis.h>
 
 void CollectionsSyncWriteParamTest::SetUp() {
+    syncReplication = true;
     CollectionsDcpParameterizedTest::SetUp();
 
     producers = std::make_unique<CollectionsDcpTestProducers>();

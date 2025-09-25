@@ -182,9 +182,12 @@ public:
      * @param snapEnd The snapshot-end seqno
      * @param hps The HPS received in the snapshot marker. Has a value for
      * snapshot marker v2.2
+     * @param hcs The HCS received in the snapshot marker. Has a value for
+     * snapshot is a disk snapshot.
      */
     void notifySnapshotEndReceived(uint64_t snapEnd,
-                                   OptionalSeqno hps = std::nullopt);
+                                   OptionalSeqno hps = std::nullopt,
+                                   OptionalSeqno hcs = std::nullopt);
 
     /**
      * Notify this PDM that some persistence has happened. Attempts to update

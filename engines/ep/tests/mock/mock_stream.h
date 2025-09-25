@@ -363,4 +363,12 @@ public:
     bool public_areFlatBuffersSystemEventsEnabled() const {
         return flatBuffersSystemEventsEnabled;
     }
+
+    void public_setSyncReplication(bool value) {
+        supportsSyncReplication = value;
+    }
+
+    bool public_supportSyncReplication() const {
+        return supportsSyncReplication;
+    }
 };

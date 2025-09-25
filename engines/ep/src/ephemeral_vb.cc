@@ -299,8 +299,9 @@ void EphemeralVBucket::notifyAllPendingConnsFailed(
 }
 
 void EphemeralVBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
-                                                        OptionalSeqno hps) {
-    VBucket::notifyPassiveDMOfSnapEndReceived(snapEnd, hps);
+                                                        OptionalSeqno hps,
+                                                        OptionalSeqno hcs) {
+    VBucket::notifyPassiveDMOfSnapEndReceived(snapEnd, hps, hcs);
 
     // When we finish processing a snapshot, we update the HPS with the value
     // received from the active, or the snapEnd if no prepare was received.
@@ -311,6 +312,9 @@ void EphemeralVBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
     std::lock_guard<std::mutex> lh(sequenceLock);
     std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
     seqList->updateHighPreparedSeqno(lh, listWriteLg, hps.value_or(snapEnd));
+    if (hcs) {
+        seqList->updateHighCompletedSeqno(lh, listWriteLg, hcs.value());
+    }
 }
 
 std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(

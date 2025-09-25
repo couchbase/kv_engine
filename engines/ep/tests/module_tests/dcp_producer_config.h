@@ -48,10 +48,10 @@ public:
 
     bool useOSOSnapshots() const;
     bool useFlatBufferEvents() const;
+    bool useSyncReplication() const;
 
 private:
     const std::string& getName() const;
-    bool useSyncReplication() const;
     bool useChangeStreams() const;
     bool useXattrs() const;
     bool useDeleteTimes() const;

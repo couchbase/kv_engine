@@ -158,6 +158,7 @@ public:
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;
     Vbid replicaVB;
+    bool syncReplication = false;
 
     // Most tests in this testsuite setup in-memory DCP streams and assume that
     // checkpoints aren't eagerly removed through the test. This cursor is

@@ -268,8 +268,10 @@ private:
     /**
      * Seqno of the highest completed prepare. Used at backfill to determine
      * if a prepare should be sent or not.
+     * WeaklyMonotonic as we update to snapEnd in some cases, which can be ==
+     * the current HCS.
      */
-    Monotonic<uint64_t> highCompletedSeqno{0};
+    WEAKLY_MONOTONIC2(uint64_t, highCompletedSeqno) { 0 };
 
     /**
      * Seqno of the highest prepare. Used at backfill if the client has

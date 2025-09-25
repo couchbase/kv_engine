@@ -359,18 +359,24 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
     // Receive marker for a Disk snapshot
     // Note: For the SyncDel test replica receives a single Snap{Disk, 1, 5},
     // while for the NormalDel test Snap{Disk, 1, 2} + Snap{Memory, 3, 5}
+
+    // In processMarker, based on whether the stream supports sync replication,
+    // it will set the HCS and HPS
+    stream->public_setSyncReplication(durReqs ? true : false);
+
     const uint32_t opaque = 1;
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       1 /*start*/,
-                                       durReqs ? 5 : 2 /*end*/,
-                                       DcpSnapshotMarkerFlag::Checkpoint |
-                                               DcpSnapshotMarkerFlag::Disk,
-                                       {} /*HCS*/,
-                                       {}, /*HPS*/
-                                       {} /*maxVisibleSeqno*/,
-                                       {} /*purgeSeqno*/));
+              consumer->snapshotMarker(
+                      opaque,
+                      vbid,
+                      1 /*start*/,
+                      durReqs ? 5 : 2 /*end*/,
+                      DcpSnapshotMarkerFlag::Checkpoint |
+                              DcpSnapshotMarkerFlag::Disk,
+                      durReqs ? std::make_optional(1) : std::nullopt /*HCS*/,
+                      durReqs ? std::make_optional(1) : std::nullopt /*HPS*/,
+                      {} /*maxVisibleSeqno*/,
+                      {} /*purgeSeqno*/));
 
     const auto keyA = DocKeyView("keyA", DocKeyEncodesCollectionId::No);
     if (durReqs) {

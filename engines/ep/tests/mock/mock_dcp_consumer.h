@@ -72,6 +72,11 @@ public:
         supportsSyncReplication = value;
     }
 
+    bool public_isSyncReplication() const {
+        return supportsSyncReplication.load() ==
+               SyncReplication::SyncReplication;
+    }
+
     /*
      * Creates a PassiveStream.
      * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.

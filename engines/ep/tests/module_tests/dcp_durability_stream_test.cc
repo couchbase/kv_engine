@@ -1751,7 +1751,7 @@ void DurabilityPassiveStreamTest::
                           streamStartSeqno /*snapStart*/,
                           streamStartSeqno /*snapEnd*/,
                           DcpSnapshotMarkerFlag::Disk,
-                          0 /*HCS*/,
+                          streamStartSeqno /*HCS*/,
                           {},
                           {} /*maxVisibleSeqno*/,
                           std::nullopt,
@@ -2381,7 +2381,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             commitSeqno /*snapStart*/,
             commitSeqno /*snapEnd*/,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
-            {} /*HCS*/,
+            commitSeqno /*HCS*/,
             {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
@@ -2589,7 +2589,12 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     uint64_t cas = 999;
     using namespace cb::durability;
     makeAndReceiveSnapMarkerAndDcpPrepare(
-            key, cas, 1, Level::PersistToMajority);
+            key,
+            cas,
+            1,
+            Level::PersistToMajority,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            std::make_optional(1));
 
     EXPECT_EQ(1, dm.getNumTracked());
     // abort. Completes the first prepare, but the prepare will *not* be removed
@@ -2648,7 +2653,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             5,
             Level::PersistToMajority,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
-            0 /*HCS*/));
+            1 /*HCS*/));
 
     EXPECT_EQ(2, dm.getNumTracked());
 }
@@ -3332,6 +3337,36 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     // We should have unset (acked the second prepare) the bool flag if we
     // handled the snapshot end
     EXPECT_EQ(false, stream->getCurSnapshotPrepare());
+}
+
+TEST_P(DurabilityPassiveStreamTest, CheckHCSUpdatedOnReplicaWarmup) {
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1,
+                          4,
+                          DcpSnapshotMarkerFlag::Disk,
+                          4,
+                          4,
+                          0,
+                          0,
+                          cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker);
+
+    stream->messageReceived(makeMutationConsumerMessage(1, vbid, "value", 0));
+    stream->messageReceived(makeMutationConsumerMessage(2, vbid, "value", 0));
+    stream->messageReceived(makeMutationConsumerMessage(3, vbid, "value", 0));
+    stream->messageReceived(makeMutationConsumerMessage(4, vbid, "value", 0));
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(4, vb->acquireStateLockAndGetHighCompletedSeqno());
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // Get disk vbucket state
+    if (persistent()) {
+        auto diskVbState =
+                store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+        EXPECT_EQ(4, diskVbState->persistedCompletedSeqno);
+    }
 }
 
 TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
@@ -6314,7 +6349,7 @@ void DurabilityPassiveStreamEphemeralTest::testLogicalCommitCorrectTypeSetup() {
             1,
             3,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
-            0 /*HCS*/,
+            1 /*HCS*/,
             {},
             1 /*maxVisibleSeqno*/,
             std::nullopt,
@@ -6359,6 +6394,8 @@ void DurabilityPassiveStreamEphemeralTest::
     auto key = makeStoredDocKey("key");
     uint64_t cas = 0;
     uint64_t seqno = 2;
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+
     stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
             0 /*opaque*/, vbid, key, 1, seqno++));
     makeAndReceiveCommittedItem(key, cas, seqno, deleted);

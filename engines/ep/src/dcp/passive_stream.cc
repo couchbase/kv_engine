@@ -924,7 +924,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     // present but zero for disk snapshot (not possible for any
     // SyncWrites to have completed yet). If SyncReplication is
     // supported then use the value from the marker.
-    const std::optional<uint64_t> hcs =
+    cur_snapshot_hcs =
             isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
                             !supportsSyncReplication
                     ? 0
@@ -968,7 +968,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         cur_snapshot_hps = std::nullopt;
     }
 
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) && !hcs) {
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+        !cur_snapshot_hcs) {
         const auto msg = fmt::format(
                 "PassiveStream::processMarker: stream:{} {}, flags:{}, "
                 "snapStart:{}, snapEnd:{}, HCS:{} - missing HCS",
@@ -977,7 +978,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 marker->getFlags(),
                 marker->getStartSeqno(),
                 marker->getEndSeqno(),
-                to_string_or_none(hcs));
+                to_string_or_none(cur_snapshot_hcs));
         throw std::logic_error(msg);
     }
 
@@ -1009,7 +1010,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                     marker->getFlags(),
                     marker->getStartSeqno(),
                     marker->getEndSeqno(),
-                    to_string_or_none(hcs),
+                    to_string_or_none(cur_snapshot_hcs),
                     purgeSeqno);
             throw std::logic_error(msg);
         }
@@ -1028,7 +1029,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 cur_snapshot_end.load(),
                 visibleSeq,
                 cur_snapshot_start.load(),
-                hcs ? std::to_string(*hcs) : "nullopt",
+                cur_snapshot_hcs ? std::to_string(*cur_snapshot_hcs)
+                                 : "nullopt",
                 ::to_string(checkpointType),
                 ::to_string(historical));
         throw std::logic_error(msg);
@@ -1042,7 +1044,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         vb->setReceivingInitialDiskSnapshot(true);
         ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                cur_snapshot_end.load(),
-                               hcs,
+                               cur_snapshot_hcs,
                                cur_snapshot_hps,
                                checkpointType,
                                visibleSeq,
@@ -1053,7 +1055,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Checkpoint)) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
-                                   hcs,
+                                   cur_snapshot_hcs,
                                    cur_snapshot_hps,
                                    checkpointType,
                                    visibleSeq,
@@ -1076,7 +1078,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             } else {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
-                                       hcs,
+                                       cur_snapshot_hcs,
                                        cur_snapshot_hps,
                                        checkpointType,
                                        visibleSeq,
@@ -1140,7 +1142,10 @@ void PassiveStream::handleSnapshotEnd(uint64_t seqno) {
         const auto hps = cur_snapshot_type.load() == Snapshot::Disk
                                  ? cur_snapshot_hps
                                  : std::nullopt;
-        vb->notifyPassiveDMOfSnapEndReceived(seqno, hps);
+        const auto hcs = cur_snapshot_type.load() == Snapshot::Disk
+                                 ? cur_snapshot_hcs
+                                 : std::nullopt;
+        vb->notifyPassiveDMOfSnapEndReceived(seqno, hps, hcs);
         cur_snapshot_prepare.store(false);
     }
 }
