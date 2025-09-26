@@ -1018,6 +1018,23 @@ public:
 
     void setSubdocMultiMaxPaths(size_t val);
 
+    size_t getSubdocOffloadSizeThreshold() const {
+        return subdoc_offload_size_threshold.load(std::memory_order_acquire);
+    }
+    void setSubdocOffloadSizeThreshold(size_t val) {
+        subdoc_offload_size_threshold.store(val, std::memory_order_release);
+        has.subdoc_offload_size_threshold = true;
+        notify_changed("subdoc_offload_size_threshold");
+    }
+    size_t getSubdocOffloadPathThreshold() const {
+        return subdoc_offload_paths_threshold.load(std::memory_order_acquire);
+    }
+    void setSubdocOffloadPathThreshold(size_t val) {
+        subdoc_offload_paths_threshold.store(val, std::memory_order_release);
+        has.subdoc_offload_paths_threshold = true;
+        notify_changed("subdoc_offload_paths_threshold");
+    }
+
     void setAbruptShutdownTimeout(std::chrono::milliseconds val) {
         abrupt_shutdown_timeout.store(val, std::memory_order_release);
         has.abrupt_shutdown_timeout = true;
@@ -1370,6 +1387,14 @@ protected:
     /// The maximum number of paths allowed in a subdoc multi-path operation
     std::atomic<size_t> subdoc_multi_max_paths{16};
 
+    /// The minimum document size for sub-document operations to be offloaded
+    /// to the thread pool for execution
+    std::atomic_size_t subdoc_offload_size_threshold{1_MiB};
+
+    /// The minimum number of paths in the multi operation before offloading
+    /// to the threadpool for execution
+    std::atomic_size_t subdoc_offload_paths_threshold{16};
+
     /// The maximum size of a chunk when reading file fragments
     std::atomic<size_t> file_fragment_max_chunk_size{20_MiB};
 
@@ -1454,6 +1479,8 @@ public:
         bool dcp_disconnect_when_stuck_timeout_seconds = false;
         bool dcp_disconnect_when_stuck_name_regex = false;
         bool subdoc_multi_max_paths = false;
+        bool subdoc_offload_size_threshold = false;
+        bool subdoc_offload_paths_threshold = false;
         bool clustermap_push_notifications_enabled = false;
         bool file_fragment_max_chunk_size = false;
         bool dcp_consumer_max_marker_version = false;

@@ -409,7 +409,10 @@ bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) const {
             std::forward_as_tuple(
                     cookie.getConnection().getBucket().jsonValidateTimes),
             std::forward_as_tuple(cookie, Code::JsonValidate));
-    return validator->validate(view);
+    if (eventBase.isInEventBaseThread()) {
+        return validator->validate(view);
+    }
+    return cb::json::SyntaxValidator::New()->validate((view));
 }
 
 bool FrontEndThread::isXattrBlobValid(std::string_view view) {

@@ -14,12 +14,14 @@
 #include "concurrency_semaphores.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
-#include "one_shot_limited_concurrency_task.h"
+#include "one_shot_task.h"
 #include "protocol/mcbp/engine_wrapper.h"
+#include "settings.h"
 #include "subdocument_context.h"
 #include "subdocument_parser.h"
 #include "subdocument_traits.h"
 
+#include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/durability_spec.h>
@@ -83,6 +85,9 @@ public:
                     return;
                 }
                 break;
+            case State::ExecuteSpecInThreadpool:
+                // This function should be called from the executor callback
+                Expects(false && "This should be called from the executor");
             case State::ExecuteSpecInFrontendThread:
                 do_execute_spec_in_frontend_thread();
                 break;
@@ -126,6 +131,7 @@ protected:
     enum class State {
         CreateContext,
         FetchItem,
+        ExecuteSpecInThreadpool,
         ExecuteSpecInFrontendThread,
         AllocateNewItem,
         UpdateItem,
@@ -134,6 +140,15 @@ protected:
         InitiateShutdown
     };
     State state{State::CreateContext};
+
+    /// Return true if the operation should be run on the thread pool
+    bool shouldRunOnThreadPool() const {
+        auto& settings = Settings::instance();
+        return execution_context->in_doc.view.size() >
+                       settings.getSubdocOffloadSizeThreshold() ||
+               execution_context->getNumOperations() >
+                       settings.getSubdocOffloadPathThreshold();
+    }
 
     /// Callback implementing CreateContext state. Create the execution
     /// context and move to FetchItem
@@ -147,9 +162,17 @@ protected:
     /// or if there is a logic error (revive a document which isn't deleted for
     /// example).
     ///
-    /// Next state:
-    ///     ExecuteSpecInFrontEndThread
+    /// Depending on the size of the input document the next state may be
+    /// ExecuteSpecInFrontEndThread or ExecuteSpecInThreadPool
     bool do_fetch_item(cb::engine_errc aio_status);
+
+    /// Similar to do_execute_spec_in_frontend_thread, but should be called
+    /// from the executor.
+    /// The next state would be:
+    ///    AllocateNewItem - if this is a mutation which executed successfully
+    ///    SendResponse - Errors and lookup
+    ///    InitiateShutdown - An exception occurred
+    void do_execute_spec_in_thread_pool();
 
     /// Execute the Spec.
     /// The next state would be:
@@ -362,8 +385,35 @@ bool SubdocCommandContext::do_fetch_item(cb::engine_errc aio_status) {
         return false;
     }
 
+    if (shouldRunOnThreadPool()) {
+        state = State::ExecuteSpecInThreadpool;
+        ++get_thread_stats(&cookie.getConnection())->subdoc_offload_count;
+        cookie.setEwouldblock();
+        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+                TaskId::Core_SubdocExecuteTask, "Execute SUBDOC", [this]() {
+                    do_execute_spec_in_thread_pool();
+                }));
+        return false;
+    }
+
     state = State::ExecuteSpecInFrontendThread;
     return true;
+}
+
+void SubdocCommandContext::do_execute_spec_in_thread_pool() {
+    Expects(!cookie.getConnection()
+                     .getThread()
+                     .eventBase.isInEventBaseThread());
+    try {
+        execute_subdoc_spec();
+    } catch (const std::exception& e) {
+        LOG_WARNING_CTX(
+                "Exception occurred executing subdoc spec. Closing connection",
+                {"conn_id", cookie.getConnectionId()},
+                {"error", e.what()});
+        state = State::InitiateShutdown;
+    }
+    cookie.notifyIoComplete(cb::engine_errc::success);
 }
 
 void SubdocCommandContext::do_execute_spec_in_frontend_thread() {

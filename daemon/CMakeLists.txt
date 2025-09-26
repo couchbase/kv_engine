@@ -65,6 +65,8 @@ add_library(memcached_daemon STATIC
             network_interface_manager_thread.h
             nobucket_taskable.cc
             nobucket_taskable.h
+            one_shot_limited_concurrency_task.h
+            one_shot_task.h
             resource_allocation_domain.cc
             resource_allocation_domain.h
             sasl_auth_task.cc

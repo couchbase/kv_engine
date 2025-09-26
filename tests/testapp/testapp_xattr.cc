@@ -2646,3 +2646,122 @@ TEST_P(XattrTest, NonBinaryValueRequestedWithBinaryFlag) {
     EXPECT_EQ(Status::SubdocFieldNotBinaryValue, rsp.getStatus())
             << rsp.getDataView();
 }
+
+TEST_P(XattrNoDocTest, TestSubdocOffloadToNonIoThread_many_paths) {
+    auto getSubocNonIOCount = []() {
+        size_t count = 0;
+        userConnection->stats([&count](auto k, auto v) {
+            if (k == "subdoc_offload_count") {
+                count = std::stoi(std::string(v));
+            }
+        });
+        return count;
+    };
+
+    auto count = getSubocNonIOCount();
+
+    nlohmann::json json;
+    for (int ii = 0; ii < 100; ++ii) {
+        json[fmt::format("key-{}", ii)] = true;
+    }
+    userConnection->store(name, Vbid(0), json.dump());
+
+    BinprotSubdocMultiMutationCommand mutationCmd;
+    BinprotSubdocMultiLookupCommand lookupCmd;
+
+    mutationCmd.setKey(name);
+    lookupCmd.setKey(name);
+
+    for (int ii = 0; ii < 100; ++ii) {
+        mutationCmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                                PathFlag::None,
+                                fmt::format("key-{}", ii),
+                                "false");
+        lookupCmd.addGet(fmt::format("key-{}", ii));
+    }
+    auto mutationRsp = BinprotSubdocMultiMutationResponse{
+            userConnection->execute(mutationCmd)};
+    EXPECT_EQ(Status::SubdocInvalidCombo, mutationRsp.getStatus());
+    EXPECT_EQ("Request must contain at most 16 paths",
+              mutationRsp.getErrorContext());
+
+    auto resetConfigGuard =
+            folly::makeGuard([this, oldConfig = memcached_cfg]() {
+                memcached_cfg["subdoc_multi_max_paths"] = 16;
+                reconfigure();
+            });
+
+    memcached_cfg["subdoc_multi_max_paths"] = 200;
+    reconfigure();
+
+    mutationRsp = BinprotSubdocMultiMutationResponse{
+            userConnection->execute(mutationCmd)};
+    EXPECT_EQ(Status::Success, mutationRsp.getStatus());
+
+    EXPECT_EQ(++count, getSubocNonIOCount());
+
+    auto lookupRsp = BinprotSubdocMultiLookupResponse{
+            userConnection->execute(lookupCmd)};
+    EXPECT_EQ(Status::Success, lookupRsp.getStatus())
+            << lookupRsp.getErrorContext();
+
+    EXPECT_EQ(++count, getSubocNonIOCount());
+
+    const auto results = lookupRsp.getResults();
+    ASSERT_EQ(100, results.size());
+    for (auto& r : results) {
+        EXPECT_EQ(Status::Success, r.status);
+        EXPECT_EQ("false", r.value);
+    }
+}
+
+TEST_P(XattrNoDocTest, TestSubdocOffloadToNonIoThread_big_doc) {
+    auto getSubocNonIOCount = []() {
+        size_t count = 0;
+        userConnection->stats([&count](auto k, auto v) {
+            if (k == "subdoc_offload_count") {
+                count = std::stoi(std::string(v));
+            }
+        });
+        return count;
+    };
+
+    auto count = getSubocNonIOCount();
+
+    nlohmann::json json = {{"key-0", false}};
+    json["key-1"] = std::string(2_MiB, 'a');
+    userConnection->store(name, Vbid(0), json.dump());
+
+    BinprotSubdocMultiMutationCommand mutationCmd;
+    BinprotSubdocMultiLookupCommand lookupCmd;
+
+    mutationCmd.setKey(name);
+    lookupCmd.setKey(name);
+
+    for (int ii = 0; ii < 2; ++ii) {
+        mutationCmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                                PathFlag::None,
+                                fmt::format("key-{}", ii),
+                                "false");
+        lookupCmd.addGet(fmt::format("key-{}", ii));
+    }
+    auto mutationRsp = BinprotSubdocMultiMutationResponse{
+            userConnection->execute(mutationCmd)};
+    EXPECT_EQ(Status::Success, mutationRsp.getStatus());
+    EXPECT_EQ(++count, getSubocNonIOCount());
+
+    auto lookupRsp = BinprotSubdocMultiLookupResponse{
+            userConnection->execute(lookupCmd)};
+    EXPECT_EQ(Status::Success, lookupRsp.getStatus())
+            << lookupRsp.getErrorContext();
+
+    // The document should now be small enough and should not be offloaded
+    EXPECT_EQ(count, getSubocNonIOCount());
+
+    const auto results = lookupRsp.getResults();
+    ASSERT_EQ(2, results.size());
+    for (auto& r : results) {
+        EXPECT_EQ(Status::Success, r.status);
+        EXPECT_EQ("false", r.value);
+    }
+}

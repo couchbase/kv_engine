@@ -3000,6 +3000,12 @@
         "added": "7.0.0"
     },
     {
+        "key": "subdoc_offload_count",
+        "description": "The number of subdoc operations executed in the non-IO thread pool",
+        "unit": "none",
+        "added": "8.1.0"
+    },
+    {
         "key": "subdoc_execute",
         "description": "Timing histogram for subdoc execute phase",
         "unit": "none",

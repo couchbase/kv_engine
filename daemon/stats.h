@@ -53,6 +53,7 @@ struct thread_stats {
         conn_timeslice_yields = 0;
         cmd_subdoc_lookup = 0;
         cmd_subdoc_mutation = 0;
+        subdoc_offload_count = 0;
         cmd_lock = 0;
         lock_errors = 0;
         subdoc_update_races = 0;
@@ -84,6 +85,7 @@ struct thread_stats {
         conn_timeslice_yields += other.conn_timeslice_yields;
         cmd_subdoc_lookup += other.cmd_subdoc_lookup;
         cmd_subdoc_mutation += other.cmd_subdoc_mutation;
+        subdoc_offload_count += other.subdoc_offload_count;
 
         cmd_lock += other.cmd_lock;
         lock_errors += other.lock_errors;
@@ -127,6 +129,8 @@ struct thread_stats {
     cb::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
     /* # of subdoc mutation commands */
     cb::RelaxedAtomic<uint64_t> cmd_subdoc_mutation;
+    /// The number of subdoc operations run on NonIO threads
+    cb::RelaxedAtomic<uint64_t> subdoc_offload_count;
 
     /** # of lock commands */
     cb::RelaxedAtomic<uint64_t> cmd_lock;

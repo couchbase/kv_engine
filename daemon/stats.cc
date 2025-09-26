@@ -161,6 +161,8 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     collector.addStat(Key::cmd_subdoc_lookup, thread_stats.cmd_subdoc_lookup);
     collector.addStat(Key::cmd_subdoc_mutation,
                       thread_stats.cmd_subdoc_mutation);
+    collector.addStat(Key::subdoc_offload_count,
+                      thread_stats.subdoc_offload_count);
 
     collector.addStat(Key::bytes_subdoc_lookup_total,
                       thread_stats.bytes_subdoc_lookup_total);

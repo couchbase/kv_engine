@@ -463,6 +463,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     value.get<std::string>());
         } else if (key == "subdoc_multi_max_paths"sv) {
             setSubdocMultiMaxPaths(value.get<size_t>());
+        } else if (key == "subdoc_offload_size_threshold"sv) {
+            setSubdocOffloadSizeThreshold(value.get<size_t>());
+        } else if (key == "subdoc_offload_paths_threshold"sv) {
+            setSubdocOffloadPathThreshold(value.get<size_t>());
         } else if (key == "abrupt_shutdown_timeout"sv) {
             setAbruptShutdownTimeout(
                     std::chrono::milliseconds(value.get<size_t>()));
@@ -1206,6 +1210,32 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getSubdocMultiMaxPaths()},
                          {"to", other.getSubdocMultiMaxPaths()});
             setSubdocMultiMaxPaths(other.getSubdocMultiMaxPaths());
+        }
+    }
+
+    if (other.has.subdoc_offload_size_threshold) {
+        if (other.getSubdocOffloadSizeThreshold() !=
+            getSubdocOffloadSizeThreshold()) {
+            LOG_INFO_CTX(
+                    "Change threshold for offload subdoc operations to thread "
+                    "pool",
+                    {"from", getSubdocOffloadSizeThreshold()},
+                    {"to", other.getSubdocOffloadSizeThreshold()});
+            setSubdocOffloadSizeThreshold(
+                    other.getSubdocOffloadSizeThreshold());
+        }
+    }
+
+    if (other.has.subdoc_offload_paths_threshold) {
+        if (other.getSubdocOffloadPathThreshold() !=
+            getSubdocOffloadPathThreshold()) {
+            LOG_INFO_CTX(
+                    "Change threshold for number of paths before offload "
+                    "subdoc operation to thread pool",
+                    {"from", getSubdocOffloadPathThreshold()},
+                    {"to", other.getSubdocOffloadPathThreshold()});
+            setSubdocOffloadPathThreshold(
+                    other.getSubdocOffloadPathThreshold());
         }
     }
 

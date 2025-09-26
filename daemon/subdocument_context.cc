@@ -685,10 +685,21 @@ uint32_t SubdocExecutionContext::computeValueCRC32C() {
     return crc32c(value);
 }
 
+Subdoc::Operation& SubdocExecutionContext::get_subdoc_operation_object() {
+    auto& thread = connection.getThread();
+    if (thread.eventBase.isInEventBaseThread()) {
+        return thread.subdoc_op;
+    }
+    if (!subdoc_op) {
+        subdoc_op = std::make_unique<Subdoc::Operation>();
+    }
+    return *subdoc_op;
+}
+
 cb::mcbp::Status SubdocExecutionContext::operate_one_path(
         SubdocExecutionContext::OperationSpec& spec, std::string_view view) {
     // Prepare the specified sub-document command.
-    auto& op = connection.getThread().subdoc_op;
+    auto& op = get_subdoc_operation_object();
     op.clear();
     op.set_result_buf(&spec.result);
     op.set_code(spec.traits.subdocCommand);

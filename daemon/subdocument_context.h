@@ -104,6 +104,10 @@ public:
                 "SubdocExecutionContext::getOperations() invalid phase");
     }
 
+    size_t getNumOperations() const {
+        return operations[0].size() + operations[1].size();
+    }
+
     Operations& getOperations() {
         return getOperations(currentPhase);
     }
@@ -476,5 +480,10 @@ protected:
     std::vector<std::string> expandedVirtualMacrosBackingStore;
 
     std::vector<std::string> binaryEncodedStorage;
+
+    Subdoc::Operation& get_subdoc_operation_object();
+
+    /// The Subdoc::Operation instance to use
+    std::unique_ptr<Subdoc::Operation> subdoc_op;
 
 }; // class SubdocExecutionContext
