@@ -235,6 +235,12 @@ public:
             const std::function<bool(std::string_view line)>& callback)
             const = 0;
 
+    /**
+     * @param string to search
+     * @return The number of instances of string in the memcached log file
+     */
+    virtual size_t verifyLogLine(std::string_view string) const = 0;
+
     virtual std::string getLogFilePattern() const = 0;
 
     /// Do we have support for IPv4 addresses on the machine

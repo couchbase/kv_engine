@@ -633,6 +633,17 @@ public:
         }
     }
 
+    size_t verifyLogLine(std::string_view string) const override {
+        size_t ret = 0;
+        mcd_env->iterateLogLines([&string, &ret](auto line) {
+            if (line.find(string) != std::string_view::npos) {
+                ++ret;
+            }
+            return true;
+        });
+        return ret;
+    }
+
 private:
     const std::filesystem::path test_directory;
     const std::filesystem::path isasl_file_name;
