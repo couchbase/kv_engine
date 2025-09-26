@@ -182,12 +182,18 @@ static const std::unordered_set<std::string_view> vbucketParamSet{
         "dcp_hlc_invalid_strategy",
 };
 
+/// Parameters which are exclusive to the config category.
+static const std::unordered_set<std::string_view> extraConfigParamSet{
+        "compat_version",
+};
+
 static const std::unordered_set<std::string_view> allParamSet = []() {
     std::unordered_set<std::string_view> ret;
     ret.insert(checkpointParamSet.begin(), checkpointParamSet.end());
     ret.insert(flushParamSet.begin(), flushParamSet.end());
     ret.insert(dcpParamSet.begin(), dcpParamSet.end());
     ret.insert(vbucketParamSet.begin(), vbucketParamSet.end());
+    ret.insert(extraConfigParamSet.begin(), extraConfigParamSet.end());
     return ret;
 }();
 

@@ -752,3 +752,41 @@ TEST(ConfigurationTest, ValidateNonDynamic) {
     EXPECT_EQ(validation["param"]["value"], 1);
     EXPECT_EQ(validation["param"]["requiresRestart"], true);
 }
+
+TEST(ConfigurationTest, CompatVersionComparison) {
+    using cb::config::FeatureVersion;
+    EXPECT_EQ(FeatureVersion(8, 0), FeatureVersion(8, 0));
+    EXPECT_LT(FeatureVersion(8, 0), FeatureVersion(8, 1));
+    EXPECT_GE(FeatureVersion(8, 0), FeatureVersion(7, 6));
+}
+
+TEST(ConfigurationTest, CompatVersionDefault) {
+    using cb::config::FeatureVersion;
+    ConfigurationShim configuration;
+    auto version = configuration.getEffectiveCompatVersion();
+    EXPECT_EQ(version, FeatureVersion::max());
+}
+
+TEST(ConfigurationTest, CompatVersionSet) {
+    using cb::config::FeatureVersion;
+    ConfigurationShim configuration;
+    configuration.setParameter("compat_version", "8.0");
+    auto version = configuration.getEffectiveCompatVersion();
+    EXPECT_EQ(version, FeatureVersion(8, 0));
+
+    configuration.setParameter("compat_version", "");
+    auto versionMax = configuration.getEffectiveCompatVersion();
+    EXPECT_EQ(versionMax, FeatureVersion::max());
+}
+
+TEST(ConfigurationTest, CompatVersionSetInvalid) {
+    using cb::config::FeatureVersion;
+    ConfigurationShim configuration;
+    EXPECT_THROW(configuration.setParameter("compat_version", "asd"),
+                 std::invalid_argument);
+    EXPECT_THROW(configuration.setParameter("compat_version", "8"),
+                 std::invalid_argument);
+    EXPECT_THROW(configuration.setParameter("compat_version", "8.0.0"),
+                 std::invalid_argument);
+    EXPECT_EQ(configuration.getEffectiveCompatVersion(), FeatureVersion::max());
+}

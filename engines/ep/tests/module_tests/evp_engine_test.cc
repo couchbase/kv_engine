@@ -332,26 +332,11 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                 handled.emplace_back("setVBucketParam");
             }
 
-            if (deprecated.contains(key)) {
-                EXPECT_EQ(0, handled.size())
-                        << "Dynamic config key \"" << key
-                        << "\" can no longer be set - actually settable via: ["
-                        << boost::algorithm::join(handled, ", ") << "]";
-            } else if (handled.empty()) {
-                ADD_FAILURE() << "Dynamic config key \"" << key
-                              << "\" cannot be set via any of the set...Param "
-                                 "methods.";
-            } else if (handled.size() > 1) {
-                ADD_FAILURE()
-                        << "Dynamic config key \"" << key
-                        << "\" should only be settable by a single "
-                           "set...Param() method - actually settable via: ["
-                        << boost::algorithm::join(handled, ", ") << "]";
-            }
-
-            if (engine->setConfigurationParameter(
-                        std::string(key), value, msg) !=
-                cb::engine_errc::success) {
+            bool canSetViaConfigurationParameter =
+                    engine->setConfigurationParameter(
+                            std::string(key), value, msg) ==
+                    cb::engine_errc::success;
+            if (!canSetViaConfigurationParameter) {
                 // Any parameter settable via the above param methods
                 // should be settable via the setConfigurationParameter method
                 // too.
@@ -360,6 +345,23 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                         << "\" should be settable via "
                            "setConfigurationParameter() - actually settable "
                            "via: ["
+                        << boost::algorithm::join(handled, ", ") << "]";
+            }
+
+            if (deprecated.contains(key)) {
+                EXPECT_EQ(0, handled.size())
+                        << "Dynamic config key \"" << key
+                        << "\" can no longer be set - actually settable via: ["
+                        << boost::algorithm::join(handled, ", ") << "]";
+            } else if (handled.empty() && !canSetViaConfigurationParameter) {
+                ADD_FAILURE() << "Dynamic config key \"" << key
+                              << "\" cannot be set via any of the set...Param "
+                                 "methods.";
+            } else if (handled.size() > 1) {
+                ADD_FAILURE()
+                        << "Dynamic config key \"" << key
+                        << "\" should only be settable by a single "
+                           "set...Param() method - actually settable via: ["
                         << boost::algorithm::join(handled, ", ") << "]";
             }
         }

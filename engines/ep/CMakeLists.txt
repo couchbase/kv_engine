@@ -251,6 +251,7 @@ ADD_LIBRARY(ep STATIC
             src/collections/vbucket_manifest_handles.cc
             src/collections/vbucket_manifest_scope_entry.cc
             src/configuration.cc
+            src/configuration_types.cc
             src/conflict_resolution.cc
             src/conn_store.cc
             src/connhandler.cc

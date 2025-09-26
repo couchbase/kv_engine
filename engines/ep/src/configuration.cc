@@ -126,6 +126,7 @@ void ValueChangedValidator::validateString(std::string_view key, const char*) {
 Configuration::Configuration(bool isServerless, bool isDevAssertEnabled)
     : isServerless(isServerless), isDevAssertEnabled(isDevAssertEnabled) {
     initialize();
+    initializeCompatVersion();
     initialized = true;
 }
 
@@ -339,6 +340,7 @@ Configuration::Configuration(const Configuration& other)
     : isServerless(other.isServerless),
       isDevAssertEnabled(other.isDevAssertEnabled) {
     initialize();
+    initializeCompatVersion();
     initialized = true;
     for (const auto& [key, value] : other.attributes) {
         (void)attributes[key]->setValue(value->getValue());
@@ -705,6 +707,57 @@ template void Configuration::addValueChangedFunc(std::string_view,
                                                  std::function<void(float)>);
 template void Configuration::addValueChangedFunc(
         std::string_view, std::function<void(std::string_view)>);
+
+class FeatureVersionValidator : public ValueChangedValidator {
+public:
+    void validateString(std::string_view key, const char* value) override {
+        if (value[0] == '\0') {
+            // Allow the default value to be set.
+            return;
+        }
+        cb::config::FeatureVersion::parse(value);
+    }
+};
+
+void Configuration::initializeCompatVersion() {
+    static constexpr auto compatVersionKey = "compat_version";
+    auto itr = attributes.find(compatVersionKey);
+    if (itr == attributes.end()) {
+        throw std::invalid_argument(fmt::format(
+                "Configuration: No such config key '{}'", compatVersionKey));
+    }
+
+    if (itr->second->validator) {
+        throw std::logic_error(
+                fmt::format("Configuration: Validator already set for key '{}'",
+                            compatVersionKey));
+    }
+    // We need a special validator for the compat version, since it's not a
+    // supported type by the configuration.
+    itr->second->validator = std::make_unique<FeatureVersionValidator>();
+
+    // Use a listener to update the compat version atomic when it changes.
+    // We will read this atomic in the getter.
+    std::function<void(std::string_view)> callback =
+            [this](const std::string_view str) {
+                auto version = str.empty()
+                                       ? cb::config::FeatureVersion::max()
+                                       : cb::config::FeatureVersion::parse(str);
+                processCompatVersionChange(version);
+            };
+    itr->second->addChangeListener(
+            std::make_unique<ValueChangedCallback<std::string_view>>(
+                    std::move(callback)));
+}
+
+void Configuration::processCompatVersionChange(
+        cb::config::FeatureVersion version) {
+    compatVersion.store(version, std::memory_order_release);
+}
+
+cb::config::FeatureVersion Configuration::getEffectiveCompatVersion() const {
+    return compatVersion.load(std::memory_order_acquire);
+}
 
 // Explicit instantiations for addParameter for supported types.
 #define INSTANTIATE_TEMPLATES(T)                                \

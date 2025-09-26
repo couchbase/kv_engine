@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -39,5 +40,45 @@ template <typename T,
 std::string to_string(T val) {
     return std::string(cb::config::format_as(val));
 }
+
+/**
+ * A feature version is a major and minor version.
+ *
+ * Supports comparison and ordering.
+ */
+struct FeatureVersion {
+    /**
+     * The maximum feature version.
+     */
+    static FeatureVersion max();
+    /**
+     * Parses a feature version from a string in the format "major.minor".
+     *
+     * @param version the input to parse
+     * @return the parsed feature version
+     * @throws std::invalid_argument
+     */
+    static FeatureVersion parse(std::string_view version);
+
+    /// Construct a feature version.
+    FeatureVersion(uint8_t major, uint8_t minor);
+
+    FeatureVersion(const FeatureVersion&) = default;
+    FeatureVersion& operator=(const FeatureVersion&) = default;
+
+    /// Compare two feature versions.
+    std::strong_ordering operator<=>(const FeatureVersion&) const noexcept;
+    bool operator==(const FeatureVersion&) const noexcept;
+
+    /// The major version
+    uint8_t major_version{};
+    /// The minor version
+    uint8_t minor_version{};
+};
+
+static_assert(std::atomic<FeatureVersion>::is_always_lock_free,
+              "cb::config::FeatureVersion atomic is not lock-free");
+
+std::string format_as(const FeatureVersion& version);
 
 } // namespace cb::config

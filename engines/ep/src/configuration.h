@@ -292,6 +292,13 @@ public:
     ParameterValidationMap validateParameters(
             const ParameterMap& parameters) const override;
 
+    /**
+     * Get the compatibility version for the configuration.
+     * If the compatibility version is not set, the maximum feature version is
+     * returned.
+     */
+    cb::config::FeatureVersion getEffectiveCompatVersion() const;
+
     const bool isServerless;
 
     const bool isDevAssertEnabled = false;
@@ -305,6 +312,12 @@ protected:
      * @param other The configuration to copy
      */
     Configuration(const Configuration& other);
+
+    /// The compatibility version for the configuration.
+    void initializeCompatVersion();
+
+    /// Process a change to the compatibility version.
+    void processCompatVersionChange(cb::config::FeatureVersion version);
 
     std::pair<ParameterValidationMap, bool> setParametersInternal(
             const ParameterMap& parameters);
@@ -402,6 +415,12 @@ protected:
      * attributes cannot be changed.
      */
     cb::RelaxedAtomic<bool> initialized{false};
+
+    /**
+     * The compatibility version for the configuration.
+     */
+    std::atomic<cb::config::FeatureVersion> compatVersion{
+            cb::config::FeatureVersion::max()};
 
     void initialize();
 
