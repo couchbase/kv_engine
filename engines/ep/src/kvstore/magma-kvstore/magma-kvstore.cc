@@ -4170,7 +4170,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("fusion_NumBytesSynced", magmaStats->FusionFSStats.NumBytesSynced);
     fill("fusion_NumLogsMigrated", magmaStats->FusionFSStats.NumLogsMigrated);
     fill("fusion_NumBytesMigrated", magmaStats->FusionFSStats.NumBytesMigrated);
-    fill("fusion_LogStoreSize", magmaStats->FusionFSStats.LogStoreSize);
+    fill("fusion_LogStoreDataSize", magmaStats->FusionFSStats.LogStoreDataSize);
     fill("fusion_LogStoreGarbageSize",
          magmaStats->FusionFSStats.LogStoreGarbageSize);
     fill("fusion_NumLogsCleaned", magmaStats->FusionFSStats.NumLogsCleaned);

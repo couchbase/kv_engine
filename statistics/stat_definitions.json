@@ -1842,17 +1842,17 @@
         "added": "8.0.0"
     },
     {
-        "key": "ep_fusion_log_store_size",
+        "key": "ep_fusion_log_store_data_size",
         "unit": "bytes",
         "type": "gauge",
-        "description": "Total size of all the logs on FusionLogStore.",
+        "description": "Total size of the file data present in all the logs on FusionLogStore.",
         "added": "8.0.0"
     },
     {
         "key": "ep_fusion_log_store_garbage_size",
         "unit": "bytes",
         "type": "gauge",
-        "description": "Total size of the garbage data present on FusionLogStore.",
+        "description": "Total size of the garbage file data present on FusionLogStore.",
         "added": "8.0.0"
     },
     {

@@ -908,7 +908,7 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
             "ep_fusion_bytes_synced",
             "ep_fusion_logs_migrated",
             "ep_fusion_bytes_migrated",
-            "ep_fusion_log_store_size",
+            "ep_fusion_log_store_data_size",
             "ep_fusion_log_store_garbage_size",
             "ep_fusion_logs_cleaned",
             "ep_fusion_log_clean_bytes_read",

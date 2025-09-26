@@ -3343,7 +3343,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
              "fusion_NumBytesMigrated",
              "fusion_MigrationTotalBytes",
              "fusion_MigrationCompletedBytes",
-             "fusion_LogStoreSize",
+             "fusion_LogStoreDataSize",
              "fusion_LogStoreGarbageSize",
              "fusion_LogStorePendingDeleteSize",
              "fusion_NumLogsCleaned",
@@ -3386,7 +3386,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_bytes_synced, "fusion_NumBytesSynced");
     addStat(Key::ep_fusion_logs_migrated, "fusion_NumLogsMigrated");
     addStat(Key::ep_fusion_bytes_migrated, "fusion_NumBytesMigrated");
-    addStat(Key::ep_fusion_log_store_size, "fusion_LogStoreSize");
+    addStat(Key::ep_fusion_log_store_data_size, "fusion_LogStoreDataSize");
     addStat(Key::ep_fusion_log_store_garbage_size,
             "fusion_LogStoreGarbageSize");
     addStat(Key::ep_fusion_logs_cleaned, "fusion_NumLogsCleaned");
