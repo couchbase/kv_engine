@@ -1,3 +1,65 @@
+/**
+ * /// configuration.json
+ *
+ * Configuration parameters for the EP engine.
+ * The parameter definitions are in the format:
+ *
+ * "key": {
+ *     "type": "parameter_type",
+ *     "aliases": ["alias1", "alias2"],
+ *     "descr": "parameter_description",
+ *     "dynamic": bool,
+ *     "default": "parameter_default",
+ *     "requires": {
+ *         "bucket_type": "persistent"
+ *     }
+ * }
+ *
+ * * "key" - the name of the parameter
+ * * "type" - the type of the parameter, which must be one of the following:
+ *     "bool" - a boolean value
+ *     "size_t" - an unsigned integer value
+ *     "ssize_t" - a signed integer value
+ *     "float" - a floating point value
+ *     "std::string" - a string value
+ * * "descr" - the description of the parameter; note this description is
+ *     used in the generated statistic documentation.
+ * * "dynamic" - true if the parameter can be changed at runtime, false if
+ *     it cannot be changed at runtime. Generates setter if true.
+ * * "default" - the default value of the parameter:
+ *     - a string (will be converted to the appropriate type). The string can
+ *       be a computation which is evaluated at runtime.
+ *     - a map of strings indicating the default value for different deployment
+ *       types: "on-prem", "serverless", "tsan", "dev-assert-enabled".
+ *       If there is no default value for a deployment type, then the on-prem
+ *       value is used.
+ *     - a map defining an if condition with the following keys:
+ *       {
+ *          "if": {
+ *            "parameter": {
+ *              "equals": "value",
+ *              "then": "use value1",
+ *              "elif": [
+ *                {"parameter": {"equals": "value", "then": "use value2"}}
+ *              ]
+ *            }
+ *          },
+ *          "else": "use value3"
+ *       }
+ *
+ *       The condition generates a series of if/else if/else statements to set
+ *       the parameter based on the value of other parameters. This code will
+ *       be executed at the end of the configuration initialization. For this
+ *       reason the compared parameters should not be dynamic. The deployment
+ *       type conditionals are not supported.
+ *
+ * * "requires" - the requirements for the parameter; if not met then the
+ *     parameter cannot be set and is not reported in the statistics.
+ * * "validator" - the validator for the parameter; defines the range of
+ *     values that the parameter can take.
+ * * "aliases" - the aliases for the parameter; allows the parameter to be
+ *     set using an alias name.
+ */
 {
     "params": {
         "allow_sanitize_value_in_deletion" : {

@@ -850,7 +850,10 @@ int main(int argc, char **argv) {
 
     nlohmann::json json;
     try {
-        json = nlohmann::json::parse(readFile(file));
+        json = nlohmann::json::parse(readFile(file),
+                                     /* callback */ nullptr,
+                                     /* allow exceptions */ true,
+                                     /* ignore_comments */ true);
     } catch (const nlohmann::json::exception& e) {
         fmt::print(stderr, "Failed to parse JSON. e.what()=\n", e.what());
         return 1;
