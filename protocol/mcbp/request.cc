@@ -61,7 +61,7 @@ uint64_t Request::getCas() const {
 std::string Request::getPrintableKey() const {
     std::string buffer{getKeyString()};
     for (auto& ii : buffer) {
-        if (!std::isgraph(ii)) {
+        if (!std::isprint(ii)) {
             ii = '.';
         }
     }

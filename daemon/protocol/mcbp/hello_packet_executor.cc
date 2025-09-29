@@ -242,13 +242,20 @@ void process_hello_packet_executor(Cookie& cookie) {
                 if (obj != client.end() && obj->is_string()) {
                     connection.setAgentName(obj->get<std::string>());
                 }
-            } catch (const nlohmann::json::exception&) {
-                client = {{"a", key}};
-                connection.setAgentName(key);
+            } catch (const nlohmann::json::exception& e) {
+                // MB-68697: Not valid JSON, sanitise the key as this could be
+                // invalid UTF-8 which could later crash stat requests.
+                LOG_INFO_CTX("Failed to parse agent name",
+                             {"conn_id", connection.getId()},
+                             {"error", e.what()});
+                client = {{"a", req.getPrintableKey()}};
+                connection.setAgentName(req.getPrintableKey());
             }
         } else {
-            client = {{"a", key}};
-            connection.setAgentName(key);
+            // MB-68697: Store a sanitised version of the key as the agent name
+            // may be invalid UTF-8 which could later crash stat requests.
+            client = {{"a", req.getPrintableKey()}};
+            connection.setAgentName(req.getPrintableKey());
         }
     }
 
