@@ -33,7 +33,7 @@ static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
     // Don't create a new privilege context if the one we've got is for the
     // connected bucket:
     auto& connection = cookie.getConnection();
-    if (bucket.name == connection.getBucket().name) {
+    if (strcmp(bucket.name, connection.getBucket().name) == 0) {
         auto ret = mcbp::checkPrivilege(cookie,
                                         cb::rbac::Privilege::SimpleStats);
         if (ret != cb::engine_errc::success) {
