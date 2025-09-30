@@ -297,6 +297,11 @@ the following fields:
   provided by ns_server
 * disabled_userids - a list of userids. Each entry corresponds to a userid
   that we want to be filtered out. Note: The list can be empty.
+* enabled_userids - a list of userids. Each entry corresponds to a userid
+  that we want to be explicitly enabled (all other users are disabled).
+  This is *mutually exclusive* with `disabled_userid`. Each user is specified
+  as an object with two fields "domain" and "user" where domain may be one
+  of `local`, `external` or `unknown`.
 * filtering_enabled - boolean stating whether filtering is enabled. This
   configuration overrides all other filtering options. i.e. if set to false,
   then regardless of other filter settings, no filtering will be performed.

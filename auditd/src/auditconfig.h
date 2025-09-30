@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/byte_literals.h>
 #include <atomic>
@@ -17,10 +18,9 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility> // For std::pair
 #include <vector>
-
-class AuditEventFilter;
 
 class AuditConfig {
 public:
@@ -75,6 +75,10 @@ public:
         return prune_age;
     }
 
+    const auto& get_enabled_userids() const {
+        return enabled_userids;
+    }
+
 protected:
     /// Temporary function until the server provides a new type of configuration
     std::vector<std::string> get_disabled_users() const;
@@ -90,6 +94,13 @@ protected:
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
 
+    // first element is the username, second element is the domain
+    using UserMap =
+            std::unordered_map<std::string, std::unordered_set<std::string>>;
+
+    static UserMap get_users(const nlohmann::json& array,
+                             std::string_view name);
+
     bool auditd_enabled{false};
     uint32_t rotate_interval{900};
     size_t rotate_size{20_MiB};
@@ -103,4 +114,6 @@ protected:
     std::vector<std::pair<std::string, std::string>> disabled_userids;
     std::unordered_map<uint32_t, EventState> event_states;
     std::string uuid;
+
+    UserMap enabled_userids;
 };

@@ -38,15 +38,24 @@ public:
     BucketFilter() = default;
 
     explicit BucketFilter(const nlohmann::json& json)
-        : enabled(getEnabled(json)), filter(getFilter(json)) {
+        : enabled(getEnabled(json)),
+          exclude_user_filter(getFilter(json, "filter_out")),
+          include_user_filter(getFilter(json, "filter_in")) {
     }
 
     bool isMatch(AuditId id,
                  const cb::rbac::UserIdent& user,
                  std::optional<ScopeID>,
                  std::optional<CollectionID>) const {
-        auto iter = filter.find(user);
-        if (iter == filter.end()) {
+        if (!include_user_filter.empty()) {
+            auto iter = include_user_filter.find(user);
+            if (iter == include_user_filter.end()) {
+                return true;
+            }
+        }
+
+        auto iter = exclude_user_filter.find(user);
+        if (iter == exclude_user_filter.end()) {
             return false;
         }
 
@@ -66,9 +75,9 @@ public:
         } else {
             ret["enabled"] = enabled;
         }
-        if (!filter.empty()) {
+        if (!exclude_user_filter.empty()) {
             auto& entry = ret["filter_out"];
-            for (const auto& [name, id] : filter) {
+            for (const auto& [name, id] : exclude_user_filter) {
                 std::string nm = name.name;
                 if (name.domain == cb::rbac::Domain::Local) {
                     nm.append("/couchbase");
@@ -158,8 +167,9 @@ protected:
         return getIdentifierVector(*iter);
     }
 
-    UserFilterMap getFilter(const nlohmann::json& json) {
-        auto iter = json.find("filter_out");
+    UserFilterMap getFilter(const nlohmann::json& json,
+                            const std::string_view key) {
+        auto iter = json.find(key);
         if (iter == json.end()) {
             return {};
         }
@@ -177,7 +187,8 @@ protected:
     /// for binary search). If all events are enabled the vector contains
     /// a single entry with '-1'.
     std::vector<AuditId> enabled;
-    UserFilterMap filter;
+    UserFilterMap exclude_user_filter;
+    UserFilterMap include_user_filter;
 };
 
 class AuditEventFilterImpl : public AuditEventFilter {

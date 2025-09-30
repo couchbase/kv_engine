@@ -29,15 +29,27 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
 
     set_filtering_enabled(json.at("filtering_enabled"));
     set_uuid(json.at("uuid"));
-    auto duids = json.at("disabled_userids");
-    if (duids.is_array()) {
-        set_disabled_userids(duids);
-    } else {
-        throw std::invalid_argument(fmt::format(
-                "AuditConfig::AuditConfig 'disabled_userids' should "
-                "be array, but got: '{}'",
-                duids.type_name()));
+
+    if (json.contains("disabled_userids") && json.contains("enabled_userids")) {
+        throw std::invalid_argument(
+                "AuditConfig::AuditConfig: 'disabled_userids' and "
+                "'enabled_userids' are mutually exclusive");
     }
+
+    if (json.contains("disabled_userids")) {
+        auto duids = json.at("disabled_userids");
+        if (duids.is_array()) {
+            set_disabled_userids(duids);
+        } else {
+            throw std::invalid_argument(fmt::format(
+                    "AuditConfig::AuditConfig 'disabled_userids' should "
+                    "be array, but got: '{}'",
+                    duids.type_name()));
+        }
+    } else if (json.contains("enabled_userids")) {
+        enabled_userids = get_users(json["enabled_userids"], "enabled_userids");
+    }
+
     // event_states is optional so if not defined will not throw an
     // exception. It is used to override default values, so
     // lets start by initialize the default values
@@ -74,6 +86,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     tags["filtering_enabled"] = 1;
     tags["uuid"] = 1;
     tags["disabled_userids"] = 1;
+    tags["enabled_userids"] = 1;
     tags["event_states"] = 1;
 
     for (auto it = json.begin(); it != json.end(); ++it) {
@@ -361,9 +374,60 @@ nlohmann::json AuditConfig::get_audit_event_filter() const {
     }
 
     def["enabled"] = enabled;
-    auto users = get_disabled_users();
-    for (const auto& u : users) {
-        def["filter_out"][u] = enabled;
+    if (!disabled_userids.empty()) {
+        auto users = get_disabled_users();
+        for (const auto& u : users) {
+            def["filter_out"][u] = enabled;
+        }
+    }
+    if (!enabled_userids.empty()) {
+        for (const auto& [name, domains] : enabled_userids) {
+            for (const auto& domain : domains) {
+                def["filter_in"][name] = domain;
+            }
+        }
+    }
+
+    return ret;
+}
+
+std::pair<std::string, std::string> make_userid(const nlohmann::json& obj) {
+    if (!obj.is_object()) {
+        throw std::invalid_argument(
+                "AuditConfig::make_userid(): Expected an object");
+    }
+    if (!obj.contains("user") || !obj.contains("domain") ||
+        !obj["user"].is_string() || !obj["domain"].is_string()) {
+        throw std::invalid_argument(fmt::format(
+                "AuditConfig::make_userid(): Object must contain string "
+                "'user' and 'domain' fields. Got: {}",
+                obj.dump()));
+    }
+    return {obj["user"].get<std::string>(), obj["domain"].get<std::string>()};
+}
+
+AuditConfig::UserMap AuditConfig::get_users(const nlohmann::json& array,
+                                            std::string_view name) {
+    if (!array.is_array()) {
+        throw std::invalid_argument(fmt::format(
+                "AuditConfig::getUsers() '{}' should be an array, but got: "
+                "'{}'",
+                name,
+                array.type_name()));
+    }
+    UserMap ret;
+
+    for (auto& elem : array) {
+        if (!elem.is_object()) {
+            throw std::invalid_argument(fmt::format(
+                    "AuditConfig::add_pair_string_array(): Incorrect type({}) "
+                    "for element in {} array. Expected objects",
+                    elem.type_name(),
+                    name));
+        }
+
+        auto [user, domain] = make_userid(elem);
+        ret[std::move(user)].insert(std::move(domain));
     }
     return ret;
 }

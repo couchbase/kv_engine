@@ -10,6 +10,7 @@
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
 #include <audit_descriptor_manager.h>
+#include <fmt/format.h>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -392,4 +393,30 @@ TEST_F(AuditConfigTest, AuditPruneAge) {
     config = AuditConfig(json);
     EXPECT_TRUE(config.get_prune_age().has_value());
     EXPECT_EQ(1000, config.get_prune_age().value().count());
+}
+
+TEST_F(AuditConfigTest, EnabledUserids) {
+    nlohmann::json array = nlohmann::json::array();
+    array.push_back({{"user", "steve"}, {"domain", "couchbase"}});
+    array.push_back({{"user", "dustin"}, {"domain", "external"}});
+    array.push_back({{"user", "trond"}, {"domain", "unknown"}});
+    array.push_back({{"user", "trond"}, {"domain", "external"}});
+    json["enabled_userids"] = array;
+    json.erase("disabled_userids");
+    config = AuditConfig(json);
+
+    const auto& ids = config.get_enabled_userids();
+    EXPECT_EQ(3, ids.size());
+    ASSERT_TRUE(ids.contains("steve"));
+    ASSERT_EQ(1, ids.at("steve").size());
+    ASSERT_TRUE(ids.at("steve").contains("couchbase"));
+
+    ASSERT_TRUE(ids.contains("dustin"));
+    ASSERT_EQ(1, ids.at("dustin").size());
+    ASSERT_TRUE(ids.at("dustin").contains("external"));
+
+    ASSERT_TRUE(ids.contains("trond"));
+    ASSERT_EQ(2, ids.at("trond").size());
+    ASSERT_TRUE(ids.at("trond").contains("unknown"));
+    ASSERT_TRUE(ids.at("trond").contains("external"));
 }

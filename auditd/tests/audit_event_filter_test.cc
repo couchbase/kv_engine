@@ -158,3 +158,34 @@ TEST(AuditEventFilterTest, isFilteredOut_DisabledFilter) {
     EXPECT_TRUE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, {}, {}, {}, {}, {}));
 }
+
+TEST(AuditEventFilterTest, isFilteredOut_Include_List) {
+    cb::rbac::UserIdent user1Local{"user1", cb::rbac::Domain::Local};
+    cb::rbac::UserIdent user1External{"user1", cb::rbac::Domain::External};
+    cb::rbac::UserIdent user2Local{"user2", cb::rbac::Domain::Local};
+    cb::rbac::UserIdent user2External{"user2", cb::rbac::Domain::External};
+
+    auto json =
+            R"({"default":{"enabled":[20481,20488],"filter_in":{"user1/couchbase":[20488],"user2/external":[20488]}}})"_json;
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+
+    EXPECT_FALSE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1External, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user2External, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user2Local, {}, {}, {}, {}));
+
+    // Verify that we don't filter out if the id doesn't allow filtering
+    EXPECT_FALSE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_AUTHENTICATION_FAILED, user1Local, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+                                       user2External,
+                                       {},
+                                       {},
+                                       {},
+                                       {}));
+}
