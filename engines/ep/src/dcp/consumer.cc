@@ -212,6 +212,10 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     // Enable ChangeStreams on this connection
     changeStreamsNegotiation.state =
             BlockingDcpControlNegotiation::State::PendingRequest;
+
+    // MB-68753: Pause the consumer so subsequent scheduleNotify will wake the
+    // consumer and the connection will get callbacks from ConnManager::run
+    pause(PausedReason::ReadyListEmpty);
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -350,6 +354,9 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
+
+    // A DcpStreamRequest should be ready for transmission
+    scheduleNotify();
 
     return cb::engine_errc::success;
 }
@@ -1244,6 +1251,7 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
             c);
 
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
+    addStat("pending_add_stream", pendingAddStream, add_stat, c);
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
