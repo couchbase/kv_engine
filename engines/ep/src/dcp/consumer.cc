@@ -211,6 +211,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     if (engine.getDcpConsumerMaxMarkerVersion() >= 2.2) {
         controls->emplace_back(DcpControlKeys::SnapshotMaxMarkerVersion, "2.2");
     }
+    // MB-68753: Pause the consumer so subsequent scheduleNotify will wake the
+    // consumer and the connection will get callbacks from ConnManager::run
+    pause(PausedReason::ReadyListEmpty);
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -347,6 +350,9 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     readyStreamsVBQueue.lock()->push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
+
+    // A DcpStreamRequest should be ready for transmission
+    scheduleNotify();
 
     return cb::engine_errc::success;
 }
@@ -1249,6 +1255,7 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
                     c);
         }
     }
+    addStat("pending_add_stream", pendingAddStream, add_stat, c);
 }
 
 void DcpConsumer::addStreamStats(const AddStatFn& add_stat,

@@ -68,6 +68,9 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
     std::lock_guard<std::mutex> lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
+    // Cannot call scheduleNotify here as we're not in the readyStreamsVBQueue.
+    // The addStream path will call scheduleNotify as at that point this new
+    // object will be in the readyStreamsVBQueue and can be picked up by step.
 }
 
 PassiveStream::~PassiveStream() {
