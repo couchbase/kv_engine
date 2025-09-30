@@ -215,7 +215,7 @@ void PassiveStreamFuzzTest::receiveSnapshot(
                        isDiskSnapshot,
                        vb.getHighSeqno(),
                        marker.getPurgeSeqno());
-    validateHighPreparedSeqno(vb.getHighPreparedSeqno(),
+    validateHighPreparedSeqno(vb.acquireStateLockAndGetHighPreparedSeqno(),
                               isComplete,
                               isFlushed,
                               isDiskSnapshot,
