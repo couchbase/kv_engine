@@ -16,10 +16,10 @@
 #include "memcached.h"
 #include "tests/mcbp/mcbp_mock_connection.h"
 #include "utilities/testing_hook.h"
-#include <boost/thread/barrier.hpp>
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
 #include <platform/dirutils.h>
+#include <barrier>
 #include <future>
 
 using namespace std::string_view_literals;
@@ -529,10 +529,10 @@ TEST_F(BucketManagerTest, PauseResumeFight) {
 
     // Use a barrier which both threads must rendezvous via to maximise the
     // contention we get between threads.
-    boost::barrier barrier{2};
+    std::barrier barrier{2};
     constexpr int iterations = 1000;
     auto pauseResumeNTimes = [&](std::string_view connectionId) {
-        barrier.count_down_and_wait();
+        barrier.arrive_and_wait();
         for (int i = 0; i < iterations; i++) {
             // Yield thread between each operation to attempt to get more
             // interleaving with the other thread.
