@@ -140,6 +140,8 @@ struct Configuration::Attribute {
     std::unique_ptr<ValueChangedValidator> validator;
     /// The requirement cannot be changed after initialization.
     std::unique_ptr<Requirement> requirement;
+    /// The versioned defaults for the parameter.
+    VersionedMap<value_variant_t> defaultValMap;
 
     /// Is this parameter dynamic (can be changed at runtime?)
     const bool dynamic;
@@ -197,6 +199,33 @@ Configuration::getDynamicParametersForTesting() {
         }
     }
     return dynamicParameters;
+}
+
+template <class T>
+void Configuration::addParameter(
+        std::string_view key,
+        VersionedMap<T> defaultValMap,
+        bool dynamic,
+        std::optional<cb::config::FeatureVersion> publicSince) {
+    Expects(!initialized);
+    Expects(!defaultValMap.empty());
+    Expects(dynamic && "Not supported: versioned parameters must be dynamic");
+
+    auto [itr, success] = attributes.insert(
+            {std::string{key},
+             std::make_shared<Attribute>(dynamic, publicSince)});
+    if (!success) {
+        throw std::logic_error("Configuration::addParameter(" +
+                               std::string{key} + ") already exists.");
+    }
+    // Convert the versioned defaults to a variant map.
+    VersionedMap<value_variant_t> defaultVariantMap;
+    for (const auto& [version, value] : defaultValMap) {
+        defaultVariantMap[version] = value;
+    }
+    itr->second->defaultValMap = defaultVariantMap;
+    // Initialize with the most recent version default.
+    (void)itr->second->setValue(defaultVariantMap.rbegin()->second);
 }
 
 template <class T>
@@ -362,6 +391,17 @@ ValueChangedValidator* Configuration::setValueValidator(
     if (it == attributes.end()) {
         return nullptr;
     }
+
+    // Sanity check that the new validator is compatible with the current value
+    // and the default values.
+    std::visit([validator, key](auto&& val) { validator->validate(key, val); },
+               it->second->getValue());
+    for (const auto& [version, value] : it->second->defaultValMap) {
+        std::visit(
+                [validator, key](auto&& val) { validator->validate(key, val); },
+                value);
+    }
+
     auto* ret = it->second->validator.release();
     it->second->validator.reset(validator);
 
@@ -782,14 +822,19 @@ cb::config::FeatureVersion Configuration::getEffectiveCompatVersion() const {
 }
 
 // Explicit instantiations for addParameter for supported types.
-#define INSTANTIATE_TEMPLATES(T)               \
-    template void Configuration::addParameter( \
-            std::string_view,                  \
-            T,                                 \
-            std::optional<T>,                  \
-            std::optional<T>,                  \
-            std::optional<T>,                  \
-            bool,                              \
+#define INSTANTIATE_TEMPLATES(T)                        \
+    template void Configuration::addParameter(          \
+            std::string_view,                           \
+            T,                                          \
+            std::optional<T>,                           \
+            std::optional<T>,                           \
+            std::optional<T>,                           \
+            bool,                                       \
+            std::optional<cb::config::FeatureVersion>); \
+    template void Configuration::addParameter(          \
+            std::string_view,                           \
+            Configuration::VersionedMap<T>,             \
+            bool,                                       \
             std::optional<cb::config::FeatureVersion>)
 
 INSTANTIATE_TEMPLATES(bool);

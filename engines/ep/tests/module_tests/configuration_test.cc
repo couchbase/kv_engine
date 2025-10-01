@@ -298,6 +298,15 @@ public:
     }
 
     template <class T>
+    void public_addParameter(std::string_view key,
+                         VersionedMap<T> defaultValMap,
+                         bool dynamic) {
+        initialized = false;
+        Configuration::addParameter(key, defaultValMap, dynamic, {});
+        initialized = true;
+    }
+
+    template <class T>
     void public_addParameter(
             std::string_view key,
             T defaultVal,
@@ -370,7 +379,7 @@ TEST(ConfigurationTest, ValidatorWorks) {
     ConfigurationShim configuration;
     std::string key{"test_key"};
 
-    configuration.public_addParameter(key, (size_t)110, false);
+    configuration.public_addParameter(key, (size_t)100, false);
     EXPECT_NO_THROW(configuration.public_setValueValidator(
             key, (new SizeRangeValidator())->min(10)->max(100)));
     EXPECT_NO_THROW(configuration.setParameter(key, (size_t)10));
@@ -835,4 +844,45 @@ TEST(ConfigurationTest, ValidateNonPublicParametersVisibility) {
                     << " should not have public visibility";
         }
     }
+}
+
+TEST(ConfigurationTest, VersionedParametersCannotBeEmpty) {
+    ConfigurationShim configuration;
+    EXPECT_THROW(
+            configuration.public_addParameter(
+                    "param", Configuration::VersionedMap<size_t>({}), true),
+            std::logic_error);
+}
+
+TEST(ConfigurationTest, VersionedParametersMustBeDynamic) {
+    ConfigurationShim configuration;
+    EXPECT_THROW(configuration.public_addParameter(
+                         "param",
+                         Configuration::VersionedMap<size_t>({
+                                 {{8, 0}, size_t(1)},
+                         }),
+                         false),
+                 std::logic_error);
+}
+
+TEST(ConfigurationTest, VersionParameterCanHaveSingleDefault) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("param",
+                                      Configuration::VersionedMap<size_t>({
+                                              {{8, 0}, size_t(1)},
+                                      }),
+                                      true);
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 1);
+}
+
+TEST(ConfigurationTest, VersionParameterUsesMostRecentDefault) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("param",
+                                      Configuration::VersionedMap<size_t>({
+                                              {{7, 0}, size_t(1)},
+                                              {{8, 0}, size_t(2)},
+                                              {{8, 1}, size_t(3)},
+                                      }),
+                                      true);
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 3);
 }

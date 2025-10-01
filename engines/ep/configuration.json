@@ -53,6 +53,15 @@
  *       be executed at the end of the configuration initialization. For this
  *       reason the compared parameters should not be dynamic. The deployment
  *       type conditionals are not supported.
+ *     - a map of versioned defaults:
+ *       {
+ *          "default": {
+ *            "7.0": "value1",
+ *            "8.0": "value2"
+ *          }
+ *       }
+ *       The versioned defaults are used to set the parameter based on the
+ *       compatibility version.
  *
  * * "requires" - the requirements for the parameter; if not met then the
  *     parameter cannot be set and is not reported in the statistics.

@@ -180,6 +180,9 @@ class Requirement;
  */
 class Configuration : public ConfigurationIface {
 public:
+    template <class T>
+    using VersionedMap = std::map<cb::config::FeatureVersion, T>;
+
     struct Attribute;
 
     /**
@@ -366,6 +369,20 @@ protected:
      * @param alias the new alias
      */
     void addAlias(const std::string& key, const std::string& alias);
+
+    /**
+     * Add a new configuration parameter that has versioned defaults.
+     * @param key the key to specify
+     * @param defaultValMap the versioned defaults for the parameter
+     * @param dynamic True if this parameter can be changed at runtime,
+     *        False if the value cannot be changed once object is constructed.
+     * @param publicSince the version since which the parameter is public
+     */
+    template <class T>
+    void addParameter(std::string_view key,
+                      VersionedMap<T> defaultValMap,
+                      bool dynamic,
+                      std::optional<cb::config::FeatureVersion> publicSince);
 
     /**
      * Add a new configuration parameter that has different defaults values for

@@ -568,6 +568,36 @@ static ConditionalDefault getConditionalDefault(
     return rv;
 }
 
+static bool isVersionString(const std::string& str) {
+    return str.find('.') != std::string::npos && std::isdigit(str.front());
+}
+
+static std::unordered_map<std::string, std::string> getCompatDefaults(
+        const nlohmann::json& defaultVal) {
+    // The input to this function is just the list of defaults from some given
+    // configuration parameter. As such, we lack the actual config key (for
+    // logging) and we need to handle any type of default that we can specify
+    // here.
+    if (!defaultVal.is_object()) {
+        throw std::runtime_error("defaultVal is not an object");
+    }
+
+    std::unordered_map<std::string, std::string> rv;
+    for (const auto& [key, value] : defaultVal.items()) {
+        if (isVersionString(key)) {
+            rv[key] = value.get<std::string>();
+        }
+    }
+
+    if (!rv.empty() && rv.size() != defaultVal.size()) {
+        throw std::runtime_error(
+                "Unexpected keys in versioned defaults object: " +
+                defaultVal.dump());
+    }
+
+    return rv;
+}
+
 static std::string generateAddParameter(
         const std::string& key,
         const std::string& defaultValStr,
@@ -590,6 +620,31 @@ static std::string generateAddParameter(
             publicSince);
 }
 
+static std::string generateAddParameter(
+        const std::string& paramKey,
+        const std::unordered_map<std::string, std::string>& defaultValCompat,
+        const std::string& type,
+        bool dynamic,
+        std::string publicSince) {
+    // Generate an initializer list of the default values, with the keys parsed
+    // as FeatureVersion objects.
+    std::string defaultValList;
+    for (const auto& [key, value] : defaultValCompat) {
+        defaultValList += fmt::format(
+                "{{cb::config::FeatureVersion::parse(\"{}\"), {}}},",
+                key,
+                formatValue(value, type));
+    }
+
+    defaultValList = defaultValList.substr(0, defaultValList.size() - 1);
+    return fmt::format("addParameter<{}>(\"{}\", {{{}}}, {}, {});",
+                       type,
+                       paramKey,
+                       defaultValList,
+                       dynamic,
+                       publicSince);
+}
+
 static void generate(const nlohmann::json& params, const std::string& key) {
     auto cppName = getCppName(key);
 
@@ -603,6 +658,7 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     std::optional<std::string> defaultValTSAN;
     std::optional<std::string> defaultValDevAssert;
     std::optional<ConditionalDefault> conditionalDefault;
+    std::unordered_map<std::string, std::string> defaultValCompat;
     if (defaultVal.is_object()) {
         if (auto tsanFound = defaultVal.find("tsan");
             tsanFound != defaultVal.end()) {
@@ -630,6 +686,7 @@ static void generate(const nlohmann::json& params, const std::string& key) {
             }
             conditionalDefault = getConditionalDefault(params, defaultVal);
         }
+        defaultValCompat = getCompatDefaults(defaultVal);
     } else {
         defaultValStr = defaultVal.get<std::string>();
     }
@@ -696,7 +753,12 @@ static void generate(const nlohmann::json& params, const std::string& key) {
         }
     }
     // Generate initialization code
-    if (conditionalDefault) {
+    if (defaultValCompat.size()) {
+        initialization += fmt::format(
+                "    {}\n",
+                generateAddParameter(
+                        key, defaultValCompat, type, dynamic, publicSince));
+    } else if (conditionalDefault) {
         // Generates if/else if/else code to set the parameter based on the
         // value of other parameters. This code will be emitted last to ensure
         // it reads the current value of the input parameters.
