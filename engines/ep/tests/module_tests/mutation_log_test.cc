@@ -666,12 +666,10 @@ TEST_F(MutationLogTest, upgradeV3toV4) {
         }
     };
 
-    const auto somekey = makeStoredDocKey("somekey");
-
     {
         MockMutationLog ml(tmp_log_filename, MutationLogVersion::V3);
         ml.open();
-        ml.newItem(Vbid(3), somekey);
+        ml.newItem(Vbid(3), makeStoredDocKey("somekey"));
         ml.commit1();
         ml.commit2();
         ml.flush();
@@ -684,7 +682,7 @@ TEST_F(MutationLogTest, upgradeV3toV4) {
         ASSERT_EQ(MutationLogVersion::V3, ml.header().version());
         auto iter = ml.begin();
         EXPECT_EQ(MutationLogType::New, (*iter)->type());
-        EXPECT_EQ(static_cast<const DocKey&>(somekey), (*iter)->key());
+        EXPECT_EQ(makeStoredDocKey("somekey"), (*iter)->key());
         ++iter;
         EXPECT_EQ(MutationLogType::Commit1, (*iter)->type());
         ++iter;
