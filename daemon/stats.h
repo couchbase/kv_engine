@@ -167,14 +167,14 @@ struct stats {
     std::atomic<unsigned int> curr_conns;
 
     size_t getCurrConnections() const {
-        return curr_conns.load(std::memory_order::memory_order_consume);
+        return curr_conns.load(std::memory_order_consume);
     }
 
     /// The number of system connections
     std::atomic<unsigned int> system_conns;
 
     size_t getSystemConnections() const {
-        return system_conns.load(std::memory_order::memory_order_consume);
+        return system_conns.load(std::memory_order_consume);
     }
 
     size_t getUserConnections() const {

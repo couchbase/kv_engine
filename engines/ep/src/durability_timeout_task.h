@@ -56,7 +56,7 @@ private:
     // has its internal sleep-time which is used for a different purpose,
     // details in VBCBAdaptor.
     cb::AtomicDuration<std::chrono::milliseconds,
-                       std::memory_order::memory_order_seq_cst>
+                       std::memory_order_seq_cst>
             sleepTime;
 };
 
