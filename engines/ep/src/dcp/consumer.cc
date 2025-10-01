@@ -340,7 +340,8 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
-    if (cacheTransfer && vb->shouldUseDcpCacheTransfer()) {
+    if (cacheTransfer && vb->shouldUseDcpCacheTransfer() &&
+        isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
         OBJ_LOG_INFO_CTX(*logger, "Requesting cache transfer", {"vb", vbucket});
         flags |= cb::mcbp::DcpAddStreamFlag::CacheTransfer;
     }
