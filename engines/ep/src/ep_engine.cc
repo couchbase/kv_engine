@@ -82,6 +82,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -2009,10 +2010,9 @@ std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
     Expects(configuration.getBackend() == "magma");
 
     // Look for the file
-    const auto shardFile = boost::filesystem::path(
-            configuration.getDbname().append(magmaShardFile));
-    if (boost::filesystem::exists(shardFile)) {
-        boost::filesystem::ifstream ifs(shardFile);
+    const auto shardFile = configuration.getDbname().append(magmaShardFile);
+    if (cb::io::isFile(shardFile)) {
+        std::ifstream ifs(shardFile);
         std::string data;
         std::getline(ifs, data);
         EP_LOG_INFO("Found shard file for magma with {} shards", data);

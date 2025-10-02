@@ -24,7 +24,6 @@
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
-#include <boost/filesystem.hpp>
 #include <executor/executorpool.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
@@ -43,6 +42,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -7790,18 +7790,18 @@ static enum test_result test_mb65737_check_flush_fails(EngineIface* h) {
 
     // db file contains persistenceSeqno = 10
     // Rename couchstore file to simulate loss of data
-    namespace fs = boost::filesystem;
-    std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
-    std::string oldFileName = dbname + cb::io::DirectorySeparator + "0.couch.1";
-    std::string newFileName = dbname + cb::io::DirectorySeparator + "goodbye";
+    const std::filesystem::path dbname =
+            get_dbname(testHarness->get_current_testcase()->cfg);
+    const auto oldFileName = dbname / "0.couch.1";
+    const auto newFileName = dbname / "goodbye";
     try {
-        if (!fs::exists(oldFileName)) {
+        if (!exists(oldFileName)) {
             std::cerr << "Error: Source file does not exist: " << oldFileName
                       << '\n';
             return FAIL;
         }
-        fs::rename(oldFileName, newFileName);
-    } catch (const fs::filesystem_error& e) {
+        rename(oldFileName, newFileName);
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Error renaming file: " << e.what() << '\n';
         return FAIL;
     }
@@ -7817,10 +7817,10 @@ static enum test_result test_mb65737_check_flush_fails(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     // Bring db file back
-    if (fs::exists(oldFileName)) {
-        fs::remove(oldFileName);
+    if (exists(oldFileName)) {
+        remove(oldFileName);
     }
-    fs::rename(newFileName, oldFileName);
+    rename(newFileName, oldFileName);
 
     // Store 5 items, highSeqno = 5 and persistenceSeqno=10 (from disk)
     write_items(h, 5, 0, keyBase.c_str(), "value", 0, vb);
@@ -7843,8 +7843,8 @@ static enum test_result test_mb65737_check_flush_fails(EngineIface* h) {
             get_int_stat(h, "vb_0:last_persisted_seqno", "vbucket-seqno"),
             "Unexpected last_persisted_seqno");
 
-    fs::remove(oldFileName);
-    fs::create_directories(dbname);
+    remove(oldFileName);
+    create_directories(dbname);
     return SUCCESS;
 }
 

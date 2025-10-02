@@ -37,6 +37,7 @@
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
+#include <fstream>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -1465,7 +1466,7 @@ void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
     }
     // manually write nothing to the file as resizing it to 0 using boost
     // fails on windows.
-    fs::ofstream osf{dataFile};
+    std::ofstream osf{dataFile.string()};
     if (osf.is_open()) {
         osf << "";
         osf.close();
