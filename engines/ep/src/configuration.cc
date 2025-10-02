@@ -20,6 +20,7 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <memory>
+#include <ranges>
 #include <shared_mutex>
 #include <sstream>
 #include <utility>
@@ -141,7 +142,7 @@ struct Configuration::Attribute {
     /// The requirement cannot be changed after initialization.
     std::unique_ptr<Requirement> requirement;
     /// The versioned defaults for the parameter.
-    VersionedMap<value_variant_t> defaultValMap;
+    std::variant<value_variant_t, VersionedMap<value_variant_t>> defaultVal;
 
     /// Is this parameter dynamic (can be changed at runtime?)
     const bool dynamic;
@@ -171,6 +172,29 @@ struct Configuration::Attribute {
         valueAndListeners.withWLock([&listener](auto& locked) {
             locked.changeListeners.emplace_back(std::move(listener));
         });
+    }
+
+    value_variant_t getDefaultForVersion(
+            cb::config::FeatureVersion version) const {
+        if (std::holds_alternative<value_variant_t>(defaultVal)) {
+            return std::get<value_variant_t>(defaultVal);
+        }
+        auto& defaultValMap =
+                std::get<VersionedMap<value_variant_t>>(defaultVal);
+
+        // The map is ordered by version, so we can iterate in reverse order
+        // and return the first version that is less than or equal to the given
+        // version.
+        for (const auto& itr : std::ranges::reverse_view(defaultValMap)) {
+            if (itr.first <= version) {
+                return itr.second;
+            }
+        }
+        // If we get here, the version is less than the first version in the
+        // map, so we return the first version. This could be considered
+        // an error, but it's not worth the complexity to handle it as such.
+        // The oldest versioned value is likely what we wanted anyway.
+        return defaultValMap.begin()->second;
     }
 
 private:
@@ -223,7 +247,7 @@ void Configuration::addParameter(
     for (const auto& [version, value] : defaultValMap) {
         defaultVariantMap[version] = value;
     }
-    itr->second->defaultValMap = defaultVariantMap;
+    itr->second->defaultVal = defaultVariantMap;
     // Initialize with the most recent version default.
     (void)itr->second->setValue(defaultVariantMap.rbegin()->second);
 }
@@ -280,7 +304,10 @@ void Configuration::setParameter(std::string_view key, T value) {
         it->second->validator->validate(key, value);
     };
 
-    for (const auto& listener : it->second->setValue(value)) {
+    auto listeners = it->second->setValue(value);
+    markParameterConfigured(key);
+
+    for (const auto& listener : listeners) {
         listener->valueChanged(key, value);
     }
 }
@@ -320,6 +347,30 @@ template float Configuration::getParameter<float>(std::string_view key) const;
 template std::string Configuration::getParameter<std::string>(
         std::string_view key) const;
 
+std::string Configuration::getCanonicalParameterName(
+        std::string_view key) const {
+    std::string keyStr = std::string(key);
+    return aliasParameters.contains(keyStr) ? aliasParameters.at(keyStr)
+                                            : std::move(keyStr);
+}
+
+void Configuration::markParameterConfigured(std::string_view key) {
+    Expects(initialized);
+    std::string canonicalKey = getCanonicalParameterName(key);
+    configuredParameters.withLock([&canonicalKey](auto& configuredParameters) {
+        configuredParameters.insert(std::move(canonicalKey));
+    });
+}
+
+bool Configuration::isParameterConfigured(std::string_view key) const {
+    Expects(initialized);
+    std::string canonicalKey = getCanonicalParameterName(key);
+    return configuredParameters.withLock(
+            [&canonicalKey](auto& configuredParameters) {
+                return configuredParameters.contains(canonicalKey);
+            });
+}
+
 void Configuration::maybeAddStat(const BucketStatCollector& collector,
                                  cb::stats::Key key,
                                  std::string_view keyStr) const {
@@ -357,6 +408,7 @@ std::ostream& operator<<(std::ostream& out, const Configuration& config) {
 void Configuration::addAlias(const std::string& key, const std::string& alias) {
     Expects(!initialized);
     attributes[alias] = attributes[key];
+    aliasParameters.insert({alias, key});
 }
 
 void Configuration::addValueChangedListener(
@@ -396,10 +448,14 @@ ValueChangedValidator* Configuration::setValueValidator(
     // and the default values.
     std::visit([validator, key](auto&& val) { validator->validate(key, val); },
                it->second->getValue());
-    for (const auto& [version, value] : it->second->defaultValMap) {
-        std::visit(
-                [validator, key](auto&& val) { validator->validate(key, val); },
-                value);
+    if (std::holds_alternative<VersionedMap<value_variant_t>>(
+                it->second->defaultVal)) {
+        for (const auto& [version, value] :
+             std::get<VersionedMap<value_variant_t>>(it->second->defaultVal)) {
+            std::visit([validator,
+                        key](auto&& val) { validator->validate(key, val); },
+                       value);
+        }
     }
 
     auto* ret = it->second->validator.release();
@@ -480,8 +536,16 @@ bool Configuration::parseConfiguration(std::string_view str) {
     Expects(initialized);
     enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
 
+    // Store the configured parameters. We create a new set here for two
+    // reasons:
+    // 1. We want to store the configured parameters after the conditional init,
+    //    so that we do not count conditional init parameters as configured.
+    // 2. It avoids locking the configuredParameters set while parsing the
+    //    configuration string.
+    std::unordered_set<std::string> newConfiguredParameters;
+
     bool failed = false;
-    cb::config::tokenize(str, [&failed, this](auto k, auto v) {
+    cb::config::tokenize(str, [&, this](auto k, auto v) {
         bool found = false;
         for (const auto& [key, value] : attributes) {
             if (k == key) {
@@ -491,6 +555,7 @@ bool Configuration::parseConfiguration(std::string_view str) {
                     parseParameter(v, newValue);
                     std::visit([this, k](auto&& val) { setParameter(k, val); },
                                newValue);
+                    newConfiguredParameters.insert(std::string(k));
                 } catch (const std::exception& e) {
                     EP_LOG_WARN(
                             "Error parsing value: key: {} value: {} error: {}",
@@ -512,6 +577,9 @@ bool Configuration::parseConfiguration(std::string_view str) {
         runConditionalInitialize();
     }
 
+    // Store the configured parameters. We do this after the conditional init,
+    // so that we do not count conditional init parameters as configured.
+    configuredParameters = std::move(newConfiguredParameters);
     return !failed;
 }
 
@@ -814,7 +882,57 @@ void Configuration::initializeCompatVersion() {
 
 void Configuration::processCompatVersionChange(
         cb::config::FeatureVersion version) {
+    // Collect the changes to log them later.
+    std::unordered_map<std::string, std::pair<value_variant_t, value_variant_t>>
+            changes;
+
+    // Synchronize access to the compat version.
+    std::unique_lock<std::mutex> lock(compatVersionMutex);
+    auto oldVersion = compatVersion.load(std::memory_order_acquire);
+
+    // Iterate over all attributes and set the value to the new default, if
+    // they were not explicitly set.
+    // Note that there is no API to unset a parameter, therefore, we cannot
+    // differentiate between a parameter that was not set and a parameter that
+    // was set to the default value.
+    for (const auto& [key, attr] : attributes) {
+        auto oldValue = attr->getDefaultForVersion(oldVersion);
+        auto newValue = attr->getDefaultForVersion(version);
+        const bool needsChange = (
+                // The value is the old default
+                attr->getValue() == oldValue &&
+                // The value is not the new default
+                attr->getValue() != newValue &&
+                // The parameter is not an alias
+                !aliasParameters.contains(key) &&
+                // The parameter was not explicitly set (used default value)
+                !isParameterConfigured(key));
+        if (needsChange) {
+            changes.emplace(key, std::make_pair(attr->getValue(), newValue));
+            std::visit(
+                    [this, &key, &attr](auto&& val) {
+                        for (const auto& listener : attr->setValue(val)) {
+                            listener->valueChanged(key, val);
+                        }
+                    },
+                    std::move(newValue));
+        }
+    }
+
     compatVersion.store(version, std::memory_order_release);
+    // We can drop the lock now, to avoid holding it while logging.
+    lock.unlock();
+
+    // Log the changes.
+    auto changesJson = nlohmann::json::object();
+    for (const auto& [key, change] : changes) {
+        changesJson[key] = {{"from", to_json(change.first)},
+                            {"to", to_json(change.second)}};
+    }
+    EP_LOG_INFO_CTX("Configuration: Compat version changed",
+                    {"from", fmt::to_string(oldVersion)},
+                    {"to", fmt::to_string(version)},
+                    {"changes", std::move(changesJson)});
 }
 
 cb::config::FeatureVersion Configuration::getEffectiveCompatVersion() const {

@@ -284,6 +284,7 @@ class ConfigurationShim : public Configuration {
 public:
     using Configuration::Configuration;
     using Configuration::getParameter;
+    using Configuration::isParameterConfigured;
     using Configuration::setParameter;
     using Configuration::setParametersInternal;
     using Configuration::setRequirements;
@@ -885,4 +886,113 @@ TEST(ConfigurationTest, VersionParameterUsesMostRecentDefault) {
                                       }),
                                       true);
     EXPECT_EQ(configuration.getParameter<size_t>("param"), 3);
+}
+
+TEST(ConfigurationTest, CompatVersionChangeUpdatesParameter) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("param",
+                                      Configuration::VersionedMap<size_t>({
+                                              {{7, 0}, size_t(0)},
+                                              {{7, 2}, size_t(2)},
+                                              {{7, 4}, size_t(4)},
+                                              {{7, 6}, size_t(6)},
+                                              {{7, 8}, size_t(8)},
+                                      }),
+                                      true);
+
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 8);
+
+    // Special case - setting the compat version to a version that is less than
+    // the first version in the map.
+    configuration.setParameter("compat_version", "1.0");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 0);
+
+    // Special case - setting the compat version to a version that is greater
+    // than the last version in the map.
+    configuration.setParameter("compat_version", "10.0");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 8);
+
+    // Test that setting the compat version to a version that is in the map
+    // updates the parameter.
+    configuration.setParameter("compat_version", "7.2");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 2)
+            << "Expected to use the 7.2 default";
+    configuration.setParameter("compat_version", "7.3");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 2)
+            << "Expected to use the 7.2 default";
+    configuration.setParameter("compat_version", "7.5");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 4)
+            << "Expected to use the 7.4 default";
+    configuration.setParameter("compat_version", "7.8");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 8)
+            << "Expected to use the 7.8 default";
+}
+
+TEST(ConfigurationTest,
+     CompatVersionChangeDoesNotResetExplicitlySetParameters) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("param",
+                                      Configuration::VersionedMap<size_t>({
+                                              {{7, 0}, size_t(0)},
+                                              {{7, 2}, size_t(2)},
+                                              {{7, 4}, size_t(4)},
+                                              {{7, 6}, size_t(6)},
+                                              {{7, 8}, size_t(8)},
+                                      }),
+                                      true);
+
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 8);
+    configuration.setParameter("compat_version", "7.0");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 0);
+
+    // Set the parameter explicitly even though it is the same value (simulates
+    // using the setParameter API).
+    configuration.setParameter("param", size_t(0));
+
+    // Changing the compat version, should not reset the parameter, since it was
+    // explicitly set.
+    configuration.setParameter("compat_version", "7.8");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 0);
+}
+
+TEST(ConfigurationTest,
+     CompatVersionChangeDoesNotResetExplicitlySetParametersViaConfigString) {
+    ConfigurationShim configuration;
+    configuration.public_addParameter("param",
+                                      Configuration::VersionedMap<size_t>({
+                                              {{7, 0}, size_t(0)},
+                                              {{7, 2}, size_t(2)},
+                                              {{7, 4}, size_t(4)},
+                                              {{7, 6}, size_t(6)},
+                                              {{7, 8}, size_t(8)},
+                                      }),
+                                      true);
+    configuration.parseConfiguration("compat_version=7.0;param=0");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 0);
+
+    // Changing the compat version, should not reset the parameter, since it was
+    // explicitly set.
+    configuration.setParameter("compat_version", "7.8");
+    EXPECT_EQ(configuration.getParameter<size_t>("param"), 0);
+}
+
+TEST(ConfigurationTest, AliasParameters) {
+    std::string_view original = "max_size";
+    std::string_view alias = "cache_size";
+
+    {
+        ConfigurationShim configuration;
+        configuration.setParameter(original, size_t(1024));
+        EXPECT_EQ(configuration.getParameter<size_t>(alias), 1024);
+        EXPECT_TRUE(configuration.isParameterConfigured(original));
+        EXPECT_TRUE(configuration.isParameterConfigured(alias));
+    }
+
+    {
+        ConfigurationShim configuration;
+        configuration.setParameter(alias, size_t(1024));
+        EXPECT_EQ(configuration.getParameter<size_t>(original), 1024);
+        EXPECT_TRUE(configuration.isParameterConfigured(original));
+        EXPECT_TRUE(configuration.isParameterConfigured(alias));
+    }
 }

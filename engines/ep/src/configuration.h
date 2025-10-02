@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <memcached/configuration_iface.h>
 #include <memcached/engine.h>
 #include <relaxed_atomic.h>
@@ -428,6 +429,27 @@ protected:
     T getParameter(std::string_view key) const;
 
     /**
+     * Check if the parameter has been explicitly set by the configuration
+     * string or setParameter API.
+     * If the key is an alias, the canonical parameter name is checked.
+     */
+    bool isParameterConfigured(std::string_view key) const;
+
+    /**
+     * Mark the parameter as explicitly set by the configuration string or
+     * setParameter API.
+     * If the key is an alias, the canonical parameter name is marked as
+     * configured.
+     */
+    void markParameterConfigured(std::string_view key);
+
+    /**
+     * Get the canonical parameter name for a given key.
+     * If the key is an alias, the original parameter name is returned.
+     */
+    std::string getCanonicalParameterName(std::string_view key) const;
+
+    /**
      * Add a single config param to the provided stat collector, if the
      * config requirements are met.
      */
@@ -442,10 +464,26 @@ protected:
     cb::RelaxedAtomic<bool> initialized{false};
 
     /**
+     * Mutex to lock setting the compatibility version.
+     */
+    std::mutex compatVersionMutex;
+    /**
      * The compatibility version for the configuration.
      */
     std::atomic<cb::config::FeatureVersion> compatVersion{
             cb::config::FeatureVersion::max()};
+
+    /**
+     * The parameters that have been explicitly set by the configuration string
+     * or setParameter API.
+     */
+    folly::Synchronized<std::unordered_set<std::string>, std::mutex>
+            configuredParameters;
+
+    /**
+     * The mapping of aliases to the canonical parameter names.
+     */
+    std::unordered_map<std::string, std::string> aliasParameters;
 
     void initialize();
 
