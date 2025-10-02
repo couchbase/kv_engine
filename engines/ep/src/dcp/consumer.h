@@ -621,7 +621,7 @@ protected:
     std::chrono::duration<float> dcpNoopTxInterval;
 
     // Step can't start sending packets until we've received add stream
-    bool pendingAddStream = true;
+    cb::RelaxedAtomic<bool> pendingAddStream = true;
 
     // Flag to state that the DCP consumer has negotiated with the producer
     // that V7 DCP status codes can be used.
