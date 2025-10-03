@@ -557,16 +557,19 @@ bool Configuration::parseConfiguration(std::string_view str) {
                                newValue);
                     newConfiguredParameters.insert(std::string(k));
                 } catch (const std::exception& e) {
-                    EP_LOG_WARN(
-                            "Error parsing value: key: {} value: {} error: {}",
-                            k,
-                            v,
-                            e.what());
+                    if (loggingEnabled) {
+                        EP_LOG_WARN(
+                                "Error parsing value: key: {} value: {} error: "
+                                "{}",
+                                k,
+                                v,
+                                e.what());
+                    }
                     failed = true;
                 }
             }
         }
-        if (!found) {
+        if (!found && loggingEnabled) {
             EP_LOG_WARN("Unknown configuration key: {} value: {}", k, v);
         }
     });
@@ -619,6 +622,8 @@ ParameterValidationMap Configuration::validateParameters(
         const ParameterMap& parameters) const {
     // Validate against a copy of this configuration.
     Configuration config(*this);
+    // Disable logging in the validation copy.
+    config.loggingEnabled = false;
     auto [map, success] = config.setParametersInternal(parameters);
 
     if (success) {
@@ -929,10 +934,13 @@ void Configuration::processCompatVersionChange(
         changesJson[key] = {{"from", to_json(change.first)},
                             {"to", to_json(change.second)}};
     }
-    EP_LOG_INFO_CTX("Configuration: Compat version changed",
-                    {"from", fmt::to_string(oldVersion)},
-                    {"to", fmt::to_string(version)},
-                    {"changes", std::move(changesJson)});
+
+    if (loggingEnabled) {
+        EP_LOG_INFO_CTX("Configuration: Compat version changed",
+                        {"from", fmt::to_string(oldVersion)},
+                        {"to", fmt::to_string(version)},
+                        {"changes", std::move(changesJson)});
+    }
 }
 
 cb::config::FeatureVersion Configuration::getEffectiveCompatVersion() const {

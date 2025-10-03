@@ -485,6 +485,11 @@ protected:
      */
     std::unordered_map<std::string, std::string> aliasParameters;
 
+    /**
+     * Whether logging is enabled.
+     */
+    bool loggingEnabled{true};
+
     void initialize();
 
     /**
