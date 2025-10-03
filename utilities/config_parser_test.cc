@@ -110,9 +110,8 @@ TEST(ConfigValueAsSizeT, WithTrailingCharacters) {
     try {
         value_as_size_t("1234h");
     } catch (std::runtime_error& e) {
-        EXPECT_STREQ(
-                R"(cb::config::value_as_size_t: "1234h" contains extra characters)",
-                e.what());
+        EXPECT_STREQ(R"(Value "1234h" must be a non-negative integer)",
+                     e.what());
         detected = true;
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
@@ -130,9 +129,8 @@ TEST(ConfigValueAsSizeT, WithSizeSpecifiersAndTrailingChars) {
     try {
         value_as_size_t("1234kh");
     } catch (std::runtime_error& e) {
-        EXPECT_STREQ(
-                R"(cb::config::value_as_size_t: "1234kh" contains extra characters)",
-                e.what());
+        EXPECT_STREQ(R"(Value "1234kh" must be a non-negative integer)",
+                     e.what());
         detected = true;
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
@@ -143,9 +141,8 @@ TEST(ConfigValueAsSizeT, WithMultipleSizeSpecifiers) {
     try {
         value_as_size_t("1234kmg");
     } catch (std::runtime_error& e) {
-        EXPECT_STREQ(
-                R"(cb::config::value_as_size_t: "1234kmg" contains extra characters)",
-                e.what());
+        EXPECT_STREQ(R"(Value "1234kmg" must be a non-negative integer)",
+                     e.what());
         detected = true;
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
@@ -182,7 +179,7 @@ TEST(ConfigValueAsBool, Illegal) {
         EXPECT_FALSE(value_as_bool("blah"));
     } catch (const std::runtime_error& e) {
         EXPECT_STREQ(
-                R"(cb::config::value_as_bool: "blah" is not a boolean value)",
+                R"(Value "blah" must be a boolean value (true/false, on/off))",
                 e.what());
         detected = true;
     }
@@ -198,9 +195,7 @@ TEST(ConfigValueAsFloat, WithTrailingCharacters) {
     try {
         value_as_float("12.32h");
     } catch (std::runtime_error& e) {
-        EXPECT_STREQ(
-                R"(cb::config::value_as_float: "12.32h" contains extra characters)",
-                e.what());
+        EXPECT_STREQ(R"(Value "12.32h" must be a number)", e.what());
         detected = true;
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";

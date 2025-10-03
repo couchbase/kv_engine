@@ -80,13 +80,11 @@ size_t cb::config::value_as_size_t(const std::string& val) {
     if (idx == std::string::npos) {
         if (end != val.size()) {
             throw std::runtime_error(fmt::format(
-                    R"(cb::config::value_as_size_t: "{}" contains extra characters)",
-                    val));
+                    R"(Value "{}" must be a non-negative integer)", val));
         }
     } else if (end != idx || end + 1 != val.size()) {
         throw std::runtime_error(fmt::format(
-                R"(cb::config::value_as_size_t: "{}" contains extra characters)",
-                val));
+                R"(Value "{}" must be a non-negative integer)", val));
     }
     return ret;
 }
@@ -97,14 +95,12 @@ ssize_t cb::config::value_as_ssize_t(const std::string& val) {
     int64_t ret = std::stoll(val, &end) * multiplier;
     if (idx == std::string::npos) {
         if (end != val.size()) {
-            throw std::runtime_error(fmt::format(
-                    R"(cb::config::value_as_ssize_t: "{}" contains extra characters)",
-                    val));
+            throw std::runtime_error(
+                    fmt::format(R"(Value "{}" must be an integer)", val));
         }
     } else if (end != idx || end + 1 != val.size()) {
-        throw std::runtime_error(fmt::format(
-                R"(cb::config::value_as_ssize_t: "{}" contains extra characters)",
-                val));
+        throw std::runtime_error(
+                fmt::format(R"(Value "{}" must be an integer)", val));
     }
     return ret;
 }
@@ -134,16 +130,15 @@ bool cb::config::value_as_bool(const std::string& val) {
     }
 
     throw std::runtime_error(fmt::format(
-            R"(cb::config::value_as_bool: "{}" is not a boolean value)", val));
+            R"(Value "{}" must be a boolean value (true/false, on/off))", val));
 }
 
 float cb::config::value_as_float(const std::string& val) {
     std::size_t end = 0;
     const auto ret = std::stof(val, &end);
     if (end != val.size()) {
-        throw std::runtime_error(fmt::format(
-                R"(cb::config::value_as_float: "{}" contains extra characters)",
-                val));
+        throw std::runtime_error(
+                fmt::format(R"(Value "{}" must be a number)", val));
     }
     return ret;
 }
