@@ -239,6 +239,7 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(3, this->manager->getNumItemsForCursor(*cursor));
     EXPECT_EQ(1003, this->manager->getHighSeqno());
     EXPECT_EQ(1003, this->manager->getMaxVisibleSeqno());
+    EXPECT_FALSE(this->manager->haveAllCursorsSeenSeqno(1003));
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -254,6 +255,15 @@ TEST_P(CheckpointTest, OneOpenCkpt) {
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::mutation),
                                      HasOperation(queue_op::mutation)));
+    // All the cursors are placed at the start of the checkpoint, so they have
+    // all seen the first seqno
+    EXPECT_TRUE(this->manager->haveAllCursorsSeenSeqno(1001));
+    // backup cursor still not moved, so only check this on ephemeral
+    bool allCursorsSeenSeqno = !persistent();
+    EXPECT_EQ(allCursorsSeenSeqno,
+              this->manager->haveAllCursorsSeenSeqno(1002));
+    EXPECT_EQ(allCursorsSeenSeqno,
+              this->manager->haveAllCursorsSeenSeqno(1003));
 }
 
 // Test that enqueuing a single delete works.

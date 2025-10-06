@@ -2198,3 +2198,15 @@ bool CheckpointManager::canBeMerged(const std::lock_guard<std::mutex>& lh,
     }
     return true;
 }
+
+bool CheckpointManager::haveAllCursorsSeenSeqno(int64_t seqno) const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    for (const auto& cursor : cursors) {
+        if ((*cursor.second->getPos())->getBySeqno() < seqno) {
+            // Cursor has not reached this seqno yet, so not all cursors have
+            // seen this seqno.
+            return false;
+        }
+    }
+    return true;
+}

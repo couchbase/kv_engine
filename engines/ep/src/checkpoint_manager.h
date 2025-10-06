@@ -600,6 +600,14 @@ public:
     void maybeCreateNewCheckpoint();
 
     /**
+     * Checks if all cursors are past the given seqno.
+     *
+     * @param seqno the seqno to check
+     * @return true if all cursors are past the given seqno, false otherwise
+     */
+    bool haveAllCursorsSeenSeqno(int64_t seqno) const;
+
+    /**
      * Checks if the given checkpoint is:
      *  * the oldest checkpoint
      *  * closed
