@@ -204,6 +204,9 @@ struct CollectionMetaData {
 
 std::string to_string(const CollectionMetaData&);
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
+inline auto format_as(const CollectionMetaData& md) {
+    return to_string(md);
+}
 
 /**
  * The metadata of a single scope
@@ -220,6 +223,7 @@ struct ScopeMetaData {
 };
 
 std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta);
+std::string format_as(const ScopeMetaData& meta);
 
 /**
  * For creation of collection SystemEvents - The SystemEventFactory

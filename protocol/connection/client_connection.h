@@ -1085,3 +1085,9 @@ protected:
 
     Featureset effective_features;
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Frame> : ostream_formatter {};
+#endif

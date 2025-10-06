@@ -112,6 +112,10 @@ protected:
     std::string keydata;
 };
 
+inline auto format_as(const DiskDocKey& ddk) {
+    return ddk.to_string();
+}
+
 /// A hash function for DiskDocKey so they can be used in std::map and friends.
 namespace std {
 template <>

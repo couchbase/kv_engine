@@ -2812,7 +2812,7 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest,
     if (status.code() != cb::engine_errc::success &&
         status.code() != cb::engine_errc::would_block) {
         EP_LOG_WARN("KVBucket::setCollections error:{} {}",
-                    status.code(),
+                    status.code().value(),
                     status.what());
     }
     return status;

@@ -28,9 +28,9 @@ add_library(mcbp STATIC
 target_link_libraries(mcbp
         PUBLIC
                 platform
+                fmt::fmt
         PRIVATE
                 Folly::headers
-                fmt::fmt
                 mcd_util)
 set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mcbp)

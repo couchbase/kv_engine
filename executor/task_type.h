@@ -41,3 +41,7 @@ static inline std::string to_string(const task_type_t type) {
                                     std::to_string(int(type)) + "}");
     }
 }
+
+inline auto format_as(const task_type_t type) {
+    return to_string(type);
+}

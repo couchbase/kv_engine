@@ -4725,7 +4725,7 @@ void EventuallyPersistentEngine::addLookupResult(const CookieIface* cookie,
     if (it != lookups.end()) {
         if (!it->second) {
             EP_LOG_DEBUG("Cleaning up old lookup result for '{}'",
-                         it->second->getKey().data());
+                         it->second->getKey());
         } else {
             EP_LOG_DEBUG_RAW("Cleaning up old null lookup result");
         }

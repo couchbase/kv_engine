@@ -40,6 +40,7 @@ enum class FlushStateDeletion {
 };
 
 std::ostream& operator<<(std::ostream& os, const FlushStateDeletion&);
+std::string format_as(const FlushStateDeletion&);
 
 /// Result of flushing a Mutation, passed to the PersistenceCallback.
 enum class FlushStateMutation {
@@ -60,3 +61,4 @@ enum class FlushStateMutation {
 };
 
 std::ostream& operator<<(std::ostream& os, const FlushStateMutation&);
+std::string format_as(const FlushStateMutation&);

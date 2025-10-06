@@ -56,3 +56,9 @@ class RollbackCtx {
 public:
     virtual ~RollbackCtx() = default;
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<RollbackResult> : ostream_formatter {};
+#endif

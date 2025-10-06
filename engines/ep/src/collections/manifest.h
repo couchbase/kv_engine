@@ -59,6 +59,9 @@ struct Scope {
 
 std::string to_string(const Scope&);
 std::ostream& operator<<(std::ostream&, const Scope&);
+inline auto format_as(const Scope& scope) {
+    return to_string(scope);
+}
 
 /**
  * Manifest is an object that is constructed from JSON data as per
@@ -355,3 +358,9 @@ private:
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
 } // end namespace Collections
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Collections::Manifest> : ostream_formatter {};
+#endif

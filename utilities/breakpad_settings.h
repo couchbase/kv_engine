@@ -59,3 +59,11 @@ struct Settings {
 } // namespace cb::breakpad
 
 std::string to_string(cb::breakpad::Content content);
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<cb::breakpad::Content> : ostream_formatter {};
+template <>
+struct fmt::formatter<cb::breakpad::Settings> : ostream_formatter {};
+#endif

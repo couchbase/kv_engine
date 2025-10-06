@@ -36,15 +36,24 @@ using rel_time_t = uint32_t;
 enum class StoreSemantics { Add, Set, Replace, CAS };
 std::string to_string(const StoreSemantics ss);
 std::ostream& operator<<(std::ostream& os, const StoreSemantics& ss);
+inline auto format_as(StoreSemantics ss) {
+    return to_string(ss);
+}
 
 enum class ConnectionPriority : uint8_t { High, Medium, Low };
 std::string to_string(const ConnectionPriority cp);
 std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp);
+inline auto format_as(ConnectionPriority cp) {
+    return to_string(cp);
+}
 
 enum class EngineParamCategory { Flush, Replication, Checkpoint, Dcp, Vbucket };
 
 std::string to_string(const EngineParamCategory epc);
 std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc);
+inline auto format_as(EngineParamCategory epc) {
+    return to_string(epc);
+}
 
 /**
  * Data common to any item stored in memcached.
@@ -109,6 +118,9 @@ enum class DocumentState : uint8_t {
 
 std::string to_string(const DocumentState& ds);
 std::ostream& operator<<(std::ostream& os, const DocumentState& ds);
+inline auto format_as(DocumentState ds) {
+    return to_string(ds);
+}
 
 /**
  * The DocumentStateFilter is an enum which allows you to specify the state(s)
@@ -125,6 +137,9 @@ enum class DocStateFilter : uint8_t {
 
 std::string to_string(const DocStateFilter& filter);
 std::ostream& operator<<(std::ostream& os, const DocStateFilter& ds);
+inline auto format_as(const DocStateFilter dsf) {
+    return to_string(dsf);
+}
 
 struct item_info {
     uint64_t cas{0};
@@ -237,3 +252,15 @@ enum class CommittedState : char {
     /// PrepareAborted.
     PrepareCommitted = 5,
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+#ifndef ATOMIC_FORMATTER_DEFINED
+#define ATOMIC_FORMATTER_DEFINED 1
+#include <atomic>
+template <typename T>
+struct fmt::formatter<std::atomic<T>> : ostream_formatter {};
+#endif
+template <>
+struct fmt::formatter<ItemIface> : ostream_formatter {};
+#endif

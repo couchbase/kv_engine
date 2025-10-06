@@ -68,6 +68,9 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const cb::UserDataView& d);
+inline auto format_as(const cb::UserDataView& d) {
+    return d.getSanitizedValue();
+}
 
 /**
  * UserData class should be used whenever sensitive user data is created
@@ -97,4 +100,7 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const cb::UserData& d);
+inline auto format_as(const cb::UserData& d) {
+    return d.getSanitizedValue();
+}
 } // namespace cb

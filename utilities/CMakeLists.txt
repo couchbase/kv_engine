@@ -48,6 +48,8 @@ if (BREAKPAD_FOUND)
   target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
 endif()
 target_link_libraries(mcd_util
+        PUBLIC
+                fmt::fmt
         PRIVATE
                 engine_utilities
                 memcached_logger

@@ -1422,7 +1422,7 @@ Connection::~Connection() {
         LOG_DEBUG("Current tenant use for {}:{} - {}",
                   user.name,
                   to_string(user.domain),
-                  tenant->to_json());
+                  tenant->to_json().dump());
     }
 
     if (bev) {

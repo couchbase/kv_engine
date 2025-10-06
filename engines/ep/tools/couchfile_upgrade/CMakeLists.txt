@@ -3,7 +3,7 @@ add_library(couchfile_upgrade_objects OBJECT couchfile.cc
                                   input_couchfile.cc
                                   output_couchfile.cc)
 kv_enable_pch(couchfile_upgrade_objects)
-target_link_libraries(couchfile_upgrade_objects PUBLIC couchstore)
+target_link_libraries(couchfile_upgrade_objects PUBLIC fmt::fmt PUBLIC couchstore)
 
 add_executable(couchfile_upgrade couchfile_upgrade.cc
                                  $<TARGET_OBJECTS:couchfile_upgrade_objects>)

@@ -92,3 +92,6 @@ bool isMetaQueueOp(queue_op op);
 
 /// Print a queue_op to an ostream (for GoogleTest).
 std::ostream& operator<<(std::ostream& os, const queue_op& op);
+inline auto format_as(const queue_op& op) {
+    return to_string(op);
+}

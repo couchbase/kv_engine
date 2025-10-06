@@ -169,6 +169,9 @@ protected:
 };
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key);
+inline auto format_as(const StoredDocKey& key) {
+    return key.to_string();
+}
 
 static_assert(sizeof(CollectionID) == sizeof(uint32_t),
               "StoredDocKey: CollectionID has changed size");

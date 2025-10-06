@@ -421,3 +421,21 @@ enum class ErrorHandlingMethod {
 };
 
 } // namespace cb
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<CanDeduplicate> : ostream_formatter {};
+template <>
+struct fmt::formatter<TransferVB> : ostream_formatter {};
+template <>
+struct fmt::formatter<CheckpointHistorical> : ostream_formatter {};
+template <>
+struct fmt::formatter<snapshot_range_t> : ostream_formatter {};
+template <>
+struct fmt::formatter<snapshot_info_t> : ostream_formatter {};
+template <>
+struct fmt::formatter<EvictionPolicy> : ostream_formatter {};
+template <>
+struct fmt::formatter<ExpireBy> : ostream_formatter {};
+#endif

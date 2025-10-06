@@ -123,3 +123,9 @@ std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext);
 
 } // namespace VB
 } // namespace Collections
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Collections::VB::ScanContext> : ostream_formatter {};
+#endif

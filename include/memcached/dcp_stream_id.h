@@ -72,6 +72,9 @@ protected:
 };
 
 std::ostream& operator<<(std::ostream& os, const cb::mcbp::DcpStreamId& id);
+inline auto format_as(const DcpStreamId& id) {
+    return id.to_string();
+}
 
 struct DcpStreamIdFrameInfo {
     explicit DcpStreamIdFrameInfo(DcpStreamId sid) {

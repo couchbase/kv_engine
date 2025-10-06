@@ -319,6 +319,7 @@ bool is_known(Status status);
  */
 bool isStatusSuccess(Status status);
 std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
+std::string format_as(Status status);
 } // namespace cb::mcbp
 
 /**

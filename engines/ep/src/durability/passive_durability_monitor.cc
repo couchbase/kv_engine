@@ -496,8 +496,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(
                             cb::tagUserData(key.to_string()),
                             *prepareSeqno,
                             vb.getHighSeqno(),
-                            s->highPreparedSeqno.lastWriteSeqno,
-                            s->highCompletedSeqno.lastWriteSeqno,
+                            s->highPreparedSeqno.lastWriteSeqno.load(),
+                            s->highCompletedSeqno.lastWriteSeqno.load(),
                             strSyncWrite,
                             to_string_or_none(lastReceivedSnapEndData)));
     }

@@ -253,3 +253,9 @@ static_assert(sizeof(Header) == 24, "Incorrect compiler padding");
 std::ostream& operator<<(std::ostream& os, const Header& header);
 
 } // namespace cb::mcbp
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<cb::mcbp::Header> : ostream_formatter {};
+#endif

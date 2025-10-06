@@ -115,6 +115,9 @@ protected:
 
 std::ostream& operator<<(std::ostream& os, const Vbid& d);
 std::string to_string(const Vbid& vbucket);
+inline auto format_as(Vbid vb) {
+    return vb.to_string();
+}
 
 namespace std {
 template <>

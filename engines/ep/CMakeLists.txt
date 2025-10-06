@@ -230,7 +230,7 @@ SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 kv_enable_pch(ep-engine_collections)
 
-target_link_libraries(ep-engine_collections PRIVATE platform)
+target_link_libraries(ep-engine_collections PUBLIC fmt::fmt PRIVATE platform)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            PUBLIC
@@ -628,7 +628,6 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
 
     # List of headers to ignore / not attempt to compile
     list(REMOVE_ITEM ep_headers
-      src/bucket_logger_impl.h # Included via bucket_logger.h
       src/config.cmake.h  # XXXX
       src/tasks.def.h  # X-Macro file; cannot be compiled by itself
     )

@@ -6,7 +6,7 @@ ADD_LIBRARY(mock_dcp OBJECT mock/mock_dcp.cc)
 SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mock_dcp)
 add_sanitizers(mock_dcp)
-target_link_libraries(mock_dcp PUBLIC platform)
+target_link_libraries(mock_dcp PUBLIC fmt::fmt platform)
 
 ADD_LIBRARY(ep_testsuite_objs OBJECT
         ep_request_utils.cc
@@ -15,7 +15,7 @@ ADD_LIBRARY(ep_testsuite_objs OBJECT
         $<TARGET_OBJECTS:ep_objs>)
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
-target_link_libraries(ep_testsuite_objs PUBLIC platform)
+target_link_libraries(ep_testsuite_objs PUBLIC fmt::fmt platform)
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.

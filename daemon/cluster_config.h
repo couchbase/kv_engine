@@ -89,3 +89,6 @@ protected:
 
 std::string to_string(const ClustermapVersion& version);
 std::ostream& operator<<(std::ostream& os, const ClustermapVersion& version);
+inline auto format_as(const ClustermapVersion& version) {
+    return to_string(version);
+}

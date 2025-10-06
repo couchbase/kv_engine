@@ -59,14 +59,27 @@ enum class ValueFilter {
     /// Return key & metadata, and value. Value will be returned uncompressed.
     VALUES_DECOMPRESSED
 };
+std::string format_as(ValueFilter vf);
 
 enum scan_error_t { scan_success, scan_again, scan_failed };
+inline std::string format_as(const scan_error_t err) {
+    switch (err) {
+    case scan_success:
+        return "scan success";
+    case scan_again:
+        return "scan again";
+    case scan_failed:
+        return "scan failed";
+    }
+    return "unknown scan_error_t value: " + std::to_string(err);
+}
 
 enum class DocumentFilter {
     ALL_ITEMS,
     NO_DELETES,
     ALL_ITEMS_AND_DROPPED_COLLECTIONS
 };
+std::string format_as(DocumentFilter df);
 
 enum class SnapshotSource {
     Historical, // Required for PITR
@@ -111,6 +124,7 @@ protected:
 enum class CompactDBStatus { Success, Aborted, Failed };
 
 std::ostream& operator<<(std::ostream&, const CompactDBStatus&);
+std::string format_as(CompactDBStatus df);
 
 /**
  * Functional interface of a KVStore. Each KVStore implementation must implement
@@ -791,3 +805,4 @@ std::string to_string(KVStoreIface::ReadVBStateStatus status);
 
 std::ostream& operator<<(std::ostream&,
                          const KVStoreIface::GetCollectionStatsStatus&);
+std::string format_as(const KVStoreIface::GetCollectionStatsStatus&);

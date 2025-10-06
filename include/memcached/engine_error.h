@@ -158,6 +158,9 @@ std::string to_string(engine_errc ev);
 void PrintTo(engine_errc ev, ::std::ostream* os);
 // For checkeqfn
 std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
+inline auto format_as(engine_errc ec) {
+    return to_string(ec);
+}
 } // namespace cb
 
 

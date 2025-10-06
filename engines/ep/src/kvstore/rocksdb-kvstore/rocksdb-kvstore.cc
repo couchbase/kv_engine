@@ -580,7 +580,7 @@ bool RocksDBKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
         logger.warn(
                 "RocksDBKVStore::commit: saveDocs error:{}, "
                 "{}",
-                status.code(),
+                static_cast<int>(status.code()),
                 vbid);
         success = false;
     }
@@ -1296,7 +1296,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
             logger.warn(
                     "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
                     "error:{}, {}",
-                    status.code(),
+                    static_cast<int>(status.code()),
                     vbid);
             return status;
         }
@@ -1316,9 +1316,8 @@ rocksdb::Status RocksDBKVStore::saveDocs(
             if (!status.ok()) {
                 logger.warn(
                         "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
-                        "error:{}, "
-                        "{}",
-                        status.code(),
+                        "error:{}, {}",
+                        static_cast<int>(status.code()),
                         vbid);
                 return status;
             }
@@ -1330,7 +1329,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     if (!status.ok()) {
         ++st.numVbSetFailure;
         logger.warn("RocksDBKVStore::saveDocs: saveVBStateToBatch error:{}",
-                    status.code());
+                    static_cast<int>(status.code()));
         return status;
     }
 
@@ -1340,7 +1339,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         logger.warn(
                 "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:{}, "
                 "{}",
-                status.code(),
+                static_cast<int>(status.code()),
                 vbid);
         return status;
     }
@@ -1380,9 +1379,8 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     if (!status.ok()) {
         logger.warn(
                 "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
-                "[ColumnFamily: \'default\']  error:{}, "
-                "{}",
-                status.code(),
+                "[ColumnFamily: \'default\']  error:{}, {}",
+                static_cast<int>(status.code()),
                 vbid);
         return status;
     }
@@ -1390,9 +1388,8 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     if (!status.ok()) {
         logger.warn(
                 "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
-                "[ColumnFamily: \'seqno\']  error:{}, "
-                "{}",
-                status.code(),
+                "[ColumnFamily: \'seqno\']  error:{}, {}",
+                static_cast<int>(status.code()),
                 vbid);
         return status;
     }
