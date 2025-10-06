@@ -12,6 +12,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <cstdint>
 
 /**
  * Forward declarations for types relating to Item.

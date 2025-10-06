@@ -12,6 +12,7 @@
 
 #include <memcached/dockey.h>
 #include <string>
+#include <cstdint>
 
 struct DocKey;
 class Item;

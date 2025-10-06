@@ -10,6 +10,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
 namespace cb::mcbp {
 enum class Status : uint16_t;
