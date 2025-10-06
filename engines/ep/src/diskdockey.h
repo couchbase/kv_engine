@@ -11,6 +11,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
 struct DocKey;
 class Item;

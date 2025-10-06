@@ -12,6 +12,7 @@
 
 #include <memcached/engine_error.h>
 #include <string>
+#include <cstdint>
 
 // forward decl
 class Cookie;
