@@ -2776,6 +2776,9 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
     // Setup the stream
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(opaque, vbid, 0 /*flags*/));
+    // Test for addStream notify because this queues an outbound message
+    ASSERT_TRUE(mock_cookie_notified(cookie_to_mock_cookie(cookie)));
+    mock_waitfor_cookie(cookie_to_mock_cookie(cookie));
     opaque += 1;
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
