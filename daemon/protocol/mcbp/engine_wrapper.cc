@@ -904,9 +904,9 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: dcp.stream_req returned cb::engine_errc::disconnect - "
-                "Connection {}",
+                "Cookie {}",
                 connection.getId(),
-                connection.to_json().dump());
+                cookie.to_json().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
