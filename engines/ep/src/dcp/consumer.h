@@ -570,7 +570,7 @@ protected:
     std::chrono::duration<float> dcpNoopTxInterval;
 
     // Step can't start sending packets until we've received add stream
-    bool pendingAddStream = true;
+    cb::RelaxedAtomic<bool> pendingAddStream = true;
 
     bool pendingEnableNoop;
     NoopIntervalNegotiation noopIntervalNegotiation;

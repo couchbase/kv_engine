@@ -25,6 +25,7 @@
 #include "vbucket.h"
 
 #include <programs/engine_testapp/mock_cookie.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <spdlog/spdlog.h>
 
 class STDcpTest : public STParameterizedBucketTest {
@@ -584,6 +585,7 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
     auto& mockConnMap = static_cast<MockDcpConnMap&>(connMap);
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    EXPECT_TRUE(consumer->isPaused());
     mockConnMap.addConn(cookie, consumer);
 
     // Replica vbucket
@@ -641,9 +643,6 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
         EXPECT_EQ(cb::engine_errc::disconnect, res);
         EXPECT_EQ(0, vb.getHighSeqno());
         EXPECT_EQ(0, unackedBytes);
-
-        // Expect the connection to be notified
-        EXPECT_FALSE(consumer->isPaused());
 
         // Simulate the DcpConsumerTask - Nothing to process, we are just
         // disconnecting
