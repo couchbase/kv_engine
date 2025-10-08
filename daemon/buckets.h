@@ -491,6 +491,9 @@ public:
     /// Get the bucket with the given index
     Bucket& at(size_t idx);
 
+    /// Get the name of the bucket with the given index
+    std::string getName(size_t idx) const;
+
     /**
      * Call a function on each ready bucket.
      * @param fn Function to call for each bucket. Should return false if

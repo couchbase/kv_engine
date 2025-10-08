@@ -1111,6 +1111,17 @@ Bucket& BucketManager::at(size_t idx) {
     return all_buckets[idx];
 }
 
+std::string BucketManager::getName(size_t idx) const {
+    if (idx < all_buckets.size()) {
+        auto& b = all_buckets[idx];
+        std::lock_guard<std::mutex> guard(b.mutex);
+        if (b.state == Bucket::State::Ready) {
+            return b.name;
+        }
+    }
+    return {};
+}
+
 void BucketManager::destroyBucketsInParallel() {
     // Iterate over all "ready" buckets and initiate their shutdown
     std::vector<std::pair<cb::engine_errc, BucketDestroyer>> destroyers;

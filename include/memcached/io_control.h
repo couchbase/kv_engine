@@ -34,6 +34,8 @@ enum class Id {
     TraceStatus,
     TraceStop,
     ExternalAuthLogging,
+    TopkeysStart,
+    TopkeysStop,
     enum_max
 };
 

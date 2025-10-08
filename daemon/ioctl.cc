@@ -10,9 +10,11 @@
 
 #include "ioctl.h"
 
+#include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
+#include "front_end_thread.h"
 #include "settings.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
@@ -21,7 +23,9 @@
 #include <memcached/io_control.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
+#include <platform/split_string.h>
 #include <serverless/config.h>
+#include <algorithm>
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
@@ -109,6 +113,58 @@ cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc ioctlGetTopkeysStop(Cookie& cookie,
+                                           const StrToStrMap& args,
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype) {
+    std::shared_ptr<cb::trace::topkeys::Collector> collector;
+    FrontEndThread::forEach(
+            [&collector](auto& t) {
+                if (!t.keyTrace) {
+                    return;
+                }
+
+                if (!collector) {
+                    collector = t.keyTrace;
+                }
+                t.keyTrace.reset();
+            },
+            true);
+
+    std::size_t limit = 100;
+    if (args.contains("limit")) {
+        try {
+            limit = std::stoul(args.find("limit")->second);
+        } catch (const std::exception&) {
+            // Ignore the exception and return the default limit instead
+            // (we've already performed the tracing so there isn't really
+            // any good reason to just discard the data because the client
+            // provided an invalid value for limit. The limit is only used
+            // to return *less* data than we've already collected.
+        }
+    }
+
+    if (!collector) {
+        cookie.setErrorContext(
+                "Failed to collect topkeys - tracing not active");
+        LOG_WARNING_CTX("Failed to collect topkeys - tracing not active",
+                        {"conn_id", cookie.getConnection().getId()});
+        return cb::engine_errc::failed;
+    }
+
+    try {
+        nlohmann::json json = collector->getResults(limit);
+        value = json.dump();
+    } catch (const std::exception& exception) {
+        LOG_ERROR_CTX("Failed to get trace data",
+                      {"conn_id", cookie.getConnection().getId()},
+                      {"error", exception.what()});
+        return cb::engine_errc::failed;
+    }
+    datatype = cb::mcbp::Datatype::JSON;
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc ioctl_get_property(Cookie& cookie,
                                    const std::string& key,
                                    std::string& value,
@@ -151,6 +207,9 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
             }
             return cb::engine_errc::not_supported;
 
+        case cb::ioctl::Id::TopkeysStop:
+            return ioctlGetTopkeysStop(cookie, request.second, value, datatype);
+
         case cb::ioctl::Id::JemallocProfActive: // may only be used with Set
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
         case cb::ioctl::Id::ReleaseFreeMemory: // may only be used with Set
@@ -160,6 +219,7 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
         case cb::ioctl::Id::TraceDumpClear: // may only be used with Set
         case cb::ioctl::Id::TraceStart: // may only be used with Set
         case cb::ioctl::Id::TraceStop: // may only be used with Set
+        case cb::ioctl::Id::TopkeysStart:
         case cb::ioctl::Id::enum_max:
             break;
         }
@@ -262,6 +322,83 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
     return cb::engine_errc::invalid_arguments;
 }
 
+static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
+                                            const StrToStrMap& args,
+                                            const std::string&) {
+    std::size_t limit = 10000;
+    if (args.contains("limit")) {
+        try {
+            limit = std::stoul(args.find("limit")->second);
+            if (limit == 0) {
+                cookie.setErrorContext("limit cannot be zero");
+                return cb::engine_errc::invalid_arguments;
+            }
+        } catch (const std::exception&) {
+            cookie.setErrorContext("Failed to parse limit argument");
+            return cb::engine_errc::invalid_arguments;
+        }
+    }
+
+    std::size_t shards = Settings::instance().getNumWorkerThreads() * 4;
+    if (args.contains("shards")) {
+        try {
+            shards = std::stoul(args.find("shards")->second);
+            if (shards == 0) {
+                cookie.setErrorContext("Shards cannot be zero");
+                return cb::engine_errc::invalid_arguments;
+            }
+        } catch (const std::exception&) {
+            cookie.setErrorContext("Failed to parse limit argument");
+            return cb::engine_errc::invalid_arguments;
+        }
+    }
+
+    std::vector<std::size_t> bucket_filter;
+    if (args.contains("bucket_filter")) {
+        std::unordered_map<std::string, std::size_t> bucketnames;
+
+        for (std::size_t idx = 0; idx < cb::limits::TotalBuckets; ++idx) {
+            auto name = BucketManager::instance().getName(idx);
+            if (!name.empty()) {
+                bucketnames.insert({std::move(name), idx});
+            }
+        }
+
+        auto filter = args.find("bucket_filter")->second;
+        try {
+            auto parts = cb::string::split(filter, ',');
+            for (const auto& part : parts) {
+                std::string bucket(part);
+                if (bucketnames.contains(bucket)) {
+                    bucket_filter.push_back(bucketnames[bucket]);
+                } else {
+                    cookie.setErrorContext(
+                            fmt::format("Unknown bucket {}", bucket));
+                    return cb::engine_errc::no_such_key;
+                }
+            }
+        } catch (const std::exception& exception) {
+            LOG_WARNING_CTX("Failed to parse bucket filter",
+                            {"error", exception.what()});
+            return cb::engine_errc::failed;
+        }
+    }
+
+    auto collector =
+            cb::trace::topkeys::Collector::create(limit, shards, bucket_filter);
+    if (!collector) {
+        cookie.setErrorContext("Failed to create topkeys collector");
+        LOG_WARNING_CTX("Failed to create topkeys collector",
+                        {"conn_id", cookie.getConnection().getId()});
+        return cb::engine_errc::failed;
+    }
+
+    FrontEndThread::forEach([&collector](auto& t) { t.keyTrace = collector; },
+                            true);
+
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc ioctl_set_property(Cookie& cookie,
                                    const std::string& key,
                                    const std::string& value) {
@@ -312,11 +449,15 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
                 return cb::engine_errc::success;
             }
             return cb::engine_errc::not_supported;
+        case cb::ioctl::Id::TopkeysStart:
+            return ioctlSetTopkeysStart(cookie, request.second, value);
 
         case cb::ioctl::Id::TraceDumpBegin: // may only be used with Get
         case cb::ioctl::Id::TraceDumpGet: // may only be used with Get
         case cb::ioctl::Id::TraceDumpList: // may only be used with Get
         case cb::ioctl::Id::TraceStatus: // may only be used with Get
+        case cb::ioctl::Id::TopkeysStop:
+
         case cb::ioctl::Id::enum_max:
             break;
         }

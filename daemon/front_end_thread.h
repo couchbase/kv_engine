@@ -12,6 +12,8 @@
 
 #include "auditd/src/audit_event_filter.h"
 #include "connection.h"
+#include "top_keys.h"
+
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
 #include <platform/sized_buffer.h>
@@ -120,6 +122,10 @@ struct FrontEndThread {
         return cb::char_buffer{const_cast<char*>(scratch_buffer.data()),
                                scratch_buffer.size()};
     }
+
+    /// The key trace collector used by this thread. Not set
+    /// when tracing is disabled
+    std::shared_ptr<cb::trace::topkeys::Collector> keyTrace;
 
     /// Notify the thread that a new connection was created
     void onConnectionCreate(Connection& connection);

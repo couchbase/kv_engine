@@ -28,6 +28,7 @@
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/storeddockey.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
@@ -434,12 +435,21 @@ Status McbpValidator::verify_header(Cookie& cookie,
     // privileges. Because the incoming "is_collection_command" operations only
     // include the collection, this code is doing a look-up of the collection
     // using the get_collection_meta.
-    if (connection.getBucket().isCollectionCapable() &&
-        is_collection_command(request.getClientOpcode())) {
-        auto status = setCurrentCollectionInfo(
-                cookie, cookie.getRequestKey().getCollectionID());
-        if (status != Status::Success) {
-            return status;
+    if (is_collection_command(request.getClientOpcode())) {
+        const auto& thread = connection.getThread();
+        if (thread.keyTrace &&
+            request.getClientOpcode() != ClientOpcode::GetKeys) [[unlikely]] {
+            thread.keyTrace->access(connection.getBucketIndex(),
+                                    connection.isCollectionsSupported(),
+                                    request.getKeyString());
+        }
+
+        if (connection.getBucket().isCollectionCapable()) {
+            const auto status = setCurrentCollectionInfo(
+                    cookie, cookie.getRequestKey().getCollectionID());
+            if (status != Status::Success) {
+                return status;
+            }
         }
     }
 

@@ -1,0 +1,6 @@
+add_executable(mctopkeys mctopkeys.cc)
+kv_enable_pch(mctopkeys)
+target_link_libraries(mctopkeys PRIVATE mc_client_connection mc_program_utils platform)
+add_sanitizers(mctopkeys)
+install(TARGETS mctopkeys RUNTIME DESTINATION bin)
+AddToStandalonePackage(TARGETS mctopkeys PACKAGES admin_tools)

@@ -81,6 +81,14 @@ Manager::Manager()
                "external.auth.logging",
                "Get/Set external auth logging",
                Mode::RW},
+              {Id::TopkeysStart,
+               "topkeys.start",
+               "Start topkeys tracing",
+               Mode::WRONLY},
+              {Id::TopkeysStop,
+               "topkeys.stop",
+               "Stop topkeys tracing and fetch the result",
+               Mode::RDONLY},
       }) {
 }
 

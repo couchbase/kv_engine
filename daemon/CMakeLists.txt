@@ -107,6 +107,8 @@ add_library(memcached_daemon STATIC
             timings.h
             tls_configuration.cc
             tls_configuration.h
+            top_keys.cc
+            top_keys.h
             tracing.cc
             tracing.h
             yielding_limited_concurrency_task.cc
@@ -225,7 +227,8 @@ cb_add_test_executable(memcached_unit_tests
                        ssl_utils_test.cc
                        tasks_test.cc
                        timings_test.cc
-                       tls_configuration_test.cc)
+                       tls_configuration_test.cc
+                       top_keys_test.cc)
 add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
 cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)

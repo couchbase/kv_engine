@@ -47,6 +47,7 @@ built via the Couchbase
 * [Network interfaces](docs/NetworkInterface.md)
 * [HiFi MFU Eviction Policy](docs/HiFi_MFU_eviction_policy.md)
 * [Throttling](docs/Throttling.md)
+* [Top Keys](docs/Topkeys.md)
 
 ### Protocols
 

@@ -74,6 +74,7 @@ cb_add_test_executable(memcached_testapp
     testapp_subdoc_multipath.cc
     testapp_subdoc_perf.cc
     testapp_tls.cc
+    testapp_topkeys.cc
     testapp_touch.cc
     testapp_tracing.cc
     testapp_ttl.cc
