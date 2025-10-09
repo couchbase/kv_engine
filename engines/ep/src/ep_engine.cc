@@ -2150,6 +2150,17 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
 
 cb::engine_errc EventuallyPersistentEngine::initialize(
         std::string_view config) {
+    auto handle = acquireEngine(this);
+    try {
+        return handle->initializeInner(config);
+    } catch (const std::exception& e) {
+        NonBucketAllocationGuard guard;
+        throw std::runtime_error(e.what());
+    }
+}
+
+cb::engine_errc EventuallyPersistentEngine::initializeInner(
+        std::string_view config) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }

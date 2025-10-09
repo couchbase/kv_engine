@@ -1090,6 +1090,8 @@ public:
 protected:
     friend class EpEngineValueChangeListener;
 
+    cb::engine_errc initializeInner(std::string_view config);
+
     cb::engine_errc compactDatabaseInner(CookieIface& cookie,
                                          Vbid vbid,
                                          uint64_t purge_before_ts,
