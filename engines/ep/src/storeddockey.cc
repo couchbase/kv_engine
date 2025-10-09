@@ -126,6 +126,10 @@ bool SerialisedDocKey::operator==(const DocKey& rhs) const {
            std::equal(rhs.begin(), rhs.end(), data() + 1);
 }
 
+bool SerialisedDocKey::operator==(const SerialisedDocKey& rhs) const {
+    return rhs.size() == size() && std::memcmp(data(), rhs.data(), size()) == 0;
+}
+
 SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
                                    CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
