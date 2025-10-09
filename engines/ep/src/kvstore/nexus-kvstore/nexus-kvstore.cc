@@ -3070,7 +3070,7 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
     if (primaryGetValue.getStatus() == cb::engine_errc::success &&
         !compareItem(*primaryGetValue.item, *secondaryGetValue.item)) {
         auto msg = fmt::format(
-                "NexusKVStore::{}: {} seqno:{} item mismatch primary:{} "
+                "NexusKVStore::getBySeqno: {} seqno:{} item mismatch primary:{} "
                 "secondary:{}",
                 vbid,
                 seq,
