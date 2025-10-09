@@ -134,7 +134,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     const std::string expected{
             "Authorization failure: can't execute RBAC_REFRESH operation "
             "without the SecurityManagement privilege"};
-    EXPECT_EQ(expected, json["error"]["context"]);
+    EXPECT_EQ(expected, json["error"]["context"].get<std::string>());
 }
 
 class RbacRoleTest : public TestappClientTest {

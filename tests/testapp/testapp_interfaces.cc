@@ -169,11 +169,11 @@ TEST_P(InterfacesTest, Prometheus) {
     EXPECT_TRUE(config["port"].is_number());
     EXPECT_LT(0, config["port"]);
     EXPECT_EQ("prometheus", config["type"]);
-    EXPECT_NE(uuid, config["uuid"]);
+    EXPECT_NE(uuid, config["uuid"].get<std::string>());
     uuid = config["uuid"];
 
     interfaces = getInterfaces(*adminConnection);
-    ASSERT_EQ(uuid, interfaces.back()["uuid"])
+    ASSERT_EQ(uuid, interfaces.back()["uuid"].get<std::string>())
             << "list interfaces should return the newly created interface";
 }
 
@@ -329,7 +329,7 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedKey) {
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
     auto json = rsp.getDataJson();
-    EXPECT_EQ("set", json["password"]) << json.dump(2);
+    EXPECT_EQ("set", json["password"].get<std::string>()) << json.dump(2);
 }
 
 TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {

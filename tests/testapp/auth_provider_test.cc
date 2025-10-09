@@ -82,7 +82,8 @@ TEST_F(AuthProviderTest, UnsupportedMech) {
             R"({"mechanism":"SCRAM-SHA1", "challenge":"foo", "authentication-only":false})");
     ASSERT_EQ(cb::mcbp::Status::NotSupported, ret.first);
     const auto json = nlohmann::json::parse(ret.second);
-    EXPECT_EQ("mechanism not supported", json["error"]["context"]);
+    EXPECT_EQ("mechanism not supported",
+              json["error"]["context"].get<std::string>());
 }
 
 TEST_F(AuthProviderTest, NoChallenge) {
