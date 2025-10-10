@@ -1144,15 +1144,6 @@ struct writer_thread_ctx {
     Vbid vbid;
 };
 
-struct continuous_dcp_ctx {
-    EngineIface* h;
-    const void *cookie;
-    Vbid vbid;
-    const std::string &name;
-    uint64_t start_seqno;
-    std::unique_ptr<TestDcpConsumer> dcpConsumer;
-};
-
 //Forward declaration required for dcp_thread_func
 static uint32_t add_stream_for_consumer(EngineIface* h,
                                         CookieIface* cookie,
@@ -1275,22 +1266,6 @@ extern "C" {
                           wtc->vbid),
                     "Failed to store value");
         }
-    }
-
-    static void continuous_dcp_thread(void *args) {
-        auto *cdc = static_cast<continuous_dcp_ctx *>(args);
-
-        DcpStreamCtx ctx;
-        ctx.vbucket = cdc->vbid;
-        std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid.get()) +
-                                 ":0:id");
-        ctx.vb_uuid = get_ull_stat(cdc->h, vbuuid_entry.c_str(), "failovers");
-        ctx.seqno = {cdc->start_seqno, std::numeric_limits<uint64_t>::max()};
-        ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
-        ctx.skip_verification = true;
-
-        cdc->dcpConsumer->addStreamCtx(ctx);
-        cdc->dcpConsumer->run();
     }
 }
 
@@ -2555,27 +2530,28 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h) {
 }
 
 static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
-    const std::string conn_name("unittest");
-    const int num_items = 2, vb = 0;
-
+    const int num_items = 2;
     write_items(h, num_items);
-
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
 
+    // We want to stream items till end and keep the stream open. Then we want
+    // to verify the stream is still open
     auto* cookie = testHarness->create_cookie(h);
-
-    /* We want to stream items till end and keep the stream open. Then we want
-       to verify the stream is still open */
-    struct continuous_dcp_ctx cdc = {
-            h,
-            cookie,
-            Vbid(0),
-            conn_name,
-            0,
-            std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
-                                    "dcp_thread");
+    const std::string conn_name = "test-consumer";
+    auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
+    auto dcp_thread = create_thread(
+            [&]() {
+                DcpStreamCtx ctx;
+                ctx.vbucket = Vbid(0);
+                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+                ctx.snapshot = {0, 0};
+                ctx.skip_verification = true;
+                consumer->addStreamCtx(ctx);
+                consumer->run();
+            },
+            "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2587,19 +2563,17 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     cb::RelaxedAtomic<uint64_t> exp_items(num_items);
-    wait_for_val_to_be("last_sent_seqno",
-                       cdc.dcpConsumer->producers.last_byseqno,
-                       exp_items);
+    wait_for_val_to_be(
+            "last_sent_seqno", consumer->producers.last_byseqno, exp_items);
 
-    /* Check if the stream is still open after sending out latest items */
-    std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
-                             std::to_string(vb) + "_state");
+    // Check if the stream is still open after sending out latest items
+    std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_0_state");
     std::string state = get_str_stat(h, stat_stream_state.c_str(), "dcp");
     checkeq(state.compare("in-memory"), 0, "Stream is not open");
 
-    /* Before closing the connection stop the thread that continuously polls
-       for dcp data */
-    cdc.dcpConsumer->stop();
+    // Before closing the connection stop the thread that continuously polls for
+    // dcp data
+    consumer->stop();
     cookie->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
     testHarness->destroy_cookie(cookie);
@@ -2692,16 +2666,20 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     /* We want to stream items till end and keep the stream open. Then we want
        to verify the stream is still open */
     auto* cookie1 = testHarness->create_cookie(h);
-    const std::string conn_name1("unittest1");
-    struct continuous_dcp_ctx cdc = {
-            h,
-            cookie1,
-            Vbid(0),
-            conn_name1,
-            0,
-            std::make_unique<TestDcpConsumer>(conn_name1, cookie1, h)};
-    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
-                                    "dcp_thread");
+    const std::string conn_name1 = "test-consumer";
+    auto consumer = std::make_unique<TestDcpConsumer>(conn_name1, cookie1, h);
+    auto dcp_thread = create_thread(
+            [&]() {
+                DcpStreamCtx ctx;
+                ctx.vbucket = Vbid(0);
+                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+                ctx.snapshot = {0, 0};
+                ctx.skip_verification = true;
+                consumer->addStreamCtx(ctx);
+                consumer->run();
+            },
+            "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2713,15 +2691,13 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     cb::RelaxedAtomic<uint64_t> exp_items(3 * num_items);
-    wait_for_val_to_be("last_sent_seqno",
-                       cdc.dcpConsumer->producers.last_byseqno,
-                       exp_items);
+    wait_for_val_to_be(
+            "last_sent_seqno", consumer->producers.last_byseqno, exp_items);
 
     /* Check if correct snap end seqno is sent */
-    std::string stat_stream_last_sent_snap_end_seqno("eq_dcpq:" + conn_name1 +
-                                                     ":stream_" +
-                                                     std::to_string(vb) +
-                                                     "_last_sent_snap_end_seqno");
+    std::string stat_stream_last_sent_snap_end_seqno(
+            "eq_dcpq:" + conn_name1 + ":stream_" + std::to_string(vb) +
+            "_last_sent_snap_end_seqno");
     wait_for_stat_to_be(h,
                         stat_stream_last_sent_snap_end_seqno.c_str(),
                         3 * num_items,
@@ -2735,7 +2711,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
-    cdc.dcpConsumer->stop();
+    consumer->stop();
     cookie1->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
 
@@ -2747,7 +2723,6 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
 static enum test_result test_dcp_producer_stream_cursor_movement(
         EngineIface* h) {
-    const std::string conn_name("unittest");
     const int num_items = 30;
     for (int j = 0; j < num_items; ++j) {
         if (j % 10 == 0) {
@@ -2765,19 +2740,23 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
 
+    // We want to stream items till end and keep the stream open. We want to
+    // verify if the DCP cursor has moved to new open checkpoint
     auto* cookie = testHarness->create_cookie(h);
-
-    /* We want to stream items till end and keep the stream open. We want to
-       verify if the DCP cursor has moved to new open checkpoint */
-    struct continuous_dcp_ctx cdc = {
-            h,
-            cookie,
-            Vbid(0),
-            conn_name,
-            20,
-            std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
-                                    "dcp_thread");
+    const std::string conn_name = "test-consumer";
+    auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
+    auto dcp_thread = create_thread(
+            [&]() {
+                DcpStreamCtx ctx;
+                ctx.vbucket = Vbid(0);
+                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+                ctx.seqno = {20, std::numeric_limits<uint64_t>::max()};
+                ctx.snapshot = {20, 20};
+                ctx.skip_verification = true;
+                consumer->addStreamCtx(ctx);
+                consumer->run();
+            },
+            "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2789,9 +2768,8 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     cb::RelaxedAtomic<uint64_t> exp_items(num_items);
-    wait_for_val_to_be("last_sent_seqno",
-                       cdc.dcpConsumer->producers.last_byseqno,
-                       exp_items);
+    wait_for_val_to_be(
+            "last_sent_seqno", consumer->producers.last_byseqno, exp_items);
 
     /* We want to make sure that no cursors are lingering on any of the previous
        checkpoints. For that we wait for checkpoint remover to remove all but
@@ -2800,7 +2778,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
-    cdc.dcpConsumer->stop();
+    consumer->stop();
     cookie->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
     testHarness->destroy_cookie(cookie);
@@ -7045,19 +7023,22 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
 }
 
 static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
-    const std::string conn_name = "unittest";
-    auto* cookie = testHarness->create_cookie(h);
-
     // Set up a DcpTestConsumer that would remain in in-memory mode
-    struct continuous_dcp_ctx cdc = {
-            h,
-            cookie,
-            Vbid(0),
-            conn_name,
-            0,
-            std::make_unique<TestDcpConsumer>(conn_name, cookie, h)};
-    auto dcp_thread = create_thread([&cdc]() { continuous_dcp_thread(&cdc); },
-                                    "dcp_thread");
+    auto* cookie = testHarness->create_cookie(h);
+    const std::string conn_name = "test-consumer";
+    auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
+    auto dcp_thread = create_thread(
+            [&]() {
+                DcpStreamCtx ctx;
+                ctx.vbucket = Vbid(0);
+                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+                ctx.snapshot = {0, 0};
+                ctx.skip_verification = true;
+                consumer->addStreamCtx(ctx);
+                consumer->run();
+            },
+            "dcp_thread");
 
     // Wait for producer to be created
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -7081,8 +7062,8 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
     // Expect producers->last_end_status to carry StateChanged as reason
     // for stream closure
     check_expression(cb::mcbp::DcpStreamEndStatus::StateChanged ==
-                  cdc.dcpConsumer->producers.last_end_status,
-          "Last DCP flag not StateChanged");
+                             consumer->producers.last_end_status,
+                     "Last DCP flag not StateChanged");
 
     testHarness->destroy_cookie(cookie);
 
