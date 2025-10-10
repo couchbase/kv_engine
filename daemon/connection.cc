@@ -1742,7 +1742,7 @@ cb::engine_errc Connection::stream_req(uint32_t opaque,
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
 
-    if (request_value.empty()) {
+    if (!request_value.empty()) {
         builder.setValue(request_value);
     }
 
