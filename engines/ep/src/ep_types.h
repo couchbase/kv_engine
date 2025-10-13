@@ -507,7 +507,8 @@ enum class FusionStat : uint8_t {
     SyncInfo,
     ActiveGuestVolumes,
     Uploader,
-    Migration
+    Migration,
+    IsMounted
 };
 FusionStat toFusionStat(const std::string& str);
 std::string format_as(FusionStat stat);

@@ -3448,6 +3448,7 @@ cb::engine_errc EPBucket::doFusionAggregatedStats(CookieIface& cookie,
     case FusionStat::Migration:
         return doFusionAggregatedStatGroup(stat, cookie, add_stat);
     case FusionStat::SyncInfo:
+    case FusionStat::IsMounted:
     case FusionStat::Invalid: {
         EP_LOG_WARN_CTX("EPBucket::doFusionAggregatedStats: Not supported",
                         {"stat", stat});

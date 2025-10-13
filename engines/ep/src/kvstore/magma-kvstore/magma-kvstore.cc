@@ -4744,6 +4744,18 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
         }
         return {cb::engine_errc::success, json};
     }
+    case FusionStat::IsMounted: {
+        auto id = Magma::KVStoreID(vbid.get());
+        nlohmann::json json;
+        const auto [status, data] =
+                magma->IsKVStoreMounted(id, kvstoreRevList[getCacheSlot(vbid)]);
+        if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
+            errc != cb::engine_errc::success) {
+            return {errc, {}};
+        }
+        json["is_mounted"] = data;
+        return {cb::engine_errc::success, json};
+    }
     }
 
     folly::assume_unreachable();

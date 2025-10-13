@@ -278,6 +278,10 @@ public:
     std::tuple<magma::Status, nlohmann::json> GetFusionMigrationStats(
             const magma::Magma::KVStoreID kvID);
 
+    std::tuple<magma::Status, bool> IsKVStoreMounted(
+            const magma::Magma::KVStoreID kvID,
+            magma::Magma::KVStoreRevision kvsRev);
+
     std::tuple<magma::Status, std::vector<std::string>>
     GetActiveFusionGuestVolumes(const magma::Magma::KVStoreID kvID);
 

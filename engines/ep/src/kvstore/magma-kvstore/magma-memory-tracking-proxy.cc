@@ -731,6 +731,13 @@ MagmaMemoryTrackingProxy::GetFusionMigrationStats(
     return {status, json};
 }
 
+std::tuple<magma::Status, bool> MagmaMemoryTrackingProxy::IsKVStoreMounted(
+        const magma::Magma::KVStoreID kvID,
+        const magma::Magma::KVStoreRevision kvsRev) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return copyToPrimaryDomain(magma->IsKVStoreMounted(kvID, kvsRev));
+}
+
 std::tuple<magma::Status, std::vector<std::string>>
 MagmaMemoryTrackingProxy::GetActiveFusionGuestVolumes(
         const magma::Magma::KVStoreID kvID) {

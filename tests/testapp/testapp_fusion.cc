@@ -466,6 +466,36 @@ TEST_P(FusionTest, Stat_Uploader_Aggregate) {
     ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
 }
 
+TEST_P(FusionTest, Stat_IsMounted) {
+    auto vbid = Vbid(1);
+    auto [ec, json] = fusionStats("is_mounted", vbid);
+    if (!isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+    auto key = "is_mounted";
+    ASSERT_EQ(cb::engine_errc::success, ec);
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains(key));
+    ASSERT_TRUE(json[key].is_boolean());
+    // vbucket is not mounted
+    EXPECT_FALSE(json[key]);
+
+    // mount vbucket
+    const auto resp = mountVbucket(Vbid(1), nlohmann::json::array());
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+
+    json = fusionStats("is_mounted", Vbid(1)).second;
+    ASSERT_EQ(cb::engine_errc::success, ec);
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains(key));
+    ASSERT_TRUE(json[key].is_boolean());
+    // vbucket is mounted
+    EXPECT_TRUE(json[key]);
+}
+
 TEST_P(FusionTest, Stat_Migration) {
     auto [ec, json] = fusionStats("migration", vbid);
     if (!isFusionSupportedInBucket()) {
