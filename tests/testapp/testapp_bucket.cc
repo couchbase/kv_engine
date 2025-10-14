@@ -388,3 +388,72 @@ TEST_P(BucketTest, MB67942) {
     }
     EXPECT_TRUE(success);
 }
+
+class MemTrackingBucketTest : public BucketTest {
+public:
+    static void SetUpTestCase() {
+        // Note: Important to set the env BEFORE starting memcached,
+        // env vars wouldn't be passed to the memcached process otherwise
+        // (unless testapp is run in -e (embedded) mode)
+        ASSERT_FALSE(getenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT"));
+        ASSERT_EQ(0, setenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT", "1", 0));
+        BucketTest::SetUpTestCase();
+    }
+
+    static void TearDownTestCase() {
+        EXPECT_EQ(0, unsetenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT"));
+        BucketTest::TearDownTestCase();
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         MemTrackingBucketTest,
+                         ::testing::Values(TransportProtocols::McbpSsl),
+                         ::testing::PrintToStringParamName());
+
+TEST_P(MemTrackingBucketTest, MB_68823) {
+    // Note: Not using adminConnection as the connection in the test is
+    // forcibly disconnected and we need adminConnection at TearDown.
+    auto& conn = getConnection();
+    conn.authenticate("@admin");
+    conn.selectBucket(bucketName);
+    conn.setFeature(cb::mcbp::Feature::JSON, true);
+    conn.setFeature(cb::mcbp::Feature::Collections, true);
+    conn.dcpOpenProducer("dcp-conn_invalid-stream-req-filter");
+    conn.dcpControl("enable_noop", "true");
+
+    // Invalid StreamReq filter (with cid duplicate) throws in Filter::ctor.
+    // Before the fix the test fails by:
+    //
+    // ===ERROR===: JeArenaMalloc deallocation mismatch
+    //     Memory freed by client:100 domain:None which is assigned arena:0,
+    //     but memory was previously allocated from arena:2 (client-specific
+    //     arena).
+    //     Allocation address:0x10b1b1080 size:192
+    try {
+        conn.dcpStreamRequest(Vbid(0),
+                              cb::mcbp::DcpAddStreamFlag::None,
+                              0, // startSeq
+                              ~0, // endSeq,
+                              0, // vbUuid
+                              0, // snapStart
+                              0, // snapEnd
+                              R"({"collections":["0", "0"]})"_json); // filter
+    } catch (const std::exception&) {
+        const auto timeout =
+                std::chrono::steady_clock::now() + std::chrono::seconds{10};
+        const auto line =
+                "EventuallyPersistentEngine::stream_req: Exception GSL: "
+                "Precondition failure: 'emplaced'";
+        const auto expectedLogInstances = 1;
+        do {
+            if (mcd_env->verifyLogLine(line) == expectedLogInstances) {
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{100});
+        } while (std::chrono::steady_clock::now() < timeout);
+
+        FAIL() << "Timeout before the log line was dumped to the file";
+    }
+    FAIL() << "StreamRequest should have failed";
+}

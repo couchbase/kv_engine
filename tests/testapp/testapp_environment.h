@@ -275,6 +275,12 @@ public:
     bool iterateAuditEvents(
             const std::function<bool(const nlohmann::json&)>& callback) const;
 
+    /**
+     * @param string to search
+     * @return The number of instances of string in the memcached log file
+     */
+    size_t verifyLogLine(std::string_view string) const;
+
     /// Do we have support for IPv4 addresses on the machine
     [[nodiscard]] bool haveIPv4() const {
         return !ipaddresses.first.empty();

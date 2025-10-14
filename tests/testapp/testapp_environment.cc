@@ -421,6 +421,17 @@ bool McdEnvironment::iterateAuditEvents(
     return false;
 }
 
+size_t McdEnvironment::verifyLogLine(std::string_view string) const {
+    size_t ret = 0;
+    mcd_env->iterateLogLines([&string, &ret](auto line) {
+        if (line.find(string) != std::string_view::npos) {
+            ++ret;
+        }
+        return true;
+    });
+    return ret;
+}
+
 std::string McdEnvironment::readConcurrentUpdatedFile(
         const cb::dek::Entity entity, const std::filesystem::path& path) const {
     std::string content;
