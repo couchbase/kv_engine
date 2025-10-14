@@ -1424,6 +1424,10 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
                         {"error", e.what()},
                         {"status", e.engine_code()});
         return cb::engine_errc(e.code().value());
+    } catch (const std::exception& e) {
+        EP_LOG_ERR("EventuallyPersistentEngine::stream_req: Exception {}",
+                   e.what());
+        return cb::engine_errc::disconnect;
     }
 }
 

@@ -845,9 +845,11 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
                                std::move(callback),
                                json);
     if (ret == cb::engine_errc::disconnect) {
-        LOG_WARNING_CTX("dcp.stream_req returned cb::engine_errc::disconnect",
-                        {"conn_id", connection.getId()},
-                        {"description", connection.getDescription()});
+        LOG_WARNING(
+                "{}: dcp.stream_req returned cb::engine_errc::disconnect - "
+                "Cookie {}",
+                connection.getId(),
+                cookie.to_json().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
