@@ -70,6 +70,25 @@ public:
     /// Returns a reference to the singleton instance of Settings.
     static Settings& instance();
 
+    /// Calculate the number of Read Units from a byte value
+    size_t toReadUnits(size_t nbytes) {
+        return calcUnits(nbytes, readUnitSize.load(std::memory_order_acquire));
+    }
+
+    /// Calculate the number of Write Units from a byte value
+    size_t toWriteUnits(size_t nbytes) {
+        return calcUnits(nbytes, writeUnitSize.load(std::memory_order_acquire));
+    }
+
+    /// Calculate the number of units with the provided size a value represents
+    static size_t calcUnits(size_t value, size_t size) {
+        if (size == 0) {
+            // Disabled
+            return 0;
+        }
+        return (value + size - 1) / size;
+    }
+
     /**
      * Allow the global settings instance to be changed by loading the
      * JSON configuration file.
@@ -1128,6 +1147,56 @@ public:
         notify_changed("magma_blind_write_optimisation_enabled");
     }
 
+    size_t getDefaultThrottleReservedUnits() const {
+        return defaultThrottleReservedUnits.load(std::memory_order_acquire);
+    }
+
+    void setDefaultThrottleReservedUnits(size_t val) {
+        defaultThrottleReservedUnits.store(val, std::memory_order_release);
+        has.defaultThrottleReservedUnits = true;
+        notify_changed("defaultThrottleReservedUnits");
+    }
+
+    size_t getDefaultThrottleHardLimit() const {
+        return defaultThrottleHardLimit.load(std::memory_order_acquire);
+    }
+
+    void setDefaultThrottleHardLimit(size_t val) {
+        defaultThrottleHardLimit.store(val, std::memory_order_release);
+        has.defaultThrottleHardLimit = true;
+        notify_changed("defaultThrottleHardLimit");
+    }
+
+    size_t getReadUnitSize() const {
+        return readUnitSize.load(std::memory_order_acquire);
+    }
+
+    void setReadUnitSize(size_t val) {
+        readUnitSize.store(val, std::memory_order_release);
+        has.readUnitSize = true;
+        notify_changed("readUnitSize");
+    }
+
+    size_t getWriteUnitSize() const {
+        return writeUnitSize.load(std::memory_order_acquire);
+    }
+
+    void setWriteUnitSize(size_t val) {
+        writeUnitSize.store(val, std::memory_order_release);
+        has.writeUnitSize = true;
+        notify_changed("writeUnitSize");
+    }
+
+    size_t getNodeCapacity() const {
+        return nodeCapacity.load(std::memory_order_acquire);
+    }
+
+    void setNodeCapacity(size_t val) {
+        nodeCapacity.store(val, std::memory_order_release);
+        has.nodeCapacity = true;
+        notify_changed("nodeCapacity");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1427,6 +1496,14 @@ protected:
     /// Magma's blind write optimisation, on or off. Default is on.
     std::atomic_bool magma_blind_write_optimisation_enabled{true};
 
+    std::atomic<size_t> defaultThrottleReservedUnits =
+            std::numeric_limits<std::size_t>::max();
+    std::atomic<size_t> defaultThrottleHardLimit =
+            std::numeric_limits<std::size_t>::max();
+    std::atomic<size_t> readUnitSize = 4096;
+    std::atomic<size_t> writeUnitSize = 1024;
+    std::atomic<size_t> nodeCapacity = std::numeric_limits<std::size_t>::max();
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1515,5 +1592,10 @@ public:
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
         bool magma_blind_write_optimisation_enabled = false;
+        bool defaultThrottleReservedUnits = false;
+        bool defaultThrottleHardLimit = false;
+        bool readUnitSize = false;
+        bool writeUnitSize = false;
+        bool nodeCapacity = false;
     } has;
 };

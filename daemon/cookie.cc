@@ -965,17 +965,18 @@ std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
         testPrivilege(cb::rbac::Privilege::Unmetered).success()) {
         return {size_t{0}, {0}};
     }
-    auto& inst = cb::serverless::Config::instance();
+    auto& settings = Settings::instance();
 
-    size_t wb =
-            inst.to_wu(document_bytes_written.load(std::memory_order_acquire));
+    size_t wb = settings.toWriteUnits(
+            document_bytes_written.load(std::memory_order_acquire));
     if (wb) {
         if (isDurable()) {
             return {size_t{0}, wb * 2};
         }
         return {size_t{0}, wb};
     }
-    return {inst.to_ru(document_bytes_read.load(std::memory_order_acquire)),
+    return {settings.toReadUnits(
+                    document_bytes_read.load(std::memory_order_acquire)),
             size_t{0}};
 }
 

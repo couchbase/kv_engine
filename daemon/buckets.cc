@@ -217,8 +217,8 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
         return;
     }
 
-    auto& inst = cb::serverless::Config::instance();
-    const auto ru = inst.to_ru(nread);
+    auto& settings = Settings::instance();
+    const auto ru = settings.toReadUnits(nread);
     consumedUnits(ru, domain);
     if (conn.isSubjectToMetering()) {
         read_units_used += ru;
@@ -233,8 +233,8 @@ void Bucket::documentExpired(size_t nbytes) {
         return;
     }
     if (nbytes) {
-        auto& inst = cb::serverless::Config::instance();
-        const auto wu = inst.to_wu(nbytes);
+        auto& settings = Settings::instance();
+        const auto wu = settings.toWriteUnits(nbytes);
         throttle_gauge.increment(wu);
         write_units_used += wu;
     } else {
@@ -266,11 +266,11 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         }
     }
 
-    auto& inst = cb::serverless::Config::instance();
+    auto& settings = Settings::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
     if (read || write) {
-        auto ru = inst.to_ru(read);
-        auto wu = inst.to_wu(write);
+        auto ru = settings.toReadUnits(read);
+        auto wu = settings.toWriteUnits(write);
         if (cookie.isDurable()) {
             wu *= 2;
         }
@@ -712,11 +712,9 @@ cb::engine_errc BucketManager::create(uint32_t cid,
     }
     auto& bucket = *free_bucket;
 
-    if (cb::serverless::isEnabled()) {
-        auto& instance = cb::serverless::Config::instance();
-        bucket.setThrottleLimits(instance.defaultThrottleReservedUnits,
-                                 instance.defaultThrottleHardLimit);
-    }
+    auto& settings = Settings::instance();
+    bucket.setThrottleLimits(settings.getDefaultThrottleReservedUnits(),
+                             settings.getDefaultThrottleHardLimit());
 
     cb::engine_errc result = cb::engine_errc::success;
     try {
@@ -953,7 +951,7 @@ void BucketManager::waitForEveryoneToDisconnect(
 }
 
 void BucketManager::tick() {
-    auto limit = cb::serverless::Config::instance().nodeCapacity.load();
+    auto limit = Settings::instance().getNodeCapacity();
 
     forEach([&limit](auto& b) {
         if (b.type != BucketType::NoBucket) {
