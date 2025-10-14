@@ -68,7 +68,7 @@ TestCaseV2::TestCaseV2(const char *_name,
 engine_test_t* BaseTestCase::getTest() {
     engine_test_t *ret = &test;
 
-    std::string nm(name);
+    std::string nm(name == nullptr ? "" : name);
     std::stringstream ss;
 
     if (cfg != nullptr) {

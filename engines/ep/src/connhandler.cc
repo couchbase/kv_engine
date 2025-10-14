@@ -340,19 +340,7 @@ void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
         }
     }
     const auto priority = engine_.getDCPPriority(cookie);
-    const char* priString = "<INVALID>";
-    switch (priority) {
-    case ConnectionPriority::High:
-        priString = "high";
-        break;
-    case ConnectionPriority::Medium:
-        priString = "medium";
-        break;
-    case ConnectionPriority::Low:
-        priString = "low";
-        break;
-    }
-    addStat("priority", priString, add_stat, c);
+    addStat("priority", format_as(priority), add_stat, c);
     addStat(DcpControlKeys::FlatBuffersSystemEvents,
             areFlatBuffersSystemEventsEnabled(),
             add_stat,

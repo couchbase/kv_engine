@@ -172,7 +172,6 @@ static void assoc_expand() {
         return;
     }
 
-    int ret = 0;
     cb_thread_t tid;
 
     global_assoc->hashpower++;
@@ -180,9 +179,9 @@ static void assoc_expand() {
     global_assoc->expand_bucket = 0;
 
     /* start a thread to do the expansion */
-    if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
-                                      nullptr, 1, "mc:assoc_maint")) != 0)
-    {
+    if (cb_create_named_thread(
+                &tid, assoc_maintenance_thread, nullptr, 1, "mc:assoc_maint") !=
+        0) {
         LOG_ERROR("Can't create thread for rebalance assoc table: {}",
                   cb_strerror());
         global_assoc->hashpower--;
