@@ -36,6 +36,7 @@
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_engine.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <utilities/fusion_support.h>
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <chrono>
@@ -7192,6 +7193,41 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                         kvstoreStats.end());
             }
         }
+    }
+
+    if (isMagmaBucket(h) && isFusionSupportEnabled()) {
+        auto& eng_stats = statsKeys.at("");
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_fusion_namespace",
+                          "ep_fusion_syncs",
+                          "ep_fusion_bytes_synced",
+                          "ep_fusion_logs_migrated",
+                          "ep_fusion_bytes_migrated",
+                          "ep_fusion_log_store_data_size",
+                          "ep_fusion_log_store_garbage_size",
+                          "ep_fusion_logs_cleaned",
+                          "ep_fusion_log_clean_bytes_read",
+                          "ep_fusion_extent_merger_reads",
+                          "ep_fusion_extent_merger_bytes_read",
+                          "ep_fusion_log_clean_reads",
+                          "ep_fusion_log_store_remote_puts",
+                          "ep_fusion_log_store_reads",
+                          "ep_fusion_log_store_remote_gets",
+                          "ep_fusion_log_store_remote_lists",
+                          "ep_fusion_log_store_remote_deletes",
+                          "ep_fusion_file_map_mem_used",
+                          "ep_fusion_sync_failures",
+                          "ep_fusion_migration_failures",
+                          "ep_fusion_num_logs_mounted",
+                          "ep_fusion_num_log_segments",
+                          "ep_fusion_num_file_extents",
+                          "ep_fusion_num_files",
+                          "ep_fusion_total_file_size",
+                          "ep_fusion_sync_session_total_bytes",
+                          "ep_fusion_sync_session_completed_bytes",
+                          "ep_fusion_migration_total_bytes",
+                          "ep_fusion_migration_completed_bytes",
+                          "ep_fusion_log_store_pending_delete_size"});
     }
 
     if (isPersistentBucket(h)) {

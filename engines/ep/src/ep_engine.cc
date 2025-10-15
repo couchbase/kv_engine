@@ -3320,7 +3320,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         doEngineStatsCouchDB(collector, epstats);
     } else if (configuration.getBackendString() == "magma") {
         doEngineStatsMagma(collector);
-        if (!configuration.getMagmaFusionLogstoreUri().empty()) {
+        if (isFusionSupportEnabled()) {
             doEngineStatsFusion(collector);
         }
     } else if (configuration.getBackendString() == "nexus") {
