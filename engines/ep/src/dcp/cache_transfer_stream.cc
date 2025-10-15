@@ -401,17 +401,15 @@ size_t CacheTransferStream::getMemoryUsed() const {
     return engine.getEpStats().getEstimatedTotalMemoryUsed();
 }
 
-CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
-        const StoredValue& sv, Collections::VB::ReadHandle& readHandle) {
-    preQueueCallback(sv);
-
+bool CacheTransferStream::skip(const StoredValue& sv,
+                               Collections::VB::ReadHandle& readHandle) const {
     // Check if the sv is eligible for transfer.
     // 1. Temporary/Deleted/Pending StoredValues are not eligible.
     if (sv.isTempItem() || sv.isDeleted() || sv.isPending()) {
         OBJ_LOG_DEBUG_CTX(*this,
                           "CacheTransferStream skipping temp/deleted/pending",
                           {"sv", nlohmann::json{sv}});
-        return Status::KeepVisiting;
+        return true;
     }
 
     // 2. Dropped collection items are not eligible.
@@ -420,7 +418,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                 *this,
                 "CacheTransferStream skipping as in dropped collection",
                 {"sv", nlohmann::json{sv}});
-        return Status::KeepVisiting;
+        return true;
     }
 
     // 3. StoredValues with a sequence number greater than the stream's maxSeqno
@@ -430,7 +428,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                 *this,
                 "CacheTransferStream skipping sv with seqno > maxSeqno",
                 {"sv", nlohmann::json{sv}});
-        return Status::KeepVisiting;
+        return true;
     }
 
     // 4. Do checks for a value transfer, these don't apply if the only a
@@ -441,7 +439,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             OBJ_LOG_DEBUG_CTX(*this,
                               "CacheTransferStream skipping non-resident",
                               {"sv", nlohmann::json{sv}});
-            return Status::KeepVisiting;
+            return true;
         }
 
         // 4.2 If the sv is expired, it is not eligible.
@@ -449,7 +447,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             OBJ_LOG_DEBUG_CTX(*this,
                               "CacheTransferStream skipping expired",
                               {"sv", nlohmann::json{sv}});
-            return Status::KeepVisiting;
+            return true;
         }
     }
 
@@ -459,6 +457,18 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                 *this,
                 "CacheTransferStream skipping as not allowed by filter",
                 {"sv", nlohmann::json{sv}});
+        return true;
+    }
+    return false;
+}
+
+CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
+        const StoredValue& sv, Collections::VB::ReadHandle& readHandle) {
+    preQueueCallback(sv);
+
+    // Lots of little checks to make to decide if the item found in the
+    // hash-table should be skipped or queued.
+    if (skip(sv, readHandle)) {
         return Status::KeepVisiting;
     }
 

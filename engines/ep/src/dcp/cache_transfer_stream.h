@@ -141,6 +141,15 @@ protected:
     virtual size_t getMemoryUsed() const;
 
     /**
+     * Checks if the item should be skipped instead of queueing for transfer.
+     * @param sv The StoredValue to check.
+     * @param readHandle The read handle to use for the item.
+     * @return true if the item should be skipped, false otherwise.
+     */
+    bool skip(const StoredValue& sv,
+              Collections::VB::ReadHandle& readHandle) const;
+
+    /**
      * Transitions are either:
      * Active -> Dead
      * Active -> SwitchingToActiveStream -> Dead
