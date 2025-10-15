@@ -103,8 +103,6 @@ class CliTool(object):
         for c in cmds:
             output += "    %s\n" % c
 
-        output = output[:-1]
-
-        output += self.extraUsage
+        output += "\n\n" + self.extraUsage
 
         return output

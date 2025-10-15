@@ -813,6 +813,11 @@ class MemcachedClient(object):
         return self._doCmd(memcacheConstants.CMD_SASL_STEP, 'CRAM-MD5',
                            user + ' ' + dig)
 
+    def stop_fusion_uploader(self, vbucket):
+        assert isinstance(vbucket, int)
+        self.vbucketId = vbucket
+        return self._doCmd(memcacheConstants.CMD_STOP_FUSION_UPLOADER, '', '')
+
     def stop_persistence(self):
         return self._doCmd(memcacheConstants.CMD_STOP_PERSISTENCE, '', '')
 

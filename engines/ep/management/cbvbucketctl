@@ -12,6 +12,7 @@ licenses/APL2.txt.
 """
 
 from cli_auth_utils import get_authed_clitool, cmd_decorator
+import mc_bin_client
 
 
 @cmd_decorator
@@ -30,17 +31,35 @@ def setvb(mc, vbid, vbstate, value):
 def rmvb(mc, vbid):
     mc.delete_vbucket(int(vbid))
 
+
 @cmd_decorator
 def mountvb(mc, vbid, value):
     mc.mount_vbucket(int(vbid), value)
 
 
+@cmd_decorator
+def stop_fusion_uploader(mc, vbucket, force=False):
+    mc.stop_fusion_uploader(int(vbucket))
+    print(f'Fusion uploader stopped for vb:{vbucket}')
+
+
 if __name__ == '__main__':
-    c = get_authed_clitool(allBuckets=False)
+    usage = """
+stop_fusion_uploader:
+  1 parameter
+    vbucket    - ID of the vbucket to stop fusion uploader on
+  Example: Stop fusion uploader on vbucket 23
+    cbvbucketctl host:port -b default stop_fusion_uploader 23
+"""
+
+    c = get_authed_clitool(usage, allBuckets=False)
 
     c.addCommand('list', listvb, 'list')
-    c.addCommand('set', setvb, 'set <vbid> active|replica|pending|dead <value>')
+    c.addCommand(
+        'set', setvb, 'set <vbid> active|replica|pending|dead <value>')
     c.addCommand('rm', rmvb, 'rm <vbid>')
     c.addCommand('mount', mountvb, 'mount <vbid> <value>')
+    c.addCommand('stop_fusion_uploader', stop_fusion_uploader,
+                 'stop_fusion_uploader <vbid>')
 
     c.execute()
