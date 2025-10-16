@@ -293,7 +293,8 @@ Status McbpValidator::verify_header(Cookie& cookie,
                                     ExpectedValueLen expected_valuelen,
                                     ExpectedCas expected_cas,
                                     GeneratesDocKey generates_dockey,
-                                    uint8_t expected_datatype_mask) {
+                                    uint8_t expected_datatype_mask,
+                                    bool validate_value) {
     const auto& header = cookie.getHeader();
     auto& connection = cookie.getConnection();
 
@@ -402,12 +403,12 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return Status::Einval;
     }
 
-    if (!cookie.inflateInputPayload(header)) {
+    if (validate_value && !cookie.inflateInputPayload(header)) {
         // Error reason already set
         return Status::Einval;
     }
 
-    if (!is_valid_xattr_blob(cookie, request)) {
+    if (validate_value && !is_valid_xattr_blob(cookie, request)) {
         cookie.setErrorContext("The provided xattr segment is not valid");
         return Status::XattrEinval;
     }
@@ -845,7 +846,7 @@ static Status dcp_mutation_validator(Cookie& cookie) {
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpMutationPayload>();
     if (payload.getBySeqno() == 0) {
-        cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
+        cookie.setErrorContext("Invalid seqno(0) for DCP Cached Value");
         return Status::Einval;
     }
     if (payload.getNmeta()) {
@@ -859,14 +860,17 @@ static Status dcp_mutation_validator(Cookie& cookie) {
 static Status dcp_cached_key_meta_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpMutationPayload;
 
-    auto status =
-            McbpValidator::verify_header(cookie,
-                                         sizeof(DcpMutationPayload),
-                                         ExpectedKeyLen::NonZero,
-                                         ExpectedValueLen::Zero,
-                                         ExpectedCas::Any,
-                                         GeneratesDocKey::Yes,
-                                         McbpValidator::AllSupportedDatatypes);
+    auto status = McbpValidator::verify_header(
+            cookie,
+            sizeof(DcpMutationPayload),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::Any,
+            GeneratesDocKey::Yes,
+            McbpValidator::AllSupportedDatatypes,
+            // Skip the value validation which will choke on empty value when
+            // datatype is !RAW
+            false);
     if (status != Status::Success) {
         return status;
     }
@@ -874,7 +878,7 @@ static Status dcp_cached_key_meta_validator(Cookie& cookie) {
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpMutationPayload>();
     if (payload.getBySeqno() == 0) {
-        cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
+        cookie.setErrorContext("Invalid seqno(0) for DCP Cached Key Meta");
         return Status::Einval;
     }
 

@@ -56,7 +56,8 @@ public:
                                 ExpectedValueLen expected_valuelen,
                                 ExpectedCas expected_cas,
                                 GeneratesDocKey generates_dockey,
-                                uint8_t expected_datatype_mask);
+                                uint8_t expected_datatype_mask,
+                                bool validate_value = true);
 
 protected:
     /**

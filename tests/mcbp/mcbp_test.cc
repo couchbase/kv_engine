@@ -2402,6 +2402,57 @@ TEST_P(CommandSpecificErrorContextTest, DcpSetVbucketState) {
             validate_error_context(cb::mcbp::ClientOpcode::DcpSetVbucketState));
 }
 
+TEST_P(CommandSpecificErrorContextTest, DcpCachedValue) {
+    constexpr auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::request::DcpMutationPayload extras;
+
+    header.setExtlen(gsl::narrow<uint8_t>(extlen));
+    header.setKeylen(10);
+    header.setBodylen(extlen + 10); // value is 0 bytes
+
+    // Mcbp validator does the seqno check which DcpConsumer used to do
+    EXPECT_EQ("Invalid seqno(0) for DCP Cached Value",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpCachedValue));
+
+    // Make seqno check happy (not 0)
+    extras.setBySeqno(1);
+    builder.setExtras(extras.getBuffer());
+
+    // Simulate why DcpCachedKeyMeta exists, 0 value with snappy.
+    header.setDatatype(cb::mcbp::Datatype::Snappy);
+    EXPECT_EQ("Failed to inflate payload",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpCachedValue));
+
+    header.setDatatype(cb::mcbp::Datatype::Raw);
+}
+
+TEST_P(CommandSpecificErrorContextTest, DcpCachedKeyMeta) {
+    constexpr auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
+    header.setExtlen(gsl::narrow<uint8_t>(extlen));
+    header.setKeylen(10);
+    header.setBodylen(extlen + 10 + 5); // value is 5 bytes
+    header.setDatatype(cb::mcbp::Datatype::Snappy);
+
+    // No value allowed for DcpCachedKeyMeta
+    EXPECT_EQ("Request must not include value",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
+
+    // And test that we can get the snappy with no value packet through the
+    // validator. The following check occurs when the validator passes and
+    // we hit an issue trying against the test bucket which does not support
+    // DCP.
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::request::DcpMutationPayload extras;
+    extras.setBySeqno(1);
+    builder.setExtras(extras.getBuffer());
+    header.setBodylen(extlen + 10); // value is 0 bytes
+    header.setDatatype(cb::mcbp::Datatype::Snappy);
+    EXPECT_EQ("Attached bucket does not support DCP",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
+                                     cb::mcbp::Status::NotSupported));
+}
+
 TEST_P(CommandSpecificErrorContextTest, Hello) {
     // Hello requires even body length
     header.setExtlen(0);
