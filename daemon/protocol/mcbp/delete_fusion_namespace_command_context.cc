@@ -32,15 +32,23 @@ cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
     const auto metadatastore = request["metadatastore_uri"];
     const auto token = request["metadatastore_auth_token"];
     const auto ns = request["namespace"];
+    const auto start = std::chrono::steady_clock::now();
     const auto status = magma::Magma::DeleteFusionNamespace(
             logstore, metadatastore, token, ns);
+    const auto stop = std::chrono::steady_clock::now();
     if (status.IsOK()) {
+        LOG_INFO_CTX("DeleteFusionNamespace",
+                     {"logstore_uri", logstore},
+                     {"metadatastore_uri", metadatastore},
+                     {"namespace", ns},
+                     {"duration", stop - start});
         return cb::engine_errc::success;
     }
     LOG_WARNING_CTX("DeleteFusionNamespace",
                     {"logstore_uri", logstore},
                     {"metadatastore_uri", metadatastore},
                     {"namespace", ns},
-                    {"error", status.String()});
+                    {"error", status.String()},
+                    {"duration", stop - start});
     return cb::engine_errc::failed;
 }
