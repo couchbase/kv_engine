@@ -856,6 +856,31 @@ static Status dcp_mutation_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
+static Status dcp_cached_key_meta_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpMutationPayload;
+
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(DcpMutationPayload),
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::Zero,
+                                         ExpectedCas::Any,
+                                         GeneratesDocKey::Yes,
+                                         McbpValidator::AllSupportedDatatypes);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto& payload =
+            cookie.getRequest().getCommandSpecifics<DcpMutationPayload>();
+    if (payload.getBySeqno() == 0) {
+        cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
+        return Status::Einval;
+    }
+
+    return verify_common_dcp_restrictions(cookie);
+}
+
 /// @return true if the datatype is valid for a deletion
 static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
     // MB-29040: Allowing xattr + JSON. A bug in the producer means
@@ -3137,6 +3162,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::DcpCommit, dcp_commit_validator);
     setup(ClientOpcode::DcpAbort, dcp_abort_validator);
     setup(ClientOpcode::DcpCachedValue, dcp_mutation_validator);
+    setup(ClientOpcode::DcpCachedKeyMeta, dcp_cached_key_meta_validator);
     setup(ClientOpcode::IsaslRefresh, configuration_refresh_validator);
     setup(ClientOpcode::Verbosity, verbosity_validator);
     setup(ClientOpcode::Hello, hello_validator);

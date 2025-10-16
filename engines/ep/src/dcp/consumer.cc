@@ -1809,15 +1809,8 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
                                           uint64_t bySeqno,
                                           uint64_t revSeqno,
                                           uint32_t expiration,
-                                          uint32_t lockTime,
                                           uint8_t nru) {
     lastMessageTime = ep_uptime_now();
-
-    if (bySeqno == 0) {
-        logger->warnWithContext("Invalid sequence number (0) for cached_value!",
-                                {{"vb", vbucket}});
-        return cb::engine_errc::invalid_arguments;
-    }
 
     queued_item item(new Item(key,
                               flags,
@@ -1841,5 +1834,41 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
                                                EnableExpiryOutput::Yes,
                                                cb::mcbp::DcpStreamId{},
                                                DcpResponse::Event::CachedValue);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+}
+
+cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
+                                             const DocKeyView& key,
+                                             uint8_t datatype,
+                                             uint64_t cas,
+                                             Vbid vbucket,
+                                             uint32_t flags,
+                                             uint64_t bySeqno,
+                                             uint64_t revSeqno,
+                                             uint32_t expiration) {
+    lastMessageTime = ep_uptime_now();
+
+    queued_item item(new Item(key,
+                              flags,
+                              expiration,
+                              nullptr,
+                              0,
+                              datatype,
+                              cas,
+                              bySeqno,
+                              vbucket,
+                              revSeqno,
+                              std::nullopt));
+
+    const auto msgBytes = MutationResponse::mutationBaseMsgBytes + key.size();
+    UpdateFlowControl ufc(*this, msgBytes);
+    auto msg = std::make_unique<MutationResponse>(
+            std::move(item),
+            opaque,
+            IncludeDeleteTime::No,
+            key.getEncoding(),
+            EnableExpiryOutput::Yes,
+            cb::mcbp::DcpStreamId{},
+            DcpResponse::Event::CachedKeyMeta);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }

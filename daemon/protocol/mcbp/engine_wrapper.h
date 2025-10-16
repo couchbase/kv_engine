@@ -332,7 +332,7 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                             uint8_t nru);
 
 /**
- * Calls the underlying engine DCP cached-value
+ * Calls the underlying engine DCP cached_value
  *
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
@@ -345,7 +345,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
  * @param expiration The document expiration
- * @param lockTime The document lock time
  * @param nru The document NRU
  * @return cb::engine_errc
  */
@@ -360,8 +359,33 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                uint64_t bySeqno,
                                uint64_t revSeqno,
                                uint32_t expiration,
-                               uint32_t lockTime,
                                uint8_t nru);
+
+/**
+ * Calls the underlying engine DCP cached_key_meta
+ *
+ * @param cookie The cookie representing the connection
+ * @param opaque The opaque field in the received message
+ * @param key The document key
+ * @param datatype The document datatype
+ * @param cas The documents CAS
+ * @param vbid The vbucket id
+ * @param flags
+ * @param bySeqno The db sequence number
+ * @param revSeqno The revision sequence number
+ * @param expiration The document expiration
+ * @return cb::engine_errc
+ */
+cb::engine_errc dcpCachedKeyMeta(Cookie& cookie,
+                                 uint32_t opaque,
+                                 const DocKeyView& key,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 Vbid vbid,
+                                 uint32_t flags,
+                                 uint64_t bySeqno,
+                                 uint64_t revSeqno,
+                                 uint32_t expiration);
 
 /**
  * Calls the underlying engine DCP noop

@@ -163,9 +163,15 @@ public:
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 uint32_t lock_time,
                                  uint8_t nru,
                                  cb::mcbp::DcpStreamId sid) override;
+
+    cb::engine_errc cached_key_meta(uint32_t opaque,
+                                    cb::unique_item_ptr itm,
+                                    Vbid vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    cb::mcbp::DcpStreamId sid) override;
 
     void clear_dcp_data();
 

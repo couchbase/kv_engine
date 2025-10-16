@@ -60,7 +60,8 @@ std::shared_ptr<MockDcpProducer> MockCacheTransferStream::preValidateSteps() {
 }
 
 std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
-        std::unordered_set<Item>& items) {
+        std::unordered_set<Item>& items,
+        std::unordered_set<StoredDocKey>* keys) {
     auto producer = preValidateSteps();
     if (!producer) {
         EXPECT_TRUE(producer)
@@ -75,26 +76,45 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
         return nullptr;
     }
 
-    if (response->getEvent() != DcpResponse::Event::CachedValue) {
+    if (response->getEvent() != DcpResponse::Event::CachedValue &&
+        response->getEvent() != DcpResponse::Event::CachedKeyMeta) {
         EXPECT_EQ(DcpResponse::Event::CachedValue, response->getEvent())
                 << "MockCacheTransferStream::validateNextResponse -> Expected "
-                   "a DcpResponse::Event::CachedValue, got:"
+                   "a DcpResponse::Event::CachedValue or "
+                   "DcpResponse::Event::CachedKeyMeta, got:"
                 << response->to_string();
         return nullptr;
     }
     const auto& mutationResponse =
             *dynamic_cast<MutationResponse*>(response.get());
-    auto itr = items.find(*mutationResponse.getItem());
-    if (itr == items.end()) {
-        EXPECT_FALSE(true)
-                << "MockCacheTransferStream::validateNextResponse -> "
-                   "Found this unexpected CacheTransferResponse Item in "
-                   "the stream. "
-                << *mutationResponse.getItem();
+    if (response->getEvent() == DcpResponse::Event::CachedValue) {
+        auto itr = items.find(*mutationResponse.getItem());
+        if (itr == items.end()) {
+            EXPECT_FALSE(true)
+                    << "MockCacheTransferStream::validateNextResponse -> "
+                       "Found this unexpected CacheTransferResponse Item in "
+                       "the stream. "
+                    << *mutationResponse.getItem();
+        } else {
+            // remove the item from the input set
+            items.erase(itr);
+        }
     }
-
-    // remove the item from the input set
-    items.erase(itr);
+    if (response->getEvent() == DcpResponse::Event::CachedKeyMeta) {
+        Expects(keys);
+        auto itr = keys->find(
+                StoredDocKey(mutationResponse.getItem()->getDocKey()));
+        if (itr == keys->end()) {
+            EXPECT_FALSE(true)
+                    << "MockCacheTransferStream::validateNextResponse -> "
+                       "Found this unexpected CacheTransferResponse Item "
+                       "in the stream when processing CachedKeyMeta. "
+                    << *mutationResponse.getItem();
+        } else {
+            // remove the item from the input set of key-meta
+            keys->erase(itr);
+        }
+    }
     return response;
 }
 

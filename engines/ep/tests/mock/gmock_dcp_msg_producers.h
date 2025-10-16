@@ -211,8 +211,16 @@ public:
                  Vbid vbucket,
                  uint64_t by_seqno,
                  uint64_t rev_seqno,
-                 uint32_t lock_time,
                  uint8_t nru,
+                 cb::mcbp::DcpStreamId sid));
+
+    MOCK_METHOD(cb::engine_errc,
+                cached_key_meta,
+                (uint32_t opaque,
+                 Item* itm,
+                 Vbid vbucket,
+                 uint64_t by_seqno,
+                 uint64_t rev_seqno,
                  cb::mcbp::DcpStreamId sid));
 
     // Current version of GMock doesn't support move-only types (e.g.
@@ -308,7 +316,6 @@ public:
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 uint32_t lock_time,
                                  uint8_t nru,
                                  cb::mcbp::DcpStreamId sid) override {
         return cached_value(opaque,
@@ -316,8 +323,21 @@ public:
                             vbucket,
                             by_seqno,
                             rev_seqno,
-                            lock_time,
                             nru,
                             sid);
+    }
+
+    cb::engine_errc cached_key_meta(uint32_t opaque,
+                                    cb::unique_item_ptr itm,
+                                    Vbid vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    cb::mcbp::DcpStreamId sid) override {
+        return cached_key_meta(opaque,
+                               reinterpret_cast<Item*>(itm.get()),
+                               vbucket,
+                               by_seqno,
+                               rev_seqno,
+                               sid);
     }
 };

@@ -340,8 +340,17 @@ struct MockEngine : public EngineIface, public DcpIface {
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  uint32_t expiration,
-                                 uint32_t lock_time,
                                  uint8_t nru) override;
+    cb::engine_errc cached_key_meta(CookieIface& cookie,
+                                    uint32_t opaque,
+                                    const DocKeyView& key,
+                                    uint8_t datatype,
+                                    uint64_t cas,
+                                    Vbid vbucket,
+                                    uint32_t flags,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t expiration) override;
     cb::engine_errc setParameter(CookieIface& cookie,
                                  EngineParamCategory category,
                                  std::string_view key,

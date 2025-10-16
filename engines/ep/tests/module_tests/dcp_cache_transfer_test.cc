@@ -24,7 +24,7 @@
 class DcpCacheTransferTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
-        SingleThreadedKVBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(Vbid(0), vbucket_state_active);
         producer = createDcpProducer(
                 cookie, IncludeDeleteTime::Yes, true, "DcpCacheTransferTest");
@@ -149,6 +149,39 @@ TEST_P(DcpCacheTransferTest, ignore_evicted_items) {
     ASSERT_EQ(2, stream->getItemsRemaining());
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
+}
+
+TEST_P(DcpCacheTransferTest, evicted_items) {
+    if (isFullEviction()) {
+        GTEST_SKIP();
+    }
+    // At the moment the CacheTransfer is either all keys or all values.
+    // This will change in the future so a VE transfer can start with values
+    // (and keys) but may switch to pure keys if memory was exhausted.
+    // So all items will be sent as key-meta.
+    std::unordered_set<StoredDocKey> expectedKeyMeta;
+    for (const auto& item : expectedItems) {
+        expectedKeyMeta.emplace(item.getDocKey());
+    }
+    expectedKeyMeta.emplace(
+            store_item(Vbid(0), makeStoredDocKey("2"), "2").getDocKey());
+    flushVBucketToDiskIfPersistent(vbid, 2); // must flush so we can evict
+    evict_key(Vbid(0), makeStoredDocKey("2"));
+
+    // Must not find the evicted item
+    auto stream = createStream(*producer,
+                               1,
+                               Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
+                               store->getVBucket(vbid)->getHighSeqno(),
+                               IncludeValue::No);
+    runCacheTransferTask();
+    // Should find 2 items and 1 stream-end
+    ASSERT_EQ(3, stream->getItemsRemaining());
+    EXPECT_TRUE(stream->validateNextResponse(expectedItems, &expectedKeyMeta));
+    EXPECT_TRUE(stream->validateNextResponse(expectedItems, &expectedKeyMeta));
+    EXPECT_TRUE(stream->validateNextResponseIsEnd());
+    ASSERT_TRUE(expectedKeyMeta.empty());
 }
 
 TEST_P(DcpCacheTransferTest, ignore_prepares) {
@@ -429,7 +462,10 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
     EXPECT_EQ(producers.last_dockey, k4);
 }
 
-INSTANTIATE_TEST_SUITE_P(DcpCacheTransferTest,
-                         DcpCacheTransferTest,
-                         STParameterizedBucketTest::allConfigValuesNoNexus(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+// We only test persistent buckets. Ephemeral doesn't apply nor will it work as
+// we cannot transfer the linked list or system events...
+INSTANTIATE_TEST_SUITE_P(
+        DcpCacheTransferTest,
+        DcpCacheTransferTest,
+        STParameterizedBucketTest::persistentAllBackendsNoNexusConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

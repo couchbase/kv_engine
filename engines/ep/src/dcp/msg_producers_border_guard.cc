@@ -266,16 +266,21 @@ cb::engine_errc DcpMsgProducersBorderGuard::cached_value(
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
-        uint32_t lock_time,
         uint8_t nru,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.cached_value(opaque,
-                                std::move(itm),
-                                vbucket,
-                                by_seqno,
-                                rev_seqno,
-                                lock_time,
-                                nru,
-                                sid);
+    return guarded.cached_value(
+            opaque, std::move(itm), vbucket, by_seqno, rev_seqno, nru, sid);
+}
+
+cb::engine_errc DcpMsgProducersBorderGuard::cached_key_meta(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::mcbp::DcpStreamId sid) {
+    NonBucketAllocationGuard guard;
+    return guarded.cached_key_meta(
+            opaque, std::move(itm), vbucket, by_seqno, rev_seqno, sid);
 }

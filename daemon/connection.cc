@@ -1873,7 +1873,7 @@ cb::engine_errc Connection::marker(
 }
 
 // Mutation and CachedValue send the same data - just the opcode is different
-cb::engine_errc Connection::mutation_or_cached_value(
+cb::engine_errc Connection::mutation_or_cache_message(
         cb::mcbp::ClientOpcode opcode,
         uint32_t opaque,
         cb::unique_item_ptr it,
@@ -1884,7 +1884,8 @@ cb::engine_errc Connection::mutation_or_cached_value(
         uint8_t nru,
         cb::mcbp::DcpStreamId sid) {
     Expects(opcode == cb::mcbp::ClientOpcode::DcpMutation ||
-            opcode == cb::mcbp::ClientOpcode::DcpCachedValue);
+            opcode == cb::mcbp::ClientOpcode::DcpCachedValue ||
+            opcode == cb::mcbp::ClientOpcode::DcpCachedKeyMeta);
     auto key = it->getDocKey();
 
     const auto doc_read_bytes = key.size() + it->getValueView().size();
@@ -1964,15 +1965,15 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
                                      uint32_t lock_time,
                                      uint8_t nru,
                                      cb::mcbp::DcpStreamId sid) {
-    return mutation_or_cached_value(cb::mcbp::ClientOpcode::DcpMutation,
-                                    opaque,
-                                    std::move(it),
-                                    vbucket,
-                                    by_seqno,
-                                    rev_seqno,
-                                    lock_time,
-                                    nru,
-                                    sid);
+    return mutation_or_cache_message(cb::mcbp::ClientOpcode::DcpMutation,
+                                     opaque,
+                                     std::move(it),
+                                     vbucket,
+                                     by_seqno,
+                                     rev_seqno,
+                                     lock_time,
+                                     nru,
+                                     sid);
 }
 
 cb::engine_errc Connection::deletionInner(const ItemIface& item,
@@ -2451,18 +2452,34 @@ cb::engine_errc Connection::cached_value(uint32_t opaque,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         uint32_t lock_time,
                                          uint8_t nru,
                                          cb::mcbp::DcpStreamId sid) {
-    return mutation_or_cached_value(cb::mcbp::ClientOpcode::DcpCachedValue,
-                                    opaque,
-                                    std::move(it),
-                                    vbucket,
-                                    by_seqno,
-                                    rev_seqno,
-                                    lock_time,
-                                    nru,
-                                    sid);
+    return mutation_or_cache_message(cb::mcbp::ClientOpcode::DcpCachedValue,
+                                     opaque,
+                                     std::move(it),
+                                     vbucket,
+                                     by_seqno,
+                                     rev_seqno,
+                                     0,
+                                     nru,
+                                     sid);
+}
+
+cb::engine_errc Connection::cached_key_meta(uint32_t opaque,
+                                            cb::unique_item_ptr it,
+                                            Vbid vbucket,
+                                            uint64_t by_seqno,
+                                            uint64_t rev_seqno,
+                                            cb::mcbp::DcpStreamId sid) {
+    return mutation_or_cache_message(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
+                                     opaque,
+                                     std::move(it),
+                                     vbucket,
+                                     by_seqno,
+                                     rev_seqno,
+                                     0,
+                                     0,
+                                     sid);
 }
 
 ////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,23 @@ cb::engine_errc dcp_cached_value(Cookie& cookie) {
                           extras.getBySeqno(),
                           extras.getRevSeqno(),
                           extras.getExpiration(),
-                          extras.getLockTime(),
                           extras.getNru());
+}
+
+cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    const auto& extras =
+            req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
+    const auto datatype = uint8_t(req.getDatatype());
+
+    return dcpCachedKeyMeta(cookie,
+                            req.getOpaque(),
+                            cookie.getConnection().makeDocKey(req.getKey()),
+                            datatype,
+                            req.getCas(),
+                            req.getVBucket(),
+                            extras.getFlags(),
+                            extras.getBySeqno(),
+                            extras.getRevSeqno(),
+                            extras.getExpiration());
 }

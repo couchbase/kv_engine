@@ -1239,9 +1239,18 @@ cb::engine_errc DcpProducer::step(bool throttled,
                     mutationResponse->getVBucket(),
                     *mutationResponse->getBySeqno(),
                     mutationResponse->getRevSeqno(),
-                    0 /* lock time */,
                     encodeItemHotness(*mutationResponse->getItem()),
                     mutationResponse->getStreamId());
+            break;
+        }
+        case DcpResponse::Event::CachedKeyMeta: {
+            Expects(itmCpy);
+            ret = producers.cached_key_meta(mutationResponse->getOpaque(),
+                                            toUniqueItemPtr(std::move(itmCpy)),
+                                            mutationResponse->getVBucket(),
+                                            *mutationResponse->getBySeqno(),
+                                            mutationResponse->getRevSeqno(),
+                                            mutationResponse->getStreamId());
             break;
         }
         case DcpResponse::Event::CacheTransferToActiveStream: {
@@ -1274,6 +1283,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::SystemEvent:
         case DcpResponse::Event::SeqnoAdvanced:
         case DcpResponse::Event::CachedValue:
+        case DcpResponse::Event::CachedKeyMeta:
             itemsSent++;
             break;
         case DcpResponse::Event::AddStream:
@@ -1751,6 +1761,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpCommit:
     case cb::mcbp::ClientOpcode::DcpAbort:
     case cb::mcbp::ClientOpcode::DcpCachedValue:
+    case cb::mcbp::ClientOpcode::DcpCachedKeyMeta:
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;
         }
@@ -2355,6 +2366,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CachedValue:
+    case DcpResponse::Event::CachedKeyMeta:
     case DcpResponse::Event::CacheTransferToActiveStream:
         break;
     default:

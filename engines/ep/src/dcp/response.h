@@ -41,6 +41,7 @@ public:
         OSOSnapshot,
         SeqnoAdvanced,
         CachedValue,
+        CachedKeyMeta,
         CacheTransferToActiveStream
     };
 
@@ -116,6 +117,7 @@ public:
         case Event::OSOSnapshot:
         case Event::SeqnoAdvanced:
         case Event::CachedValue:
+        case Event::CachedKeyMeta:
         case Event::CacheTransferToActiveStream:
             return false;
         }

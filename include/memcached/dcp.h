@@ -387,7 +387,6 @@ struct DcpMessageProducersIface {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
-     * @param lock_time
      * @param nru the nru field used by ep-engine (may safely be ignored)
      * @param sid The stream-ID the CachedValue applies to (can be 0 for none)
      *
@@ -399,8 +398,32 @@ struct DcpMessageProducersIface {
             Vbid vbucket,
             uint64_t by_seqno,
             uint64_t rev_seqno,
-            uint32_t lock_time,
             uint8_t nru,
+            cb::mcbp::DcpStreamId sid) = 0;
+
+    /**
+     * Send a CachedKeyMeta (for a CacheTransferStream)
+     *
+     * This is essentially a mutation but marked as CachedKeyMeta so the
+     * consumer knows not to treat like a DcpMutation or DcpCachedValue (i.e.
+     * does not have to attempt any value validation).
+     *
+     * @param opaque this is the opaque requested by the consumer
+     *               in the Stream Request message
+     * @param itm the item to send.
+     * @param vbucket the vbucket id the message belong to
+     * @param by_seqno
+     * @param rev_seqno
+     * @param sid The stream-ID the CachedKeyMeta applies to (can be 0 for none)
+     *
+     * @return cb::engine_errc::success upon success
+     */
+    [[nodiscard]] virtual cb::engine_errc cached_key_meta(
+            uint32_t opaque,
+            cb::unique_item_ptr itm,
+            Vbid vbucket,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
             cb::mcbp::DcpStreamId sid) = 0;
 };
 
@@ -797,7 +820,9 @@ struct DcpIface {
                                                 uint64_t abort_seqno) = 0;
 
     /**
-     * Callback to the engine that a cached value message was received
+     * Callback to the engine that a cached value message was received.
+     * Both CachedValue and CachedKeyMeta messages are handled by this
+     * function.
      *
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
@@ -826,6 +851,32 @@ struct DcpIface {
             uint64_t by_seqno,
             uint64_t rev_seqno,
             uint32_t expiration,
-            uint32_t lock_time,
             uint8_t nru) = 0;
+
+    /**
+     * Callback to the engine that a cached key/meta message was received.
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param key The documents key
+     * @param datatype The datatype for the incomming item
+     * @param cas The documents CAS value
+     * @param vbucket The vbucket identifier for the document
+     * @param flags The user specified flags
+     * @param by_seqno The sequence number in the vbucket
+     * @param rev_seqno The revision number for the item
+     * @param expiration When the document expire
+     * @return Standard engine error code.
+     */
+    [[nodiscard]] virtual cb::engine_errc cached_key_meta(
+            CookieIface& cookie,
+            uint32_t opaque,
+            const DocKeyView& key,
+            uint8_t datatype,
+            uint64_t cas,
+            Vbid vbucket,
+            uint32_t flags,
+            uint64_t by_seqno,
+            uint64_t rev_seqno,
+            uint32_t expiration) = 0;
 };

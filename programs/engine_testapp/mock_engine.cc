@@ -748,7 +748,6 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          uint32_t expiration,
-                                         uint32_t lock_time,
                                          uint8_t nru) {
     auto engine_fn = [this,
                       &cookie,
@@ -762,7 +761,6 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                       by_seqno,
                       rev_seqno,
                       expiration,
-                      lock_time,
                       nru]() {
         return the_engine_dcp->cached_value(cookie,
                                             opaque,
@@ -775,8 +773,43 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                                             by_seqno,
                                             rev_seqno,
                                             expiration,
-                                            lock_time,
                                             nru);
+    };
+
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
+cb::engine_errc MockEngine::cached_key_meta(CookieIface& cookie,
+                                            uint32_t opaque,
+                                            const DocKeyView& key,
+                                            uint8_t datatype,
+                                            uint64_t cas,
+                                            Vbid vbucket,
+                                            uint32_t flags,
+                                            uint64_t by_seqno,
+                                            uint64_t rev_seqno,
+                                            uint32_t expiration) {
+    auto engine_fn = [this,
+                      &cookie,
+                      opaque,
+                      k = std::cref(key),
+                      datatype,
+                      cas,
+                      vbucket,
+                      flags,
+                      by_seqno,
+                      rev_seqno,
+                      expiration]() {
+        return the_engine_dcp->cached_key_meta(cookie,
+                                               opaque,
+                                               k,
+                                               datatype,
+                                               cas,
+                                               vbucket,
+                                               flags,
+                                               by_seqno,
+                                               rev_seqno,
+                                               expiration);
     };
 
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);

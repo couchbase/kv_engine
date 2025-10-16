@@ -314,11 +314,25 @@ cb::engine_errc ConnHandler::cached_value(uint32_t opaque,
                                           uint64_t bySeqno,
                                           uint64_t revSeqno,
                                           uint32_t expiration,
-                                          uint32_t lockTime,
                                           uint8_t nru) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp "
             "cached_value API");
+    return cb::engine_errc::disconnect;
+}
+
+cb::engine_errc ConnHandler::cached_key_meta(uint32_t opaque,
+                                             const DocKeyView& key,
+                                             uint8_t datatype,
+                                             uint64_t cas,
+                                             Vbid vbucket,
+                                             uint32_t flags,
+                                             uint64_t bySeqno,
+                                             uint64_t revSeqno,
+                                             uint32_t expiration) {
+    logger->warn(
+            "Disconnecting - This connection doesn't support the dcp "
+            "cached_key_meta API");
     return cb::engine_errc::disconnect;
 }
 

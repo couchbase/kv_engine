@@ -498,7 +498,9 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
             sid,
-            DcpResponse::Event::CachedValue);
+            includeValue == IncludeValue::Yes
+                    ? DcpResponse::Event::CachedValue
+                    : DcpResponse::Event::CachedKeyMeta);
     {
         std::lock_guard<std::mutex> lh(streamMutex);
         if (state != State::Active) {

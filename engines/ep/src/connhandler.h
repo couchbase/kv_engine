@@ -265,8 +265,19 @@ public:
                                          uint64_t bySeqno,
                                          uint64_t revSeqno,
                                          uint32_t expiration,
-                                         uint32_t lockTime,
                                          uint8_t nru);
+
+    /// Receive a cached key/meta message.
+    virtual cb::engine_errc cached_key_meta(uint32_t opaque,
+                                            const DocKeyView& key,
+                                            uint8_t datatype,
+                                            uint64_t cas,
+                                            Vbid vbucket,
+                                            uint32_t flags,
+                                            uint64_t bySeqno,
+                                            uint64_t revSeqno,
+                                            uint32_t expiration);
+
     const char* logHeader() const;
 
     /**

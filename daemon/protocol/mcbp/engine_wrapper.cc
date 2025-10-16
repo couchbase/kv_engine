@@ -721,7 +721,6 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                uint64_t bySeqno,
                                uint64_t revSeqno,
                                uint32_t expiration,
-                               uint32_t lockTime,
                                uint8_t nru) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
@@ -736,7 +735,6 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                  bySeqno,
                                  revSeqno,
                                  expiration,
-                                 lockTime,
                                  nru);
     if (ret == cb::engine_errc::success && !connection.isInternal()) {
         cookie.addDocumentWriteBytes(value.size() + key.size());
@@ -744,6 +742,40 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
         LOG_WARNING_CTX("dcp.cached_value returned cb::engine_errc::disconnect",
                         {"conn_id", connection.getId()},
                         {"description", connection.getDescription()});
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+cb::engine_errc dcpCachedKeyMeta(Cookie& cookie,
+                                 uint32_t opaque,
+                                 const DocKeyView& key,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 Vbid vbid,
+                                 uint32_t flags,
+                                 uint64_t bySeqno,
+                                 uint64_t revSeqno,
+                                 uint32_t expiration) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->cached_key_meta(cookie,
+                                    opaque,
+                                    key,
+                                    datatype,
+                                    cas,
+                                    vbid,
+                                    flags,
+                                    bySeqno,
+                                    revSeqno,
+                                    expiration);
+    if (ret == cb::engine_errc::success && !connection.isInternal()) {
+        cookie.addDocumentWriteBytes(key.size());
+    } else if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING_CTX(
+                "dcp.cached_key_meta returned cb::engine_errc::disconnect",
+                {"conn_id", connection.getId()},
+                {"description", connection.getDescription()});
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;

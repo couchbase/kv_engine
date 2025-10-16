@@ -37,7 +37,8 @@ public:
      * @return nullptr if the expectations are not met.
      */
     std::unique_ptr<DcpResponse> validateNextResponse(
-            std::unordered_set<Item>& items);
+            std::unordered_set<Item>& items,
+            std::unordered_set<StoredDocKey>* keys = nullptr);
 
     std::unique_ptr<DcpResponse> validateNextResponseIsEnd(
             cb::mcbp::DcpStreamEndStatus expectedStatus =

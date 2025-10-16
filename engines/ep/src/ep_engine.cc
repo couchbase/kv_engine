@@ -1376,7 +1376,6 @@ cb::engine_errc EventuallyPersistentEngine::cached_value(
         uint64_t bySeqno,
         uint64_t revSeqno,
         uint32_t expiration,
-        uint32_t lockTime,
         uint8_t nru) {
     auto engine = acquireEngine(this);
     auto conn = engine->getConnHandler(cookie);
@@ -1390,8 +1389,31 @@ cb::engine_errc EventuallyPersistentEngine::cached_value(
                               bySeqno,
                               revSeqno,
                               expiration,
-                              lockTime,
                               nru);
+}
+
+cb::engine_errc EventuallyPersistentEngine::cached_key_meta(
+        CookieIface& cookie,
+        uint32_t opaque,
+        const DocKeyView& key,
+        uint8_t datatype,
+        uint64_t cas,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t bySeqno,
+        uint64_t revSeqno,
+        uint32_t expiration) {
+    auto engine = acquireEngine(this);
+    auto conn = engine->getConnHandler(cookie);
+    return conn->cached_key_meta(opaque,
+                                 key,
+                                 datatype,
+                                 cas,
+                                 vbucket,
+                                 flags,
+                                 bySeqno,
+                                 revSeqno,
+                                 expiration);
 }
 
 /**

@@ -263,13 +263,15 @@ protected:
     void processSetVBucketState(SetVBucketState* state);
 
     /**
-     * Process a cached value message (from a DcpCacheTransfer stream).
+     * Process a cache transfer message (from a DcpCacheTransfer
+     * producer stream).
      *
-     * @param resp The cached value message to process
+     * @param resp The cache transfer message to process (which is a
+     * MutationResponse with different event)
      * @return cb::engine_errc::success if the item was inserted into the cache
      * otherwise a status code for why not (e.g. nmvb for vbucket state changed)
      */
-    cb::engine_errc processCachedValue(MutationResponse& resp);
+    cb::engine_errc processCacheTransfer(MutationResponse& resp);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised

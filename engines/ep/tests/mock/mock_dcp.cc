@@ -539,18 +539,24 @@ cb::engine_errc MockDcpMessageProducers::cached_value(
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
-        uint32_t lock_time,
         uint8_t nru,
         cb::mcbp::DcpStreamId sid) {
-    auto status = mutation(opaque,
-                           std::move(itm),
-                           vbucket,
-                           by_seqno,
-                           rev_seqno,
-                           lock_time,
-                           nru,
-                           sid);
+    auto status = mutation(
+            opaque, std::move(itm), vbucket, by_seqno, rev_seqno, 0, nru, sid);
     last_op = cb::mcbp::ClientOpcode::DcpCachedValue;
+    return status;
+}
+
+cb::engine_errc MockDcpMessageProducers::cached_key_meta(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::mcbp::DcpStreamId sid) {
+    auto status = mutation(
+            opaque, std::move(itm), vbucket, by_seqno, rev_seqno, 0, 0, sid);
+    last_op = cb::mcbp::ClientOpcode::DcpCachedKeyMeta;
     return status;
 }
 

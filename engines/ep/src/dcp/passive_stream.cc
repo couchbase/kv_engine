@@ -302,7 +302,8 @@ cb::engine_errc PassiveStream::messageReceived(
         // Check for seqno ordering except when there is a CachedValue which is
         // not in seqno order.
         if (uint64_t(*seqno) <= last_seqno.load() &&
-            dcpResponse->getEvent() != DcpResponse::Event::CachedValue) {
+            (dcpResponse->getEvent() != DcpResponse::Event::CachedValue &&
+             dcpResponse->getEvent() != DcpResponse::Event::CachedKeyMeta)) {
             OBJ_LOG_WARN_CTX(
                     *this,
                     "Erroneous (out of sequence) message received, with "
@@ -484,6 +485,7 @@ cb::engine_errc PassiveStream::processMessageInner(
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CachedValue:
+    case DcpResponse::Event::CachedKeyMeta:
     case DcpResponse::Event::CacheTransferToActiveStream:
         throw std::invalid_argument(
                 "PassiveStream::processMessageInner: invalid event " +
@@ -1342,7 +1344,8 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         ret = processSystemEvent(dynamic_cast<SystemEventMessage&>(*resp));
         break;
     case DcpResponse::Event::CachedValue:
-        ret = processCachedValue(dynamic_cast<MutationResponse&>(*resp));
+    case DcpResponse::Event::CachedKeyMeta:
+        ret = processCacheTransfer(dynamic_cast<MutationResponse&>(*resp));
         break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
@@ -1412,9 +1415,10 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
 
     const auto seqno = resp.getBySeqno();
     if (err == cb::engine_errc::success && seqno) {
-        // CachedValue is not in seqno order, so we need to reset the last_seqno
-        // to the seqno of the CachedValue.
-        if (resp.getEvent() == DcpResponse::Event::CachedValue) {
+        // Cache Transfer is not in seqno order, so we need to reset the
+        // last_seqno to the seqno of the message..
+        if (resp.getEvent() == DcpResponse::Event::CachedValue ||
+            resp.getEvent() == DcpResponse::Event::CachedKeyMeta) {
             last_seqno.reset(*seqno);
         } else {
             last_seqno.store(*seqno);
@@ -1424,7 +1428,7 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
     return ret;
 }
 
-cb::engine_errc PassiveStream::processCachedValue(MutationResponse& resp) {
+cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
@@ -1442,7 +1446,8 @@ cb::engine_errc PassiveStream::processCachedValue(MutationResponse& resp) {
     vb->ht.upsertItem(
             *resp.getItem(),
             /*eject*/ false,
-            /*keyMetaDataOnly*/ false,
+            /*keyMetaDataOnly*/ resp.getEvent() ==
+                    DcpResponse::Event::CachedKeyMeta,
             /*evictionPolicy*/ engine->getKVBucket()->getItemEvictionPolicy());
 
     return cb::engine_errc::success;

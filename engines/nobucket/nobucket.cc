@@ -369,8 +369,19 @@ public:
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  uint32_t expiration,
-                                 uint32_t lock_time,
                                  uint8_t nru) override {
+        return cb::engine_errc::no_bucket;
+    }
+    cb::engine_errc cached_key_meta(CookieIface& cookie,
+                                    uint32_t opaque,
+                                    const DocKeyView& key,
+                                    uint8_t datatype,
+                                    uint64_t cas,
+                                    Vbid vbucket,
+                                    uint32_t flags,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t expiration) override {
         return cb::engine_errc::no_bucket;
     }
 

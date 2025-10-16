@@ -797,9 +797,15 @@ public:
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 uint32_t lock_time,
                                  uint8_t nru,
                                  cb::mcbp::DcpStreamId sid) override;
+
+    cb::engine_errc cached_key_meta(uint32_t opaque,
+                                    cb::unique_item_ptr itm,
+                                    Vbid vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    cb::mcbp::DcpStreamId sid) override;
 
     /// Create the SASL server context object to use for SASL authentication
     void createSaslServerContext() {
@@ -1055,16 +1061,17 @@ protected:
     void updateBlockedSendQueue(
             const std::chrono::steady_clock::time_point& now);
 
-    // Handler to generate a DcpMutation or DcpCachedValue
-    cb::engine_errc mutation_or_cached_value(cb::mcbp::ClientOpcode opcode,
-                                             uint32_t opaque,
-                                             cb::unique_item_ptr it,
-                                             Vbid vbucket,
-                                             uint64_t by_seqno,
-                                             uint64_t rev_seqno,
-                                             uint32_t lock_time,
-                                             uint8_t nru,
-                                             cb::mcbp::DcpStreamId sid);
+    // Handler to generate a DcpMutation, DcpCachedValue or DcpCachedKeyMeta
+    // message
+    cb::engine_errc mutation_or_cache_message(cb::mcbp::ClientOpcode opcode,
+                                              uint32_t opaque,
+                                              cb::unique_item_ptr it,
+                                              Vbid vbucket,
+                                              uint64_t by_seqno,
+                                              uint64_t rev_seqno,
+                                              uint32_t lock_time,
+                                              uint8_t nru,
+                                              cb::mcbp::DcpStreamId sid);
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the
