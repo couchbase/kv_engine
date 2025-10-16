@@ -40,8 +40,8 @@ public:
     }
     void setPriority(ConnectionPriority value) override {
     }
-    const nlohmann::json& getDescription() const override {
-        return description;
+    nlohmann::json getDescription() const override {
+        return {{"dummy", true}};
     }
     const cb::rbac::UserIdent& getUser() const override {
         return user;
@@ -51,6 +51,5 @@ public:
 
 protected:
     cb::rbac::UserIdent user{"dummy", cb::rbac::Domain::Local};
-    nlohmann::json description{{"dummy", true}};
 };
 } // namespace cb::test

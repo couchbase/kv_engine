@@ -17,6 +17,7 @@
 
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
+#include <folly/Synchronized.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/connection_iface.h>
 #include <memcached/dcp.h>
@@ -96,8 +97,10 @@ public:
         return uint32_t(socketDescriptor);
     }
 
-    const nlohmann::json& getDescription() const override {
-        return description;
+    nlohmann::json getDescription() const override {
+        nlohmann::json desc;
+        description.copyInto(desc);
+        return desc;
     }
 
     /**
@@ -1098,7 +1101,7 @@ protected:
     } authContextLifetime;
 
     /// The description of the connection
-    nlohmann::json description;
+    folly::Synchronized<nlohmann::json, std::mutex> description;
 
     /// The reason why the session was terminated
     std::string terminationReason;

@@ -436,22 +436,26 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
 }
 
 void Connection::updateDescription() {
-    description = {
+    nlohmann::json desc = {
             {"peer", peername},
             {"socket", sockname},
     };
     if (isAuthenticated()) {
-        nlohmann::json user{{"name", getUser().getSanitizedName()}};
+        nlohmann::json me{{"name", getUser().getSanitizedName()}};
         if (isInternal()) {
-            user["system"] = true;
+            me["system"] = true;
         }
         if (getUser().domain == cb::sasl::Domain::External) {
-            user["ldap"] = true;
+            me["ldap"] = true;
         }
-        description["user"] = std::move(user);
+        desc["user"] = std::move(me);
     } else {
-        description["user"] = nullptr;
+        desc["user"] = nullptr;
     }
+    if (!terminationReason.empty()) {
+        desc["termination_reason"] = terminationReason;
+    }
+    description = desc;
 }
 
 void Connection::setBucketIndex(int index, Cookie* cookie) {
@@ -1340,6 +1344,9 @@ void Connection::setTerminationReason(std::string reason) {
         terminationReason.append(";");
         terminationReason.append(reason);
     }
+    description.withLock([this](auto& json) {
+        json["termination_reason"] = terminationReason;
+    });
 }
 
 void Connection::setAgentName(std::string_view name) {

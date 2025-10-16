@@ -67,7 +67,7 @@ public:
      * Note that the description may be modified in the context of the front end
      * thread as part of authentication so the description should not be cached.
      */
-    virtual const nlohmann::json& getDescription() const = 0;
+    virtual nlohmann::json getDescription() const = 0;
 
     /**
      * Get the username this connection is authenticated as (should only be
