@@ -321,6 +321,24 @@ public:
         return fusionLogCheckpointInterval;
     }
 
+    void setFusionMaxLogCleaningSizeRatio(float ratio);
+
+    float getFusionMaxLogCleaningSizeRatio() const {
+        return fusionMaxLogCleaningSizeRatio;
+    }
+
+    void setFusionMaxLogSize(size_t value);
+
+    float getFusionMaxLogSize() const {
+        return fusionMaxLogSize;
+    }
+
+    void setFusionMaxNumLogFiles(size_t value);
+
+    float getFusionMaxNumLogFiles() const {
+        return fusionMaxNumLogFiles;
+    }
+
     float getFusionLogstoreFragmentationThreshold() const {
         return fusionLogstoreFragmentationThreshold;
     }
@@ -610,4 +628,11 @@ private:
     // The threshold at which the fusion log store will perform garbage
     // collection
     std::atomic<float> fusionLogstoreFragmentationThreshold;
+    // Minimum log segment size after which logs will be split. The ratio is a
+    // percentage of used log data size
+    std::atomic<float> fusionMaxLogCleaningSizeRatio;
+    // Upper cap for the effective log size, in bytes
+    std::atomic<size_t> fusionMaxLogSize;
+    // Base cap for maximum number of log files
+    std::atomic<size_t> fusionMaxNumLogFiles;
 };

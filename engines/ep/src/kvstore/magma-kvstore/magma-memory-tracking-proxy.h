@@ -320,6 +320,15 @@ public:
     magma::Status SetFusionMetadataStoreURI(const std::string& uri);
     std::string GetFusionMetadataStoreURI() const;
 
+    void SetFusionMaxLogCleaningSizeRatio(float ratio);
+    float GetFusionMaxLogCleaningSizeRatio() const;
+
+    void SetFusionMaxLogSize(size_t value);
+    size_t GetFusionMaxLogSize() const;
+
+    void SetFusionMaxNumLogFiles(size_t value);
+    size_t GetFusionMaxNumLogFiles() const;
+
     // The threshold at which the fusion log store will perform garbage
     // collection. This is a ratio between 0.0 and 1.0.
     void SetFusionLogstoreFragmentationThreshold(float threshold);

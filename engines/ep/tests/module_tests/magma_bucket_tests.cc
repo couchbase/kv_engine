@@ -1172,6 +1172,12 @@ public:
                          std::to_string(fusionLogCheckpointInterval);
         config_string += ";magma_fusion_logstore_fragmentation_threshold=" +
                          std::to_string(fusionLogstoreFragmentationThreshold);
+        config_string += ";magma_fusion_max_log_cleaning_size_ratio=" +
+                         std::to_string(fusionMaxLogCleaningSizeRation);
+        config_string += ";magma_fusion_max_log_size=" +
+                         std::to_string(fusionMaxLogSize);
+        config_string += ";magma_fusion_max_num_log_files=" +
+                         std::to_string(fusionMaxNumLogFiles);
         STParameterizedBucketTest::SetUp();
         if (!isFusionSupportEnabled()) {
             GTEST_SKIP() << "Fusion support is not enabled";
@@ -1230,6 +1236,9 @@ protected:
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
     const float fusionLogstoreFragmentationThreshold = 0.3f;
+    const float fusionMaxLogCleaningSizeRation = 0.2f;
+    const size_t fusionMaxLogSize = 5_GiB;
+    const size_t fusionMaxNumLogFiles = 10;
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1250,6 +1259,76 @@ TEST_P(STMagmaFusionTest, Config) {
               kvstore.getFusionLogCheckpointInterval().count());
     EXPECT_EQ(fusionLogstoreFragmentationThreshold,
               kvstore.getMagmaFusionLogstoreFragmentationThreshold());
+    EXPECT_EQ(fusionMaxLogCleaningSizeRation,
+              kvstore.getMagmaFusionMaxLogCleaningSizeRatio());
+    EXPECT_EQ(fusionMaxLogSize, kvstore.getMagmaFusionMaxLogSize());
+    EXPECT_EQ(fusionMaxNumLogFiles, kvstore.getMagmaFusionMaxNumLogFiles());
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionMaxLogCleaningSizeRation) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_max_log_cleaning_size_ratio", "0.7", msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(0.7f, config.getFusionMaxLogCleaningSizeRatio())
+            << "config not updated";
+    EXPECT_EQ(0.7f, kvstore.getMagmaFusionMaxLogCleaningSizeRatio())
+            << "value not passed down to Magma";
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_max_log_cleaning_size_ratio", "0", msg));
+    EXPECT_EQ(0, config.getFusionMaxLogCleaningSizeRatio())
+            << "config not updated";
+    EXPECT_EQ(0, kvstore.getMagmaFusionMaxLogCleaningSizeRatio())
+            << "value not passed down to Magma";
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionMaxLogSize) {
+    std::string msg;
+    size_t logSize = 7_GiB;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam(
+                    "magma_fusion_max_log_size", std::to_string(logSize), msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(logSize, config.getFusionMaxLogSize()) << "config not updated";
+    EXPECT_EQ(logSize, kvstore.getMagmaFusionMaxLogSize())
+            << "value not passed down to Magma";
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_fusion_max_log_size", "0", msg));
+    EXPECT_EQ(0, config.getFusionMaxLogSize()) << "config not updated";
+    EXPECT_EQ(0, kvstore.getMagmaFusionMaxLogSize())
+            << "value not passed down to Magma";
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionMaxNumLogFiles) {
+    std::string msg;
+    size_t numLogFiles = 700;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_fusion_max_num_log_files",
+                                    std::to_string(numLogFiles),
+                                    msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(numLogFiles, config.getFusionMaxNumLogFiles())
+            << "config not updated";
+    EXPECT_EQ(numLogFiles, kvstore.getMagmaFusionMaxNumLogFiles())
+            << "value not passed down to Magma";
+
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("magma_fusion_max_num_log_files", "0", msg));
+    EXPECT_EQ(0, config.getFusionMaxNumLogFiles()) << "config not updated";
+    EXPECT_EQ(0, kvstore.getMagmaFusionMaxNumLogFiles())
+            << "value not passed down to Magma";
 }
 
 TEST_P(STMagmaFusionTest, MagmaFusionLogstoreFragmentationThreshold) {

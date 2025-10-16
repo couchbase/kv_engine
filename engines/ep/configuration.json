@@ -1812,6 +1812,30 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "magma_fusion_max_log_cleaning_size_ratio": {
+            "default": "0.05",
+            "descr": "Minimum log segment size after which logs will be split. The ratio is a percentage of used log data size.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
+        "magma_fusion_max_log_size": {
+            "default": "(1024 * 1024 * 1024)",
+            "descr": "Upper cap for the effective log size, in bytes.",
+            "dynamic": true,
+            "type": "size_t"
+        },
+        "magma_fusion_max_num_log_files": {
+            "default": "100",
+            "descr": "Base cap for maximum number of log files.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",

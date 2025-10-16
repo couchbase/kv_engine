@@ -737,6 +737,15 @@ public:
     void setMagmaFusionLogstoreFragmentationThreshold(float value);
     float getMagmaFusionLogstoreFragmentationThreshold() const;
 
+    void setMagmaFusionMaxLogCleaningSizeRatio(float value);
+    float getMagmaFusionMaxLogCleaningSizeRatio() const;
+
+    void setMagmaFusionMaxLogSize(size_t value);
+    size_t getMagmaFusionMaxLogSize() const;
+
+    void setMagmaFusionMaxNumLogFiles(size_t value);
+    size_t getMagmaFusionMaxNumLogFiles() const;
+
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,

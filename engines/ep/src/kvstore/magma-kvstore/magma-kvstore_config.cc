@@ -49,6 +49,10 @@ public:
             config.setContinousBackupInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_upload_interval") {
             config.setFusionUploadInterval(std::chrono::seconds(value));
+        } else if (key == "magma_fusion_max_log_size") {
+            config.setFusionMaxLogSize(value);
+        } else if (key == "magma_fusion_max_num_log_files") {
+            config.setFusionMaxNumLogFiles(value);
         }
     }
 
@@ -57,6 +61,8 @@ public:
             config.setMagmaMemQuotaRatio(value);
         } else if (key == "magma_fusion_logstore_fragmentation_threshold") {
             config.setFusionLogstoreFragmentationThreshold(value);
+        } else if (key == "magma_fusion_max_log_cleaning_size_ratio") {
+            config.setFusionMaxLogCleaningSizeRatio(value);
         }
     }
 
@@ -251,10 +257,44 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_fusion_logstore_fragmentation_threshold",
             std::make_unique<ConfigChangeListener>(*this));
+
+    fusionMaxLogCleaningSizeRatio =
+            config.getMagmaFusionMaxLogCleaningSizeRatio();
+    config.addValueChangedListener(
+            "magma_fusion_max_log_cleaning_size_ratio",
+            std::make_unique<ConfigChangeListener>(*this));
+
+    fusionMaxLogSize = config.getMagmaFusionMaxLogSize();
+    config.addValueChangedListener(
+            "magma_fusion_max_log_size",
+            std::make_unique<ConfigChangeListener>(*this));
+
+    fusionMaxNumLogFiles = config.getMagmaFusionMaxNumLogFiles();
+    config.addValueChangedListener(
+            "magma_fusion_max_num_log_files",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
     this->store = store;
+}
+
+void MagmaKVStoreConfig::setFusionMaxLogCleaningSizeRatio(float ratio) {
+    Expects(store);
+    fusionMaxLogCleaningSizeRatio.store(ratio);
+    store->setMagmaFusionMaxLogCleaningSizeRatio(ratio);
+}
+
+void MagmaKVStoreConfig::setFusionMaxLogSize(size_t value) {
+    Expects(store);
+    fusionMaxLogSize.store(value);
+    store->setMagmaFusionMaxLogSize(value);
+}
+
+void MagmaKVStoreConfig::setFusionMaxNumLogFiles(size_t value) {
+    Expects(store);
+    fusionMaxNumLogFiles.store(value);
+    store->setMagmaFusionMaxNumLogFiles(value);
 }
 
 void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {

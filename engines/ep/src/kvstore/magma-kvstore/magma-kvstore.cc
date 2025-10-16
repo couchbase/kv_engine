@@ -925,6 +925,10 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
             configuration.getFusionLogCheckpointInterval());
     magma->SetFusionLogstoreFragmentationThreshold(
             configuration.getFusionLogstoreFragmentationThreshold());
+    magma->SetFusionMaxLogCleaningSizeRatio(
+            configuration.getFusionMaxLogCleaningSizeRatio());
+    magma->SetFusionMaxLogSize(configuration.getFusionMaxLogSize());
+    magma->SetFusionMaxNumLogFiles(configuration.getFusionMaxNumLogFiles());
 }
 
 MagmaKVStore::~MagmaKVStore() {
@@ -4912,6 +4916,30 @@ void MagmaKVStore::setMagmaFusionUploadInterval(std::chrono::seconds value) {
 
 std::chrono::seconds MagmaKVStore::getMagmaFusionUploadInterval() const {
     return magma->GetFusionUploadInterval();
+}
+
+void MagmaKVStore::setMagmaFusionMaxLogCleaningSizeRatio(float value) {
+    magma->SetFusionMaxLogCleaningSizeRatio(value);
+}
+
+float MagmaKVStore::getMagmaFusionMaxLogCleaningSizeRatio() const {
+    return magma->GetFusionMaxLogCleaningSizeRatio();
+}
+
+void MagmaKVStore::setMagmaFusionMaxLogSize(size_t value) {
+    magma->SetFusionMaxLogSize(value);
+}
+
+size_t MagmaKVStore::getMagmaFusionMaxLogSize() const {
+    return magma->GetFusionMaxLogSize();
+}
+
+void MagmaKVStore::setMagmaFusionMaxNumLogFiles(size_t value) {
+    magma->SetFusionMaxNumLogFiles(value);
+}
+
+size_t MagmaKVStore::getMagmaFusionMaxNumLogFiles() const {
+    return magma->GetFusionMaxNumLogFiles();
 }
 
 void MagmaKVStore::setMagmaFusionLogstoreFragmentationThreshold(float value) {

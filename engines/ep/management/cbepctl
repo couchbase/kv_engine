@@ -300,6 +300,10 @@ Available params for "set":
     magma_fusion_upload_interval - The interval between kvstore syncs to fusion, in seconds.
     magma_fusion_logstore_fragmentation_threshold - The threshold at which the fusion log store will perform garbage
                                                     collection.
+    magma_fusion_max_log_cleaning_size_ratio - Minimum log segment size after which logs will be split. The ratio is a
+                                               percentage of used log data size.
+    magma_fusion_max_log_size    - Upper cap for the effective log size, in bytes.
+    magma_fusion_max_num_log_files - Base cap for maximum number of log files.
 
   Available params for "set dcp_param":
     dcp_consumer_process_buffered_messages_yield_limit - The threshold at which

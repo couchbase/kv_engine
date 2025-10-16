@@ -814,6 +814,36 @@ std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionLogCheckpointInterval()
     return magma->GetFusionLogCheckpointInterval();
 }
 
+void MagmaMemoryTrackingProxy::SetFusionMaxLogCleaningSizeRatio(float ratio) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionLogCleaningSizeRatio(ratio);
+}
+
+float MagmaMemoryTrackingProxy::GetFusionMaxLogCleaningSizeRatio() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionLogCleaningSizeRatio();
+}
+
+void MagmaMemoryTrackingProxy::SetFusionMaxLogSize(size_t value) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionMaxLogSize(value);
+}
+
+size_t MagmaMemoryTrackingProxy::GetFusionMaxLogSize() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionMaxLogSize();
+}
+
+void MagmaMemoryTrackingProxy::SetFusionMaxNumLogFiles(size_t value) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionMaxNumLogFiles(value);
+}
+
+size_t MagmaMemoryTrackingProxy::GetFusionMaxNumLogFiles() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionMaxNumLogFiles();
+}
+
 void MagmaMemoryTrackingProxy::SetFusionLogstoreFragmentationThreshold(
         float threshold) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
