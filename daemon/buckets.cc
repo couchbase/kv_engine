@@ -28,7 +28,6 @@
 #include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
-#include <serverless/config.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
@@ -76,7 +75,6 @@ bool Bucket::supports(cb::engine::Feature feature) {
 }
 
 nlohmann::json Bucket::to_json() const {
-    const bool serverless = cb::serverless::isEnabled();
     std::lock_guard<std::mutex> guard(mutex);
 
     if (state != State::None) {
@@ -88,21 +86,19 @@ nlohmann::json Bucket::to_json() const {
             json["type"] = type;
             json["data_ingress_status"] = data_ingress_status.load();
             json["num_rejected"] = num_rejected.load();
-            if (serverless) {
-                json["ru"] = read_units_used.load();
-                json["wu"] = write_units_used.load();
-                json["num_throttled"] = num_throttled.load();
-                json["throttle_reserved"] =
-                        cb::throttle::limit_to_json(throttle_reserved.load());
-                json["throttle_hard_limit"] =
-                        cb::throttle::limit_to_json(throttle_hard_limit.load());
-                json["throttle_wait_time"] = throttle_wait_time.load();
-                json["num_commands_with_metered_units"] =
-                        num_commands_with_metered_units.load();
-                json["num_metered_dcp_messages"] =
-                        num_metered_dcp_messages.load();
-                json["num_commands"] = num_commands.load();
-            }
+            json["ru"] = read_units_used.load();
+            json["wu"] = write_units_used.load();
+            json["num_throttled"] = num_throttled.load();
+            json["throttle_reserved"] =
+                    cb::throttle::limit_to_json(throttle_reserved.load());
+            json["throttle_hard_limit"] =
+                    cb::throttle::limit_to_json(throttle_hard_limit.load());
+            json["throttle_wait_time"] = throttle_wait_time.load();
+            json["num_commands_with_metered_units"] =
+                    num_commands_with_metered_units.load();
+            json["num_metered_dcp_messages"] =
+                    num_metered_dcp_messages.load();
+            json["num_commands"] = num_commands.load();
             return json;
         } catch (const std::exception& e) {
             LOG_ERROR_CTX("Failed to generate bucket details",
@@ -206,12 +202,6 @@ void Bucket::consumedUnits(std::size_t units, ResourceAllocationDomain domain) {
 void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
                                         std::size_t nread,
                                         ResourceAllocationDomain domain) {
-    // Metering stats are only applicable for serverless - avoid the cost
-    // of tracking them if not.
-    if (!cb::serverless::isEnabled()) {
-        return;
-    }
-
     // The node supervisor runs for free
     if (conn.isNodeSupervisor()) {
         return;
@@ -227,11 +217,6 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
 }
 
 void Bucket::documentExpired(size_t nbytes) {
-    /// Metrics related to metering only applicable to serverless - avoid
-    /// the cost of maintaining them if not serverless.
-    if (!cb::serverless::isEnabled()) {
-        return;
-    }
     if (nbytes) {
         auto& settings = Settings::instance();
         const auto wu = settings.toWriteUnits(nbytes);
@@ -244,11 +229,6 @@ void Bucket::documentExpired(size_t nbytes) {
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
-    // These statistics have a non-negligable cost to maintain - only do
-    // so if needed for serverless profile.
-    if (!cb::serverless::isEnabled()) {
-        return;
-    }
     ++num_commands;
     auto& connection = cookie.getConnection();
 

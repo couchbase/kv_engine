@@ -23,7 +23,6 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
-#include <serverless/config.h>
 #include <statistics/prometheus.h>
 
 /**
@@ -62,13 +61,11 @@ static nlohmann::json prometheus_init(
                                 IncludeTimestamps::No,
                                 IncludeMetaMetrics::No,
                                 server_prometheus_stats_high);
-    if (cb::serverless::isEnabled()) {
-        cb::prometheus::addEndpoint("/_metering",
-                                    EndpointTraceId::Metering,
-                                    IncludeTimestamps::No,
-                                    IncludeMetaMetrics::No,
-                                    server_prometheus_metering);
-    }
+    cb::prometheus::addEndpoint("/_metering",
+                                EndpointTraceId::Metering,
+                                IncludeTimestamps::No,
+                                IncludeMetaMetrics::No,
+                                server_prometheus_metering);
 
     return port;
 }

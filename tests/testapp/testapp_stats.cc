@@ -477,13 +477,22 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(7, bucket.size());
+        EXPECT_EQ(16, bucket.size());
         EXPECT_NE(bucket.end(), bucket.find("index"));
         EXPECT_NE(bucket.end(), bucket.find("state"));
         EXPECT_NE(bucket.end(), bucket.find("clients"));
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
         EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
+        EXPECT_NE(bucket.end(), bucket.find("ru"));
+        EXPECT_NE(bucket.end(), bucket.find("wu"));
+        EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
+        EXPECT_NE(bucket.end(), bucket.find("throttle_reserved"));
+        EXPECT_NE(bucket.end(), bucket.find("throttle_hard_limit"));
+        EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));
+        EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
+        EXPECT_NE(bucket.end(), bucket.find("num_metered_dcp_messages"));
+        EXPECT_NE(bucket.end(), bucket.find("num_commands"));
         EXPECT_EQ("Success", bucket["data_ingress_status"]);
     }
 }

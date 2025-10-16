@@ -284,8 +284,6 @@ cb::engine_errc server_prometheus_stats(
         cb::prometheus::MetricGroup metricGroup) {
     // prefix all "normal" KV metrics with a short string indicating the
     // service of origin - "kv_".
-    // Only metering metrics are exposed without this, for consistency with
-    // other services.
     auto kvCollector =
             collector.withPrefix(std::string(cb::prometheus::kvPrefix));
     try {
@@ -294,15 +292,8 @@ cb::engine_errc server_prometheus_stats(
         if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
-            if (cb::serverless::isEnabled()) {
-                // include all metering metrics, with the "kv_" prefix
-                server_prometheus_metering(kvCollector);
-                // MB-56934: Temporarily add all metering metrics
-                // again, _without_ the "kv_" prefix.
-                // This is to allow a transitional period, until consumers
-                // have moved to the prefixed version.
-                server_prometheus_metering(collector);
-            }
+            // include all metering metrics, with the "kv_" prefix
+            server_prometheus_metering(kvCollector);
         } else {
             try {
                 auto instance = sigar::SigarIface::New();

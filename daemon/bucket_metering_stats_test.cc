@@ -157,9 +157,6 @@ TEST_F(BucketMeteringStatsTest, MeteringMetricsPrefixed) {
                                  "reject_count_total",
                                  "throttle_count_total",
                                  "throttle_seconds_total"}) {
-        // MB-56934: still expect the unprefixed versions too for now, to
-        // give users time to switch over
-        EXPECT_TRUE(metricFamilies.count(expected));
         EXPECT_TRUE(metricFamilies.count(std::string("kv_") + expected));
     }
 }
