@@ -842,6 +842,8 @@ void disconnect_clients() {
 }
 
 int memcached_main(int argc, char** argv) {
+    cb::serverless::setEnabled(true);
+
     // Pause the process on startup (makes attaching debugger easier).
 #ifndef WIN32
     if (getenv("MEMCACHED_DEBUG_STOP")) {

@@ -16,13 +16,14 @@
 #include <limits>
 
 namespace cb::serverless {
-constexpr size_t DefaultThrottleReservedUnits = 1666;
+constexpr size_t DefaultThrottleReservedUnits =
+        std::numeric_limits<uint32_t>::max();
 constexpr size_t DefaultThrottleHardLimit =
         std::numeric_limits<std::size_t>::max();
-constexpr size_t MaxConnectionsPerBucket = 600;
+constexpr size_t MaxConnectionsPerBucket = 65000;
 constexpr size_t ReadUnitSize = 4096;
 constexpr size_t WriteUnitSize = 1024;
-constexpr size_t NodeCapacity = 25000;
+constexpr size_t NodeCapacity = std::numeric_limits<uint32_t>::max();
 
 struct Config {
     static Config& instance();
