@@ -564,11 +564,13 @@ cb::mcbp::Status Cookie::validateClientRequest(
             result != Status::BucketResidentRatioTooLow &&
             result != Status::BucketDataSizeTooBig &&
             result != Status::BucketDiskSpaceTooLow) {
-            LOG_WARNING_CTX("Packet validation failed",
-                            {"conn_id", connection.getId()},
-                            {"request", request.to_json(false)},
-                            {"error", error_json},
-                            {"status", result});
+            if (connection.isAuthenticated()) {
+                LOG_WARNING_CTX("Packet validation failed",
+                                {"conn_id", connection.getId()},
+                                {"request", request.to_json(false)},
+                                {"error", error_json},
+                                {"status", result});
+            }
             audit_invalid_packet(getConnection(), getPacket());
         }
         return result;

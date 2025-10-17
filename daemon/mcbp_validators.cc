@@ -473,10 +473,6 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
     }
 
     if (connection.allowUnorderedExecution()) {
-        LOG_WARNING_CTX(
-                "DCP on a connection with unordered execution is currently not "
-                "supported",
-                {"description", cookie.getConnection().getDescription()});
         cookie.setErrorContext(
                 "DCP on connections with unordered execution is not supported");
         return Status::NotSupported;
@@ -523,20 +519,9 @@ static Status verify_common_dcp_stream_restrictions(
     if (unknown != DcpAddStreamFlag::None) {
         if (isFlagSet(unknown, DcpAddStreamFlag::NoValue)) {
             // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
-            if (cookie.getConnection().isAuthenticated()) {
-                LOG_INFO_CTX("Client trying to add stream with NO VALUE",
-                             {"description",
-                              cookie.getConnection().getDescription()});
-            }
             cookie.setErrorContext(
                     "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
         } else {
-            if (cookie.getConnection().isAuthenticated()) {
-                LOG_INFO_CTX("Client trying to add stream with unknown flags",
-                             {"flags", flags},
-                             {"description",
-                              cookie.getConnection().getDescription()});
-            }
             cookie.setErrorContext(
                     fmt::format("Request contains invalid flags: {}", flags));
         }
@@ -551,15 +536,6 @@ static Status verify_common_dcp_stream_restrictions(
                 other_flags & ~allowed_with_cache_transfer;
 
         if (invalid_combination != DcpAddStreamFlag::None) {
-            if (cookie.getConnection().isAuthenticated()) {
-                LOG_INFO_CTX(
-                        "CacheTransfer flag can only be combined "
-                        "with TakeOver or ActiveVbOnly flags. ",
-                        {"flags", flags},
-                        {"invalid_combination", invalid_combination},
-                        {"description",
-                         cookie.getConnection().getDescription()});
-            }
             cookie.setErrorContext(
                     fmt::format("CacheTransfer flag can only be combined "
                                 "with TakeOver or ActiveVbOnly flags. "
@@ -600,12 +576,6 @@ static Status dcp_open_validator(Cookie& cookie) {
     const auto unknown = flags & mask;
 
     if (unknown != DcpOpenFlag::None) {
-        if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO_CTX(
-                    "Client trying to open dcp stream with unknown flags",
-                    {"unknown", flags},
-                    {"description", cookie.getConnection().getDescription()});
-        }
         cookie.setErrorContext(
                 fmt::format("Request contains invalid flags: {}", unknown));
         return Status::Einval;
@@ -613,14 +583,6 @@ static Status dcp_open_validator(Cookie& cookie) {
 
     if (isFlagSet(flags, DcpOpenFlag::NoValue) &&
         isFlagSet(flags, DcpOpenFlag::NoValueWithUnderlyingDatatype)) {
-        if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO_CTX(
-                    "Invalid flags combination specified for a DCP consumer - "
-                    "cannot specify NO_VALUE with "
-                    "NO_VALUE_WITH_UNDERLYING_DATATYPE",
-                    {"flags", flags},
-                    {"description", cookie.getConnection().getDescription()});
-        }
         cookie.setErrorContext(
                 "Request contains invalid flags combination (NO_VALUE && "
                 "NO_VALUE_WITH_UNDERLYING_DATATYPE)");
@@ -629,16 +591,10 @@ static Status dcp_open_validator(Cookie& cookie) {
 
     if (isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs) &&
         !isFlagSet(flags, DcpOpenFlag::IncludeXattrs)) {
-        if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO_CTX(
-                    "Invalid DcpOpen flags combination specified - Must "
-                    "specify IncludeXattrs for IncludeDeletedUserXattrs",
-                    {"flags", flags},
-                    {"description", cookie.getConnection().getDescription()});
-        }
-        cookie.setErrorContext(
+        cookie.setErrorContext(fmt::format(
                 "Request contains invalid flags combination - "
-                "IncludeDeletedUserXattrs but not IncludeXattrs");
+                "IncludeDeletedUserXattrs but not IncludeXattrs: {}",
+                flags));
         return Status::Einval;
     }
 
@@ -1922,9 +1878,6 @@ static Status prune_encryption_keys_validator(Cookie& cookie) {
     try {
         std::vector<std::string> keys = nlohmann::json::parse(payload);
     } catch (const std::exception& exception) {
-        LOG_ERROR_CTX("Failed to decode the array of keys to prune",
-                      {"conn_id", cookie.getConnectionId()},
-                      {"error", exception.what()});
         cookie.setErrorContext(
                 fmt::format("Failed to decode the array of keys to prune: {}",
                             exception.what()));
@@ -1945,9 +1898,6 @@ static Status prune_encryption_keys_validator(Cookie& cookie) {
             return Status::Einval;
         }
     } catch (const std::exception& exception) {
-        LOG_ERROR_CTX("Invalid entity provided",
-                      {"conn_id", cookie.getConnectionId()},
-                      {"error", exception.what()});
         cookie.setErrorContext(
                 fmt::format("Invalid entity provided: {}", exception.what()));
         return Status::Einval;

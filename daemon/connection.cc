@@ -923,7 +923,11 @@ void Connection::logExecutionException(const std::string_view where,
                                        const std::exception& e) {
     setTerminationReason(std::string("Received exception: ") + e.what());
     shutdown();
-
+    if (!isAuthenticated() && isInvalidPacketHeaderMessage(e.what())) {
+        // Mute logging for unauthenticated connections sending garbled data
+        // to the port.. This may very well be port scanners or similar.
+        return;
+    }
     try {
         auto array = nlohmann::json::array();
         for (const auto& c : cookies) {

@@ -734,11 +734,13 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
     auto* dcp = c.getBucket().getDcpIface();
     if (!dcp) {
+#if CB_DEVELOPMENT_ASSERTS
         LOG_WARNING_CTX(
                 "process_bin_dcp_response - DcpIface is nullptr - closing "
                 "connection",
                 {"conn_id", c.getId()},
                 {"description", c.getDescription()});
+#endif
         c.shutdown();
         c.setTerminationReason("Connected engine does not support DCP");
         return;
@@ -1125,7 +1127,7 @@ void execute_client_response_packet(Cookie& cookie,
     if (handler) {
         handler(cookie);
     } else {
-        auto& c = cookie.getConnection();
+#if CB_DEVELOPMENT_ASSERTS
         LOG_WARNING_CTX(
                 "Unsupported response packet received",
                 {"conn_id", c.getId()},
@@ -1133,6 +1135,7 @@ void execute_client_response_packet(Cookie& cookie,
                 {"opcode",
                  is_valid_opcode(opcode) ? to_string(opcode)
                                          : "<invalid opcode>"});
+#endif
         c.shutdown();
         c.setTerminationReason("Unsupported response packet received");
     }

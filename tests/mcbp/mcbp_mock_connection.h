@@ -42,6 +42,9 @@ public:
     }
 
 protected:
+    bool isInvalidPacketHeaderMessage(const char*) const override {
+        return false;
+    }
     const cb::mcbp::Header& getPacket() const override {
         throw std::runtime_error("MockConnection: Not implemented");
     }

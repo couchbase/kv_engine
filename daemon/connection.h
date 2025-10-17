@@ -1378,6 +1378,10 @@ protected:
      */
     void logExecutionException(const std::string_view where,
                                const std::exception& e);
+
+    /// Check to see if the provided message is related to an invalid
+    /// packet header
+    virtual bool isInvalidPacketHeaderMessage(const char* message) const = 0;
 };
 
 void to_json(nlohmann::json& json, const Connection& connection);

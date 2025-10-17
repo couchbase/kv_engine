@@ -50,6 +50,8 @@ protected:
     /// virtual methods from the destructor)
     size_t getSendQueueSizeImpl() const;
 
+    bool isInvalidPacketHeaderMessage(const char* message) const override;
+
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;
 

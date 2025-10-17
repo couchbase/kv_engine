@@ -65,6 +65,9 @@ protected:
     const cb::mcbp::Header& getPacket() const override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
+    bool isInvalidPacketHeaderMessage(const char*) const override {
+        return false;
+    }
     void nextPacket() override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }

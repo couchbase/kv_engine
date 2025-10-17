@@ -420,6 +420,14 @@ cb::engine_errc LibeventConnection::sendFile(int fd,
     throw std::bad_alloc();
 }
 
+constexpr const char* invalidPacketHeaderMessage =
+        "Invalid packet header detected";
+
+bool LibeventConnection::isInvalidPacketHeaderMessage(
+        const char* message) const {
+    return strstr(message, invalidPacketHeaderMessage) != nullptr;
+}
+
 bool LibeventConnection::isPacketAvailable() const {
     auto* event = bev.get();
     auto* input = bufferevent_get_input(event);
@@ -440,8 +448,9 @@ bool LibeventConnection::isPacketAvailable() const {
     if (!header->isValid()) {
         audit_invalid_packet(*this, getAvailableBytes());
         throw std::runtime_error(
-                fmt::format("LibeventConnection::isPacketAvailable(): Invalid "
-                            "packet header detected: ({}) totalRecv:{}",
+                fmt::format("LibeventConnection::isPacketAvailable(): {}: ({}) "
+                            "totalRecv:{}",
+                            invalidPacketHeaderMessage,
                             *header,
                             totalRecv));
     }
