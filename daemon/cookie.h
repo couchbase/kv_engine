@@ -634,6 +634,9 @@ public:
     }
 
 protected:
+    cb::mcbp::Status validateClientRequest(const cb::mcbp::Request& request);
+    cb::mcbp::Status validateServerRequest(const cb::mcbp::Request& request);
+
     /// Set the internal ewouldblock variable
     void setEwouldblockVariable(cb::engine_errc value);
 

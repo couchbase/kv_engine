@@ -481,9 +481,25 @@ void Cookie::initialize(std::chrono::steady_clock::time_point now,
     start = now;
 }
 
-cb::mcbp::Status Cookie::validate() {
-    using cb::mcbp::Status;
+cb::mcbp::Status Cookie::validateServerRequest(
+        const cb::mcbp::Request& request) {
+    using namespace cb::mcbp;
+    // We should not be receiving a server command.
+    auto opcode = request.getServerOpcode();
+    if (is_valid_opcode(opcode)) {
+        // Ideally we should have validated its content, but given that
+        // we don't support any server commands we can just return not supported
+        // instead
+        return Status::NotSupported;
+    }
 
+    audit_invalid_packet(connection, getPacket());
+    return Status::UnknownCommand;
+}
+
+cb::mcbp::Status Cookie::validateClientRequest(
+        const cb::mcbp::Request& request) {
+    using namespace cb::mcbp;
     static McbpValidator packetValidator;
 
     // Note: validate is called after the connection fetched the frame
@@ -491,39 +507,20 @@ cb::mcbp::Status Cookie::validate() {
     //       it needed to validate the frame layout (known magic and
     //       all the length fields inside the raw header adds up so
     //       that the bodylen() contains the entire data).
-    const auto& header = getHeader();
-    if (header.isResponse()) {
-        // We don't have packet validators for responses (yet)
-        validated = true;
-        return cb::mcbp::Status::Success;
-    }
-
-    const auto& request = header.getRequest();
-    if (cb::mcbp::is_server_magic((request.getMagic()))) {
-        // We should not be receiving a server command.
-        auto opcode = request.getServerOpcode();
-        if (!cb::mcbp::is_valid_opcode(opcode)) {
-            return cb::mcbp::Status::UnknownCommand;
-        }
-
-        audit_invalid_packet(connection, getPacket());
-        return cb::mcbp::Status::NotSupported;
-    }
-
-    auto opcode = request.getClientOpcode();
+    const auto opcode = request.getClientOpcode();
 
     if (!connection.isAuthenticated()) {
         // We're not authenticated. To reduce the attack vector we'll only
         // allow certain commands to be executed
-        constexpr std::array<cb::mcbp::ClientOpcode, 5> allowed{
-                {cb::mcbp::ClientOpcode::Hello,
-                 cb::mcbp::ClientOpcode::SaslListMechs,
-                 cb::mcbp::ClientOpcode::SaslAuth,
-                 cb::mcbp::ClientOpcode::SaslStep,
-                 cb::mcbp::ClientOpcode::GetErrorMap}};
+        constexpr std::array<ClientOpcode, 5> allowed{
+                {ClientOpcode::Hello,
+                 ClientOpcode::SaslListMechs,
+                 ClientOpcode::SaslAuth,
+                 ClientOpcode::SaslStep,
+                 ClientOpcode::GetErrorMap}};
         if (std::ranges::find(allowed, opcode) == allowed.end()) {
 #if CB_DEVELOPMENT_ASSERTS
-            if (cb::mcbp::is_valid_opcode(opcode)) {
+            if (is_valid_opcode(opcode)) {
                 LOG_WARNING_CTX(
                         "Trying to execute before authentication. Returning "
                         "eaccess",
@@ -531,14 +528,14 @@ cb::mcbp::Status Cookie::validate() {
                         {"opcode", opcode});
             }
 #endif
-            return cb::mcbp::Status::Eaccess;
+            return Status::Eaccess;
         }
     }
 
-    if (!cb::mcbp::is_valid_opcode(opcode)) {
+    if (!is_valid_opcode(opcode)) {
         // We don't know about this command. Stop processing
         // It is legal to send unknown commands, so we don't log or audit this
-        return cb::mcbp::Status::UnknownCommand;
+        return Status::UnknownCommand;
     }
 
     // A cluster-only bucket don't have an associated engine parameter
@@ -546,21 +543,21 @@ cb::mcbp::Status Cookie::validate() {
     // one of the few commands allowed to be executed in such a bucket
     // (to avoid a potential call throug a nil pointer)
     if (connection.getBucket().type == BucketType::ClusterConfigOnly) {
-        constexpr std::array<cb::mcbp::ClientOpcode, 4> allowed{
-                {cb::mcbp::ClientOpcode::Hello,
-                 cb::mcbp::ClientOpcode::GetErrorMap,
-                 cb::mcbp::ClientOpcode::GetClusterConfig,
-                 cb::mcbp::ClientOpcode::SelectBucket}};
+        constexpr std::array<ClientOpcode, 4> allowed{
+                {ClientOpcode::Hello,
+                 ClientOpcode::GetErrorMap,
+                 ClientOpcode::GetClusterConfig,
+                 ClientOpcode::SelectBucket}};
         if (std::ranges::find(allowed, opcode) == allowed.end()) {
             if (connection.isXerrorSupport()) {
-                return cb::mcbp::Status::EConfigOnly;
+                return Status::EConfigOnly;
             }
-            return cb::mcbp::Status::NotSupported;
+            return Status::NotSupported;
         }
     }
 
-    auto result = packetValidator.validate(opcode, *this);
-    if (!cb::mcbp::isStatusSuccess(result)) {
+    const auto result = packetValidator.validate(opcode, *this);
+    if (!isStatusSuccess(result)) {
         if (result != Status::UnknownCollection &&
             result != Status::NotMyVbucket &&
             result != Status::BucketSizeLimitExceeded &&
@@ -592,6 +589,26 @@ cb::mcbp::Status Cookie::validate() {
         preserveRequest();
     }
 
+    validated = true;
+    return Status::Success;
+}
+
+cb::mcbp::Status Cookie::validate() {
+    using namespace cb::mcbp;
+    const auto& header = getHeader();
+    if (header.isRequest()) [[likely]] {
+        const auto& request = header.getRequest();
+        if (is_server_magic(request.getMagic())) [[unlikely]] {
+            return validateServerRequest(request);
+        }
+        return validateClientRequest(request);
+    }
+
+    // We can't really validate a response packets in this context as we would
+    // break the protocol if we tried to send a response to a response packet
+    // Instead we'll let each handler validate the response packet before they
+    // use it and optionally just disconnect the client if they think it is
+    // the right thing to do.
     validated = true;
     return Status::Success;
 }
