@@ -74,6 +74,12 @@ TEST_P(IoctlTest, IOCTL_Tracing) {
     // that it's valid JSON and that the traceEvents array is present
     auto json = nlohmann::json::parse(dump);
     EXPECT_TRUE(json["traceEvents"].is_array());
+
+    ASSERT_TRUE(json.contains("clock_information"));
+    ASSERT_TRUE(json["clock_information"].contains("ts"));
+    EXPECT_TRUE(json["clock_information"]["ts"].is_number_float());
+    EXPECT_TRUE(json["clock_information"].contains("system_clock"));
+    EXPECT_TRUE(json["clock_information"]["system_clock"].is_string());
 }
 
 TEST_P(IoctlTest, IOCTL_ServerlessMaxConnectionsPerBucket) {

@@ -180,13 +180,50 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
     std::string formatted;
     phosphor::tools::JSONExport exporter(context);
     static constexpr std::size_t chunksize = 1_MiB;
-    size_t last_wrote;
+    // Start with a reasonably large buffer to avoid too many
+    // reallocs. The default trace buffer is 20MiB (in binary format)
+    // so lets start at 2.5x that size
+    static constexpr std::size_t initial_size = 50_MiB;
+
+    // Please note that the clock mappings are not exact (as in they may move
+    // between the two calls (process may be suspended in between etc). But they
+    // should be close enough for practical purposes.
+    {
+        using namespace std::chrono;
+        uint64_t time = duration_cast<nanoseconds>(
+                                steady_clock::now().time_since_epoch())
+                                .count();
+        auto system_time = cb::time::timestamp();
+        const auto [time_us, time_ns] = std::lldiv(time, 1000);
+        auto ts = fmt::format("{}.{:03}", time_us, time_ns);
+        formatted = fmt::format(
+                R"({{ "clock_information" : {{ "ts" : {}.{:03},"system_clock" : "{}" }}, )",
+                time_us,
+                time_ns,
+                system_time);
+    }
+
+    std::size_t offset = formatted.size();
+    formatted.resize(initial_size);
+
+    // The JSONExport will try to emit a full JSON object starting
+    // with the opening '{'. Above we created the "partial" JSON to include
+    // the clock mapping. We need to swallow the initial '{' the exporter
+    // will emit, otherwise we'll end up with an invalid JSON
+    exporter.read(formatted.data(), 1);
+    // Verify that it didn't return something else
+    Expects(formatted.front() == '{');
+
     do {
-        formatted.resize(formatted.size() + chunksize);
-        last_wrote = exporter.read(&formatted[formatted.size() - chunksize],
-                                   chunksize);
+        if (offset == formatted.size()) {
+            formatted.resize(offset + chunksize);
+        }
+
+        const auto last_wrote = exporter.read(formatted.data() + offset,
+                                              formatted.size() - offset);
+        offset += last_wrote;
     } while (!exporter.done());
-    formatted.resize(formatted.size() - (chunksize - last_wrote));
+    formatted.resize(offset);
 
     const auto uuid = cb::uuid::random();
     traceDumps.lock()->emplace(uuid, DumpContext{std::move(formatted)});
