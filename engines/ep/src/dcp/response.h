@@ -81,10 +81,14 @@ public:
         return OptionalSeqno{/*no-seqno*/};
     }
 
-    /* Returns true if this response is a meta event (i.e. not an operation on
-     * an actual user document.
+    /**
+     * Function used in backfill code to determine if the current queued item
+     * represents a persisted item, e.g. a mutation or delete
+     *
+     * @return true if this event is persisted (something which has been
+     * recombobulated from the KVStore )
      */
-    bool isMetaEvent() const {
+    bool isPersistedEvent() const {
         switch (event_) {
         case Event::Mutation:
         case Event::Deletion:
@@ -92,31 +96,23 @@ public:
         case Event::Prepare:
         case Event::Commit:
         case Event::Abort:
-        case Event::CachedValue:
-            return false;
-
+        case Event::SystemEvent:
+            return true;
         case Event::SetVbucket:
         case Event::StreamReq:
         case Event::StreamEnd:
         case Event::SnapshotMarker:
         case Event::AddStream:
-        case Event::SystemEvent:
         case Event::SeqnoAcknowledgement:
         case Event::OSOSnapshot:
         case Event::SeqnoAdvanced:
+        case Event::CachedValue:
         case Event::CacheTransferToActiveStream:
-            return true;
+            return false;
         }
         throw std::invalid_argument(
-                "DcpResponse::isMetaEvent: Invalid event_ " +
+                "DcpResponse::isPersistedEvent: Invalid event_ " +
                 std::to_string(int(event_)));
-    }
-
-    /**
-     * Returns if the response is a system event
-     */
-    bool isSystemEvent() const {
-        return (event_ == Event::SystemEvent);
     }
 
     virtual size_t getMessageSize() const = 0;

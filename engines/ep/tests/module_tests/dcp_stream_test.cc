@@ -768,11 +768,13 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     std::unique_ptr<DcpResponse> response(
             stream->public_nextQueuedItem(*producer));
     ASSERT_NE(nullptr, response);
-    EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
+    EXPECT_FALSE(response->isPersistedEvent())
+            << "Expected 1st item to not be a persisted event";
 
     response = stream->public_nextQueuedItem(*producer);
     ASSERT_NE(nullptr, response);
-    EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
+    EXPECT_TRUE(response->isPersistedEvent())
+            << "Expected 2nd item to be from persistence";
 
     response = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";

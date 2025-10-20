@@ -798,7 +798,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
     if (resp) {
         producer.recordBackfillManagerBytesSent(resp->getApproximateSize());
         bufferedBackfill.bytes.fetch_sub(resp->getApproximateSize());
-        if (!resp->isMetaEvent() || resp->isSystemEvent()) {
+        if (resp->isPersistedEvent()) {
             bufferedBackfill.items--;
         }
 
