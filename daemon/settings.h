@@ -1233,7 +1233,7 @@ protected:
     std::atomic<size_t> fusion_migration_rate_limit{75_MiB};
 
     // The rate limit for Fusion sync uploads, in bytes per second
-    std::atomic<size_t> fusion_sync_rate_limit{1024 * 1024 * 75};
+    std::atomic<size_t> fusion_sync_rate_limit{75_MiB};
 
     /**
      * Note that it is not safe to add new listeners after we've spun up
