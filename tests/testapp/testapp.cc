@@ -552,6 +552,8 @@ nlohmann::json TestappTest::generate_config() {
     if (isFusionSupportEnabled()) {
         ret["fusion_migration_rate_limit"] = 75_MiB;
         ret["fusion_sync_rate_limit"] = 75_MiB;
+        ret["fusion_num_uploader_threads"] = 1;
+        ret["fusion_num_migrator_threads"] = 1;
     }
 
     return ret;

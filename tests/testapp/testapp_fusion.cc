@@ -980,3 +980,31 @@ TEST_P(FusionTest, GetFusionNamespaces) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
     }
 }
+
+TEST_P(FusionTest, FusionNumUploaderThreads) {
+    auto [ec, num] = getStat("fusion_num_uploader_threads");
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(1, num);
+    setMemcachedConfig("fusion_num_uploader_threads", 2);
+    std::tie(ec, num) = getStat("fusion_num_uploader_threads");
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(2, num);
+}
+
+TEST_P(FusionTest, FusionNumMigratorThreads) {
+    auto [ec, num] = getStat("fusion_num_migrator_threads");
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(1, num);
+    setMemcachedConfig("fusion_num_migrator_threads", 2);
+    std::tie(ec, num) = getStat("fusion_num_migrator_threads");
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(2, num);
+}

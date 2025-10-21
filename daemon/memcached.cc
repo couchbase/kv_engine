@@ -500,6 +500,16 @@ static void settings_init() {
                                    magma::Magma::SetFusionSyncRateLimit(
                                            s.getFusionSyncRateLimit());
                                });
+    settings.addChangeListener(
+            "fusion_num_uploader_threads", [](const auto&, auto& s) {
+                magma::Magma::SetNumThreads(magma::Magma::FusionUploader,
+                                            s.getFusionNumUploaderThreads());
+            });
+    settings.addChangeListener(
+            "fusion_num_migrator_threads", [](const auto&, auto& s) {
+                magma::Magma::SetNumThreads(magma::Magma::FusionMigrator,
+                                            s.getFusionNumMigratorThreads());
+            });
 }
 
 /**

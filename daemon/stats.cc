@@ -70,6 +70,12 @@ static void server_global_stats(const StatCollector& collector) {
                               magma::Magma::GetFusionMigrationRateLimit());
             collector.addStat(Key::fusion_sync_rate_limit,
                               magma::Magma::GetFusionSyncRateLimit());
+            collector.addStat(
+                    Key::fusion_num_uploader_threads,
+                    magma::Magma::GetNumThreads(magma::Magma::FusionUploader));
+            collector.addStat(
+                    Key::fusion_num_migrator_threads,
+                    magma::Magma::GetNumThreads(magma::Magma::FusionMigrator));
         }
 
         auto sdks = SdkConnectionManager::instance().getConnectedSdks();

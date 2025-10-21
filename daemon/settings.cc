@@ -413,6 +413,22 @@ void Settings::reconfigure(const nlohmann::json& json) {
                                 {"value", value.dump()},
                                 {"reason", "Fusion support is not enabled"});
             }
+        } else if (key == "fusion_num_uploader_threads") {
+            if (isFusionSupportEnabled()) {
+                setFusionNumUploaderThreads(value.get<size_t>());
+            } else {
+                LOG_WARNING_CTX("Ignore fusion_num_uploader_threads",
+                                {"value", value.dump()},
+                                {"reason", "Fusion support is not enabled"});
+            }
+        } else if (key == "fusion_num_migrator_threads") {
+            if (isFusionSupportEnabled()) {
+                setFusionNumMigratorThreads(value.get<size_t>());
+            } else {
+                LOG_WARNING_CTX("Ignore fusion_num_migrator_threads",
+                                {"value", value.dump()},
+                                {"reason", "Fusion support is not enabled"});
+            }
         } else if (key == "phosphor_config"sv) {
             auto config = value.get<std::string>();
             // throw an exception if the config is invalid
@@ -1041,6 +1057,26 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFusionSyncRateLimit()},
                          {"to", other.getFusionSyncRateLimit()});
             setFusionSyncRateLimit(other.getFusionSyncRateLimit());
+        }
+    }
+
+    if (other.has.fusion_num_uploader_threads) {
+        if (other.getFusionNumUploaderThreads() !=
+            getFusionNumUploaderThreads()) {
+            LOG_INFO_CTX("Change fusion num uploader threads",
+                         {"from", getFusionNumUploaderThreads()},
+                         {"to", other.getFusionNumUploaderThreads()});
+            setFusionNumUploaderThreads(other.getFusionNumUploaderThreads());
+        }
+    }
+
+    if (other.has.fusion_num_migrator_threads) {
+        if (other.getFusionNumMigratorThreads() !=
+            getFusionNumMigratorThreads()) {
+            LOG_INFO_CTX("Change fusion num migrator threads",
+                         {"from", getFusionNumMigratorThreads()},
+                         {"to", other.getFusionNumMigratorThreads()});
+            setFusionNumMigratorThreads(other.getFusionNumMigratorThreads());
         }
     }
 

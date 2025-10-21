@@ -325,6 +325,26 @@ public:
         notify_changed("fusion_sync_rate_limit");
     }
 
+    size_t getFusionNumUploaderThreads() const {
+        return fusion_num_uploader_threads.load(std::memory_order_acquire);
+    }
+
+    void setFusionNumUploaderThreads(size_t value) {
+        fusion_num_uploader_threads.store(value, std::memory_order_release);
+        has.fusion_num_uploader_threads = true;
+        notify_changed("fusion_num_uploader_threads");
+    }
+
+    size_t getFusionNumMigratorThreads() const {
+        return fusion_num_migrator_threads.load(std::memory_order_acquire);
+    }
+
+    void setFusionNumMigratorThreads(size_t value) {
+        fusion_num_migrator_threads.store(value, std::memory_order_release);
+        has.fusion_num_migrator_threads = true;
+        notify_changed("fusion_num_migrator_threads");
+    }
+
     size_t getMaxUserConnections() const {
         return getMaxConnections() - getSystemConnections();
     }
@@ -1235,6 +1255,12 @@ protected:
     // The rate limit for Fusion sync uploads, in bytes per second
     std::atomic<size_t> fusion_sync_rate_limit{75_MiB};
 
+    // The number of Fusion Uploader threads
+    std::atomic<size_t> fusion_num_uploader_threads{4};
+
+    // The number of Fusion Migrator threads
+    std::atomic<size_t> fusion_num_migrator_threads{4};
+
     /**
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.
@@ -1462,6 +1488,8 @@ public:
         bool max_concurrent_authentications = false;
         bool fusion_migration_rate_limit = false;
         bool fusion_sync_rate_limit = false;
+        bool fusion_num_uploader_threads = false;
+        bool fusion_num_migrator_threads = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;

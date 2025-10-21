@@ -988,6 +988,32 @@ TEST(SettingsUpdateTest, FusionSyncRateLimitIsDynamic) {
     EXPECT_EQ(1000, settings.getFusionSyncRateLimit());
 }
 
+TEST(SettingsUpdateTest, FusionNumUploaderThreads) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionNumUploaderThreads(2);
+    // Setting to the same value succeeds
+    updated.setFusionNumUploaderThreads(2);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setFusionNumUploaderThreads(4);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(4, settings.getFusionNumUploaderThreads());
+}
+
+TEST(SettingsUpdateTest, FusionNumMigratorThreads) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionNumMigratorThreads(2);
+    // Setting to the same value succeeds
+    updated.setFusionNumMigratorThreads(2);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setFusionNumMigratorThreads(4);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(4, settings.getFusionNumMigratorThreads());
+}
+
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {
     Settings updated;
     Settings settings;

@@ -2037,6 +2037,20 @@
         "added": "8.0.0"
 
     },
+    {
+        "key": "fusion_num_uploader_threads",
+        "unit": "bytes",
+        "description": "The number of Fusion Uploader threads.",
+        "added": "8.0.0"
+
+    },
+    {
+        "key": "fusion_num_migrator_threads",
+        "unit": "bytes",
+        "description": "The number of Fusion Migrator threads.",
+        "added": "8.0.0"
+
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",
