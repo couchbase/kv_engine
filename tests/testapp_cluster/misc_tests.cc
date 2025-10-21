@@ -625,6 +625,10 @@ TEST_F(BasicClusterTest, SubdocReplicaReadDeletedDocument) {
 }
 
 TEST_F(BasicClusterTest, OAUTHBEARER) {
+    constexpr auto lifetime = folly::kIsSanitizeThread
+                                      ? std::chrono::seconds(15)
+                                      : std::chrono::seconds(5);
+
     auto builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
     builder->addClaim("cb-rbac", cb::base64url::encode(R"({
   "buckets": {
@@ -635,8 +639,7 @@ TEST_F(BasicClusterTest, OAUTHBEARER) {
   "privileges": [],
   "domain": "external"
 })"));
-    builder->setExpiration(std::chrono::system_clock::now() +
-                           std::chrono::seconds(2));
+    builder->setExpiration(std::chrono::system_clock::now() + lifetime);
     const auto readOnlyToken = builder->build();
     builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
     builder->addClaim("cb-rbac", cb::base64url::encode(R"({
@@ -648,8 +651,7 @@ TEST_F(BasicClusterTest, OAUTHBEARER) {
   "privileges": [],
   "domain": "external"
 })"));
-    builder->setExpiration(std::chrono::system_clock::now() +
-                           std::chrono::seconds(2));
+    builder->setExpiration(std::chrono::system_clock::now() + lifetime);
     const auto readWriteToken = builder->build();
 
     builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
@@ -662,8 +664,7 @@ TEST_F(BasicClusterTest, OAUTHBEARER) {
   "privileges": [],
   "domain": "external"
 })"));
-    builder->setNotBefore(std::chrono::system_clock::now() +
-                          std::chrono::seconds(2));
+    builder->setNotBefore(std::chrono::system_clock::now() + lifetime);
     const auto readNotReadyToken = builder->build();
 
     auto readOnlyConn = cluster->getBucket("default")->getConnection(Vbid{0});
@@ -691,14 +692,13 @@ TEST_F(BasicClusterTest, OAUTHBEARER) {
     readWriteConn->selectBucket("default");
     readWriteConn->arithmetic("counter", 1, 0);
 
-    // The token expire after two seconds
-    std::this_thread::sleep_for(std::chrono::seconds{3});
+    // Wait for the token to expire
+    std::this_thread::sleep_for(lifetime + std::chrono::seconds(1));
     auto resp = readWriteConn->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     EXPECT_EQ(cb::mcbp::Status::AuthStale, resp.getStatus());
 
-    builder->setExpiration(std::chrono::system_clock::now() +
-                           std::chrono::seconds(2));
+    builder->setExpiration(std::chrono::system_clock::now() + lifetime);
     auto refreshToken = builder->build();
     readWriteConn->authenticate({}, refreshToken, "OAUTHBEARER");
 
