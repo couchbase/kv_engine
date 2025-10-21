@@ -210,6 +210,9 @@ nlohmann::json Connection::to_json() const {
     ret["last_used"] =
             cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now() - last_used_timestamp));
+    if (!terminationReason.empty()) {
+        ret["termination_reason"] = terminationReason;
+    }
     return ret;
 }
 
