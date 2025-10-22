@@ -7211,6 +7211,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_fusion_bytes_migrated",
                           "ep_fusion_log_store_data_size",
                           "ep_fusion_log_store_garbage_size",
+                          "ep_fusion_log_store_summary_section_size",
                           "ep_fusion_logs_cleaned",
                           "ep_fusion_log_clean_bytes_read",
                           "ep_fusion_extent_merger_reads",

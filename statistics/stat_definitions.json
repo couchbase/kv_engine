@@ -1856,6 +1856,13 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_fusion_log_store_summary_section_size",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total size of the summary section of all logs on FusionLogStore.",
+        "added": "8.0.0"
+    },
+    {
         "key": "ep_fusion_logs_cleaned",
         "unit": "count",
         "type": "counter",
