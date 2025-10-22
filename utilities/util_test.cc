@@ -435,7 +435,7 @@ TEST(ConfigParserTest, A) {
     ASSERT_NE(cfg, nullptr);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
-    sprintf(buffer, "config_file=%s", cfgfile.c_str());
+    snprintf(buffer, sizeof(buffer), "config_file=%s", cfgfile.c_str());
     ASSERT_EQ(0, parse_config(buffer, items, error));
     EXPECT_TRUE(bool_val);
     EXPECT_EQ(1023u, size_val);

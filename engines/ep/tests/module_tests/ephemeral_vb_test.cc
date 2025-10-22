@@ -840,9 +840,8 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
     std::thread fe1{writer, std::ref(started), std::ref(completed), 1};
     std::thread fe2{writer, std::ref(started), std::ref(completed), 2};
 
-    size_t purged = 0;
     do {
-        purged += mockEpheVB->markOldTombstonesStale(0);
+        mockEpheVB->markOldTombstonesStale(0);
         std::this_thread::yield();
     } while (completed != 2);
 

@@ -97,8 +97,7 @@ void assoc_destroy() {
 hash_item *assoc_find(uint32_t hash, const hash_key *key) {
     hash_item *it;
     unsigned int oldbucket;
-    hash_item *ret = nullptr;
-    int depth = 0;
+    hash_item* ret = nullptr;
     std::lock_guard<std::mutex> guard(global_assoc->mutex);
     if (global_assoc->expanding &&
         (oldbucket = (hash & hashmask(global_assoc->hashpower - 1))) >= global_assoc->expand_bucket)
@@ -118,7 +117,6 @@ hash_item *assoc_find(uint32_t hash, const hash_key *key) {
             break;
         }
         it = it->h_next;
-        ++depth;
     }
     return ret;
 }

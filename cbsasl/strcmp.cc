@@ -29,5 +29,6 @@ int cbsasl_secure_compare(const char* a,
         }
     }
 
+    (void)yi;
     return acc;
 }

@@ -128,7 +128,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
 
     for (int i = 0; i < 5001; i++) {
         char key[8];
-        sprintf(key, "key%d", i);
+        snprintf(key,sizeof(key), "key%d", i);
         checkeq(cb::engine_errc::success,
                 store(h, nullptr, StoreSemantics::Set, key, "value"),
                 "Failed to store an item.");

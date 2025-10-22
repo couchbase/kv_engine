@@ -358,7 +358,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, std::move(descr), move(ssl));
+        thread.new_conn_queue.push(sfd, std::move(descr), std::move(ssl));
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (is_memcached_shutting_down()) {
                 if (signal_idle_clients(thread, false) == 0) {

@@ -1177,7 +1177,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     if (valueStats.getNumItems() == 0 || !isActive()) {
         return;
     }
-    size_t visited = 0;
+
     // Acquire one (any) of the mutexes before incrementing {visitors}, this
     // prevents any race between this visitor and the HashTable resizer.
     // See comments in pauseResumeVisit() for further details.
@@ -1212,7 +1212,6 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
                 p = p->getNext().get().get();
             }
             visitor.visit(i, depth, mem);
-            ++visited;
         }
     }
 }
