@@ -44,7 +44,6 @@ built via the Couchbase
 * [Role Based Access Control (RBAC)](docs/rbac.md)
 * [SSL Client Certificate](docs/ssl_client_cert.md)
 * [DCP](docs/dcp/README.md)
-* [Memcached configuration file](docs/memcached.json.adoc)
 * [Network interfaces](docs/NetworkInterface.md)
 * [HiFi MFU Eviction Policy](docs/HiFi_MFU_eviction_policy.md)
 * [Throttling](docs/Throttling.md)

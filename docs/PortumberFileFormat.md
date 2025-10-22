@@ -1,6 +1,6 @@
 # Portnumber file format
 
-The file specified as `portnumber_file` in [memcached.json](memcached.json.adoc)
+The file specified as `portnumber_file` in memcached.json
 contains a JSON object with the following format:
 
     {

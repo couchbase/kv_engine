@@ -16,8 +16,7 @@
 
 /**
  * The NetworkInterface class is an in-memory representation of the
- * attributes one may specify for a network interface. See
- * docs/memcached.json.adoc for a description of the various properties
+ * attributes one may specify for a network interface.
  */
 class NetworkInterface {
 public:
