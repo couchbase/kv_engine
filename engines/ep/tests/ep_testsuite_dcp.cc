@@ -237,6 +237,8 @@ public:
         stream_ctxs.push_back(ctx);
     }
 
+    void openConnectionAndStreams();
+
     void run(bool openConn = true);
 
     // Stop the thread if it is running. This is safe to be called from
@@ -381,22 +383,22 @@ void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
     }
 }
 
-void TestDcpConsumer::run(bool openConn) {
+void TestDcpConsumer::openConnectionAndStreams() {
     checkle(size_t{1}, stream_ctxs.size(), "No dcp_stream arguments provided!");
-
-    /* Open the connection with the DCP producer */
-    if (openConn) {
-        openConnection();
-    }
-
+    openConnection();
     if (collectionFilter) {
         // Enable noop ops needed for collections
         checkeq(cb::engine_errc::success,
                 dcp->control(*cookie, opaque, "enable_noop", "true"),
                 "Failed to enable noop");
     }
-    /* Open streams in the above open connection */
     openStreams();
+}
+
+void TestDcpConsumer::run(bool openConn) {
+    if (openConn) {
+        openConnectionAndStreams();
+    }
 
     size_t num_stream_ends_received = 0;
     uint32_t bytes_read = 0;
@@ -2155,7 +2157,7 @@ static test_result testDcpProducerExpiredItemBackfill(
     }
 
     tdc.addStreamCtx(ctx);
-
+    tdc.openStreams();
     tdc.run(false);
 
     testHarness->destroy_cookie(cookie);
@@ -2419,6 +2421,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     ctx.flags |= cb::mcbp::DcpAddStreamFlag::DiskOnly;
 
     tdc.addStreamCtx(ctx);
+    tdc.openStreams();
     tdc.run(false);
 
     checkeq(tdc.getNruCounters()[1],
@@ -2565,18 +2568,16 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     const std::string conn_name = "test-consumer";
     auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
-    auto dcp_thread = create_thread(
-            [&]() {
-                DcpStreamCtx ctx;
-                ctx.vbucket = Vbid(0);
-                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
-                ctx.snapshot = {0, 0};
-                ctx.skip_verification = true;
-                consumer->addStreamCtx(ctx);
-                consumer->run();
-            },
-            "dcp_thread");
+    DcpStreamCtx ctx;
+    ctx.vbucket = Vbid(0);
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+    ctx.snapshot = {0, 0};
+    ctx.skip_verification = true;
+    consumer->addStreamCtx(ctx);
+    consumer->openConnectionAndStreams();
+    auto dcp_thread =
+            create_thread([&]() { consumer->run(false); }, "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2699,18 +2700,16 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     auto* cookie1 = testHarness->create_cookie(h);
     const std::string conn_name1 = "test-consumer";
     auto consumer = std::make_unique<TestDcpConsumer>(conn_name1, cookie1, h);
-    auto dcp_thread = create_thread(
-            [&]() {
-                DcpStreamCtx ctx;
-                ctx.vbucket = Vbid(0);
-                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
-                ctx.snapshot = {0, 0};
-                ctx.skip_verification = true;
-                consumer->addStreamCtx(ctx);
-                consumer->run();
-            },
-            "dcp_thread");
+    DcpStreamCtx ctx;
+    ctx.vbucket = Vbid(0);
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+    ctx.snapshot = {0, 0};
+    ctx.skip_verification = true;
+    consumer->addStreamCtx(ctx);
+    consumer->openConnectionAndStreams();
+    auto dcp_thread =
+            create_thread([&]() { consumer->run(false); }, "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -2775,18 +2774,16 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     auto* cookie = testHarness->create_cookie(h);
     const std::string conn_name = "test-consumer";
     auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
-    auto dcp_thread = create_thread(
-            [&]() {
-                DcpStreamCtx ctx;
-                ctx.vbucket = Vbid(0);
-                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-                ctx.seqno = {20, std::numeric_limits<uint64_t>::max()};
-                ctx.snapshot = {20, 20};
-                ctx.skip_verification = true;
-                consumer->addStreamCtx(ctx);
-                consumer->run();
-            },
-            "dcp_thread");
+    DcpStreamCtx ctx;
+    ctx.vbucket = Vbid(0);
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {20, std::numeric_limits<uint64_t>::max()};
+    ctx.snapshot = {20, 20};
+    ctx.skip_verification = true;
+    consumer->addStreamCtx(ctx);
+    consumer->openConnectionAndStreams();
+    auto dcp_thread =
+            create_thread([&]() { consumer->run(false); }, "dcp_thread");
 
     /* Wait for producer to be created */
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -5757,6 +5754,7 @@ static test_result test_dcp_replica_stream_expiries(
                 "Failed to enable_expiry_opcode");
     }
     tdc.addStreamCtx(ctx);
+    tdc.openStreams();
     tdc.run(false);
 
     testHarness->destroy_cookie(cookie1);
@@ -5841,7 +5839,7 @@ static test_result test_stream_deleteWithMeta_expiration(
     }
 
     tdc.addStreamCtx(ctx);
-
+    tdc.openStreams();
     tdc.run(false);
 
     testHarness->destroy_cookie(cookie);
@@ -7046,20 +7044,19 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
 static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
     // Set up a DcpTestConsumer that would remain in in-memory mode
     auto* cookie = testHarness->create_cookie(h);
+
     const std::string conn_name = "test-consumer";
     auto consumer = std::make_unique<TestDcpConsumer>(conn_name, cookie, h);
-    auto dcp_thread = create_thread(
-            [&]() {
-                DcpStreamCtx ctx;
-                ctx.vbucket = Vbid(0);
-                ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-                ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
-                ctx.snapshot = {0, 0};
-                ctx.skip_verification = true;
-                consumer->addStreamCtx(ctx);
-                consumer->run();
-            },
-            "dcp_thread");
+    DcpStreamCtx ctx;
+    ctx.vbucket = Vbid(0);
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+    ctx.snapshot = {0, 0};
+    ctx.skip_verification = true;
+    consumer->addStreamCtx(ctx);
+    consumer->openConnectionAndStreams();
+    auto dcp_thread =
+            create_thread([&]() { consumer->run(false); }, "dcp_thread");
 
     // Wait for producer to be created
     wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
@@ -7895,6 +7892,7 @@ static enum test_result testDcpOsoBackfill(EngineIface* h) {
             "Failed control enable_out_of_order_snapshots");
 
     tdc.addStreamCtx(ctx);
+    tdc.openStreams();
     tdc.run(false);
 
     testHarness->destroy_cookie(cookie);
