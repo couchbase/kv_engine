@@ -351,17 +351,6 @@ TEST_F(TestappTest, MB_46853_TotalBodyLengthValidation) {
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 }
 
-TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
-    auto rsp = adminConnection->execute(SetNodeThrottlePropertiesCommand(
-            nlohmann::json{{"capacity", 1024}}));
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
-            << rsp.getDataJson().dump();
-    rsp = adminConnection->execute(SetBucketThrottlePropertiesCommand(
-            bucketName, {{"reserved", 1024}}));
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
-            << rsp.getDataJson().dump();
-}
-
 TEST_F(TestappTest, TuneMaxConcurrentAuth) {
     auto waitfor = [](int prev, int next) {
         auto message = fmt::format(

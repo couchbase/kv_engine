@@ -1763,39 +1763,6 @@ static Status set_bucket_throttle_properties_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-static Status set_node_throttle_properties_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::NonZero,
-                                               ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
-                                               PROTOCOL_BINARY_DATATYPE_JSON);
-    if (status != Status::Success) {
-        return status;
-    }
-
-    auto payload = cookie.getHeader().getValueString();
-    if (payload.size() > 1024) {
-        // we don't want to go off json parsing incredible json payloads.
-        // the document should be < 100 bytes...
-        cookie.setErrorContext("Unexpected payload");
-        return Status::Einval;
-    }
-
-    try {
-        const cb::throttle::SetNodeThrottleLimitPayload limits =
-                nlohmann::json::parse(cookie.getHeader().getValueString());
-        (void)limits;
-    } catch (const std::exception& exception) {
-        cookie.setErrorContext(
-                fmt::format("Invalid payload for SetNodeThrottleProperties: {}",
-                            exception.what()));
-        return Status::Einval;
-    }
-    return Status::Success;
-}
-
 static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     auto ret = McbpValidator::verify_header(
@@ -3203,16 +3170,9 @@ McbpValidator::McbpValidator() {
           set_active_encryption_key_validator);
     setup(ClientOpcode::PruneEncryptionKeys, prune_encryption_keys_validator);
 
-    if (cb::serverless::isEnabled()) {
-        setup(ClientOpcode::SetBucketThrottleProperties,
-              set_bucket_throttle_properties_validator);
-        setup(ClientOpcode::SetNodeThrottleProperties,
-              set_node_throttle_properties_validator);
-    } else {
-        setup(ClientOpcode::SetBucketThrottleProperties,
-              not_supported_validator);
-        setup(ClientOpcode::SetNodeThrottleProperties, not_supported_validator);
-    }
+    setup(ClientOpcode::SetBucketThrottleProperties,
+          set_bucket_throttle_properties_validator);
+    setup(ClientOpcode::SetNodeThrottleProperties, not_supported_validator);
 
     setup(ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(ClientOpcode::GetAdjustedTime_Unsupported, not_supported_validator);

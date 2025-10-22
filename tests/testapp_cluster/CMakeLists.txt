@@ -14,6 +14,7 @@ cb_add_test_executable(cluster_test
                rbac_tests.cc
                regression_tests.cc
                snapshot_tests.cc
+               throttling_tests.cc
                upgrade_test.cc
                upgrade_test.h)
 target_link_libraries(cluster_test PRIVATE cluster_framework snapshot)
