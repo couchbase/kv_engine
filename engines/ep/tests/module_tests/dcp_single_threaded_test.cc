@@ -826,9 +826,6 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     const DocKeyView docKey{reinterpret_cast<const uint8_t*>(key.data()),
                             key.size(),
                             DocKeyEncodesCollectionId::No};
-    std::array<uint8_t, 1> extMeta;
-    extMeta[0] = uint8_t(PROTOCOL_BINARY_DATATYPE_JSON);
-    cb::const_byte_buffer meta{extMeta.data(), extMeta.size()};
 
     consumer->deletion(/*opaque*/ 1,
                        /*key*/ docKey,
@@ -838,10 +835,9 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
                        /*vbucket*/ vbid,
                        /*bySeqno*/ 1,
                        /*revSeqno*/ 0,
-                       /*meta*/ meta);
+                       /*meta*/ {});
 
-    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size() +
-                       sizeof(extMeta);
+    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size();
 
     EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 
@@ -884,9 +880,6 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
                             DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
-    std::array<uint8_t, 1> extMeta;
-    extMeta[0] = uint8_t(PROTOCOL_BINARY_DATATYPE_JSON);
-    cb::const_byte_buffer meta{extMeta.data(), extMeta.size()};
 
     consumer->mutation(/*opaque*/ 1,
                        /*key*/ docKey,
@@ -899,11 +892,11 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
                        /*revSeqno*/ 0,
                        /*exptime*/ 0,
                        /*lock_time*/ 0,
-                       /*meta*/ meta,
+                       /*meta*/ {},
                        /*nru*/ 0);
 
-    auto messageSize = MutationResponse::mutationBaseMsgBytes + key.size() +
-                       data.size() + sizeof(extMeta);
+    auto messageSize =
+            MutationResponse::mutationBaseMsgBytes + key.size() + data.size();
 
     EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 

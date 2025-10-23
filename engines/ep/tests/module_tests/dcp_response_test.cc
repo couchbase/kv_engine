@@ -126,7 +126,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             {}); // sid
 
     const auto smV1_size =
-            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
 
     EXPECT_EQ(smV1_size, smV1.getMessageSize());
@@ -156,7 +156,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             {}); // sid
 
     const auto smV2_0_size =
-            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
 
@@ -178,7 +178,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             cb::mcbp::DcpStreamId(6)); // sid
 
     const auto smV1_size =
-            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
             sizeof(cb::mcbp::DcpStreamIdFrameInfo);
 
@@ -209,7 +209,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             cb::mcbp::DcpStreamId(7)); // sid
 
     const auto smV2_0_size =
-            SnapshotMarkerResponse::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value) +
             sizeof(cb::mcbp::DcpStreamIdFrameInfo);

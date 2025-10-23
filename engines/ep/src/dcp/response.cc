@@ -15,23 +15,6 @@
 
 #include <typeinfo>
 
-/*
- * These constants are calculated from the size of the packets that are
- * created by each message when it gets sent over the wire. The packet
- * structures are located in the protocol_binary.h file in the memcached
- * project.
- */
-
-const size_t StreamRequest::baseMsgBytes = 72;
-const size_t AddStreamResponse::baseMsgBytes = 28;
-const size_t SnapshotMarkerResponse::baseMsgBytes = 24;
-const size_t SetVBucketStateResponse::baseMsgBytes = 24;
-const size_t StreamEndResponse::baseMsgBytes = 28;
-const size_t SetVBucketState::baseMsgBytes = 25;
-const size_t SnapshotMarker::baseMsgBytes = 24;
-const size_t OSOSnapshot::baseMsgBytes = 28;
-const size_t SeqnoAdvanced::baseMsgBytes = 32;
-
 const char* DcpResponse::to_string() const {
     switch (event_) {
     case Event::Mutation:
@@ -83,49 +66,59 @@ bool operator!=(const DcpResponse& lhs, const DcpResponse& rhs) {
 
 bool DcpResponse::isEqual(const DcpResponse& other) const {
     return opaque_ == other.opaque_ && event_ == other.event_ &&
-           sid == other.sid;
+           sid == other.sid && flowControlSize == other.flowControlSize;
 }
 
-uint32_t MutationResponse::getDeleteLength() const {
-    if ((enableExpiryOutput == EnableExpiryOutput::Yes) &&
-        (item_->deletionSource() == DeleteSource::TTL)) {
+uint32_t MutationResponse::getDeleteLength(Item& item,
+                                           IncludeDeleteTime deleteTime,
+                                           EnableExpiryOutput expiry) {
+    if ((expiry == EnableExpiryOutput::Yes) &&
+        (item.deletionSource() == DeleteSource::TTL)) {
         return expirationBaseMsgBytes;
     }
-    if (includeDeleteTime == IncludeDeleteTime::Yes) {
+    if (deleteTime == IncludeDeleteTime::Yes) {
         return deletionV2BaseMsgBytes;
     }
     return deletionBaseMsgBytes;
 }
 
-uint32_t MutationResponse::getHeaderSize() const {
-    switch (item_->getOperation()) {
+uint32_t MutationResponse::getHeaderSize(Item& item,
+                                         IncludeDeleteTime deleteTime,
+                                         EnableExpiryOutput expiry) {
+    switch (item.getOperation()) {
     case queue_op::mutation:
     case queue_op::system_event:
     case queue_op::commit_sync_write:
         // A commit_sync_write which is being sent as a vanilla DCP_MUTATION,
         // either because the DCP client doesn't support SyncWrites, or because
         // it does but it never received the corresponding prepare.
-        return item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
+        return item.isDeleted() ? getDeleteLength(item, deleteTime, expiry)
+                                : mutationBaseMsgBytes;
     case queue_op::pending_sync_write:
         return prepareBaseMsgBytes;
     default:
         throw std::logic_error(
                 "MutationResponse::getHeaderSize: Invalid operation " +
-                ::to_string(item_->getOperation()));
+                ::to_string(item.getOperation()));
     }
 }
 
-size_t MutationResponse::getMessageSize() const {
-    const uint32_t header = getHeaderSize();
+uint32_t MutationResponse::calculateFlowControlSize(
+        Item& item,
+        IncludeDeleteTime deleteTime,
+        DocKeyEncodesCollectionId encodeCid,
+        EnableExpiryOutput expiry,
+        cb::mcbp::DcpStreamId sid) {
+    const uint32_t header = getHeaderSize(item, deleteTime, expiry);
     size_t keySize = 0;
-    if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
-        keySize = item_->getKey().size();
+    if (encodeCid == DocKeyEncodesCollectionId::Yes) {
+        keySize = item.getKey().size();
     } else {
-        keySize = item_->getKey().makeDocKeyWithoutCollectionID().size();
+        keySize = item.getKey().makeDocKeyWithoutCollectionID().size();
     }
-    size_t body = keySize + item_->getNBytes();
-    body += (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
-    return header + body;
+    size_t body = keySize + item.getNBytes();
+    body += (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
+    return static_cast<uint32_t>(header + body);
 }
 
 MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
@@ -138,19 +131,7 @@ MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
                        response.getDocKeyEncodesCollectionId(),
                        response.getEnableExpiryOutput(),
                        response.getStreamId(),
-                       response.getEvent()),
-      emd(nullptr) {
-}
-
-size_t MutationConsumerMessage::getMessageSize() const {
-    auto body = MutationResponse::getMessageSize();
-
-    // Check to see if we need to include the extended meta data size.
-    if (emd) {
-        body += emd->getExtMeta().second;
-    }
-
-    return body;
+                       response.getEvent()) {
 }
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
@@ -166,11 +147,13 @@ CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
                                  uint64_t commitSeqno,
                                  const DocKeyView& key,
                                  DocKeyEncodesCollectionId includeCollectionID)
-    : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
+    : DcpResponse(Event::Commit,
+                  opaque,
+                  cb::mcbp::DcpStreamId{},
+                  calculateFlowControlSize(key, includeCollectionID)),
       vbucket(vbucket),
       key(key),
-      payload(preparedSeqno, commitSeqno),
-      includeCollectionID(includeCollectionID) {
+      payload(preparedSeqno, commitSeqno) {
 }
 
 CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
@@ -186,14 +169,15 @@ CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
                       key.getEncoding()) {
 }
 
-size_t CommitSyncWrite::getMessageSize() const {
-    auto size = commitBaseMsgBytes;
+uint32_t CommitSyncWrite::calculateFlowControlSize(
+        const DocKeyView& key, DocKeyEncodesCollectionId includeCollectionID) {
+    size_t size = commitBaseMsgBytes;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         size += key.size();
     } else {
         size += key.makeDocKeyWithoutCollectionID().size();
     }
-    return size;
+    return gsl::narrow_cast<uint32_t>(size);
 }
 
 AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
@@ -202,11 +186,13 @@ AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
                                uint64_t preparedSeqno,
                                uint64_t abortSeqno,
                                DocKeyEncodesCollectionId includeCollectionID)
-    : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
+    : DcpResponse(Event::Abort,
+                  opaque,
+                  cb::mcbp::DcpStreamId{},
+                  calculateFlowControlSize(key, includeCollectionID)),
       vbucket(vbucket),
       key(key),
-      payload(preparedSeqno, abortSeqno),
-      includeCollectionID(includeCollectionID) {
+      payload(preparedSeqno, abortSeqno) {
 }
 
 AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
@@ -222,18 +208,20 @@ AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
                      key.getEncoding()) {
 }
 
-size_t AbortSyncWrite::getMessageSize() const {
+uint32_t AbortSyncWrite::calculateFlowControlSize(
+        const DocKeyView& key, DocKeyEncodesCollectionId includeCollectionID) {
     auto size = abortBaseMsgBytes;
     if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
         size += key.size();
     } else {
         size += key.makeDocKeyWithoutCollectionID().size();
     }
-    return size;
+    return gsl::narrow_cast<uint32_t>(size);
 }
 
 size_t SnapshotMarker::getMessageSize() const {
-    auto rv = baseMsgBytes;
+    // Header + extras-payload + optional stream-id frame-info
+    auto rv = sizeof(cb::mcbp::Request);
     if (purgeSeqno || highPreparedSeqno) {
         rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
@@ -310,21 +298,7 @@ bool MutationResponse::isEqual(const DcpResponse& rsp) const {
 }
 
 bool MutationConsumerMessage::isEqual(const DcpResponse& rsp) const {
-    if (!MutationResponse::isEqual(rsp)) {
-        return false;
-    }
-
-    const auto& other = static_cast<const MutationConsumerMessage&>(rsp);
-    if (emd && other.emd) {
-        auto ext1 = emd->getExtMeta();
-        auto ext2 = other.emd->getExtMeta();
-        if (ext1.second == ext2.second) {
-            return std::memcmp(ext1.first, ext2.first, ext1.second) == 0;
-        }
-    } else if (!emd && !other.emd) {
-        return true;
-    }
-    return false;
+    return MutationResponse::isEqual(rsp);
 }
 
 bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {
@@ -337,16 +311,14 @@ bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {
 bool CommitSyncWrite::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const CommitSyncWrite&>(rsp);
     bool eq = vbucket == other.vbucket && key == other.key &&
-              payload.getBuffer() == other.payload.getBuffer() &&
-              includeCollectionID == other.includeCollectionID;
+              payload.getBuffer() == other.payload.getBuffer();
     return eq && DcpResponse::isEqual(rsp);
 }
 
 bool AbortSyncWrite::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const AbortSyncWrite&>(rsp);
     bool eq = vbucket == other.vbucket && key == other.key &&
-              payload.getBuffer() == other.payload.getBuffer() &&
-              includeCollectionID == other.includeCollectionID;
+              payload.getBuffer() == other.payload.getBuffer();
     return eq && DcpResponse::isEqual(rsp);
 }
 

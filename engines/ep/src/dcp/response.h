@@ -45,8 +45,18 @@ public:
         CacheTransferToActiveStream
     };
 
+    DcpResponse(Event event,
+                uint32_t opaque,
+                cb::mcbp::DcpStreamId sid,
+                uint32_t flowControlSize)
+        : opaque_(opaque),
+          flowControlSize(flowControlSize),
+          sid(sid),
+          event_(event) {
+    }
+
     DcpResponse(Event event, uint32_t opaque, cb::mcbp::DcpStreamId sid)
-        : opaque_(opaque), event_(event), sid(sid) {
+        : opaque_(opaque), sid(sid), event_(event) {
     }
 
     virtual ~DcpResponse() {}
@@ -115,7 +125,13 @@ public:
                 std::to_string(int(event_)));
     }
 
-    virtual size_t getMessageSize() const = 0;
+    virtual size_t getMessageSize() const {
+        //  If this is the implementation, then the sub-class must of
+        //  pre-calculated a non-zero size and passed that value to the
+        //  constructor (and used the correct constructor).
+        Expects(flowControlSize != 0);
+        return flowControlSize;
+    }
 
     /**
      * Return approximately how many bytes this response message is using
@@ -146,10 +162,22 @@ protected:
     friend bool operator==(const DcpResponse&, const DcpResponse&);
 
 private:
-    uint32_t opaque_;
-    Event event_;
+    uint32_t opaque_{0};
+    uint32_t flowControlSize{0};
     cb::mcbp::DcpStreamId sid;
+    Event event_{Event::Mutation};
 };
+
+/*
+ * These constants are calculated from the size of the packets that are
+ * created by each message when it gets sent over the wire. The packet
+ * structures are located in the protocol_binary.h file in the memcached
+ * project. These values are used for flow-control which is limited to u32 so we
+ * can define these as u32 to avoid pointless casting. These are only relevant
+ * to replication and used by consumer/producer code for accounting
+ * flow-control.
+ */
+constexpr uint32_t SetVBucketStateFlowControlSize = 25;
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
 bool operator==(const DcpResponse& lhs, const DcpResponse& rhs);
@@ -166,7 +194,7 @@ public:
                   uint64_t snapStartSeqno,
                   uint64_t snapEndSeqno,
                   const std::string& request_value)
-        : DcpResponse(Event::StreamReq, opaque, {}),
+        : DcpResponse(Event::StreamReq, opaque, {}, flowControlBytes),
           startSeqno_(startSeqno),
           endSeqno_(endSeqno),
           vbucketUUID_(vbucketUUID),
@@ -212,16 +240,11 @@ public:
         return requestValue_;
     }
 
-    size_t getMessageSize() const override {
-        return baseMsgBytes;
-    }
-
-    static const size_t baseMsgBytes;
-
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
 private:
+    static constexpr uint32_t flowControlBytes{72};
     uint64_t startSeqno_;
     uint64_t endSeqno_;
     uint64_t vbucketUUID_;
@@ -237,7 +260,7 @@ public:
     AddStreamResponse(uint32_t opaque,
                       uint32_t streamOpaque,
                       cb::mcbp::Status status)
-        : DcpResponse(Event::AddStream, opaque, {}),
+        : DcpResponse(Event::AddStream, opaque, {}, flowControlBytes),
           streamOpaque_(streamOpaque),
           status_(status) {
     }
@@ -252,16 +275,11 @@ public:
         return status_;
     }
 
-    size_t getMessageSize() const override {
-        return baseMsgBytes;
-    }
-
-    static const size_t baseMsgBytes;
-
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
 private:
+    static constexpr uint32_t flowControlBytes{28};
     const uint32_t streamOpaque_;
     const cb::mcbp::Status status_;
 };
@@ -277,10 +295,14 @@ public:
     }
 
     size_t getMessageSize() const override {
-        return baseMsgBytes;
+        // SnapshotMarkerResponse is only created by the consumer in response
+        // to the producer message. Use of getMessageSize in that context is
+        // just used in readyQ memory accounting, not for flow-control. This is
+        // a weakness in the DcpResponse hierarchy that getMessageSize is used
+        // for both. Return sizeof the object as the best approximation of the
+        // allocation size.
+        return sizeof(*this);
     }
-
-    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -300,10 +322,14 @@ public:
     }
 
     size_t getMessageSize() const override {
-        return baseMsgBytes;
+        // SetVBucketStateResponse is only created by the consumer in response
+        // to the producer message. Use of getMessageSize in that context is
+        // just used in readyQ memory accounting, not for flow-control. This is
+        // a weakness in the DcpResponse hierarchy that getMessageSize is used
+        // for both. Return sizeof the object as the best approximation of the
+        // allocation size.
+        return sizeof(*this);
     }
-
-    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -318,7 +344,7 @@ public:
                       cb::mcbp::DcpStreamEndStatus flags,
                       Vbid vbucket,
                       cb::mcbp::DcpStreamId sid)
-        : DcpResponse(Event::StreamEnd, opaque, sid),
+        : DcpResponse(Event::StreamEnd, opaque, sid, getFlowControlSize(sid)),
           flags_(statusToFlags(flags)),
           vbucket_(vbucket) {
     }
@@ -339,17 +365,16 @@ public:
         return vbucket_;
     }
 
-    size_t getMessageSize() const override {
-        return baseMsgBytes +
-               (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
+    static uint32_t getFlowControlSize(const cb::mcbp::DcpStreamId sid) {
+        return baseFlowControlSize +
+               (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
-
-    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
 private:
+    static constexpr uint32_t baseFlowControlSize{28};
     cb::mcbp::DcpStreamEndStatus flags_;
     Vbid vbucket_;
 };
@@ -391,7 +416,10 @@ private:
 class SetVBucketState : public DcpResponse {
 public:
     SetVBucketState(uint32_t opaque, Vbid vbucket, vbucket_state_t state)
-        : DcpResponse(Event::SetVbucket, opaque, {/*no sid*/}),
+        : DcpResponse(Event::SetVbucket,
+                      opaque,
+                      {/*no sid*/},
+                      SetVBucketStateFlowControlSize),
           vbucket_(vbucket),
           state_(state) {
     }
@@ -403,12 +431,6 @@ public:
     vbucket_state_t getState() const {
         return state_;
     }
-
-    size_t getMessageSize() const override {
-        return baseMsgBytes;
-    }
-
-    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -475,8 +497,6 @@ public:
         return purgeSeqno;
     }
 
-    static const size_t baseMsgBytes;
-
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
@@ -518,8 +538,14 @@ public:
                      EnableExpiryOutput enableExpiryOut,
                      cb::mcbp::DcpStreamId sid,
                      std::optional<Event> eventType = std::nullopt)
-        : DcpResponse(
-                  eventType ? *eventType : eventFromItem(*item), opaque, sid),
+        : DcpResponse(eventType ? *eventType : eventFromItem(*item),
+                      opaque,
+                      sid,
+                      calculateFlowControlSize(*item,
+                                               includeDeleteTime,
+                                               includeCollectionID,
+                                               enableExpiryOut,
+                                               sid)),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
@@ -555,7 +581,12 @@ public:
     /**
       * @return size of message to be sent over the wire to the consumer.
       */
-    size_t getMessageSize() const override;
+    static uint32_t calculateFlowControlSize(
+            Item& item,
+            IncludeDeleteTime includeDeleteTime,
+            DocKeyEncodesCollectionId includeCollectionID,
+            EnableExpiryOutput enableExpiryOut,
+            cb::mcbp::DcpStreamId sid);
 
     /**
      * @returns a size representing approximately the memory used, in this case
@@ -626,10 +657,15 @@ public:
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
-    /// Return the size of the header for this message.
-    uint32_t getHeaderSize() const;
 
-    uint32_t getDeleteLength() const;
+    /// Return the size of the header for this message.
+    static uint32_t getHeaderSize(Item& item,
+                                  IncludeDeleteTime includeDeleteTime,
+                                  EnableExpiryOutput enableExpiryOut);
+
+    static uint32_t getDeleteLength(Item& item,
+                                    IncludeDeleteTime includeDeleteTime,
+                                    EnableExpiryOutput enableExpiryOut);
 
     const queued_item item_;
 
@@ -681,8 +717,11 @@ public:
                            includeCollectionID,
                            EnableExpiryOutput::Yes,
                            sid,
-                           eventType),
-          emd(e) {
+                           eventType) {
+        // emd will be removed, it's not been sent by a producer since 4.5
+        // With this null/removed, flow control size is now all on
+        // MutationResponse::calculateFlowControlSize
+        Expects(e == nullptr);
     }
 
     /**
@@ -693,18 +732,13 @@ public:
      */
     explicit MutationConsumerMessage(MutationResponse& response);
 
-    /**
-     * @return size of message on the wire
-     */
-    size_t getMessageSize() const override;
-
     ExtendedMetaData* getExtMetaData() {
-        return emd.get();
+        // @todo: Function to be removed.
+        return nullptr;
     }
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
-    std::unique_ptr<ExtendedMetaData> emd;
 };
 
 /**
@@ -715,15 +749,14 @@ protected:
 class SeqnoAcknowledgement : public DcpResponse {
 public:
     SeqnoAcknowledgement(uint32_t opaque, Vbid vbucket, uint64_t preparedSeqno)
-        : DcpResponse(
-                  Event::SeqnoAcknowledgement, opaque, cb::mcbp::DcpStreamId{}),
+        : DcpResponse(Event::SeqnoAcknowledgement,
+                      opaque,
+                      cb::mcbp::DcpStreamId{},
+                      sizeof(cb::mcbp::Request) +
+                              sizeof(cb::mcbp::request::
+                                             DcpSeqnoAcknowledgedPayload)),
           vbucket(vbucket),
           payload(preparedSeqno) {
-    }
-
-    size_t getMessageSize() const override {
-        return sizeof(cb::mcbp::Request) +
-               sizeof(cb::mcbp::request::DcpSeqnoAcknowledgedPayload);
     }
 
     Vbid getVbucket() const {
@@ -756,7 +789,6 @@ public:
                     const DocKeyView& key,
                     DocKeyEncodesCollectionId includeCollectionID);
 
-public:
     OptionalSeqno getBySeqno() const override {
         return OptionalSeqno{payload.getCommitSeqno()};
     }
@@ -781,7 +813,9 @@ public:
             sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpCommitPayload);
 
-    size_t getMessageSize() const override;
+    static uint32_t calculateFlowControlSize(
+            const DocKeyView& key,
+            DocKeyEncodesCollectionId includeCollectionID);
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -790,7 +824,6 @@ private:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpCommitPayload payload;
-    DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**
@@ -848,7 +881,9 @@ public:
             sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
 
-    size_t getMessageSize() const override;
+    static uint32_t calculateFlowControlSize(
+            const DocKeyView& key,
+            DocKeyEncodesCollectionId includeCollectionID);
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
@@ -857,7 +892,6 @@ private:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpAbortPayload payload;
-    DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**
@@ -892,9 +926,9 @@ public:
     }
     // baseMsgBytes is the unpadded size of the
     // protocol_binary_request_dcp_system_event::body struct
-    static const size_t baseMsgBytes = sizeof(cb::mcbp::Request) +
-                                       sizeof(uint64_t) + sizeof(uint32_t) +
-                                       sizeof(uint8_t);
+    static const uint32_t baseMsgBytes = sizeof(cb::mcbp::Request) +
+                                         sizeof(uint64_t) + sizeof(uint32_t) +
+                                         sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
     virtual std::string_view getKey() const = 0;
     virtual std::string_view getEventData() const = 0;
@@ -1428,16 +1462,15 @@ public:
     }
 
     size_t getMessageSize() const override {
-        return baseMsgBytes +
+        return baseFlowControlSize +
                (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
-
-    static const size_t baseMsgBytes;
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
 private:
+    static constexpr uint32_t baseFlowControlSize{28};
     Vbid vbucket;
     bool start;
 };
@@ -1448,7 +1481,8 @@ public:
                   Vbid vbucket,
                   cb::mcbp::DcpStreamId sid,
                   uint64_t seqno)
-        : DcpResponse(Event::SeqnoAdvanced, opaque, sid),
+        : DcpResponse(
+                  Event::SeqnoAdvanced, opaque, sid, getFlowControlSize(sid)),
           vbucket(vbucket),
           advancedSeqno(seqno) {
     }
@@ -1463,17 +1497,16 @@ public:
         return {advancedSeqno};
     }
 
-    [[nodiscard]] size_t getMessageSize() const override {
-        return baseMsgBytes +
-               (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
-    }
-
-    static const size_t baseMsgBytes;
-
 protected:
     bool isEqual(const DcpResponse& rsp) const override;
 
+    static uint32_t getFlowControlSize(const cb::mcbp::DcpStreamId sid) {
+        return baseFlowControlSize +
+               (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
+    }
+
 private:
+    static constexpr uint32_t baseFlowControlSize{32};
     Vbid vbucket;
     uint64_t advancedSeqno;
 };

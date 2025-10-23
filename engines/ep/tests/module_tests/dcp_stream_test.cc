@@ -2669,7 +2669,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_56675) {
     };
     stream->setStreamDeadHook(hook);
     consumer->streamEnd(1, vbid, cb::mcbp::DcpStreamEndStatus::StateChanged);
-    EXPECT_EQ(StreamEndResponse::baseMsgBytes,
+    EXPECT_EQ(StreamEndResponse::getFlowControlSize(cb::mcbp::DcpStreamId{}),
               consumer->getFlowControl().getFreedBytes());
 }
 

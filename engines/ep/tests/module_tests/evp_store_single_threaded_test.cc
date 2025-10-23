@@ -3515,7 +3515,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
 
     step(true);
     size_t expectedBytes =
-            SnapshotMarker::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
             MutationResponse::mutationBaseMsgBytes + (sizeof("value") - 1) +
             (sizeof("KEY3") - 1);
@@ -3538,7 +3538,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
-    expectedBytes += SnapshotMarker::baseMsgBytes +
+    expectedBytes += sizeof(cb::mcbp::Request) +
                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
@@ -4772,7 +4772,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY1", producers.last_key);
     size_t expectedBytes =
-            SnapshotMarker::baseMsgBytes +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
             MutationResponse::deletionV2BaseMsgBytes + (sizeof("KEY1") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
@@ -4789,7 +4789,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_LE(producers.last_delete_time, t2);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY2", producers.last_key);
-    expectedBytes += SnapshotMarker::baseMsgBytes +
+    expectedBytes += sizeof(cb::mcbp::Request) +
                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY2") - 1);
@@ -4802,7 +4802,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
             vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
 
     step(true);
-    expectedBytes += SnapshotMarker::baseMsgBytes +
+    expectedBytes += sizeof(cb::mcbp::Request) +
                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::mutationBaseMsgBytes +
                      (sizeof("value") - 1) + (sizeof("KEY3") - 1);
@@ -4823,7 +4823,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     EXPECT_NE(expiryTime, producers.last_delete_time);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, producers.last_op);
     EXPECT_EQ("KEY3", producers.last_key);
-    expectedBytes += SnapshotMarker::baseMsgBytes +
+    expectedBytes += sizeof(cb::mcbp::Request) +
                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload) +
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);

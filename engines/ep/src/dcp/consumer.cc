@@ -415,7 +415,9 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
                  uint32_t(status));
 
     lastMessageTime = ep_uptime_now();
-    UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
+    UpdateFlowControl ufc(
+            *this,
+            StreamEndResponse::getFlowControlSize(cb::mcbp::DcpStreamId{}));
 
     auto stream = findStream(vbucket);
     if (!stream) {
@@ -849,7 +851,7 @@ cb::engine_errc DcpConsumer::setVBucketState(uint32_t opaque,
                  int(state));
 
     lastMessageTime = ep_uptime_now();
-    UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
+    UpdateFlowControl ufc(*this, SetVBucketStateFlowControlSize);
 
     auto msg = std::make_unique<SetVBucketState>(opaque, vbucket, state);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
