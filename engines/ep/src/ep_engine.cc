@@ -1892,6 +1892,24 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
         const nlohmann::json& encryption,
         std::string_view chronicleAuthToken,
         const nlohmann::json& collectionManifest) {
+    auto handle = acquireEngine(this);
+    try {
+        return handle->initializeInner(
+                config, encryption, chronicleAuthToken, collectionManifest);
+    } catch (const cb::engine_error& e) {
+        NonBucketAllocationGuard guard;
+        throw cb::engine_error(e.engine_code(), e.what());
+    } catch (const std::exception& e) {
+        NonBucketAllocationGuard guard;
+        throw std::runtime_error(e.what());
+    }
+}
+
+cb::engine_errc EventuallyPersistentEngine::initializeInner(
+        std::string_view config,
+        const nlohmann::json& encryption,
+        std::string_view chronicleAuthToken,
+        const nlohmann::json& collectionManifest) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }

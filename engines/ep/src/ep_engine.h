@@ -1201,6 +1201,11 @@ public:
 protected:
     friend class EpEngineValueChangeListener;
 
+    cb::engine_errc initializeInner(std::string_view,
+                                    const nlohmann::json&,
+                                    std::string_view,
+                                    const nlohmann::json&);
+
     cb::engine_errc compactDatabaseInner(
             CookieIface& cookie,
             Vbid vbid,
