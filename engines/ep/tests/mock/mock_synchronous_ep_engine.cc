@@ -269,8 +269,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         CheckConflicts checkConflicts,
         bool allowExisting,
         GenerateBySeqno genBySeqno,
-        GenerateCas genCas,
-        cb::const_byte_buffer emd) {
+        GenerateCas genCas) {
     return setWithMeta(vbucket,
                        key,
                        value,
@@ -284,8 +283,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
                        checkConflicts,
                        allowExisting,
                        genBySeqno,
-                       genCas,
-                       emd);
+                       genCas);
 }
 
 DocKeyView SynchronousEPEngine::public_makeDocKey(

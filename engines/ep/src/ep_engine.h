@@ -411,7 +411,6 @@ public:
                              uint64_t rev_seqno,
                              uint32_t expiration,
                              uint32_t lock_time,
-                             cb::const_byte_buffer meta,
                              uint8_t nru) override;
     cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
@@ -421,8 +420,7 @@ public:
                              uint64_t cas,
                              Vbid vbucket,
                              uint64_t by_seqno,
-                             uint64_t rev_seqno,
-                             cb::const_byte_buffer meta) override;
+                             uint64_t rev_seqno) override;
     cb::engine_errc deletion_v2(CookieIface& cookie,
                                 uint32_t opaque,
                                 const DocKeyView& key,
@@ -508,7 +506,6 @@ public:
                                  uint64_t revSeqno,
                                  uint32_t expiration,
                                  uint32_t lockTime,
-                                 cb::const_byte_buffer meta,
                                  uint8_t nru) override;
     // End DcpIface ///////////////////////////////////////////////////////////
 
@@ -1546,7 +1543,6 @@ protected:
      * @param allowExisting true if the set can overwrite existing key
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
-     * @param emd buffer referencing ExtendedMetaData
      * @returns state of the operation as an cb::engine_errc
      */
     cb::engine_errc setWithMeta(Vbid vbucket,
@@ -1562,8 +1558,7 @@ protected:
                                 CheckConflicts checkConflicts,
                                 bool allowExisting,
                                 GenerateBySeqno genBySeqno,
-                                GenerateCas genCas,
-                                cb::const_byte_buffer emd);
+                                GenerateCas genCas);
 
     /**
      * Process the del_with_meta with the given buffers/values.
@@ -1578,7 +1573,6 @@ protected:
      * @param checkConflicts set to Yes if conflict resolution must be done
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
-     * @param emd buffer referencing ExtendedMetaData
      * @param deleteSource whether it should delete or expire
      * @returns state of the operation as an cb::engine_errc
      */
@@ -1592,7 +1586,6 @@ protected:
                                    CheckConflicts checkConflicts,
                                    GenerateBySeqno genBySeqno,
                                    GenerateCas genCas,
-                                   cb::const_byte_buffer emd,
                                    DeleteSource deleteSource);
 
     /// Make a DocKey from the key buffer

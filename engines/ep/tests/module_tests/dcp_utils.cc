@@ -75,7 +75,6 @@ void processMutations(MockPassiveStream& stream,
                                          IncludeDeleteTime::No,
                                          IncludeDeletedUserXattrs::Yes,
                                          DocKeyEncodesCollectionId::No,
-                                         nullptr,
                                          cb::mcbp::DcpStreamId{});
 
         // PassiveStream::processMutation does 2 things:
@@ -124,7 +123,6 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
             IncludeDeleteTime::No,
             IncludeDeletedUserXattrs::Yes,
             DocKeyEncodesCollectionId::No,
-            nullptr,
             cb::mcbp::DcpStreamId{});
 }
 
@@ -153,6 +151,5 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
             IncludeDeleteTime::No,
             IncludeDeletedUserXattrs::Yes,
             DocKeyEncodesCollectionId::No,
-            nullptr,
             cb::mcbp::DcpStreamId{});
 }

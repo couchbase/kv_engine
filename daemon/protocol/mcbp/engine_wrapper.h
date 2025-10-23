@@ -221,7 +221,6 @@ cb::engine_errc dcpControl(Cookie& cookie,
  * @param vbid The vbucket id
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
- * @param meta The document meta
  * @return cb::engine_errc
  */
 cb::engine_errc dcpDeletion(Cookie& cookie,
@@ -232,8 +231,7 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
                             uint64_t cas,
                             Vbid vbid,
                             uint64_t bySeqno,
-                            uint64_t revSeqno,
-                            cb::const_byte_buffer meta);
+                            uint64_t revSeqno);
 
 /**
  * Calls the underlying engine DCP deletion v2
@@ -316,7 +314,6 @@ cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
  * @param revSeqno The revision sequence number
  * @param expiration The document expiration
  * @param lockTime The document lock time
- * @param meta The document meta
  * @param nru The document NRU
  * @return cb::engine_errc
  */
@@ -332,7 +329,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                             uint64_t revSeqno,
                             uint32_t expiration,
                             uint32_t lockTime,
-                            cb::const_byte_buffer meta,
                             uint8_t nru);
 
 /**
@@ -350,7 +346,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
  * @param revSeqno The revision sequence number
  * @param expiration The document expiration
  * @param lockTime The document lock time
- * @param meta The document meta
  * @param nru The document NRU
  * @return cb::engine_errc
  */
@@ -366,7 +361,6 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                uint64_t revSeqno,
                                uint32_t expiration,
                                uint32_t lockTime,
-                               cb::const_byte_buffer meta,
                                uint8_t nru);
 
 /**

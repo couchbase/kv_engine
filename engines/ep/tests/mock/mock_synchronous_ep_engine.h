@@ -124,8 +124,7 @@ public:
                                        CheckConflicts checkConflicts,
                                        bool allowExisting,
                                        GenerateBySeqno genBySeqno,
-                                       GenerateCas genCas,
-                                       cb::const_byte_buffer emd);
+                                       GenerateCas genCas);
 
     DocKeyView public_makeDocKey(CookieIface& cookie,
                                  const std::string& key) const;

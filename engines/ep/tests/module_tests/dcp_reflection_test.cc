@@ -572,7 +572,6 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
                 mutation->getIncludeDeleteTime(),
                 mutation->getIncludeDeletedUserXattrs(),
                 mutation->getDocKeyEncodesCollectionId(),
-                mutation->getExtMetaData(),
                 mutation->getStreamId());
         mutation = static_cast<MutationConsumerMessage*>(msg.get());
     }

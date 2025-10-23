@@ -131,7 +131,6 @@ public:
                                      uint64_t rev_seqno,
                                      uint32_t expiration,
                                      uint32_t lock_time,
-                                     cb::const_byte_buffer meta,
                                      uint8_t nru);
 
     virtual cb::engine_errc deletion(uint32_t opaque,
@@ -141,8 +140,7 @@ public:
                                      uint64_t cas,
                                      Vbid vbucket,
                                      uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     cb::const_byte_buffer meta);
+                                     uint64_t rev_seqno);
 
     virtual cb::engine_errc deletionV2(uint32_t opaque,
                                        const DocKeyView& key,
@@ -268,7 +266,6 @@ public:
                                          uint64_t revSeqno,
                                          uint32_t expiration,
                                          uint32_t lockTime,
-                                         cb::const_byte_buffer meta,
                                          uint8_t nru);
     const char* logHeader() const;
 

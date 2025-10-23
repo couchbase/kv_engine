@@ -33,7 +33,6 @@
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
 #include "error_handler.h"
-#include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "file_ops_tracker.h"
 #include "flusher.h"
@@ -1156,7 +1155,6 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
         uint64_t rev_seqno,
         uint32_t expiration,
         uint32_t lock_time,
-        cb::const_byte_buffer meta,
         uint8_t nru) {
     if (!cb::mcbp::datatype::is_valid(datatype)) {
         EP_LOG_WARN_RAW(
@@ -1177,7 +1175,6 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
                           rev_seqno,
                           expiration,
                           lock_time,
-                          meta,
                           nru);
 }
 
@@ -1190,19 +1187,11 @@ cb::engine_errc EventuallyPersistentEngine::deletion(
         uint64_t cas,
         Vbid vbucket,
         uint64_t by_seqno,
-        uint64_t rev_seqno,
-        cb::const_byte_buffer meta) {
+        uint64_t rev_seqno) {
     auto engine = acquireEngine(this);
     auto conn = engine->getConnHandler(cookie);
-    return conn->deletion(opaque,
-                          key,
-                          value,
-                          datatype,
-                          cas,
-                          vbucket,
-                          by_seqno,
-                          rev_seqno,
-                          meta);
+    return conn->deletion(
+            opaque, key, value, datatype, cas, vbucket, by_seqno, rev_seqno);
 }
 
 cb::engine_errc EventuallyPersistentEngine::deletion_v2(
@@ -1388,7 +1377,6 @@ cb::engine_errc EventuallyPersistentEngine::cached_value(
         uint64_t revSeqno,
         uint32_t expiration,
         uint32_t lockTime,
-        cb::const_byte_buffer meta,
         uint8_t nru) {
     auto engine = acquireEngine(this);
     auto conn = engine->getConnHandler(cookie);
@@ -1403,7 +1391,6 @@ cb::engine_errc EventuallyPersistentEngine::cached_value(
                               revSeqno,
                               expiration,
                               lockTime,
-                              meta,
                               nru);
 }
 
@@ -5815,15 +5802,14 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
 }
 
 /**
- * This is a helper function for set/deleteWithMeta, used to extract nmeta
- * from the packet.
- * @param emd Extended Metadata (edited by this function)
+ * This is a helper function for set/deleteWithMeta to adjust the value
+ * in case the now removed/ignored extended meta data was included in the value.
+ *
  * @param value nmeta is removed from the value by this function
  * @param extras
  */
-void extractNmetaFromExtras(cb::const_byte_buffer& emd,
-                            cb::const_byte_buffer& value,
-                            cb::const_byte_buffer extras) {
+cb::const_byte_buffer adjustValueForExtendedMeta(cb::const_byte_buffer value,
+                                                 cb::const_byte_buffer extras) {
     if (extras.size() == 26 || extras.size() == 30) {
         // 26 = nmeta
         // 30 = options and nmeta (options followed by nmeta)
@@ -5832,10 +5818,11 @@ void extractNmetaFromExtras(cb::const_byte_buffer& emd,
         uint16_t nmeta;
         memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
         nmeta = ntohs(nmeta);
-        // Correct the vallen
-        emd = {value.data() + value.size() - nmeta, nmeta};
+        // Correct the vallen, skipping over any extras which could
+        // have been included in the value
         value = {value.data(), value.size() - nmeta};
     }
+    return value;
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
@@ -5882,9 +5869,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto value = request.getValue();
-    cb::const_byte_buffer emd;
-    extractNmetaFromExtras(emd, value, extras);
+    auto value = adjustValueForExtendedMeta(request.getValue(), extras);
 
     cb::time::steady_clock::time_point startTime;
     {
@@ -5926,8 +5911,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           checkConflicts,
                           allowExisting,
                           GenerateBySeqno::Yes,
-                          generateCas,
-                          emd);
+                          generateCas);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
@@ -6004,19 +5988,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         CheckConflicts checkConflicts,
         bool allowExisting,
         GenerateBySeqno genBySeqno,
-        GenerateCas genCas,
-        cb::const_byte_buffer emd) {
-    std::unique_ptr<ExtendedMetaData> extendedMetaData;
-    if (!emd.empty()) {
-        extendedMetaData =
-                std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
-        if (extendedMetaData->getStatus() ==
-            cb::engine_errc::invalid_arguments) {
-            setErrorContext(cookie, "Invalid extended metadata");
-            return cb::engine_errc::invalid_arguments;
-        }
-    }
-
+        GenerateCas genCas) {
     if (cb::mcbp::datatype::is_snappy(datatype) &&
         !cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         setErrorContext(cookie, "Client did not negotiate Snappy support");
@@ -6118,8 +6090,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                      checkConflicts,
                                      allowExisting,
                                      genBySeqno,
-                                     genCas,
-                                     extendedMetaData.get());
+                                     genCas);
 
     if (ret == cb::engine_errc::success) {
         cas = item->getCas();
@@ -6148,10 +6119,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto value = request.getValue();
-    cb::const_byte_buffer emd;
-    extractNmetaFromExtras(emd, value, extras);
-
+    auto value = adjustValueForExtendedMeta(request.getValue(), extras);
     auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
 
@@ -6220,7 +6188,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                  checkConflicts,
                                  GenerateBySeqno::Yes,
                                  generateCas,
-                                 emd,
                                  deleteSource);
         } else {
             // A delete with a value
@@ -6237,8 +6204,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               checkConflicts,
                               true /*allowExisting*/,
                               GenerateBySeqno::Yes,
-                              generateCas,
-                              emd);
+                              generateCas);
         }
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -6281,19 +6247,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        cb::const_byte_buffer emd,
         DeleteSource deleteSource) {
-    std::unique_ptr<ExtendedMetaData> extendedMetaData;
-    if (!emd.empty()) {
-        extendedMetaData =
-                std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
-        if (extendedMetaData->getStatus() ==
-            cb::engine_errc::invalid_arguments) {
-            setErrorContext(cookie, "Invalid extended metadata");
-            return cb::engine_errc::invalid_arguments;
-        }
-    }
-
     return kvBucket->deleteWithMeta(key,
                                     cas,
                                     seqno,
@@ -6305,7 +6259,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                     genBySeqno,
                                     genCas,
                                     0 /*bySeqno*/,
-                                    extendedMetaData.get(),
                                     deleteSource,
                                     EnforceMemCheck::Yes);
 }

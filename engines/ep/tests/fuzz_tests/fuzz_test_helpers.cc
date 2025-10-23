@@ -92,7 +92,6 @@ MutationConsumerMessage createMutationConsumerMessage(
             IncludeDeleteTime::No,
             IncludeDeletedUserXattrs::No,
             DocKeyEncodesCollectionId::Yes,
-            nullptr,
             cb::mcbp::DcpStreamId(0) /*sid*/};
 }
 

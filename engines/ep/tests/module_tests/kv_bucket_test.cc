@@ -331,8 +331,7 @@ Item KVBucketTest::store_deleted_item(
                                          CheckConflicts::No,
                                          true,
                                          GenerateBySeqno::Yes,
-                                         GenerateCas::No,
-                                         nullptr);
+                                         GenerateCas::No);
     if (returnCode != expected) {
         return ::testing::AssertionFailure()
                << "store_item_replica() unexpected error:"

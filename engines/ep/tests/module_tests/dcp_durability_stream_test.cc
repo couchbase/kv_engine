@@ -1170,7 +1170,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Persist prepare
@@ -1224,7 +1223,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1394,7 +1392,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1418,7 +1415,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1451,7 +1447,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1492,7 +1487,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // We don't flush any items but we will run the flusher which will advance
@@ -1532,7 +1526,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // Test: check we can successfully flush to disk with HCS=0.
@@ -1608,7 +1601,6 @@ void DurabilityPassiveStreamTest::
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     item = makeCommittedItem(key, "committed");
@@ -1629,7 +1621,6 @@ void DurabilityPassiveStreamTest::
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // Test the HashTable state
@@ -1708,7 +1699,6 @@ void DurabilityPassiveStreamTest::
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
             2 /*snapStart*/, 4 /*snapEnd*/, docState);
@@ -1776,7 +1766,6 @@ void DurabilityPassiveStreamTest::
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 4) Verify doc state
@@ -1874,7 +1863,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     marker = SnapshotMarker(opaque,
@@ -2194,7 +2182,6 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     return qi;
 }
@@ -2235,7 +2222,6 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveCommittedItem(
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     return qi;
@@ -2371,7 +2357,6 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     auto commitSeqno = prepareSeqno + 1;
@@ -2547,7 +2532,6 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -2714,7 +2698,6 @@ void DurabilityPassiveStreamPersistentTest::
                                   IncludeDeleteTime::No,
                                   IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
-                                  nullptr /*ext-metadata*/,
                                   cb::mcbp::DcpStreamId{})));
 
         // Replica receives logical CMT
@@ -2737,7 +2720,6 @@ void DurabilityPassiveStreamPersistentTest::
                     IncludeDeleteTime::No,
                     IncludeDeletedUserXattrs::Yes,
                     DocKeyEncodesCollectionId::No,
-                    nullptr /*ext-metadata*/,
                     cb::mcbp::DcpStreamId{});
         }
         EXPECT_EQ(cb::engine_errc::success,
@@ -2890,7 +2872,6 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     key = makeStoredDocKey("key1");
@@ -2915,7 +2896,6 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3315,7 +3295,6 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     ASSERT_EQ(true, stream->getCurSnapshotPrepare());
@@ -3419,7 +3398,6 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // Hit the consumer level function (not the stream level) for additional
@@ -3462,7 +3440,6 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     auto vb = engine->getVBucket(vbid);
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
@@ -3501,7 +3478,6 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     ASSERT_EQ(1, pdm.getNumTracked());
 
@@ -3579,7 +3555,6 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     auto vb = engine->getVBucket(vbid);
@@ -3629,7 +3604,6 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // We remove the SyncWrite corresponding to 1:PRE when we receive 4:PRE
@@ -3650,7 +3624,6 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // Persist and notify the PDM as 4:PRE requires persistence to complete due
@@ -3701,7 +3674,6 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Send delete of the prepared key
@@ -3718,7 +3690,6 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // Expect two items in the flush, prepare and delete
@@ -3764,7 +3735,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -3798,7 +3768,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     auto committed = makeCommittedItem(key, {});
@@ -3813,7 +3782,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 5) Flush before we receive the completion for keyA
@@ -3833,7 +3801,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3878,7 +3845,6 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Receive overwriting set instead of commit
@@ -3895,7 +3861,6 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 4) Receive memory snapshot marker
@@ -3926,7 +3891,6 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3966,7 +3930,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Receive commit
@@ -4003,7 +3966,6 @@ TEST_P(DurabilityPassiveStreamTest,
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -4067,7 +4029,6 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr /*ext-meta*/,
                       cb::mcbp::DcpStreamId{})));
 
     // MB-36735: This is added for covering both when:
@@ -4397,7 +4358,6 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -4474,7 +4434,6 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
                       IncludeDeleteTime::No,
                       IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
-                      nullptr,
                       cb::mcbp::DcpStreamId{})));
 
     if (persistent()) {
@@ -5019,7 +4978,6 @@ void DurabilityPromotionStreamTest::
                               IncludeDeleteTime::No,
                               IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
-                              nullptr /*ext-metadata*/,
                               cb::mcbp::DcpStreamId{})));
 
     ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
@@ -5485,7 +5443,6 @@ TEST_P(DurabilityPromotionStreamTest,
                               IncludeDeleteTime::No,
                               IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
-                              nullptr,
                               cb::mcbp::DcpStreamId{})));
 
     // 3)
@@ -5618,7 +5575,6 @@ TEST_P(DurabilityPromotionStreamTest,
                               IncludeDeleteTime::No,
                               IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
-                              nullptr,
                               cb::mcbp::DcpStreamId{})));
 
     // 3)
@@ -5649,7 +5605,6 @@ TEST_P(DurabilityPromotionStreamTest,
                               IncludeDeleteTime::No,
                               IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
-                              nullptr,
                               cb::mcbp::DcpStreamId{})));
 
     // Remove PassiveStream and Consumer

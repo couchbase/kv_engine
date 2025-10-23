@@ -572,20 +572,11 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
                             uint64_t cas,
                             Vbid vbid,
                             uint64_t bySeqno,
-                            uint64_t revSeqno,
-                            cb::const_byte_buffer meta) {
+                            uint64_t revSeqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->deletion(cookie,
-                             opaque,
-                             key,
-                             value,
-                             datatype,
-                             cas,
-                             vbid,
-                             bySeqno,
-                             revSeqno,
-                             meta);
+    auto ret = dcp->deletion(
+            cookie, opaque, key, value, datatype, cas, vbid, bySeqno, revSeqno);
     if (ret == cb::engine_errc::success && !connection.isInternal()) {
         cookie.addDocumentWriteBytes(value.size() + key.size());
     } else if (ret == cb::engine_errc::disconnect) {
@@ -692,7 +683,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                             uint64_t revSeqno,
                             uint32_t expiration,
                             uint32_t lockTime,
-                            cb::const_byte_buffer meta,
                             uint8_t nru) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
@@ -708,7 +698,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                              revSeqno,
                              expiration,
                              lockTime,
-                             meta,
                              nru);
     if (ret == cb::engine_errc::success && !connection.isInternal()) {
         cookie.addDocumentWriteBytes(value.size() + key.size());
@@ -733,7 +722,6 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                uint64_t revSeqno,
                                uint32_t expiration,
                                uint32_t lockTime,
-                               cb::const_byte_buffer meta,
                                uint8_t nru) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
@@ -749,7 +737,6 @@ cb::engine_errc dcpCachedValue(Cookie& cookie,
                                  revSeqno,
                                  expiration,
                                  lockTime,
-                                 meta,
                                  nru);
     if (ret == cb::engine_errc::success && !connection.isInternal()) {
         cookie.addDocumentWriteBytes(value.size() + key.size());

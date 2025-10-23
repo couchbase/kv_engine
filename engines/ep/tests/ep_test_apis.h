@@ -12,7 +12,6 @@
 
 #include "ep_request_utils.h"
 #include "ep_types.h"
-#include "ext_meta_parser.h"
 #include "item.h"
 #include <folly/portability/SysStat.h>
 #include <memcached/engine.h>

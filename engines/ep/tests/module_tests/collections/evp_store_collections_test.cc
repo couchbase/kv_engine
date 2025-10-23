@@ -326,7 +326,6 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,
-                                    nullptr,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
 
@@ -2597,8 +2596,7 @@ TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
                                      CheckConflicts::No,
                                      true,
                                      GenerateBySeqno::Yes,
-                                     GenerateCas::No,
-                                     nullptr));
+                                     GenerateCas::No));
     };
     operation_test(func, GetParam());
 }

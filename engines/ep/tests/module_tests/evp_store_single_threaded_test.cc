@@ -1148,7 +1148,6 @@ cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
                              /*revSeqno*/ 0,
                              /*expTime*/ 0,
                              /*lock_time*/ 0,
-                             /*meta*/ cb::const_byte_buffer(),
                              /*nru*/ 0);
 }
 
@@ -1163,8 +1162,7 @@ cb::engine_errc STParameterizedBucketTest::deletion(DcpConsumer& consumer,
                              /*cas*/ 1,
                              vbid,
                              /*bySeqno*/ seqno,
-                             /*revSeqno*/ 0,
-                             /*meta*/ cb::const_byte_buffer());
+                             /*revSeqno*/ 0);
 }
 
 cb::engine_errc STParameterizedBucketTest::prepare(DcpConsumer& consumer,
@@ -1991,7 +1989,6 @@ void STParamPersistentBucketTest::checkFailoverSeqno(bool flushFullSnapshot) {
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto k2 = makeStoredDocKey("k2");
@@ -2006,7 +2003,6 @@ void STParamPersistentBucketTest::checkFailoverSeqno(bool flushFullSnapshot) {
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -2037,7 +2033,6 @@ void STParamPersistentBucketTest::checkFailoverSeqno(bool flushFullSnapshot) {
                                  0, // rev seqno
                                  0, // expiration
                                  0, // lock time
-                                 {}, // meta
                                  0)); // nru
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2056,7 +2051,6 @@ void STParamPersistentBucketTest::checkFailoverSeqno(bool flushFullSnapshot) {
                                      0, // rev seqno
                                      0, // expiration
                                      0, // lock time
-                                     {}, // meta
                                      0)); // nru
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2147,7 +2141,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto k2 = makeStoredDocKey("k2");
@@ -2162,7 +2155,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -2265,7 +2257,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto k2 = makeStoredDocKey("k2");
@@ -2280,7 +2271,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -2313,7 +2303,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     auto k4 = makeStoredDocKey("k4");
@@ -2328,7 +2317,6 @@ void CheckFailoverSeqnoTest::checkFailoverEntriesOnReplicaWarmup_TwoSnapshots(
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     if (flusherRun) {
@@ -2843,8 +2831,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
                        /*bySeqno*/ 1,
-                       /*revSeqno*/ 0,
-                       /*meta*/ {});
+                       /*revSeqno*/ 0);
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -3385,7 +3372,6 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -3416,8 +3402,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                  /*cas*/ 3,
                                  vbid,
                                  bySeqno,
-                                 /*revSeqno*/ 0,
-                                 /*meta*/ {}));
+                                 /*revSeqno*/ 0));
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
     /* Close stream before deleting the connection */
@@ -3869,8 +3854,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                     /*cas*/ 3,
                     vbid,
                     bySeqno,
-                    /*revSeqno*/ 0,
-                    /*meta*/ {}));
+                    /*revSeqno*/ 0));
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -3944,8 +3928,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                  /*cas*/ 3,
                                  vbid,
                                  bySeqno,
-                                 /*revSeqno*/ 0,
-                                 /*meta*/ {}));
+                                 /*revSeqno*/ 0));
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -4922,7 +4905,6 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
                        0, // rev seqno
                        0, // expiration
                        0, // lock time
-                       {}, // meta
                        0); // nru
 
     // flush and evict
@@ -4958,8 +4940,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
                                  /*cas*/ 1,
                                  /*vbucket*/ vbid,
                                  /*bySeqno*/ 2,
-                                 /*revSeqno*/ 0,
-                                 /*meta*/ {}));
+                                 /*revSeqno*/ 0));
     // Close stream
     ASSERT_EQ(cb::engine_errc::success,
               consumer->closeStream(/*opaque*/ 0, vbid));
@@ -6090,7 +6071,6 @@ TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // We just processed one mutation (of the total 2 mutations in this
@@ -6109,7 +6089,6 @@ TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // All the mutations have been processed - start should now point to the
@@ -6142,7 +6121,6 @@ TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     flushVBucketToDiskIfPersistent(vbid, 3);
@@ -6241,7 +6219,6 @@ TEST_P(STParameterizedBucketTest,
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // We just processed one mutation (of the total 2 mutations in this
@@ -6260,7 +6237,6 @@ TEST_P(STParameterizedBucketTest,
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // All the mutations have been processed - getFailoverSeqno should now point
@@ -6298,7 +6274,6 @@ TEST_P(STParameterizedBucketTest,
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     flushVBucketToDiskIfPersistent(vbid, 3);

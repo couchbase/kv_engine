@@ -412,8 +412,7 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                      0 /*cas*/,
                                      vbid,
                                      2 /*seqno*/,
-                                     0 /*revSeqno*/,
-                                     {} /*meta*/));
+                                     0 /*revSeqno*/));
         EXPECT_EQ(2, vb.getHighSeqno());
         EXPECT_EQ(1, vb.getSeqListNumItems());
         EXPECT_EQ(1, vb.getSeqListNumDeletedItems());
@@ -451,8 +450,7 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                      0 /*cas*/,
                                      vbid,
                                      4 /*seqno*/,
-                                     0 /*revSeqno*/,
-                                     {} /*meta*/));
+                                     0 /*revSeqno*/));
     }
 
     EXPECT_EQ(4, vb.getHighSeqno());
@@ -479,7 +477,6 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
     EXPECT_EQ(5, vb.getHighSeqno());
     EXPECT_EQ(3, vb.getSeqListNumItems());

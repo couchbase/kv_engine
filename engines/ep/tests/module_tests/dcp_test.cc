@@ -1240,7 +1240,6 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // by seqno
                        0, // rev seqno
                        0, // exptime
-                       {}, // meta
                        0); // nru
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for mutation";
@@ -1252,8 +1251,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // cas
                        vbid, // vbucket
                        0, // by seqno
-                       0, // rev seqno
-                       {}); // meta
+                       0); // rev seqno
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for deletion";
     consumer->setLastMessageTime(initMsgTime);
@@ -1265,7 +1263,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                          vbid, // vbucket
                          0, // by seqno
                          0, // rev seqno
-                         {}); // meta
+                         0); // delete time
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for expiration";
     consumer->setLastMessageTime(initMsgTime);
@@ -2666,7 +2664,6 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // Before the fix the consumer would be notified even when Flow Control is

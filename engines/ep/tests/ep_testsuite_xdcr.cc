@@ -2688,6 +2688,8 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
     // Watson (4.6) accepts valid encodings, but ignores them
     std::vector<char> junkMeta = {'\xfe', '\xff', '\2', '\3'};
 
+    auto* cookie = testHarness->create_cookie(h);
+
     int force = 0;
 
     if (testHarness->get_current_testcase()->cfg.find(
@@ -2695,11 +2697,12 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
-    // Set the key and junk nmeta
-    checkeq(cb::engine_errc::invalid_arguments,
+    // Set the key and junk nmeta. No longer is the actual meta contents
+    // validated, meaning this is now success
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
-                          "key",
-                          {},
+                          "junk1",
+                          "value",
                           Vbid(0),
                           &itemMeta,
                           0,
@@ -2707,14 +2710,20 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                           PROTOCOL_BINARY_RAW_BYTES,
                           nullptr,
                           junkMeta),
-            "Expected EINVAL");
-
+            "Expected success");
+    auto rv = get(h, cookie, "junk1", Vbid(0));
+    checkeq(cb::engine_errc::success, rv.first, "Expected success.");
+    if (rv.second->getValueView() != "value") {
+        std::cerr << "Value mismatch: " << rv.second->getValueView() << " != "
+                  << "value" << std::endl;
+        return FAIL;
+    }
     // Set the key and junk nmeta that's quite large
     junkMeta.resize(std::numeric_limits<uint16_t>::max());
-    checkeq(cb::engine_errc::invalid_arguments,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
-                          "key",
-                          {},
+                          "junk2",
+                          "value",
                           Vbid(0),
                           &itemMeta,
                           0,
@@ -2722,11 +2731,19 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                           PROTOCOL_BINARY_RAW_BYTES,
                           nullptr,
                           junkMeta),
-            "Expected EINVAL");
+            "Expected success");
 
-    // Test that valid meta can be sent. It should be ignored and success
-    // returned
-    // Encodings which should not fail, see ext_meta_parser.cc
+    rv = get(h, cookie, "junk2", Vbid(0));
+    checkeq(cb::engine_errc::success, rv.first, "Expected success.");
+    if (rv.second->getValueView() != "value") {
+        std::cerr << "Value mismatch: " << rv.second->getValueView() << " != "
+                  << "value" << std::endl;
+        return FAIL;
+    }
+
+    // Test that extended meta data can be sent. It should be ignored and
+    // success returned. The following structs are meaningless, but exist from
+    // the 4.5 protocol
 #pragma pack(1)
     struct adjusted_time_metadata {
         uint8_t type;
@@ -2757,7 +2774,9 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
         conf_res_metadata conf_res;
     };
 #pragma pack()
-
+    const uint8_t META_EXT_VERSION_ONE = 0x01;
+    const uint8_t CMD_META_ADJUSTED_TIME = 0x01;
+    const uint8_t CMD_META_CONFLICT_RES_MODE = 0x02;
     {
         with_cas_metadata1 validMetaData = {META_EXT_VERSION_ONE,
                                             {CMD_META_ADJUSTED_TIME,
@@ -2850,7 +2869,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
         checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               "key3",
-                              {},
+                              "value",
                               Vbid(0),
                               &itemMeta,
                               0,
@@ -2861,6 +2880,15 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected item to be stored");
         checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
+
+        auto rv = get(h, cookie, "key3", Vbid(0));
+        checkeq(cb::engine_errc::success, rv.first, "Expected success.");
+        if (rv.second->getValueView() != "value") {
+            std::cerr << "Value mismatch: " << rv.second->getValueView()
+                      << " != "
+                      << "value" << std::endl;
+            return FAIL;
+        }
 
         itemMeta.cas++;
         checkeq(cb::engine_errc::success,
@@ -2917,6 +2945,8 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
         checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
     }
+
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }

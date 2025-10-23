@@ -67,7 +67,6 @@ protected:
                                          IncludeDeleteTime::No,
                                          IncludeDeletedUserXattrs::Yes,
                                          DocKeyEncodesCollectionId::No,
-                                         nullptr,
                                          cb::mcbp::DcpStreamId{});
 
         // KVBucket->setWithMeta/delteWithMeta/prepare code paths are hit

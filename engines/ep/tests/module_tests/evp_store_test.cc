@@ -2459,7 +2459,6 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     dwmItem->getBySeqno(),
-                                    nullptr,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
 
@@ -2496,7 +2495,6 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     dwmItem->getBySeqno(),
-                                    nullptr,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
 

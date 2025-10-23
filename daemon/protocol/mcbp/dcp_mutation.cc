@@ -24,11 +24,7 @@ static cb::engine_errc do_dcp_mutation(Cookie& cookie) {
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
     const auto datatype = uint8_t(req.getDatatype());
-    const auto nmeta = extras.getNmeta();
-    auto value = req.getValue();
-    const cb::const_byte_buffer meta = {value.data() + value.size() - nmeta,
-                                        nmeta};
-    value = {value.data(), value.size() - nmeta};
+    const auto value = req.getValue();
 
     if (cb::mcbp::datatype::is_xattr(datatype)) {
         const char* payload = reinterpret_cast<const char*>(value.data());
@@ -51,7 +47,6 @@ static cb::engine_errc do_dcp_mutation(Cookie& cookie) {
                        extras.getRevSeqno(),
                        extras.getExpiration(),
                        extras.getLockTime(),
-                       meta,
                        extras.getNru());
 }
 

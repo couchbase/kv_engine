@@ -119,7 +119,6 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = nullptr,
             EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) override;
 
     cb::engine_errc prepare(Item& item,
@@ -151,7 +150,6 @@ public:
                                    GenerateBySeqno genBySeqno,
                                    GenerateCas generateCas,
                                    uint64_t bySeqno,
-                                   ExtendedMetaData* emd,
                                    DeleteSource deleteSource,
                                    EnforceMemCheck enforceMemCheck) override;
 

@@ -933,7 +933,6 @@ TEST_P(CollectionsDcpStreamsTest,
                       0,
                       0,
                       0,
-                      {},
                       0));
     // Ensure on disk item count is 0 as we've not flushed anything
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());

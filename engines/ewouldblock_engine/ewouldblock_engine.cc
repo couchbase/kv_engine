@@ -345,7 +345,6 @@ public:
                              uint64_t rev_seqno,
                              uint32_t expiration,
                              uint32_t lock_time,
-                             cb::const_byte_buffer meta,
                              uint8_t nru) override;
     cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
@@ -355,8 +354,7 @@ public:
                              uint64_t cas,
                              Vbid vbucket,
                              uint64_t by_seqno,
-                             uint64_t rev_seqno,
-                             cb::const_byte_buffer meta) override;
+                             uint64_t rev_seqno) override;
     cb::engine_errc deletion_v2(CookieIface& cookie,
                                 uint32_t opaque,
                                 const DocKeyView& key,
@@ -442,7 +440,6 @@ public:
                                  uint64_t rev_seqno,
                                  uint32_t expiration,
                                  uint32_t lock_time,
-                                 cb::const_byte_buffer meta,
                                  uint8_t nru) override;
 
 protected:
@@ -1614,7 +1611,6 @@ cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
                                      uint64_t rev_seqno,
                                      uint32_t expiration,
                                      uint32_t lock_time,
-                                     cb::const_byte_buffer meta,
                                      uint8_t nru) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
@@ -1631,7 +1627,6 @@ cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
                                      rev_seqno,
                                      expiration,
                                      lock_time,
-                                     meta,
                                      nru);
 }
 
@@ -1643,8 +1638,7 @@ cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
                                      uint64_t cas,
                                      Vbid vbucket,
                                      uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     cb::const_byte_buffer meta) {
+                                     uint64_t rev_seqno) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     }
@@ -1656,8 +1650,7 @@ cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
                                      cas,
                                      vbucket,
                                      by_seqno,
-                                     rev_seqno,
-                                     meta);
+                                     rev_seqno);
 }
 
 cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
@@ -1852,7 +1845,6 @@ cb::engine_errc EWB_Engine::cached_value(CookieIface& cookie,
                                          uint64_t rev_seqno,
                                          uint32_t expiration,
                                          uint32_t lock_time,
-                                         cb::const_byte_buffer meta,
                                          uint8_t nru) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
@@ -1869,7 +1861,6 @@ cb::engine_errc EWB_Engine::cached_value(CookieIface& cookie,
                                          rev_seqno,
                                          expiration,
                                          lock_time,
-                                         meta,
                                          nru);
 }
 

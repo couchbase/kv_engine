@@ -2774,7 +2774,6 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                                   IncludeDeleteTime::No,
                                   IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
-                                  nullptr /*ext-metadata*/,
                                   streamId)));
 
         EXPECT_EQ(expectedNumCheckpoint, ckptMgr.getNumCheckpoints());
@@ -2906,8 +2905,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                                          0 /*cas*/,
                                          vbid,
                                          bySeqno,
-                                         0 /*revSeqno*/,
-                                         {} /*meta*/));
+                                         0 /*revSeqno*/));
         }
     };
 
@@ -2996,8 +2994,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                          0 /*cas*/,
                                          vbid,
                                          bySeqno,
-                                         0 /*revSeqno*/,
-                                         {} /*meta*/));
+                                         0 /*revSeqno*/));
         }
     };
 
@@ -3159,8 +3156,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                      0 /*cas*/,
                                      vbid,
                                      bySeqno,
-                                     0 /*revSeqno*/,
-                                     {} /*meta*/));
+                                     0 /*revSeqno*/));
     }
 
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
@@ -3287,7 +3283,7 @@ void SingleThreadedPassiveStreamTest::mutation(uint32_t opaque,
                                                uint64_t bySeqno) {
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(
-                      opaque, key, {}, 0, 1, vbid, 0, bySeqno, 0, 0, 0, {}, 0));
+                      opaque, key, {}, 0, 1, vbid, 0, bySeqno, 0, 0, 0, 0));
 }
 
 void SingleThreadedPassiveStreamTest::deletion(uint32_t opaque,
@@ -5088,34 +5084,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
 
     const auto keyA = makeStoredDocKey("keyA");
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyA,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 snapStart,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+              consumer->mutation(
+                      opaque, keyA, {}, 0, 0, vbid, 0, snapStart, 0, 0, 0, 0));
     const auto keyB = makeStoredDocKey("keyB");
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyB,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 snapEnd,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+              consumer->mutation(
+                      opaque, keyB, {}, 0, 0, vbid, 0, snapEnd, 0, 0, 0, 0));
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
@@ -5170,20 +5144,10 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     //  That is a precondition for executing the deduplication path that throws
     //  in Checkpoint::queueDirty before the fix.
     const auto keyC = makeStoredDocKey("keyC");
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyC,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 3 /*seqno*/,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->mutation(
+                    opaque, keyC, {}, 0, 0, vbid, 0, 3 /*seqno*/, 0, 0, 0, 0));
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
@@ -5241,20 +5205,10 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     // At fix, the Memory snapshot is in its own checkpoint. The persistence
     // cursor is in the old (closed) checkpoint, so we don't even try to access
     // the KeyIndex for that cursor.
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyC,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 4 /*seqno*/,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->mutation(
+                    opaque, keyC, {}, 0, 0, vbid, 0, 4 /*seqno*/, 0, 0, 0, 0));
 
     // Check that we have executed the deduplication path, the test is invalid
     // otherwise.
@@ -5314,7 +5268,6 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 
     EXPECT_EQ(1, vb.getHighSeqno());
@@ -5360,7 +5313,6 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 
     snapInfo = manager.getSnapshotInfo();
@@ -5476,7 +5428,6 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
     EXPECT_EQ(1, vb.getHighSeqno());
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
@@ -5578,7 +5529,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 
     EXPECT_EQ(1, vb.getHighSeqno());
@@ -5637,7 +5587,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 
     // Core test
@@ -7174,34 +7123,12 @@ TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
 
     const auto keyA = makeStoredDocKey("keyA");
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyA,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 snapStart,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+              consumer->mutation(
+                      opaque, keyA, {}, 0, 0, vbid, 0, snapStart, 0, 0, 0, 0));
     const auto keyB = makeStoredDocKey("keyB");
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 keyB,
-                                 {},
-                                 0,
-                                 0,
-                                 vbid,
-                                 0,
-                                 snapEnd,
-                                 0,
-                                 0,
-                                 0,
-                                 {},
-                                 0));
+              consumer->mutation(
+                      opaque, keyB, {}, 0, 0, vbid, 0, snapEnd, 0, 0, 0, 0));
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
@@ -8280,12 +8207,12 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     // check error code when stream isn't present for vbucket 99
     EXPECT_EQ(cb::engine_errc::no_such_key,
               consumer->mutation(
-                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
-    EXPECT_EQ(cb::engine_errc::key_already_exists,
-              consumer->mutation(
-                      opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+    EXPECT_EQ(
+            cb::engine_errc::key_already_exists,
+            consumer->mutation(opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, 0));
 
     // enable V7 dcp status codes
     consumer->enableV7DcpStatus();
@@ -8293,12 +8220,12 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     opaque = 0;
     EXPECT_EQ(cb::engine_errc::stream_not_found,
               consumer->mutation(
-                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
-    EXPECT_EQ(cb::engine_errc::opaque_no_match,
-              consumer->mutation(
-                      opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+    EXPECT_EQ(
+            cb::engine_errc::opaque_no_match,
+            consumer->mutation(opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, 0));
 }
 
 void STPassiveStreamPersistentTest::checkVBState(uint64_t lastSnapStart,
@@ -9366,7 +9293,6 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
@@ -9423,7 +9349,6 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
 }
 
@@ -9633,7 +9558,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     qi->setBySeqno(seqno);
     const auto docKey = qi->getDocKey();
     const auto res = consumer->public_processMutationOrPrepare(
-            vbid, opaque, docKey, std::move(qi), {}, messageBytes);
+            vbid, opaque, docKey, std::move(qi), messageBytes);
 
     // Note: PassiveStream returns temporary_failure but DcpConsumer turns it
     // into success.
@@ -9706,7 +9631,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
     qi->setBySeqno(seqno);
     const auto docKey = qi->getDocKey();
     const auto res = consumer->public_processMutationOrPrepare(
-            vbid, opaque, docKey, std::move(qi), {}, messageBytes);
+            vbid, opaque, docKey, std::move(qi), messageBytes);
 
     // Note: PassiveStream returns temporary_failure but DcpConsumer turns it
     // into success.
@@ -9805,7 +9730,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
                           (vb == Vbid(0) ? 1 : 2), // opaque
                           docKey,
                           std::move(qi),
-                          {},
                           messageBytes));
         // Note: At OOM we force items into checkpoints
         EXPECT_EQ(store->getVBucket(vb)->getHighSeqno(), 1);
@@ -9886,7 +9810,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_64246) {
                                                             1, // opaque
                                                             docKey,
                                                             std::move(qi),
-                                                            {},
                                                             messageBytes));
         EXPECT_EQ(seqno, vb.getHighSeqno());
     }
@@ -10206,7 +10129,6 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                  0,
                                  0,
                                  0,
-                                 {},
                                  0));
     EXPECT_EQ(1, vb.getHighSeqno());
 }

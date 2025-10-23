@@ -13,7 +13,6 @@
 #include "collections/system_event_types.h"
 #include "dcp/dcp-types.h"
 #include "ep_types.h"
-#include "ext_meta_parser.h"
 #include "item.h"
 #include "systemevent_factory.h"
 
@@ -705,7 +704,6 @@ public:
                             IncludeDeleteTime includeDeleteTime,
                             IncludeDeletedUserXattrs includeDeletedUserXattrs,
                             DocKeyEncodesCollectionId includeCollectionID,
-                            ExtendedMetaData* e,
                             cb::mcbp::DcpStreamId sid,
                             std::optional<Event> eventType = std::nullopt)
         : MutationResponse(std::move(item),
@@ -718,10 +716,6 @@ public:
                            EnableExpiryOutput::Yes,
                            sid,
                            eventType) {
-        // emd will be removed, it's not been sent by a producer since 4.5
-        // With this null/removed, flow control size is now all on
-        // MutationResponse::calculateFlowControlSize
-        Expects(e == nullptr);
     }
 
     /**
@@ -731,11 +725,6 @@ public:
      *        Event types.
      */
     explicit MutationConsumerMessage(MutationResponse& response);
-
-    ExtendedMetaData* getExtMetaData() {
-        // @todo: Function to be removed.
-        return nullptr;
-    }
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override;

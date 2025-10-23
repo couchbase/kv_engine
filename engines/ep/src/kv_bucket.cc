@@ -29,7 +29,6 @@
 #include "ep_time.h"
 #include "ep_vb.h"
 #include "event_driven_timeout_task.h"
-#include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
@@ -1795,7 +1794,6 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       bool allowExisting,
                                       GenerateBySeqno genBySeqno,
                                       GenerateCas genCas,
-                                      ExtendedMetaData* emd,
                                       EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
@@ -2227,7 +2225,6 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
                                          GenerateBySeqno genBySeqno,
                                          GenerateCas generateCas,
                                          uint64_t bySeqno,
-                                         ExtendedMetaData* emd,
                                          DeleteSource deleteSource,
                                          EnforceMemCheck enforceMemCheck) {
     Expects(cookie);

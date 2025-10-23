@@ -61,10 +61,9 @@ cb::engine_errc MockDcpConsumer::public_processMutationOrPrepare(
         uint32_t opaque,
         const DocKeyView& key,
         queued_item item,
-        cb::const_byte_buffer meta,
         size_t msgBytes) {
     return processMutationOrPrepare(
-            vbid, opaque, key, std::move(item), meta, msgBytes);
+            vbid, opaque, key, std::move(item), msgBytes);
 }
 
 std::shared_ptr<PassiveStream> MockDcpConsumer::public_findStream(Vbid vbid) {

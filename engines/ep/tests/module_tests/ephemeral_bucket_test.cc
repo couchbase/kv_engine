@@ -189,7 +189,6 @@ TEST_F(EphemeralBucketStatTest, InctiveMemoryTracking) {
                       GenerateBySeqno::Yes,
                       GenerateCas::No,
                       store->getVBucket(replicaVB)->getHighSeqno() + 1,
-                      nullptr /* extended metadata */,
                       DeleteSource::Explicit,
                       EnforceMemCheck::Yes));
 

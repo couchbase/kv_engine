@@ -534,7 +534,6 @@ cb::engine_errc MockEngine::mutation(CookieIface& cookie,
                                      uint64_t rev_seqno,
                                      uint32_t expiration,
                                      uint32_t lock_time,
-                                     cb::const_byte_buffer meta,
                                      uint8_t nru) {
     auto engine_fn = [this,
                       &cookie,
@@ -549,7 +548,6 @@ cb::engine_errc MockEngine::mutation(CookieIface& cookie,
                       rev_seqno,
                       expiration,
                       lock_time,
-                      meta,
                       nru]() {
         return the_engine_dcp->mutation(cookie,
                                         opaque,
@@ -563,7 +561,6 @@ cb::engine_errc MockEngine::mutation(CookieIface& cookie,
                                         rev_seqno,
                                         expiration,
                                         lock_time,
-                                        meta,
                                         nru);
     };
 
@@ -578,8 +575,7 @@ cb::engine_errc MockEngine::deletion(CookieIface& cookie,
                                      uint64_t cas,
                                      Vbid vbucket,
                                      uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     cb::const_byte_buffer meta) {
+                                     uint64_t rev_seqno) {
     auto engine_fn = [this,
                       &cookie,
                       opaque,
@@ -589,8 +585,7 @@ cb::engine_errc MockEngine::deletion(CookieIface& cookie,
                       cas,
                       vbucket,
                       by_seqno,
-                      rev_seqno,
-                      meta]() {
+                      rev_seqno]() {
         return the_engine_dcp->deletion(cookie,
                                         opaque,
                                         k,
@@ -599,8 +594,7 @@ cb::engine_errc MockEngine::deletion(CookieIface& cookie,
                                         cas,
                                         vbucket,
                                         by_seqno,
-                                        rev_seqno,
-                                        meta);
+                                        rev_seqno);
     };
 
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
@@ -755,7 +749,6 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                                          uint64_t rev_seqno,
                                          uint32_t expiration,
                                          uint32_t lock_time,
-                                         cb::const_byte_buffer meta,
                                          uint8_t nru) {
     auto engine_fn = [this,
                       &cookie,
@@ -770,7 +763,6 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                       rev_seqno,
                       expiration,
                       lock_time,
-                      meta,
                       nru]() {
         return the_engine_dcp->cached_value(cookie,
                                             opaque,
@@ -784,7 +776,6 @@ cb::engine_errc MockEngine::cached_value(CookieIface& cookie,
                                             rev_seqno,
                                             expiration,
                                             lock_time,
-                                            meta,
                                             nru);
     };
 

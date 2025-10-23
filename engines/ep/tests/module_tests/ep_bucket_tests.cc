@@ -790,31 +790,19 @@ TEST_F(SingleThreadedEPBucketTest,
         auto key = makeStoredDocKey("key");
         auto dtype = PROTOCOL_BINARY_RAW_BYTES;
         EXPECT_EQ(expected,
-                  consumer->mutation(opaque,
-                                     key,
-                                     {},
-                                     dtype,
-                                     {},
-                                     vbid,
-                                     {},
-                                     1,
-                                     {},
-                                     {},
-                                     {},
-                                     {},
-                                     {}));
+                  consumer->mutation(
+                          opaque, key, {}, dtype, {}, vbid, 0, 1, 0, 0, 0, 0));
 
         EXPECT_EQ(expected,
-                  consumer->deletion(
-                          opaque, key, {}, dtype, {}, vbid, 2, {}, {}));
+                  consumer->deletion(opaque, key, {}, dtype, {}, vbid, 2, 0));
 
         EXPECT_EQ(expected,
                   consumer->deletionV2(
-                          opaque, key, {}, dtype, {}, vbid, 3, {}, {}));
+                          opaque, key, {}, dtype, {}, vbid, 3, 0, 0));
 
         EXPECT_EQ(expected,
                   consumer->expiration(
-                          opaque, key, {}, dtype, {}, vbid, 4, {}, {}));
+                          opaque, key, {}, dtype, {}, vbid, 4, 0, 0));
 
         EXPECT_EQ(
                 expected,

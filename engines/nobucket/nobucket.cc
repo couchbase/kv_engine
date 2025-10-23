@@ -237,7 +237,6 @@ public:
                              uint64_t,
                              uint32_t,
                              uint32_t,
-                             cb::const_byte_buffer,
                              uint8_t) override {
         return cb::engine_errc::no_bucket;
     }
@@ -250,8 +249,7 @@ public:
                              uint64_t,
                              Vbid,
                              uint64_t,
-                             uint64_t,
-                             cb::const_byte_buffer) override {
+                             uint64_t) override {
         return cb::engine_errc::no_bucket;
     }
 
@@ -372,7 +370,6 @@ public:
                                  uint64_t rev_seqno,
                                  uint32_t expiration,
                                  uint32_t lock_time,
-                                 cb::const_byte_buffer meta,
                                  uint8_t nru) override {
         return cb::engine_errc::no_bucket;
     }

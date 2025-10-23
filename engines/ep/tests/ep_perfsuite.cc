@@ -1242,7 +1242,6 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                         0 /*revSeqno*/,
                         0 /*expiration*/,
                         0 /*lockTime*/,
-                        {} /*meta*/,
                         0 /*nru*/),
                 "dcp.mutation failed");
 

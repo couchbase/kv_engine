@@ -33,23 +33,15 @@ static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     }
 
     const auto& payload = request.getCommandSpecifics<DcpDeletionV1Payload>();
-    const uint64_t by_seqno = payload.getBySeqno();
-    const uint64_t rev_seqno = payload.getRevSeqno();
-    const uint16_t nmeta = payload.getNmeta();
-
-    auto value = request.getValue();
-    cb::const_byte_buffer meta{value.data() + value.size() - nmeta, nmeta};
-    value = {value.data(), value.size() - nmeta};
     return dcpDeletion(cookie,
                        opaque,
                        key,
-                       value,
+                       request.getValue(),
                        datatype,
                        cas,
                        vbucket,
-                       by_seqno,
-                       rev_seqno,
-                       meta);
+                       payload.getBySeqno(),
+                       payload.getRevSeqno());
 }
 
 // The updated deletion sends no extended meta, but does send a deletion time

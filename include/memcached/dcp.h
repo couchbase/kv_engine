@@ -560,7 +560,6 @@ struct DcpIface {
      * @param rev_seqno The revision number for the item
      * @param expiration When the document expire
      * @param lock_time The lock time for the document
-     * @param meta The documents meta
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
@@ -576,7 +575,6 @@ struct DcpIface {
                                                    uint64_t rev_seqno,
                                                    uint32_t expiration,
                                                    uint32_t lock_time,
-                                                   cb::const_byte_buffer meta,
                                                    uint8_t nru) = 0;
 
     /**
@@ -591,20 +589,17 @@ struct DcpIface {
      * @param vbucket The vbucket identifier for the document
      * @param by_seqno The sequence number in the vbucket
      * @param rev_seqno The revision number for the item
-     * @param meta The documents meta
      * @return Standard engine error code.
      */
-    [[nodiscard]] virtual cb::engine_errc deletion(
-            CookieIface& cookie,
-            uint32_t opaque,
-            const DocKeyView& key,
-            cb::const_byte_buffer value,
-            uint8_t datatype,
-            uint64_t cas,
-            Vbid vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            cb::const_byte_buffer meta) = 0;
+    [[nodiscard]] virtual cb::engine_errc deletion(CookieIface& cookie,
+                                                   uint32_t opaque,
+                                                   const DocKeyView& key,
+                                                   cb::const_byte_buffer value,
+                                                   uint8_t datatype,
+                                                   uint64_t cas,
+                                                   Vbid vbucket,
+                                                   uint64_t by_seqno,
+                                                   uint64_t rev_seqno) = 0;
 
     /**
      * Callback to the engine that a deletion_v2 message was received
@@ -816,7 +811,6 @@ struct DcpIface {
      * @param rev_seqno The revision number for the item
      * @param expiration When the document expire
      * @param lock_time The lock time for the document
-     * @param meta The documents meta
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
@@ -833,6 +827,5 @@ struct DcpIface {
             uint64_t rev_seqno,
             uint32_t expiration,
             uint32_t lock_time,
-            cb::const_byte_buffer meta,
             uint8_t nru) = 0;
 };

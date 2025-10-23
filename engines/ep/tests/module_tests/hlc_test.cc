@@ -472,7 +472,6 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,
-                                    nullptr /* extended metadata */,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
     EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
@@ -497,7 +496,6 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,
-                                    nullptr /* extended metadata */,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
     EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);

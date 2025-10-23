@@ -132,8 +132,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 CheckConflicts::Yes,
                 true /*allowExisting*/,
                 GenerateBySeqno::Yes,
-                GenerateCas::No,
-                {} /*extendedMetaData*/);
+                GenerateCas::No);
         ASSERT_EQ(cb::engine_errc::success, res);
         EXPECT_EQ(cas, opCas); // Note: CAS is not regenerated
         EXPECT_EQ(expectedSeqno, seqno);

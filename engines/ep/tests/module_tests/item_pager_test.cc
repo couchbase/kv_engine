@@ -2697,7 +2697,6 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                                      GenerateBySeqno::No,
                                      GenerateCas::No,
                                      0,
-                                     nullptr,
                                      DeleteSource::Explicit,
                                      EnforceMemCheck::Yes);
     };
@@ -3322,7 +3321,6 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
                                      GenerateBySeqno::Yes,
                                      GenerateCas::No,
                                      0,
-                                     nullptr,
                                      DeleteSource::Explicit,
                                      EnforceMemCheck::Yes);
     };

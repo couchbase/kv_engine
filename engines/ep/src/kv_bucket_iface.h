@@ -28,7 +28,6 @@
 
 /* Forward declarations */
 struct CompactionConfig;
-class ExtendedMetaData;
 struct CompactionConfig;
 class ConflictResolution;
 class DefragmenterTask;
@@ -225,7 +224,6 @@ public:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
-     * @param emd ExtendedMetaData class object that contains any ext meta
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
      * @return the result of the store operation
@@ -240,7 +238,6 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = nullptr,
             EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) = 0;
 
     /**
@@ -332,7 +329,6 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
-     * @param emd ExtendedMetaData class object that contains any ext meta
      * @param deleteSource Determines the source of deletion and if TTL, it
      *                     triggers the expiry path.
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
@@ -350,7 +346,6 @@ public:
                                            GenerateBySeqno genBySeqno,
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
-                                           ExtendedMetaData* emd,
                                            DeleteSource deleteSource,
                                            EnforceMemCheck enforceMemCheck) = 0;
 

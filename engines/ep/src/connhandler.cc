@@ -108,7 +108,6 @@ cb::engine_errc ConnHandler::mutation(uint32_t opaque,
                                       uint64_t rev_seqno,
                                       uint32_t expiration,
                                       uint32_t lock_time,
-                                      cb::const_byte_buffer meta,
                                       uint8_t nru) {
     logger->warn(
             "Disconnecting - This connection doesn't "
@@ -123,8 +122,7 @@ cb::engine_errc ConnHandler::deletion(uint32_t opaque,
                                       uint64_t cas,
                                       Vbid vbucket,
                                       uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      cb::const_byte_buffer meta) {
+                                      uint64_t rev_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the deletion API");
@@ -317,7 +315,6 @@ cb::engine_errc ConnHandler::cached_value(uint32_t opaque,
                                           uint64_t revSeqno,
                                           uint32_t expiration,
                                           uint32_t lockTime,
-                                          cb::const_byte_buffer meta,
                                           uint8_t nru) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp "

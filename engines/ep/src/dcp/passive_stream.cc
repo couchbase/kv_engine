@@ -420,7 +420,6 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                  true,
                                                  GenerateBySeqno::No,
                                                  GenerateCas::No,
-                                                 message->getExtMetaData(),
                                                  enforceMemCheck);
         break;
     case DcpResponse::Event::Expiration:
@@ -442,7 +441,6 @@ cb::engine_errc PassiveStream::processMessageInner(
                     GenerateBySeqno::No,
                     GenerateCas::No,
                     *message->getBySeqno(),
-                    message->getExtMetaData(),
                     deleteSource,
                     enforceMemCheck);
             if (ret == cb::engine_errc::no_such_key) {
@@ -460,7 +458,6 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                      true,
                                                      GenerateBySeqno::No,
                                                      GenerateCas::No,
-                                                     message->getExtMetaData(),
                                                      enforceMemCheck);
         }
         break;

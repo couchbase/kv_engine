@@ -315,7 +315,6 @@ ADD_LIBRARY(ep STATIC
             src/event_driven_timeout_task.cc
             src/eviction_ratios.cc
             src/eviction_utils.cc
-            src/ext_meta_parser.cc
             src/failover-table.cc
             src/file_ops_tracker.cc
             src/flusher.cc

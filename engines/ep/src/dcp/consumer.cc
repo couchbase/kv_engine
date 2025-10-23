@@ -463,22 +463,12 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
     return res;
 }
 
-cb::engine_errc DcpConsumer::processMutationOrPrepare(
-        Vbid vbucket,
-        uint32_t opaque,
-        const DocKeyView& key,
-        queued_item item,
-        cb::const_byte_buffer meta,
-        size_t msgBytes) {
+cb::engine_errc DcpConsumer::processMutationOrPrepare(Vbid vbucket,
+                                                      uint32_t opaque,
+                                                      const DocKeyView& key,
+                                                      queued_item item,
+                                                      size_t msgBytes) {
     UpdateFlowControl ufc(*this, msgBytes);
-
-    std::unique_ptr<ExtendedMetaData> emd;
-    if (!meta.empty()) {
-        emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-        if (emd->getStatus() == cb::engine_errc::invalid_arguments) {
-            return cb::engine_errc::invalid_arguments;
-        }
-    }
 
     auto msg = std::make_unique<MutationConsumerMessage>(
             std::move(item),
@@ -488,7 +478,6 @@ cb::engine_errc DcpConsumer::processMutationOrPrepare(
             IncludeDeleteTime::No,
             IncludeDeletedUserXattrs::Yes,
             key.getEncoding(),
-            emd.release(),
             cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
@@ -504,7 +493,6 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
                                       uint64_t revSeqno,
                                       uint32_t exptime,
                                       uint32_t lock_time,
-                                      cb::const_byte_buffer meta,
                                       uint8_t nru) {
     lastMessageTime = ep_uptime_now();
 
@@ -527,14 +515,12 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
                               revSeqno,
                               nru /*freqCounter */));
 
-    return processMutationOrPrepare(vbucket,
-                                    opaque,
-                                    key,
-                                    std::move(item),
-                                    meta,
-                                    MutationResponse::mutationBaseMsgBytes +
-                                            key.size() + meta.size() +
-                                            value.size());
+    return processMutationOrPrepare(
+            vbucket,
+            opaque,
+            key,
+            std::move(item),
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size());
 }
 
 cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
@@ -544,8 +530,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                                       uint64_t cas,
                                       Vbid vbucket,
                                       uint64_t bySeqno,
-                                      uint64_t revSeqno,
-                                      cb::const_byte_buffer meta) {
+                                      uint64_t revSeqno) {
     return toMainDeletion(DeleteType::Deletion,
                           opaque,
                           key,
@@ -555,7 +540,6 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                           vbucket,
                           bySeqno,
                           revSeqno,
-                          meta,
                           0);
 }
 
@@ -577,7 +561,6 @@ cb::engine_errc DcpConsumer::deletionV2(uint32_t opaque,
                           vbucket,
                           bySeqno,
                           revSeqno,
-                          {},
                           deleteTime);
 }
 
@@ -589,7 +572,6 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                                       Vbid vbucket,
                                       uint64_t bySeqno,
                                       uint64_t revSeqno,
-                                      cb::const_byte_buffer meta,
                                       uint32_t deleteTime,
                                       IncludeDeleteTime includeDeleteTime,
                                       DeleteSource deletionCause,
@@ -674,14 +656,6 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
     }
 
     cb::engine_errc err;
-    std::unique_ptr<ExtendedMetaData> emd;
-    if (!meta.empty()) {
-        emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-        if (emd->getStatus() == cb::engine_errc::invalid_arguments) {
-            err = cb::engine_errc::invalid_arguments;
-        }
-    }
-
     try {
         err = stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                                               item,
@@ -691,7 +665,6 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                                               includeDeleteTime,
                                               IncludeDeletedUserXattrs::Yes,
                                               key.getEncoding(),
-                                              emd.release(),
                                               cb::mcbp::DcpStreamId{}),
                                       ufc);
     } catch (const std::bad_alloc&) {
@@ -724,7 +697,6 @@ cb::engine_errc DcpConsumer::expiration(uint32_t opaque,
                           vbucket,
                           bySeqno,
                           revSeqno,
-                          {},
                           deleteTime);
 }
 
@@ -737,7 +709,6 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                                             Vbid vbucket,
                                             uint64_t bySeqno,
                                             uint64_t revSeqno,
-                                            cb::const_byte_buffer meta,
                                             uint32_t deleteTime) {
     IncludeDeleteTime includeDeleteTime;
     size_t bytes = 0;
@@ -748,11 +719,10 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
         deleteTime = 0;
         deleteSource = DeleteSource::Explicit;
         bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
-                meta.size() + value.size();
+                value.size();
         break;
     }
     case DeleteType::DeletionV2: {
-        meta = {};
         includeDeleteTime = IncludeDeleteTime::Yes;
         deleteSource = DeleteSource::Explicit;
         bytes = MutationResponse::deletionV2BaseMsgBytes + key.size() +
@@ -760,7 +730,6 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
         break;
     }
     case DeleteType::Expiration: {
-        meta = {};
         includeDeleteTime = IncludeDeleteTime::Yes;
         deleteSource = DeleteSource::TTL;
         bytes = MutationResponse::expirationBaseMsgBytes + key.size() +
@@ -784,7 +753,6 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                         vbucket,
                         bySeqno,
                         revSeqno,
-                        meta,
                         deleteTime,
                         includeDeleteTime,
                         deleteSource,
@@ -1680,7 +1648,7 @@ cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
     const auto msgBytes =
             MutationResponse::prepareBaseMsgBytes + key.size() + value.size();
     return processMutationOrPrepare(
-            vbucket, opaque, key, std::move(item), {}, msgBytes);
+            vbucket, opaque, key, std::move(item), msgBytes);
 }
 
 cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
@@ -1844,7 +1812,6 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
                                           uint64_t revSeqno,
                                           uint32_t expiration,
                                           uint32_t lockTime,
-                                          cb::const_byte_buffer meta,
                                           uint8_t nru) {
     lastMessageTime = ep_uptime_now();
 
@@ -1865,8 +1832,8 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
                               vbucket,
                               revSeqno,
                               nru /*freqCounter */));
-    const auto msgBytes = MutationResponse::mutationBaseMsgBytes + key.size() +
-                          meta.size() + value.size();
+    const auto msgBytes =
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
     UpdateFlowControl ufc(*this, msgBytes);
     auto msg = std::make_unique<MutationConsumerMessage>(
             std::move(item),
@@ -1876,7 +1843,6 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
             IncludeDeleteTime::No,
             IncludeDeletedUserXattrs::Yes,
             key.getEncoding(),
-            nullptr,
             cb::mcbp::DcpStreamId{},
             DcpResponse::Event::CachedValue);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));

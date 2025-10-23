@@ -659,7 +659,6 @@ static cb::engine_errc store_with_meta(EngineIface* h,
                                        const std::vector<char>& nmeta) {
     size_t blen = 24;
     std::array<char, 30> ext;
-    std::unique_ptr<ExtendedMetaData> emd;
 
     encodeWithMetaExt(ext.data(), itemMeta);
 

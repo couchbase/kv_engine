@@ -200,7 +200,6 @@ cb::engine_errc CollectionsDcpTestProducers::mutation(
                 rev_seqno,
                 item.getExptime(),
                 lock_time,
-                {},
                 nru);
     }
 
@@ -235,8 +234,7 @@ cb::engine_errc CollectionsDcpTestProducers::deletion(
                 item.getCas(),
                 replicaVB,
                 by_seqno,
-                rev_seqno,
-                {});
+                rev_seqno);
     }
 
     MockDcpMessageProducers::deletion(

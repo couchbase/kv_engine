@@ -971,7 +971,6 @@ static void dcp_stream_to_replica(EngineIface* h,
                               revSeqno,
                               exprtime,
                               lockTime,
-                              {},
                               INITIAL_NRU_VALUE),
                 "Failed dcp mutate.");
     }
@@ -1222,7 +1221,6 @@ static void dcp_thread_func(void* args) {
                                    i + ctx->items, // rev_seqno
                                    0, // exptime
                                    0, // locktime
-                                   {}, // meta
                                    INITIAL_NRU_VALUE),
                 "mutation failed");
     }
@@ -2499,7 +2497,6 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                           0, // rev_seqno
                           0, // expiration
                           0, // lock_time
-                          {}, // meta
                           128 // frequency value
                           ),
             "Failed to send dcp mutation");
@@ -3296,7 +3293,6 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
@@ -3429,7 +3425,6 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
@@ -3465,7 +3460,6 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
@@ -3586,7 +3580,6 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to dcp mutate.");
     }
@@ -3670,7 +3663,6 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to dcp mutate.");
     }
@@ -3703,7 +3695,6 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                           0, // rev_seqno
                           0, // expiration
                           0, // lock_time
-                          {}, // meta
                           INITIAL_NRU_VALUE),
             "Unexpected response for the mutation!");
 
@@ -3811,7 +3802,6 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
                               0, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
@@ -4723,7 +4713,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           revSeqno,
                           exprtime,
                           lockTime,
-                          {},
                           0),
             "Failed to detect invalid DCP opaque value");
 
@@ -4769,7 +4758,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           revSeqno,
                           exprtime,
                           lockTime,
-                          {},
                           0),
             "Failed dcp mutate.");
 
@@ -4853,8 +4841,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           cas,
                           vbucket,
                           bySeqno,
-                          revSeqno,
-                          {}),
+                          revSeqno),
             "Failed to detect invalid DCP opaque value.");
     exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
 
@@ -4868,8 +4855,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           cas,
                           vbucket,
                           bySeqno,
-                          revSeqno,
-                          {}),
+                          revSeqno),
             "Failed dcp delete.");
 
     exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
@@ -6248,7 +6234,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                               0,
                               0,
                               0,
-                              {},
                               INITIAL_NRU_VALUE),
                 cb::engine_errc::success,
                 "Unexpected return code for mutation!");
@@ -6269,7 +6254,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           0,
                           0,
                           0,
-                          {},
                           INITIAL_NRU_VALUE),
             cb::engine_errc::out_of_range,
             "Mutation should've returned ERANGE!");
@@ -6283,8 +6267,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           40,
                           Vbid(0),
                           3,
-                          0,
-                          {}),
+                          0),
             cb::engine_errc::out_of_range,
             "Deletion should've returned ERANGE!");
 
@@ -6302,7 +6285,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                                         0,
                                         0,
                                         0,
-                                        {},
                                         INITIAL_NRU_VALUE);
 
     checkeq(err,
@@ -6379,7 +6361,6 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                               0,
                               0,
                               0,
-                              {},
                               INITIAL_NRU_VALUE),
                 cb::engine_errc::success,
                 "Unexpected return code for mutation!");
@@ -6451,7 +6432,6 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                             0,
                                             0,
                                             0,
-                                            {},
                                             INITIAL_NRU_VALUE);
         if (i <= 10) {
             checkeq(err,
@@ -6511,7 +6491,6 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
                           0,
                           0,
                           0,
-                          {},
                           INITIAL_NRU_VALUE),
             cb::engine_errc::invalid_arguments,
             "Mutation should have returned EINVAL!");
@@ -6524,8 +6503,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
                           10,
                           Vbid(0),
                           /*seqno*/ 0,
-                          0,
-                          {}),
+                          0),
             cb::engine_errc::invalid_arguments,
             "Deletion should have returned EINVAL!");
 
@@ -6587,7 +6565,6 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                               1, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Unexpected return code for mutation!");
     }
@@ -6932,7 +6909,6 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                               1, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Expected DCP mutation with CAS:-1 to succeed");
     }
@@ -6968,8 +6944,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                           -1, // cas
                           Vbid(0),
                           3, // by_seqno
-                          2, // rev_seqno,
-                          {}), // meta
+                          2), // rev_seqno
             "Expected DCP deletion with CAS:-1 to succeed");
 
     // Ensure we have processed the deletion.
@@ -7169,7 +7144,6 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
                           0,
                           0,
                           0,
-                          {},
                           INITIAL_NRU_VALUE),
             "Failed to send dcp mutation");
 
@@ -7251,7 +7225,6 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                           revSeqno, // rev_seqno
                           exprtime, // expiration
                           lockTime, // lock_time
-                          {}, // meta
                           0),
             "Failed dcp mutate.");
 
@@ -7598,7 +7571,6 @@ static enum test_result test_mb19982(EngineIface* h) {
                               i + num_items, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
 
@@ -7845,7 +7817,6 @@ static enum test_result test_MB_34664(EngineIface* h) {
                               i + num_items, // rev_seqno
                               0, // expiration
                               0, // lock_time
-                              {}, // meta
                               INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }

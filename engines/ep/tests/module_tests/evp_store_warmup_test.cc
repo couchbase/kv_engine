@@ -560,8 +560,7 @@ TEST_F(WarmupTest, MB_32577) {
                                /*cas*/ 0,
                                /*vbucket*/ vbid,
                                /*bySeqno*/ 2,
-                               /*revSeqno*/ 0,
-                               /*meta*/ {}));
+                               /*revSeqno*/ 0));
 
     // flush delete to disk
     EXPECT_NO_THROW(dynamic_cast<EPBucket&>(*store).flushVBucket(vbid));
@@ -1026,8 +1025,7 @@ void DurabilityWarmupTest::storeMutation(const std::string& key,
                                  CheckConflicts::No,
                                  true,
                                  GenerateBySeqno::No,
-                                 GenerateCas::No,
-                                 nullptr));
+                                 GenerateCas::No));
     EXPECT_EQ(mutationSeqno, vb->getHighSeqno());
 }
 
@@ -2273,8 +2271,7 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
                                      CheckConflicts::No,
                                      true,
                                      GenerateBySeqno::No,
-                                     GenerateCas::No,
-                                     nullptr));
+                                     GenerateCas::No));
         EXPECT_EQ(2, vb->getHighSeqno());
         // Commit is visible
         EXPECT_EQ(2, vb->checkpointManager->getMaxVisibleSeqno());
@@ -2358,8 +2355,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
                                      CheckConflicts::No,
                                      true,
                                      GenerateBySeqno::No,
-                                     GenerateCas::No,
-                                     nullptr));
+                                     GenerateCas::No));
         EXPECT_EQ(4, vb->getHighSeqno());
         // Commit is visible
         EXPECT_EQ(4, vb->checkpointManager->getMaxVisibleSeqno());

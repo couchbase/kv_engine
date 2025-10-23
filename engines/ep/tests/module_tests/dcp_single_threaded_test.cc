@@ -291,7 +291,6 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     // Have received the mutation and so have snapshot end.
@@ -626,7 +625,6 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
                                         0, // rev seqno
                                         0, // exptime
                                         0, // locktime
-                                        {}, // meta
                                         0); // nru
     const auto unackedBytes = stream->getUnackedBytes();
     const auto backfoffs = consumer->getNumBackoffs();
@@ -834,8 +832,7 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
                        /*bySeqno*/ 1,
-                       /*revSeqno*/ 0,
-                       /*meta*/ {});
+                       /*revSeqno*/ 0);
 
     auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size();
 
@@ -892,7 +889,6 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
                        /*revSeqno*/ 0,
                        /*exptime*/ 0,
                        /*lock_time*/ 0,
-                       /*meta*/ {},
                        /*nru*/ 0);
 
     auto messageSize =
@@ -961,7 +957,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                  0, // rev seqno
                                  0, // exptime
                                  0, // locktime
-                                 {}, // meta
                                  0)); // nru
 
     /* Set 'mem_used' beyond the 'replication threshold' */
@@ -999,7 +994,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                      0, // rev seqno
                                      0, // exptime
                                      0, // locktime
-                                     {}, // meta
                                      0);
         } while (ret == cb::engine_errc::success);
         EXPECT_EQ(cb::engine_errc::disconnect, ret);
@@ -1019,7 +1013,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                      0, // rev seqno
                                      0, // exptime
                                      0, // locktime
-                                     {}, // meta
                                      0)); // nru
     }
 

@@ -9,9 +9,8 @@
  */
 
 #include "dcp_cached_value.h"
+#include "daemon/cookie.h"
 #include "engine_wrapper.h"
-#include "executors.h"
-#include "utilities.h"
 
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
@@ -23,11 +22,7 @@ cb::engine_errc dcp_cached_value(Cookie& cookie) {
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
     const auto datatype = uint8_t(req.getDatatype());
-    const auto nmeta = extras.getNmeta();
-    auto value = req.getValue();
-    const cb::const_byte_buffer meta = {value.data() + value.size() - nmeta,
-                                        nmeta};
-    value = {value.data(), value.size() - nmeta};
+    const auto value = req.getValue();
 
     if (cb::mcbp::datatype::is_xattr(datatype)) {
         const char* payload = reinterpret_cast<const char*>(value.data());
@@ -50,6 +45,5 @@ cb::engine_errc dcp_cached_value(Cookie& cookie) {
                           extras.getRevSeqno(),
                           extras.getExpiration(),
                           extras.getLockTime(),
-                          meta,
                           extras.getNru());
 }

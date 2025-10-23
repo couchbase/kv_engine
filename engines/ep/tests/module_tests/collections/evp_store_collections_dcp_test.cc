@@ -147,7 +147,6 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*revSeqno*/ 0,
                       /*expTime*/ 0,
                       /*lock_time*/ 0,
-                      /*meta*/ cb::const_byte_buffer(),
                       /*nru*/ 0));
 
     // Now check that the DCP consumer has updated the in memory high seqno

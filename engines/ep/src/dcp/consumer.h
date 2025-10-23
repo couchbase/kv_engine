@@ -182,7 +182,6 @@ public:
                              uint64_t rev_seqno,
                              uint32_t expiration,
                              uint32_t lock_time,
-                             cb::const_byte_buffer meta,
                              uint8_t nru) override;
 
     cb::engine_errc deletion(uint32_t opaque,
@@ -192,8 +191,7 @@ public:
                              uint64_t cas,
                              Vbid vbucket,
                              uint64_t by_seqno,
-                             uint64_t rev_seqno,
-                             cb::const_byte_buffer meta) override;
+                             uint64_t rev_seqno) override;
 
     cb::engine_errc deletionV2(uint32_t opaque,
                                const DocKeyView& key,
@@ -243,7 +241,6 @@ public:
                                  uint64_t revSeqno,
                                  uint32_t expiration,
                                  uint32_t lockTime,
-                                 cb::const_byte_buffer meta,
                                  uint8_t nru) override;
 
     cb::engine_errc step(bool throttled,
@@ -482,7 +479,6 @@ protected:
                              Vbid vbucket,
                              uint64_t bySeqno,
                              uint64_t revSeqno,
-                             cb::const_byte_buffer meta,
                              uint32_t deleteTime,
                              IncludeDeleteTime includeDeleteTime,
                              DeleteSource deletionCause,
@@ -496,7 +492,6 @@ protected:
                                              uint32_t opaque,
                                              const DocKeyView& key,
                                              queued_item item,
-                                             cb::const_byte_buffer meta,
                                              size_t baseMsgBytes);
 
     enum class DeleteType { Deletion, DeletionV2, Expiration };
@@ -518,7 +513,6 @@ protected:
                                    Vbid vbucket,
                                    uint64_t bySeqno,
                                    uint64_t revSeqno,
-                                   cb::const_byte_buffer meta,
                                    uint32_t deleteTime);
 
     /**

@@ -189,7 +189,6 @@ public:
                                                     uint32_t opaque,
                                                     const DocKeyView& key,
                                                     queued_item item,
-                                                    cb::const_byte_buffer meta,
                                                     size_t msgBytes);
 
     /**
