@@ -848,6 +848,10 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         cookie.setErrorContext("Invalid seqno(0) for DCP mutation");
         return Status::Einval;
     }
+    if (payload.getNmeta()) {
+        cookie.setErrorContext("DCP does not support extended metadata");
+        return Status::Einval;
+    }
 
     return verify_common_dcp_restrictions(cookie);
 }
@@ -898,6 +902,18 @@ static Status dcp_deletion_validator(Cookie& cookie) {
     if (!valid_dcp_delete_datatype(cookie.getHeader().getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
         return Status::Einval;
+    }
+
+    if (expectedExtlen == sizeof(cb::mcbp::request::DcpDeletionV1Payload)) {
+        const auto& payload =
+                cookie.getRequest()
+                        .getCommandSpecifics<
+                                cb::mcbp::request::DcpDeletionV1Payload>();
+        if (payload.getNmeta()) {
+            cookie.setErrorContext(
+                    "DCP deletion does not support extended metadata");
+            return Status::Einval;
+        }
     }
 
     return verify_common_dcp_restrictions(cookie);
