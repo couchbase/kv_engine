@@ -374,21 +374,21 @@ ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
-        MutationConsumerMessage* message, EnforceMemCheck enforceMemCheck) {
+        MutationResponse& message, EnforceMemCheck enforceMemCheck) {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
         return cb::engine_errc::disconnect;
     }
 
-    if (uint64_t(*message->getBySeqno()) < cur_snapshot_start.load() ||
-        uint64_t(*message->getBySeqno()) > cur_snapshot_end.load()) {
+    if (uint64_t(*message.getBySeqno()) < cur_snapshot_start.load() ||
+        uint64_t(*message.getBySeqno()) > cur_snapshot_end.load()) {
         OBJ_LOG_WARN_CTX(*this,
                          "Erroneous (sequence number does not fall in the "
                          "expected snapshot range); Dropping the seqno",
-                         {"message", message->to_string()},
+                         {"message", message.to_string()},
                          {"current_snapshot",
                           {cur_snapshot_start.load(), cur_snapshot_end.load()}},
-                         {"seqno", *message->getBySeqno()});
+                         {"seqno", *message.getBySeqno()});
         return cb::engine_errc::out_of_range;
     }
 
@@ -396,22 +396,22 @@ cb::engine_errc PassiveStream::processMessageInner(
     // receive anything without a valid CAS, however given that versions without
     // this check may send us "bad" CAS values, we should regenerate them (which
     // is better than rejecting the data entirely).
-    if (!Item::isValidCas(message->getItem()->getCas())) {
+    if (!Item::isValidCas(message.getItem()->getCas())) {
         OBJ_LOG_WARN_CTX(
                 *this,
                 "Invalid CAS received. Regenerating new CAS",
-                {"cas", fmt::format("{:#x}", message->getItem()->getCas())},
-                {"message", message->to_string()},
-                {"seqno", message->getItem()->getBySeqno()});
-        message->getItem()->setCas();
+                {"cas", fmt::format("{:#x}", message.getItem()->getCas())},
+                {"message", message.to_string()},
+                {"seqno", message.getItem()->getBySeqno()});
+        message.getItem()->setCas();
     }
 
     auto ret = cb::engine_errc::failed;
     DeleteSource deleteSource = DeleteSource::Explicit;
 
-    switch (message->getEvent()) {
+    switch (message.getEvent()) {
     case DcpResponse::Event::Mutation:
-        ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
+        ret = engine->getKVBucket()->setWithMeta(*message.getItem(),
                                                  0,
                                                  nullptr,
                                                  consumer->getCookie(),
@@ -426,21 +426,21 @@ cb::engine_errc PassiveStream::processMessageInner(
         deleteSource = DeleteSource::TTL;
         // fallthrough with deleteSource updated
     case DcpResponse::Event::Deletion:
-        if (message->getItem()->getNBytes() == 0) {
+        if (message.getItem()->getNBytes() == 0) {
             uint64_t delCas = 0;
-            ItemMetaData meta = message->getItem()->getMetaData();
+            ItemMetaData meta = message.getItem()->getMetaData();
             ret = engine->getKVBucket()->deleteWithMeta(
-                    message->getItem()->getKey(),
+                    message.getItem()->getKey(),
                     delCas,
                     nullptr,
-                    message->getVBucket(),
+                    message.getVBucket(),
                     consumer->getCookie(),
                     permittedVBStates,
                     CheckConflicts::No,
                     meta,
                     GenerateBySeqno::No,
                     GenerateCas::No,
-                    *message->getBySeqno(),
+                    *message.getBySeqno(),
                     deleteSource,
                     enforceMemCheck);
             if (ret == cb::engine_errc::no_such_key) {
@@ -449,7 +449,7 @@ cb::engine_errc PassiveStream::processMessageInner(
         } else {
             // The deletion has a value, send it through the setWithMeta path to
             // process it correctly
-            ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
+            ret = engine->getKVBucket()->setWithMeta(*message.getItem(),
                                                      0,
                                                      nullptr,
                                                      consumer->getCookie(),
@@ -463,7 +463,7 @@ cb::engine_errc PassiveStream::processMessageInner(
         break;
     case DcpResponse::Event::Prepare:
         ret = engine->getKVBucket()->prepare(
-                *message->getItem(), consumer->getCookie(), enforceMemCheck);
+                *message.getItem(), consumer->getCookie(), enforceMemCheck);
         // If the stream has received and successfully processed a pending
         // SyncWrite, then we have to flag that the Replica must notify the
         // DurabilityMonitor at snapshot-end received for the DM to move the
@@ -487,7 +487,7 @@ cb::engine_errc PassiveStream::processMessageInner(
     case DcpResponse::Event::CacheTransferToActiveStream:
         throw std::invalid_argument(
                 "PassiveStream::processMessageInner: invalid event " +
-                std::string(message->to_string()));
+                std::string(message.to_string()));
     }
 
     return ret;
@@ -1318,7 +1318,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::Deletion:
     case DcpResponse::Event::Expiration:
     case DcpResponse::Event::Prepare:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
+        ret = processMessageInner(dynamic_cast<MutationResponse&>(*resp),
                                   enforceMemCheck);
         break;
     case DcpResponse::Event::Commit:
@@ -1342,7 +1342,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         ret = processSystemEvent(dynamic_cast<SystemEventMessage&>(*resp));
         break;
     case DcpResponse::Event::CachedValue:
-        ret = processCachedValue(dynamic_cast<MutationConsumerMessage&>(*resp));
+        ret = processCachedValue(dynamic_cast<MutationResponse&>(*resp));
         break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
@@ -1359,7 +1359,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
 
     const auto seqno = resp->getBySeqno();
 
-    const auto* mutation = dynamic_cast<MutationConsumerMessage*>(resp);
+    const auto* mutation = dynamic_cast<MutationResponse*>(resp);
     if (mutation) {
         Expects(seqno);
         if (ret != cb::engine_errc::success) {
@@ -1424,8 +1424,7 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
     return ret;
 }
 
-cb::engine_errc PassiveStream::processCachedValue(
-        MutationConsumerMessage& resp) {
+cb::engine_errc PassiveStream::processCachedValue(MutationResponse& resp) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {

@@ -21,7 +21,6 @@ class CollectionID;
 class MockDcpConsumer;
 class MockDcpMessageProducers;
 class MockPassiveStream;
-class MutationConsumerMessage;
 class Vbid;
 
 /*
@@ -47,7 +46,7 @@ void processMutations(MockPassiveStream& stream,
                       const int64_t seqnoStart,
                       const int64_t seqnoEnd);
 
-std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
+std::unique_ptr<MutationResponse> makeMutationResponse(
         uint64_t seqno,
         Vbid vbid,
         const std::string& value,
@@ -57,10 +56,9 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         std::optional<DeleteSource> deletion = {},
         uint64_t revSeqno = 1);
 
-std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
-        uint64_t opaque,
-        uint64_t seqno,
-        Vbid vbid,
-        const std::string& value,
-        const std::string& key,
-        CollectionID cid);
+std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
+                                                       uint64_t seqno,
+                                                       Vbid vbid,
+                                                       const std::string& value,
+                                                       const std::string& key,
+                                                       CollectionID cid);

@@ -61,10 +61,10 @@ CollectionsManifest createManifest();
 queued_item createItem(DocKeyView key, CheckpointActionType type);
 
 /**
- * Creates a MutationConsumerMessage from a CheckpointAction.
+ * Creates a MutationResponse from a CheckpointAction.
  */
-MutationConsumerMessage createMutationConsumerMessage(
-        StoredDocKey key, CheckpointActionType type);
+MutationResponse createMutationResponse(StoredDocKey key,
+                                        CheckpointActionType type);
 
 /**
  * Creates a json filter for an ActiveStream.
@@ -182,7 +182,7 @@ inline auto snapshotMarker() {
 }
 
 inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {
-    return fuzztest::Map(createMutationConsumerMessage,
+    return fuzztest::Map(createMutationResponse,
                          docKey(defaultCollectionOnly),
                          checkpointActionType(false));
 }
@@ -190,4 +190,4 @@ inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {
 } // namespace cb::fuzzing
 
 std::string format_as(const SnapshotMarker& marker);
-std::string format_as(const MutationConsumerMessage& mutation);
+std::string format_as(const MutationResponse& mutation);

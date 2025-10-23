@@ -33,7 +33,7 @@ public:
     using CheckpointAction = cb::fuzzing::CheckpointAction;
     using CheckpointActionType = cb::fuzzing::CheckpointActionType;
 
-    using Mutation = std::unique_ptr<MutationConsumerMessage>;
+    using Mutation = std::unique_ptr<MutationResponse>;
 
     void SetUp() override {
         CollectionsDcpTest::SetUp();
@@ -167,7 +167,7 @@ void PassiveStreamFuzzTest::receiveSnapshot(
     const auto maxMutations =
             std::min(mutations.size(),
                      size_t(marker.getEndSeqno() - marker.getStartSeqno() + 1));
-    MutationConsumerMessage* lastMutation = nullptr;
+    MutationResponse* lastMutation = nullptr;
 
     // Our counter for the MVS, used to validate the MVS is correct.
     uint64_t maxVisibleSeqno = vb.getMaxVisibleSeqno();

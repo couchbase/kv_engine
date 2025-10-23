@@ -494,17 +494,6 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
         return getNextProducerMsg(stream);
     }
 
-    // Cannot pass mutation/deletion directly to the consumer as the object
-    // is different
-    if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
-        producerMsg->getEvent() == DcpResponse::Event::Deletion ||
-        producerMsg->getEvent() == DcpResponse::Event::Expiration ||
-        producerMsg->getEvent() == DcpResponse::Event::Prepare ||
-        producerMsg->getEvent() == DcpResponse::Event::CachedValue) {
-        producerMsg = std::make_unique<MutationConsumerMessage>(
-                *static_cast<MutationResponse*>(producerMsg.get()));
-    }
-
     return producerMsg;
 }
 
@@ -544,7 +533,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
-    auto* mutation = static_cast<MutationConsumerMessage*>(msg.get());
+    auto* mutation = static_cast<MutationResponse*>(msg.get());
 
     // If the item is actually a commit_sync_write which had to be transmitted
     // as a DCP_MUTATION (i.e. MutationConsumerResponse), we need
@@ -564,7 +553,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
                 mutation->getItem()->getRevSeqno(),
                 mutation->getItem()->getFreqCounterValue().value_or(
                         Item::initialFreqCount));
-        msg = std::make_unique<MutationConsumerMessage>(
+        msg = std::make_unique<MutationResponse>(
                 newItem,
                 mutation->getOpaque(),
                 mutation->getIncludeValue(),
@@ -573,7 +562,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
                 mutation->getIncludeDeletedUserXattrs(),
                 mutation->getDocKeyEncodesCollectionId(),
                 mutation->getStreamId());
-        mutation = static_cast<MutationConsumerMessage*>(msg.get());
+        mutation = static_cast<MutationResponse*>(msg.get());
     }
 
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());

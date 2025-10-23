@@ -82,8 +82,8 @@ queued_item createItem(DocKeyView key, CheckpointActionType type) {
     return queued_item(item.release());
 }
 
-MutationConsumerMessage createMutationConsumerMessage(
-        StoredDocKey key, CheckpointActionType type) {
+MutationResponse createMutationResponse(StoredDocKey key,
+                                        CheckpointActionType type) {
     auto item = createItem(key, type);
     return {item,
             0 /*opaque*/,
@@ -259,9 +259,9 @@ std::string format_as(const SnapshotMarker& marker) {
             });
 }
 
-std::string format_as(const MutationConsumerMessage& mutation) {
+std::string format_as(const MutationResponse& mutation) {
     // Seqno is not printed as it is set by the test.
-    return formatStruct("MutationConsumerMessage",
+    return formatStruct("MutationResponse",
                         {
                                 {"key", mutation.getItem()->getKey()},
                                 {"operation",

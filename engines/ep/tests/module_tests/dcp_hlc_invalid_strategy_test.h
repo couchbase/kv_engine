@@ -60,14 +60,14 @@ protected:
                 {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
 
-        MutationConsumerMessage mutation(item,
-                                         0 /* opaque */,
-                                         IncludeValue::Yes,
-                                         IncludeXattrs::Yes,
-                                         IncludeDeleteTime::No,
-                                         IncludeDeletedUserXattrs::Yes,
-                                         DocKeyEncodesCollectionId::No,
-                                         cb::mcbp::DcpStreamId{});
+        MutationResponse mutation(item,
+                                  0 /* opaque */,
+                                  IncludeValue::Yes,
+                                  IncludeXattrs::Yes,
+                                  IncludeDeleteTime::No,
+                                  IncludeDeletedUserXattrs::Yes,
+                                  DocKeyEncodesCollectionId::No,
+                                  cb::mcbp::DcpStreamId{});
 
         // KVBucket->setWithMeta/delteWithMeta/prepare code paths are hit
         // depending on the type of Item passed in: Commited/Deleted/Pending

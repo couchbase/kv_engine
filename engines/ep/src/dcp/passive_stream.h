@@ -31,7 +31,7 @@ class CreateScopeEvent;
 class DropCollectionEvent;
 class DropScopeEvent;
 class EventuallyPersistentEngine;
-class MutationConsumerMessage;
+class MutationResponse;
 class SystemEventMessage;
 class SystemEventConsumerMessage;
 class UpdateFlowControl;
@@ -150,7 +150,7 @@ protected:
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
      */
-    cb::engine_errc processMessageInner(MutationConsumerMessage* message,
+    cb::engine_errc processMessageInner(MutationResponse& message,
                                         EnforceMemCheck enforceMemCheck);
 
     /// Process an incoming commit of a SyncWrite.
@@ -269,7 +269,7 @@ protected:
      * @return cb::engine_errc::success if the item was inserted into the cache
      * otherwise a status code for why not (e.g. nmvb for vbucket state changed)
      */
-    cb::engine_errc processCachedValue(MutationConsumerMessage& resp);
+    cb::engine_errc processCachedValue(MutationResponse& resp);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised

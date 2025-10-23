@@ -68,14 +68,14 @@ void processMutations(MockPassiveStream& stream,
                                 i /*bySeqno*/,
                                 stream.getVBucket()));
 
-        MutationConsumerMessage mutation(std::move(qi),
-                                         0 /* opaque */,
-                                         IncludeValue::Yes,
-                                         IncludeXattrs::Yes,
-                                         IncludeDeleteTime::No,
-                                         IncludeDeletedUserXattrs::Yes,
-                                         DocKeyEncodesCollectionId::No,
-                                         cb::mcbp::DcpStreamId{});
+        MutationResponse mutation(std::move(qi),
+                                  0 /* opaque */,
+                                  IncludeValue::Yes,
+                                  IncludeXattrs::Yes,
+                                  IncludeDeleteTime::No,
+                                  IncludeDeletedUserXattrs::Yes,
+                                  DocKeyEncodesCollectionId::No,
+                                  cb::mcbp::DcpStreamId{});
 
         // PassiveStream::processMutation does 2 things:
         //     1) setWithMeta; that enqueues the item into the
@@ -89,7 +89,7 @@ void processMutations(MockPassiveStream& stream,
     }
 }
 
-std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
+std::unique_ptr<MutationResponse> makeMutationResponse(
         uint64_t seqno,
         Vbid vbid,
         const std::string& value,
@@ -115,24 +115,22 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
     if (deletion) {
         qi->setDeleted(*deletion);
     }
-    return std::make_unique<MutationConsumerMessage>(
-            std::move(qi),
-            opaque,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes,
-            IncludeDeleteTime::No,
-            IncludeDeletedUserXattrs::Yes,
-            DocKeyEncodesCollectionId::No,
-            cb::mcbp::DcpStreamId{});
+    return std::make_unique<MutationResponse>(std::move(qi),
+                                              opaque,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeleteTime::No,
+                                              IncludeDeletedUserXattrs::Yes,
+                                              DocKeyEncodesCollectionId::No,
+                                              cb::mcbp::DcpStreamId{});
 }
 
-std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
-        uint64_t opaque,
-        uint64_t seqno,
-        Vbid vbid,
-        const std::string& value,
-        const std::string& key,
-        CollectionID cid) {
+std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
+                                                       uint64_t seqno,
+                                                       Vbid vbid,
+                                                       const std::string& value,
+                                                       const std::string& key,
+                                                       CollectionID cid) {
     queued_item qi(new Item(makeStoredDocKey(key, cid),
                             0,
                             0,
@@ -143,13 +141,12 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
                             seqno,
                             vbid,
                             1));
-    return std::make_unique<MutationConsumerMessage>(
-            std::move(qi),
-            opaque,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes,
-            IncludeDeleteTime::No,
-            IncludeDeletedUserXattrs::Yes,
-            DocKeyEncodesCollectionId::No,
-            cb::mcbp::DcpStreamId{});
+    return std::make_unique<MutationResponse>(std::move(qi),
+                                              opaque,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeleteTime::No,
+                                              IncludeDeletedUserXattrs::Yes,
+                                              DocKeyEncodesCollectionId::No,
+                                              cb::mcbp::DcpStreamId{});
 }

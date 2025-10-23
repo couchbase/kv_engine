@@ -554,6 +554,27 @@ public:
           enableExpiryOutput(enableExpiryOut) {
     }
 
+    MutationResponse(queued_item item,
+                     uint32_t opaque,
+                     IncludeValue includeVal,
+                     IncludeXattrs includeXattrs,
+                     IncludeDeleteTime includeDeleteTime,
+                     IncludeDeletedUserXattrs includeDeletedUserXattrs,
+                     DocKeyEncodesCollectionId includeCollectionID,
+                     cb::mcbp::DcpStreamId sid,
+                     std::optional<Event> eventType = std::nullopt)
+        : MutationResponse(std::move(item),
+                           opaque,
+                           includeVal,
+                           includeXattrs,
+                           includeDeleteTime,
+                           includeDeletedUserXattrs,
+                           includeCollectionID,
+                           EnableExpiryOutput::Yes,
+                           sid,
+                           eventType) {
+    }
+
     bool isMutationResponse() const override {
         return true;
     }
@@ -680,54 +701,6 @@ protected:
     DocKeyEncodesCollectionId includeCollectionID;
     // Whether the response should utilise expiry opcode output
     EnableExpiryOutput enableExpiryOutput;
-};
-
-/**
- * MutationConsumerMessage is a class for storing a mutation that has been
- * sent to a DcpConsumer/PassiveStream.
- *
- * The class differs from the DcpProducer version (MutationResponse) in that
- * it can optionally store 'ExtendedMetaData'
- *
- * As of Mad Hatter, the consumer will always be able to interpret expiration
- * messages, so EnableExpiryOutput is yes for the MutationResponse back to the
- * producer (as it shouldn't receive any expiration messages from the producer
- * to reply to if the consumer hasn't already utilised a control message to
- * activate these expiry messages)
- */
-class MutationConsumerMessage : public MutationResponse {
-public:
-    MutationConsumerMessage(queued_item item,
-                            uint32_t opaque,
-                            IncludeValue includeVal,
-                            IncludeXattrs includeXattrs,
-                            IncludeDeleteTime includeDeleteTime,
-                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
-                            DocKeyEncodesCollectionId includeCollectionID,
-                            cb::mcbp::DcpStreamId sid,
-                            std::optional<Event> eventType = std::nullopt)
-        : MutationResponse(std::move(item),
-                           opaque,
-                           includeVal,
-                           includeXattrs,
-                           includeDeleteTime,
-                           includeDeletedUserXattrs,
-                           includeCollectionID,
-                           EnableExpiryOutput::Yes,
-                           sid,
-                           eventType) {
-    }
-
-    /**
-     * Used in test code for wiring a producer/consumer directly.
-     * @param response MutationResponse (from Producer) to create message from.
-     *        Note this is non-const as the item needs to be modified for some
-     *        Event types.
-     */
-    explicit MutationConsumerMessage(MutationResponse& response);
-
-protected:
-    bool isEqual(const DcpResponse& rsp) const override;
 };
 
 /**

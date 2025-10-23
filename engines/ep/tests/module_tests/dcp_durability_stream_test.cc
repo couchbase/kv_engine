@@ -1162,7 +1162,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     prepare->setCas(1);
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       stream->getOpaque(),
                       IncludeValue::Yes,
@@ -1215,7 +1215,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     mutation->setCas(2);
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       mutation,
                       stream->getOpaque(),
                       IncludeValue::Yes,
@@ -1384,7 +1384,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 
     // Receive prepare at seqno 1
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       stream->getOpaque(),
                       IncludeValue::Yes,
@@ -1407,7 +1407,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     mutation->setCas(999);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       mutation,
                       stream->getOpaque(),
                       IncludeValue::Yes,
@@ -1439,7 +1439,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 
     // Receive unrelated committed item at seqno 5
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       unrelated,
                       stream->getOpaque(),
                       IncludeValue::Yes,
@@ -1479,7 +1479,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 
     // Send the logical commit
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       0 /*opaque*/,
                       IncludeValue::Yes,
@@ -1518,7 +1518,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
 
     // Send the mutation
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       0 /*opaque*/,
                       IncludeValue::Yes,
@@ -1593,7 +1593,7 @@ void DurabilityPassiveStreamTest::
 
     // Send the prepare
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       item,
                       opaque,
                       IncludeValue::Yes,
@@ -1613,7 +1613,7 @@ void DurabilityPassiveStreamTest::
 
     // Send the logical commit
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -1691,7 +1691,7 @@ void DurabilityPassiveStreamTest::
     item->setBySeqno(1);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -1758,7 +1758,7 @@ void DurabilityPassiveStreamTest::
     }
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -1855,7 +1855,7 @@ TEST_P(DurabilityPassiveStreamTest,
     auto item = makeCommittedItem(key, value);
     item->setBySeqno(1);
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -1908,14 +1908,14 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
     const std::string value("value");
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      1 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     using namespace cb::durability;
     const uint64_t swSeqno = 2;
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       swSeqno,
                       vbid,
                       value,
@@ -1927,8 +1927,8 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
 
     // snapshot-end
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      snapEnd, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(snapEnd, vbid, value, opaque)));
     // Verify that we have the expected SeqnoAck in readyQ now
     ASSERT_EQ(1, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SeqnoAcknowledgement,
@@ -1964,14 +1964,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
     const std::string value("value");
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      1 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     const int64_t swSeqno = 2;
     using namespace cb::durability;
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       swSeqno,
                       vbid,
                       value,
@@ -1992,15 +1992,15 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
 
     // Non-durable s:3 received
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      3 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(3 /*seqno*/, vbid, value, opaque)));
     // No ack yet, we have not yet received the complete snapshot
     EXPECT_EQ(0, readyQ.size());
 
     // Non-durable s:4 (snapshot-end) received
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      4 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(4 /*seqno*/, vbid, value, opaque)));
     // No ack yet, we have received the snap-end mutation but we have not yet
     // persisted the complete snapshot
     EXPECT_EQ(0, readyQ.size());
@@ -2070,14 +2070,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     // s:1 non-durable -> no ack
     const std::string value("value");
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      1 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:2 Level:Majority -> no ack
     using namespace cb::durability;
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       2 /*seqno*/,
                       vbid,
                       value,
@@ -2088,13 +2088,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:3 non-durable -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      3 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(3 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:4 Level:MajorityAndPersistOnMaster -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       4 /*seqno*/,
                       vbid,
                       value,
@@ -2106,13 +2106,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:5 non-durable -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      5 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(5 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:6 Level:PersistToMajority -> no ack (durability-fence)
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       6 /*seqno*/,
                       vbid,
                       value,
@@ -2124,7 +2124,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:7 Level-Majority -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       7 /*seqno*/,
                       vbid,
                       value,
@@ -2135,7 +2135,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:8 Level:MajorityAndPersistOnMaster -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
+              stream->messageReceived(makeMutationResponse(
                       8 /*seqno*/,
                       vbid,
                       value,
@@ -2147,14 +2147,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:9 non-durable -> no ack
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationConsumerMessage(
-                      9 /*seqno*/, vbid, value, opaque)));
+              stream->messageReceived(
+                      makeMutationResponse(9 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:10 non-durable (snapshot-end) -> ack (HPS=4, durability-fence at 6)
     ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(
-                      makeMutationConsumerMessage(10, vbid, value, opaque)));
+                      makeMutationResponse(10, vbid, value, opaque)));
     checkSeqnoAckInReadyQ(4 /*HPS*/);
 
     // Flusher persists all -> ack (HPS=8)
@@ -2174,7 +2174,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
     qi->setCas(cas);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       0 /*opaque*/,
                       IncludeValue::Yes,
@@ -2214,7 +2214,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveCommittedItem(
     }
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       0 /*opaque*/,
                       IncludeValue::Yes,
@@ -2349,7 +2349,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
                       IncludeValue::Yes,
@@ -2524,7 +2524,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
 
     uint32_t opaque = 0;
     ASSERT_EQ(cb::engine_errc::out_of_range,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
                       IncludeValue::Yes,
@@ -2689,16 +2689,15 @@ void DurabilityPassiveStreamPersistentTest::
 
         // Replica receives PRE
         EXPECT_EQ(cb::engine_errc::success,
-                  stream->messageReceived(
-                          std::make_unique<MutationConsumerMessage>(
-                                  item,
-                                  opaque,
-                                  IncludeValue::Yes,
-                                  IncludeXattrs::Yes,
-                                  IncludeDeleteTime::No,
-                                  IncludeDeletedUserXattrs::Yes,
-                                  DocKeyEncodesCollectionId::No,
-                                  cb::mcbp::DcpStreamId{})));
+                  stream->messageReceived(std::make_unique<MutationResponse>(
+                          item,
+                          opaque,
+                          IncludeValue::Yes,
+                          IncludeXattrs::Yes,
+                          IncludeDeleteTime::No,
+                          IncludeDeletedUserXattrs::Yes,
+                          DocKeyEncodesCollectionId::No,
+                          cb::mcbp::DcpStreamId{})));
 
         // Replica receives logical CMT
         std::unique_ptr<DcpResponse> cmtMsg;
@@ -2712,7 +2711,7 @@ void DurabilityPassiveStreamPersistentTest::
         } else {
             item = makeCommittedItem(key, value);
             item->setBySeqno(snapEnd);
-            cmtMsg = std::make_unique<MutationConsumerMessage>(
+            cmtMsg = std::make_unique<MutationResponse>(
                     std::move(item),
                     opaque,
                     IncludeValue::Yes,
@@ -2864,7 +2863,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
                       IncludeValue::Yes,
@@ -2888,7 +2887,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
                       IncludeValue::Yes,
@@ -3287,7 +3286,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
     pending->setBySeqno(2);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3331,10 +3330,10 @@ TEST_P(DurabilityPassiveStreamTest, CheckHCSUpdatedOnReplicaWarmup) {
                           cb::mcbp::DcpStreamId{});
     stream->processMarker(&marker);
 
-    stream->messageReceived(makeMutationConsumerMessage(1, vbid, "value", 0));
-    stream->messageReceived(makeMutationConsumerMessage(2, vbid, "value", 0));
-    stream->messageReceived(makeMutationConsumerMessage(3, vbid, "value", 0));
-    stream->messageReceived(makeMutationConsumerMessage(4, vbid, "value", 0));
+    stream->messageReceived(makeMutationResponse(1, vbid, "value", 0));
+    stream->messageReceived(makeMutationResponse(2, vbid, "value", 0));
+    stream->messageReceived(makeMutationResponse(3, vbid, "value", 0));
+    stream->messageReceived(makeMutationResponse(4, vbid, "value", 0));
 
     auto vb = store->getVBucket(vbid);
     EXPECT_EQ(4, vb->acquireStateLockAndGetHighCompletedSeqno());
@@ -3390,7 +3389,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
     prepare->setCas(999);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       opaque,
                       IncludeValue::Yes,
@@ -3432,7 +3431,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     pending->setCas(1);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3470,7 +3469,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     // 6) Send prepare
     pending->setBySeqno(commitSeqno + 1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3547,7 +3546,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
     qi->setCas(cas);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
                       IncludeValue::Yes,
@@ -3596,7 +3595,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                               vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
     ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
                       IncludeValue::Yes,
@@ -3616,7 +3615,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
     auto item = makeCommittedItem(key, value);
     item->setBySeqno(5);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -3666,7 +3665,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     pending->setBySeqno(preSeqno);
     pending->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3682,7 +3681,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     deleted->setBySeqno(3);
     queued_item qi{deleted};
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       deleted,
                       opaque,
                       IncludeValue::Yes,
@@ -3727,7 +3726,7 @@ TEST_P(DurabilityPassiveStreamTest,
     pending->setBySeqno(1);
     pending->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3760,7 +3759,7 @@ TEST_P(DurabilityPassiveStreamTest,
     pending->setBySeqno(keyBPrepareSeqno);
     pending->setCas(3);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3774,7 +3773,7 @@ TEST_P(DurabilityPassiveStreamTest,
     committed->setBySeqno(4);
     auto qi = queued_item{committed};
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       committed,
                       opaque,
                       IncludeValue::Yes,
@@ -3793,7 +3792,7 @@ TEST_P(DurabilityPassiveStreamTest,
     committed->setBySeqno(5);
     qi = queued_item{committed};
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       committed,
                       opaque,
                       IncludeValue::Yes,
@@ -3837,7 +3836,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     pending->setBySeqno(preSeqno);
     pending->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3853,7 +3852,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     item->setBySeqno(2);
     item->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
                       IncludeValue::Yes,
@@ -3883,7 +3882,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     pending->setBySeqno(3);
     pending->setCas(2);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3922,7 +3921,7 @@ TEST_P(DurabilityPassiveStreamTest,
     pending->setBySeqno(1);
     pending->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -3958,7 +3957,7 @@ TEST_P(DurabilityPassiveStreamTest,
     pending->setBySeqno(3);
     pending->setCas(2);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
                       IncludeValue::Yes,
@@ -4021,7 +4020,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
             makePendingItem(key, "value", {level, Timeout::Infinity()});
     prepare->setBySeqno(prepareSeqno);
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       opaque,
                       IncludeValue::Yes,
@@ -4350,7 +4349,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
     qi->setCas(3);
 
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
                       IncludeValue::Yes,
@@ -4426,7 +4425,7 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
     // The PDM throws as we break the monotonicity invariant on HPS (set to
     // seqno:2) by trying to reset it to PDM::trackedWrites::begin (ie, seqno:1)
     EXPECT_EQ(cb::engine_errc::success,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+              stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
                       IncludeValue::Yes,
@@ -4969,16 +4968,15 @@ void DurabilityPromotionStreamTest::
     item->setBySeqno(seqno);
 
     EXPECT_EQ(cb::engine_errc::success,
-              passiveStream->messageReceived(
-                      std::make_unique<MutationConsumerMessage>(
-                              std::move(item),
-                              opaque,
-                              IncludeValue::Yes,
-                              IncludeXattrs::Yes,
-                              IncludeDeleteTime::No,
-                              IncludeDeletedUserXattrs::Yes,
-                              DocKeyEncodesCollectionId::No,
-                              cb::mcbp::DcpStreamId{})));
+              passiveStream->messageReceived(std::make_unique<MutationResponse>(
+                      std::move(item),
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      cb::mcbp::DcpStreamId{})));
 
     ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
     auto currSnap = ckptMgr.getSnapshotInfo();
@@ -5435,7 +5433,7 @@ TEST_P(DurabilityPromotionStreamTest,
     mutation->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
               DurabilityPassiveStreamTest::stream->messageReceived(
-                      std::make_unique<MutationConsumerMessage>(
+                      std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
                               IncludeValue::Yes,
@@ -5567,7 +5565,7 @@ TEST_P(DurabilityPromotionStreamTest,
     mutation->setCas(1);
     EXPECT_EQ(cb::engine_errc::success,
               DurabilityPassiveStreamTest::stream->messageReceived(
-                      std::make_unique<MutationConsumerMessage>(
+                      std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
                               IncludeValue::Yes,
@@ -5597,7 +5595,7 @@ TEST_P(DurabilityPromotionStreamTest,
     mutation->setCas(3);
     EXPECT_EQ(cb::engine_errc::success,
               DurabilityPassiveStreamTest::stream->messageReceived(
-                      std::make_unique<MutationConsumerMessage>(
+                      std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
                               IncludeValue::Yes,

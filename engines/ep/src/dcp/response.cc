@@ -121,19 +121,6 @@ uint32_t MutationResponse::calculateFlowControlSize(
     return static_cast<uint32_t>(header + body);
 }
 
-MutationConsumerMessage::MutationConsumerMessage(MutationResponse& response)
-    : MutationResponse(response.getItem(),
-                       response.getOpaque(),
-                       response.getIncludeValue(),
-                       response.getIncludeXattrs(),
-                       response.getIncludeDeleteTime(),
-                       response.getIncludeDeletedUserXattrs(),
-                       response.getDocKeyEncodesCollectionId(),
-                       response.getEnableExpiryOutput(),
-                       response.getStreamId(),
-                       response.getEvent()) {
-}
-
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
     os << "DcpResponse[" << &r << "]"
        << " event:" << r.to_string() << " seqno:"
@@ -295,10 +282,6 @@ bool MutationResponse::isEqual(const DcpResponse& rsp) const {
               enableExpiryOutput == other.enableExpiryOutput;
 
     return eq && DcpResponse::isEqual(rsp);
-}
-
-bool MutationConsumerMessage::isEqual(const DcpResponse& rsp) const {
-    return MutationResponse::isEqual(rsp);
 }
 
 bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {

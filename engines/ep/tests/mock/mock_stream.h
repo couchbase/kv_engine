@@ -324,8 +324,8 @@ public:
         PassiveStream::processMarker(marker);
     }
 
-    cb::engine_errc processMutation(MutationConsumerMessage* mutation) {
-        return PassiveStream::processMessageInner(mutation,
+    cb::engine_errc processMutation(MutationResponse* mutation) {
+        return PassiveStream::processMessageInner(*mutation,
                                                   EnforceMemCheck::Yes);
     }
 
