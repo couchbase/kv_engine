@@ -70,11 +70,9 @@ void processMutations(MockPassiveStream& stream,
 
         MutationResponse mutation(std::move(qi),
                                   0 /* opaque */,
-                                  IncludeValue::Yes,
-                                  IncludeXattrs::Yes,
                                   IncludeDeleteTime::No,
-                                  IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
+                                  EnableExpiryOutput::Yes,
                                   cb::mcbp::DcpStreamId{});
 
         // PassiveStream::processMutation does 2 things:
@@ -117,11 +115,9 @@ std::unique_ptr<MutationResponse> makeMutationResponse(
     }
     return std::make_unique<MutationResponse>(std::move(qi),
                                               opaque,
-                                              IncludeValue::Yes,
-                                              IncludeXattrs::Yes,
                                               IncludeDeleteTime::No,
-                                              IncludeDeletedUserXattrs::Yes,
                                               DocKeyEncodesCollectionId::No,
+                                              EnableExpiryOutput::Yes,
                                               cb::mcbp::DcpStreamId{});
 }
 
@@ -143,10 +139,8 @@ std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
                             1));
     return std::make_unique<MutationResponse>(std::move(qi),
                                               opaque,
-                                              IncludeValue::Yes,
-                                              IncludeXattrs::Yes,
                                               IncludeDeleteTime::No,
-                                              IncludeDeletedUserXattrs::Yes,
                                               DocKeyEncodesCollectionId::No,
+                                              EnableExpiryOutput::No,
                                               cb::mcbp::DcpStreamId{});
 }

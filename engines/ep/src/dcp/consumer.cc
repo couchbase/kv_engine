@@ -472,11 +472,9 @@ cb::engine_errc DcpConsumer::processMutationOrPrepare(Vbid vbucket,
 
     auto msg = std::make_unique<MutationResponse>(std::move(item),
                                                   opaque,
-                                                  IncludeValue::Yes,
-                                                  IncludeXattrs::Yes,
-                                                  IncludeDeleteTime::No,
-                                                  IncludeDeletedUserXattrs::Yes,
+                                                  IncludeDeleteTime::Yes,
                                                   key.getEncoding(),
+                                                  EnableExpiryOutput::Yes,
                                                   cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
@@ -656,16 +654,14 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
 
     cb::engine_errc err;
     try {
-        err = stream->messageReceived(std::make_unique<MutationResponse>(
-                                              item,
-                                              opaque,
-                                              IncludeValue::Yes,
-                                              IncludeXattrs::Yes,
-                                              includeDeleteTime,
-                                              IncludeDeletedUserXattrs::Yes,
-                                              key.getEncoding(),
-                                              cb::mcbp::DcpStreamId{}),
-                                      ufc);
+        err = stream->messageReceived(
+                std::make_unique<MutationResponse>(item,
+                                                   opaque,
+                                                   includeDeleteTime,
+                                                   key.getEncoding(),
+                                                   EnableExpiryOutput::Yes,
+                                                   cb::mcbp::DcpStreamId{}),
+                ufc);
     } catch (const std::bad_alloc&) {
         err = cb::engine_errc::no_memory;
     }
@@ -1837,11 +1833,9 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
     auto msg =
             std::make_unique<MutationResponse>(std::move(item),
                                                opaque,
-                                               IncludeValue::Yes,
-                                               IncludeXattrs::Yes,
                                                IncludeDeleteTime::No,
-                                               IncludeDeletedUserXattrs::Yes,
                                                key.getEncoding(),
+                                               EnableExpiryOutput::Yes,
                                                cb::mcbp::DcpStreamId{},
                                                DcpResponse::Event::CachedValue);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));

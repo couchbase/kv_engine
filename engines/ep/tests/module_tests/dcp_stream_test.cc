@@ -2768,11 +2768,9 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                   stream->messageReceived(std::make_unique<MutationResponse>(
                           std::move(item),
                           opaque,
-                          IncludeValue::Yes,
-                          IncludeXattrs::Yes,
                           IncludeDeleteTime::No,
-                          IncludeDeletedUserXattrs::Yes,
                           DocKeyEncodesCollectionId::No,
+                          EnableExpiryOutput::Yes,
                           streamId)));
 
         EXPECT_EQ(expectedNumCheckpoint, ckptMgr.getNumCheckpoints());
@@ -4163,10 +4161,7 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
     }
 
     ASSERT_TRUE(deletion.getItem()->isDeleted());
-    ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
-    ASSERT_EQ(IncludeXattrs::Yes, deletion.getIncludeXattrs());
-    ASSERT_EQ(IncludeDeletedUserXattrs::Yes,
-              deletion.getIncludeDeletedUserXattrs());
+    ASSERT_NE(0, deletion.getItem()->getNBytes());
 
     // The value must contain all xattrs (user+sys)
     ASSERT_EQ(dtJsonXattr, deletion.getItem()->getDataType());
@@ -4390,9 +4385,6 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     }
 
     ASSERT_TRUE(deletion.getItem()->isDeleted());
-    ASSERT_EQ(IncludeValue::Yes, deletion.getIncludeValue());
-    ASSERT_EQ(currIncXattr, deletion.getIncludeXattrs());
-    ASSERT_EQ(currIncDelUserXattr, deletion.getIncludeDeletedUserXattrs());
 
     // Check that we stream the expected value.
     // What value we stream depends on the current configuration:
@@ -4415,9 +4407,6 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     // Check that we have the expected value
     if (flags == cb::mcbp::DcpOpenFlag::None) {
-        ASSERT_EQ(IncludeXattrs::No, deletion.getIncludeXattrs());
-        ASSERT_EQ(IncludeDeletedUserXattrs::No,
-                  deletion.getIncludeDeletedUserXattrs());
         // No value
         // Note: DT for no-value must be RAW
         ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES, deletion.getItem()->getDataType());
@@ -4425,10 +4414,6 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         //  before my see Item::setData
         ASSERT_EQ(0, valueBuf.size());
     } else {
-        ASSERT_EQ(IncludeXattrs::Yes, deletion.getIncludeXattrs());
-        ASSERT_EQ(IncludeDeletedUserXattrs::No,
-                  deletion.getIncludeDeletedUserXattrs());
-
         // Only xattrs in deletion, dt must be XATTR only
         ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR,
                   deletion.getItem()->getDataType());
@@ -4603,7 +4588,6 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Expiration, msg->getEvent());
     ASSERT_TRUE(msg->getItem()->isDeleted());
-    ASSERT_EQ(currIncDelUserXattr, msg->getIncludeDeletedUserXattrs());
 
     const auto& item = *msg->getItem();
     const auto* data = item.getData();

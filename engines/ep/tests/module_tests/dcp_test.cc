@@ -2790,46 +2790,26 @@ TEST(MutationResponseTest, Construct) {
     auto response =
             std::make_unique<MutationResponse>(item,
                                                1 /*opaque*/,
-                                               IncludeValue::Yes,
-                                               IncludeXattrs::Yes,
                                                IncludeDeleteTime::No,
-                                               IncludeDeletedUserXattrs::No,
                                                DocKeyEncodesCollectionId::Yes,
                                                EnableExpiryOutput::No,
                                                cb::mcbp::DcpStreamId{100});
     EXPECT_EQ(DcpResponse::Event::Mutation, response->getEvent());
     EXPECT_EQ(1, response->getOpaque());
-    EXPECT_EQ(IncludeValue::Yes, response->getIncludeValue());
-    EXPECT_EQ(IncludeXattrs::Yes, response->getIncludeXattrs());
-    EXPECT_EQ(IncludeDeleteTime::No, response->getIncludeDeleteTime());
-    EXPECT_EQ(IncludeDeletedUserXattrs::No,
-              response->getIncludeDeletedUserXattrs());
-    EXPECT_EQ(DocKeyEncodesCollectionId::Yes,
-              response->getDocKeyEncodesCollectionId());
-    EXPECT_EQ(EnableExpiryOutput::No, response->getEnableExpiryOutput());
     EXPECT_EQ(cb::mcbp::DcpStreamId{100}, response->getStreamId());
+    EXPECT_EQ(67, response->getMessageSize());
 
     response =
             std::make_unique<MutationResponse>(item,
                                                1 /*opaque*/,
-                                               IncludeValue::Yes,
-                                               IncludeXattrs::Yes,
                                                IncludeDeleteTime::No,
-                                               IncludeDeletedUserXattrs::No,
                                                DocKeyEncodesCollectionId::Yes,
                                                EnableExpiryOutput::No,
                                                cb::mcbp::DcpStreamId{100},
                                                DcpResponse::Event::CachedValue);
     EXPECT_EQ(DcpResponse::Event::CachedValue, response->getEvent());
     EXPECT_EQ(1, response->getOpaque());
-    EXPECT_EQ(IncludeValue::Yes, response->getIncludeValue());
-    EXPECT_EQ(IncludeXattrs::Yes, response->getIncludeXattrs());
-    EXPECT_EQ(IncludeDeleteTime::No, response->getIncludeDeleteTime());
-    EXPECT_EQ(IncludeDeletedUserXattrs::No,
-              response->getIncludeDeletedUserXattrs());
-    EXPECT_EQ(DocKeyEncodesCollectionId::Yes,
-              response->getDocKeyEncodesCollectionId());
-    EXPECT_EQ(EnableExpiryOutput::No, response->getEnableExpiryOutput());
+    EXPECT_EQ(67, response->getMessageSize());
     EXPECT_EQ(cb::mcbp::DcpStreamId{100}, response->getStreamId());
 }
 

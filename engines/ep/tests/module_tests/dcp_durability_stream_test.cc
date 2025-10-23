@@ -1165,11 +1165,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       stream->getOpaque(),
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Persist prepare
@@ -1218,11 +1216,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       mutation,
                       stream->getOpaque(),
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1387,11 +1383,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       stream->getOpaque(),
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1410,11 +1404,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       mutation,
                       stream->getOpaque(),
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1442,11 +1434,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       unrelated,
                       stream->getOpaque(),
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1482,11 +1472,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       0 /*opaque*/,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // We don't flush any items but we will run the flusher which will advance
@@ -1521,11 +1509,9 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       0 /*opaque*/,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // Test: check we can successfully flush to disk with HCS=0.
@@ -1596,11 +1582,9 @@ void DurabilityPassiveStreamTest::
               stream->messageReceived(std::make_unique<MutationResponse>(
                       item,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     item = makeCommittedItem(key, "committed");
@@ -1616,11 +1600,9 @@ void DurabilityPassiveStreamTest::
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // Test the HashTable state
@@ -1694,11 +1676,9 @@ void DurabilityPassiveStreamTest::
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
             2 /*snapStart*/, 4 /*snapEnd*/, docState);
@@ -1761,11 +1741,9 @@ void DurabilityPassiveStreamTest::
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 4) Verify doc state
@@ -1858,11 +1836,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     marker = SnapshotMarker(opaque,
@@ -2177,11 +2153,9 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
               stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       0 /*opaque*/,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     return qi;
 }
@@ -2217,11 +2191,9 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveCommittedItem(
               stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       0 /*opaque*/,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     return qi;
@@ -2352,11 +2324,9 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     auto commitSeqno = prepareSeqno + 1;
@@ -2527,11 +2497,9 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -2692,11 +2660,9 @@ void DurabilityPassiveStreamPersistentTest::
                   stream->messageReceived(std::make_unique<MutationResponse>(
                           item,
                           opaque,
-                          IncludeValue::Yes,
-                          IncludeXattrs::Yes,
                           IncludeDeleteTime::No,
-                          IncludeDeletedUserXattrs::Yes,
                           DocKeyEncodesCollectionId::No,
+                          EnableExpiryOutput::Yes,
                           cb::mcbp::DcpStreamId{})));
 
         // Replica receives logical CMT
@@ -2714,11 +2680,9 @@ void DurabilityPassiveStreamPersistentTest::
             cmtMsg = std::make_unique<MutationResponse>(
                     std::move(item),
                     opaque,
-                    IncludeValue::Yes,
-                    IncludeXattrs::Yes,
                     IncludeDeleteTime::No,
-                    IncludeDeletedUserXattrs::Yes,
                     DocKeyEncodesCollectionId::No,
+                    EnableExpiryOutput::Yes,
                     cb::mcbp::DcpStreamId{});
         }
         EXPECT_EQ(cb::engine_errc::success,
@@ -2866,11 +2830,9 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     key = makeStoredDocKey("key1");
@@ -2890,11 +2852,9 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3289,11 +3249,9 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     ASSERT_EQ(true, stream->getCurSnapshotPrepare());
@@ -3392,11 +3350,9 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // Hit the consumer level function (not the stream level) for additional
@@ -3434,11 +3390,9 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     auto vb = engine->getVBucket(vbid);
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vb);
@@ -3472,11 +3426,9 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     ASSERT_EQ(1, pdm.getNumTracked());
 
@@ -3549,11 +3501,9 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     auto vb = engine->getVBucket(vbid);
@@ -3598,11 +3548,9 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(qi),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // We remove the SyncWrite corresponding to 1:PRE when we receive 4:PRE
@@ -3618,11 +3566,9 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // Persist and notify the PDM as 4:PRE requires persistence to complete due
@@ -3668,11 +3614,9 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Send delete of the prepared key
@@ -3684,11 +3628,9 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       deleted,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // Expect two items in the flush, prepare and delete
@@ -3729,11 +3671,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -3762,11 +3702,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     auto committed = makeCommittedItem(key, {});
@@ -3776,11 +3714,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       committed,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 5) Flush before we receive the completion for keyA
@@ -3795,11 +3731,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       committed,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3839,11 +3773,9 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Receive overwriting set instead of commit
@@ -3855,11 +3787,9 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 4) Receive memory snapshot marker
@@ -3885,11 +3815,9 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -3924,11 +3852,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // 3) Receive commit
@@ -3960,11 +3886,9 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->messageReceived(std::make_unique<MutationResponse>(
                       pending,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -4023,11 +3947,9 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
               stream->messageReceived(std::make_unique<MutationResponse>(
                       prepare,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     // MB-36735: This is added for covering both when:
@@ -4352,11 +4274,9 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
               stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 }
 
@@ -4428,11 +4348,9 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
               stream->messageReceived(std::make_unique<MutationResponse>(
                       qi,
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     if (persistent()) {
@@ -4971,11 +4889,9 @@ void DurabilityPromotionStreamTest::
               passiveStream->messageReceived(std::make_unique<MutationResponse>(
                       std::move(item),
                       opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
                       DocKeyEncodesCollectionId::No,
+                      EnableExpiryOutput::Yes,
                       cb::mcbp::DcpStreamId{})));
 
     ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
@@ -5436,11 +5352,9 @@ TEST_P(DurabilityPromotionStreamTest,
                       std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
-                              IncludeValue::Yes,
-                              IncludeXattrs::Yes,
                               IncludeDeleteTime::No,
-                              IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
+                              EnableExpiryOutput::Yes,
                               cb::mcbp::DcpStreamId{})));
 
     // 3)
@@ -5568,11 +5482,9 @@ TEST_P(DurabilityPromotionStreamTest,
                       std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
-                              IncludeValue::Yes,
-                              IncludeXattrs::Yes,
                               IncludeDeleteTime::No,
-                              IncludeDeletedUserXattrs::Yes,
-                              DocKeyEncodesCollectionId::No,
+                              DocKeyEncodesCollectionId::Yes,
+                              EnableExpiryOutput::Yes,
                               cb::mcbp::DcpStreamId{})));
 
     // 3)
@@ -5598,11 +5510,9 @@ TEST_P(DurabilityPromotionStreamTest,
                       std::make_unique<MutationResponse>(
                               mutation,
                               0 /*opaque*/,
-                              IncludeValue::Yes,
-                              IncludeXattrs::Yes,
                               IncludeDeleteTime::No,
-                              IncludeDeletedUserXattrs::Yes,
                               DocKeyEncodesCollectionId::No,
+                              EnableExpiryOutput::Yes,
                               cb::mcbp::DcpStreamId{})));
 
     // Remove PassiveStream and Consumer

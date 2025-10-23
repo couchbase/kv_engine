@@ -553,15 +553,12 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
                 mutation->getItem()->getRevSeqno(),
                 mutation->getItem()->getFreqCounterValue().value_or(
                         Item::initialFreqCount));
-        msg = std::make_unique<MutationResponse>(
-                newItem,
-                mutation->getOpaque(),
-                mutation->getIncludeValue(),
-                mutation->getIncludeXattrs(),
-                mutation->getIncludeDeleteTime(),
-                mutation->getIncludeDeletedUserXattrs(),
-                mutation->getDocKeyEncodesCollectionId(),
-                mutation->getStreamId());
+        msg = std::make_unique<MutationResponse>(newItem,
+                                                 mutation->getOpaque(),
+                                                 IncludeDeleteTime::Yes,
+                                                 DocKeyEncodesCollectionId::Yes,
+                                                 EnableExpiryOutput::Yes,
+                                                 mutation->getStreamId());
         mutation = static_cast<MutationResponse*>(msg.get());
     }
 

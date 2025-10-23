@@ -275,13 +275,7 @@ bool SnapshotMarker::isEqual(const DcpResponse& rsp) const {
 
 bool MutationResponse::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const MutationResponse&>(rsp);
-    bool eq = *item_ == *other.item_ && includeValue == other.includeValue &&
-              includeXattributes == other.includeXattributes &&
-              includeDeletedUserXattrs == other.includeDeletedUserXattrs &&
-              includeCollectionID == other.includeCollectionID &&
-              enableExpiryOutput == other.enableExpiryOutput;
-
-    return eq && DcpResponse::isEqual(rsp);
+    return *item_ == *other.item_ && DcpResponse::isEqual(rsp);
 }
 
 bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {

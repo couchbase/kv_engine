@@ -87,11 +87,9 @@ MutationResponse createMutationResponse(StoredDocKey key,
     auto item = createItem(key, type);
     return {item,
             0 /*opaque*/,
-            IncludeValue::No,
-            IncludeXattrs::No,
             IncludeDeleteTime::No,
-            IncludeDeletedUserXattrs::No,
             DocKeyEncodesCollectionId::Yes,
+            EnableExpiryOutput::No,
             cb::mcbp::DcpStreamId(0) /*sid*/};
 }
 

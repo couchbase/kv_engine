@@ -515,24 +515,25 @@ public:
     /**
      * Construct a MutationResponse which is used to represent an outgoing or
      * incoming DCP mutation/deletion (stored in an Item)
+     * The parameters includeDeleteTime, includeCollectionID and
+     * enableExpiryOutput exist only to control the flow control size of the
+     * message. E.g. A DCP stream which has not enabled collectins would send
+     * less bytes than one which has enabled collections.
+     *
      * @param item The Item (via shared pointer) the object represents
      * @param opaque DCP opaque value
-     * @param includeVal Does the DCP message contain a value
-     * @param includeXattrs Does the DCP message contain xattrs
      * @param includeDeleteTime Does DCP include the delete time for deletions
-     * @param includeDeletesUserXattrs Does the DCP deletion contain user-xattrs
      * @param includeCollectionID If the incoming/outgoing key should contain
      *        the Collection-ID.
+     * @param enableExpiryOutput Whether the response should utilise expiry
+     *        opcode output (if item is deleted and deletion source is TTL)
      * @param sid The stream-ID
      * @param eventType Optional Event. If not defined the Item defines the
      * Event (see eventFromItem) else this defines the Event.
      */
     MutationResponse(queued_item item,
                      uint32_t opaque,
-                     IncludeValue includeVal,
-                     IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
-                     IncludeDeletedUserXattrs includeDeletedUserXattrs,
                      DocKeyEncodesCollectionId includeCollectionID,
                      EnableExpiryOutput enableExpiryOut,
                      cb::mcbp::DcpStreamId sid,
@@ -545,34 +546,7 @@ public:
                                                includeCollectionID,
                                                enableExpiryOut,
                                                sid)),
-          item_(std::move(item)),
-          includeValue(includeVal),
-          includeXattributes(includeXattrs),
-          includeDeleteTime(includeDeleteTime),
-          includeDeletedUserXattrs(includeDeletedUserXattrs),
-          includeCollectionID(includeCollectionID),
-          enableExpiryOutput(enableExpiryOut) {
-    }
-
-    MutationResponse(queued_item item,
-                     uint32_t opaque,
-                     IncludeValue includeVal,
-                     IncludeXattrs includeXattrs,
-                     IncludeDeleteTime includeDeleteTime,
-                     IncludeDeletedUserXattrs includeDeletedUserXattrs,
-                     DocKeyEncodesCollectionId includeCollectionID,
-                     cb::mcbp::DcpStreamId sid,
-                     std::optional<Event> eventType = std::nullopt)
-        : MutationResponse(std::move(item),
-                           opaque,
-                           includeVal,
-                           includeXattrs,
-                           includeDeleteTime,
-                           includeDeletedUserXattrs,
-                           includeCollectionID,
-                           EnableExpiryOutput::Yes,
-                           sid,
-                           eventType) {
+          item_(std::move(item)) {
     }
 
     bool isMutationResponse() const override {
@@ -614,30 +588,6 @@ public:
      */
     size_t getApproximateSize() const override {
         return item_->size();
-    }
-
-    IncludeValue getIncludeValue() const {
-        return includeValue;
-    }
-
-    IncludeXattrs getIncludeXattrs() const {
-        return includeXattributes;
-    }
-
-    IncludeDeletedUserXattrs getIncludeDeletedUserXattrs() const {
-        return includeDeletedUserXattrs;
-    }
-
-    IncludeDeleteTime getIncludeDeleteTime() const {
-        return includeDeleteTime;
-    }
-
-    DocKeyEncodesCollectionId getDocKeyEncodesCollectionId() const {
-        return includeCollectionID;
-    }
-
-    EnableExpiryOutput getEnableExpiryOutput() const {
-        return enableExpiryOutput;
     }
 
     /// Returns the Event type which should be used for the given item.
@@ -688,19 +638,6 @@ protected:
                                     EnableExpiryOutput enableExpiryOut);
 
     const queued_item item_;
-
-    // Whether the response should contain the value
-    IncludeValue includeValue;
-    // Whether the response should contain the xattributes, if they exist.
-    IncludeXattrs includeXattributes;
-    // Whether the response should include delete-time (when a delete)
-    IncludeDeleteTime includeDeleteTime;
-    // Whether the response should include user-xattrs (when a delete)
-    IncludeDeletedUserXattrs includeDeletedUserXattrs;
-    // Whether the response includes the collection-ID
-    DocKeyEncodesCollectionId includeCollectionID;
-    // Whether the response should utilise expiry opcode output
-    EnableExpiryOutput enableExpiryOutput;
 };
 
 /**

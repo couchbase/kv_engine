@@ -271,10 +271,7 @@ public:
             responses.push_back(std::make_unique<MutationResponse>(
                     item,
                     0 /*opaque*/,
-                    IncludeValue::Yes,
-                    IncludeXattrs::Yes,
                     IncludeDeleteTime::No,
-                    IncludeDeletedUserXattrs::No,
                     DocKeyEncodesCollectionId::Yes,
                     EnableExpiryOutput::No,
                     cb::mcbp::DcpStreamId{}));

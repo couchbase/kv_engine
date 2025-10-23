@@ -489,10 +489,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                                           ? StoredValue::IncludeValue::Yes
                                           : StoredValue::IncludeValue::No)},
             opaque_,
-            includeValue,
-            IncludeXattrs::Yes,
             IncludeDeleteTime::Yes,
-            IncludeDeletedUserXattrs::Yes,
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
             sid,

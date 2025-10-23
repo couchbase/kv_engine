@@ -62,11 +62,9 @@ protected:
 
         MutationResponse mutation(item,
                                   0 /* opaque */,
-                                  IncludeValue::Yes,
-                                  IncludeXattrs::Yes,
                                   IncludeDeleteTime::No,
-                                  IncludeDeletedUserXattrs::Yes,
                                   DocKeyEncodesCollectionId::No,
+                                  EnableExpiryOutput::Yes,
                                   cb::mcbp::DcpStreamId{});
 
         // KVBucket->setWithMeta/delteWithMeta/prepare code paths are hit

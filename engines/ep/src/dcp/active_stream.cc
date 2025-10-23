@@ -1387,10 +1387,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
              */
             return std::make_unique<MutationResponse>(std::move(finalItem),
                                                       opaque_,
-                                                      includeValue,
-                                                      includeXattributes,
                                                       includeDeleteTime,
-                                                      includeDeletedUserXattrs,
                                                       includeCollectionID,
                                                       enableExpiryOutput,
                                                       sid);
@@ -1399,10 +1396,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         // Item unmodified - construct response from original.
         return std::make_unique<MutationResponse>(item,
                                                   opaque_,
-                                                  includeValue,
-                                                  includeXattributes,
                                                   includeDeleteTime,
-                                                  includeDeletedUserXattrs,
                                                   includeCollectionID,
                                                   enableExpiryOutput,
                                                   sid);
