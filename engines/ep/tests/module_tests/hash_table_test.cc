@@ -366,6 +366,39 @@ TEST_F(HashTableTest, AutoResize) {
     verifyFound(h, keys);
 }
 
+TEST_F(HashTableTest, AutoResizeTemp) {
+    HashTable h(global_stats, makeFactory(), 5, 3, 0);
+
+    ASSERT_EQ(5, h.getSize());
+
+    const auto keys = generateKeys(300);
+    for (size_t ii = 0; ii < keys.size(); ++ii) {
+        const auto& key = keys[ii];
+        if (ii < 100) {
+            store(h, key);
+        } else {
+            Item temp(key,
+                      0,
+                      0,
+                      nullptr,
+                      0,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      0,
+                      StoredValue::state_temp_init);
+            auto hbl = h.getLockedBucket(key);
+            h.unlocked_addNewStoredValue(hbl, temp);
+        }
+    }
+
+    EXPECT_EQ(100, h.getNumInMemoryItems());
+    EXPECT_EQ(200, h.getNumTempItems());
+    verifyFound(h, keys);
+
+    h.resize();
+    EXPECT_EQ(383, h.getSize());
+    verifyFound(h, keys);
+}
+
 TEST_F(HashTableTest, DepthCounting) {
     HashTable h(global_stats, makeFactory(), 5, 1, 0);
     const int nkeys = 5000;

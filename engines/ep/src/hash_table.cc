@@ -226,7 +226,7 @@ static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
 
 void HashTable::resize() {
     const size_t minSize = minimumSize();
-    size_t ni = getNumInMemoryItems();
+    const size_t ni = getNumInMemoryItems() + getNumTempItems();
     int i(0);
     size_t new_size(0);
 
