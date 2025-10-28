@@ -392,14 +392,7 @@ ADD_TEST(NAME ep_perfsuite.ephemeral
 # implicit int conversions when building with MSVC and Clang/AppleClang.
 # This is limited to a subset of targets whilst we make progress towards
 # being able to globally enable such flags.
-if (WIN32)
-    # Set Compiler warning level to /W4
-    target_compile_options(ep-engine_ep_unit_tests PRIVATE /W4)
-    target_compile_options(ep_testsuite PRIVATE /W4)
-    target_compile_options(ep_testsuite_dcp PRIVATE /W4)
-    target_compile_options(ep_testsuite_xdcr PRIVATE /W4)
-    target_compile_options(ep_testsuite_basic PRIVATE /W4)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(ep-engine_ep_unit_tests PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
     target_compile_options(ep_testsuite PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
     target_compile_options(ep_testsuite_dcp PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)

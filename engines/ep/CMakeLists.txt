@@ -587,13 +587,7 @@ endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
 # implicit int conversions when building with MSVC and Clang/AppleClang.
 # This is limited to a subset of targets whilst we make progress towards
 # being able to globally enable such flags.
-if (WIN32)
-    # Set Compiler warning level to /W4
-    target_compile_options(ep PRIVATE /W4)
-    target_compile_options(ep_perfsuite PRIVATE /W4)
-    target_compile_options(ep_engine_benchmarks PRIVATE /W4)
-    target_compile_options(ep_mocks PRIVATE /W4)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(ep PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
     target_compile_options(ep_perfsuite PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
     target_compile_options(ep_engine_benchmarks PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
