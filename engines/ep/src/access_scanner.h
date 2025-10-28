@@ -19,6 +19,7 @@ class Configuration;
 class EPStats;
 class KVBucket;
 class AccessScannerValueChangeListener;
+class Vbid;
 
 class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
@@ -37,7 +38,7 @@ public:
     std::atomic<size_t> completedCount;
 
 protected:
-    void createAndScheduleTask(size_t shard);
+    void createAndScheduleTask(size_t shard, std::vector<Vbid> vbuckets);
 
 private:
     void updateAlogTime(double sleepSecs);

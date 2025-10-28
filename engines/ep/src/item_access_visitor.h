@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "access_scanner.h"
 #include "hash_table.h"
 #include "kv_bucket.h"
 #include "mutation_log.h"
@@ -35,6 +36,7 @@ public:
                       std::atomic<bool>& sfin,
                       AccessScanner& aS,
                       uint64_t items_to_scan,
+                      std::vector<Vbid> vbuckets,
                       std::unique_ptr<mlog::FileIface> fileIface =
                               std::make_unique<mlog::DefaultFileIface>());
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;

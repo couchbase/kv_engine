@@ -35,6 +35,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
                                      std::atomic<bool>& sfin,
                                      AccessScanner& aS,
                                      uint64_t items_to_scan,
+                                     std::vector<Vbid> vbuckets,
                                      std::unique_ptr<mlog::FileIface> fileIface)
     : store(_store),
       stats(_stats),
@@ -45,8 +46,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
       as(aS),
       items_scanned(0),
       items_to_scan(items_to_scan) {
-    setVBucketFilter(
-            VBucketFilter(_store.getVBuckets().getShard(sh)->getVBuckets()));
+    setVBucketFilter(VBucketFilter(std::move(vbuckets)));
     name = conf.getAlogPath();
     name = name + "." + std::to_string(shardID);
     prev = name + ".old";
@@ -303,7 +303,12 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                createAndScheduleTask(i);
+                auto vbuckets = store.getVBuckets().getShard(i)->getVBuckets();
+                // MB-69134: Only create a task if there are vbuckets mapped to
+                // the shard.
+                if (vbuckets.size() > 0) {
+                    createAndScheduleTask(i, std::move(vbuckets));
+                }
             }
         }
     }
@@ -344,10 +349,17 @@ void AccessScanner::deleteAlogFile(const std::string& fileName) {
  * @param shard vBucket shard being used to create the ItemAccessVisitor
  * @return True on successful creation, False if the task failed
  */
-void AccessScanner::createAndScheduleTask(const size_t shard) {
+void AccessScanner::createAndScheduleTask(const size_t shard,
+                                          std::vector<Vbid> vbuckets) {
     try {
-        auto pv = std::make_unique<ItemAccessVisitor>(
-                store, conf, stats, shard, available, *this, maxStoredItems);
+        auto pv = std::make_unique<ItemAccessVisitor>(store,
+                                                      conf,
+                                                      stats,
+                                                      shard,
+                                                      available,
+                                                      *this,
+                                                      maxStoredItems,
+                                                      std::move(vbuckets));
 
         // p99.9 is typically ~200ms
         const auto maxExpectedDuration = 500ms;
