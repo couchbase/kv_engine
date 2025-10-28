@@ -110,7 +110,14 @@ sequences = {
         [('couchbase/morpheus', 'couchbase/master')],
         [('couchbase/trinity', 'couchbase/morpheus')],
         [('couchbase/neo', 'couchbase/trinity')]
+    ],
+
+    'subjson': [
+        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/morpheus')],
+        [('couchbase/neo', 'couchbase/trinity')]
     ]
+
 }
 
 
