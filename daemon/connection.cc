@@ -2524,7 +2524,7 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                         cert.get(), [this, &cipher](const auto& name) -> bool {
                             try {
                                 return tryAuthUserFromX509Cert(name, cipher);
-                            } catch (const std::exception& e) {
+                            } catch (const std::exception&) {
                                 restartAuthentication();
                                 return false;
                             }

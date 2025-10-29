@@ -59,7 +59,7 @@ static std::pair<std::string, std::string> split_request_string(
                               << view << TerminalColor::Reset << std::endl;
                     exit(EXIT_FAILURE);
                 }
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 std::cerr << TerminalColor::Red
                           << "Failed to parse the JSON value: " << view
                           << TerminalColor::Reset << std::endl;

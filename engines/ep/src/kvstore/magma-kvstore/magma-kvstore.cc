@@ -2742,7 +2742,7 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
 
     try {
         j = nlohmann::json::parse(valString);
-    } catch (const nlohmann::json::exception& e) {
+    } catch (const nlohmann::json::exception&) {
         return {ReadVBStateStatus::JsonInvalid, {}};
     }
 
@@ -2779,7 +2779,7 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
 
     try {
         j = nlohmann::json::parse(val);
-    } catch (const nlohmann::json::exception& e) {
+    } catch (const nlohmann::json::exception&) {
         return {ReadVBStateStatus::JsonInvalid, {}};
     }
 

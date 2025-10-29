@@ -1304,9 +1304,9 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
             }
             try {
                 settings.reconfigure(config);
-            } catch (const std::invalid_argument& e) {
+            } catch (const std::invalid_argument&) {
                 ++numberOfFailures;
-            } catch (const nlohmann::json::type_error& e) {
+            } catch (const nlohmann::json::type_error&) {
                 // Key "threads" will throw a json error no a
                 // std::invalid_argument
                 ++numberOfJsonErrors;

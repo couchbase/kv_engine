@@ -408,7 +408,7 @@ TEST_F(CollectionsTests, getId_MB_44807) {
         maxPath += "a"; // and just double check the expected limit
         conn->getCollectionId(maxPath);
         FAIL() << "Expected getCollectionId to fail";
-    } catch (const ConnectionError& err) {
+    } catch (const ConnectionError&) {
     }
 }
 

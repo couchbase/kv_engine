@@ -96,7 +96,7 @@ public:
     void TearDown() override {
         try {
             frontEndThread->removeMockConnection(*connection);
-        } catch (const std::logic_error& e) {
+        } catch (const std::logic_error&) {
             // Mock connection was already removed.
         }
         connection = nullptr;

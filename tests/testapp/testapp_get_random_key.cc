@@ -84,7 +84,7 @@ TEST_P(GetRandomKeyTest, GetRandomKeyTest) {
         try {
             auto doc = userConnection->getRandomKey(Vbid{0});
             found = true;
-        } catch (const ConnectionError& e) {
+        } catch (const ConnectionError&) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     } while (!found && std::chrono::steady_clock::now() < timeout);

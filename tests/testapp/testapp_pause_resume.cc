@@ -76,7 +76,7 @@ TEST_P(PauseResumeTest, Basic) {
     } catch (const ConnectionError& error) {
         FAIL() << "Connection should have been closed instead of an error: "
                << error.what();
-    } catch (const std::runtime_error& e) {
+    } catch (const std::runtime_error&) {
         // Expected
     }
 

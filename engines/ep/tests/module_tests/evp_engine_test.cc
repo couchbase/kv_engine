@@ -118,7 +118,7 @@ void EventuallyPersistentEngineTest::TearDown() {
             try {
                 std::filesystem::remove_all(path);
                 break;
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 if (++retry == 100) {
                     throw;
                 }

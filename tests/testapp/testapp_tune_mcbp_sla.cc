@@ -130,7 +130,7 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                                 nlohmann::json::parse(line.substr(idx));
                         // We've got the complete line; use it
                         ret.emplace_back(std::string{line});
-                    } catch (const std::exception& exception) {
+                    } catch (const std::exception&) {
                     }
                 }
             }

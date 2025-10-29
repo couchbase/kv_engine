@@ -2320,7 +2320,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest,
     try {
         runBGFetcherTask();
         FAIL();
-    } catch (const std::logic_error& e) {
+    } catch (const std::logic_error&) {
         // good!
     }
 

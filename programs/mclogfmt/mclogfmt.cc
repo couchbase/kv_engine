@@ -151,7 +151,7 @@ static void convertPlainTextLine(fmt::memory_buffer& buffer,
             formatLine(buffer, timestamp, severity, message, context, output);
             return;
         }
-    } catch (const nlohmann::json::exception& e) {
+    } catch (const nlohmann::json::exception&) {
         // Proceed without context.
     }
 

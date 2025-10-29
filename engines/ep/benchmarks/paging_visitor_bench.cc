@@ -75,7 +75,7 @@ public:
                 executor.runCurrentTask();
                 executor.completeCurrentTask();
             }
-        } catch (std::logic_error& e) {
+        } catch (std::logic_error&) {
         }
     }
 

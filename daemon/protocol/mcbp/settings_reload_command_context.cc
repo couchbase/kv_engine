@@ -148,7 +148,7 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
                                                {"tag", e.tag},
                                                {"system", e.system},
                                                {"tls", e.tls}});
-            } catch (const std::exception& exception) {
+            } catch (const std::exception&) {
                 if (e.ipv4 == NetworkInterface::Protocol::Required) {
                     // It is required; Throw the exception so we'll
                     // return an error
@@ -166,7 +166,7 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
                                                {"port", e.port},
                                                {"system", e.system},
                                                {"tls", e.tls}});
-            } catch (const std::exception& exception) {
+            } catch (const std::exception&) {
                 if (e.ipv6 == NetworkInterface::Protocol::Required) {
                     // It is required; Throw the exception so we'll
                     // return an error

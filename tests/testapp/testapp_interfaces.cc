@@ -524,7 +524,7 @@ void InterfacesTest::test_mb47707(bool allow_localhost_interface) {
             FAIL() << "Expected the connection to be disconnected.\n"
                    << "Status: " << rsp.getStatus()
                    << "\nmessage: " << rsp.getDataView();
-        } catch (const std::system_error& error) {
+        } catch (const std::system_error&) {
             // we should probably have checked if the error code is
             // conn-reset, but then again that may be different on windows
             // mac and linux...

@@ -201,7 +201,7 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
             config.maxConnectionsPerBucket.store(val,
                                                  std::memory_order_release);
             LOG_INFO_CTX("Set maximum connections to a bucket", {"to", val});
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             cookie.setErrorContext(
                     "Failed to convert the provided value to an integer");
             return cb::engine_errc::invalid_arguments;
@@ -247,7 +247,7 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
                 cookie.setErrorContext("Internal error");
                 return cb::engine_errc::invalid_arguments;
             }
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             cookie.setErrorContext(
                     "Failed to convert the provided value to an integer");
             return cb::engine_errc::invalid_arguments;

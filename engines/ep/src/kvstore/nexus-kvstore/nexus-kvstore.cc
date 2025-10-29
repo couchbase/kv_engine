@@ -220,7 +220,7 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
     // collections.
     try {
         auto vbstate = secondary->getPersistedVBucketState(vbid);
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         return secondaryManifest;
     }
 

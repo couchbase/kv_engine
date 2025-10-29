@@ -50,7 +50,7 @@ CollectionID::CollectionID(std::string_view id) {
         // Assign via CollectionID ctor which validates the value is legal
         *this = CollectionID(
                 gsl::narrow<CollectionIDType>(Collections::makeUid(id, 8)));
-    } catch (const gsl::narrowing_error& e) {
+    } catch (const gsl::narrowing_error&) {
         throw std::invalid_argument(
                 fmt::format("CollectionID::CollectionID:: Cannot narrow id:{} "
                             "to a CollectionID",
@@ -62,7 +62,7 @@ ScopeID::ScopeID(std::string_view id) {
     try {
         *this = ScopeID(
                 gsl::narrow<CollectionIDType>(Collections::makeUid(id, 8)));
-    } catch (const gsl::narrowing_error& e) {
+    } catch (const gsl::narrowing_error&) {
         throw std::invalid_argument(fmt::format(
                 "ScopeID::ScopeID:: Cannot narrow id:{} to a ScopeID", id));
     }

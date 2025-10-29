@@ -1095,7 +1095,8 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
         } catch (const std::exception& exception) {
             LOG_WARNING_CTX(
                     "bucket_compact_database: Failed to decode obsolete keys",
-                    {"value", req.getValueString()});
+                    {"value", req.getValueString()},
+                    {"error", exception.what()});
             return cb::engine_errc::invalid_arguments;
         }
     }

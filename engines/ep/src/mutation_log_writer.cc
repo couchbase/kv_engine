@@ -110,7 +110,7 @@ void MutationLogWriter::close() {
         try {
             fileWriter->flush();
             fileWriter->close();
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             fileWriter.reset();
             throw;
         }
@@ -155,7 +155,7 @@ void MutationLogWriter::flush() {
     try {
         fileWriter->write({reinterpret_cast<const char*>(block->data()),
                            block->capacity()});
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         fileWriter.reset();
         throw;
     }

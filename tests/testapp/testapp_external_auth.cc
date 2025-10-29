@@ -618,7 +618,7 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
                 "external-auth-timings",
                 "auth-external-authorization-durations");
         numOfDurations = authorizationHist["total"];
-    } catch (const nlohmann::json::type_error& e) {
+    } catch (const nlohmann::json::type_error&) {
         // Histogram is undefined, keep counter at 0
     }
 
