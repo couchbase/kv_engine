@@ -105,29 +105,29 @@ void dcp_open_executor(Cookie& cookie) {
                     "interface");
         }
 
-        auto flags = cb::logger::Json::array();
+        auto json_flags = cb::logger::Json::array();
 
         if (dcpProducer) {
-            flags.push_back("PRODUCER");
+            json_flags.push_back("PRODUCER");
         } else {
-            flags.push_back("CONSUMER");
+            json_flags.push_back("CONSUMER");
         }
         if (dcpXattrAware) {
-            flags.push_back("INCLUDE_XATTRS");
+            json_flags.push_back("INCLUDE_XATTRS");
         }
         if (dcpNoValue) {
-            flags.push_back("NO_VALUE");
+            json_flags.push_back("NO_VALUE");
         }
         if (dcpDeleteTimes) {
-            flags.push_back("DELETE_TIMES");
+            json_flags.push_back("DELETE_TIMES");
         }
         if (connection.isDcpDeletedUserXattr()) {
-            flags.push_back("INCLUDE_DELETED_USER_XATTRS");
+            json_flags.push_back("INCLUDE_DELETED_USER_XATTRS");
         }
 
         LOG_INFO_CTX("DCP connection opened successfully",
                      {"conn_id", connection.getId()},
-                     {"flags", std::move(flags)},
+                     {"flags", std::move(json_flags)},
                      {"description", connection.getDescription()});
 
         connection.getThread().maybeRegisterThrottleableDcpConnection(

@@ -2493,21 +2493,23 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica) {
     using namespace cb::durability;
     std::vector<SyncWriteSpec> seqnos{{1, false, Level::PersistToMajority}, 2};
     testAddPrepare(seqnos);
-    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
-    pdm.completeSyncWrite(makeStoredDocKey("key1"),
-                          PassiveDurabilityMonitor::Resolution::Commit,
-                          1);
-    pdm.completeSyncWrite(makeStoredDocKey("key2"),
-                          PassiveDurabilityMonitor::Resolution::Commit,
-                          2);
-    pdm.notifySnapshotEndReceived(4);
+    {
+        auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+        pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              1);
+        pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              2);
+        pdm.notifySnapshotEndReceived(4);
 
-    // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
-    // locally prepared the persistMajority, but globally that's been
-    // committed (HCS=1).
-    ASSERT_EQ(2, pdm.getNumTracked());
-    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
-    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+        // Sanity: Check PassiveDM state as expected - HPS is still zero as
+        // haven't locally prepared the persistMajority, but globally that's
+        // been committed (HCS=1).
+        ASSERT_EQ(2, pdm.getNumTracked());
+        ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+        ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+    }
 
     // Setup(2): Convert to ActiveDM (null topology).
     simulateSetVBState(vbucket_state_active);
@@ -2578,21 +2580,23 @@ TEST_P(EPVBucketDurabilityTest, ReplicaToActiveToReplica2) {
     using namespace cb::durability;
     std::vector<SyncWriteSpec> seqnos{{1, false, Level::PersistToMajority}, 2};
     testAddPrepare(seqnos);
-    auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
-    pdm.completeSyncWrite(makeStoredDocKey("key1"),
-                          PassiveDurabilityMonitor::Resolution::Commit,
-                          1);
-    pdm.completeSyncWrite(makeStoredDocKey("key2"),
-                          PassiveDurabilityMonitor::Resolution::Commit,
-                          2);
-    pdm.notifySnapshotEndReceived(4);
+    {
+        auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
+        pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              1);
+        pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                              PassiveDurabilityMonitor::Resolution::Commit,
+                              2);
+        pdm.notifySnapshotEndReceived(4);
 
-    // Sanity: Check PassiveDM state as expected - HPS is still zero as haven't
-    // locally prepared the persistMajority, but globally that's been
-    // committed (HCS=1).
-    ASSERT_EQ(2, pdm.getNumTracked());
-    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
-    ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+        // Sanity: Check PassiveDM state as expected - HPS is still zero as
+        // haven't locally prepared the persistMajority, but globally that's
+        // been committed (HCS=1).
+        ASSERT_EQ(2, pdm.getNumTracked());
+        ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+        ASSERT_EQ(2, pdm.getHighCompletedSeqno());
+    }
 
     // Setup(2): Convert to ActiveDM (null topology).
     vbucket->setState(vbucket_state_active);

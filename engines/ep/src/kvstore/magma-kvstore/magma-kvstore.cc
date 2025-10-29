@@ -3194,9 +3194,9 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         }
     } else {
         for (auto& dc : dropped) {
-            auto [status, itemCount] =
+            auto [st, itemCount] =
                     getDroppedCollectionItemCount(vbid, dc.collectionId);
-            if (status == KVStore::GetCollectionStatsStatus::Failed) {
+            if (st == KVStore::GetCollectionStatsStatus::Failed) {
                 logger->warn(
                         "MagmaKVStore::compactDBInternal getCollectionStats() "
                         "failed for dropped collection "

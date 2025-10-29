@@ -260,13 +260,13 @@ std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
                     "streams size:" +
                     std::to_string(handle.size()));
         }
-        auto rv = std::dynamic_pointer_cast<ActiveStream>(handle.get());
-        if (!rv) {
+        auto ret = std::dynamic_pointer_cast<ActiveStream>(handle.get());
+        if (!ret) {
             throw std::logic_error(
                     "MockDcpProducer::findStream against producer with "
                     "non-ActiveStream");
         }
-        return rv;
+        return ret;
     }
     return nullptr;
 }
@@ -306,14 +306,14 @@ std::pair<std::shared_ptr<ActiveStream>, bool> MockDcpProducer::findStream(
         // Try and locate a matching stream
         for (; !handle.end(); handle.next()) {
             if (handle.get()->compareStreamId(sid)) {
-                auto rv = std::dynamic_pointer_cast<ActiveStream>(handle.get());
-                if (!rv) {
+                auto ret =
+                        std::dynamic_pointer_cast<ActiveStream>(handle.get());
+                if (!ret) {
                     throw std::logic_error(
                             "MockDcpProducer::findStream(sid) against producer "
-                            "with "
-                            "non-ActiveStream");
+                            "with non-ActiveStream");
                 }
-                return {rv, true};
+                return {ret, true};
             }
         }
         return {nullptr, handle.size() > 0};

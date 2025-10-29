@@ -476,8 +476,8 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
             // ItemPager (which reschedules itself if memory usage is still
             // above the HWM after a full iteration). As a result, we can't
             // check the task that ran.
-            auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-            runNextTask(lpNonioQ);
+            auto& task_q = *task_executor->getLpTaskQ(TaskType::NonIO);
+            runNextTask(task_q);
         }
     }
 

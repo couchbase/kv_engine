@@ -7975,9 +7975,9 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
     for (uint64_t seqno = 4; seqno <= 6; seqno++) {
-        auto ret = stream->messageReceived(
+        auto rv = stream->messageReceived(
                 makeMutationConsumerMessage(seqno, vbid, value, 0));
-        ASSERT_EQ(cb::engine_errc::success, ret);
+        ASSERT_EQ(cb::engine_errc::success, rv);
     }
 
     flushVBucketToDiskIfPersistent(vbid, 3);

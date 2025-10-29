@@ -2231,10 +2231,10 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
         qi->setBySeqno(seqno++);
         qi->setDeleted();
         qi->replaceValue({});
-        auto ctx =
+        auto context =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-        kvstore->del(*ctx, qi);
-        kvstore->commit(std::move(ctx), flush); // Would throw for underflow
+        kvstore->del(*context, qi);
+        kvstore->commit(std::move(context), flush); // Would throw for underflow
     }
     auto stats = manifest.lock().getStatsForFlush(CollectionID::Default, seqno);
     EXPECT_EQ(0, stats.itemCount);

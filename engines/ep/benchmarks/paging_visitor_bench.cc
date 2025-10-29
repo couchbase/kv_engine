@@ -134,8 +134,8 @@ public:
             {
                 // Poke the freq counter and cas values so they're not all
                 // the same
-                auto vBucket = engine->getVBucket(vbid);
-                auto htRet = vBucket->ht.findForWrite(makeStoredDocKey(key));
+                auto vb = engine->getVBucket(vbid);
+                auto htRet = vb->ht.findForWrite(makeStoredDocKey(key));
                 if (htRet.storedValue) {
                     auto freq = gsl::narrow_cast<uint8_t>(freqDist(freqMt));
                     htRet.storedValue->setFreqCounterValue(freq);

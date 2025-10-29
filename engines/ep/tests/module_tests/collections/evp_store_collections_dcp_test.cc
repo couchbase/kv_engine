@@ -3449,14 +3449,14 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         EXPECT_TRUE(fileHandle);
 
         if (dropAtEnd) {
-            auto [status, stats] = kvs.getCollectionStats(id, target);
-            EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, status);
+            auto [st, stats] = kvs.getCollectionStats(id, target);
+            EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound, st);
             EXPECT_EQ(0, stats.itemCount);
             EXPECT_EQ(0, stats.highSeqno);
             EXPECT_EQ(0, stats.diskSize);
         } else {
-            auto [status, stats] = kvs.getCollectionStats(id, target);
-            EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, status);
+            auto [st, stats] = kvs.getCollectionStats(id, target);
+            EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success, st);
             EXPECT_EQ(expected, stats.itemCount);
             EXPECT_EQ(7, stats.highSeqno);
         }

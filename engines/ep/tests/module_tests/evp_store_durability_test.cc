@@ -3202,9 +3202,9 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     }
 
     {
-        auto vb = store->getLockedVBucket(vbid);
+        auto locked_vb = store->getLockedVBucket(vbid);
         EXPECT_EQ(CompactDBStatus::Success,
-                  kvstore->compactDB(vb.getLock(), cctx));
+                  kvstore->compactDB(locked_vb.getLock(), cctx));
     }
     // Check the committed item on disk.
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -3286,9 +3286,9 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     {
-        auto vb = store->getLockedVBucket(vbid);
+        auto locked_vb = store->getLockedVBucket(vbid);
         EXPECT_EQ(CompactDBStatus::Success,
-                  kvstore->compactDB(vb.getLock(), cctx));
+                  kvstore->compactDB(locked_vb.getLock(), cctx));
     }
 
     // Check the Abort on disk. We won't remove it until the purge interval has
@@ -3300,10 +3300,10 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
 
     config.purge_before_ts = std::numeric_limits<uint64_t>::max();
     {
-        auto cctx = std::make_shared<CompactionContext>(vb, config, 0);
-        auto vb = store->getLockedVBucket(vbid);
+        auto context = std::make_shared<CompactionContext>(vb, config, 0);
+        auto locked_vb = store->getLockedVBucket(vbid);
         EXPECT_EQ(CompactDBStatus::Success,
-                  kvstore->compactDB(vb.getLock(), cctx));
+                  kvstore->compactDB(locked_vb.getLock(), context));
     }
 
     // Now the Abort should be gone

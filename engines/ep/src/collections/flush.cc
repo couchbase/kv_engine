@@ -229,15 +229,19 @@ void Flush::recordCreateCollection(const Item& item) {
     auto createEvent = Collections::VB::Manifest::getCollectionEventData(item);
     KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
                                        createEvent.metaData};
-    auto [itr, emplaced] = collections.try_emplace(
-            collection.metaData.cid, CollectionSpan{collection, collection});
-    if (!emplaced) {
-        // Collection already in the map, we must set this new create as the
-        // high or low (or ignore)
-        if (uint64_t(item.getBySeqno()) > itr->second.high.startSeqno) {
-            itr->second.high = collection;
-        } else if (uint64_t(item.getBySeqno()) < itr->second.low.startSeqno) {
-            itr->second.low = collection;
+    {
+        auto [itr, emplaced] =
+                collections.try_emplace(collection.metaData.cid,
+                                        CollectionSpan{collection, collection});
+        if (!emplaced) {
+            // Collection already in the map, we must set this new create as the
+            // high or low (or ignore)
+            if (uint64_t(item.getBySeqno()) > itr->second.high.startSeqno) {
+                itr->second.high = collection;
+            } else if (uint64_t(item.getBySeqno()) <
+                       itr->second.low.startSeqno) {
+                itr->second.low = collection;
+            }
         }
     }
 

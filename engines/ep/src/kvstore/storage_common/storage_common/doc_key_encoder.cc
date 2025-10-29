@@ -24,13 +24,13 @@ std::string encodeDocKey(std::string_view key,
 
         if (keyNamespace == CollectionID::SystemEvent) {
             if (key == "_collection") {
-                auto leb128 = cb::mcbp::unsigned_leb128<uint32_t>(
+                auto encoded = cb::mcbp::unsigned_leb128<uint32_t>(
                         static_cast<uint32_t>(SystemEvent::Collection));
-                ret.append(leb128.begin(), leb128.end());
+                ret.append(encoded.begin(), encoded.end());
             } else if (key == "_scope") {
-                auto leb128 = cb::mcbp::unsigned_leb128<uint32_t>(
+                auto encoded = cb::mcbp::unsigned_leb128<uint32_t>(
                         static_cast<uint32_t>(SystemEvent::Scope));
-                ret.append(leb128.begin(), leb128.end());
+                ret.append(encoded.begin(), encoded.end());
             }
         }
     }

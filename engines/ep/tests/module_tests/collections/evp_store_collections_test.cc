@@ -2896,10 +2896,10 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
             // removed by rollback
             CB_SCOPED_TRACE("new item added to collection");
             // default collection disk size should _increase_ as we add the item
-            auto d = DiskChecker(
+            auto d1 = DiskChecker(
                     vb, CollectionEntry::defaultC, std::greater<>());
             // meta collection disk size should _stay the same_
-            auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
+            auto m1 = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
             store_item(vbid,
                        StoredDocKey{"key2", CollectionEntry::defaultC},

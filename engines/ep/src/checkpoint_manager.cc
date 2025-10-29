@@ -1176,20 +1176,20 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     while ((!hardLimit || withinLimits(itemsCount, bytesCount)) &&
            (result.moreAvailable = incrCursor(lh, cursor))) {
         if (enteredNewCp) {
-            const auto& checkpoint = **cursor.getCheckpoint();
-            result.checkpointType = checkpoint.getCheckpointType();
-            result.ranges.push_back({{checkpoint.getSnapshotStartSeqno(),
-                                      checkpoint.getSnapshotEndSeqno()},
-                                     checkpoint.getHighCompletedSeqno(),
-                                     checkpoint.getHighPreparedSeqno()});
+            const auto& cp = **cursor.getCheckpoint();
+            result.checkpointType = cp.getCheckpointType();
+            result.ranges.push_back(
+                    {{cp.getSnapshotStartSeqno(), cp.getSnapshotEndSeqno()},
+                     cp.getHighCompletedSeqno(),
+                     cp.getHighPreparedSeqno()});
             enteredNewCp = false;
 
             // As we cross into new checkpoints, update the maxDeletedRevSeqno
             // iff the new checkpoint has one recorded, and it's larger than the
             // previous value.
-            if (checkpoint.getMaxDeletedRevSeqno().value_or(0) >
+            if (cp.getMaxDeletedRevSeqno().value_or(0) >
                 result.maxDeletedRevSeqno.value_or(0)) {
-                result.maxDeletedRevSeqno = checkpoint.getMaxDeletedRevSeqno();
+                result.maxDeletedRevSeqno = cp.getMaxDeletedRevSeqno();
             }
         }
 

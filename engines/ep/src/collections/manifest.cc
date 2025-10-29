@@ -204,8 +204,8 @@ Manifest::Manifest(std::string_view json)
             }
 
             // Collection names must be unique within the scope
-            for (const auto& collection : scopeCollections) {
-                if (collection.name == cnameValue) {
+            for (const auto& collection_meta_data : scopeCollections) {
+                if (collection_meta_data.name == cnameValue) {
                     throwInvalid(
                             "duplicate collection id:" + cidValue.to_string() +
                             ", name: " + cnameValue);

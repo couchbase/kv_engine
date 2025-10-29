@@ -947,15 +947,15 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
                                         DcpSnapshotMarkerFlag::Checkpoint |
                                                 DcpSnapshotMarkerFlag::Memory |
                                                 takeover);
-        auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-        ASSERT_TRUE(replicaVB);
+        auto replica_vb = engines[Node1]->getKVBucket()->getVBucket(vbid);
+        ASSERT_TRUE(replica_vb);
         // If only the snapshot marker has been received, but no mutations we're
         // in the previous snap
-        EXPECT_EQ(
-                3,
-                replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
         EXPECT_EQ(3,
-                  replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+                  replica_vb->checkpointManager->getSnapshotInfo()
+                          .range.getEnd());
+        EXPECT_EQ(3,
+                  replica_vb->checkpointManager->getVisibleSnapshotEndSeqno());
 
         route0_1.transferMessage(DcpResponse::Event::Prepare);
 
