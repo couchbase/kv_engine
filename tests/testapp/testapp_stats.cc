@@ -14,6 +14,7 @@
 #include <memcached/stat_group.h>
 #include <platform/dirutils.h>
 #include <protocol/mcbp/ewb_encode.h>
+#include <serverless/config.h>
 #include <utilities/timing_histogram_printer.h>
 
 using namespace std::string_view_literals;
@@ -477,22 +478,26 @@ TEST_P(StatsTest, TestBucketDetails) {
     // Validate each bucket entry (I should probably extend it with checking
     // of the actual values
     for (const auto& bucket : array) {
-        EXPECT_EQ(16, bucket.size());
-        EXPECT_NE(bucket.end(), bucket.find("index"));
-        EXPECT_NE(bucket.end(), bucket.find("state"));
-        EXPECT_NE(bucket.end(), bucket.find("clients"));
-        EXPECT_NE(bucket.end(), bucket.find("name"));
-        EXPECT_NE(bucket.end(), bucket.find("type"));
-        EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
-        EXPECT_NE(bucket.end(), bucket.find("ru"));
-        EXPECT_NE(bucket.end(), bucket.find("wu"));
-        EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
-        EXPECT_NE(bucket.end(), bucket.find("throttle_reserved"));
-        EXPECT_NE(bucket.end(), bucket.find("throttle_hard_limit"));
-        EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));
-        EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
-        EXPECT_NE(bucket.end(), bucket.find("num_metered_dcp_messages"));
-        EXPECT_NE(bucket.end(), bucket.find("num_commands"));
+        if (cb::serverless::isEnabled()) {
+            EXPECT_EQ(16, bucket.size());
+            EXPECT_TRUE(bucket.contains("ru"));
+            EXPECT_TRUE(bucket.contains("wu"));
+            EXPECT_TRUE(bucket.contains("num_commands_with_metered_units"));
+            EXPECT_TRUE(bucket.contains("num_metered_dcp_messages"));
+        } else {
+            EXPECT_EQ(12, bucket.size());
+        }
+        EXPECT_TRUE(bucket.contains("index"));
+        EXPECT_TRUE(bucket.contains("state"));
+        EXPECT_TRUE(bucket.contains("clients"));
+        EXPECT_TRUE(bucket.contains("name"));
+        EXPECT_TRUE(bucket.contains("type"));
+        EXPECT_TRUE(bucket.contains("num_rejected"));
+        EXPECT_TRUE(bucket.contains("num_throttled"));
+        EXPECT_TRUE(bucket.contains("throttle_reserved"));
+        EXPECT_TRUE(bucket.contains("throttle_hard_limit"));
+        EXPECT_TRUE(bucket.contains("throttle_wait_time"));
+        EXPECT_TRUE(bucket.contains("num_commands"));
         EXPECT_EQ("Success", bucket["data_ingress_status"]);
     }
 }

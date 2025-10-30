@@ -215,6 +215,8 @@ public:
     /// Get a JSON representation of the bucket
     nlohmann::json to_json() const;
 
+    void addStats(const BucketStatCollector& collector) const;
+
     /**
      * Add all per-bucket metering related metrics to a stat collector.
      *

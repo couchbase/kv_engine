@@ -153,74 +153,6 @@ static void server_agg_stats(const StatCollector& collector) {
                       mutation_latency.duration_ns / 1000);
 }
 
-/// add stats related to a single bucket
-static void server_bucket_stats(const BucketStatCollector& collector,
-                                const Bucket& bucket) {
-    struct thread_stats thread_stats;
-    thread_stats.aggregate(bucket.stats);
-
-    using namespace cb::stats;
-    collector.addStat(Key::cmd_get, thread_stats.cmd_get);
-    collector.addStat(Key::cmd_set, thread_stats.cmd_set);
-    collector.addStat(Key::cmd_flush, thread_stats.cmd_flush);
-
-    collector.addStat(Key::cmd_subdoc_lookup, thread_stats.cmd_subdoc_lookup);
-    collector.addStat(Key::cmd_subdoc_mutation,
-                      thread_stats.cmd_subdoc_mutation);
-    collector.addStat(Key::subdoc_offload_count,
-                      thread_stats.subdoc_offload_count);
-
-    collector.addStat(Key::bytes_subdoc_lookup_total,
-                      thread_stats.bytes_subdoc_lookup_total);
-    collector.addStat(Key::bytes_subdoc_lookup_extracted,
-                      thread_stats.bytes_subdoc_lookup_extracted);
-    collector.addStat(Key::bytes_subdoc_mutation_total,
-                      thread_stats.bytes_subdoc_mutation_total);
-    collector.addStat(Key::bytes_subdoc_mutation_inserted,
-                      thread_stats.bytes_subdoc_mutation_inserted);
-
-    collector.addStat(Key::stat_timings_mem_usage,
-                      bucket.statTimings.getMemFootPrint());
-
-    // bucket specific totals
-    auto& current_bucket_timings = bucket.timings;
-    uint64_t mutations = current_bucket_timings.get_aggregated_mutation_stats();
-    uint64_t lookups = current_bucket_timings.get_aggregated_retrieval_stats();
-    collector.addStat(Key::cmd_mutation, mutations);
-    collector.addStat(Key::cmd_lookup, lookups);
-
-    collector.addStat(Key::get_hits, thread_stats.get_hits);
-    collector.addStat(Key::get_misses, thread_stats.get_misses);
-    collector.addStat(Key::delete_misses, thread_stats.delete_misses);
-    collector.addStat(Key::delete_hits, thread_stats.delete_hits);
-    collector.addStat(Key::incr_misses, thread_stats.incr_misses);
-    collector.addStat(Key::incr_hits, thread_stats.incr_hits);
-    collector.addStat(Key::decr_misses, thread_stats.decr_misses);
-    collector.addStat(Key::decr_hits, thread_stats.decr_hits);
-    collector.addStat(Key::cas_misses, thread_stats.cas_misses);
-    collector.addStat(Key::cas_hits, thread_stats.cas_hits);
-    collector.addStat(Key::cas_badval, thread_stats.cas_badval);
-    collector.addStat(Key::bytes_read, thread_stats.bytes_read);
-    collector.addStat(Key::bytes_written, thread_stats.bytes_written);
-    collector.addStat(Key::conn_yields, thread_stats.conn_yields);
-    collector.addStat(Key::conn_timeslice_yields,
-                      thread_stats.conn_timeslice_yields);
-    collector.addStat(Key::subdoc_update_races,
-                      thread_stats.subdoc_update_races);
-
-    collector.addStat(Key::cmd_lock, thread_stats.cmd_lock);
-    collector.addStat(Key::lock_errors, thread_stats.lock_errors);
-
-    auto& respCounters = bucket.responseCounters;
-    // Ignore success responses by starting from begin + 1
-    uint64_t total_resp_errors = std::accumulate(
-            std::begin(respCounters) + 1, std::end(respCounters), uint64_t(0));
-    collector.addStat(Key::total_resp_errors, total_resp_errors);
-
-    collector.addStat(Key::clients, bucket.clients);
-    collector.addStat(Key::items_in_transit, bucket.items_in_transit);
-}
-
 /**
  * Add timing stats related to a single bucket.
  *
@@ -272,7 +204,7 @@ cb::engine_errc server_stats(const StatCollector& collector,
             server_agg_stats(collector);
         }
         auto bucketC = collector.forBucket(bucket.name);
-        server_bucket_stats(bucketC, bucket);
+        bucket.addStats(bucketC);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
@@ -292,8 +224,15 @@ cb::engine_errc server_prometheus_stats(
         if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
-            // include all metering metrics, with the "kv_" prefix
-            server_prometheus_metering(kvCollector);
+            if (cb::serverless::isEnabled()) {
+                // include all metering metrics, with the "kv_" prefix
+                server_prometheus_metering(kvCollector);
+                // MB-56934: Temporarily add all metering metrics
+                // again, _without_ the "kv_" prefix.
+                // This is to allow a transitional period, until consumers
+                // have moved to the prefixed version.
+                server_prometheus_metering(collector);
+            }
         } else {
             try {
                 auto instance = sigar::SigarIface::New();
@@ -350,7 +289,7 @@ cb::engine_errc server_prometheus_stats(
 
             if (metricGroup == MetricGroup::Low) {
                 // do memcached per-bucket stats
-                server_bucket_stats(bucketC, bucket);
+                bucket.addStats(bucketC);
             } else {
                 // do memcached timings stats
                 server_bucket_timing_stats(bucketC, bucket.timings);

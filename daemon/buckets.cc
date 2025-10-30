@@ -28,6 +28,7 @@
 #include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
@@ -75,6 +76,7 @@ bool Bucket::supports(cb::engine::Feature feature) {
 }
 
 nlohmann::json Bucket::to_json() const {
+    const bool serverless = cb::serverless::isEnabled();
     std::lock_guard<std::mutex> guard(mutex);
 
     if (state != State::None) {
@@ -86,19 +88,21 @@ nlohmann::json Bucket::to_json() const {
             json["type"] = type;
             json["data_ingress_status"] = data_ingress_status.load();
             json["num_rejected"] = num_rejected.load();
-            json["ru"] = read_units_used.load();
-            json["wu"] = write_units_used.load();
             json["num_throttled"] = num_throttled.load();
             json["throttle_reserved"] =
                     cb::throttle::limit_to_json(throttle_reserved.load());
             json["throttle_hard_limit"] =
                     cb::throttle::limit_to_json(throttle_hard_limit.load());
             json["throttle_wait_time"] = throttle_wait_time.load();
-            json["num_commands_with_metered_units"] =
-                    num_commands_with_metered_units.load();
-            json["num_metered_dcp_messages"] =
-                    num_metered_dcp_messages.load();
             json["num_commands"] = num_commands.load();
+            if (serverless) {
+                json["ru"] = read_units_used.load();
+                json["wu"] = write_units_used.load();
+                json["num_commands_with_metered_units"] =
+                        num_commands_with_metered_units.load();
+                json["num_metered_dcp_messages"] =
+                        num_metered_dcp_messages.load();
+            }
             return json;
         } catch (const std::exception& e) {
             LOG_ERROR_CTX("Failed to generate bucket details",
@@ -106,6 +110,81 @@ nlohmann::json Bucket::to_json() const {
         }
     }
     return {};
+}
+
+void Bucket::addStats(const BucketStatCollector& collector) const {
+    thread_stats thread_stats;
+    thread_stats.aggregate(stats);
+
+    using namespace cb::stats;
+    collector.addStat(Key::cmd_get, thread_stats.cmd_get);
+    collector.addStat(Key::cmd_set, thread_stats.cmd_set);
+    collector.addStat(Key::cmd_flush, thread_stats.cmd_flush);
+
+    collector.addStat(Key::cmd_subdoc_lookup, thread_stats.cmd_subdoc_lookup);
+    collector.addStat(Key::cmd_subdoc_mutation,
+                      thread_stats.cmd_subdoc_mutation);
+    collector.addStat(Key::subdoc_offload_count,
+                      thread_stats.subdoc_offload_count);
+
+    collector.addStat(Key::bytes_subdoc_lookup_total,
+                      thread_stats.bytes_subdoc_lookup_total);
+    collector.addStat(Key::bytes_subdoc_lookup_extracted,
+                      thread_stats.bytes_subdoc_lookup_extracted);
+    collector.addStat(Key::bytes_subdoc_mutation_total,
+                      thread_stats.bytes_subdoc_mutation_total);
+    collector.addStat(Key::bytes_subdoc_mutation_inserted,
+                      thread_stats.bytes_subdoc_mutation_inserted);
+
+    collector.addStat(Key::stat_timings_mem_usage,
+                      statTimings.getMemFootPrint());
+
+    // bucket specific totals
+    auto& current_bucket_timings = timings;
+    uint64_t mutations = current_bucket_timings.get_aggregated_mutation_stats();
+    uint64_t lookups = current_bucket_timings.get_aggregated_retrieval_stats();
+    collector.addStat(Key::cmd_mutation, mutations);
+    collector.addStat(Key::cmd_lookup, lookups);
+
+    collector.addStat(Key::get_hits, thread_stats.get_hits);
+    collector.addStat(Key::get_misses, thread_stats.get_misses);
+    collector.addStat(Key::delete_misses, thread_stats.delete_misses);
+    collector.addStat(Key::delete_hits, thread_stats.delete_hits);
+    collector.addStat(Key::incr_misses, thread_stats.incr_misses);
+    collector.addStat(Key::incr_hits, thread_stats.incr_hits);
+    collector.addStat(Key::decr_misses, thread_stats.decr_misses);
+    collector.addStat(Key::decr_hits, thread_stats.decr_hits);
+    collector.addStat(Key::cas_misses, thread_stats.cas_misses);
+    collector.addStat(Key::cas_hits, thread_stats.cas_hits);
+    collector.addStat(Key::cas_badval, thread_stats.cas_badval);
+    collector.addStat(Key::bytes_read, thread_stats.bytes_read);
+    collector.addStat(Key::bytes_written, thread_stats.bytes_written);
+    collector.addStat(Key::conn_yields, thread_stats.conn_yields);
+    collector.addStat(Key::conn_timeslice_yields,
+                      thread_stats.conn_timeslice_yields);
+    collector.addStat(Key::subdoc_update_races,
+                      thread_stats.subdoc_update_races);
+
+    collector.addStat(Key::cmd_lock, thread_stats.cmd_lock);
+    collector.addStat(Key::lock_errors, thread_stats.lock_errors);
+
+    auto& respCounters = responseCounters;
+    // Ignore success responses by starting from begin + 1
+    uint64_t total_resp_errors = std::accumulate(
+            std::begin(respCounters) + 1, std::end(respCounters), uint64_t(0));
+    collector.addStat(Key::total_resp_errors, total_resp_errors);
+
+    collector.addStat(Key::clients, clients);
+    collector.addStat(Key::items_in_transit, items_in_transit);
+
+    collector.addStat(Key::reject_count_total, num_rejected);
+    collector.addStat(Key::throttle_count_total, num_throttled);
+
+    using namespace std::chrono;
+    collector.addStat(
+            Key::throttle_seconds_total,
+            duration_cast<duration<double>>(microseconds(throttle_wait_time))
+                    .count());
 }
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
