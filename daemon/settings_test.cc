@@ -1385,3 +1385,31 @@ TEST_F(SettingsTest, TestQuotaSharingPagerSleepTime) {
     EXPECT_THROW(testValue(-1), std::invalid_argument);
     EXPECT_THROW(testValue(0), std::invalid_argument);
 }
+
+#ifdef EP_USE_MAGMA
+TEST(SettingsUpdateTest, MagmaMaxDefaultStorageThreads) {
+    Settings updated;
+    Settings settings;
+    settings.setMagmaMaxDefaultStorageThreads(2);
+    // Setting to the same value succeeds
+    updated.setMagmaMaxDefaultStorageThreads(2);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setMagmaMaxDefaultStorageThreads(4);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(4, settings.getMagmaMaxDefaultStorageThreads());
+}
+
+TEST(SettingsUpdateTest, MagmaFlusherThreadPercentage) {
+    Settings updated;
+    Settings settings;
+    settings.setMagmaFlusherThreadPercentage(2);
+    // Setting to the same value succeeds
+    updated.setMagmaFlusherThreadPercentage(2);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setMagmaFlusherThreadPercentage(4);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(4, settings.getMagmaFlusherThreadPercentage());
+}
+#endif

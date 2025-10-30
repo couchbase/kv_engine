@@ -79,6 +79,13 @@ static void server_global_stats(const StatCollector& collector) {
         }
         collector.addStat(Key::auth_cmds, stats.auth_cmds);
         collector.addStat(Key::auth_errors, stats.auth_errors);
+
+        collector.addStat(
+                Key::magma_max_default_storage_threads,
+                Settings::instance().getMagmaMaxDefaultStorageThreads());
+        collector.addStat(
+                Key::magma_flusher_thread_percentage,
+                Settings::instance().getMagmaFlusherThreadPercentage());
     }
 }
 

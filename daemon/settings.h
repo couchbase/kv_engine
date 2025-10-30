@@ -948,6 +948,28 @@ public:
         notify_changed("magma_blind_write_optimisation_enabled");
     }
 
+    size_t getMagmaMaxDefaultStorageThreads() const {
+        return magma_max_default_storage_threads.load(
+                std::memory_order_acquire);
+    }
+
+    void setMagmaMaxDefaultStorageThreads(size_t value) {
+        magma_max_default_storage_threads.store(value,
+                                                std::memory_order_release);
+        has.magma_max_default_storage_threads = true;
+        notify_changed("magma_max_default_storage_threads");
+    }
+
+    size_t getMagmaFlusherThreadPercentage() const {
+        return magma_flusher_thread_percentage.load(std::memory_order_acquire);
+    }
+
+    void setMagmaFlusherThreadPercentage(size_t value) {
+        magma_flusher_thread_percentage.store(value, std::memory_order_release);
+        has.magma_flusher_thread_percentage = true;
+        notify_changed("magma_flusher_thread_percentage");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1196,6 +1218,12 @@ protected:
     /// Magma's blind write optimisation, on or off. Default is off.
     std::atomic_bool magma_blind_write_optimisation_enabled{false};
 
+    // The number of total magma threads
+    std::atomic_size_t magma_max_default_storage_threads{20};
+
+    // Percent of magma flusher threads out of total magma threads
+    std::atomic_size_t magma_flusher_thread_percentage{20};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1270,5 +1298,7 @@ public:
         bool dcp_disconnect_when_stuck_name_regex = false;
         bool clustermap_push_notifications_enabled = false;
         bool magma_blind_write_optimisation_enabled = false;
+        bool magma_max_default_storage_threads = false;
+        bool magma_flusher_thread_percentage = false;
     } has;
 };

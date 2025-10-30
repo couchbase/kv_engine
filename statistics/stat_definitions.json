@@ -1237,6 +1237,18 @@
     },
 /* Magma stats */
     {
+        "key": "magma_max_default_storage_threads",
+        "unit": "none",
+        "description": "The number of total magma threads",
+        "added": "7.6.10"
+    },
+    {
+        "key": "magma_flusher_thread_percentage",
+        "unit": "none",
+        "description": "Percent of magma flusher threads out of total magma threads",
+        "added": "7.6.10"
+    },
+    {
         "key": "ep_magma_sets",
         "unit": "none",
         "description": "Number of set operations (DocUpsert)",

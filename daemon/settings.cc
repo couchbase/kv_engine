@@ -413,6 +413,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     value.get<std::string>());
         } else if (key == "magma_blind_write_optimisation_enabled"sv) {
             setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
+        } else if (key == "magma_max_default_storage_threads"sv) {
+            setMagmaMaxDefaultStorageThreads(value.get<size_t>());
+        } else if (key == "magma_flusher_thread_percentage"sv) {
+            setMagmaFlusherThreadPercentage(value.get<size_t>());
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -1073,6 +1077,29 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                                                                   : "Disable");
             setMagmaBlindWriteOptimisationEnabled(
                     other.isMagmaBlindWriteOptimisationEnabled());
+        }
+    }
+
+    if (other.has.magma_max_default_storage_threads) {
+        const auto currVal = getMagmaMaxDefaultStorageThreads();
+        const auto newVal = other.getMagmaMaxDefaultStorageThreads();
+        if (newVal != currVal) {
+            LOG_INFO(
+                    R"(Change magma_max_default_storage_threads from {} to {})",
+                    currVal,
+                    newVal);
+            setMagmaMaxDefaultStorageThreads(newVal);
+        }
+    }
+
+    if (other.has.magma_flusher_thread_percentage) {
+        const auto currVal = getMagmaFlusherThreadPercentage();
+        const auto newVal = other.getMagmaFlusherThreadPercentage();
+        if (newVal != currVal) {
+            LOG_INFO(R"(Change magma_flusher_thread_percentage from {} to {})",
+                     currVal,
+                     newVal);
+            setMagmaFlusherThreadPercentage(newVal);
         }
     }
 }

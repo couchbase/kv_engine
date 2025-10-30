@@ -65,6 +65,10 @@
 #include <memory>
 #include <thread>
 
+#ifdef EP_USE_MAGMA
+#include <libmagma/magma.h>
+#endif
+
 #if HAVE_LIBNUMA
 #include <numa.h>
 #endif
@@ -670,6 +674,52 @@ static void initialize_sasl() {
     }
 }
 
+#ifdef EP_USE_MAGMA
+static auto updateMagmaThreadPool(const std::string&, Settings& s) {
+    return [&s](const std::string&, Settings&) {
+        const auto total = s.getMagmaMaxDefaultStorageThreads();
+        const auto flusherRatio =
+                static_cast<float>(s.getMagmaFlusherThreadPercentage()) / 100;
+        auto flushers = std::ceil(total * flusherRatio);
+        if (flushers <= 0) {
+            LOG_WARNING(
+                    "updateMagmaThreadPool: total:{} flusherPercent:{} "
+                    "flusherRatio:{} flushers:{}, setting flushers=1",
+                    total,
+                    s.getMagmaFlusherThreadPercentage(),
+                    flusherRatio,
+                    flushers);
+            flushers = 1;
+        }
+        auto compactors = total - flushers;
+        if (compactors <= 0) {
+            LOG_WARNING(
+                    "updateMagmaThreadPool: total:{} flusherPercent:{} "
+                    "flusherRatio:{} flushers:{} compactors:{}, setting "
+                    "compactors=1",
+                    total,
+                    s.getMagmaFlusherThreadPercentage(),
+                    flusherRatio,
+                    flushers,
+                    compactors);
+            compactors = 1;
+        }
+        LOG_INFO(
+                "updateMagmaThreadPool: total:{} flusherPercent:{} "
+                "flusherRatio:{} flushers:{} compactors:{}",
+                total,
+                s.getMagmaFlusherThreadPercentage(),
+                flusherRatio,
+                flushers,
+                compactors);
+        magma::Magma::SetNumThreads(magma::Magma::ThreadType::Flusher,
+                                    flushers);
+        magma::Magma::SetNumThreads(magma::Magma::ThreadType::Compactor,
+                                    compactors);
+    };
+};
+#endif
+
 static void startExecutorPool() {
     auto& settings = Settings::instance();
 
@@ -755,6 +805,12 @@ static void startExecutorPool() {
                     return true;
                 });
             });
+#ifdef EP_USE_MAGMA
+    settings.addChangeListener("magma_max_default_storage_threads",
+                               updateMagmaThreadPool("", settings));
+    settings.addChangeListener("magma_flusher_thread_percentage",
+                               updateMagmaThreadPool("", settings));
+#endif
 }
 
 static void initialize_serverless_config() {
