@@ -34,6 +34,13 @@ TEST(SASLPrep, SASLPrepControlAscii) {
 }
 
 TEST(SASLPrep, SASLPrepDetecMultibyteUTF8) {
-    char string[2] = {(char)(0x80)};
-    EXPECT_THROW(SASLPrep(string), std::runtime_error);
+    std::string str;
+    str.push_back(static_cast<char>(0x80));
+    try {
+        SASLPrep(str);
+        FAIL() << "Expected exception not thrown";
+    } catch (const std::runtime_error& e) {
+        EXPECT_STREQ("SASLPrep: Multibyte UTF-8 is not implemented yet",
+                     e.what());
+    }
 }

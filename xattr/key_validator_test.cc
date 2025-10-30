@@ -115,7 +115,7 @@ TEST(XattrKeyValidator, AllCharachtersInXattr) {
     EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
 
     for (int ii = 1; ii < 0x80; ++ii) {
-        key[1] = char(ii);
+        key[1] = static_cast<char>(ii);
         EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()})) << ii;
     }
 }
@@ -152,26 +152,26 @@ static void testInvalidUtf(char magic, int nbytes) {
 
     for (int ii = 0; ii < nbytes; ++ii) {
         EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()}));
-        data.push_back(char(0xbf));
+        data.push_back(static_cast<char>(0xbf));
     }
     EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()}));
 
     for (int ii = 1; ii < nbytes + 1; ++ii) {
-        data[ii] = char(0xff);
+        data[ii] = static_cast<char>(0xff);
         EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()})) << ii;
-        data[ii] = char(0xbf);
+        data[ii] = static_cast<char>(0xbf);
         EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()})) << ii;
     }
 }
 
 TEST(XattrKeyValidator, InvalidUTF8_2Bytes) {
-    testInvalidUtf(char(0xDF), 1);
+    testInvalidUtf(static_cast<char>(0xDF), 1);
 }
 
 TEST(XattrKeyValidator, InvalidUTF8_3Bytes) {
-    testInvalidUtf(char(0xEF), 2);
+    testInvalidUtf(static_cast<char>(0xEF), 2);
 }
 
 TEST(XattrKeyValidator, InvalidUTF8_4Bytes) {
-    testInvalidUtf(char(0xF7), 3);
+    testInvalidUtf(static_cast<char>(0xF7), 3);
 }
