@@ -36,9 +36,8 @@ TEST(AutoRefreshedValue, test) {
 
     // Advance to limit (but not over)
     Clock::advance(std::chrono::milliseconds(100));
-    EXPECT_EQ(1, value.getAndMaybeRefreshValue([]() {
+    EXPECT_EQ(1, value.getAndMaybeRefreshValue([]() -> int {
         throw std::logic_error("Should not call");
-        return 1;
     }));
     // Advance over refresh limit
     Clock::advance(std::chrono::milliseconds(1));
@@ -46,8 +45,7 @@ TEST(AutoRefreshedValue, test) {
 
     // And not returning new value yet
     Clock::advance(std::chrono::milliseconds(1));
-    EXPECT_EQ(2, value.getAndMaybeRefreshValue([]() {
+    EXPECT_EQ(2, value.getAndMaybeRefreshValue([]() -> int {
         throw std::logic_error("Should not call");
-        return 1;
     }));
 }

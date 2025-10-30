@@ -1539,20 +1539,23 @@ TYPED_TEST(ExecutorPoolDeathTest, ThrowingTaskCrashes) {
     // Create a lambda task which throws when run.
     ThreadGate tg{1};
     auto sleepTime = 60.0 * 60.0; // 1 hour.
-    ExTask task{new LambdaTask(
-            taskable, TaskId::ItemPager, sleepTime, true, [&](LambdaTask&) {
+    ExTask task{new LambdaTask(taskable,
+                               TaskId::ItemPager,
+                               sleepTime,
+                               true,
+                               [&](LambdaTask&) -> bool {
 #ifdef __unix__
-                // We're expecting the process to crash, but we don't
-                // want to generate a core dump in this case..
-                rlimit limit;
-                limit.rlim_cur = 0;
-                limit.rlim_max = 0;
-                setrlimit(RLIMIT_CORE, &limit);
+                                   // We're expecting the process to crash, but
+                                   // we don't want to generate a core dump in
+                                   // this case..
+                                   rlimit limit;
+                                   limit.rlim_cur = 0;
+                                   limit.rlim_max = 0;
+                                   setrlimit(RLIMIT_CORE, &limit);
 #endif
-                throw std::runtime_error("ThrowingTaskCrashes");
-                tg.threadUp();
-                return false;
-            })};
+                                   throw std::runtime_error(
+                                           "ThrowingTaskCrashes");
+                               })};
     const auto taskId = this->pool->schedule(task);
 
     EXPECT_DEATH(
