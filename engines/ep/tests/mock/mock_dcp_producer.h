@@ -142,11 +142,11 @@ public:
     UniqueDCPBackfillPtr public_dequeueNextBackfill();
 
     BackfillManager& getBFM() {
-        return *backfillMgr;
+        return *getBFMPtr();
     }
 
     BackfillManager* getBFMPtr() {
-        return backfillMgr.get();
+        return backfillManagerHolder.rlock()->get();
     }
 
     size_t getBytesOutstanding() const {
