@@ -50,6 +50,20 @@ public:
                 *engine, cookieC, "test_consumer");
     }
 
+    /**
+     * Override TearDown to mute the warning from MSVC:
+     *
+     *    'CollectionsDcpStreamsTest': inherits
+     *    'CollectionsDcpTest::CollectionsDcpTest::TearDown' via dominance
+     *
+     * If we look in CollectionsDcpTest::TearDown we'll see that it actually
+     * calls SingleThreadedKVBucketTest::TearDown() (which is the one
+     * that MSVC is complaining about from STParameterizedBucketTest).
+     */
+    void TearDown() override {
+        CollectionsDcpTest::TearDown();
+    }
+
     void close_stream_by_id_test(bool enableStreamEnd, bool manyStreams);
 };
 
