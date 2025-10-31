@@ -364,16 +364,15 @@ TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
 
     // Remove the data dir, with a retry loop. Windows KV maybe accessing
     // the directory.
-    cluster->iterateNodes([this](const cb::test::Node& node) {
+    cluster->iterateNodes([](const cb::test::Node& node) {
         const auto path = node.directory / "default";
         int tries = 0;
-        constexpr int retries = 50;
-        cluster->removeWithRetry(path,
-                                 [&tries, &retries](const std::exception& e) {
-                                     using namespace std::chrono_literals;
-                                     std::this_thread::sleep_for(100ms);
-                                     return (++tries < retries);
-                                 });
+        cluster->removeWithRetry(path, [&tries](const std::exception& e) {
+            constexpr int retries = 50;
+            using namespace std::chrono_literals;
+            std::this_thread::sleep_for(100ms);
+            return (++tries < retries);
+        });
     });
 
     cluster->collections.remove(CollectionEntry::vegetable);
