@@ -43,7 +43,7 @@ class custom_rotating_file_sink : public spdlog::sinks::base_sink<Mutex> {
 public:
     custom_rotating_file_sink(spdlog::filename_t base_filename,
                               std::size_t max_size,
-                              const std::string& log_pattern,
+                              std::string pattern,
                               std::size_t max_aggregated_size);
 
 protected:

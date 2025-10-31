@@ -37,7 +37,7 @@ template <class Mutex>
 custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
         spdlog::filename_t base_filename,
         std::size_t max_size,
-        const std::string& log_pattern,
+        std::string pattern,
         std::size_t max_aggregated_size)
     : base_filename(std::move(base_filename)),
       max_size(max_size),
@@ -47,7 +47,7 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
                       cb::dek::Entity::Logs)) {
     scanExistingLogFiles();
     formatter = std::make_unique<spdlog::pattern_formatter>(
-            log_pattern, spdlog::pattern_time_type::local);
+            std::move(pattern), spdlog::pattern_time_type::local);
     file_writer = openFile();
 }
 
