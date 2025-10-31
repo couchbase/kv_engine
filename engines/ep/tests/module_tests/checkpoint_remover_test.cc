@@ -552,7 +552,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     config.setChkExpelEnabled(true);
     const size_t maxSize = 100000;
     config.setMaxSize(maxSize);
-    config.setCheckpointMemoryRatio(0.35);
+    config.setCheckpointMemoryRatio(0.35f);
     // This value is forced to 1 so expel/cursor drop becomes eligible
     engine->getEpStats().mem_low_wat.store(1);
 
@@ -1342,7 +1342,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
     EXPECT_EQ(remover->getState(), TASK_SNOOZED);
 
     // Update upper_mark above current usage
-    engine->getKVBucket()->setCheckpointMemoryRatio(0.2);
+    engine->getKVBucket()->setCheckpointMemoryRatio(0.2f);
 
     // No longer require reduction
     remover->run();
@@ -1367,7 +1367,7 @@ TEST_P(CheckpointRemoverTest, TriggeredByChkUpperMark) {
     const size_t bucketQuota = 100_MiB; // 100MB
     config.setMaxSize(bucketQuota);
     // Set checkpoint quota to a lower value to test the upper mark triggering
-    config.setCheckpointMemoryRatio(0.2);
+    config.setCheckpointMemoryRatio(0.2f);
     EXPECT_EQ(bucketQuota, stats.getMaxDataSize());
 
     const auto checkpointMemoryLimit =

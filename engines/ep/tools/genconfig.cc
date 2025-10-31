@@ -52,6 +52,18 @@ static std::string getDatatype(const std::string& key,
     return iter->second;
 }
 
+/**
+ * Helper function to get a float as a string, appending 'f' if needed
+ * (to work around C4305 on MSVC which complains about double to float)
+ */
+static std::string getFloatString(float val) {
+    auto ret = std::to_string(val);
+    if (ret.contains(".")) {
+        ret.push_back('f');
+    }
+    return ret;
+}
+
 static std::string getRangeValidatorCode(const std::string& key,
                                          const nlohmann::json& json) {
     // We've already made the checks to verify that these objects exist
@@ -102,12 +114,12 @@ static std::string getRangeValidatorCode(const std::string& key,
     if (getDatatype(key, json) == "float") {
         validator_type = "FloatRangeValidator";
         if (min != first->end()) {
-            mins = std::to_string(min->get<float>());
+            mins = getFloatString(min->get<float>());
         } else {
             mins = "std::numeric_limits<float>::min()";
         }
         if (max != first->end()) {
-            maxs = std::to_string(max->get<float>());
+            maxs = getFloatString(max->get<float>());
         } else {
             maxs = "std::numeric_limits<float>::max()";
         }

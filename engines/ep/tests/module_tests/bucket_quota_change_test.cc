@@ -169,7 +169,7 @@ public:
     void checkMaxRunningBackfills(size_t quotaValue) {
         EXPECT_EQ(engine->getKVBucket()
                           ->getKVStoreScanTracker()
-                          .getMaxRunningScansForQuota(quotaValue, 0.8)
+                          .getMaxRunningScansForQuota(quotaValue, 0.8f)
                           .first,
                   engine->getKVBucket()
                           ->getKVStoreScanTracker()

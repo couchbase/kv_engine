@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
     // Currently coded to run step with PV at a fixed % above setpoint
     // (increments of 10%) The inner loop prints and breaks once the PID
     // has reduced the sleep interval from max to min
-    for (float perc = 1.1; perc < 3.5; perc += 0.1) {
+    for (float perc = 1.1f; perc < 3.5f; perc += 0.1f) {
         auto pv = setpoint * perc;
         auto start = FauxClock::getTime();
         PIDController<FauxClock> pid{

@@ -510,5 +510,5 @@ TEST_F(BackfillManagerParamTest, DrainRatio_LowerThanMin) {
 }
 
 TEST_F(BackfillManagerParamTest, DrainRatio_HigherThanMax) {
-    drainRatioOutOfRange(1.1);
+    drainRatioOutOfRange(1.1f);
 }

@@ -822,20 +822,20 @@ TEST_P(ConnectionTest, connection_cleanup_interval_config) {
                     connMan.connectionCleanupInterval.load().count());
 
     ASSERT_NE(2.2, config.getConnectionCleanupInterval());
-    config.setConnectionCleanupInterval(3.3);
-    config.setConnectionCleanupInterval(2.2);
-    EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
-    EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+    config.setConnectionCleanupInterval(3.3f);
+    config.setConnectionCleanupInterval(2.2f);
+    EXPECT_FLOAT_EQ(2.2f, config.getConnectionCleanupInterval());
+    EXPECT_FLOAT_EQ(2.2f, connMan.connectionCleanupInterval.load().count());
 
     try {
-        config.setConnectionCleanupInterval(0.01);
+        config.setConnectionCleanupInterval(0.01f);
     } catch (const std::range_error& ex) {
         EXPECT_THAT(ex.what(),
                     testing::HasSubstr(
                             "Validation Error, connection_cleanup_interval "
                             "takes values between 0.100000 and "));
-        EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
-        EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+        EXPECT_FLOAT_EQ(2.2f, config.getConnectionCleanupInterval());
+        EXPECT_FLOAT_EQ(2.2f, connMan.connectionCleanupInterval.load().count());
         return;
     }
     FAIL();
@@ -2698,7 +2698,7 @@ TEST_F(FlowControlTest, NotifyConsumerWhenEnabled) {
 TEST_F(FlowControlTest, Config_ConsumerBufferRatio_LowerThanMin) {
     auto& config = engine->getConfiguration();
     try {
-        config.setDcpConsumerBufferRatio(-0.001);
+        config.setDcpConsumerBufferRatio(-0.001f);
     } catch (const std::range_error& e) {
         EXPECT_THAT(e.what(),
                     testing::HasSubstr(
@@ -2743,7 +2743,7 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(_100MB, stats.getMaxDataSize());
 
-    float ratio = 0.05;
+    float ratio = 0.05f;
     config.setDcpConsumerBufferRatio(ratio);
 
     ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
@@ -2756,7 +2756,7 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
 
     engine->setMaxDataSize(1_GiB);
     ASSERT_EQ(1_GiB, stats.getMaxDataSize());
-    ratio = 0.1;
+    ratio = 0.1f;
     config.setDcpConsumerBufferRatio(ratio);
     // 100MB expected
     EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
@@ -2771,7 +2771,7 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(_100MB, stats.getMaxDataSize());
 
-    const float ratio = 0.05;
+    const float ratio = 0.05f;
     config.setDcpConsumerBufferRatio(ratio);
 
     // Add a consumer and verify that it is assigned the correct sized buffer

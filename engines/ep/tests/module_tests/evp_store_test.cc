@@ -2894,7 +2894,7 @@ TEST_P(EPBucketTest, MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
 
     // Change compaction concurrency ratio to a very low value so we only allow
     // a single compactor task to run at once.
-    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001f);
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
@@ -3053,7 +3053,7 @@ TEST_P(EPBucketTest, ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
 
     // Change compaction concurrency ratio to a very low value so we only allow
     // a single compactor task to run at once.
-    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001f);
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
@@ -3119,7 +3119,7 @@ TEST_P(EPBucketTest, MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
 
     // Change compaction concurrency ratio to a very low value so we only allow
     // a single compactor task to run at once.
-    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001);
+    engine->getConfiguration().setCompactionMaxConcurrentRatio(0.0001f);
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
