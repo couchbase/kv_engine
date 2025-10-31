@@ -207,7 +207,16 @@ void Configuration::addParameter(std::string_view key,
         throw std::logic_error("Configuration::addParameter(" +
                                std::string{key} + ") already exists.");
     }
-    if (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
+
+#ifdef WIN32
+    // MSVC warning C4127 warns that the if should be constexpr
+    // as it may never be true (folly::kIsSanitizeThread is
+    // constexpr bool false).
+#define MAYBE_CONSTEXPR constexpr
+#else
+#define MAYBE_CONSTEXPR
+#endif
+    if MAYBE_CONSTEXPR (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
         (void)itr->second->setValue(*defaultTSAN);
     } else if (isDevAssertEnabled && defaultDevAssert.has_value()) {
         (void)itr->second->setValue(*defaultDevAssert);
@@ -216,6 +225,7 @@ void Configuration::addParameter(std::string_view key,
     } else {
         (void)itr->second->setValue(defaultVal);
     }
+#undef MAYBE_CONSTEXPR
 }
 
 template <class T>

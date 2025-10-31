@@ -1994,7 +1994,7 @@ static bool waitForMemUsedToBe(EventuallyPersistentEngine& engine,
 // Test that per-bucket memory tracking is handled correctly when
 // tasks are running on background threads.
 TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
-    if (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
+    if constexpr (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
         // ASan/TSan perform their own interposing of global new / delete, which
         // means KV-Engine's memory tracking (which this test relies on)
         // doesn't work.
@@ -2204,7 +2204,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
 // cause a memory accounting issue (due to the Task being deleted via
 // doTasksStat.
 TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
-    if (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
+    if constexpr (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
         // ASan/TSan perform their own interposing of global new / delete, which
         // means KV-Engine's memory tracking (which this test relies on)
         // doesn't work.
