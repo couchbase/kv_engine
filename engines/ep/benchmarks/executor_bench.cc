@@ -145,7 +145,7 @@ public:
         // Simple producer function to run in the our Task - increments
         // producerCount and notifies the waiting thread via a condition
         // variable.
-        auto producerFn = [&cv, &producerCount, &state](LambdaTask&) {
+        auto producerFn = [&cv, &producerCount](LambdaTask&) {
             producerCount++;
             cv.post();
             return false;
@@ -200,7 +200,7 @@ public:
         // Simple producer function to run in the our Task - increments
         // producerCount and notifies the waiting thread via a condition
         // variable.
-        auto producerFn = [&cv, &producerCount, &state](LambdaTask& task) {
+        auto producerFn = [&cv, &producerCount](LambdaTask& task) {
             task.snooze(INT_MAX);
             producerCount++;
             cv.post();
@@ -456,7 +456,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
 
     // Simple producer function to run in the our Task - increments
     // producerCount and notifies the waiting thread via a condition variable.
-    auto producerFn = [&cv, &producerCount, &state] {
+    auto producerFn = [&cv, &producerCount] {
         producerCount++;
         cv.post();
     };

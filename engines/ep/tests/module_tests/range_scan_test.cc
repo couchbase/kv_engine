@@ -2292,7 +2292,7 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     // This is called when the first continuation sets back to idle and signals
     // to the first request the status.
     std::shared_ptr<RangeScan> scan2;
-    auto callback = [this, &scanId, &scan2](cb::engine_errc status) {
+    auto callback = [this, &scan2](cb::engine_errc status) {
         if (status == cb::engine_errc::range_scan_more) {
             scan2->setStateContinuing(
                     *cookie, 1, std::chrono::milliseconds{0}, 0);

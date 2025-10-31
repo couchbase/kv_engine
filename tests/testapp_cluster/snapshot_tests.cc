@@ -206,7 +206,7 @@ void SnapshotClusterTest::do_snapshot_status(
     do {
         std::string key;
         requestConnection.stats(
-                [&key, &value, vbid](auto k, auto v) {
+                [&key, &value](auto k, auto v) {
                     key = k;
                     value = v;
                 },
@@ -280,7 +280,7 @@ TEST_F(SnapshotClusterTest, Snapshots) {
     ASSERT_TRUE(found) << "Failed to find snapshot-details";
     found = false;
     destination_node->stats(
-            [&manifest, &error, &found](auto k, auto v) {
+            [&found](auto k, auto v) {
                 if (k == "ep_snapshot_read_bytes") {
                     found = true;
                     EXPECT_NE(v, "0");

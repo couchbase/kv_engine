@@ -941,9 +941,7 @@ size_t FollyExecutorPool::schedule(ExTask task) {
     auto* pool = getPoolForTaskType(GlobalTask::getTaskType(task->getTaskId()));
     Expects(pool);
     eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
-            [eventBase, this, pool, &task] {
-                state->scheduleTask(*this, *pool, task);
-            });
+            [this, pool, &task] { state->scheduleTask(*this, *pool, task); });
 
     return task->getId();
 }

@@ -243,7 +243,7 @@ protected:
             // get the consumer stuck
             queueSize.fetch_add(1, std::memory_order_acq_rel);
             syncObject.notify_one();
-            syncObject.wait(lh, [this, &state]() {
+            syncObject.wait(lh, [this]() {
                 return queueSize.load(std::memory_order_acquire) == 0;
             });
 
@@ -297,7 +297,7 @@ protected:
                     }
 
                     // Go to sleep until the consumer has drained the queue.
-                    syncObject.wait(lh, [this, &state]() {
+                    syncObject.wait(lh, [this]() {
                         return queueSize.load(std::memory_order_acquire) == 0;
                     });
                     EXPECT_TRUE(queue.empty());
@@ -457,8 +457,7 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, MPSCRandom)(benchmark::State& state) {
         consumerThread = std::thread([this, &state]() { runConsumer(state); });
     }
 
-    runProducer(state,
-                [&state]() { return Vbid(folly::Random::rand32() % 1024); });
+    runProducer(state, []() { return Vbid(folly::Random::rand32() % 1024); });
 
     if (state.thread_index() == 0) {
         stopConsumer();
@@ -480,7 +479,7 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, SanityOneElement)
             [this, &state]() { runConsumerSanityOneElement(state); });
 
     runProducerSanityOneElement(
-            state, [&state]() { return Vbid(folly::Random::rand32() % 1024); });
+            state, []() { return Vbid(folly::Random::rand32() % 1024); });
 
     // Signal the consumer thread to stop
     stopConsumer();

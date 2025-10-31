@@ -512,7 +512,7 @@ TEST_P(AuditTest, MB33603_Filtering) {
     userConnection->mutate(doc, Vbid{0}, MutationType::Set);
 
     bool found = false;
-    iterate([&found, &doc](const nlohmann::json& entry) {
+    iterate([&doc](const nlohmann::json& entry) {
         if (entry["id"].get<int>() != MEMCACHED_AUDIT_DOCUMENT_MODIFY) {
             return false;
         }

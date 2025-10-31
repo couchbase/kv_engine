@@ -9650,7 +9650,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     EXPECT_EQ(0, control.getFreedBytes());
     EXPECT_EQ(messageBytes, stream->getUnackedBytes());
 
-    std::function<void()> hook = [this, &control, messageBytes]() {
+    std::function<void()> hook = [this, &control]() {
         // Close the stream. That removes the stream from the Consumer map.
         // Any unprocessed unacked bytes for that stream isn't added to
         // FlowControl counters yet
@@ -9726,7 +9726,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
     // System recovers from OOM..
     engine->getConfiguration().setMutationMemRatio(1);
     // .. but re-enters a OOM phase during the unacked bytes processing
-    std::function<void()> hook = [this, &control, messageBytes]() {
+    std::function<void()> hook = [this]() {
         engine->getConfiguration().setMutationMemRatio(0);
     };
     stream->setProcessUnackedBytes_TestHook(hook);

@@ -900,7 +900,6 @@ void STParamMagmaBucketTest::testDiskStateAfterCompactKVStore(
     auto realCompletionCallback = ctx->completionCallback;
     ctx->completionCallback = [this,
                                &realCompletionCallback,
-                               &kvstore,
                                &compactionCallback](CompactionContext& ctx) {
         compactionCallback();
         realCompletionCallback(ctx);

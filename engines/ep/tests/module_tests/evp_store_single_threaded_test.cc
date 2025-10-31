@@ -2518,13 +2518,12 @@ TEST_P(STParamPersistentBucketTest,
                     IncludeValue::Yes,
                     IncludeXattrs::Yes);
 
-    mock_stream->setCallbackBeforeRegisterCursor(
-            [vb, &registerCursorCount]() {
-                // This callback function is called every time a backfill is
-                // performed. It is called immediately prior to executing
-                // ActiveStream::registerCursor.
-                EXPECT_EQ(0, registerCursorCount);
-            });
+    mock_stream->setCallbackBeforeRegisterCursor([&registerCursorCount]() {
+        // This callback function is called every time a backfill is
+        // performed. It is called immediately prior to executing
+        // ActiveStream::registerCursor.
+        EXPECT_EQ(0, registerCursorCount);
+    });
 
     mock_stream->setCallbackAfterRegisterCursor(
             [&mock_stream, &registerCursorCount]() {

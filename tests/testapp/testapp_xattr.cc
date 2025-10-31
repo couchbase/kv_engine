@@ -2685,11 +2685,10 @@ TEST_P(XattrNoDocTest, TestSubdocOffloadToNonIoThread_many_paths) {
     EXPECT_EQ("Request must contain at most 16 paths",
               mutationRsp.getErrorContext());
 
-    auto resetConfigGuard =
-            folly::makeGuard([this, oldConfig = memcached_cfg]() {
-                memcached_cfg["subdoc_multi_max_paths"] = 16;
-                reconfigure();
-            });
+    auto resetConfigGuard = folly::makeGuard([this]() {
+        memcached_cfg["subdoc_multi_max_paths"] = 16;
+        reconfigure();
+    });
 
     memcached_cfg["subdoc_multi_max_paths"] = 200;
     reconfigure();

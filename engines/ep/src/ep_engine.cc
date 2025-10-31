@@ -1486,9 +1486,9 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
     using Collections::Visibility;
     auto engine = acquireEngine(this);
     Collections::IsVisibleFunction isVisible =
-            [&engine, &cookie](ScopeID sid,
-                               std::optional<CollectionID> cid,
-                               Visibility visibility) -> bool {
+            [&cookie](ScopeID sid,
+                      std::optional<CollectionID> cid,
+                      Visibility visibility) -> bool {
         // One of the system privileges needed if to access a system collection.
         if (visibility == Visibility::System) {
             if (cookie.testPrivilege(

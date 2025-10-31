@@ -1598,7 +1598,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
     // Setup for [5]: Use PostFlushHook to unblock warmup so it can run _before_
     // PersistenceCallback.
     store->getRWUnderlying(vbid)->setPostFlushHook(
-            [this, &key, &syncWritePersistedBaton, &warmupDoneBaton] {
+            [&syncWritePersistedBaton, &warmupDoneBaton] {
                 // The hook is executed on background writer after we have
                 // flushed to disk but before we call back into the
                 // PersistenceCallback. Unblock warmup value load

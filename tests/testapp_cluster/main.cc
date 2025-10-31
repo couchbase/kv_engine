@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
                       "help",
                       "This help text"});
 
-    parser.parse(argc, argv, [&parser]() { std::exit(EXIT_FAILURE); });
+    parser.parse(argc, argv, []() { std::exit(EXIT_FAILURE); });
 
     cb::test::ClusterTest::StartCluster(backend);
     const auto ret = RUN_ALL_TESTS();

@@ -1815,7 +1815,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
 
-    kvstore.setConcurrentCompactionPreLockHook([&vb, this](auto&) {
+    kvstore.setConcurrentCompactionPreLockHook([this](auto&) {
         // Flush an item during compaction
         store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1936,8 +1936,8 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
-    kvstore.setConcurrentCompactionPreLockHook([&vb, &cm, this](
-                                                       auto& compactionKey) {
+    kvstore.setConcurrentCompactionPreLockHook([&cm,
+                                                this](auto& compactionKey) {
         // Create and drop collection during compaction
         setCollections(cookie, cm.add(CollectionEntry::fruit));
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2070,7 +2070,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     // Setup testing hooks so key in each collection  is modified with a
     // *smaller* value, which will cause a second (incremental) compaction -
     // replay to occur.
-    auto compactionFunc = [&cm, &key1, &key2, this]() {
+    auto compactionFunc = [&key1, &key2, this]() {
         auto value = std::string{
                 "A large value which will be replaces the a shorter one we "
                 "stored earlier"};
@@ -3940,8 +3940,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayNewNonPrepare) {
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
 
     bool runOnce = false;
-    kvstore.setConcurrentCompactionPreLockHook([&runOnce, &vb, &cm, this](
-                                                       auto& compactionKey) {
+    kvstore.setConcurrentCompactionPreLockHook([&runOnce, &vb, this](auto&) {
         if (runOnce) {
             return;
         }
@@ -3983,7 +3982,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     bool runOnce = false;
     kvstore.setConcurrentCompactionPreLockHook(
-            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+            [&runOnce, &vb, &meatKey, this](auto&) {
                 if (runOnce) {
                     return;
                 }
@@ -4025,7 +4024,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     bool runOnce = false;
     kvstore.setConcurrentCompactionPreLockHook(
-            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+            [&runOnce, &vb, &meatKey, this](auto&) {
                 if (runOnce) {
                     return;
                 }
@@ -4082,7 +4081,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     bool runOnce = false;
     kvstore.setConcurrentCompactionPreLockHook(
-            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+            [&runOnce, &vb, &meatKey, this](auto&) {
                 if (runOnce) {
                     return;
                 }
@@ -4124,17 +4123,16 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayDeleteDelete) {
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
 
     bool runOnce = false;
-    kvstore.setConcurrentCompactionPreLockHook(
-            [&runOnce, &vb, &key, this](auto& compactionKey) {
-                if (runOnce) {
-                    return;
-                }
-                runOnce = true;
-                // set->delete and flush again
-                store_item(vbid, key, "value");
-                store_deleted_item(vbid, key, "value++++");
-                flushVBucketToDiskIfPersistent(vbid, 1);
-            });
+    kvstore.setConcurrentCompactionPreLockHook([&runOnce, &key, this](auto&) {
+        if (runOnce) {
+            return;
+        }
+        runOnce = true;
+        // set->delete and flush again
+        store_item(vbid, key, "value");
+        store_deleted_item(vbid, key, "value++++");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
 
     auto d = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
     runCompaction(vbid, 0, false);
