@@ -1902,11 +1902,13 @@ public:
                         completeBeforeShutdown) {
     }
 
-    void public_createAndScheduleTask(const size_t shard) {
+    void public_createAndScheduleTask(const size_t shard,
+                                      std::vector<Vbid> vbuckets) {
         // Note: AccessScanner:run normally acquires tokens before calling
         // createAndScheduleTask, here we are acquiring one token.
         cb::SemaphoreGuard<> semaphoreGuard(&semaphore);
-        return createAndScheduleTask(shard, std::move(semaphoreGuard));
+        return createAndScheduleTask(
+                shard, std::move(semaphoreGuard), std::move(vbuckets));
     }
 };
 
@@ -1930,10 +1932,31 @@ TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
                                                   1000);
 
     /* Make sure this doesn't throw an exception when tyring to run the task*/
-    EXPECT_NO_THROW(as->public_createAndScheduleTask(0))
+    EXPECT_NO_THROW(as->public_createAndScheduleTask(
+            0, store->getVBuckets().getShard(0)->getVBuckets()))
             << "Access Scanner threw unexpected "
                "exception where log location does "
                "not exist";
+}
+
+// Coverage for MB-69134
+TEST_P(KVBucketParamTest, NoLogsWhenNoVBucketsMapToShard) {
+    ASSERT_EQ(store->getVBuckets().getNumShards(), 2);
+    engine->getConfiguration().setAlogResidentRatioThreshold(100);
+    auto as = std::make_unique<MockAccessScanner>(*(engine->getKVBucket()),
+                                                  engine->getConfiguration(),
+                                                  engine->getEpStats());
+
+    auto& auxIoQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto count = auxIoQ.getFutureQueueSize();
+    as->run();
+    // Only one task gets scheduled
+    EXPECT_EQ(count + 1, auxIoQ.getFutureQueueSize())
+            << "Expected one task to be scheduled as only one shard has "
+               "vbuckets";
+
+    // Need to run the task so it destructs before the 'as' object is destroyed.
+    runNextTask(auxIoQ, "Item Access Scanner no vbucket assigned");
 }
 
 TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
@@ -1990,6 +2013,7 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
             shard,
             std::move(semaphoreGuard),
             engine->getConfiguration().getAlogMaxStoredItems(),
+            store->getVBuckets().getShard(shard)->getVBuckets(),
             std::move(mockFileIface));
 
     store->visitAsync(std::move(pv),

@@ -35,6 +35,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
                                      uint16_t sh,
                                      cb::SemaphoreGuard<> guard,
                                      uint64_t items_to_scan,
+                                     std::vector<Vbid> vbuckets,
                                      std::unique_ptr<mlog::FileIface> fileIface)
     : stats(_stats),
       startTime(ep_real_time()),
@@ -44,8 +45,7 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
       items_scanned(0),
       items_to_scan(items_to_scan) {
     Expects(semaphoreGuard.valid());
-    setVBucketFilter(
-            VBucketFilter(_store.getVBuckets().getShard(sh)->getVBuckets()));
+    setVBucketFilter(VBucketFilter(std::move(vbuckets)));
     name = conf.getAlogPath();
     name = name + "." + std::to_string(shardID);
     prev = name + ".old";
@@ -298,7 +298,13 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                createAndScheduleTask(i, std::move(semaphoreGuard));
+                auto vbuckets = store.getVBuckets().getShard(i)->getVBuckets();
+                // MB-69134: Only create a task if there are vbuckets mapped to
+                // the shard.
+                if (vbuckets.size() > 0) {
+                    createAndScheduleTask(
+                            i, std::move(semaphoreGuard), std::move(vbuckets));
+                }
             }
         }
     }
@@ -340,14 +346,16 @@ void AccessScanner::deleteAlogFile(const std::string& fileName) {
  * @return True on successful creation, False if the task failed
  */
 void AccessScanner::createAndScheduleTask(const size_t shard,
-                                          cb::SemaphoreGuard<> semaphoreGuard) {
+                                          cb::SemaphoreGuard<> semaphoreGuard,
+                                          std::vector<Vbid> vbuckets) {
     try {
         auto pv = std::make_unique<ItemAccessVisitor>(store,
                                                       conf,
                                                       stats,
                                                       shard,
                                                       std::move(semaphoreGuard),
-                                                      maxStoredItems);
+                                                      maxStoredItems,
+                                                      std::move(vbuckets));
 
         // p99.9 is typically ~200ms
         const auto maxExpectedDuration = 500ms;

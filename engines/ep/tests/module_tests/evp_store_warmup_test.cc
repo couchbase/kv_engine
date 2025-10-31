@@ -3264,14 +3264,13 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(auxioQueue);
     runNextTask(auxioQueue);
-    runNextTask(auxioQueue);
 
     // 4. verify the items are picked up by the access scanner
     {
         auto& epStats = store->getEPEngine().getEpStats();
         // Check the Access Scanner ran and we recorded 5 items
         ASSERT_EQ(0, epStats.accessScannerSkips);
-        ASSERT_EQ(2, epStats.alogRuns);
+        ASSERT_EQ(1, epStats.alogRuns);
         ASSERT_EQ(5, epStats.alogNumItems);
         ASSERT_GT(epStats.alogTime, 0);
     }

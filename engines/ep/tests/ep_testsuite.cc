@@ -8647,11 +8647,12 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Need to cap the single checkpint size, so we create >1
                  // checkpoints. Also given bucket quota is being constrained,
-                 // also limit shards to 4 so amount of memory overhead is more
-                 // or less constant.
+                 // also limit shards to 1 so amount of memory overhead is
+                 // more or less constant and MB-69134 doesn't need
+                 // consideration.
                  "checkpoint_max_size=1024;"
                  "chk_remover_stime=1;"
-                 "max_num_shards=4;"
+                 "max_num_shards=1;"
                  "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
