@@ -22,6 +22,7 @@
 
 #include <string>
 
+namespace cb::test::get_ex_tests {
 using cb::mcbp::ClientOpcode;
 using cb::mcbp::Status;
 using cb::mcbp::subdoc::DocFlag;
@@ -73,7 +74,7 @@ protected:
 
     static void upsert(MemcachedConnection& conn,
                        const std::string& id,
-                       std::string value,
+                       std::string doc_value,
                        std::string xattr_path = {},
                        std::string xattr_value = {},
                        std::string second_xattr_path = {},
@@ -83,7 +84,7 @@ protected:
                 ClientOpcode opcode,
                 const std::string& id,
                 bool wait_for_compressed,
-                std::string value,
+                std::string doc_value,
                 std::string xattr_path = {},
                 std::string xattr_value = {},
                 std::string second_xattr_path = {},
@@ -114,7 +115,7 @@ void GetExTest::SetUpTestCase() {
 
 void GetExTest::upsert(MemcachedConnection& conn,
                        const std::string& id,
-                       std::string value,
+                       std::string doc_value,
                        std::string xattr_path,
                        std::string xattr_value,
                        std::string second_xattr_path,
@@ -122,7 +123,7 @@ void GetExTest::upsert(MemcachedConnection& conn,
     if (xattr_path.empty()) {
         Document doc;
         doc.info.id = std::string{id};
-        doc.value = std::move(value);
+        doc.value = std::move(doc_value);
         conn.mutate(doc, Vbid{0}, MutationType::Set);
     } else {
         for (int ii = 0; ii < 2; ++ii) {
@@ -134,7 +135,8 @@ void GetExTest::upsert(MemcachedConnection& conn,
                                 PathFlag::XattrPath,
                                 xattr_path,
                                 xattr_value);
-                cmd.addMutation(ClientOpcode::Set, PathFlag::None, "", value);
+                cmd.addMutation(
+                        ClientOpcode::Set, PathFlag::None, "", doc_value);
                 cmd.addDocFlag(DocFlag::Mkdoc);
             } else {
                 cmd.addMutation(ClientOpcode::SubdocDictUpsert,
@@ -157,7 +159,7 @@ void GetExTest::verify(MemcachedConnection& conn,
                        ClientOpcode opcode,
                        const std::string& id,
                        bool wait_for_compressed,
-                       std::string value,
+                       std::string doc_value,
                        std::string xattr_path,
                        std::string xattr_value,
                        std::string second_xattr_path,
@@ -217,7 +219,7 @@ void GetExTest::verify(MemcachedConnection& conn,
             }
         }
     }
-    EXPECT_EQ(value, value_view);
+    EXPECT_EQ(doc_value, value_view);
 }
 
 TEST_F(GetExTest, GetValueOnlyActive) {
@@ -339,3 +341,5 @@ TEST_F(GetExTest, GetValueAndUserAndSystemXattrNoSysPrivilegeReplica) {
            "user",
            user_xattr_value);
 }
+
+} // namespace cb::test::get_ex_tests
