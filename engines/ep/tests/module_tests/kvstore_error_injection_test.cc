@@ -270,11 +270,6 @@ public:
      */
     void testCollectionDropCompaction(bool failCompaction);
 
-    /**
-     * Validates consistent stats when compaction fails.
-     */
-    void testCollectionDropCompactionFailPartial();
-
 protected:
     std::unique_ptr<ErrorInjector> errorInjector;
 };
