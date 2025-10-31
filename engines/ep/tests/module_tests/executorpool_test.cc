@@ -243,22 +243,22 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskableConcurrentSchedule) {
     // Setup a test task which initially sleeps, with
     // completeBeforeShutdown=true so will be woken during unregisterTaskable,
     // at which point it attempts to schedule a second Task.
-    this->pool->schedule(ExTask(
-            new LambdaTask(taskable,
-                           TaskId::ItemPager,
-                           INT_MAX,
-                           /*completeBeforeShutdown*/ true,
-                           [this, &taskable](LambdaTask&) {
-                               // Schedule a second task which just sits around
-                               // forever.
-                               this->pool->schedule(ExTask(new LambdaTask(
-                                       taskable,
-                                       TaskId::ItemPager,
-                                       INT_MAX,
-                                       /*completeBeforeShutdown*/ false,
-                                       [](LambdaTask&) { return false; })));
-                               return false;
-                           })));
+    this->pool->schedule(std::make_shared<LambdaTask>(
+            taskable,
+            TaskId::ItemPager,
+            INT_MAX,
+            /*completeBeforeShutdown*/ true,
+            [this, &taskable](LambdaTask&) {
+                // Schedule a second task which just sits around
+                // forever.
+                this->pool->schedule(std::make_shared<LambdaTask>(
+                        taskable,
+                        TaskId::ItemPager,
+                        INT_MAX,
+                        /*completeBeforeShutdown*/ false,
+                        [](LambdaTask&) { return false; }));
+                return false;
+            }));
 
     // Test: Call unregisterTaskable. This should return and not hang.
     this->pool->unregisterTaskable(taskable, false);
@@ -1007,8 +1007,8 @@ TYPED_TEST(ExecutorPoolTest, TaskQStats) {
     // Create some tasks with long sleep times to check for non-zero InQueue
     // (futureQueue) sizes.
     auto scheduleTask = [&](Taskable& bucket, TaskId id) {
-        this->pool->schedule(ExTask(new LambdaTask(
-                bucket, id, 600.0, true, [&](LambdaTask&) { return false; })));
+        this->pool->schedule(std::make_shared<LambdaTask>(
+                bucket, id, 600.0, true, [&](LambdaTask&) { return false; }));
     };
 
     // Reader.
@@ -1066,8 +1066,8 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     // Create some tasks with long sleep times to check for non-zero InQueue
     // (futureQueue) sizes.
     auto scheduleTask = [&](Taskable& bucket, TaskId id) {
-        this->pool->schedule(ExTask(new LambdaTask(
-                bucket, id, 600.0, true, [&](LambdaTask&) { return false; })));
+        this->pool->schedule(std::make_shared<LambdaTask>(
+                bucket, id, 600.0, true, [&](LambdaTask&) { return false; }));
     };
 
     // Reader.
@@ -1143,14 +1143,14 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
     // Create a task which just runs forever (until task is cancelled) so
     // we have a running task to show stats for.
     ThreadGate tg{1};
-    this->pool->schedule(ExTask(new LambdaTask(
+    this->pool->schedule(std::make_shared<LambdaTask>(
             bucket0, TaskId::ItemPager, 0, false, [&tg](LambdaTask& me) {
                 tg.threadUp();
                 while (!me.isdead()) {
                     std::this_thread::yield();
                 }
                 return false;
-            })));
+            }));
     tg.waitFor(std::chrono::seconds(10));
     ASSERT_TRUE(tg.isComplete());
 
