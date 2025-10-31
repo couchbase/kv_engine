@@ -351,6 +351,9 @@ struct MockEngine : public EngineIface, public DcpIface {
                                     uint64_t by_seqno,
                                     uint64_t rev_seqno,
                                     uint32_t expiration) override;
+    cb::engine_errc cache_transfer_end(CookieIface& cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket) override;
     cb::engine_errc setParameter(CookieIface& cookie,
                                  EngineParamCategory category,
                                  std::string_view key,

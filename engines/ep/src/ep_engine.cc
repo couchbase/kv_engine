@@ -1427,6 +1427,13 @@ cb::engine_errc EventuallyPersistentEngine::cached_key_meta(
                                  expiration);
 }
 
+cb::engine_errc EventuallyPersistentEngine::cache_transfer_end(
+        CookieIface& cookie, uint32_t opaque, Vbid vbucket) {
+    auto engine = acquireEngine(this);
+    auto conn = engine->getConnHandler(cookie);
+    return conn->cache_transfer_end_rx(opaque, vbucket);
+}
+
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it

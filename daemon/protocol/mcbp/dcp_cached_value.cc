@@ -64,3 +64,8 @@ cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
                             extras.getRevSeqno(),
                             extras.getExpiration());
 }
+
+cb::engine_errc dcp_cache_transfer_end(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    return dcpCacheTransferEnd(cookie, req.getOpaque(), req.getVBucket());
+}

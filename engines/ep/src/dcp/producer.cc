@@ -1775,6 +1775,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpCommit:
     case cb::mcbp::ClientOpcode::DcpAbort:
     case cb::mcbp::ClientOpcode::DcpCachedKeyMeta:
+    case cb::mcbp::ClientOpcode::DcpCacheTransferEnd:
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;
         }

@@ -384,6 +384,11 @@ public:
                                     uint32_t expiration) override {
         return cb::engine_errc::no_bucket;
     }
+    cb::engine_errc cache_transfer_end(CookieIface& cookie,
+                                       uint32_t,
+                                       Vbid) override {
+        return cb::engine_errc::no_bucket;
+    }
 
     cb::engine::FeatureSet getFeatures() override {
         cb::engine::FeatureSet ret;

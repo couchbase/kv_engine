@@ -22,3 +22,9 @@ cb::engine_errc dcp_cached_value(Cookie& cookie);
  * DCP_CACHED_KEY_META packet.
  */
 cb::engine_errc dcp_cached_key_meta(Cookie& cookie);
+
+/**
+ * Implementation of the method responsible for handle the incoming
+ * DCP_CACHE_TRANSFER_END packet.
+ */
+cb::engine_errc dcp_cache_transfer_end(Cookie& cookie);

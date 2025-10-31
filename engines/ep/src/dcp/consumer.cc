@@ -1870,3 +1870,10 @@ cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
             DcpResponse::Event::CachedKeyMeta);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
+
+cb::engine_errc DcpConsumer::cache_transfer_end_rx(uint32_t opaque,
+                                                   Vbid vbucket) {
+    // silently accept.
+    // @todo push to stream, test opaque etc...
+    return cb::engine_errc::success;
+}

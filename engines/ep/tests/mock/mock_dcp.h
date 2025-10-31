@@ -173,6 +173,10 @@ public:
                                     uint64_t rev_seqno,
                                     cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc cache_transfer_end_tx(uint32_t opaque,
+                                          Vbid vbucket,
+                                          cb::mcbp::DcpStreamId sid) override;
+
     void clear_dcp_data();
 
     cb::mcbp::ClientOpcode last_op;

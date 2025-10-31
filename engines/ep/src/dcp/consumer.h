@@ -252,6 +252,9 @@ public:
                                     uint64_t revSeqno,
                                     uint32_t expiration) override;
 
+    cb::engine_errc cache_transfer_end_rx(uint32_t opaque,
+                                          Vbid vbucket) override;
+
     cb::engine_errc step(bool throttled,
                          DcpMessageProducersIface& producers) override;
 

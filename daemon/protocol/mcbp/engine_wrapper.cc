@@ -781,6 +781,22 @@ cb::engine_errc dcpCachedKeyMeta(Cookie& cookie,
     return ret;
 }
 
+cb::engine_errc dcpCacheTransferEnd(Cookie& cookie,
+                                    uint32_t opaque,
+                                    Vbid vbucket) {
+    auto& connection = cookie.getConnection();
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->cache_transfer_end(cookie, opaque, vbucket);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING_CTX(
+                "dcp.cache_transfer_end returned cb::engine_errc::disconnect",
+                {"conn_id", connection.getId()},
+                {"description", connection.getDescription()});
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpNoop(Cookie& cookie, uint32_t opaque) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();

@@ -388,6 +388,18 @@ cb::engine_errc dcpCachedKeyMeta(Cookie& cookie,
                                  uint32_t expiration);
 
 /**
+ * Calls the underlying engine DCP cache_transfer_end
+ *
+ * @param cookie The cookie representing the connection
+ * @param opaque The opaque field in the received message
+ * @param vbid The vbucket id
+ * @return cb::engine_errc
+ */
+cb::engine_errc dcpCacheTransferEnd(Cookie& cookie,
+                                    uint32_t opaque,
+                                    Vbid vbucket);
+
+/**
  * Calls the underlying engine DCP noop
  *
  * @param cookie The cookie representing the connection

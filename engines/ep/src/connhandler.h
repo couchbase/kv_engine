@@ -278,6 +278,10 @@ public:
                                             uint64_t revSeqno,
                                             uint32_t expiration);
 
+    /// Receive a cache transfer end message.
+    virtual cb::engine_errc cache_transfer_end_rx(uint32_t opaque,
+                                                  Vbid vbucket);
+
     const char* logHeader() const;
 
     /**

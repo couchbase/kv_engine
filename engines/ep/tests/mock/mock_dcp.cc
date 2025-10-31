@@ -560,6 +560,15 @@ cb::engine_errc MockDcpMessageProducers::cached_key_meta(
     return status;
 }
 
+cb::engine_errc MockDcpMessageProducers::cache_transfer_end_tx(
+        uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid) {
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_stream_id = sid;
+    last_op = cb::mcbp::ClientOpcode::DcpCacheTransferEnd;
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc MockDcpMessageProducers::get_error_map(uint32_t opaque,
                                                        uint16_t version) {
     clear_dcp_data();

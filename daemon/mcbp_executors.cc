@@ -775,6 +775,12 @@ static void dcp_cached_key_meta_executor(Cookie& cookie) {
           }).drive();
 }
 
+static void dcp_cache_transfer_end_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return dcp_cache_transfer_end(c);
+          }).drive();
+}
+
 static void setup_response_handler(cb::mcbp::ClientOpcode opcode,
                                    HandlerFunction function) {
     response_handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)] =
@@ -832,6 +838,8 @@ void initialize_mbcp_lookup_map() {
                            process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
                            process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpCacheTransferEnd,
+                           process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::GetErrorMap,
                            process_bin_dcp_response);
 
@@ -873,6 +881,8 @@ void initialize_mbcp_lookup_map() {
                   dcp_cached_value_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
                   dcp_cached_key_meta_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpCacheTransferEnd,
+                  dcp_cache_transfer_end_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsSetManifest,
                   collections_set_manifest_executor);
     setup_handler(cb::mcbp::ClientOpcode::CollectionsGetManifest,

@@ -895,6 +895,16 @@ static Status dcp_cached_key_meta_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
+static Status dcp_cache_transfer_end_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        0);
+}
+
 /// @return true if the datatype is valid for a deletion
 static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
     // MB-29040: Allowing xattr + JSON. A bug in the producer means
@@ -3144,6 +3154,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::DcpAbort, dcp_abort_validator);
     setup(ClientOpcode::DcpCachedValue, dcp_mutation_validator);
     setup(ClientOpcode::DcpCachedKeyMeta, dcp_cached_key_meta_validator);
+    setup(ClientOpcode::DcpCacheTransferEnd, dcp_cache_transfer_end_validator);
     setup(ClientOpcode::IsaslRefresh, configuration_refresh_validator);
     setup(ClientOpcode::Verbosity, verbosity_validator);
     setup(ClientOpcode::Hello, hello_validator);

@@ -450,6 +450,9 @@ public:
                                     uint64_t by_seqno,
                                     uint64_t rev_seqno,
                                     uint32_t expiration) override;
+    cb::engine_errc cache_transfer_end(CookieIface& cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket) override;
 
 protected:
     GET_SERVER_API gsa;
@@ -1894,6 +1897,15 @@ cb::engine_errc EWB_Engine::cached_key_meta(CookieIface& cookie,
                                             by_seqno,
                                             rev_seqno,
                                             expiration);
+}
+
+cb::engine_errc EWB_Engine::cache_transfer_end(CookieIface& cookie,
+                                               uint32_t opaque,
+                                               Vbid vbucket) {
+    if (!real_engine_dcp) {
+        return cb::engine_errc::not_supported;
+    }
+    return real_engine_dcp->cache_transfer_end(cookie, opaque, vbucket);
 }
 
 unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa) {

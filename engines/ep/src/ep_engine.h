@@ -517,6 +517,11 @@ public:
                                     uint64_t bySeqno,
                                     uint64_t revSeqno,
                                     uint32_t expiration) override;
+
+    cb::engine_errc cache_transfer_end(CookieIface& cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket) override;
+
     // End DcpIface ///////////////////////////////////////////////////////////
 
     /**

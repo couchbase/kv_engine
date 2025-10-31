@@ -790,6 +790,10 @@ public:
                                     uint64_t rev_seqno,
                                     cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc cache_transfer_end_tx(uint32_t opaque,
+                                          Vbid vbucket,
+                                          cb::mcbp::DcpStreamId sid) override;
+
     /// Create the SASL server context object to use for SASL authentication
     void createSaslServerContext() {
         saslServerContext = std::make_unique<cb::sasl::server::ServerContext>();

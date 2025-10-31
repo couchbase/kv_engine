@@ -336,6 +336,14 @@ cb::engine_errc ConnHandler::cached_key_meta(uint32_t opaque,
     return cb::engine_errc::disconnect;
 }
 
+cb::engine_errc ConnHandler::cache_transfer_end_rx(uint32_t opaque,
+                                                   Vbid vbucket) {
+    logger->warn(
+            "Disconnecting - This connection doesn't support the dcp "
+            "cache_transfer_end API");
+    return cb::engine_errc::disconnect;
+}
+
 BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }

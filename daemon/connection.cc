@@ -2491,6 +2491,25 @@ cb::engine_errc Connection::cached_key_meta(uint32_t opaque,
                                      sid);
 }
 
+cb::engine_errc Connection::cache_transfer_end_tx(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  cb::mcbp::DcpStreamId sid) {
+    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) +
+                                sizeof(cb::mcbp::DcpStreamIdFrameInfo));
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
+                         : cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpCacheTransferEnd);
+    builder.setOpaque(opaque);
+    builder.setVbucket(vbucket);
+    if (sid) {
+        cb::mcbp::DcpStreamIdFrameInfo frameSid(sid);
+        builder.setFramingExtras(frameSid.getBuf());
+    }
+
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //               End DCP Message producer interface                       //

@@ -425,6 +425,19 @@ struct DcpMessageProducersIface {
             uint64_t by_seqno,
             uint64_t rev_seqno,
             cb::mcbp::DcpStreamId sid) = 0;
+    /**
+     * Send a CacheTransferEnd message (for a CacheTransferStream)
+     *
+     * @param opaque this is the opaque requested by the consumer
+     *               in the Stream Request message
+     * @param vbucket the vbucket id the message belong to
+     * @param sid The stream-ID the CacheTransferEnd applies to (can be 0 for
+     * none)
+     *
+     * @return cb::engine_errc::success upon success
+     */
+    [[nodiscard]] virtual cb::engine_errc cache_transfer_end_tx(
+            uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid) = 0;
 };
 
 using dcp_add_failover_log =
@@ -879,4 +892,15 @@ struct DcpIface {
             uint64_t by_seqno,
             uint64_t rev_seqno,
             uint32_t expiration) = 0;
+
+    /**
+     * Callback to the engine that a cache transfer end message was received.
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)#
+     * @param vbucket The vbucket identifier for the document
+     * @return Standard engine error code.
+     */
+    [[nodiscard]] virtual cb::engine_errc cache_transfer_end(
+            CookieIface& cookie, uint32_t opaque, Vbid vbucket) = 0;
 };
