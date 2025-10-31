@@ -149,7 +149,7 @@ bool FlushAccounting::StatisticsUpdate::remove(
 
     if (compactionCallbacks == CompactionCallbacks::AnyRevision &&
         isDelete == IsDeleted::Yes) {
-        updateDiskSize(-oldSize);
+        updateDiskSize(-static_cast<ssize_t>(oldSize));
         return false;
     }
 

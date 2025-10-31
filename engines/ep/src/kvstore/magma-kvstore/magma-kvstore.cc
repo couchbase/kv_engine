@@ -3400,8 +3400,9 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         // ensure that we will not persist an inconsistent state.
         MagmaDbStats dbStatsDelta;
         for (auto& [dc, itemCount] : dcInfo) {
-            processCollectionPurgeDelta(
-                    dbStatsDelta, dc.collectionId, -itemCount);
+            processCollectionPurgeDelta(dbStatsDelta,
+                                        dc.collectionId,
+                                        -static_cast<int64_t>(itemCount));
         }
         addStatUpdateToWriteOps(dbStatsDelta, writeOps);
         addLocalDbReqs(localDbReqs, writeOps);
