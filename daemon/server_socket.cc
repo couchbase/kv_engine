@@ -216,7 +216,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
-    ++stats.curr_conns;
+    ++global_statistics.curr_conns;
     if (cb::net::set_socket_noblocking(client) == -1) {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
         close_client_socket(client);
@@ -267,16 +267,16 @@ void LibeventServerSocketImpl::acceptNewClient() {
     size_t limit;
 
     if (interface->system) {
-        ++stats.system_conns;
-        current = stats.getSystemConnections();
+        ++global_statistics.system_conns;
+        current = global_statistics.getSystemConnections();
         limit = Settings::instance().getSystemConnections();
     } else {
-        current = stats.getUserConnections();
+        current = global_statistics.getUserConnections();
         limit = Settings::instance().getMaxUserConnections();
     }
 
     if (current > limit) {
-        stats.rejected_conns++;
+        global_statistics.rejected_conns++;
         LOG_WARNING_CTX(
                 "Shutting down client as we're running out of connections",
                 {"system", interface->system},
@@ -284,7 +284,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
                 {"limit", limit});
         close_client_socket(client);
         if (interface->system) {
-            --stats.system_conns;
+            --global_statistics.system_conns;
         }
         return;
     }

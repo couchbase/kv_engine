@@ -57,7 +57,9 @@ void NoBucketTaskable::logQTime(const GlobalTask& task,
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
-    stats.taskSchedulingHistogram[static_cast<int>(task.getTaskId())].add(us);
+    global_statistics
+            .taskSchedulingHistogram[static_cast<int>(task.getTaskId())]
+            .add(us);
 }
 
 void NoBucketTaskable::logRunTime(const GlobalTask& task,
@@ -71,7 +73,8 @@ void NoBucketTaskable::logRunTime(const GlobalTask& task,
                         {"runtime", runtime});
     }
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runtime);
-    stats.taskRuntimeHistogram[static_cast<int>(task.getTaskId())].add(us);
+    global_statistics.taskRuntimeHistogram[static_cast<int>(task.getTaskId())]
+            .add(us);
 }
 
 void NoBucketTaskable::invokeViaTaskable(std::function<void()> fn) {

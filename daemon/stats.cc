@@ -51,20 +51,23 @@ static void server_global_stats(const StatCollector& collector) {
                                   ? networkInterfaceManager
                                             ->getNumberOfDaemonConnections()
                                   : 0);
-        auto curr = stats.curr_conns.load();
-        auto sys = stats.system_conns.load();
+        auto curr = global_statistics.curr_conns.load();
+        auto sys = global_statistics.system_conns.load();
         collector.addStat(Key::curr_connections, curr);
         collector.addStat(Key::system_connections, sys);
         collector.addStat(Key::user_connections, curr > sys ? curr - sys : 0);
-        collector.addStat(Key::rejected_connections, stats.rejected_conns);
+        collector.addStat(Key::rejected_connections,
+                          global_statistics.rejected_conns);
         collector.addStat(Key::max_user_connections,
                           Settings::instance().getMaxUserConnections());
         collector.addStat(Key::max_system_connections,
                           Settings::instance().getSystemConnections());
-        collector.addStat(Key::total_connections, stats.total_conns);
-        collector.addStat(Key::connection_structures, stats.conn_structs);
+        collector.addStat(Key::total_connections,
+                          global_statistics.total_conns);
+        collector.addStat(Key::connection_structures,
+                          global_statistics.conn_structs);
         collector.addStat(Key::curr_connections_closing,
-                          stats.curr_conn_closing);
+                          global_statistics.curr_conn_closing);
         if (isFusionSupportEnabled()) {
             collector.addStat(Key::fusion_migration_rate_limit,
                               magma::Magma::GetFusionMigrationRateLimit());
@@ -94,8 +97,8 @@ static void server_global_stats(const StatCollector& collector) {
         if (resident != allocStats.end()) {
             collector.addStat(Key::daemon_memory_resident, resident->second);
         }
-        collector.addStat(Key::auth_cmds, stats.auth_cmds);
-        collector.addStat(Key::auth_errors, stats.auth_errors);
+        collector.addStat(Key::auth_cmds, global_statistics.auth_cmds);
+        collector.addStat(Key::auth_errors, global_statistics.auth_errors);
         externalAuthManager->addStats(collector);
     }
 }

@@ -160,7 +160,7 @@ struct thread_stats {
 /**
  * Global stats.
  */
-struct stats {
+struct GlobalStatistics {
     /** The current number of connections to the server */
     cb::RelaxedAtomic<unsigned int> curr_conns;
 
@@ -205,7 +205,7 @@ struct stats {
             taskRuntimeHistogram;
 };
 
-extern stats stats;
+extern GlobalStatistics global_statistics;
 
 class Connection;
 struct thread_stats* get_thread_stats(Connection* c);

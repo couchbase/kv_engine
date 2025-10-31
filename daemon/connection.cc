@@ -66,7 +66,7 @@ void Connection::shutdown() {
     //   closing -> immediate_close
     //   pending_close -> immediate_close
     if (state == State::running) {
-        ++stats.curr_conn_closing;
+        ++global_statistics.curr_conn_closing;
         shutdown_initiated = std::chrono::steady_clock::now();
         pending_close_next_log = *shutdown_initiated + std::chrono::seconds(10);
         thread.onInitiateShutdown(*this);
@@ -1051,7 +1051,7 @@ bool Connection::executeCommandsCallback() {
             }
             disassociate_bucket(*this);
 
-            --stats.curr_conn_closing;
+            --global_statistics.curr_conn_closing;
             using namespace std::chrono;
             const auto now = steady_clock::now();
             // Only log if shutdown took more than 10 seconds
@@ -1227,7 +1227,7 @@ Connection::Connection(FrontEndThread& thr)
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId("unknown:0");
-    stats.conn_structs++;
+    global_statistics.conn_structs++;
     thread.onConnectionCreate(*this);
 }
 
@@ -1282,7 +1282,7 @@ Connection::Connection(SOCKET sfd,
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor));
-    stats.conn_structs++;
+    global_statistics.conn_structs++;
     thread.onConnectionCreate(*this);
 }
 
@@ -1334,14 +1334,14 @@ Connection::~Connection() {
     cb::audit::addSessionTerminated(*this);
 
     if (listening_port->system) {
-        --stats.system_conns;
+        --global_statistics.system_conns;
     }
     if (user && user->domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user->name);
     }
 
-    --stats.conn_structs;
-    --stats.curr_conns;
+    --global_statistics.conn_structs;
+    --global_statistics.curr_conns;
 }
 
 void Connection::setTerminationReason(std::string reason) {

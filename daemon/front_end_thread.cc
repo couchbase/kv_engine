@@ -303,7 +303,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
         auto connection = Connection::create(sfd, *this, std::move(descr));
         auto* c = connection.get();
         add_connection(std::move(connection));
-        stats.total_conns++;
+        global_statistics.total_conns++;
         associate_initial_bucket(*c);
         success = true;
     } catch (const std::bad_alloc&) {
@@ -316,7 +316,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
 
     if (!success) {
         if (system) {
-            --stats.system_conns;
+            --global_statistics.system_conns;
         }
         close_client_socket(sfd);
     }
@@ -389,7 +389,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
                         {"error", e.what()});
 
         if (descr->system) {
-            --stats.system_conns;
+            --global_statistics.system_conns;
         }
         close_client_socket(sfd);
     }

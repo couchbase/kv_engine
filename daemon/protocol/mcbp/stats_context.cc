@@ -109,8 +109,8 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         stats_reset(cookie);
-        stats.auth_cmds = 0;
-        stats.auth_errors = 0;
+        global_statistics.auth_cmds = 0;
+        global_statistics.auth_errors = 0;
         bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
         BucketManager::instance().aggregatedTimings.reset();
@@ -644,12 +644,14 @@ static cb::engine_errc stat_runtimes_executor(const std::string& arg,
     if (arg == "@no bucket@") {
         if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
             for (TaskId id : GlobalTask::allTaskIds) {
-                if (!stats.taskRuntimeHistogram[static_cast<int>(id)]
+                if (!global_statistics
+                             .taskRuntimeHistogram[static_cast<int>(id)]
                              .isEmpty()) {
                     add_stat(cookie,
                              appendStatsFn,
                              GlobalTask::getTaskIdString(id),
-                             stats.taskRuntimeHistogram[static_cast<int>(id)]
+                             global_statistics
+                                     .taskRuntimeHistogram[static_cast<int>(id)]
                                      .to_string());
                 }
             }
@@ -669,12 +671,15 @@ static cb::engine_errc stat_scheduler_executor(const std::string& arg,
     if (arg == "@no bucket@") {
         if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
             for (TaskId id : GlobalTask::allTaskIds) {
-                if (!stats.taskSchedulingHistogram[static_cast<int>(id)]
+                if (!global_statistics
+                             .taskSchedulingHistogram[static_cast<int>(id)]
                              .isEmpty()) {
                     add_stat(cookie,
                              appendStatsFn,
                              GlobalTask::getTaskIdString(id),
-                             stats.taskSchedulingHistogram[static_cast<int>(id)]
+                             global_statistics
+                                     .taskSchedulingHistogram[static_cast<int>(
+                                             id)]
                                      .to_string());
                 }
             }

@@ -98,7 +98,7 @@ static void stats_init();
 static void settings_init();
 
 /** exported globals **/
-struct stats stats;
+GlobalStatistics global_statistics;
 
 /** file scope variables **/
 
@@ -234,11 +234,11 @@ static void populate_log_level() {
 
 static void stats_init() {
     setStatsResetTime();
-    stats.conn_structs.reset();
-    stats.total_conns.reset();
-    stats.rejected_conns.reset();
-    stats.curr_conns = 0;
-    stats.curr_conn_closing = 0;
+    global_statistics.conn_structs.reset();
+    global_statistics.total_conns.reset();
+    global_statistics.rejected_conns.reset();
+    global_statistics.curr_conns = 0;
+    global_statistics.curr_conn_closing = 0;
 }
 
 static bool prometheus_auth_callback(const std::string& user,
@@ -267,8 +267,8 @@ struct thread_stats* get_thread_stats(Connection* c) {
 
 void stats_reset(Cookie& cookie) {
     setStatsResetTime();
-    stats.total_conns.reset();
-    stats.rejected_conns.reset();
+    global_statistics.total_conns.reset();
+    global_statistics.rejected_conns.reset();
     threadlocal_stats_reset(cookie.getConnection().getBucket().stats);
     bucket_reset_stats(cookie);
 }
@@ -593,7 +593,7 @@ void close_server_socket(SOCKET sfd) {
 
 void close_client_socket(SOCKET sfd) {
     if (safe_close(sfd)) {
-        --stats.curr_conns;
+        --global_statistics.curr_conns;
     }
 }
 
