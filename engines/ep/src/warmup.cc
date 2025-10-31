@@ -1369,8 +1369,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
         const bool cleanShutdown = syncData.lock()->cleanShutdown;
         VBucketLoader loader{store, config, {}, shardId};
-        auto status =
-                loader.createVBucket(vbid, vbs, maxEntries, cleanShutdown);
+        auto status = loader.createVBucket(vbid,
+                                           vbs,
+                                           maxEntries,
+                                           cleanShutdown,
+                                           CreateVbucketMethod::Warmup);
         const auto& vb = loader.getVBucketPtr();
 
         using Status = VBucketLoader::CreateVBucketStatus;

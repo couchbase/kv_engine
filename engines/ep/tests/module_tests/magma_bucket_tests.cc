@@ -1493,8 +1493,15 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
         runNextTask(auxIoQ, "Loading VBucket vb:0");
     }
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+    EXPECT_EQ(CreateVbucketMethod::Fusion,
+              store->getVBucket(vbid)->getCreationMethod());
+    EXPECT_TRUE(store->getVBucket(vbid)->shouldUseDcpCacheTransfer());
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active));
+    // Still a fusion created vbucket
+    EXPECT_EQ(CreateVbucketMethod::Fusion,
+              store->getVBucket(vbid)->getCreationMethod());
+    EXPECT_FALSE(store->getVBucket(vbid)->shouldUseDcpCacheTransfer());
 
     const auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -1566,8 +1573,13 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     }
 
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+    EXPECT_EQ(CreateVbucketMethod::Fusion,
+              store->getVBucket(vbid)->getCreationMethod());
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active));
+    // Still a fusion created vbucket
+    EXPECT_EQ(CreateVbucketMethod::Fusion,
+              store->getVBucket(vbid)->getCreationMethod());
 
     const auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |

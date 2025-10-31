@@ -82,7 +82,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 NoopSeqnoAckCb,
                 config,
                 eviction_policy,
-                std::move(manifest));
+                std::move(manifest),
+                CreateVbucketMethod::SetVbucket);
         break;
     case VBType::Ephemeral: {
         vbucket = std::make_unique<MockEphemeralVBucket>(
@@ -101,7 +102,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 NoopSeqnoAckCb,
                 config,
                 eviction_policy,
-                std::move(manifest));
+                std::move(manifest),
+                CreateVbucketMethod::SetVbucket);
         break;
     }
     }

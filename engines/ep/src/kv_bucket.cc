@@ -1125,7 +1125,8 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
             to,
             shard,
             std::move(ft),
-            std::make_unique<Collections::VB::Manifest>(collectionsManager));
+            std::make_unique<Collections::VB::Manifest>(collectionsManager),
+            CreateVbucketMethod::SetVbucket);
 
     newvb->setFreqSaturatedCallback(
             [this] { itemFrequencyCounterSaturated(); });

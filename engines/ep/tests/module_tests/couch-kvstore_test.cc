@@ -300,7 +300,8 @@ public:
                 conf,
                 EvictionPolicy::Value,
                 std::make_unique<Collections::VB::Manifest>(
-                        std::make_shared<Collections::Manager>()));
+                        std::make_shared<Collections::Manager>()),
+                CreateVbucketMethod::SetVbucket);
     }
 
 protected:

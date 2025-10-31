@@ -88,6 +88,7 @@ public:
                            KVShard* shard,
                            std::unique_ptr<FailoverTable> table,
                            std::unique_ptr<Collections::VB::Manifest> manifest,
+                           CreateVbucketMethod creationMethod,
                            vbucket_state_t initState,
                            int64_t lastSeqno,
                            uint64_t lastSnapStart,

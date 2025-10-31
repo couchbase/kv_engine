@@ -29,7 +29,8 @@ MockEphemeralVBucket::MockEphemeralVBucket(
         SeqnoAckCallback seqnoAckCb,
         Configuration& config,
         EvictionPolicy evictionPolicy,
-        std::unique_ptr<Collections::VB::Manifest> manifest)
+        std::unique_ptr<Collections::VB::Manifest> manifest,
+        CreateVbucketMethod creationMethod)
     : EphemeralVBucket(i,
                        newState,
                        st,
@@ -45,7 +46,8 @@ MockEphemeralVBucket::MockEphemeralVBucket(
                        seqnoAckCb,
                        config,
                        evictionPolicy,
-                       std::move(manifest)) {
+                       std::move(manifest),
+                       creationMethod) {
     /* we want MockBasicLinkedList instead to call certain non-public
        APIs of BasicLinkedList in ephemeral vbucket */
     this->seqList = std::make_unique<MockBasicLinkedList>(st);

@@ -39,7 +39,8 @@ public:
             SeqnoAckCallback seqnoAckCb,
             Configuration& config,
             EvictionPolicy evictionPolicy,
-            std::unique_ptr<Collections::VB::Manifest> manifest);
+            std::unique_ptr<Collections::VB::Manifest> manifest,
+            CreateVbucketMethod creationMethod);
 
     /* Register fake shared range lock for testing */
     RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {

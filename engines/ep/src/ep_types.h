@@ -513,6 +513,13 @@ enum class FusionStat : uint8_t {
 FusionStat toFusionStat(const std::string& str);
 std::string format_as(FusionStat stat);
 
+/**
+ * How was a vbucket created. Note differentiates between FBR and Fusion as that
+ * could be useful for some decisions.
+ */
+enum class CreateVbucketMethod : uint8_t { Warmup, SetVbucket, FBR, Fusion };
+std::string to_string(CreateVbucketMethod method);
+
 template <>
 struct fmt::formatter<CanDeduplicate> : ostream_formatter {};
 template <>

@@ -46,6 +46,7 @@ public:
               Configuration& config,
               EvictionPolicy evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,
+              CreateVbucketMethod creationMethod,
               KVBucket* bucket = nullptr,
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,
@@ -402,6 +403,10 @@ public:
      */
     bool shouldUseDcpCacheTransfer() const override;
 
+    void disableCacheTransfer() override {
+        canReceiveCacheTransfer = false;
+    }
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -575,6 +580,9 @@ private:
     folly::Synchronized<BfilterData, std::mutex> bFilterData;
 
     cb::time::steady_clock::time_point flushFailedLogTime;
+
+    /// Flag to indicate if the vbucket can receive a DCP cache transfer.
+    std::atomic<bool> canReceiveCacheTransfer{true};
 
     friend class EPVBucketTest;
 };

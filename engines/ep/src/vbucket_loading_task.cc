@@ -244,6 +244,19 @@ void VBucketLoadingTask::mountVBucket() {
     transition(justMounting ? LoadingState::Done : LoadingState::CreateVBucket);
 }
 
+static CreateVbucketMethod getCreateVbucketMethod(
+        VBucketSnapshotSource source) {
+    switch (source) {
+    case VBucketSnapshotSource::FusionGuestVolumes:
+        return CreateVbucketMethod::Fusion;
+    case VBucketSnapshotSource::FusionLogStore:
+        return CreateVbucketMethod::Fusion;
+    case VBucketSnapshotSource::Local:
+        return CreateVbucketMethod::FBR;
+    }
+    folly::assume_unreachable();
+}
+
 void VBucketLoadingTask::createVBucket() {
     auto loadSnapshotResult =
             store.getRWUnderlyingByShard(shardId)->loadVBucketSnapshot(
@@ -270,6 +283,7 @@ void VBucketLoadingTask::createVBucket() {
             loadSnapshotResult.state,
             store.getEPEngine().getMaxFailoverEntries(),
             true,
+            getCreateVbucketMethod(source),
             // readCollectionsManifest
             loadSnapshotResult.status == ReadVBStateStatus::Success);
     using Status = VBucketLoader::CreateVBucketStatus;

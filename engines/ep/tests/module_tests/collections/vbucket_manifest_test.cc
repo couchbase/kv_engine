@@ -217,8 +217,8 @@ public:
                 NoopSeqnoAckCb,
                 config,
                 EvictionPolicy::Value,
-                std::make_unique<Collections::VB::Manifest>(
-                        collectionsManager));
+                std::make_unique<Collections::VB::Manifest>(collectionsManager),
+                CreateVbucketMethod::SetVbucket);
 
         vbR = std::make_shared<EPVBucket>(
                 Vbid(1),
@@ -237,8 +237,8 @@ public:
                 NoopSeqnoAckCb,
                 config,
                 EvictionPolicy::Value,
-                std::make_unique<Collections::VB::Manifest>(
-                        collectionsManager));
+                std::make_unique<Collections::VB::Manifest>(collectionsManager),
+                CreateVbucketMethod::SetVbucket);
     }
 
     ::testing::AssertionResult update(const std::string& json) {

@@ -159,7 +159,8 @@ VBucketPtr KVStoreRandomizedTest::makeVBucket() {
             configuration,
             EvictionPolicy::Value,
             std::make_unique<Collections::VB::Manifest>(
-                    std::make_shared<Collections::Manager>()));
+                    std::make_shared<Collections::Manager>()),
+            CreateVbucketMethod::SetVbucket);
 }
 
 std::vector<queued_item> KVStoreRandomizedTest::generate(size_t count) {

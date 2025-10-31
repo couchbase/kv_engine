@@ -191,6 +191,7 @@ public:
             Configuration& config,
             EvictionPolicy evictionPolicy,
             std::unique_ptr<Collections::VB::Manifest> manifest,
+            CreateVbucketMethod creationMethod,
             KVBucket* bucket = nullptr,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t purgeSeqno = 0,
@@ -2016,10 +2017,23 @@ public:
     }
 
     /**
+     * Set true/false if the vbucket can receive a DCP cache transfer
+     */
+    virtual void disableCacheTransfer() {
+    }
+
+    /**
      * Get the logical size of the disk data for this vbucket. This may
      * return a cached value if we cannot lock the vbucket state mutex.
      */
     std::size_t getLogicalDiskSize();
+
+    /**
+     * @return the method used to create this vbucket
+     */
+    CreateVbucketMethod getCreationMethod() const {
+        return creationMethod;
+    }
 
 protected:
     /**
@@ -2773,6 +2787,9 @@ protected:
     /// Cached logical disk size for this vbucket (used in the case where
     /// the vbucket is locked)
     std::atomic_size_t cachedLogicalDiskSize{0};
+
+    // How was this vbucket created
+    const CreateVbucketMethod creationMethod;
 
 private:
     /**

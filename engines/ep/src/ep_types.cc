@@ -181,3 +181,17 @@ std::string format_as(FusionStat stat) {
     const auto it = fusionStatsEnumToString.find(stat);
     return it != fusionStatsEnumToString.end() ? it->second : "invalid";
 }
+
+std::string to_string(CreateVbucketMethod method) {
+    switch (method) {
+    case CreateVbucketMethod::Warmup:
+        return "warmup";
+    case CreateVbucketMethod::SetVbucket:
+        return "set_vbucket";
+    case CreateVbucketMethod::FBR:
+        return "fbr";
+    case CreateVbucketMethod::Fusion:
+        return "fusion";
+    }
+    folly::assume_unreachable();
+}

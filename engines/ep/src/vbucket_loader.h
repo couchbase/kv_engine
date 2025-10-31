@@ -38,6 +38,7 @@ public:
                                       const vbucket_state& vbs,
                                       size_t maxFailoverEntries,
                                       bool cleanShutdown,
+                                      CreateVbucketMethod creationMethod,
                                       bool readCollectionsManifest = true);
 
     enum class LoadCollectionStatsStatus { Success, Failed, NoFileHandle };

@@ -59,7 +59,8 @@ protected:
                 config,
                 EvictionPolicy::Value,
                 std::make_unique<Collections::VB::Manifest>(
-                        std::make_shared<Collections::Manager>()));
+                        std::make_shared<Collections::Manager>()),
+                CreateVbucketMethod::SetVbucket);
         /* vbucket manages the life time of mockEpheVB and is a base test class
            ptr of owning type */
         vbucket.reset(mockEpheVB);

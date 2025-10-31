@@ -64,6 +64,7 @@ EPVBucket::EPVBucket(Vbid i,
                      Configuration& config,
                      EvictionPolicy evictionPolicy,
                      std::unique_ptr<Collections::VB::Manifest> manifest,
+                     CreateVbucketMethod creationMethod,
                      KVBucket* bucket,
                      vbucket_state_t initState,
                      uint64_t purgeSeqno,
@@ -90,6 +91,7 @@ EPVBucket::EPVBucket(Vbid i,
               config,
               evictionPolicy,
               std::move(manifest),
+              creationMethod,
               bucket,
               initState,
               purgeSeqno,
@@ -100,7 +102,8 @@ EPVBucket::EPVBucket(Vbid i,
               maxVisibleSeqno,
               maxPrepareSeqno),
       shard(kvshard),
-      rangeScans(static_cast<EPBucket*>(bucket), *this) {
+      rangeScans(static_cast<EPBucket*>(bucket), *this),
+      canReceiveCacheTransfer(newState == vbucket_state_replica) {
     if (config.isBfilterEnabled()) {
         bFilterData.lock()->kvStoreBfilterEnabled = true;
     }
@@ -1826,14 +1829,7 @@ void EPVBucket::createFailoverEntry(uint64_t seqno) {
 }
 
 bool EPVBucket::shouldUseDcpCacheTransfer() const {
-    auto memoryItems = ht.getNumItems();
-    auto diskItems = onDiskTotalItems.load();
-
-    // if the cache is empty (and no ejects) but the disk has items, then yes we
-    // should try a cache transfer.
-    if (memoryItems == 0 && diskItems && ht.getNumEjects() == 0) {
-        return true;
-    }
-
-    return false;
+    return (creationMethod == CreateVbucketMethod::FBR ||
+            creationMethod == CreateVbucketMethod::Fusion) &&
+           canReceiveCacheTransfer;
 }

@@ -5906,6 +5906,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             {"vbucket", {"vb_0"}},
             {"vbucket-details 0",
              {"vb_0",
+              "vb_0:creation_method",
               "vb_0:drift_ahead_threshold",
               "vb_0:drift_ahead_threshold_exceeded",
               "vb_0:drift_behind_threshold",
