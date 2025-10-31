@@ -25,6 +25,7 @@ enum class DcpAddStreamFlag : uint32_t;
 
 class AbortSyncWriteConsumer;
 class BucketLogger;
+class CacheTransferEndConsumer;
 class CommitSyncWriteConsumer;
 class CreateCollectionEvent;
 class CreateScopeEvent;
@@ -272,6 +273,15 @@ protected:
      * otherwise a status code for why not (e.g. nmvb for vbucket state changed)
      */
     cb::engine_errc processCacheTransfer(MutationResponse& resp);
+
+    /**
+     * Process a cache transfer end message (from a DcpCacheTransfer stream).
+     *
+     * @param resp The cache transfer end message to process
+     * @return cb::engine_errc::success if the message was processed
+     * successfully
+     */
+    cb::engine_errc processCacheTransferEnd(CacheTransferEndConsumer& resp);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised

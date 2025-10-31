@@ -42,6 +42,7 @@ public:
         SeqnoAdvanced,
         CachedValue,
         CachedKeyMeta,
+        CacheTransferEnd,
         CacheTransferToActiveStream
     };
 
@@ -118,6 +119,7 @@ public:
         case Event::SeqnoAdvanced:
         case Event::CachedValue:
         case Event::CachedKeyMeta:
+        case Event::CacheTransferEnd:
         case Event::CacheTransferToActiveStream:
             return false;
         }
@@ -1410,4 +1412,28 @@ private:
     static constexpr uint32_t baseFlowControlSize{32};
     Vbid vbucket;
     uint64_t advancedSeqno;
+};
+
+// This object is used only by the consumer for processing the end message.
+// As such the flow control is fixed size because no stream-ID considerations
+// are needed.
+class CacheTransferEndConsumer : public DcpResponse {
+public:
+    CacheTransferEndConsumer(uint32_t opaque, Vbid vbucket)
+        : DcpResponse(Event::CacheTransferEnd,
+                      opaque,
+                      cb::mcbp::DcpStreamId{/* no sid for replication*/},
+                      sizeof(cb::mcbp::Request)),
+          vbucket(vbucket) {
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
+    }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
+private:
+    Vbid vbucket;
 };

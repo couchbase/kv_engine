@@ -512,6 +512,7 @@ cb::engine_errc PassiveStream::processMessageInner(
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CachedValue:
     case DcpResponse::Event::CachedKeyMeta:
+    case DcpResponse::Event::CacheTransferEnd:
     case DcpResponse::Event::CacheTransferToActiveStream:
         throw std::invalid_argument(
                 "PassiveStream::processMessageInner: invalid event " +
@@ -1380,6 +1381,10 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::CachedKeyMeta:
         ret = processCacheTransfer(dynamic_cast<MutationResponse&>(*resp));
         break;
+    case DcpResponse::Event::CacheTransferEnd:
+        ret = processCacheTransferEnd(
+                dynamic_cast<CacheTransferEndConsumer&>(*resp));
+        break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
     case DcpResponse::Event::SeqnoAcknowledgement:
@@ -1508,6 +1513,31 @@ cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
         return cb::engine_errc::disconnect;
     }
 
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processCacheTransferEnd(
+        CacheTransferEndConsumer& resp) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    std::shared_lock rlh(vb->getStateLock());
+
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    // Log this for now, will remove and switch to stats later.
+    OBJ_LOG_INFO_CTX(*this,
+                     "PassiveStream::processCacheTransferEnd: Cache transfer "
+                     "end received",
+                     {"vb", vb_});
+
+    // @todo: update some state (Vbucket?) to indicate that the cache transfer
+    // is complete.
     return cb::engine_errc::success;
 }
 

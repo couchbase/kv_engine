@@ -1873,7 +1873,8 @@ cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
 
 cb::engine_errc DcpConsumer::cache_transfer_end_rx(uint32_t opaque,
                                                    Vbid vbucket) {
-    // silently accept.
-    // @todo push to stream, test opaque etc...
-    return cb::engine_errc::success;
+    lastMessageTime = ep_uptime_now();
+    auto msg = std::make_unique<CacheTransferEndConsumer>(opaque, vbucket);
+    UpdateFlowControl ufc(*this, msg->getMessageSize());
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }

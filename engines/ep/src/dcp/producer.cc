@@ -1254,8 +1254,13 @@ cb::engine_errc DcpProducer::step(bool throttled,
         }
         case DcpResponse::Event::CacheTransferToActiveStream: {
             auto& s = static_cast<CacheTransferToActiveStreamResponse&>(*resp);
-            // Stream is requesting that ActiveStream is created
-            ret = switchToActiveStream(s.getVbucket(), s.getStreamId());
+            // First send the CacheTransferEnd message to the producer.
+            ret = producers.cache_transfer_end_tx(
+                    s.getOpaque(), s.getVbucket(), s.getStreamId());
+            if (ret == cb::engine_errc::success) {
+                // Stream is requesting that ActiveStream is created
+                ret = switchToActiveStream(s.getVbucket(), s.getStreamId());
+            }
             break;
         }
         default:
@@ -1292,6 +1297,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::StreamReq:
         case DcpResponse::Event::StreamEnd:
         case DcpResponse::Event::OSOSnapshot:
+        case DcpResponse::Event::CacheTransferEnd:
         case DcpResponse::Event::CacheTransferToActiveStream:
             break;
         }

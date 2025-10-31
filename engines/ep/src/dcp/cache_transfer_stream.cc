@@ -356,7 +356,7 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
         request.end_seqno > request.start_seqno) {
         state = State::SwitchingToActiveStream;
         pushToReadyQ(std::make_unique<CacheTransferToActiveStreamResponse>(
-                opaque_, getVBucket(), cb::mcbp::DcpStreamId{/*no sid*/}));
+                opaque_, getVBucket(), sid));
     } else {
         state = State::Dead;
         pushToReadyQ(makeEndStreamResponse(status));
