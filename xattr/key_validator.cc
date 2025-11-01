@@ -20,8 +20,7 @@ public:
     }
 };
 
-static std::locale loc("C");
-
+static std::locale locale_c("C");
 
 /**
  * Get the width of the current UTF8 'character'
@@ -89,8 +88,8 @@ bool is_valid_xattr_key(std::string_view path, size_t& key_length) {
             auto width = get_utf8_char_width(ptr, length - offset);
             if (width == 1) {
                 if (offset == 0) {
-                    if (std::ispunct(path[0], loc) ||
-                        std::iscntrl(path[0], loc)) {
+                    if (std::ispunct(path[0], locale_c) ||
+                        std::iscntrl(path[0], locale_c)) {
                         if (path[0] == '_' || path[0] == '$') {
                             system = true;
                         } else {
