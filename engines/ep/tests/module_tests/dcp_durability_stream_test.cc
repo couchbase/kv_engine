@@ -1844,7 +1844,7 @@ TEST_P(DurabilityPassiveStreamTest,
     marker = SnapshotMarker(opaque,
                             vbid,
                             2 /*snapStart*/,
-                            ~1 /*snapEnd*/,
+                            ~1ULL /*snapEnd*/,
                             DcpSnapshotMarkerFlag::Disk,
                             0 /*HCS*/,
                             {},
@@ -5757,10 +5757,10 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
-            /*en_seqno*/ ~0,
+            /*en_seqno*/ ~0ULL,
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0);
+            /*snap_end_seqno*/ ~0ULL);
 
     ASSERT_FALSE(stream->public_supportSyncReplication());
 
@@ -5874,10 +5874,10 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
-            /*en_seqno*/ ~0,
+            /*en_seqno*/ ~0ULL,
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0);
+            /*snap_end_seqno*/ ~0ULL);
 
     // just a checkpoint_start
     EXPECT_EQ(1, stream->getItemsRemaining());
@@ -5972,10 +5972,10 @@ void DurabilityActiveStreamTest::
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
-            /*en_seqno*/ ~0,
+            /*en_seqno*/ ~0ULL,
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0);
+            /*snap_end_seqno*/ ~0ULL);
 
     EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
 

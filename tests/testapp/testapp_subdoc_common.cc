@@ -74,7 +74,7 @@ uint64_t recv_subdoc_response(
         if (offset + result_header_len > vallen) {
             ADD_FAILURE() << "Remaining value length too short for expected "
                              "result header";
-            return -1;
+            return std::numeric_limits<uint64_t>::max();
         }
 
         const auto& exp_result = expected_results[ii];
@@ -92,7 +92,7 @@ uint64_t recv_subdoc_response(
         if (offset + result_header_len + result_len > vallen) {
             ADD_FAILURE() << "Remaining value length too short for expected "
                              "result value";
-            return -1;
+            return std::numeric_limits<uint64_t>::max();
         }
 
         std::string result_value(result_header + result_header_len, result_len);

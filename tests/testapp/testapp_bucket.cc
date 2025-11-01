@@ -434,7 +434,7 @@ TEST_P(MemTrackingBucketTest, MB_68823) {
         conn.dcpStreamRequest(Vbid(0),
                               cb::mcbp::DcpAddStreamFlag::None,
                               0, // startSeq
-                              ~0, // endSeq,
+                              ~0ULL, // endSeq,
                               0, // vbUuid
                               0, // snapStart
                               0, // snapEnd

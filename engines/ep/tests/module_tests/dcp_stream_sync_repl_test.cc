@@ -817,10 +817,10 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
                                            /*opaque*/ 0,
                                            *vb0,
                                            /*st_seqno*/ 0,
-                                           /*en_seqno*/ ~0,
+                                           /*en_seqno*/ ~0ULL,
                                            /*vb_uuid*/ 0xabcd,
                                            /*snap_start_seqno*/ 0,
-                                           /*snap_end_seqno*/ ~0);
+                                           /*snap_end_seqno*/ ~0ULL);
 
     // Setup - put a single checkpoint_start item into a vector to be passed
     // to ActiveStream::processItems()

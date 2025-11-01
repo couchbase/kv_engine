@@ -91,7 +91,7 @@ TEST(SizeRangeValidatorTest, UnsignedBoundsWorks) {
 }
 
 TEST(SizeRangeValidatorTest, SignedBoundsWorks) {
-    SizeRangeValidator validator;
+    SSizeRangeValidator validator;
     std::string key{"test_key"};
 
     (&validator)->min(-100)->max(1000);

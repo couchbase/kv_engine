@@ -2946,7 +2946,8 @@ GetValue VBucket::getAndUpdateTtl(
                                             cookie,
                                             engine,
                                             false);
-            return GetValue(nullptr, ec, -1, true);
+            return GetValue(
+                    nullptr, ec, std::numeric_limits<uint64_t>::max(), true);
         }
         return gv;
     }
@@ -3069,7 +3070,8 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
                                         cookie,
                                         engine,
                                         metadataOnly);
-        return GetValue(nullptr, ec, -1, true);
+        return GetValue(
+                nullptr, ec, std::numeric_limits<uint64_t>::max(), true);
     }
 
     // If a bgfetch wasn't requested or a bloomfilter predicted that item surely
@@ -3228,9 +3230,15 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
                                              *v,
                                              cookie,
                                              engine);
-                return GetValue(nullptr, ec, -1, true);
+                return GetValue(nullptr,
+                                ec,
+                                std::numeric_limits<uint64_t>::max(),
+                                true);
             }
-            return GetValue(nullptr, cb::engine_errc::would_block, -1, true);
+            return GetValue(nullptr,
+                            cb::engine_errc::would_block,
+                            std::numeric_limits<uint64_t>::max(),
+                            true);
         }
 
         // Narrowing note: For now narrow_cast and accept this has always been a
@@ -3261,7 +3269,10 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
                                                            cookie,
                                                            engine,
                                                            false);
-                return GetValue(nullptr, ec, -1, true);
+                return GetValue(nullptr,
+                                ec,
+                                std::numeric_limits<uint64_t>::max(),
+                                true);
             }
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT for getLocked().

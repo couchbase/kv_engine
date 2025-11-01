@@ -45,7 +45,7 @@ TEST(StringTest, safe_strtoul) {
 
 TEST(StringTest, safe_strtoull) {
     uint64_t val;
-    uint64_t exp = -1;
+    uint64_t exp = std::numeric_limits<uint64_t>::max();
     EXPECT_TRUE(safe_strtoull("123", val));
     EXPECT_EQ(123u, val);
     EXPECT_TRUE(safe_strtoull("+123", val));
@@ -119,7 +119,7 @@ TEST(StringTest, safe_strtol) {
 
 TEST(StringTest, safe_strtous) {
     uint16_t val;
-    uint16_t exp = -1;
+    uint16_t exp = std::numeric_limits<uint16_t>::max();
     EXPECT_TRUE(safe_strtous("123", val));
     EXPECT_EQ(123u, val);
     EXPECT_TRUE(safe_strtous("+123", val));

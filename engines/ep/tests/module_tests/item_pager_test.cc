@@ -3328,7 +3328,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     // 3) A winning delWithMeta - system must bgFetch and not crash...
     ItemMetaData metadata;
 
-    cas = -1;
+    cas = std::numeric_limits<uint64_t>::max();
     metadata.flags = 0xf00f0088;
     metadata.cas = 0xbeeff00dcafe1234ull;
     metadata.revSeqno = 0xdad;

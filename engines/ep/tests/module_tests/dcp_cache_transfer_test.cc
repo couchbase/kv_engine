@@ -419,7 +419,7 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
                             1,
                             Vbid(0),
                             cacheMaxSeqno, // max_seqno for CTS
-                            ~0, // end seqno for the stream
+                            ~0ULL, // end seqno for the stream
                             vb->failovers->getLatestUUID(),
                             cacheMaxSeqno,
                             cacheMaxSeqno,

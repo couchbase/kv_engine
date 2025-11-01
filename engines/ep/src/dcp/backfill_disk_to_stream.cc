@@ -327,8 +327,9 @@ static std::optional<float> diskUsagePercent(
         const std::filesystem::space_info& si) noexcept {
     // space_info is -1 when filesystem::space could not determine a value.
     // if capacity is 0 also chicken out
-    if (constexpr std::uintmax_t X(-1); si.capacity == 0 || si.capacity == X ||
-                                        si.free == X || si.available == X) {
+    if (constexpr std::uintmax_t X(std::numeric_limits<uint64_t>::max());
+        si.capacity == 0 || si.capacity == X || si.free == X ||
+        si.available == X) {
         return {};
     }
     const auto used{si.capacity - si.free};

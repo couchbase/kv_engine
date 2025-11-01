@@ -1940,7 +1940,7 @@ TEST_P(KVStoreParamTest, GetBySeqno) {
 
     // Check an unknown seqno
     auto gv = kvstore->getBySeqno(
-            *handle, Vbid(0), ~0, ValueFilter::VALUES_DECOMPRESSED);
+            *handle, Vbid(0), ~0ULL, ValueFilter::VALUES_DECOMPRESSED);
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     ASSERT_FALSE(gv.item);
 }

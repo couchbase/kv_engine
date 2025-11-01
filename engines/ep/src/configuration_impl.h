@@ -91,12 +91,12 @@ class SSizeRangeValidator : public ValueChangedValidator {
 public:
     SSizeRangeValidator() = default;
 
-    SSizeRangeValidator* min(size_t v) {
+    SSizeRangeValidator* min(ssize_t v) {
         lower = v;
         return this;
     }
 
-    SSizeRangeValidator* max(size_t v) {
+    SSizeRangeValidator* max(ssize_t v) {
         upper = v;
         return this;
     }

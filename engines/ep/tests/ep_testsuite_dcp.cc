@@ -357,7 +357,7 @@ void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
                                          uint64_t& all_bytes,
                                          Vbid vbid,
                                          DeletionOpcode delOrExpire) {
-    cb_assert(vbid != static_cast<Vbid>(-1));
+    cb_assert(vbid != static_cast<Vbid>(std::numeric_limits<uint16_t>::max()));
     checklt(stats.last_by_seqno,
             producers.last_byseqno.load(),
             "Expected bigger seqno");
@@ -461,7 +461,9 @@ void TestDcpConsumer::run(bool openConn) {
             history.emplace_back(producers.last_op, producers.last_packet_size);
             switch (producers.last_op) {
             case cb::mcbp::ClientOpcode::DcpMutation:
-                cb_assert(vbid != static_cast<Vbid>(-1));
+                cb_assert(vbid !=
+                          static_cast<Vbid>(
+                                  std::numeric_limits<uint16_t>::max()));
                 checklt(stats.last_by_seqno,
                         producers.last_byseqno.load(),
                         "Expected bigger seqno");
@@ -503,7 +505,9 @@ void TestDcpConsumer::run(bool openConn) {
                                    DeletionOpcode::Expiration);
                 break;
             case cb::mcbp::ClientOpcode::DcpStreamEnd:
-                cb_assert(vbid != static_cast<Vbid>(-1));
+                cb_assert(vbid !=
+                          static_cast<Vbid>(
+                                  std::numeric_limits<uint16_t>::max()));
                 if (++num_stream_ends_received == stream_ctxs.size()) {
                     done = true;
                 }
@@ -511,7 +515,9 @@ void TestDcpConsumer::run(bool openConn) {
                 all_bytes += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                cb_assert(vbid != static_cast<Vbid>(-1));
+                cb_assert(vbid !=
+                          static_cast<Vbid>(
+                                  std::numeric_limits<uint16_t>::max()));
                 if (stats.exp_disk_snapshot &&
                     stats.num_snapshot_markers == 0) {
                     checkeq(uint32_t{1},
@@ -531,7 +537,9 @@ void TestDcpConsumer::run(bool openConn) {
                 all_bytes += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::DcpSetVbucketState:
-                cb_assert(vbid != static_cast<Vbid>(-1));
+                cb_assert(vbid !=
+                          static_cast<Vbid>(
+                                  std::numeric_limits<uint16_t>::max()));
                 if (producers.last_vbucket_state == vbucket_state_pending) {
                     stats.num_set_vbucket_pending++;
                     for (size_t j = 0; j < stats.extra_takeover_ops; ++j) {
@@ -617,7 +625,7 @@ void TestDcpConsumer::run(bool openConn) {
             }
             producers.last_op = cb::mcbp::ClientOpcode::Invalid;
             producers.last_nru = 0;
-            producers.last_vbucket = Vbid(-1);
+            producers.last_vbucket = Vbid(std::numeric_limits<uint16_t>::max());
             producers.last_packet_size = 0;
         }
 
@@ -6899,7 +6907,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                               docKey,
                               {(const uint8_t*)value.c_str(), value.size()},
                               PROTOCOL_BINARY_RAW_BYTES,
-                              -1, // cas
+                              std::numeric_limits<uint64_t>::max(), // cas
                               Vbid(0),
                               0, // flags
                               ii + 1, // by_seqno
@@ -6938,7 +6946,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                           docKey,
                           {},
                           PROTOCOL_BINARY_RAW_BYTES,
-                          -1, // cas
+                          std::numeric_limits<uint64_t>::max(), // cas
                           Vbid(0),
                           3, // by_seqno
                           2), // rev_seqno

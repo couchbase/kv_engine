@@ -1820,7 +1820,7 @@ TEST_P(SubdocTestappTest, SubdocLockedItem) {
     EXPECT_SUBDOC_CMD(sd_cmd, cb::mcbp::Status::Etmpfail, "");
 
     // Set the CAS to -1
-    sd_cmd.setCas(-1);
+    sd_cmd.setCas(std::numeric_limits<uint64_t>::max());
     EXPECT_SUBDOC_CMD(sd_cmd, cb::mcbp::Status::Etmpfail, "");
 
     // Set our "normal" CAS back (

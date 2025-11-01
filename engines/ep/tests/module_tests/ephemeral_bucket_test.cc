@@ -1187,7 +1187,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                     store->getVBucket(vbid)),
             stream,
             2, // purgeTombstones() has just purged seqno 3
-            ~0);
+            ~0ULL);
 
     dcpbfm.run();
 
@@ -1241,7 +1241,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                         store->getVBucket(vbid)),
                 stream,
                 2, // purgeTombstones() has just purged seqno 3
-                ~0);
+                ~0ULL);
 
         // Run the backfill - it should request rollback.
         dcpbfm.run();

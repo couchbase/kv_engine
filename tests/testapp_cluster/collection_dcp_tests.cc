@@ -91,33 +91,33 @@ public:
 };
 
 TEST_F(CollectionsRbacBucket, BucketAccessBucketSuccess) {
-    conn->dcpStreamRequest(Vbid(0), {}, 0, ~0, 0, 0, 0);
+    conn->dcpStreamRequest(Vbid(0), {}, 0, ~0ULL, 0, 0, 0);
 }
 
 TEST_F(CollectionsRbacBucket, BucketAccessScopeSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"scope":"0"})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"scope":"0"})"_json);
 }
 
 TEST_F(CollectionsRbacBucket, BucketAccessCollectionSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["0"]})"_json);
 }
 
 TEST_F(CollectionsRbacBucket, BucketAccessCollection2Success) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["9"]})"_json);
 }
 
 TEST_F(CollectionsRbacBucket, BucketAccessFail) {
     try {
-        connNoStream->dcpStreamRequest(Vbid(0), {}, 0, ~0, 0, 0, 0);
+        connNoStream->dcpStreamRequest(Vbid(0), {}, 0, ~0ULL, 0, 0, 0);
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
     }
     try {
         connNoStream->dcpStreamRequest(
-                Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"scope":"0"})"_json);
+                Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"scope":"0"})"_json);
         FAIL() << "Expected a throw";
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown scope
@@ -126,8 +126,14 @@ TEST_F(CollectionsRbacBucket, BucketAccessFail) {
                   e.getErrorJsonContext()["manifest_uid"].get<std::string>());
     }
     try {
-        connNoStream->dcpStreamRequest(
-                Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
+        connNoStream->dcpStreamRequest(Vbid(0),
+                                       {},
+                                       0,
+                                       ~0ULL,
+                                       0,
+                                       0,
+                                       0,
+                                       R"({"collections":["9"]})"_json);
         FAIL() << "Expected a throw";
     } catch (const ConnectionError& e) {
         // No access and 0 privs == unknown collection
@@ -179,7 +185,7 @@ public:
 
 TEST_F(CollectionsRbacScope, ScopeAccessBucketEaccess) {
     try {
-        conn->dcpStreamRequest(Vbid(0), {}, 0, ~0, 0, 0, 0);
+        conn->dcpStreamRequest(Vbid(0), {}, 0, ~0ULL, 0, 0, 0);
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
     }
@@ -187,17 +193,17 @@ TEST_F(CollectionsRbacScope, ScopeAccessBucketEaccess) {
 
 TEST_F(CollectionsRbacScope, ScopeAccessScopeSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"scope":"0"})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"scope":"0"})"_json);
 }
 
 TEST_F(CollectionsRbacScope, ScopeAccessCollectionSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["0"]})"_json);
 }
 
 TEST_F(CollectionsRbacScope, ScopeAccessCollection2Success) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["9"]})"_json);
 }
 
 // Setup will add a user that can do collection:9 dcp streams
@@ -262,7 +268,7 @@ public:
 
 TEST_F(CollectionsRbacCollection, CollectionAccessBucketEaccess) {
     try {
-        conn->dcpStreamRequest(Vbid(0), {}, 0, ~0, 0, 0, 0);
+        conn->dcpStreamRequest(Vbid(0), {}, 0, ~0ULL, 0, 0, 0);
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
     }
@@ -271,7 +277,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessBucketEaccess) {
 TEST_F(CollectionsRbacCollection, CollectionAccessScopeEaccess) {
     try {
         conn->dcpStreamRequest(
-                Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"scope":"0"})"_json);
+                Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"scope":"0"})"_json);
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::Eaccess, e.getReason());
     }
@@ -279,7 +285,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessScopeEaccess) {
 
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionSuccess) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["a"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["a"]})"_json);
 }
 
 // Test checks that we can create a DCP stream, yet it closes if we lose
@@ -287,7 +293,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionSuccess) {
 // reproduce the un-handled exception seen in the MB.
 TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["a"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["a"]})"_json);
 
     // Now take away DcpStream from collection:a
     cluster->getAuthProviderService().upsertUser({username, password, R"({
@@ -365,8 +371,14 @@ TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
 
 TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
     try {
-        conn->dcpStreamRequest(
-                Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["9"]})"_json);
+        conn->dcpStreamRequest(Vbid(0),
+                               {},
+                               0,
+                               ~0ULL,
+                               0,
+                               0,
+                               0,
+                               R"({"collections":["9"]})"_json);
     } catch (const ConnectionError& e) {
         EXPECT_TRUE(e.isUnknownCollection());
     }
@@ -379,7 +391,7 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
         conn->dcpStreamRequest(Vbid(0),
                                {},
                                0,
-                               ~0,
+                               ~0ULL,
                                0,
                                0,
                                0,
@@ -410,7 +422,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacCollectionsSuccess) {
     conn->dcpOpenProducer("TestBasicRbacCollectionsSuccess");
     conn->dcpControl(DcpControlKeys::EnableNoop, "true");
     conn->dcpStreamRequest(
-            Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+            Vbid(0), {}, 0, ~0ULL, 0, 0, 0, R"({"collections":["0"]})"_json);
     cluster->getAuthProviderService().removeUser(username);
 }
 
@@ -435,8 +447,14 @@ TEST_F(CollectionsDcpTests, TestBasicRbacFail) {
     conn->dcpOpenProducer("TestBasicRbacFail");
     conn->dcpControl(DcpControlKeys::EnableNoop, "true");
     try {
-        conn->dcpStreamRequest(
-                Vbid(0), {}, 0, ~0, 0, 0, 0, R"({"collections":["0"]})"_json);
+        conn->dcpStreamRequest(Vbid(0),
+                               {},
+                               0,
+                               ~0ULL,
+                               0,
+                               0,
+                               0,
+                               R"({"collections":["0"]})"_json);
         FAIL() << "Expected dcpStreamRequest to throw";
     } catch (const ConnectionError& error) {
         // No privs associated with the collection, so it's unknown

@@ -125,7 +125,9 @@ TEST_F(ConnStoreTest, RemoveConnHandler) {
 // should not exist in the map
 TEST_F(ConnStoreTest, AddVBConnInvalidVbid) {
     auto consumer = addConnHandler(cookie, "consumer");
-    EXPECT_THROW(connStore->addVBConnByVbid(Vbid(-1), *consumer.get()),
+    EXPECT_THROW(connStore->addVBConnByVbid(
+                         Vbid(std::numeric_limits<uint16_t>::max()),
+                         *consumer.get()),
                  std::out_of_range);
     EXPECT_THROW(
             connStore->addVBConnByVbid(
@@ -177,7 +179,8 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
 // Failure case - we should not be able to remove a connection for a vBucket
 // that should not exist in the map
 TEST_F(ConnStoreTest, RemoveVBConnInvalidVbid) {
-    EXPECT_THROW(connStore->removeVBConnByVbid(Vbid(-1), cookie),
+    EXPECT_THROW(connStore->removeVBConnByVbid(
+                         Vbid(std::numeric_limits<uint16_t>::max()), cookie),
                  std::out_of_range);
     EXPECT_THROW(
             connStore->removeVBConnByVbid(

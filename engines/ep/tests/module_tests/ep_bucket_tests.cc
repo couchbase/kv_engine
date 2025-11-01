@@ -402,7 +402,7 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
                                            /*opaque*/ 0,
                                            /*vbucket*/ vbid,
                                            /*start_seqno*/ 0,
-                                           /*end_seqno*/ -1,
+                                           /*end_seqno*/ ~0ULL,
                                            /*vb_uuid*/ 0,
                                            /*snap_start*/ 0,
                                            /*snap_end*/ 0,

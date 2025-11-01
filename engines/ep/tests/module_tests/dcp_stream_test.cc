@@ -1733,10 +1733,10 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 0 /*opaque*/,
                 vb,
                 0 /*st_seqno*/,
-                ~0 /*en_seqno*/,
+                ~0ULL /*en_seqno*/,
                 0x0 /*vb_uuid*/,
                 0 /*snap_start_seqno*/,
-                ~0 /*snap_end_seqno*/,
+                ~0ULL /*snap_end_seqno*/,
                 producer->public_getIncludeValue(),
                 producer->public_getIncludeXattrs(),
                 producer->public_getIncludeDeletedUserXattrs(),
@@ -1747,10 +1747,10 @@ void SingleThreadedActiveStreamTest::recreateStream(
                                                0 /*opaque*/,
                                                vb,
                                                0 /*st_seqno*/,
-                                               ~0 /*en_seqno*/,
+                                               ~0ULL /*en_seqno*/,
                                                0x0 /*vb_uuid*/,
                                                0 /*snap_start_seqno*/,
-                                               ~0 /*snap_end_seqno*/);
+                                               ~0ULL /*snap_end_seqno*/);
     }
 }
 
@@ -2583,7 +2583,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     // the mutation for keyA that makes seqno:1 visible and not at any of the
     // meta items that have their seqno set to 1 e.g. the set vbucket states.
     producer->createCheckpointProcessorTask();
-    uint64_t rollbackSeqno = -1;
+    uint64_t rollbackSeqno = std::numeric_limits<uint64_t>::max();
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest({},
                                       2,
@@ -3543,7 +3543,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             /*opaque*/ 0,
             vb,
             /*st_seqno*/ 2,
-            /*en_seqno*/ ~0,
+            /*en_seqno*/ ~0ULL,
             /*vb_uuid*/ vb.failovers->getFailoverLog().back().uuid,
             /*snap_start_seqno*/ 2,
             /*snap_end_seqno*/ 2);
@@ -3648,10 +3648,10 @@ TEST_P(SingleThreadedActiveStreamTest,
                                            /*opaque*/ 0,
                                            vb,
                                            /*st_seqno*/ 0,
-                                           /*en_seqno*/ ~0,
+                                           /*en_seqno*/ ~0ULL,
                                            /*vb_uuid*/ 0xabcd,
                                            /*snap_start_seqno*/ 0,
-                                           /*snap_end_seqno*/ ~0);
+                                           /*snap_end_seqno*/ ~0ULL);
 
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
@@ -3774,7 +3774,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       0,
                                       vbid,
                                       snapStartSeqno,
-                                      ~0,
+                                      ~0ULL,
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
@@ -3786,7 +3786,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       0,
                                       vbid,
                                       snapEndSeqno,
-                                      ~0,
+                                      ~0ULL,
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
@@ -3801,7 +3801,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       0,
                                       vbid,
                                       highSeqno,
-                                      ~0,
+                                      ~0ULL,
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
@@ -3842,7 +3842,7 @@ TEST_P(SingleThreadedActiveStreamTest,
                                       0,
                                       vbid,
                                       highSeqno,
-                                      ~0,
+                                      ~0ULL,
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
@@ -3888,7 +3888,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
                                            1 /*en_seqno*/,
                                            0x0 /*vb_uuid*/,
                                            0 /*snap_start_seqno*/,
-                                           ~0 /*snap_end_seqno*/);
+                                           ~0ULL /*snap_end_seqno*/);
     ASSERT_TRUE(stream->isBackfilling());
 
     MockDcpMessageProducers producers;
@@ -3974,10 +3974,10 @@ TEST_P(SingleThreadedActiveStreamTest,
                                            /*opaque*/ 0,
                                            *vb,
                                            /*st_seqno*/ 0,
-                                           /*en_seqno*/ ~0,
+                                           /*en_seqno*/ ~0ULL,
                                            /*vb_uuid*/ 0xabcd,
                                            /*snap_start_seqno*/ 0,
-                                           /*snap_end_seqno*/ ~0);
+                                           /*snap_end_seqno*/ ~0ULL);
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     connMap.addConn(cookie, producer);
     connMap.addVBConnByVBId(*producer, vbid);
@@ -4718,7 +4718,7 @@ TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
                                            0 /*opaque*/,
                                            vb,
                                            3 /*st_seqno*/,
-                                           ~0 /*en_seqno*/,
+                                           ~0ULL /*en_seqno*/,
                                            vb.failovers->getLatestUUID(),
                                            3 /*snap_start_seqno*/,
                                            3 /*snap_end_seqno*/);
@@ -4853,10 +4853,10 @@ protected:
                                                0 /*opaque*/,
                                                *vb,
                                                0 /*st_seqno*/,
-                                               ~0 /*en_seqno*/,
+                                               ~0ULL /*en_seqno*/,
                                                0x0 /*vb_uuid*/,
                                                0 /*snap_start_seqno*/,
-                                               ~0 /*snap_end_seqno*/);
+                                               ~0ULL /*snap_end_seqno*/);
         ASSERT_TRUE(stream->isBackfilling());
 
         // Should report empty itemsRemaining as that would mislead
@@ -5637,8 +5637,8 @@ TEST_P(SingleThreadedPassiveStreamTest,
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
-    auto activeStream =
-            producer->addMockActiveStream({}, 0, vb, 0, ~0, 0xabcd, 0, ~0);
+    auto activeStream = producer->addMockActiveStream(
+            {}, 0, vb, 0, ~0ULL, 0xabcd, 0, ~0ULL);
 
     ASSERT_TRUE(activeStream->isInMemory());
     auto& readyQ = activeStream->public_readyQ();
@@ -5818,10 +5818,10 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
                                                   0 /*opaque*/,
                                                   vb,
                                                   0 /*st_seqno*/,
-                                                  ~0 /*en_seqno*/,
+                                                  ~0ULL /*en_seqno*/,
                                                   0x0 /*vb_uuid*/,
                                                   0 /*snap_start_seqno*/,
-                                                  ~0 /*snap_end_seqno*/);
+                                                  ~0ULL /*snap_end_seqno*/);
     ASSERT_TRUE(newStream);
     ASSERT_TRUE(newStream->isBackfilling());
 
@@ -6115,10 +6115,10 @@ TEST_P(SingleThreadedActiveStreamTest,
                 0,
                 vb,
                 0,
-                ~0,
+                ~0ULL,
                 0x0,
                 0,
-                ~0,
+                ~0ULL,
                 {},
                 {},
                 {},
@@ -6349,12 +6349,12 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
         config.setBackfillMemThreshold(newVal);
         ASSERT_EQ(newVal, config.getBackfillMemThreshold());
         ASSERT_FLOAT_EQ(newVal / 100.0f, store->getBackfillMemoryThreshold());
-        uint64_t rollbackSeqno = -1;
+        uint64_t rollbackSeqno = std::numeric_limits<uint64_t>::max();
         auto ret = producer->streamRequest({},
                                            2,
                                            vbid,
                                            0,
-                                           -1,
+                                           std::numeric_limits<uint64_t>::max(),
                                            vb.failovers->getLatestUUID(),
                                            0,
                                            0,
@@ -6582,7 +6582,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             0 /*opaque*/,
             vb,
             0 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
             2 /*snap_end_seqno*/,
@@ -6626,7 +6626,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             0 /*opaque*/,
             vb,
             0 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
             2 /*snap_end_seqno*/,
@@ -6967,7 +6967,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             2 /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -7027,10 +7027,10 @@ TEST_P(SingleThreadedActiveStreamTest,
             0 /*opaque*/,
             vb,
             0 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -7144,10 +7144,10 @@ TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
             0 /*opaque*/,
             vb,
             0 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -7242,10 +7242,10 @@ TEST_P(SingleThreadedActiveStreamTest,
             0 /*opaque*/,
             vb,
             2 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -7280,10 +7280,10 @@ TEST_P(SingleThreadedActiveStreamTest,
             0 /*opaque*/,
             vb,
             2 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             0 /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -7412,7 +7412,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_65581) {
             0 /*opaque*/,
             vb,
             2 /*st_seqno*/,
-            ~0 /*en_seqno*/,
+            ~0ULL /*en_seqno*/,
             0x0 /*vb_uuid*/,
             1 /*snap_start_seqno*/,
             6 /*snap_end_seqno*/,
@@ -8727,10 +8727,10 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
             0 /*opaque*/,
             vb,
             highSeqno /*start_seqno*/,
-            ~0 /*end_seqno*/,
+            ~0ULL /*end_seqno*/,
             0x0 /*vb_uuid*/,
             highSeqno /*snap_start_seqno*/,
-            ~0 /*snap_end_seqno*/,
+            ~0ULL /*snap_end_seqno*/,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
@@ -10148,8 +10148,14 @@ TEST_P(TestStuckProducer, producerDisconnected) {
             producer->control(
                     0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
-    producer->addMockActiveStream(
-                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+    producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
+                                  0,
+                                  vb,
+                                  0,
+                                  ~0ULL,
+                                  0x0,
+                                  0,
+                                  ~0ULL)
             ->setActive();
 
     MockDcpMessageProducers producers;
@@ -10190,8 +10196,14 @@ TEST_P(TestStuckProducer, producerNotDisconnected) {
             producer->control(
                     0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
-    producer->addMockActiveStream(
-                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+    producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
+                                  0,
+                                  vb,
+                                  0,
+                                  ~0ULL,
+                                  0x0,
+                                  0,
+                                  ~0ULL)
             ->setActive();
 
     MockDcpMessageProducers producers;
@@ -10235,8 +10247,14 @@ TEST_P(TestStuckProducer, producerNotDisconnectedClientAcked) {
             producer->control(
                     0 /*opaque*/, DcpControlKeys::ConnectionBufferSize, "100"));
 
-    producer->addMockActiveStream(
-                    cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0, 0x0, 0, ~0)
+    producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::None,
+                                  0,
+                                  vb,
+                                  0,
+                                  ~0ULL,
+                                  0x0,
+                                  0,
+                                  ~0ULL)
             ->setActive();
 
     MockDcpMessageProducers producers;

@@ -109,7 +109,7 @@ public:
                 streamRequestCommand.setDcpFlags(streamRequestFlags);
                 streamRequestCommand.setDcpReserved(0);
                 streamRequestCommand.setDcpStartSeqno(vb.startSeqno);
-                streamRequestCommand.setDcpEndSeqno(~0);
+                streamRequestCommand.setDcpEndSeqno(~0ULL);
                 streamRequestCommand.setDcpVbucketUuid(vb.vbucketUuid);
                 streamRequestCommand.setDcpSnapStartSeqno(vb.snapStartSeqno);
                 streamRequestCommand.setDcpSnapEndSeqno(vb.snapEndSeqno);

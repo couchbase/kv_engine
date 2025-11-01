@@ -2283,7 +2283,7 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout) {
 TEST_P(KVBucketParamTest, SeqnoPersistenceTimeout_LowerThanMin) {
     auto& config = engine->getConfiguration();
     const auto initialVal = store->getSeqnoPersistenceTimeout().count();
-    const auto newVal = -1;
+    const size_t newVal = std::numeric_limits<size_t>::max();
     ASSERT_NE(initialVal, newVal);
     try {
         config.setSeqnoPersistenceTimeout(newVal);

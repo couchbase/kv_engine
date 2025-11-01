@@ -2538,10 +2538,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                       /*opaque*/ 0,
                       /*vbucket*/ vbid,
                       /*start_seqno*/ 0,
-                      /*end_seqno*/ ~0,
+                      /*end_seqno*/ ~0ULL,
                       /*vb_uuid*/ 0,
                       /*snap_start*/ 0,
-                      /*snap_end*/ ~0,
+                      /*snap_end*/ ~0ULL,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;

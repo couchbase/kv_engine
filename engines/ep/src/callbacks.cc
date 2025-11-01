@@ -14,7 +14,9 @@
 #include "item.h"
 
 GetValue::GetValue()
-    : id(-1), status(cb::engine_errc::no_such_key), partial(false) {
+    : id(std::numeric_limits<uint64_t>::max()),
+      status(cb::engine_errc::no_such_key),
+      partial(false) {
 }
 GetValue::GetValue(GetValue&& other) = default;
 GetValue& GetValue::operator=(GetValue&& other) = default;

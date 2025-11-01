@@ -813,7 +813,7 @@ TEST_P(STParameterizedBucketTest,
                                           0,
                                           Vbid{0},
                                           0,
-                                          ~0,
+                                          ~0ULL,
                                           0,
                                           0,
                                           0,
@@ -874,7 +874,7 @@ TEST_P(STParameterizedBucketTest,
                                               0,
                                               vbid1,
                                               0,
-                                              ~0,
+                                              ~0ULL,
                                               0,
                                               0,
                                               0,
@@ -952,10 +952,10 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
                                           /*opaque*/ 0,
                                           vbid,
                                           /*st_seqno*/ 0,
-                                          /*en_seqno*/ ~0,
+                                          /*en_seqno*/ ~0ULL,
                                           /*vb_uuid*/ 0xabcd,
                                           /*snap_start_seqno*/ 0,
-                                          /*snap_end_seqno*/ ~0,
+                                          /*snap_end_seqno*/ ~0ULL,
                                           &rollbackSeqno,
                                           fakeDcpAddFailoverLog,
                                           {}));
@@ -1074,10 +1074,10 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
                                       /*opaque*/ 0,
                                       vbid,
                                       /*st_seqno*/ 0,
-                                      /*en_seqno*/ ~0,
+                                      /*en_seqno*/ ~0ULL,
                                       /*vb_uuid*/ 0xabcd,
                                       /*snap_start_seqno*/ 0,
-                                      /*snap_end_seqno*/ ~0,
+                                      /*snap_end_seqno*/ ~0ULL,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {}));
@@ -1272,10 +1272,10 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
                                                      /*opaque*/ 0,
                                                      *vb,
                                                      /*st_seqno*/ 1,
-                                                     /*en_seqno*/ ~0,
+                                                     /*en_seqno*/ ~0ULL,
                                                      /*vb_uuid*/ 0xabcd,
                                                      /*snap_start_seqno*/ 0,
-                                                     /*snap_end_seqno*/ ~0,
+                                                     /*snap_end_seqno*/ ~0ULL,
                                                      IncludeValue::Yes,
                                                      IncludeXattrs::Yes);
 
@@ -1384,10 +1384,10 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
                                                /*opaque*/ 0,
                                                *vb,
                                                /*st_seqno*/ 0,
-                                               /*en_seqno*/ ~0,
+                                               /*en_seqno*/ ~0ULL,
                                                /*vb_uuid*/ 0xabcd,
                                                /*snap_start_seqno*/ 0,
-                                               /*snap_end_seqno*/ ~0);
+                                               /*snap_end_seqno*/ ~0ULL);
 
         // Request an item from each stream, so they all advance from
         // backfilling to in-memory
@@ -1553,10 +1553,10 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
                                                 /*opaque*/ 0,
                                                 *vb,
                                                 /*st_seqno*/ 0,
-                                                /*en_seqno*/ ~0,
+                                                /*en_seqno*/ ~0ULL,
                                                 /*vb_uuid*/ 0xabcd,
                                                 /*snap_start_seqno*/ 0,
-                                                /*snap_end_seqno*/ ~0);
+                                                /*snap_end_seqno*/ ~0ULL);
 
     // Write an item
     auto key1 = makeStoredDocKey("key1");
@@ -1603,10 +1603,10 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
                                            /*opaque*/ 0,
                                            *vb,
                                            /*st_seqno*/ 0,
-                                           /*en_seqno*/ ~0,
+                                           /*en_seqno*/ ~0ULL,
                                            /*vb_uuid*/ 0xabcd,
                                            /*snap_start_seqno*/ 0,
-                                           /*snap_end_seqno*/ ~0);
+                                           /*snap_end_seqno*/ ~0ULL);
 
     // Step the stream which will now schedule a backfill
     result = stream->next(*producer);
@@ -2718,7 +2718,7 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
                 /*opaque*/ 0,
                 /*vbucket*/ vbid,
                 /*start_seqno*/ 0,
-                /*end_seqno*/ -1,
+                /*end_seqno*/ std::numeric_limits<uint64_t>::max(),
                 /*vb_uuid*/ 0,
                 /*snap_start*/ 0,
                 /*snap_end*/ 0,
@@ -2783,7 +2783,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
                       /*opaque*/ 0,
                       /*vbucket*/ vbid,
                       /*start_seqno*/ 0,
-                      /*end_seqno*/ -1,
+                      /*end_seqno*/ std::numeric_limits<uint64_t>::max(),
                       /*vb_uuid*/ 0,
                       /*snap_start*/ 0,
                       /*snap_end*/ 0,
@@ -3155,18 +3155,19 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(cb::engine_errc::success,
-              engine->stream_req(*cookie,
-                                 /*flags*/ {},
-                                 /*opaque*/ 0,
-                                 /*vbucket*/ vbid,
-                                 /*start_seqno*/ 0,
-                                 /*end_seqno*/ -1,
-                                 /*vb_uuid*/ 0,
-                                 /*snap_start*/ 0,
-                                 /*snap_end*/ 0,
-                                 &rollbackSeqno,
-                                 dummy_dcp_add_failover_cb,
-                                 {}));
+              engine->stream_req(
+                      *cookie,
+                      /*flags*/ {},
+                      /*opaque*/ 0,
+                      /*vbucket*/ vbid,
+                      /*start_seqno*/ 0,
+                      /*end_seqno*/ std::numeric_limits<uint64_t>::max(),
+                      /*vb_uuid*/ 0,
+                      /*snap_start*/ 0,
+                      /*snap_end*/ 0,
+                      &rollbackSeqno,
+                      dummy_dcp_add_failover_cb,
+                      {}));
 
     // FutureQ should now have an additional DCPBackfill task /
     // ActiveStreamCheckpointProcessorTask.
@@ -3612,7 +3613,7 @@ public:
                                       1, // opaque
                                       *vb,
                                       0, // start_seqno
-                                      ~0, // end_seqno
+                                      ~0ULL, // end_seqno
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0); // snap_end_seqno,
@@ -3664,10 +3665,10 @@ public:
                                       1, // opaque
                                       *vb,
                                       3, // start_seqno
-                                      ~0, // end_seqno
+                                      ~0ULL, // end_seqno
                                       vb->failovers->getLatestUUID(),
                                       3, // snap_start_seqno
-                                      ~0); // snap_end_seqno
+                                      ~0ULL); // snap_end_seqno
     }
 
     CookieIface* cookie = nullptr;
@@ -3978,7 +3979,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
                                   1, // opaque
                                   *vb,
                                   0, // start_seqno
-                                  ~0, // end_seqno
+                                  ~0ULL, // end_seqno
                                   0, // vbucket_uuid,
                                   0, // snap_start_seqno,
                                   0); // snap_end_seqno,
@@ -5824,7 +5825,7 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
                                   1, // opaque
                                   *vb,
                                   0, // start_seqno
-                                  ~0, // end_seqno
+                                  ~0ULL, // end_seqno
                                   0, // vbucket_uuid,
                                   0, // snap_start_seqno,
                                   0); // snap_end_seqno,

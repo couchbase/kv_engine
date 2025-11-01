@@ -156,7 +156,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
     VB::Commit meta(m);
     meta.proposedVBState.transition.state = vbucket_state_active;
-    meta.proposedVBState.maxCas = -1;
+    meta.proposedVBState.maxCas = std::numeric_limits<uint64_t>::max();
     EXPECT_TRUE(kvstore->snapshotVBucket(Vbid(0), meta));
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
