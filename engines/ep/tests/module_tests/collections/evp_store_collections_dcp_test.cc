@@ -4996,9 +4996,9 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
     auto vb1 = store->getVBucket(replicaVB);
 
     // Modify metered false -> true
-    auto fruit = CollectionEntry::fruit;
-    fruit.metered = true;
-    cm.update(fruit, cb::NoExpiryLimit);
+    auto collection = CollectionEntry::fruit;
+    collection.metered = true;
+    cm.update(collection, cb::NoExpiryLimit);
     setCollections(cookie, cm);
 
     // Wake and step DCP
@@ -5006,7 +5006,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
-    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_collection_id, collection.getId());
     EXPECT_EQ(producers->last_key, "fruit");
     EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
     EXPECT_EQ(producers->last_metered, Collections::Metered::Yes);
@@ -5016,18 +5016,18 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
         auto vb0Handle = vb0->lockCollections();
         auto vb1Handle = vb1->lockCollections();
 
-        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(fruit));
-        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(fruit));
+        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(collection));
+        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(collection));
 
         // in memory seqno updated
-        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
-        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(collection));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(collection));
 
         // Nothing flushed
-        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(fruit));
-        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
-        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
-        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(collection));
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(collection));
+        EXPECT_EQ(0, vb0Handle.getItemCount(collection));
+        EXPECT_EQ(0, vb1Handle.getItemCount(collection));
     }
 
     // Flush the active vbucket as the next phase of the test is to check
@@ -5040,16 +5040,16 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
         auto vb1Handle = vb1->lockCollections();
 
         // Re-check stats after flush
-        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
-        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(collection));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(collection));
         EXPECT_EQ(producers->last_byseqno,
-                  vb0Handle.getPersistedHighSeqno(fruit));
+                  vb0Handle.getPersistedHighSeqno(collection));
         // replica not flushed.
-        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(collection));
         // system events don't count
-        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+        EXPECT_EQ(0, vb0Handle.getItemCount(collection));
         // replica not flushed.
-        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+        EXPECT_EQ(0, vb1Handle.getItemCount(collection));
     }
 
     vb0.reset();
@@ -5063,7 +5063,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
     // Expect: vb0 has Metered::Yes
     {
         auto vb0Handle = vb0->lockCollections();
-        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(fruit));
+        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(collection));
     }
 
     // Test backfill
@@ -5074,25 +5074,25 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::BeginCollection);
-    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_collection_id, collection.getId());
 
     // replica received create state
     vb1 = store->getVBucket(replicaVB);
 
     {
         auto vb1Handle = vb1->lockCollections();
-        EXPECT_EQ(Collections::Metered::No, vb1Handle.isMetered(fruit));
+        EXPECT_EQ(Collections::Metered::No, vb1Handle.isMetered(collection));
     }
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
-    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_collection_id, collection.getId());
     EXPECT_EQ(producers->last_metered, Collections::Metered::Yes);
 
     // replica received modified state
     {
         auto vb1Handle = vb1->lockCollections();
-        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(fruit));
+        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(collection));
     }
 
     // Final stage of the test - drop one of the modified collections and check
@@ -5111,7 +5111,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
     // Verify that modify fruit is not transmitted
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::EndCollection);
-    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_collection_id, collection.getId());
 }
 
 // Modify two things in one update and expect one event with both changes
