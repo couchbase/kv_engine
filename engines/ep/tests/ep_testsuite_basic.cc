@@ -202,21 +202,17 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_whitespace_db(EngineIface* h) {
-    vals.clear();
-
-    checkeq(cb::engine_errc::success,
-            get_stats(h, {}, {}, add_stats),
-            "Failed to get stats.");
+static test_result test_whitespace_db(EngineIface* h) {
+    auto stats = get_all_stats(h);
 
     // We append the whitespace portion of the name to the current one as this
     // should be unique when running under ctest (it gets set via our command
     // line args)
     std::string dbname;
-    dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
+    dbname.assign(stats["ep_dbname"] + std::string(WHITESPACE_DB));
     rmdb(dbname);
 
-    std::string oldparam("dbname=" + vals["ep_dbname"]);
+    std::string oldparam("dbname=" + stats["ep_dbname"]);
     std::string newparam("dbname=" + dbname);
     std::string config = testHarness->get_current_testcase()->cfg;
     std::string::size_type found = config.find(oldparam);
@@ -226,30 +222,16 @@ static enum test_result test_whitespace_db(EngineIface* h) {
     testHarness->reload_engine(&h, config, true, false);
     wait_for_warmup_complete(h);
 
-    vals.clear();
-    checkeq(cb::engine_errc::success,
-            get_stats(h, {}, {}, add_stats),
-            "Failed to get stats.");
-
-    if (vals["ep_dbname"] != dbname) {
+    stats = get_all_stats(h);
+    if (stats["ep_dbname"] != dbname) {
         std::cerr << "Expected dbname = '" << dbname << "'"
-                  << ", got '" << vals["ep_dbname"] << "'" << std::endl;
+                  << ", got '" << stats["ep_dbname"] << "'" << std::endl;
         return FAIL;
     }
 
     check_expression(cb::io::isDirectory(dbname),
                      "I expected the whitespace db to exist");
     return SUCCESS;
-}
-
-void test_whitespace_db_cleanup(engine_test_t* test, enum test_result result) {
-    // Cleanup the whitespace db if it exists
-    std::string dbname;
-    dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
-    rmdb(dbname);
-
-    // Chain to the normal cleanup to cleanup the original db
-    cleanup(test, result);
 }
 
 static enum test_result test_get_miss(EngineIface* h) {
@@ -678,18 +660,6 @@ static enum test_result test_getl(EngineIface* h) {
 static enum test_result test_unl(EngineIface* h) {
     const char *key = "k2";
     Vbid vbucketId = Vbid(0);
-
-    checkeq(cb::engine_errc::success,
-            get_stats(h, {}, {}, add_stats),
-            "Failed to get stats.");
-
-    std::string eviction_policy;
-    auto itr = vals.find("ep_item_eviction_policy");
-    if (itr != vals.end()) {
-        eviction_policy = itr->second;
-    } else {
-        eviction_policy = "value_only";
-    }
 
     checkeq(cb::engine_errc::no_such_key,
             unl(h, nullptr, key, vbucketId),
@@ -1677,16 +1647,12 @@ static enum test_result test_delete_set(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_get_delete_missing_file(EngineIface* h) {
-    checkeq(cb::engine_errc::success,
-            get_stats(h, {}, {}, add_stats),
-            "Failed to get stats.");
-
+static test_result test_get_delete_missing_file(EngineIface* h) {
     const char *key = "key";
     wait_for_persisted_value(h, key, "value2delete");
 
     // Make the couchstore files in the db directory totally inaccessible.
-    std::string dbname = vals["ep_dbname"];
+    const auto dbname = get_str_stat(h, "ep_dbname");
     CouchstoreFileAccessGuard makeCouchstoreFileInaccessible(
             dbname, CouchstoreFileAccessGuard::Mode::DenyAll);
 
@@ -2318,7 +2284,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "ht_locks=1;ht_size=3",
                  prepare,
-                 test_whitespace_db_cleanup),
+                 cleanup),
         TestCase("get miss",
                  test_get_miss,
                  test_setup,

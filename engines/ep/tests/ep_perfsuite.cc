@@ -1343,7 +1343,11 @@ static void perf_stat_latency_core(EngineIface* h,
                 auto start = cb::time::steady_clock::now();
                 if (stat.first == "engine") {
                     checkeq(cb::engine_errc::success,
-                            get_stats_wrapper(h, *cookie, {}, {}, add_stats),
+                            get_stats_wrapper(h,
+                                              *cookie,
+                                              {},
+                                              {},
+                                              [](auto, auto, auto&) {}),
                             "Failed to get engine stats");
                 } else {
                     checkeq(cb::engine_errc::success,
@@ -1352,7 +1356,7 @@ static void perf_stat_latency_core(EngineIface* h,
                                               {stat.second.key.c_str(),
                                                stat.second.key.length()},
                                               {},
-                                              add_stats),
+                                              [](auto, auto, auto&) {}),
                             std::string("Failed to get stat:") +
                                     stat.second.key);
                 }

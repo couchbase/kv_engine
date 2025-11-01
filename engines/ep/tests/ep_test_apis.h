@@ -40,8 +40,6 @@ bool add_response(std::string_view key,
                   uint64_t cas,
                   CookieIface& cookie);
 
-void add_stats(std::string_view key, std::string_view value, CookieIface&);
-
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
 const uint8_t dcp_mutation_base_msg_bytes = 55;
@@ -54,9 +52,6 @@ extern std::string last_key;
 extern std::string last_body;
 extern std::string last_ext;
 extern bool dump_stats;
-
-// TODO: make `vals` non-public
-extern std::map<std::string, std::string> vals;
 
 extern std::atomic<uint64_t> last_cas;
 extern std::atomic<uint8_t> last_datatype;

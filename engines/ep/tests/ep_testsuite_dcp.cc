@@ -1345,7 +1345,7 @@ static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h) {
     const auto est = get_int_stat(h, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(cb::engine_errc::not_my_vbucket,
-            get_stats(h, "dcp-vbtakeover 1"sv, {}, add_stats),
+            get_stats(h, "dcp-vbtakeover 1"sv, {}, [](auto, auto, auto&) {}),
             "Expected not my vbucket");
 
     return SUCCESS;
@@ -4370,9 +4370,7 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
 
     testHarness->destroy_cookie(cookie);
 
-    checkeq(cb::engine_errc::success,
-            get_stats(h, "failovers"sv, {}, add_stats),
-            "Failed to get stats.");
+    auto stats = get_all_stats(h, "failovers"sv);
 
     size_t i = 0;
     for (i = 0; i < dcp_failover_log.size(); i++) {
@@ -4383,14 +4381,13 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
         std::string uuid = "vb_0:" + itr + ":id";
         std::string seqno = "vb_0:" + itr + ":seq";
         checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].uuid),
-                strtoull((vals[uuid]).c_str(), nullptr, 10),
+                std::stoull(stats[uuid]),
                 "UUID mismatch in failover stats");
         checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].seqno),
-                strtoull((vals[seqno]).c_str(), nullptr, 10),
+                std::stoull(stats[seqno]),
                 "SEQNO mismatch in failover stats");
     }
 
-    vals.clear();
     return SUCCESS;
 }
 

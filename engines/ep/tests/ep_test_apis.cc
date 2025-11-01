@@ -107,12 +107,6 @@ CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
 #endif
 }
 
-// Due to the limitations of the add_stats callback (essentially we cannot pass
-// a context into it) we instead have a single, global `vals` map. The
-// vals_mutex is to ensure serialised modifications to this data structure.
-std::mutex vals_mutex;
-statistic_map vals;
-
 bool dump_stats = false;
 std::atomic<cb::mcbp::Status> last_status(cb::mcbp::Status::Success);
 std::string last_key;
@@ -197,18 +191,6 @@ void add_response_ret_meta(std::string_view key,
         last_meta.cas = cas;
     }
     add_response(key, extras, body, json, status, cas, cookie);
-}
-
-void add_stats(std::string_view key, std::string_view value, CookieIface&) {
-    std::string k(key.data(), key.size());
-    std::string v(value.data(), value.size());
-
-    if (dump_stats) {
-        std::cout << "stat[" << k << "] = " << v << std::endl;
-    }
-
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals[k] = v;
 }
 
 void encodeExt(char* buffer, uint32_t val, size_t offset) {
@@ -1132,29 +1114,14 @@ cb::engine_errc get_stats_wrapper(EngineIface* h,
 
 bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
     const auto vbstr = "vb_" + std::to_string(vb.get());
+    auto stats = get_all_stats(h);
 
-    // Try up to three times to verify the bucket is missing.  Bucket
-    // state changes are async.
-    {
-        std::lock_guard<std::mutex> lh(vals_mutex);
-        vals.clear();
+    if (!stats.contains(vbstr)) {
+        return true;
     }
 
-    auto* cookie = testHarness->create_cookie(h);
-    checkeq(cb::engine_errc::success,
-            get_stats_wrapper(h, *cookie, {}, {}, add_stats),
-            "Failed to get stats.");
-    testHarness->destroy_cookie(cookie);
+    std::cerr << "Expected bucket missing, got " << stats[vbstr] << std::endl;
 
-    {
-        std::lock_guard<std::mutex> lh(vals_mutex);
-        if (!vals.contains(vbstr)) {
-            return true;
-        }
-
-        std::cerr << "Expected bucket missing, got " <<
-                vals[vbstr] << std::endl;
-    }
     return false;
 }
 
@@ -1309,20 +1276,27 @@ int get_int_stat_or_default(EngineIface* h,
 }
 
 statistic_map get_all_stats(EngineIface* h, const std::string_view statset) {
-    {
-        std::lock_guard<std::mutex> lh(vals_mutex);
-        vals.clear();
-    }
+    statistic_map ret;
     auto* cookie = testHarness->create_cookie(h);
-    auto err = get_stats_wrapper(h, *cookie, statset, {}, add_stats);
+    auto err = get_stats_wrapper(
+            h, *cookie, statset, {}, [&ret](auto key, auto value, auto&) {
+                std::string k(key.data(), key.size());
+                std::string v(value.data(), value.size());
+
+                if (dump_stats) {
+                    std::cout << "stat[" << k << "] = " << v << std::endl;
+                }
+
+                ret[k] = v;
+            });
+
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
         throw cb::engine_error(err, "get_stats failed");
     }
 
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    return vals;
+    return ret;
 }
 
 void verify_curr_items(EngineIface* h,

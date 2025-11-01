@@ -163,13 +163,10 @@ bool test_setup(EngineIface* h) {
 }
 
 bool teardown(EngineIface*) {
-    vals.clear();
     return true;
 }
 
-bool teardown_v2(engine_test_t* test) {
-    (void)test;
-    vals.clear();
+bool teardown_v2(engine_test_t*) {
     return true;
 }
 
