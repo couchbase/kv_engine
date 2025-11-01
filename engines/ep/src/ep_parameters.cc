@@ -181,12 +181,12 @@ static const std::unordered_set<std::string_view> vbucketParamSet{
 };
 
 static const std::unordered_set<std::string_view> allParamSet = []() {
-    std::unordered_set<std::string_view> allParamSet;
-    allParamSet.insert(checkpointParamSet.begin(), checkpointParamSet.end());
-    allParamSet.insert(flushParamSet.begin(), flushParamSet.end());
-    allParamSet.insert(dcpParamSet.begin(), dcpParamSet.end());
-    allParamSet.insert(vbucketParamSet.begin(), vbucketParamSet.end());
-    return allParamSet;
+    std::unordered_set<std::string_view> ret;
+    ret.insert(checkpointParamSet.begin(), checkpointParamSet.end());
+    ret.insert(flushParamSet.begin(), flushParamSet.end());
+    ret.insert(dcpParamSet.begin(), dcpParamSet.end());
+    ret.insert(vbucketParamSet.begin(), vbucketParamSet.end());
+    return ret;
 }();
 
 bool checkSetParameterCategory(std::string_view key,

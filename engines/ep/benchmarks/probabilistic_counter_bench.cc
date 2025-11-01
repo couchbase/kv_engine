@@ -28,12 +28,13 @@
 static const double incFactor = 0.012;
 
 ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
-uint8_t counter{100}; // 100 is an arbitrary value between 0 and 255
+uint8_t benchmarkCounter{100}; // 100 is an arbitrary value between 0 and 255
 
 static void BM_SaturateCounter(benchmark::State& state) {
     while (state.KeepRunning()) {
         // benchmark generateValue
-        benchmark::DoNotOptimize(probabilisticCounter.generateValue(counter));
+        benchmark::DoNotOptimize(
+                probabilisticCounter.generateValue(benchmarkCounter));
     }
 }
 
