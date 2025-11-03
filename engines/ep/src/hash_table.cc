@@ -244,7 +244,7 @@ static size_t nearest(size_t n, size_t a, size_t b) {
 size_t HashTable::getPreferredSize(
         cb::time::steady_clock::duration delay) const {
     const size_t minSize = minimumSize();
-    const size_t numItems = getNumInMemoryItems();
+    const size_t numItems = getNumInMemoryItems() + getNumTempItems();
     const size_t currSize = getSize();
 
     // Figure out where in the prime table we are.
