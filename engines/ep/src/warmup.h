@@ -506,6 +506,17 @@ private:
     folly::AtomicHashMap<uint16_t, VBucketPtr> warmedUpVbuckets;
 
     std::deque<MutationLog> accessLog;
+    // checkForAccessLog populates this vector with the ids of shards that have
+    // an access log to load from and scheduleLoadingAccessLog uses this list of
+    // shards to schedule one task per shard that has an access log.
+    std::vector<uint16_t> accessLogShards;
+
+    // Count of tasks scheduled, used by the tasks to determine when all tasks
+    // have completed and the next phase of warmup can be started.
+    std::atomic<size_t> accessLogTasks{0};
+
+    // Count of keys that were loaded by access log phase.
+    cb::RelaxedAtomic<size_t> accessLogKeysLoaded{0};
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.

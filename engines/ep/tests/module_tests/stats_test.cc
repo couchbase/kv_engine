@@ -758,6 +758,7 @@ TEST_F(StatTest, WarmupStats) {
     EXPECT_CALL(cb, Call("ep_warmup_keys_time"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_estimated_key_count"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_estimated_value_count"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_access_log_keys_loaded"sv, _, _));
 
     // Depending on warmup timings we may/may not see a stat call for
     // ep_warmup_estimate_time.

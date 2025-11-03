@@ -114,6 +114,11 @@ void KVBucketTest::initialise(std::string config) {
     if (config.find("exp_pager_enabled") == std::string::npos) {
         config += ";exp_pager_enabled=false";
     }
+    // Make sure the alog_path is set so no tests start dropping access logs in
+    // random locations.
+    if (config.find("alog_path") == std::string::npos) {
+        config += ";alog_path=" + test_dbname + "/access.log";
+    }
 
     engine = SynchronousEPEngine::build(config);
 
@@ -1858,13 +1863,16 @@ TEST_P(KVBucketParamTest, NoLogsWhenNoVBucketsMapToShard) {
                                                   engine->getConfiguration(),
                                                   engine->getEpStats());
 
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    auto count = lpNonIoQ.getFutureQueueSize();
+    auto& auxIoQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto count = auxIoQ.getFutureQueueSize();
     as->run();
     // Only one task gets scheduled
-    EXPECT_EQ(count + 1, lpNonIoQ.getFutureQueueSize())
+    EXPECT_EQ(count + 1, auxIoQ.getFutureQueueSize())
             << "Expected one task to be scheduled as only one shard has "
                "vbuckets";
+
+    // Need to run the task so it destructs before the 'as' object is destroyed.
+    runNextTask(auxIoQ, "Item Access Scanner no vbucket assigned");
 }
 
 TEST_P(KVBucketParamTest, MutationLogFailedWrite) {

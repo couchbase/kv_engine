@@ -6216,10 +6216,17 @@ TEST_P(WarmupSTSingleShardTest, WarmupBackillYieldForwardProgress) {
     auto* warmup = engine->getKVBucket()->getWarmup();
     ASSERT_TRUE(warmup);
 
+    // Helper function to check if the warmup has reached scanning disk.
+    // Full eviction may go KeyDump or LoadingData
+    auto isScanDiskPhase = [](WarmupState::State state) {
+        return state == WarmupState::State::LoadingKVPairs ||
+               state == WarmupState::State::KeyDump ||
+               state == WarmupState::State::LoadingData;
+    };
+
     // 3) Warmup - run up to the first stage where we scan disk for documents -
-    // KeyDump (value-eviction) or LoadingKVPairs (full-eviction).
-    while ((warmup->getWarmupState() != WarmupState::State::KeyDump) &&
-           (warmup->getWarmupState() != WarmupState::State::LoadingKVPairs)) {
+    // KeyDump (value-eviction) or LoadingKVPairs/LoadingData (full-eviction).
+    while (!isScanDiskPhase(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 
@@ -6277,10 +6284,15 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     ASSERT_TRUE(warmup);
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
 
+    // Helper function to check if the warmup has reached pause/resume phase.
+    // Full eviction may go KeyDump or LoadingData
+    auto isPauseResumePhase = [](WarmupState::State state) {
+        return state == WarmupState::State::LoadingKVPairs ||
+               state == WarmupState::State::KeyDump ||
+               state == WarmupState::State::LoadingData;
+    };
     // Run until the pause/resume phase
-    auto interestingState = fullEviction() ? WarmupState::State::LoadingKVPairs
-                                           : WarmupState::State::KeyDump;
-    while (warmup->getWarmupState() != interestingState) {
+    while (!isPauseResumePhase(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 
@@ -6298,7 +6310,7 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     engine->getKVBucket()->deleteVBucket(vbid0);
 
     // Now complete this warmup phase, which will be KeyDump or LoadingKVPairs
-    while (warmup->getWarmupState() == interestingState) {
+    while (isPauseResumePhase(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 

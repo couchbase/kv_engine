@@ -1746,16 +1746,16 @@ void Warmup::checkForAccessLog()
         transition(WarmupState::State::Done);
     }
 
-    size_t accesslogs = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         std::string curr = accessLog[i].getLogFile();
         std::string old = accessLog[i].getLogFile();
         old.append(".old");
         if (cb::io::isFile(curr) || cb::io::isFile(old)) {
-            accesslogs++;
+            accessLogShards.emplace_back(i);
         }
     }
-    if (accesslogs == store.vbMap.shards.size()) {
+    if (!accessLogShards.empty()) {
+        accessLogTasks.store(accessLogShards.size());
         transition(WarmupState::State::LoadingAccessLog);
     } else {
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
@@ -1764,16 +1764,16 @@ void Warmup::checkForAccessLog()
             transition(WarmupState::State::LoadingKVPairs);
         }
     }
-
 }
 
-void Warmup::scheduleLoadingAccessLog()
-{
+void Warmup::scheduleLoadingAccessLog() {
     threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupLoadAccessLog>(store, i, this);
+    for (const auto shardId : accessLogShards) {
+        ExTask task =
+                std::make_shared<WarmupLoadAccessLog>(store, shardId, this);
         ExecutorPool::get()->schedule(task);
     }
+    accessLogShards.clear();
 }
 
 void Warmup::loadingAccessLog(uint16_t shardId)
@@ -1823,13 +1823,14 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         setEstimatedWarmupCount(estimatedCount);
     }
 
-    if (++threadtask_count == store.vbMap.getNumShards()) {
+    if (++threadtask_count == accessLogTasks) {
+        // Close any open access logs by destroying the MutationLog objects.
+        accessLog.clear();
         if (!store.maybeEnableTraffic()) {
             transition(WarmupState::State::LoadingData);
         } else {
             transition(WarmupState::State::Done);
         }
-
     }
 }
 
@@ -1864,6 +1865,7 @@ size_t Warmup::doWarmup(MutationLog& lf,
 
     size_t total = harvester.total();
     setEstimatedWarmupCount(total);
+    accessLogKeysLoaded.fetch_add(total);
     EP_LOG_DEBUG("Completed log read in {} with {} entries",
                  cb::time2text(log_load_duration),
                  total);
@@ -2031,6 +2033,9 @@ void Warmup::addStats(const StatCollector& collector) const {
     } else {
         collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
     }
+
+    collector.addStat(Key::ep_warmup_access_log_keys_loaded,
+                      accessLogKeysLoaded.load());
 }
 
 void Warmup::addStatusMetrics(const StatCollector& collector) const {
