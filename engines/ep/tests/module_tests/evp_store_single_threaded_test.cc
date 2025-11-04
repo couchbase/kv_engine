@@ -6779,9 +6779,12 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
 
     // Run until the pause/resume phase
-    auto interestingState = fullEviction() ? WarmupState::State::LoadingKVPairs
-                                           : WarmupState::State::KeyDump;
-    while (warmup->getWarmupState() != interestingState) {
+    auto isPauseResumeState = [](WarmupState::State state) {
+        return state == WarmupState::State::LoadingKVPairs ||
+               state == WarmupState::State::KeyDump ||
+               state == WarmupState::State::LoadingData;
+    };
+    while (!isPauseResumeState(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 
@@ -6799,7 +6802,7 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     engine->getKVBucket()->deleteVBucket(vbid0);
 
     // Now complete this warmup phase, which will be KeyDump or LoadingKVPairs
-    while (warmup->getWarmupState() == interestingState) {
+    while (isPauseResumeState(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 

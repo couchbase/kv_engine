@@ -62,12 +62,12 @@ size_t TestappClientTest::populateData(double limit) {
     return total;
 }
 
-void TestappClientTest::rerunAccessScanner() {
+void TestappClientTest::rerunAccessScanner(int num_shards) {
     auto num_runs = waitForSnoozedAccessScanner();
-    // we're about to schedule 1 access scanner per shard, so fetch
-    // the current number of runs and add the number of shards so that
-    // we know how many runs we need to wait for
-    auto needed_runs = getAggregatedAccessScannerCounts() + getNumShards();
+    // we're about to schedule 1 access scanner for each shard with vbuckets, so
+    // fetch the current number of runs and add the number of shards so that we
+    // know how many runs we need to wait for
+    auto needed_runs = getAggregatedAccessScannerCounts() + num_shards;
 
     BinprotResponse response;
     adminConnection->executeInBucket(bucketName, [&response](auto& conn) {
@@ -154,13 +154,25 @@ int TestappClientTest::getNumShards() {
     return shards;
 }
 
-void TestappClientTest::verifyAccessLogFiles(int num_shards,
+void TestappClientTest::verifyAccessLogFiles(const std::vector<bool>& shards,
                                              bool encrypted,
                                              bool expect_old) {
     std::filesystem::path directory =
             mcd_env->getTestBucket().getDbPath() / bucketName;
-
-    for (int ii = 0; ii < num_shards; ++ii) {
+    auto test = [](std::filesystem::path path, bool expected) {
+        bool found = exists(path);
+        if (expected && found) {
+            return std::string{};
+        }
+        if (!expected && !found) {
+            return std::string{};
+        }
+        return "Mismatch between what was found on disk and what the "
+               "expectation. file:" +
+               path.string() + ", expected: " + std::to_string(expected) +
+               ", found: " + std::to_string(found);
+    };
+    for (size_t ii = 0; ii < shards.size(); ++ii) {
         auto prefix = fmt::format("access_log.{}", ii);
         if (encrypted) {
             // The unencrypted versions should not exist!
@@ -171,15 +183,13 @@ void TestappClientTest::verifyAccessLogFiles(int num_shards,
                     << "Did not expect access log file to exist at "
                     << (directory / (prefix + ".old")).string();
 
-            // The encrypted version should exist
-            EXPECT_TRUE(exists(directory / (prefix + ".cef")))
-                    << "Expected access log file to exist at "
-                    << (directory / (prefix + ".cef")).string();
+            // The encrypted version should exist if the shard says so
+            auto status = test(directory / (prefix + ".cef"), shards[ii]);
+            EXPECT_TRUE(status.empty()) << status;
 
             if (expect_old) {
-                EXPECT_TRUE(exists(directory / (prefix + ".old.cef")))
-                        << "Expected access log file to exist at "
-                        << (directory / (prefix + ".old.cef")).string();
+                status = test(directory / (prefix + ".old.cef"), shards[ii]);
+                EXPECT_TRUE(status.empty()) << status;
             } else {
                 EXPECT_FALSE(exists(directory / (prefix + ".old.cef")))
                         << "Did not expect access log file to exist at "
@@ -195,14 +205,12 @@ void TestappClientTest::verifyAccessLogFiles(int num_shards,
                     << (directory / (prefix + ".old.cef")).string();
 
             // The unencrypted version should exist
-            EXPECT_TRUE(exists(directory / prefix))
-                    << "Expected access log file to exist at "
-                    << (directory / prefix).string();
+            auto status = test(directory / prefix, shards[ii]);
+            EXPECT_TRUE(status.empty()) << status;
 
             if (expect_old) {
-                EXPECT_TRUE(exists(directory / (prefix + ".old")))
-                        << "Expected access log file to exist at "
-                        << (directory / (prefix + ".old")).string();
+                status = test(directory / (prefix + ".old"), shards[ii]);
+                EXPECT_TRUE(status.empty()) << status;
             } else {
                 EXPECT_FALSE(exists(directory / (prefix + ".old")))
                         << "Did not expect access log file to exist at "

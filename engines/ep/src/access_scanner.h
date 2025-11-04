@@ -21,6 +21,7 @@ class Configuration;
 class EPStats;
 class KVBucket;
 class AccessScannerValueChangeListener;
+class Vbid;
 
 class AccessScanner : public EpTask {
     friend class AccessScannerValueChangeListener;
@@ -40,7 +41,8 @@ public:
 
 protected:
     void createAndScheduleTask(size_t shard,
-                               cb::SemaphoreGuard<> semaphoreGuard);
+                               cb::SemaphoreGuard<> semaphoreGuard,
+                               std::vector<Vbid> vbuckets);
 
     void updateAlogTime(double sleepSecs);
 

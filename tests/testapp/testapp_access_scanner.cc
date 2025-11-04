@@ -30,16 +30,17 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(AccessScannerTest, EmptyDatabase) {
     waitForSnoozedAccessScanner();
     auto shards = getNumShards();
+
     ASSERT_NE(0, shards);
     auto skipped = getNumAccessScannerSkips();
     ASSERT_EQ(0, skipped);
-    rerunAccessScanner();
+    rerunAccessScanner(1);
     skipped = getNumAccessScannerSkips();
     EXPECT_EQ(shards, skipped);
 
     // Rerun the access scanner, it should skip again as there is no data
     // and update the stats
-    rerunAccessScanner();
+    rerunAccessScanner(1);
     skipped = getNumAccessScannerSkips();
     EXPECT_EQ(2 * shards, skipped);
 
@@ -60,28 +61,33 @@ TEST_P(AccessScannerTest, DatabaseContaingData) {
     waitForSnoozedAccessScanner();
     auto shards = getNumShards();
     ASSERT_NE(0, shards);
+    std::vector<bool> shards_expected(shards, false);
+    shards_expected[0] = true; // shard 0 has vb:0
+    const int one_alog_run_expected = 1;
+
     auto skipped = getNumAccessScannerSkips();
 
     size_t num_docs = populateData();
-    rerunAccessScanner();
+
+    rerunAccessScanner(one_alog_run_expected);
 
     EXPECT_EQ(skipped, getNumAccessScannerSkips());
 
-    verifyAccessLogFiles(shards, true, false);
+    verifyAccessLogFiles(shards_expected, true, false);
 
     // Rerun the access scanner. It should not skip anything and rotate
     // the current files to .old.cef and create new files
-    rerunAccessScanner();
+    rerunAccessScanner(one_alog_run_expected);
     EXPECT_EQ(skipped, getNumAccessScannerSkips());
 
-    verifyAccessLogFiles(shards, true, true);
+    verifyAccessLogFiles(shards_expected, true, true);
 
     // Delete the documents.. that should make us "resident" again
     // and rerunning the access scanner should delete the access log files
     for (std::size_t ii = 0; ii < num_docs; ++ii) {
         userConnection->remove(fmt::format("mykey-{}", ii), Vbid(0));
     }
-    rerunAccessScanner();
+    rerunAccessScanner(one_alog_run_expected);
     EXPECT_EQ(skipped + shards, getNumAccessScannerSkips());
     verifyNoAccessLogFiles(shards);
 }

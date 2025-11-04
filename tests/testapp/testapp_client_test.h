@@ -48,7 +48,7 @@ public:
      * Rerun the access scanner task for the current bucket being tested
      * and wait for it to complete.
      */
-    void rerunAccessScanner();
+    void rerunAccessScanner(int num_shards);
 
     /**
      * Get the current access scanner task stats for the current bucket being
@@ -92,11 +92,16 @@ public:
      * If expect_old is set to true; the files should have a ".old[.cef]"
      * version as well.
      *
-     * @param num_shards the number of shards in the bucket
+     * @param shards list of all shards - true if they are expected to have
+     * access logs. shards.size should be the total number of shards in the
+     * bucket. The function will iterate for shards.size and use the true/false
+     * value for applying the checks
      * @param encrypted see above
      * @param expect_old see above
      */
-    void verifyAccessLogFiles(int num_shards, bool encrypted, bool expect_old);
+    void verifyAccessLogFiles(const std::vector<bool>& shards,
+                              bool encrypted,
+                              bool expect_old);
 
     /**
      * Verify that there are no access log files for the bucket
