@@ -155,11 +155,11 @@ public:
     backfill_status_t public_backfill();
 
     BackfillManager& getBFM() {
-        return *backfillMgr;
+        return *getBFMPtr();
     }
 
     BackfillManager* getBFMPtr() {
-        return backfillMgr.get();
+        return backfillManagerHolder.rlock()->get();
     }
 
     size_t getBytesOutstanding() const {

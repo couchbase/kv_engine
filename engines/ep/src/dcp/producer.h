@@ -754,7 +754,8 @@ protected:
     //   a connection is disconnected.
     // As such, reset (modification) of this pointer is mediated via
     // closeAllStreamsLock - see MB-38521.
-    std::shared_ptr<BackfillManager> backfillMgr;
+    folly::Synchronized<std::shared_ptr<BackfillManager>, std::shared_mutex>
+            backfillManagerHolder;
 
     VBReadyQueue ready;
 
