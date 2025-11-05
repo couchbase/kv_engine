@@ -49,6 +49,7 @@ ItemAccessVisitor::ItemAccessVisitor(
         uint16_t sh,
         cb::SemaphoreGuard<> guard,
         uint64_t items_to_scan,
+        std::vector<Vbid> vbuckets,
         std::function<void(std::string_view)> fileWriteTestHook)
     : stats(_stats),
       startTime(ep_real_time()),
@@ -59,8 +60,7 @@ ItemAccessVisitor::ItemAccessVisitor(
       semaphoreGuard(std::move(guard)),
       items_to_scan(items_to_scan) {
     Expects(semaphoreGuard.valid());
-    setVBucketFilter(
-            VBucketFilter(_store.getVBuckets().getShard(sh)->getVBuckets()));
+    setVBucketFilter(VBucketFilter(std::move(vbuckets)));
     Expects(!conf.getAlogPath().empty() && "No filename set");
     name = conf.getAlogPath();
     name = name + "." + std::to_string(shardID);
@@ -322,7 +322,8 @@ bool AccessScanner::run() {
         }
 
         std::vector<std::filesystem::path> files;
-        for (size_t i = 0; i < store.getVBuckets().getNumShards(); i++) {
+        for (KVShard::id_type i = 0; i < store.getVBuckets().getNumShards();
+             i++) {
             cb::SemaphoreGuard<> semaphoreGuard(&semaphore,
                                                 cb::adopt_token_t{});
 
@@ -337,7 +338,13 @@ bool AccessScanner::run() {
                 }
                 stats.accessScannerSkips++;
             } else {
-                createAndScheduleTask(i, std::move(semaphoreGuard));
+                auto vbuckets = store.getVBuckets().getShard(i)->getVBuckets();
+                // MB-69134: Only create a task if there are vbuckets mapped to
+                // the shard.
+                if (vbuckets.size() > 0) {
+                    createAndScheduleTask(
+                            i, std::move(semaphoreGuard), std::move(vbuckets));
+                }
             }
         }
 
@@ -424,14 +431,16 @@ std::chrono::microseconds AccessScanner::maxExpectedDuration() const {
  * @return True on successful creation, False if the task failed
  */
 void AccessScanner::createAndScheduleTask(const size_t shard,
-                                          cb::SemaphoreGuard<> semaphoreGuard) {
+                                          cb::SemaphoreGuard<> semaphoreGuard,
+                                          std::vector<Vbid> vbuckets) {
     try {
         auto pv = std::make_unique<ItemAccessVisitor>(store,
                                                       conf,
                                                       stats,
                                                       shard,
                                                       std::move(semaphoreGuard),
-                                                      maxStoredItems);
+                                                      maxStoredItems,
+                                                      std::move(vbuckets));
 
         // p99.9 is typically ~200ms
         const auto maxExpectedDuration = 500ms;

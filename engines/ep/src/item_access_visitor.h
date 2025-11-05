@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "access_scanner.h"
 #include "hash_table.h"
 #include "kv_bucket.h"
 #include "mutation_log_writer.h"
@@ -36,6 +37,7 @@ public:
             uint16_t sh,
             cb::SemaphoreGuard<> guard,
             uint64_t items_to_scan,
+            std::vector<Vbid> vbuckets,
             std::function<void(std::string_view)> fileWriteTestHook = [](auto) {
             });
     ~ItemAccessVisitor() override;
