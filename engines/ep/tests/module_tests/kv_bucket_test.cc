@@ -797,6 +797,7 @@ nlohmann::json KVBucketTest::getEncryptionKeys() {
                {"key", "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="}}}}};
 }
 class KVBucketParamTest : public STParameterizedBucketTest {
+public:
     void SetUp() override {
         STParameterizedBucketTest::SetUp();
         // Have all the objects, activate vBucket zero so we can store data.
@@ -2045,11 +2046,13 @@ public:
                         completeBeforeShutdown) {
     }
 
-    void public_createAndScheduleTask(const size_t shard) {
+    void public_createAndScheduleTask(const size_t shard,
+                                      std::vector<Vbid> vbuckets) {
         // Note: AccessScanner:run normally acquires tokens before calling
         // createAndScheduleTask, here we are acquiring one token.
         cb::SemaphoreGuard<> semaphoreGuard(&semaphore);
-        createAndScheduleTask(shard, std::move(semaphoreGuard));
+        createAndScheduleTask(
+                shard, std::move(semaphoreGuard), std::move(vbuckets));
     }
 };
 
@@ -2073,7 +2076,8 @@ TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
                                                   1000);
 
     /* Make sure this doesn't throw an exception when tyring to run the task*/
-    EXPECT_NO_THROW(as->public_createAndScheduleTask(0))
+    EXPECT_NO_THROW(as->public_createAndScheduleTask(
+            0, store->getVBuckets().getShard(0)->getVBuckets()))
             << "Access Scanner threw unexpected "
                "exception where log location does "
                "not exist";
@@ -2104,6 +2108,7 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
             shard,
             std::move(semaphoreGuard),
             config.getAlogMaxStoredItems(),
+            store->getVBuckets().getShard(shard)->getVBuckets(),
             [&exceptionThrown](auto method) {
                 if (method == "flush") {
                     exceptionThrown = true;
@@ -2827,4 +2832,42 @@ TEST_P(KVBucketParamTest, HashTableTempItemAllowed) {
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          KVBucketParamTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+// No data stored in this test - only need a persistent bucket config
+class AccessLogKVBucketParamTest : public KVBucketParamTest {
+public:
+    void SetUp() override {
+        KVBucketParamTest::SetUp();
+    }
+    void TearDown() override {
+        KVBucketParamTest::TearDown();
+    }
+};
+
+// Coverage for MB-69134
+TEST_P(AccessLogKVBucketParamTest, NoLogsWhenNoVBucketsMapToShard) {
+    ASSERT_EQ(store->getVBuckets().getNumShards(), 2);
+    engine->getConfiguration().setAlogPath(
+            test_dbname + cb::io::DirectorySeparator + "access.log");
+    engine->getConfiguration().setAlogResidentRatioThreshold(100);
+    auto as = std::make_unique<MockAccessScanner>(*(engine->getKVBucket()),
+                                                  engine->getConfiguration(),
+                                                  engine->getEpStats());
+
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    auto count = auxIoQ.getFutureQueueSize();
+    as->run();
+    // Only one task gets scheduled
+    EXPECT_EQ(count + 1, auxIoQ.getFutureQueueSize())
+            << "Expected one task to be scheduled as only one shard has "
+               "vbuckets";
+
+    // Need to run the task so it destructs before the 'as' object is destroyed.
+    runNextTask(auxIoQ, "Item Access Scanner no vbucket assigned");
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         AccessLogKVBucketParamTest,
+                         STParameterizedBucketTest::couchstoreBucket(),
                          STParameterizedBucketTest::PrintToStringParamName);
