@@ -119,6 +119,12 @@ void KVBucketTest::initialise(std::string_view baseConfig) {
         if (config.find("exp_pager_enabled") == std::string::npos) {
             config += ";exp_pager_enabled=false";
         }
+        // Make sure the alog_path is set so no tests start dropping access logs
+        // in
+        // random locations.
+        if (config.find("alog_path") == std::string::npos) {
+            config += ";alog_path=" + test_dbname + "/access.log";
+        }
 
         engine = SynchronousEPEngine::build(config);
         Expects(ObjectRegistry::getCurrentEngine() &&

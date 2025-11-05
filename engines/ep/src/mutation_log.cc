@@ -615,6 +615,10 @@ void MutationLog::open(bool _readOnly) {
 
 void MutationLog::close() {
     if (!isEnabled() || !isOpen()) {
+        if (isOpen()) {
+            doClose(file);
+            file = INVALID_FILE_VALUE;
+        }
         return;
     }
 

@@ -3429,8 +3429,8 @@ static enum test_result test_access_scanner(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
-    std::string name = vals.find("ep_alog_path")->second;
-
+    std::string name0 = vals.find("ep_alog_path")->second;
+    std::string name1 = vals.find("ep_alog_path")->second;
     /* Check access scanner is enabled */
     checkeq(true,
             get_bool_stat(h, "ep_access_scanner_enabled"),
@@ -3438,8 +3438,12 @@ static enum test_result test_access_scanner(EngineIface* h) {
 
     const int num_shards =
             get_int_stat(h, "ep_workload:num_shards", "workload");
-    name = name + ".0";
-    std::string prev(name + ".old");
+    checkeq(2,
+            num_shards,
+            "Test is expected to run with 2 shards and 1 vbucket.");
+    name0 = name0 + ".0";
+    name1 = name1 + ".1";
+    std::string prev(name0 + ".old");
 
     const auto quota = get_stat<uint64_t>(h, "ep_max_size");
     // Note: Touching this code for MB-61875. The following comment is legacy
@@ -3526,14 +3530,30 @@ static enum test_result test_access_scanner(EngineIface* h) {
                       "true"),
             "Failed to trigger access scanner");
 
-    // Wait for the number of runs to equal the number of shards.
-    wait_for_stat_to_be(h, "ep_num_access_scanner_runs", num_shards);
+    // Wait for the number of runs to equal the number of shards with vbuckets
+    // mapped to them.
+    wait_for_stat_to_be(h, "ep_num_access_scanner_runs", 1);
 
     /* This time since resident ratio is < 95% access log should be generated */
-    check_expression(cb::io::isFile(name),
-          (std::string("access log file (") + name +
-           ") should exist (got errno:" + std::to_string(errno))
-                  .c_str());
+    check_expression(cb::io::isFile(name0),
+                     (std::string("access log file (") + name0 +
+                      ") should exist (got errno:" + std::to_string(errno))
+                             .c_str());
+    // No vbuckets in shard 1 so no file should be generated.
+    check_expression(!cb::io::isFile(name1),
+                     (std::string("access log file (") + name1 +
+                      ") should not exist (got errno:" + std::to_string(errno))
+                             .c_str());
+
+    // Restart the server and check warmup loaded from 1 access log file.
+    testHarness->reload_engine(&h, newconfig.c_str(), true, false);
+
+    wait_for_warmup_complete(h);
+
+    // Cannot compare against a value as the value is not deterministic.
+    checkne(0,
+            get_int_stat(h, "ep_warmup_access_log_keys_loaded", "warmup"),
+            "Expected warmup to load all keys from access log");
 
     /* Increase resident ratio by deleting items */
     checkeq(cb::engine_errc::success,
@@ -3568,7 +3588,10 @@ static enum test_result test_access_scanner(EngineIface* h) {
 
     /* Access log files should be removed because resident ratio > 95% */
     check_expression(!cb::io::isFile(prev), ".old access log file should not exist");
-    check_expression(!cb::io::isFile(name), "access log file should not exist");
+    check_expression(!cb::io::isFile(name0),
+                     "access log file should not exist");
+    check_expression(!cb::io::isFile(name1),
+                     "access log file should not exist for shard 1");
 
     return SUCCESS;
 }
@@ -3607,11 +3630,8 @@ static enum test_result test_warmup_stats(EngineIface* h) {
     }
 
     // Restart the server.
-    testHarness->reload_engine(&h,
-
-                               testHarness->get_current_testcase()->cfg,
-                               true,
-                               false);
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
 
     wait_for_warmup_complete(h);
 
@@ -8666,7 +8686,7 @@ BaseTestCase testsuite_testcases[] = {
                  // consideration.
                  "checkpoint_max_size=1024;"
                  "chk_remover_stime=1;"
-                 "max_num_shards=1;"
+                 "max_num_shards=2;"
                  "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,

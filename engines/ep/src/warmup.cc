@@ -1739,7 +1739,6 @@ void Warmup::checkForAccessLog() {
         return;
     }
 
-    size_t accesslogs = 0;
     if (config.isAccessScannerEnabled()) {
         for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
             accessLog.emplace_back(
@@ -1752,11 +1751,12 @@ void Warmup::checkForAccessLog() {
             std::string old = accessLog[i].getLogFile();
             old.append(".old");
             if (cb::io::isFile(curr) || cb::io::isFile(old)) {
-                accesslogs++;
+                accessLogShards.emplace_back(i);
             }
         }
     }
-    if (accesslogs == store.vbMap.shards.size()) {
+    if (!accessLogShards.empty()) {
+        accessLogTasks.store(accessLogShards.size());
         transition(WarmupState::State::LoadingAccessLog);
     } else {
         // We aren't loading anything from the accessLog, nuke it
@@ -1772,10 +1772,12 @@ void Warmup::checkForAccessLog() {
 
 void Warmup::scheduleLoadingAccessLog() {
     threadtask_count = 0;
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        ExTask task = std::make_shared<WarmupLoadAccessLog>(store, i, this);
+    for (const auto shardId : accessLogShards) {
+        ExTask task =
+                std::make_shared<WarmupLoadAccessLog>(store, shardId, this);
         ExecutorPool::get()->schedule(task);
     }
+    accessLogShards.clear();
 }
 
 void Warmup::loadingAccessLog(uint16_t shardId) {
@@ -1824,7 +1826,7 @@ void Warmup::loadingAccessLog(uint16_t shardId) {
         setEstimatedWarmupCount(estimatedCount);
     }
 
-    if (++threadtask_count == store.vbMap.getNumShards()) {
+    if (++threadtask_count == accessLogTasks) {
         // We don't need the accessLog anymore, and it uses a bunch of memory.
         // Nuke it now to get the memory back.
         accessLog.clear();
@@ -1870,6 +1872,7 @@ size_t Warmup::doWarmup(MutationLog& lf,
 
     size_t total = harvester.total();
     setEstimatedWarmupCount(total);
+    accessLogKeysLoaded.fetch_add(total);
     EP_LOG_DEBUG("Completed log read in {} with {} entries",
                  cb::time2text(log_load_duration),
                  total);
@@ -2045,6 +2048,9 @@ void Warmup::addStats(const StatCollector& collector) const {
     } else {
         collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
     }
+
+    collector.addStat(Key::ep_warmup_access_log_keys_loaded,
+                      accessLogKeysLoaded.load());
 }
 
 void Warmup::addStatusMetrics(const StatCollector& collector) const {

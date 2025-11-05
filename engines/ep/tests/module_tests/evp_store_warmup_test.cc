@@ -3238,7 +3238,6 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     {
         auto& config = engine->getConfiguration();
         // Check initial config state
-        ASSERT_TRUE(config.getAlogPath().empty());
         ASSERT_TRUE(config.isAccessScannerEnabled());
     }
 
