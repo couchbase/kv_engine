@@ -494,6 +494,10 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
         return getNextProducerMsg(stream);
     }
 
+    // ActiveStream/CacheTransferStream leave this true when they return an item
+    // to allow a second callback
+    EXPECT_TRUE(stream.areItemsReady());
+
     return producerMsg;
 }
 

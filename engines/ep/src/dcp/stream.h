@@ -149,6 +149,10 @@ public:
 
     size_t getReadyQueueMemory() const;
 
+    bool areItemsReady() const {
+        return itemsReady;
+    }
+
 protected:
     /* To be called after getting streamMutex lock */
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);

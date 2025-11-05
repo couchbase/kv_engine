@@ -380,6 +380,9 @@ bool CacheTransferStream::isActive() const {
 
 std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
     std::unique_lock<std::mutex> lh(streamMutex);
+
+    itemsReady.store(false);
+
     if (readyQ.empty()) {
         return nullptr;
     }
@@ -388,6 +391,8 @@ std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
     if (!producer.bufferLogInsert(response->getMessageSize())) {
         return nullptr;
     }
+
+    itemsReady.store(true);
 
     return popFromReadyQ();
 }
