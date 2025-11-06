@@ -296,6 +296,9 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
         return cb::engine_errc::not_my_vbucket;
     }
 
+    // All this code needs to run whilst !active
+    std::shared_lock stateLock(vb->getStateLock());
+
     if (vb->getState() == vbucket_state_active) {
         OBJ_LOG_WARN_CTX(
                 *logger,
