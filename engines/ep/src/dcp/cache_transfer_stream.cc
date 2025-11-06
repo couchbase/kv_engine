@@ -357,6 +357,27 @@ void CacheTransferStream::addTakeoverStats(const AddStatFn& add_stat,
     // takeover.
 }
 
+void CacheTransferStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
+    Stream::addStats(add_stat, c);
+    size_t streamTid{0};
+    size_t streamTotalBytesQueued{0};
+    size_t streamLastSeqno{0};
+    IncludeValue streamIncludeValue{IncludeValue::Yes};
+
+    {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        streamTid = tid;
+        streamIncludeValue = includeValue;
+        streamTotalBytesQueued = totalBytesQueued;
+        streamLastSeqno = lastSeqno;
+    }
+    add_casted_stat("tid", streamTid, add_stat, c);
+    add_casted_stat(
+            "include_value", to_string(streamIncludeValue), add_stat, c);
+    add_casted_stat("total_bytes_queued", streamTotalBytesQueued, add_stat, c);
+    add_casted_stat("last_sent_seqno", streamLastSeqno, add_stat, c);
+}
+
 std::string CacheTransferStream::getStreamTypeName() const {
     return "CacheTransfer";
 }
@@ -393,6 +414,9 @@ std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
     }
 
     itemsReady.store(true);
+    if (response->getBySeqno()) {
+        lastSeqno = *response->getBySeqno();
+    }
 
     return popFromReadyQ();
 }

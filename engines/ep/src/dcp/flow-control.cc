@@ -114,4 +114,5 @@ void FlowControl::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     consumerConn.addStat(
             "max_buffer_bytes", buffer.rlock()->getSize(), add_stat, c);
     consumerConn.addStat("unacked_bytes", freedBytes, add_stat, c);
+    consumerConn.addStat("last_buffer_ack_time", lastBufferAck, add_stat, c);
 }

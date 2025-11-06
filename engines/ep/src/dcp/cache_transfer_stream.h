@@ -70,6 +70,8 @@ public:
                           CookieIface& c,
                           const VBucket& vb) override;
 
+    void addStats(const AddStatFn& add_stat, CookieIface& c) override;
+
     enum class Status {
         /// maybeQueueItem() has queued an item. Caller should continue
         /// visiting.
@@ -174,4 +176,7 @@ protected:
 
     /// The StreamRequestInfo which created this object
     StreamRequestInfo request;
+
+    /// The last sequence number popped/sent from the stream.
+    uint64_t lastSeqno{0};
 };
