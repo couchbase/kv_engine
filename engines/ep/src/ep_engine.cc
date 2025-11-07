@@ -5340,6 +5340,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key == "snapshot-deks"sv) {
         return getKVBucket()->doSnapshotDeks(bucketCollector);
     }
+    if (key.starts_with("snapshot-move")) {
+        return getKVBucket()->doSnapshotMoveStats(bucketCollector, key);
+    }
 
     // Unknown stat requested
     return cb::engine_errc::no_such_key;

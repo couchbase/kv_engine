@@ -3326,12 +3326,15 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshot) {
     EXPECT_EQ(1, vb->getHighSeqno());
     EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+    EXPECT_FALSE(vb->canSnapshotRebalanceContinue());
+
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(
                       vbid, vbucket_state_active, {}, TransferVB::No, cookie));
     EXPECT_EQ(vbucket_state_active, vb->getState());
     EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+    EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
 
     const auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |

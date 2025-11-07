@@ -47,6 +47,19 @@
 #include <statistics/collector.h>
 #include <utilities/logtags.h>
 
+static bool getInitialSnapshotRebalanceCanContinue(
+        CreateVbucketMethod creationMethod) {
+    switch (creationMethod) {
+    case CreateVbucketMethod::FBR:
+    case CreateVbucketMethod::Fusion:
+        return false;
+    case CreateVbucketMethod::Warmup:
+    case CreateVbucketMethod::SetVbucket:
+        return true;
+    }
+    folly::assume_unreachable();
+}
+
 EPVBucket::EPVBucket(Vbid i,
                      vbucket_state_t newState,
                      EPStats& st,
@@ -103,7 +116,9 @@ EPVBucket::EPVBucket(Vbid i,
               maxPrepareSeqno),
       shard(kvshard),
       rangeScans(static_cast<EPBucket*>(bucket), *this),
-      canReceiveCacheTransfer(newState == vbucket_state_replica) {
+      canReceiveCacheTransfer(newState == vbucket_state_replica),
+      snapshotRebalanceCanContinue(
+              getInitialSnapshotRebalanceCanContinue(creationMethod)) {
     if (config.isBfilterEnabled()) {
         bFilterData.lock()->kvStoreBfilterEnabled = true;
     }

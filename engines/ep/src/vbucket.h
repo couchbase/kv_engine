@@ -2023,6 +2023,21 @@ public:
     }
 
     /**
+     * Flag that this vbucket can proceed in a snapshot based rebalance, i.e.
+     * FBR/Fusion
+     */
+    virtual void setSnapshotRebalanceCanContinue() {
+    }
+
+    /**
+     * @return true if this vbucket can proceed in a snapshot based rebalance,
+     * i.e. FBR/Fusion
+     */
+    virtual bool canSnapshotRebalanceContinue() const {
+        return true;
+    }
+
+    /**
      * Get the logical size of the disk data for this vbucket. This may
      * return a cached value if we cannot lock the vbucket state mutex.
      */

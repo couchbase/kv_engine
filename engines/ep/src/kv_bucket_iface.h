@@ -985,6 +985,11 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    [[nodiscard]] virtual cb::engine_errc doSnapshotMoveStats(
+            const StatCollector&, std::string_view) {
+        return cb::engine_errc::not_supported;
+    }
+
     [[nodiscard]] virtual cb::engine_errc doSnapshotDeks(const StatCollector&) {
         return cb::engine_errc::not_supported;
     }

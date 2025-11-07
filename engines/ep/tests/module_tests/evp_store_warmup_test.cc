@@ -79,12 +79,14 @@ public:
 // warmup is set to the "wakeup" function of ItemFreqDecayerTask.
 TEST_F(WarmupTest, setFreqSaturatedCallback) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
     // The FreqSaturatedCallback should be initialised
     {
         auto vb = engine->getKVBucket()->getVBucket(vbid);
         EXPECT_TRUE(vb->ht.getFreqSaturatedCallback());
         EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
         EXPECT_EQ(CreateVbucketMethod::SetVbucket, vb->getCreationMethod());
+        EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
     }
     // Store an item, then make the VB appear old ready for warmup
     store_item(vbid, makeStoredDocKey("key1"), "value");
@@ -101,6 +103,7 @@ TEST_F(WarmupTest, setFreqSaturatedCallback) {
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::Warmup, vb->getCreationMethod());
+    EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
 
     // The FreqSaturatedCallback should be initialised
     EXPECT_TRUE(vb->ht.getFreqSaturatedCallback());

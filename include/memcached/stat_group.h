@@ -84,6 +84,7 @@ enum class StatGroupId {
     SnapshotDetails,
     SnapshotStatus,
     SnapshotDeks,
+    SnapshotMove,
 
     // stat command timings
 

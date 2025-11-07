@@ -6095,6 +6095,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:queue_memory",
               "vb_0:queue_size",
               "vb_0:rollback_item_count",
+              "vb_0:snapshot_rebalance_continue",
               "vb_0:sync_write_accepted_count",
               "vb_0:sync_write_committed_count",
               "vb_0:sync_write_committed_not_durable_count",

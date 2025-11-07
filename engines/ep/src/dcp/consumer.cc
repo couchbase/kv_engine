@@ -365,6 +365,14 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                snap_end_seqno,
                                high_seqno,
                                vb_manifest_uid);
+
+    // This stream never did a cache transfer we can flag any snapshot type
+    // rebalance can continue
+    if (!isFlagSet(stream->getFlags(),
+                   cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+        vb->setSnapshotRebalanceCanContinue();
+    }
+
     registerStream(stream);
     readyStreamsVBQueue.lock()->push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);

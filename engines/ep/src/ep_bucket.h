@@ -491,6 +491,13 @@ public:
                                      std::string_view) override;
 
     /**
+     * Handle the brief snapshot-move stat which is used by ns_server to
+     * monitor moves.
+     */
+    cb::engine_errc doSnapshotMoveStats(const StatCollector&,
+                                        std::string_view) override;
+
+    /**
      * Handle the brief snapshot-deks stat which is used by ns_server to
      * determine which deks are in use in snapshots. Deks are returned
      * regardless of snapshot state, but it's only really necessary for them to

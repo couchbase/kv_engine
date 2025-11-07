@@ -1530,14 +1530,8 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    // Log this for now, will remove and switch to stats later.
-    OBJ_LOG_INFO_CTX(*this,
-                     "PassiveStream::processCacheTransferEnd: Cache transfer "
-                     "end received",
-                     {"vb", vb_});
+    vb->setSnapshotRebalanceCanContinue();
 
-    // @todo: update some state (Vbucket?) to indicate that the cache transfer
-    // is complete.
     return cb::engine_errc::success;
 }
 

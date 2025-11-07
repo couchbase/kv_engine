@@ -387,6 +387,14 @@ public:
         canReceiveCacheTransfer = false;
     }
 
+    void setSnapshotRebalanceCanContinue() override {
+        snapshotRebalanceCanContinue = true;
+    }
+
+    bool canSnapshotRebalanceContinue() const override {
+        return snapshotRebalanceCanContinue.load();
+    }
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -563,6 +571,10 @@ private:
 
     /// Flag to indicate if the vbucket can receive a DCP cache transfer.
     std::atomic<bool> canReceiveCacheTransfer{true};
+
+    /// Flag to indicate if the vbucket can proceed in a snapshot based
+    /// rebalance, i.e. FBR/Fusion
+    std::atomic<bool> snapshotRebalanceCanContinue{false};
 
     friend class EPVBucketTest;
 };
