@@ -150,6 +150,8 @@ bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
     status = stream->maybeQueueItem(v, readHandle);
     switch (status) {
     case CacheTransferStream::Status::OOM:
+        ++queuedCount; // When OOM, one item was queued
+        [[fallthrough]];
     case CacheTransferStream::Status::Stop:
     case CacheTransferStream::Status::ReachedClientMemoryLimit:
         return false;
@@ -259,6 +261,16 @@ bool CacheTransferTask::run() {
                  {"ht_num_items", vb->ht.getNumItems()},
                  {"total_runtime_ms", totalRuntimeMs},
                  {"total_bytes_queued", stream.getTotalBytesQueued()}});
+
+        if (vb->ht.getNumItems() != visitedCount) {
+            OBJ_LOG_WARN_CTX(
+                    stream,
+                    "CacheTransferTask::run: ht_num_items != visitedCount",
+                    {{"vbid", vbid},
+                     {"ht_num_items", vb->ht.getNumItems()},
+                     {"visited_count", visitedCount}});
+        }
+
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
         // Notify the producer as we have queued a stream end.
         notify = true;
@@ -285,7 +297,6 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                                          const StreamRequestInfo& req,
                                          Vbid vbid,
                                          EventuallyPersistentEngine& engine,
-                                         IncludeValue includeValue,
                                          Collections::VB::Filter filter)
     : ProducerStream(filter.getStreamId()
                              ? name + filter.getStreamId().to_string() + ":cts"
@@ -298,21 +309,27 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                      req.start_seqno,
                      req.vbucket_uuid),
       engine(engine),
-      includeValue(includeValue),
       availableBytes(filter.getCacheTransferFreeMemory()),
       filter(std::move(filter)),
       request(req) {
     Expects(p);
-    OBJ_LOG_INFO_CTX(
-            p->getLogger(),
-            "Creating CacheTransferStream",
-            {"max_seqno", request.start_seqno},
-            {"end_seqno", request.end_seqno},
-            {"vb", vbid},
-            {"vbucket_uuid", request.vbucket_uuid},
-            {"include_value", includeValue},
-            {"available_bytes",
-             availableBytes.value_or(std::numeric_limits<size_t>::max())});
+
+    if (this->filter.isCacheTransferAllKeys() &&
+        // Client wants all keys, but they signalled no availableBytes. Just
+        // jump straight to IncludeValue::No rather than later in the "run loop"
+        // of the task.
+        availableBytes.value_or(~0ull) == 0) {
+        includeValue = IncludeValue::No;
+    }
+
+    OBJ_LOG_INFO_CTX(p->getLogger(),
+                     "Creating CacheTransferStream",
+                     {"max_seqno", request.start_seqno},
+                     {"end_seqno", request.end_seqno},
+                     {"vb", vbid},
+                     {"vbucket_uuid", request.vbucket_uuid},
+                     {"all_keys", this->filter.isCacheTransferAllKeys()},
+                     {"available_bytes", availableBytes});
 }
 
 void CacheTransferStream::setActive() {
@@ -508,10 +525,10 @@ bool CacheTransferStream::skip(const StoredValue& sv,
         return true;
     }
 
-    // 4. Do checks for a value transfer, these don't apply if the only a
-    // key/meta transfer is requested.
-    if (includeValue == IncludeValue::Yes) {
-        // 4.1 If not resident, it is not eligible.
+    // 4. Do checks for a value transfer, but all key transfers ignore these.
+    if (includeValue == IncludeValue::Yes && !filter.isCacheTransferAllKeys()) {
+        // 4.1 If not resident, it is not eligible unless this is an all key
+        // transfer.
         if (!sv.isResident()) {
             OBJ_LOG_DEBUG_CTX(*this,
                               "CacheTransferStream skipping non-resident",
@@ -550,14 +567,26 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     }
 
     if (availableBytes && *availableBytes < sv.size()) {
-        // We could KeepVisiting and maybe hope to "find" items that fit,
-        // but let's just call it a day.
-        OBJ_LOG_INFO_CTX(*this,
-                         "CacheTransferStream stopping as have reached "
-                         "requested transfer limit",
-                         {"sv_size", sv.size()},
-                         {"available_bytes", *availableBytes});
-        return Status::ReachedClientMemoryLimit;
+        availableBytes.reset(); // no point re-entering here on every visit
+        if (filter.isCacheTransferAllKeys()) {
+            // availableBytes is exhausted and this is an all key transfer. Stop
+            // sending values and only send keys.
+            OBJ_LOG_INFO_CTX(*this,
+                             "CacheTransferStream switching to key only as "
+                             "have reached "
+                             "requested transfer limit",
+                             {"bytes_queued", totalBytesQueued},
+                             {"sv_size", sv.size()});
+            includeValue = IncludeValue::No;
+        } else {
+            // No memory left, stop the transfer.
+            OBJ_LOG_INFO_CTX(*this,
+                             "CacheTransferStream stopping as have reached "
+                             "requested transfer limit",
+                             {"sv_size", sv.size()},
+                             {"available_bytes", *availableBytes});
+            return Status::ReachedClientMemoryLimit;
+        }
     }
 
     OBJ_LOG_DEBUG_CTX(
@@ -581,7 +610,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
             sid,
-            includeValue == IncludeValue::Yes
+            includeValue == IncludeValue::Yes && sv.isResident()
                     ? DcpResponse::Event::CachedValue
                     : DcpResponse::Event::CachedKeyMeta);
     {

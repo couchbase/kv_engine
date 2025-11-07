@@ -240,7 +240,6 @@ public:
             uint32_t opaque,
             Vbid vbid,
             const StreamRequestInfo& req,
-            IncludeValue includeValue,
             Collections::VB::Filter filter);
 
     /**

@@ -214,6 +214,13 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
                                  "Filter::constructFromJson");
             cacheTransferFreeMemory = entry->get<size_t>();
         }
+        if (const auto entry = cts.find("all_keys"); entry != cts.end()) {
+            cb::throwIfWrongType("all_keys",
+                                 *entry,
+                                 nlohmann::json::value_t::boolean,
+                                 "Filter::constructFromJson");
+            cacheTransferAllKeys = entry->get<bool>();
+        }
     }
 
     // The input JSON must of contained at least a sid, uid, scope,

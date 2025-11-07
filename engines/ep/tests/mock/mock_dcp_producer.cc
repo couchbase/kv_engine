@@ -145,7 +145,6 @@ MockDcpProducer::mockCacheTransferStreamRequest(
         uint32_t opaque,
         Vbid vbid,
         const StreamRequestInfo& req,
-        IncludeValue includeValue,
         Collections::VB::Filter filter) {
     auto stream = std::make_shared<MockCacheTransferStream>(
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -153,7 +152,6 @@ MockDcpProducer::mockCacheTransferStreamRequest(
             req,
             vbid,
             engine_,
-            includeValue,
             std::move(filter));
     return stream;
 }
@@ -171,7 +169,6 @@ std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
                 req,
                 vb.getId(),
                 engine_,
-                includeValue,
                 std::move(filter));
     }
     return std::make_shared<MockActiveStream>(

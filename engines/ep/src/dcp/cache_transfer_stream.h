@@ -43,7 +43,6 @@ public:
                         const StreamRequestInfo& req,
                         Vbid vbid,
                         EventuallyPersistentEngine& engine,
-                        IncludeValue includeValue,
                         Collections::VB::Filter filter);
 
     void setDead(cb::mcbp::DcpStreamEndStatus status) override;
@@ -181,8 +180,10 @@ protected:
     /// Reference to the engine owning this producer/stream.
     EventuallyPersistentEngine& engine;
 
-    /// Configuration: Stream will send keys or keys+value
-    IncludeValue includeValue = IncludeValue::Yes;
+    /// As the stream iterates over the hash-table an all_keys stream can switch
+    /// from value to key only based upon memory constraints provided by the
+    /// client.
+    IncludeValue includeValue{IncludeValue::Yes};
 
     /// Total bytes queued
     size_t totalBytesQueued{0};

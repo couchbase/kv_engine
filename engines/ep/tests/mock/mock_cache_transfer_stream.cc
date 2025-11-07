@@ -20,7 +20,6 @@ MockCacheTransferStream::MockCacheTransferStream(
         const StreamRequestInfo& req,
         Vbid vbid,
         EventuallyPersistentEngine& engine,
-        IncludeValue includeValue,
         Collections::VB::Filter filter)
     : CacheTransferStream(p,
                           "MockCacheTransferStream",
@@ -28,7 +27,6 @@ MockCacheTransferStream::MockCacheTransferStream(
                           req,
                           vbid,
                           engine,
-                          includeValue,
                           std::move(filter)) {
 }
 

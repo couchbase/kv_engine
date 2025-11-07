@@ -1289,6 +1289,9 @@ std::string PassiveStream::createStreamReqValue(bool cacheTransferEnabled,
 void PassiveStream::generateCacheTransferRequest(
         nlohmann::json& stream_req_json, size_t freeMem) const {
     nlohmann::json cts;
+    if (engine->getKVBucket()->isValueEviction()) {
+        cts["all_keys"] = true;
+    }
     cts["free_memory"] = freeMem;
     stream_req_json["cts"] = std::move(cts);
 }

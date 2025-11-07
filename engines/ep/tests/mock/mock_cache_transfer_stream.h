@@ -26,7 +26,6 @@ public:
                             const StreamRequestInfo& req,
                             Vbid vbid,
                             EventuallyPersistentEngine& engine,
-                            IncludeValue includeValue,
                             Collections::VB::Filter filter);
 
     /**

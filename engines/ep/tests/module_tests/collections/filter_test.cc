@@ -126,6 +126,8 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
             R"({"purge_seqno":"p"})",
             R"({"cts":{"free_memory":true}})",
             R"({"cts":{"free_memory":"100"}})",
+            R"({"CTS":{"all_keys":true}})",
+            R"({"cts":{"all_keys":1}})",
     };
 
     for (const auto& s : inputs) {
@@ -353,6 +355,13 @@ TEST_F(CollectionsVBFilterTest, cache_transfer_free_memory) {
     std::optional<std::string_view> json(input);
     Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
     EXPECT_EQ(f.getCacheTransferFreeMemory(), 100);
+}
+
+TEST_F(CollectionsVBFilterTest, cache_transfer_key_only) {
+    std::string input = R"({"cts":{"all_keys":true}})";
+    std::optional<std::string_view> json(input);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
+    EXPECT_TRUE(f.isCacheTransferAllKeys());
 }
 
 // class exposes some of the internal state flags

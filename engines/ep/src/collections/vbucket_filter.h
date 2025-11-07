@@ -278,6 +278,15 @@ public:
     }
 
     /**
+     * CacheTransfer config. Client has requested at least all keys be
+     * transferred.
+     * @return true if the stream is configured for a key-only cache transfer
+     */
+    bool isCacheTransferAllKeys() const {
+        return cacheTransferAllKeys;
+    }
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
@@ -376,6 +385,7 @@ protected:
     bool defaultAllowed = false;
     uint64_t remotePurgeSeqno{0};
     std::optional<size_t> cacheTransferFreeMemory;
+    bool cacheTransferAllKeys = false;
 
     enum class FilterType {
         // The "bucket stream" - everything is allowed
