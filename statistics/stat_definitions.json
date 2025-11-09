@@ -951,6 +951,13 @@
         "added": "7.1.0"
     },
     {
+        "key": "ep_warmup_access_log_keys_loaded",
+        "unit": "none",
+        "description": "The number of items loaded as result of using the access log",
+        "prometheus": false,
+        "added": "7.2.0"
+    },
+    {
         "family": "ops",
         "unit": "none",
         "description": "Number of operations"

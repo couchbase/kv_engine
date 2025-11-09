@@ -6714,10 +6714,17 @@ TEST_P(WarmupSTSingleShardTest, WarmupBackillYieldForwardProgress) {
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 
+    // Helper function to check if the warmup has reached scanning disk.
+    // Full eviction may go KeyDump or LoadingData
+    auto isScanDiskPhase = [](WarmupState::State state) {
+        return state == WarmupState::State::LoadingKVPairs ||
+               state == WarmupState::State::KeyDump ||
+               state == WarmupState::State::LoadingData;
+    };
+
     // 3) Warmup - run up to the first stage where we scan disk for documents -
-    // KeyDump (value-eviction) or LoadingKVPairs (full-eviction).
-    while ((warmup->getWarmupState() != WarmupState::State::KeyDump) &&
-           (warmup->getWarmupState() != WarmupState::State::LoadingKVPairs)) {
+    // KeyDump (value-eviction) or LoadingKVPairs/LoadingData (full-eviction).
+    while (!isScanDiskPhase(warmup->getWarmupState())) {
         runNextTask(readerQueue);
     }
 

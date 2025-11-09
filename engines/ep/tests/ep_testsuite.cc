@@ -3268,6 +3268,157 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     return SUCCESS;
 }
 
+static enum test_result test_access_scanner(EngineIface* h) {
+    if (!isWarmupEnabled(h)) {
+        // Access scanner not applicable without warmup.
+        return SKIPPED;
+    }
+
+    // Create a unique access log path by combining with the db path.
+    checkeq(cb::engine_errc::success,
+            get_stats(h, {}, {}, add_stats),
+            "Failed to get stats.");
+    const auto dbname = vals.find("ep_dbname")->second;
+    const auto alog_path = std::string("alog_path=") + dbname + "/access.log";
+
+    /* We do not want the access scanner task to be running while we initiate it
+       explicitly below. Hence set the alog_task_time to about 1 ~ 2 hours
+       from now */
+    const time_t now = time(nullptr);
+    struct tm tm_now;
+    cb_gmtime_r(&now, &tm_now);
+    const auto two_hours_hence = (tm_now.tm_hour + 2) % 24;
+
+    const auto alog_task_time =
+            std::string("alog_task_time=") + std::to_string(two_hours_hence);
+
+    const auto newconfig =
+            std::string(testHarness->get_current_testcase()->cfg) + alog_path +
+            ";" + alog_task_time;
+
+    testHarness->reload_engine(&h, newconfig, true, false);
+    wait_for_warmup_complete(h);
+
+    std::string name0 = dbname + "/access.log.0";
+    std::string name1 = dbname + "/access.log.1";
+    /* Check access scanner is enabled */
+    checkeq(true,
+            get_bool_stat(h, "ep_access_scanner_enabled"),
+            "Access scanner task not enabled by default. Check test config");
+
+    checkeq(2,
+            get_int_stat(h, "ep_workload:num_shards", "workload"),
+            "Test is expected to run with 2 shards and 1 vbucket.");
+
+    const auto quota = get_stat<uint64_t>(h, "ep_max_size");
+    // Note: Touching this code for MB-61875. The following comment is legacy
+    // from previous development and I don't get what residency calculation
+    // the comment refers too. I guess that whatever that was at the time, our
+    // logic in the ItemPager has chenged over time and this comment might
+    // be invalid at this point.
+    //
+    // Ensure we have at least 1000 items, ie enough to give us 0.1% granularity
+    // in any residency calculations.
+    const size_t minNumItems = 1000;
+    // MB-61875: This test might store less that minNumItems on some envs.
+    // Let's just make computations as if we want to load 10x minNumItems, so
+    // we minimize the possibility that we drop under minNumItems.
+    const auto valueSize = quota / (minNumItems * 10);
+    const std::string value(valueSize, 'x');
+
+    // Get the RR down to below 94% for generating a access.log file
+    int num_items = 0;
+    while (true) {
+        // Gathering stats on every store is expensive, just check every 100
+        // iterations
+        if ((num_items % 100) == 0 &&
+            (get_int_stat(h, "vb_active_perc_mem_resident") < 94)) {
+            break;
+        }
+
+        std::string key("key" + std::to_string(num_items));
+        const auto ret = store(h, nullptr, StoreSemantics::Set, key, value);
+        switch (ret) {
+        case cb::engine_errc::success:
+            num_items++;
+            break;
+
+        case cb::engine_errc::no_memory:
+        case cb::engine_errc::temporary_failure:
+            // Returned when at high watermark; simply retry the op.
+            break;
+
+        default:
+            std::cerr << "test_access_scanner: Unexpected result from store(): "
+                      << cb::to_string(ret) << std::endl;
+            return FAIL;
+        }
+    }
+
+    if (num_items < 1000) {
+        std::cerr << "Error: test_access_scanner: expected at least 1000 items "
+                     "after filling vbucket, but only have "
+                  << num_items << ". Check max_size setting for test."
+                  << std::endl;
+        return FAIL;
+    }
+
+    wait_for_flusher_to_settle(h);
+    verify_curr_items(h, num_items, "Wrong number of items");
+    checkge(get_int_stat(h, "vb_active_num_non_resident"),
+            num_items * 6 / 100,
+            "Expected num_non_resident to be at least 6% of total items");
+
+    // MB-54571: Because we run with a very small max_size = 10M, the overhead
+    // of our internal structures, other than the HashTable can cause _all_
+    // values to be evicted. Stash something so we are able to generate an
+    // access.log for shard 0.
+    checkeq(cb::engine_errc::success,
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "something",
+                  value,
+                  nullptr,
+                  0,
+                  Vbid(0)),
+            "Failed to store item");
+
+    /* Run access scanner task once and expect it to generate access log */
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "access_scanner_run",
+                      "true"),
+            "Failed to trigger access scanner");
+
+    // Wait for the number of runs to equal the number of shards with vbuckets
+    // mapped to them.
+    wait_for_stat_to_be(h, "ep_num_access_scanner_runs", 1);
+
+    /* Since resident ratio is < 95% access log should be generated */
+    check_expression(cb::io::isFile(name0),
+                     (std::string("access log file (") + name0 +
+                      ") should exist (got errno:" + std::to_string(errno))
+                             .c_str());
+    // No vbuckets in shard 1 so no file should be generated.
+    check_expression(!cb::io::isFile(name1),
+                     (std::string("access log file (") + name1 +
+                      ") should not exist (got errno:" + std::to_string(errno))
+                             .c_str());
+
+    // Restart the server and check warmup loaded from 1 access log file.
+    testHarness->reload_engine(&h, newconfig, true, false);
+    wait_for_warmup_complete(h);
+
+    // Cannot compare against a value as the value is not deterministic.
+    checkne(0,
+            get_int_stat(h, "ep_warmup_access_log_keys_loaded", "warmup"),
+            "Expected warmup to load all keys from access log");
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_param_message(EngineIface* h) {
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(h, EngineParamCategory::Flush, "alog_task_time", "50"),
@@ -6959,7 +7110,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Add stats which are only available if warmup is enabled:
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
-                         {"ep_warmup_dups",
+                         {"ep_warmup_access_log_keys_loaded",
+                          "ep_warmup_dups",
                           "ep_warmup_oom",
                           "ep_warmup_time",
                           "ep_warmup_thread",
@@ -7389,6 +7541,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     if (isWarmupEnabled(h)) {
         statsKeys.insert({"warmup",
                           {"ep_warmup",
+                           "ep_warmup_access_log_keys_loaded",
                            "ep_warmup_state",
                            "ep_warmup_thread",
                            "ep_warmup_key_count",
@@ -8448,6 +8601,20 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
+                 prepare,
+                 cleanup),
+        TestCase("test access scanner and warmup",
+                 test_access_scanner,
+                 test_setup,
+                 teardown,
+                 // Need to cap at <number of items written, so we create
+                 // >1 checkpoint. Also given bucket quota is being
+                 // constrained.
+                 "chk_max_items=500;"
+                 "chk_remover_stime=1;"
+                 "max_num_shards=2;"
+                 "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
         TestCase("test set_param message",
