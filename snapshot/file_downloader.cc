@@ -42,6 +42,8 @@ FileDownloader::FileDownloader(
 }
 
 cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
+    const auto download_start = std::chrono::steady_clock::now();
+
     std::size_t size = meta.size;
 
     std::filesystem::path local = directory / meta.path;
@@ -50,10 +52,15 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
     }
     std::size_t offset = 0;
 
+    std::optional<std::chrono::steady_clock::duration> existingChecksumDuration;
     if (exists(local)) {
         offset = file_size(local);
         if (size == offset) {
-            if (validateChecksum(local, meta)) {
+            const auto start_checksum = std::chrono::steady_clock::now();
+            const auto checksumOk = validateChecksum(local, meta);
+            const auto checksum_end = std::chrono::steady_clock::now();
+            existingChecksumDuration = checksum_end - start_checksum;
+            if (checksumOk) {
                 // we already have the file
                 log_callback(info,
                              "Skipping file; already downloaded",
@@ -67,7 +74,7 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
 
     auto sink = openFile(local);
     nlohmann::json file_meta{{"id", meta.id}};
-    const auto start = std::chrono::steady_clock::now();
+    const auto file_download_start = std::chrono::steady_clock::now();
     while (offset < size) {
         std::size_t chunk = size - offset;
         file_meta["offset"] = std::to_string(offset);
@@ -81,15 +88,26 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
                 uuid, meta.id, offset, chunk, sink, stats_collect_callback);
     }
     sink.close();
-    const auto end = std::chrono::steady_clock::now();
+    const auto file_download_end = std::chrono::steady_clock::now();
 
-    if (!validateChecksum(local, meta)) {
+    const auto start_checksum = std::chrono::steady_clock::now();
+    const auto checksumOk = validateChecksum(local, meta);
+    const auto checksum_end = std::chrono::steady_clock::now();
+
+    if (!checksumOk) {
         log_callback(
                 warn,
                 "Fetch file complete invalid checksum",
                 {{"path", meta.path.string()},
-                 {"duration", end - start},
-                 {"throughput", cb::calculateThroughput(size, end - start)}});
+                 {"duration", checksum_end - download_start},
+                 {"file_download_duration",
+                  file_download_end - file_download_start},
+                 {"checksum_duration", checksum_end - start_checksum},
+                 {"existing_checksum_duration", existingChecksumDuration},
+                 {"size", size},
+                 {"throughput",
+                  cb::calculateThroughput(
+                          size, file_download_end - file_download_start)}});
         remove(local);
         return cb::engine_errc::checksum_mismatch;
     }
@@ -97,8 +115,15 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
     log_callback(info,
                  "Fetch file complete",
                  {{"path", meta.path.string()},
-                  {"duration", end - start},
-                  {"throughput", cb::calculateThroughput(size, end - start)}});
+                  {"duration", checksum_end - download_start},
+                  {"file_download_duration",
+                   file_download_end - file_download_start},
+                  {"checksum_duration", checksum_end - start_checksum},
+                  {"existing_checksum_duration", existingChecksumDuration},
+                  {"size", size},
+                  {"throughput",
+                   cb::calculateThroughput(
+                           size, file_download_end - file_download_start)}});
     return cb::engine_errc::success;
 }
 
