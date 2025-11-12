@@ -42,15 +42,17 @@ protected:
     BinprotResponse syncFusionLogstore(Vbid vbid);
 
     /**
-     * Issues a STAT("fusion <subGroup> <vbid>") call to memcached.
+     * Issues a STAT("fusion <subGroup> <arg>") call to memcached.
      *
      * @param subGroup
-     * @param vbid Note: string type as this function is used for invalid vbid
-     *             string (eg non numeric) tests
+     * @param arg Note: string type as this second optional arg
+     *              might represent Vbid or other special string
+     *              tokens. Plus, this function is used for invalid
+     *              Vbid string (eg non numeric) tests
      * @return The payload, which is always a in json format
      */
     std::pair<cb::engine_errc, nlohmann::json> fusionStats(
-            std::string_view subGroup, std::string_view vbid = {});
+            std::string_view subGroup, std::string_view arg = {});
 
     std::pair<cb::engine_errc, nlohmann::json> fusionStats(
             std::string_view subGroup, Vbid vbid) {
@@ -221,7 +223,7 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
 }
 
 std::pair<cb::engine_errc, nlohmann::json> FusionTest::fusionStats(
-        std::string_view subGroup, std::string_view vbid) {
+        std::string_view subGroup, std::string_view arg) {
     try {
         nlohmann::json res;
         // Note: subGroup and vbid are optional so the final command
@@ -230,7 +232,7 @@ std::pair<cb::engine_errc, nlohmann::json> FusionTest::fusionStats(
         // string here on purpose for stressing the validation code out.
         connection->stats(
                 [&res](auto&, auto& v) { res = nlohmann::json::parse(v); },
-                fmt::format("fusion {} {}", subGroup, vbid));
+                fmt::format("fusion {} {}", subGroup, arg));
         return {cb::engine_errc::success, res};
     } catch (const ConnectionError& e) {
         if (e.isNotSupported()) {
