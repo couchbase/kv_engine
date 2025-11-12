@@ -106,14 +106,15 @@ protected:
 
     /**
      * Waits for the Fusion uploader to be in the specified state for the
-     * test vbucket.
+     * given vbucket.
      *
+     * @param vbid
      * @param state The expected state of the uploader (eg "enabled",
      * "disabled")
      * @throws std::runtime_error if the uploader does not reach the expected
      *         state within 5 seconds.
      */
-    void waitForUploaderState(std::string_view state);
+    void waitForUploaderState(Vbid vbid, std::string_view state);
 
 public:
     static constexpr auto logstoreRelativePath = "logstore";
@@ -214,7 +215,7 @@ BinprotResponse FusionTest::startFusionUploader(Vbid vbid,
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     auto resp = connection->execute(cmd);
     if (resp.isSuccess()) {
-        waitForUploaderState("enabled");
+        waitForUploaderState(vbid, "enabled");
     }
     return resp;
 }
@@ -225,28 +226,27 @@ BinprotResponse FusionTest::stopFusionUploader(Vbid vbid) {
     cmd.setVBucket(vbid);
     auto resp = connection->execute(cmd);
     if (resp.isSuccess()) {
-        waitForUploaderState("disabled");
+        waitForUploaderState(vbid, "disabled");
     }
     return resp;
 }
 
-void FusionTest::waitForUploaderState(std::string_view state) {
+void FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
     if (!cb::waitForPredicateUntil(
-                [this, state]() {
+                [this, vbid, state]() {
                     auto [ec, json] = fusionStats("uploader", vbid);
                     if (ec != cb::engine_errc::success) {
-                        throw std::runtime_error(
-                                fmt::format("waitForUploaderState: Failed to "
-                                            "fetch fusion uploader stats: {}",
-                                            ec));
+                        throw std::runtime_error(fmt::format(
+                                "waitForUploaderState: Failed to "
+                                "fetch fusion uploader stats for {}: {}",
+                                vbid,
+                                ec));
                     }
                     return json["state"].get<std::string>() == state;
                 },
                 std::chrono::seconds(5))) {
-        throw std::runtime_error(
-                fmt::format("waitForUploaderState: Timeout waiting for "
-                            "uploader state to be: {}",
-                            state));
+        throw std::runtime_error(fmt::format(
+                "waitForUploaderState: Timeout {} state:{}", vbid, state));
     }
 }
 
