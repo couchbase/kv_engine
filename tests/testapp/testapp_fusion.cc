@@ -42,6 +42,40 @@ protected:
     BinprotResponse syncFusionLogstore(Vbid vbid);
 
     /**
+     * @param vbid
+     * @return The full local path used as "guest volume" in a data migration
+     *  process for the given vbucket.
+     */
+    std::filesystem::path getGuestVolumeFullPath(Vbid vbid) const;
+
+    /**
+     * This helper function's purpose is mainly testing out Active Guest
+     * Volumes.
+     *
+     * Active guest volumes are volumes involved in a "migration" process in
+     * fusion. "migration" is the process of loading some previously mounted
+     * volume's data when a VBucket is created by SetVBucketState(use_snapshot).
+     *
+     * So for testing out the "active_guest_volumes" stat we do:
+     *  - Create a vbucket and store some data into it
+     *  - Sync that data to the fusion logstore
+     *  - Prepare a "volume" and copy the fusion logstore data to it
+     *  - NOTE: Steps so far are just preliminary steps for ending up with some
+     *          magma data files on a volume. That volume is used in the next
+     *          steps for initiating a migration process. As "volume" we use
+     *          just a local directory in the local filesystem.
+     *  - Delete the vbucket
+     *  - MountVBucket(volume)
+     *  - Recreate the vbucket by SetVBucketState(use_snapshot). That initiates
+     *    the migration process.
+     *  - During the migration STAT("active_guest_volumes") returns the volume
+     *    involved in the process.
+     *
+     * @param vbid
+     */
+    void recreateVbucketByMount(Vbid vbid);
+
+    /**
      * Issues a STAT("fusion <subGroup> <arg>") call to memcached.
      *
      * @param subGroup
@@ -85,6 +119,7 @@ public:
     static constexpr auto logstoreRelativePath = "logstore";
     static constexpr auto chronicleAuthToken = "some-token1!";
     static constexpr auto bucketUuid = "uuid-123";
+    static constexpr auto guestVolumePrefix = "guest_volume_vbid_";
     static const Vbid vbid;
     std::unique_ptr<MemcachedConnection> connection;
 };
@@ -562,39 +597,13 @@ TEST_P(FusionTest, Stat_Migration_Aggregate) {
     ASSERT_EQ(cb::mcbp::Status::Success, connection->execute(cmd).getStatus());
 }
 
-/**
- * Active guest volumes are volumes involved in a "migration" process in fusion.
- * "migration" is the process of loading some previously mounted volume's data
- * when a VBucket is created by SetVBucketState(use_snapshot).
- *
- * So for testing out the "active_guest_volumes" stat we do:
- *  - Create a vbucket and store some data into it
- *  - Sync that data to the fusion logstore
- *  - Prepare a "volume" and copy the fusion logstore data to it
- *  - NOTE: Steps so far are just preliminary steps for ending up with some
- *          magma data files on a volume. That volume is used in the next steps
- *          for initiating a migration process. As "volume" we use just a local
- *          directory in the local filesystem.
- *  - Delete the vbucket
- *  - MountVBucket(volume)
- *  - Recreate the vbucket by SetVBucketState(use_snapshot). That initiates the
- *    migration process.
- *  - Verify that STAT("active_guest_volumes") returns the volume involved in
- *    the migration process.
- */
-TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
-    if (!isFusionSupportedInBucket()) {
-        auto [ec, json] = fusionStats("active_guest_volumes", vbid);
-        ASSERT_EQ(cb::engine_errc::not_supported, ec);
-        return;
-    }
+std::filesystem::path FusionTest::getGuestVolumeFullPath(Vbid vbid) const {
+    const auto dbPath = mcd_env->getDbPath();
+    EXPECT_TRUE(exists(dbPath));
+    return dbPath / (guestVolumePrefix + std::to_string(vbid.get()));
+}
 
-    // We need to read back "active guest volumes" during a data migration
-    // triggered by mountVBucket(volumes). Volumes are considered "active" only
-    // during the transfer, so we need to start and "stall" the migration for
-    // reading that information back.
-    setMemcachedConfig("fusion_migration_rate_limit", 0);
-
+void FusionTest::recreateVbucketByMount(Vbid vbid) {
     // Start uploader (necessary before SyncFusionLogstore)
     const auto term = "1";
     ASSERT_EQ(cb::mcbp::Status::Success,
@@ -625,24 +634,23 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     // we'll use later for creating a vbucket by MountVbucket(volume) +
     // SetVBucketState(use_snapshot)
 
-    const auto dbPath = mcd_env->getDbPath().generic_string();
-    ASSERT_TRUE(std::filesystem::exists(dbPath));
-
     // Create guest volumes (just using a folder within the test path)
-    const std::string guestVolume = dbPath + "/guest_volume";
-    ASSERT_TRUE(std::filesystem::create_directory(guestVolume));
+    const auto guestVolume = getGuestVolumeFullPath(vbid);
+    ASSERT_TRUE(create_directory(guestVolume));
 
     // Create guest volume directory
-    const std::string guestVolumePath = guestVolume + "/" + volumeId;
+    const auto guestVolumePath = guestVolume / volumeId;
     ASSERT_TRUE(std::filesystem::create_directories(guestVolumePath));
 
     // Copy data from the fusion logstore to the guest volume directory
+    const auto dbPath = mcd_env->getDbPath();
+    ASSERT_TRUE(exists(dbPath));
     const auto volumeIdPathInLogstore =
-            dbPath + "/" + logstoreRelativePath + "/" + volumeId;
-    ASSERT_TRUE(std::filesystem::exists(volumeIdPathInLogstore));
-    std::filesystem::copy(volumeIdPathInLogstore,
-                          guestVolumePath,
-                          std::filesystem::copy_options::recursive);
+            dbPath / logstoreRelativePath / volumeId;
+    ASSERT_TRUE(exists(volumeIdPathInLogstore));
+    copy(volumeIdPathInLogstore,
+         guestVolumePath,
+         std::filesystem::copy_options::recursive);
 
     // Delete vbucket (mount fails by EExists otherwise)
     auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
@@ -656,15 +664,32 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     // Create vbucket from volume data
     connection->setVbucket(
             vbid, vbucket_state_active, {{"use_snapshot", "fusion"}});
+}
+
+TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
+    if (!isFusionSupportedInBucket()) {
+        auto [ec, json] = fusionStats("active_guest_volumes", vbid);
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+
+    // We need to read back "active guest volumes" during a data migration
+    // triggered by mountVBucket(volumes). Volumes are considered "active" only
+    // during the transfer, so we need to start and "stall" the migration for
+    // reading that information back.
+    setMemcachedConfig("fusion_migration_rate_limit", 0);
+
+    // Perform data migration
+    recreateVbucketByMount(vbid);
 
     // Verify active_guest_volumes stat
     // Note: Implicit format check, this throws if json isn't list of strings
     auto [ec, json] = fusionStats("active_guest_volumes", vbid);
     ASSERT_EQ(cb::engine_errc::success, ec);
-
-    const std::vector<std::string> expectedVolumes = json;
-    ASSERT_EQ(1, expectedVolumes.size());
-    EXPECT_EQ(guestVolume, expectedVolumes.at(0));
+    ASSERT_EQ(1, json.size());
+    const std::vector<std::string> resVolumes = json;
+    const auto expectedGuestVolume = getGuestVolumeFullPath(vbid);
+    EXPECT_EQ(expectedGuestVolume.generic_string(), resVolumes.at(0));
 
     // All done, unblock the data migration. The test process would get stuck
     // otherwise.
