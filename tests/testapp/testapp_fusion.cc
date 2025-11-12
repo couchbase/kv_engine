@@ -16,6 +16,15 @@
 
 class FusionTest : public TestappClientTest {
 protected:
+    /**
+     * Helper function to force at least one mutation stored to disk for the
+     * given vbucket, which ensures that the related KVStore is created in the
+     * storage.
+     *
+     * @param vbid
+     */
+    static void ensureKVStoreCreated(Vbid vbid);
+
     static void SetUpTestCase();
     void SetUp() override;
     void TearDown() override;
@@ -127,6 +136,28 @@ public:
 
 const Vbid FusionTest::vbid = Vbid(0);
 
+void FusionTest::ensureKVStoreCreated(Vbid vbid) {
+    // Note: magma KVStore creation executes at the first flusher path run,
+    // which is asynchronous.
+    // We need to ensure that the KVStore is successfully created before
+    // executing and Fusion API against it in the various test cases. We would
+    // hit sporadic failures by "kvstore invalid" otherwise.
+    adminConnection->selectBucket(bucketName);
+    const auto lookForStat = "vb_" + std::to_string(vbid.get()) + ":high_seqno";
+    uint64_t highSeqno{};
+    adminConnection->stats(
+            [&lookForStat, &highSeqno](auto& k, auto& v) {
+                if (k.contains(lookForStat)) {
+                    highSeqno = std::stoull(v);
+                    return true; // stop executing this callback
+                }
+                return false;
+            },
+            fmt::format("vbucket-details {}", vbid.get()));
+    adminConnection->store("bump-vb-high-seqno", vbid, {});
+    adminConnection->waitForSeqnoToPersist(vbid, highSeqno + 1);
+}
+
 void FusionTest::SetUpTestCase() {
     createUserConnection = true;
     const auto dbPath = mcd_env->getDbPath().generic_string();
@@ -138,15 +169,7 @@ void FusionTest::SetUpTestCase() {
             chronicleAuthToken,
             bucketUuid);
     doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
-
-    // Note: magma KVStore creation executes at the first flusher path run,
-    // which is asynchronous.
-    // We need to ensure that the KVStore is successfully created before
-    // executing and Fusion API against it in the various test cases. We would
-    // hit sporadic failures by "kvstore invalid" otherwise.
-    adminConnection->selectBucket(bucketName);
-    adminConnection->store("bump-vb-high-seqno", vbid, {});
-    adminConnection->waitForSeqnoToPersist(vbid, 1);
+    ensureKVStoreCreated(vbid);
 }
 
 void FusionTest::SetUp() {
@@ -634,7 +657,9 @@ void FusionTest::recreateVbucketByMount(Vbid vbid) {
 
     // Create guest volumes (just using a folder within the test path)
     const auto guestVolume = getGuestVolumeFullPath(vbid);
-    ASSERT_TRUE(create_directory(guestVolume));
+    if (!exists(guestVolume)) {
+        ASSERT_TRUE(create_directory(guestVolume));
+    }
 
     // Create guest volume directory
     const auto guestVolumePath = guestVolume / volumeId;
@@ -694,15 +719,36 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
 }
 
-TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregated) {
+TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregate) {
     if (!isFusionSupportedInBucket()) {
-        GTEST_SKIP() << "Fusion is not supported in this bucket";
+        auto [ec, json] = fusionStats("active_guest_volumes", vbid);
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
     }
-    const auto [ec, json] = fusionStats("active_guest_volumes");
-    ASSERT_EQ(cb::engine_errc::success, ec);
 
-    // @todo MB-63679: Implement test with multiple vbuckets in place
-    ASSERT_TRUE(json.is_array());
+    // Create another vbucket (vbid:0 already exists)
+    const auto vbid9 = Vbid(9);
+    nlohmann::json meta;
+    meta["topology"] = nlohmann::json::array({{"active"}});
+    adminConnection->setVbucket(vbid9, vbucket_state_active, meta);
+    ensureKVStoreCreated(vbid9);
+
+    setMemcachedConfig("fusion_migration_rate_limit", 0);
+
+    recreateVbucketByMount(vbid9);
+
+    // Verify active_guest_volumes stat
+    // Note: Implicit format check, this throws if json isn't list of strings
+    auto [ec, json] = fusionStats("active_guest_volumes");
+    ASSERT_EQ(cb::engine_errc::success, ec);
+    ASSERT_EQ(2, json.size());
+    const std::vector<std::string> resVolumes = json;
+    const std::vector<std::string> expected = {
+            getGuestVolumeFullPath(vbid9).generic_string(),
+            getGuestVolumeFullPath(vbid).generic_string()};
+    EXPECT_EQ(expected, resVolumes);
+
+    setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
 }
 
 TEST_P(FusionTest, Stat_ActiveGuestVolumes_KVStoreInvalid) {
