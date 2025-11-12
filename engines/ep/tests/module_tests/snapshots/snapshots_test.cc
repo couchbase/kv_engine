@@ -14,6 +14,7 @@
 #include "kvstore/kvstore_config.h"
 #include "snapshots/cache.h"
 #include <platform/dirutils.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 #include <filesystem>
 
@@ -45,7 +46,8 @@ public:
     }
 
     auto doPrepareSnapshot(const std::filesystem::path& directory, Vbid vbid) {
-        return kvstore->prepareSnapshot(directory, vbid);
+        MockCookie cookie;
+        return kvstore->prepareSnapshot(cookie, directory, vbid);
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};

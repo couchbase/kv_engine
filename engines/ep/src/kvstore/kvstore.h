@@ -1042,7 +1042,9 @@ public:
     }
 
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
-            const std::filesystem::path& snapshotDirectory, Vbid vb) override;
+            CookieIface& cookie,
+            const std::filesystem::path& snapshotDirectory,
+            Vbid vb) override;
 
     cb::engine_errc processSnapshots(const std::filesystem::path& path,
                                      cb::snapshot::Cache& cache) const override;

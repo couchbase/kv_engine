@@ -22,7 +22,8 @@ PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)
     : BackgroundThreadCommandContext(
               cookie,
               TaskId::Core_PrepareSnapshotTask,
-              "Prepare Snapshot",
+              "Prepare Snapshot for " +
+                      cookie.getRequest().getVBucket().to_string(),
               ConcurrencySemaphores::instance()
                       .encryption_and_snapshot_management),
       vb(cookie.getRequest().getVBucket()) {

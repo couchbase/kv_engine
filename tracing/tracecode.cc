@@ -85,6 +85,16 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "storage_engine_stats";
     case Code::Notified:
         return "notified";
+    case Code::PrepareSnapshotCreatePath:
+        return "prepare_snapshot.create_path";
+    case Code::PrepareSnapshot:
+        return "prepare_snapshot.prepare_impl";
+    case Code::PrepareSnapshotChecksums:
+        return "prepare_snapshot.checksums";
+    case Code::PrepareSnapshotWriteManifest:
+        return "prepare_snapshot.write_manifest";
+    case Code::PrepareSnapshotCleanupOnFailure:
+        return "prepare_snapshot.cleanup_on_failure";
     }
     return "unknown tracecode";
 }

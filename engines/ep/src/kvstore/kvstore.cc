@@ -30,6 +30,7 @@
 #include "mcbp/protocol/datatype.h"
 #include "persistence_callback.h"
 #include "snapshots/cache.h"
+#include "trace_helpers.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include <memcached/cookie_iface.h>
@@ -41,6 +42,7 @@
 
 #include <cbcrypto/digest.h>
 #include <platform/dirutils.h>
+#include <platform/scope_timer.h>
 #include <platform/uuid.h>
 #include <snapshot/manifest.h>
 #include <statistics/cbstat_collector.h>
@@ -757,6 +759,7 @@ static std::string calculateSha512sum(const std::filesystem::path& path,
     }
     return {};
 }
+
 static void maybeUpdateSha512Sum(const std::filesystem::path& root,
                                  cb::snapshot::FileInfo& info) {
     if (info.sha512.empty()) {
@@ -767,33 +770,48 @@ static void maybeUpdateSha512Sum(const std::filesystem::path& root,
     }
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
-        const std::filesystem::path& path, Vbid vbid) {
-    // Generate a path/uuid for the snapshot
-    auto uuid = ::to_string(cb::uuid::random());
-    const auto snapshotPath = path / uuid;
+static cb::engine_errc prepareSnapshotCreatePath(
+        CookieIface& cookie,
+        const std::filesystem::path& snapshotPath,
+        Vbid vbid) {
+    ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
+            cookie, cb::tracing::Code::PrepareSnapshotCreatePath);
+
     if (exists(snapshotPath)) {
         EP_LOG_WARN_CTX("prepareSnapshot Failed as path already exists",
                         {"vb", vbid},
                         {"path", snapshotPath});
         return cb::engine_errc::key_already_exists;
     }
-
-    create_directories(snapshotPath);
-
-    // Create a guard to clean-up on failure.
-    auto removePath = folly::makeGuard([&snapshotPath] {
-        std::error_code ec;
-        remove_all(snapshotPath, ec);
-    });
-
-    // Call implementation to get backend specifc snapshot prepared
-    auto prepared = prepareSnapshotImpl(snapshotPath, vbid, uuid);
-    if (std::holds_alternative<cb::engine_errc>(prepared)) {
-        return std::get<cb::engine_errc>(prepared);
+    std::error_code ec;
+    if (!create_directories(snapshotPath, ec)) {
+        EP_LOG_WARN_CTX("prepareSnapshot Failed to create directories",
+                        {"vb", vbid},
+                        {"path", snapshotPath},
+                        {"code", ec.value()},
+                        {"reason", ec.message()});
+        return cb::engine_errc::failed;
     }
-    auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
 
+    return cb::engine_errc::success;
+}
+
+static std::variant<cb::engine_errc, cb::snapshot::Manifest>
+doPrepareSnapshotImpl(KVStore& kvs,
+                      CookieIface& cookie,
+                      const std::filesystem::path& path,
+                      Vbid vbid,
+                      std::string_view uuid) {
+    ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
+            cookie, cb::tracing::Code::PrepareSnapshot);
+    return kvs.prepareSnapshotImpl(path, vbid, uuid);
+}
+
+static void prepareSnapshotChecksums(CookieIface& cookie,
+                                     cb::snapshot::Manifest& manifest,
+                                     const std::filesystem::path& path) {
+    ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
+            cookie, cb::tracing::Code::PrepareSnapshotChecksums);
     // Add checksums for all files in the snapshot
     for (auto& file : manifest.files) {
         maybeUpdateSha512Sum(path / manifest.uuid, file);
@@ -801,6 +819,45 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     for (auto& file : manifest.deks) {
         maybeUpdateSha512Sum(path / manifest.uuid, file);
     }
+}
+
+std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
+        CookieIface& cookie, const std::filesystem::path& path, Vbid vbid) {
+    auto uuid = ::to_string(cb::uuid::random());
+    const auto snapshotPath = path / uuid;
+    const auto status = prepareSnapshotCreatePath(cookie, snapshotPath, vbid);
+    if (status != cb::engine_errc::success) {
+        return status;
+    }
+
+    // Create a guard to clean-up on failure.
+    auto removePath = folly::makeGuard([snapshotPath, &cookie, vbid] {
+        ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
+                cookie, cb::tracing::Code::PrepareSnapshotCleanupOnFailure);
+        std::error_code ec;
+        remove_all(snapshotPath, ec);
+        if (ec) {
+            EP_LOG_WARN_CTX("prepareSnapshot Failed remove_all",
+                            {"vb", vbid},
+                            {"path", snapshotPath},
+                            {"code", ec.value()},
+                            {"reason", ec.message()});
+        }
+    });
+
+    // Call implementation to get backend specifc snapshot prepared
+    auto prepared =
+            doPrepareSnapshotImpl(*this, cookie, snapshotPath, vbid, uuid);
+    if (std::holds_alternative<cb::engine_errc>(prepared)) {
+        return std::get<cb::engine_errc>(prepared);
+    }
+    auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
+
+    // Add checksums for all files in the snapshot
+    prepareSnapshotChecksums(cookie, manifest, path);
+
+    ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
+            cookie, cb::tracing::Code::PrepareSnapshotWriteManifest);
 
     const auto manifestPath = snapshotPath / "manifest.json";
     std::error_code ec;
@@ -811,6 +868,7 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
                         {"path", manifestPath});
         return cb::engine_errc::failed;
     }
+
     // Success - remove the clean-up guard and return the manifest
     removePath.dismiss();
     return manifest;

@@ -88,6 +88,16 @@ enum class Code : uint8_t {
     StorageEngineStats,
     /// Time spent from being notified until actually executed
     Notified,
+    /// Time spent in prepareSnapshot creating the paths
+    PrepareSnapshotCreatePath,
+    /// Time spent in prepareSnapshot (backend dependent implementation)
+    PrepareSnapshot,
+    /// Time spent in prepareSnapshot checksums (for all file artefacts)
+    PrepareSnapshotChecksums,
+    /// Time spent in prepareSnapshot writing the manifest
+    PrepareSnapshotWriteManifest,
+    /// Time spent in prepareSnapshot cleaning up on failure
+    PrepareSnapshotCleanupOnFailure,
 };
 
 } // namespace cb::tracing

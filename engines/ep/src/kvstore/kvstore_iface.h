@@ -195,7 +195,9 @@ public:
      * @return Manifest for success or status code for failure
      */
     virtual std::variant<cb::engine_errc, cb::snapshot::Manifest>
-    prepareSnapshot(const std::filesystem::path& snapshotDirectory, Vbid vb) {
+    prepareSnapshot(CookieIface& cookie,
+                    const std::filesystem::path& snapshotDirectory,
+                    Vbid vb) {
         return cb::engine_errc::not_supported;
     }
 
