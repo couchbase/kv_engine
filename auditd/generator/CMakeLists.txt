@@ -49,7 +49,9 @@ foreach(audit_descriptor_file
             ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json
-            ${CMAKE_SOURCE_DIR}/cbbs/audit/audit_descriptor.json)
+            ${CMAKE_SOURCE_DIR}/cbbs/audit/audit_descriptor.json
+            ${CMAKE_SOURCE_DIR}/backup/etc/audit_descriptor.json
+        )
 
     if (EXISTS ${audit_descriptor_file})
        list(APPEND AUDIT_MODULE_DEPENDENCIES ${audit_descriptor_file})
