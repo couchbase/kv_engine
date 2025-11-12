@@ -2881,11 +2881,10 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
         checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
 
-        auto rv = get(h, cookie, "key3", Vbid(0));
-        checkeq(cb::engine_errc::success, rv.first, "Expected success.");
-        if (rv.second->getValueView() != "value") {
-            std::cerr << "Value mismatch: " << rv.second->getValueView()
-                      << " != "
+        const auto [status, item] = get(h, cookie, "key3", Vbid(0));
+        checkeq(cb::engine_errc::success, status, "Expected success.");
+        if (item->getValueView() != "value") {
+            std::cerr << "Value mismatch: " << item->getValueView() << " != "
                       << "value" << std::endl;
             return FAIL;
         }
