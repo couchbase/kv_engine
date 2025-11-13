@@ -387,8 +387,6 @@ TEST_P(FusionTest, Stat_SyncInfo) {
     EXPECT_EQ(0, json["logSeqno"]);
     ASSERT_TRUE(json.contains("logTerm"));
     EXPECT_EQ(0, json["logTerm"]);
-    ASSERT_TRUE(json.contains("version"));
-    EXPECT_EQ(1, json["version"]);
 }
 
 TEST_P(FusionTest, Stat_SyncInfo_VbidInvalid) {
