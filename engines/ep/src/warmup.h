@@ -621,6 +621,11 @@ private:
     void scheduleShardedTasks(WarmupState::State phase);
 
     /**
+     * Helper method to schedule a task for each shard that has an access log.
+     */
+    void scheduleAccessLogTasks();
+
+    /**
      * Helper method to schedule per sharded tasks which have a bounded
      * number of tasks to run.
      *
@@ -762,6 +767,18 @@ private:
     cb::RelaxedAtomic<size_t> keys{0};
     /// counter of values loaded by this Warmup
     cb::RelaxedAtomic<size_t> values{0};
+
+    // checkForAccessLog populates this vector with the ids of shards that have
+    // an access log to load from and scheduleLoadingAccessLog uses this list of
+    // shards to schedule one task per shard that has an access log.
+    std::vector<uint16_t> accessLogShards;
+
+    // Count of tasks scheduled, used by the tasks to determine when all tasks
+    // have completed and the next phase of warmup can be started.
+    std::atomic<size_t> accessLogTasks{0};
+
+    // Count of keys that were loaded by access log phase.
+    cb::RelaxedAtomic<size_t> accessLogKeysLoaded{0};
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.
