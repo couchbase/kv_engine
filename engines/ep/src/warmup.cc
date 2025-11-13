@@ -1640,21 +1640,28 @@ void Warmup::scheduleShardedTasks(WarmupState::State phase) {
                     std::make_shared<WarmupPopulateVBucketMap>(
                             store, shardId, *this));
             break;
-        case WarmupState::State::LoadingAccessLog:
-            ExecutorPool::get()->schedule(std::make_shared<WarmupLoadAccessLog>(
-                    store, shardId, this));
-            break;
+
         case WarmupState::State::LoadingData:
         case WarmupState::State::KeyDump:
         case WarmupState::State::LoadingKVPairs:
         case WarmupState::State::Initialize:
         case WarmupState::State::CheckForAccessLog:
+        case WarmupState::State::LoadingAccessLog:
         case WarmupState::State::Done:
             throw std::logic_error(
                     "Warmup::scheduleShardedTasks: Unexpected phase:" +
                     to_string(phase));
         }
     }
+}
+
+void Warmup::scheduleAccessLogTasks() {
+    threadtask_count = 0;
+    for (const auto shardId : accessLogShards) {
+        ExecutorPool::get()->schedule(
+                std::make_shared<WarmupLoadAccessLog>(store, shardId, this));
+    }
+    accessLogShards.clear();
 }
 
 size_t Warmup::getNumberOfTasksToSchedule(float config, size_t numShards) {
@@ -1777,7 +1784,6 @@ void Warmup::checkForAccessLog() {
         }
     };
 
-    size_t accesslogs = 0;
     if (config.isAccessScannerEnabled() && !config.getAlogPath().empty()) {
         accessLog.resize(getNumShards());
         for (uint16_t i = 0; i < accessLog.size(); i++) {
@@ -1792,12 +1798,13 @@ void Warmup::checkForAccessLog() {
             addExistingMutationLog(shardLogs, file);
 
             if (!shardLogs.empty()) {
-                // If we found any access log, increase this counter by 1
-                ++accesslogs;
+                // If we found any access log, save the shard ID
+                accessLogShards.emplace_back(i);
             }
         }
     }
-    if (accesslogs == getNumShards()) {
+    if (!accessLogShards.empty()) {
+        accessLogTasks.store(accessLogShards.size());
         transition(WarmupState::State::LoadingAccessLog);
     } else {
         // We aren't loading anything from the accessLog, nuke it
@@ -1839,7 +1846,7 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
     }
 
     // No more logs for this shard, check if can we change state?
-    if (++threadtask_count == getNumShards()) {
+    if (++threadtask_count == accessLogTasks) {
         // We don't need the accessLog anymore, and it uses a bunch of memory.
         // Nuke it now to get the memory back.
         accessLog.clear();
@@ -1895,10 +1902,13 @@ Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLogReader& lf,
         }
     }
 
+    accessLogKeysLoaded.store(lf.getLoaded());
     EP_LOG_INFO(
-            "Warmup({}) access log loaded items:{}, skipped:{}, error:{} in {}",
+            "Warmup({}) access log loaded items:{}, total:{}, skipped:{}, "
+            "error:{} in {}",
             getName(),
             lf.getLoaded(),
+            accessLogKeysLoaded,
             lf.getSkipped(),
             lf.getError(),
             cb::time2text(lf.getDurationSinceOpen()));
@@ -1938,8 +1948,10 @@ void Warmup::step() {
     case WarmupState::State::LoadingCollectionCounts:
     case WarmupState::State::LoadPreparedSyncWrites:
     case WarmupState::State::PopulateVBucketMap:
-    case WarmupState::State::LoadingAccessLog:
         scheduleShardedTasks(state);
+        return;
+    case WarmupState::State::LoadingAccessLog:
+        scheduleAccessLogTasks();
         return;
     case WarmupState::State::KeyDump:
     case WarmupState::State::LoadingKVPairs:
@@ -1989,6 +2001,9 @@ void Warmup::addCommonStats(const StatCollector& collector) const {
     } else {
         collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
     }
+
+    collector.addStat(Key::ep_warmup_access_log_keys_loaded,
+                      accessLogKeysLoaded.load());
 }
 
 void Warmup::addSecondaryWarmupStatsToPrometheus(
@@ -2076,6 +2091,9 @@ void Warmup::addSecondaryWarmupStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_secondary_warmup_estimated_value_count,
                           warmupCount);
     }
+
+    collector.addStat(Key::ep_warmup_access_log_keys_loaded,
+                      accessLogKeysLoaded.load());
 }
 
 void Warmup::addStatusMetrics(const StatCollector& collector) const {
