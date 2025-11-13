@@ -675,7 +675,12 @@ inline void Connection::handleRejectCommand(Cookie& cookie,
 
 void Connection::executeCommandPipeline() {
     const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
-    const auto tooMuchData = [this, maxSendQueueSize]() {
+    const auto tooMuchData = [this, maxSendQueueSize](bool allowDcpResponse) {
+        if (allowDcpResponse && isDCP() && isPacketAvailable() &&
+            getPacket().isResponse()) {
+            ++numEvents;
+            return false;
+        }
         return getSendQueueSize() >= maxSendQueueSize;
     };
 
@@ -699,7 +704,7 @@ void Connection::executeCommandPipeline() {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
 
-        bool stop = tooMuchData();
+        bool stop = tooMuchData(true);
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
                !stop && cookies.size() < maxActiveCommands &&
@@ -726,7 +731,7 @@ void Connection::executeCommandPipeline() {
                 //  * We have an ongoing command and this command allows
                 //    for reorder
                 if (getBucket().shouldThrottle(cookie, true, 0)) {
-                    stop = handleThrottleCommand(cookie) || tooMuchData();
+                    stop = handleThrottleCommand(cookie) || tooMuchData(true);
                 } else if ((!active || cookie.mayReorder()) &&
                            cookie.execute(true)) {
                     // Command executed successfully, reset the cookie to
@@ -734,7 +739,7 @@ void Connection::executeCommandPipeline() {
                     cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
-                    stop = tooMuchData();
+                    stop = tooMuchData(true);
                 } else {
                     active = true;
                     // We need to block, so we need to preserve the request
@@ -770,12 +775,16 @@ void Connection::executeCommandPipeline() {
         get_thread_stats(this)->conn_timeslice_yields++;
     }
 
-    if (tooMuchData()) {
+    if (tooMuchData(false)) {
         // The client have too much data spooled. Disable read event
         // to avoid the client from getting rescheduled just to back
         // out again due to too much data in the queue to start executing
         // a new command
-        disableReadEvent();
+        if (isDCP() && !isPacketAvailable()) {
+            enableReadEvent();
+        } else {
+            disableReadEvent();
+        }
     } else if (allow_more_commands) {
         if (isPacketAvailable()) {
             // We have the entire packet spooled up in the input buffer
