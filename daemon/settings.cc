@@ -496,15 +496,15 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
         } else if (key == "magma_blind_write_optimisation_enabled"sv) {
             setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
-        } else if (key == "defaultThrottleReservedUnits"sv) {
+        } else if (key == "default_throttle_reserved_units"sv) {
             setDefaultThrottleReservedUnits(value.get<size_t>());
-        } else if (key == "defaultThrottleHardLimit"sv) {
+        } else if (key == "default_throttle_hard_limit"sv) {
             setDefaultThrottleHardLimit(value.get<size_t>());
-        } else if (key == "readUnitSize"sv) {
+        } else if (key == "read_unit_size"sv) {
             setReadUnitSize(value.get<size_t>());
-        } else if (key == "writeUnitSize"sv) {
+        } else if (key == "write_unit_size"sv) {
             setWriteUnitSize(value.get<size_t>());
-        } else if (key == "nodeCapacity"sv) {
+        } else if (key == "node_capacity"sv) {
             setNodeCapacity(value.get<size_t>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});

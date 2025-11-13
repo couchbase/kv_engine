@@ -72,12 +72,14 @@ public:
 
     /// Calculate the number of Read Units from a byte value
     size_t toReadUnits(size_t nbytes) {
-        return calcUnits(nbytes, readUnitSize.load(std::memory_order_acquire));
+        return calcUnits(nbytes,
+                         read_unit_size.load(std::memory_order_acquire));
     }
 
     /// Calculate the number of Write Units from a byte value
     size_t toWriteUnits(size_t nbytes) {
-        return calcUnits(nbytes, writeUnitSize.load(std::memory_order_acquire));
+        return calcUnits(nbytes,
+                         write_unit_size.load(std::memory_order_acquire));
     }
 
     /// Calculate the number of units with the provided size a value represents
@@ -1148,53 +1150,53 @@ public:
     }
 
     size_t getDefaultThrottleReservedUnits() const {
-        return defaultThrottleReservedUnits.load(std::memory_order_acquire);
+        return default_throttle_reserved_units.load(std::memory_order_acquire);
     }
 
     void setDefaultThrottleReservedUnits(size_t val) {
-        defaultThrottleReservedUnits.store(val, std::memory_order_release);
-        has.defaultThrottleReservedUnits = true;
-        notify_changed("defaultThrottleReservedUnits");
+        default_throttle_reserved_units.store(val, std::memory_order_release);
+        has.default_throttle_reserved_units = true;
+        notify_changed("default_throttle_reserved_units");
     }
 
     size_t getDefaultThrottleHardLimit() const {
-        return defaultThrottleHardLimit.load(std::memory_order_acquire);
+        return default_throttle_hard_limit.load(std::memory_order_acquire);
     }
 
     void setDefaultThrottleHardLimit(size_t val) {
-        defaultThrottleHardLimit.store(val, std::memory_order_release);
-        has.defaultThrottleHardLimit = true;
-        notify_changed("defaultThrottleHardLimit");
+        default_throttle_hard_limit.store(val, std::memory_order_release);
+        has.default_throttle_hard_limit = true;
+        notify_changed("default_throttle_hard_limit");
     }
 
     size_t getReadUnitSize() const {
-        return readUnitSize.load(std::memory_order_acquire);
+        return read_unit_size.load(std::memory_order_acquire);
     }
 
     void setReadUnitSize(size_t val) {
-        readUnitSize.store(val, std::memory_order_release);
-        has.readUnitSize = true;
-        notify_changed("readUnitSize");
+        read_unit_size.store(val, std::memory_order_release);
+        has.read_unit_size = true;
+        notify_changed("read_unit_size");
     }
 
     size_t getWriteUnitSize() const {
-        return writeUnitSize.load(std::memory_order_acquire);
+        return write_unit_size.load(std::memory_order_acquire);
     }
 
     void setWriteUnitSize(size_t val) {
-        writeUnitSize.store(val, std::memory_order_release);
-        has.writeUnitSize = true;
-        notify_changed("writeUnitSize");
+        write_unit_size.store(val, std::memory_order_release);
+        has.write_unit_size = true;
+        notify_changed("write_unit_size");
     }
 
     size_t getNodeCapacity() const {
-        return nodeCapacity.load(std::memory_order_acquire);
+        return node_capacity.load(std::memory_order_acquire);
     }
 
     void setNodeCapacity(size_t val) {
-        nodeCapacity.store(val, std::memory_order_release);
-        has.nodeCapacity = true;
-        notify_changed("nodeCapacity");
+        node_capacity.store(val, std::memory_order_release);
+        has.node_capacity = true;
+        notify_changed("node_capacity");
     }
 
 protected:
@@ -1496,13 +1498,13 @@ protected:
     /// Magma's blind write optimisation, on or off. Default is on.
     std::atomic_bool magma_blind_write_optimisation_enabled{true};
 
-    std::atomic<size_t> defaultThrottleReservedUnits =
+    std::atomic<size_t> default_throttle_reserved_units =
             std::numeric_limits<std::size_t>::max();
-    std::atomic<size_t> defaultThrottleHardLimit =
+    std::atomic<size_t> default_throttle_hard_limit =
             std::numeric_limits<std::size_t>::max();
-    std::atomic<size_t> readUnitSize = 4096;
-    std::atomic<size_t> writeUnitSize = 1024;
-    std::atomic<size_t> nodeCapacity = std::numeric_limits<std::size_t>::max();
+    std::atomic<size_t> read_unit_size = 4096;
+    std::atomic<size_t> write_unit_size = 1024;
+    std::atomic<size_t> node_capacity = std::numeric_limits<std::size_t>::max();
 
     void notify_changed(const std::string& key);
 
@@ -1592,10 +1594,10 @@ public:
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
         bool magma_blind_write_optimisation_enabled = false;
-        bool defaultThrottleReservedUnits = false;
-        bool defaultThrottleHardLimit = false;
-        bool readUnitSize = false;
-        bool writeUnitSize = false;
-        bool nodeCapacity = false;
+        bool default_throttle_reserved_units = false;
+        bool default_throttle_hard_limit = false;
+        bool read_unit_size = false;
+        bool write_unit_size = false;
+        bool node_capacity = false;
     } has;
 };
