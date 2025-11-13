@@ -1106,6 +1106,30 @@ public:
         notify_changed("file_fragment_max_chunk_size");
     }
 
+    /**
+     * Get the maximum read size used by GetFileFragment
+     *
+     * @return the maximum read size in bytes
+     */
+    size_t getFileFragmentMaxReadSize() const {
+        return file_fragment_max_read_size.load(std::memory_order_acquire);
+    }
+    /**
+     * Set the maximum read size used by GetFileFragment
+     *
+     * @param val the new maximum read size in bytes
+     */
+    void setFileFragmentMaxReadSize(size_t val) {
+        if (val > 2_GiB) {
+            throw std::invalid_argument(
+                    "file_fragment_max_read_size must be less or equal to "
+                    "2_GiB");
+        }
+        file_fragment_max_read_size.store(val, std::memory_order_release);
+        has.file_fragment_max_read_size = true;
+        notify_changed("file_fragment_max_read_size");
+    }
+
     double getDcpConsumerMaxMarkerVersion() const {
         return dcp_consumer_max_marker_version.load(std::memory_order_acquire);
     }
@@ -1495,6 +1519,9 @@ protected:
     /// The maximum size of a chunk when reading file fragments
     std::atomic<size_t> file_fragment_max_chunk_size{20_MiB};
 
+    /// The maximum read size used by GetFileFragment
+    std::atomic<size_t> file_fragment_max_read_size{2_GiB};
+
     /// Magma's blind write optimisation, on or off. Default is on.
     std::atomic_bool magma_blind_write_optimisation_enabled{true};
 
@@ -1590,6 +1617,7 @@ public:
         bool subdoc_offload_paths_threshold = false;
         bool clustermap_push_notifications_enabled = false;
         bool file_fragment_max_chunk_size = false;
+        bool file_fragment_max_read_size = false;
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;

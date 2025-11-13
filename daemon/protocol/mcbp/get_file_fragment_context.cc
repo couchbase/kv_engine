@@ -26,12 +26,11 @@
 
 #include <algorithm>
 
-constexpr std::size_t MaxReadSize = 2_GiB;
-
 GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       uuid(cookie.getRequest().getKeyString()),
       useSendfile(cookie.getConnection().isSendfileSupported()),
+      max_read_size(Settings::instance().getFileFragmentMaxReadSize()),
       state(State::Initialize),
       chunk_size(Settings::instance().getFileFragmentMaxChunkSize()) {
     // The validator checked that the payload was JSON and that it contains
@@ -41,7 +40,7 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     id = json["id"].get<std::size_t>();
     offset = stoll(json.value("offset", "0"));
     length = stoll(json["length"].get<std::string>());
-    length = std::min(length, MaxReadSize);
+    length = std::min(length, max_read_size);
     if (!useSendfile) {
         filestream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     }
@@ -151,7 +150,7 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                         filestream.seekg(offset);
                     }
 
-                    length = std::min(length, MaxReadSize);
+                    length = std::min(length, max_read_size);
                     state = State::SendResponseHeader;
                     cookie.notifyIoComplete(cb::engine_errc::success);
                 } catch (const std::exception& exception) {

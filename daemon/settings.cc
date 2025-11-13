@@ -488,6 +488,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     std::chrono::milliseconds(value.get<size_t>()));
         } else if (key == "file_fragment_max_chunk_size"sv) {
             setFileFragmentMaxChunkSize(value.get<size_t>());
+        } else if (key == "file_fragment_max_read_size"sv) {
+            setFileFragmentMaxReadSize(value.get<size_t>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
@@ -1292,6 +1294,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFileFragmentMaxChunkSize()},
                          {"to", other.getFileFragmentMaxChunkSize()});
             setFileFragmentMaxChunkSize(other.getFileFragmentMaxChunkSize());
+        }
+    }
+
+    if (other.has.file_fragment_max_read_size) {
+        if (other.getFileFragmentMaxReadSize() !=
+            getFileFragmentMaxReadSize()) {
+            LOG_INFO_CTX("Change file_fragment_max_read_size",
+                         {"from", getFileFragmentMaxReadSize()},
+                         {"to", other.getFileFragmentMaxReadSize()});
+            setFileFragmentMaxReadSize(other.getFileFragmentMaxReadSize());
         }
     }
 

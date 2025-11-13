@@ -682,6 +682,11 @@ public:
             const GetFrameInfoFunction& getFrameInfo = {});
 
     /**
+     * Instruct the server to reload the configuration
+     */
+    void reloadConfig();
+
+    /**
      * Sent the given frame over this connection
      *
      * @param frame the frame to send to the server
@@ -979,6 +984,8 @@ public:
                     vbucket_state_t state,
                     const nlohmann::json& payload,
                     const GetFrameInfoFunction& getFrameInfo = {});
+
+    void delVbucket(Vbid vbid);
 
     vbucket_state_t getVbucket(Vbid vbid,
                                const GetFrameInfoFunction& getFrameInfo = {});

@@ -65,6 +65,7 @@ protected:
     std::size_t id{0};
     std::size_t offset{0};
     std::size_t length{0};
+    const std::size_t max_read_size{0};
     folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
     /// We're using a file_stream to read the file if we need
     /// to read it in chunks (i.e., not using sendfile).

@@ -70,6 +70,7 @@ public:
     [[nodiscard]] AuthProviderService& getAuthProviderService() override;
     [[nodiscard]] nlohmann::json to_json() const override;
     void iterateNodes(std::function<void(const Node&)> visitor) const override;
+    void changeConfig(std::function<void(nlohmann::json&)> callback) override;
 
 protected:
     /**
@@ -457,6 +458,19 @@ void ClusterImpl::forAllNodes(std::function<void(const Node&)> visitor) const {
     nodes.withRLock([&visitor](auto& vector) {
         for (const auto& node : vector) {
             visitor(*node);
+        }
+    });
+}
+
+void ClusterImpl::changeConfig(std::function<void(nlohmann::json&)> callback) {
+    nodes.withRLock([&callback](auto& vector) {
+        for (auto& node : vector) {
+            callback(node->getConfig());
+            node->writeConfig();
+            auto connection = node->getConnection();
+            connection->connect();
+            connection->authenticate("@admin");
+            connection->reloadConfig();
         }
     });
 }

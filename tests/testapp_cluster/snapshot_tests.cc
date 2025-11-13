@@ -41,7 +41,8 @@ static FrameInfoVector GetMajorityDurabilityFrameInfoVector() {
     return ret;
 }
 
-class SnapshotClusterTest : public cb::test::ClusterTest {
+class SnapshotClusterTest : public cb::test::ClusterTest,
+                            public ::testing::WithParamInterface<size_t> {
 protected:
     static void SetUpTestCase();
     static void TearDownTestCase() {
@@ -99,7 +100,7 @@ std::unique_ptr<MemcachedConnection> SnapshotClusterTest::destination_node;
 std::filesystem::path SnapshotClusterTest::destination_path;
 std::shared_ptr<Bucket> SnapshotClusterTest::bucket;
 cb::snapshot::DownloadProperties SnapshotClusterTest::download_properties;
-const std::string SnapshotClusterTest::bucket_name = "snapshot";
+const std::string SnapshotClusterTest::bucket_name = "snapshot_test";
 
 void SnapshotClusterTest::SetUpTestCase() {
     if (!cluster) {
@@ -183,13 +184,25 @@ void SnapshotClusterTest::validate_snapshot(
             nlohmann::json::parse(cb::io::loadFile(root / "manifest.json"));
     ASSERT_EQ(manifest, manifestOnDisk);
 
+    size_t filesLargerThanMaxReadSize = 0;
+
     for (auto& file : manifest.files) {
         ASSERT_TRUE(exists(root / file.path));
         ASSERT_LE(file.size, file_size(root / file.path));
+        if (file.size > GetParam()) {
+            ++filesLargerThanMaxReadSize;
+        }
     }
     for (auto& file : manifest.deks) {
         ASSERT_TRUE(exists(root / file.path));
         ASSERT_LE(file.size, file_size(root / file.path));
+    }
+
+    if (GetParam() != 2_GiB) {
+        ASSERT_NE(0, filesLargerThanMaxReadSize)
+                << "The snapshot doesn't have any file which will exercise "
+                   "chunking and test MB-69369. "
+                << "file_fragment_max_read_size: " << GetParam();
     }
 }
 
@@ -236,7 +249,11 @@ void SnapshotClusterTest::do_snapshot_status(
                       << "s with last observed state: " << value;
 }
 
-TEST_F(SnapshotClusterTest, Snapshots) {
+TEST_P(SnapshotClusterTest, Snapshots) {
+    cluster->changeConfig([](nlohmann::json& config) {
+        config["file_fragment_max_read_size"] = GetParam();
+    });
+
     populate_docs_on_source();
     BinprotGenericCommand download(ClientOpcode::DownloadSnapshot,
                                    {},
@@ -333,7 +350,8 @@ TEST_F(SnapshotClusterTest, Snapshots) {
         auto src = destination_path / bucket_name / "snapshots" /
                    manifest->uuid / file.path;
         auto dst = destination_path / bucket_name / file.path;
-        std::filesystem::copy_file(src, dst);
+        std::filesystem::copy_file(
+                src, dst, std::filesystem::copy_options::overwrite_existing);
         std::filesystem::resize_file(dst, file.size);
 
         auto json = nlohmann::json::parse(cb::io::loadFile(dst));
@@ -378,4 +396,11 @@ TEST_F(SnapshotClusterTest, Snapshots) {
     // We should be able to retrieve the same documents on the destination
     // node
     validate_docs_on_destination();
+
+    destination_node->delVbucket(Vbid{0});
 }
+
+INSTANTIATE_TEST_SUITE_P(SnapshotClusterTest,
+                         SnapshotClusterTest,
+                         ::testing::Values(1024, 2_GiB),
+                         ::testing::PrintToStringParamName());

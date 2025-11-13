@@ -114,6 +114,11 @@ public:
     virtual void iterateNodes(
             std::function<void(const Node&)> visitor) const = 0;
 
+    /// Iterate all nodes and retrigger config loading. The callback allows for
+    /// config mutation (raw JSON configuration).
+    virtual void changeConfig(
+            std::function<void(nlohmann::json&)> callback) = 0;
+
     /**
      * Factory method to create a cluster
      *

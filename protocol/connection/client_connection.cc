@@ -1693,6 +1693,14 @@ void MemcachedConnection::reloadAuditConfiguration(
     }
 }
 
+void MemcachedConnection::reloadConfig() {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::ConfigReload);
+    const auto response = execute(command);
+    if (!response.isSuccess()) {
+        throw ConnectionError("Failed to reload config", response);
+    }
+}
+
 void MemcachedConnection::applyFeatures(const Featureset& featureset) {
     BinprotHelloCommand command(agentInfo.dump());
     for (const auto& feature : featureset) {
@@ -2364,6 +2372,15 @@ void MemcachedConnection::setVbucket(Vbid vbid,
     }
 }
 
+void MemcachedConnection::delVbucket(Vbid vbid) {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::DelVbucket);
+    command.setVBucket(vbid);
+    auto rsp = execute(command);
+    if (!rsp.isSuccess()) {
+        throw ConnectionError("delVbucket: Failed to delete vbucket", rsp);
+    }
+}
+
 vbucket_state_t MemcachedConnection::getVbucket(
         Vbid vbid, const GetFrameInfoFunction& getFrameInfo) {
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetVbucket);
@@ -2617,7 +2634,7 @@ public:
     void storeData(std::string_view view) {
         sink.sink(view);
         bytes_written += view.size();
-        if (sink.getBytesWritten() == header->getBodylen()) {
+        if (bytes_written == header->getBodylen()) {
             base.terminateLoopSoon();
         }
     }
