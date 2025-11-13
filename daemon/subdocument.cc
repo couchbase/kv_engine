@@ -656,7 +656,7 @@ cb::engine_errc SubdocCommandContext::update_document(cb::engine_errc ret) {
     auto& context = *execution_context;
 
     // And finally, store the new document.
-    uint64_t new_cas;
+    uint64_t new_cas = std::numeric_limits<uint64_t>::max();
     mutation_descr_t mdt;
     auto new_op =
             context.needs_new_doc ? StoreSemantics::Add : StoreSemantics::CAS;

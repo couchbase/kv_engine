@@ -147,7 +147,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     // Store our series of documents:1, high=1, 2, high=2, 3, ...
     Document high;
     high.info.id = "high";
-    uint64_t uuid;
+    uint64_t uuid = std::numeric_limits<uint64_t>::max();
     constexpr size_t docCount = 100;
 
     for (size_t i = 0; i < docCount; i++) {

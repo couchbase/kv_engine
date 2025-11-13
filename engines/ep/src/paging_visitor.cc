@@ -425,8 +425,8 @@ bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     // not be accessed. Here we create a copy of the key on the stack, avoiding
     // heap allocation, which was shown to be expensive when profiling.
     std::array<uint8_t, MaxCollectionsKeyLen> keyBuf;
-    size_t keySize;
-    DocKeyEncodesCollectionId keyEncoding;
+    size_t keySize = 0;
+    DocKeyEncodesCollectionId keyEncoding = DocKeyEncodesCollectionId::No;
     if (policy == ::EvictionPolicy::Full) {
         const auto& vk = v->getKey();
         keySize = vk.size();

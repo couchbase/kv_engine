@@ -712,33 +712,27 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                                             uint64_t bySeqno,
                                             uint64_t revSeqno,
                                             uint32_t deleteTime) {
-    IncludeDeleteTime includeDeleteTime;
+    IncludeDeleteTime includeDeleteTime = IncludeDeleteTime::Yes;
     size_t bytes = 0;
-    DeleteSource deleteSource;
+    DeleteSource deleteSource = DeleteSource::Explicit;
     switch (origin) {
-    case DeleteType::Deletion: {
+    case DeleteType::Deletion:
         includeDeleteTime = IncludeDeleteTime::No;
         deleteTime = 0;
-        deleteSource = DeleteSource::Explicit;
         bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
                 value.size();
         break;
-    }
-    case DeleteType::DeletionV2: {
-        includeDeleteTime = IncludeDeleteTime::Yes;
-        deleteSource = DeleteSource::Explicit;
+    case DeleteType::DeletionV2:
         bytes = MutationResponse::deletionV2BaseMsgBytes + key.size() +
                 value.size();
         break;
-    }
-    case DeleteType::Expiration: {
-        includeDeleteTime = IncludeDeleteTime::Yes;
+    case DeleteType::Expiration:
         deleteSource = DeleteSource::TTL;
         bytes = MutationResponse::expirationBaseMsgBytes + key.size() +
                 value.size();
         break;
     }
-    }
+
     if (bytes == 0) {
         throw std::logic_error(std::string("DcpConsumer::toMainDeletion: ") +
                                logHeader() +
