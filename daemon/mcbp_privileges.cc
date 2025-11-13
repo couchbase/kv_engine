@@ -179,7 +179,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::BucketThrottleManagement>);
     setup(ClientOpcode::SetBucketDataLimitExceeded,
           require<Privilege::BucketThrottleManagement>);
-    setup(ClientOpcode::SetNodeThrottleProperties,
+    setup(ClientOpcode::SetNodeThrottleProperties_Unsupported,
           require<Privilege::BucketThrottleManagement>);
     setup(ClientOpcode::SetVbucket, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::GetVbucket, empty);

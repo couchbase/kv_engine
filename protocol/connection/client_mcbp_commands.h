@@ -1215,15 +1215,6 @@ protected:
     nlohmann::json document;
 };
 
-class SetNodeThrottlePropertiesCommand : public BinprotGenericCommand {
-public:
-    SetNodeThrottlePropertiesCommand(nlohmann::json json);
-    void encode(std::vector<uint8_t>& buf) const override;
-
-protected:
-    nlohmann::json document;
-};
-
 class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {
 public:
     SetBucketDataLimitExceededCommand(std::string key_,

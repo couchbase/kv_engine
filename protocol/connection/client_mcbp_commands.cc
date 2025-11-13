@@ -2122,19 +2122,6 @@ void SetBucketThrottlePropertiesCommand::encode(
     buf.insert(buf.end(), payload.begin(), payload.end());
 }
 
-SetNodeThrottlePropertiesCommand::SetNodeThrottlePropertiesCommand(
-        nlohmann::json json)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetNodeThrottleProperties) {
-    document = std::move(json);
-    setDatatype(cb::mcbp::Datatype::JSON);
-}
-
-void SetNodeThrottlePropertiesCommand::encode(std::vector<uint8_t>& buf) const {
-    auto payload = document.dump();
-    writeHeader(buf, payload.size(), 0);
-    buf.insert(buf.end(), payload.begin(), payload.end());
-}
-
 SetBucketDataLimitExceededCommand::SetBucketDataLimitExceededCommand(
         std::string key_,cb::mcbp::Status status)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,

@@ -374,7 +374,7 @@ public:
         setup(ClientOpcode::SetBucketDataLimitExceeded,
               {"SET_BUCKET_DATA_LIMIT_EXCEEDED"sv,
                {Attribute::Supported, Attribute::Reorder}});
-        setup(ClientOpcode::SetNodeThrottleProperties,
+        setup(ClientOpcode::SetNodeThrottleProperties_Unsupported,
               {"SET_NODE_THROTTLE_PROPERTIES"sv,
                {Attribute::Supported, Attribute::Reorder}});
         setup(ClientOpcode::SetActiveEncryptionKeys,

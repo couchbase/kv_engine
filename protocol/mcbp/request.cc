@@ -345,7 +345,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::LastClosedCheckpoint_Unsupported:
         case ClientOpcode::DeregisterTapClient_Unsupported:
         case ClientOpcode::ResetReplicationChain_Unsupported:
-        case ClientOpcode::SetNodeThrottleProperties:
+        case ClientOpcode::SetNodeThrottleProperties_Unsupported:
         case ClientOpcode::SetActiveEncryptionKeys:
         case ClientOpcode::PruneEncryptionKeys:
         case ClientOpcode::DcpCloseStream:

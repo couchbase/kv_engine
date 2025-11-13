@@ -941,7 +941,7 @@ void initialize_mbcp_lookup_map() {
                   set_bucket_throttle_properties_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
                   set_bucket_data_limit_exceeded_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+    setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties_Unsupported,
                   set_node_throttle_properties_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
                   set_active_encryption_key_executor);

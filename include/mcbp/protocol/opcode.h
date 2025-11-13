@@ -79,7 +79,7 @@ enum class ClientOpcode : uint8_t {
     /// Toggle bucket limit exceeded
     SetBucketDataLimitExceeded = 0x2b,
 
-    SetNodeThrottleProperties = 0x2c,
+    SetNodeThrottleProperties_Unsupported = 0x2c,
     SetActiveEncryptionKeys = 0x2d,
     PruneEncryptionKeys = 0x2e,
 

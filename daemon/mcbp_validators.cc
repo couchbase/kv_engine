@@ -3172,7 +3172,8 @@ McbpValidator::McbpValidator() {
 
     setup(ClientOpcode::SetBucketThrottleProperties,
           set_bucket_throttle_properties_validator);
-    setup(ClientOpcode::SetNodeThrottleProperties, not_supported_validator);
+    setup(ClientOpcode::SetNodeThrottleProperties_Unsupported,
+          not_supported_validator);
 
     setup(ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(ClientOpcode::GetAdjustedTime_Unsupported, not_supported_validator);
