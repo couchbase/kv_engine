@@ -3397,7 +3397,7 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         return cb::engine_errc::not_supported;
     }
 
-    // Format: "fusion sub_cmd opt<vbid>"
+    // Format: "fusion sub_cmd opt<vbid|detail>"
     std::string trimmedStatKey(statKey);
     boost::algorithm::trim(trimmedStatKey);
     const auto args = cb::string::split(trimmedStatKey, ' ');
@@ -3417,34 +3417,56 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    std::optional<Vbid> vbid;
+    std::optional<std::variant<Vbid, std::string>> extraArg;
     if (args.size() == 3) {
         const auto third = std::string(args.at(2));
-        if (!std::ranges::all_of(third, ::isdigit)) {
+        if (std::ranges::all_of(third, ::isdigit)) {
+            const auto value = std::stoul(third);
+            if (value > std::numeric_limits<uint16_t>::max()) {
+                EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid vbid",
+                                {"stat_key", statKey});
+                return cb::engine_errc::invalid_arguments;
+            }
+            extraArg = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
+        } else if (third == "detail") {
+            extraArg = third;
+        } else {
             EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid arguments",
                             {"stat_key", statKey});
             return cb::engine_errc::invalid_arguments;
         }
-        const auto value = std::stoul(third);
-        if (value > std::numeric_limits<uint16_t>::max()) {
-            EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid vbid",
-                            {"stat_key", statKey});
-            return cb::engine_errc::invalid_arguments;
+    }
+
+    if (extraArg) {
+        // 'fusion <subCmd> <vbid>'
+        if (std::holds_alternative<Vbid>(*extraArg)) {
+            return fusionStatVBucket(
+                    cookie, add_stat, stat, std::get<Vbid>(*extraArg));
         }
-        vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
+        // fusion <subCmd> detail'
+        return fusionStatDetail(stat, cookie, add_stat);
     }
 
-    if (vbid) {
-        return doFusionVBucketStats(cookie, add_stat, stat, *vbid);
+    // Aggregate stat group request 'fusion <subCmd>'
+    switch (stat) {
+    case FusionStat::ActiveGuestVolumes:
+        return fusionStatGuestVolumesAggregate(cookie, add_stat);
+    case FusionStat::Uploader:
+    case FusionStat::Migration:
+    case FusionStat::SyncInfo:
+    case FusionStat::IsMounted:
+    case FusionStat::Invalid:
+        EP_LOG_WARN_CTX("EPBucket::doFusionStats: Aggregate not supported",
+                        {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
     }
-
-    return doFusionAggregatedStats(cookie, add_stat, stat);
+    folly::assume_unreachable();
 }
 
-cb::engine_errc EPBucket::doFusionVBucketStats(CookieIface& cookie,
-                                               const AddStatFn& add_stat,
-                                               FusionStat stat,
-                                               Vbid vbid) {
+cb::engine_errc EPBucket::fusionStatVBucket(CookieIface& cookie,
+                                            const AddStatFn& add_stat,
+                                            FusionStat stat,
+                                            Vbid vbid) {
     const auto [errc, json] = getRWUnderlying(vbid)->getFusionStats(stat, vbid);
     if (errc != cb::engine_errc::success) {
         // Details logged at KVStore level
@@ -3454,27 +3476,7 @@ cb::engine_errc EPBucket::doFusionVBucketStats(CookieIface& cookie,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::doFusionAggregatedStats(CookieIface& cookie,
-                                                  const AddStatFn& add_stat,
-                                                  FusionStat stat) {
-    switch (stat) {
-    case FusionStat::ActiveGuestVolumes:
-        return doFusionAggregatedGuestVolumesStats(cookie, add_stat);
-    case FusionStat::Uploader:
-    case FusionStat::Migration:
-        return doFusionAggregatedStatGroup(stat, cookie, add_stat);
-    case FusionStat::SyncInfo:
-    case FusionStat::IsMounted:
-    case FusionStat::Invalid: {
-        EP_LOG_WARN_CTX("EPBucket::doFusionAggregatedStats: Not supported",
-                        {"stat", stat});
-        return cb::engine_errc::not_supported;
-    }
-    }
-    folly::assume_unreachable();
-}
-
-cb::engine_errc EPBucket::doFusionAggregatedGuestVolumesStats(
+cb::engine_errc EPBucket::fusionStatGuestVolumesAggregate(
         CookieIface& cookie, const AddStatFn& add_stat) {
     const auto vbuckets = vbMap.getBuckets();
     std::unordered_set<std::string> volumes;
@@ -3514,8 +3516,9 @@ cb::engine_errc EPBucket::doFusionAggregatedGuestVolumesStats(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::doFusionAggregatedStatGroup(
-        FusionStat statGroup, CookieIface& cookie, const AddStatFn& add_stat) {
+cb::engine_errc EPBucket::fusionStatDetail(FusionStat statGroup,
+                                           CookieIface& cookie,
+                                           const AddStatFn& add_stat) {
     const auto vbuckets = vbMap.getBuckets();
     nlohmann::json json;
     for (const auto vbid : vbuckets) {

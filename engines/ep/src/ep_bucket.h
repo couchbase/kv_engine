@@ -654,19 +654,19 @@ protected:
      */
     std::filesystem::space_info getDiskSpaceUsed() const;
 
-    cb::engine_errc doFusionVBucketStats(CookieIface& cookie,
-                                         const AddStatFn& add_stat,
-                                         FusionStat stat,
-                                         Vbid vbid);
+    cb::engine_errc fusionStatVBucket(CookieIface& cookie,
+                                      const AddStatFn& add_stat,
+                                      FusionStat stat,
+                                      Vbid vbid);
 
-    cb::engine_errc doFusionAggregatedStats(CookieIface& cookie,
-                                            const AddStatFn& add_stat,
-                                            FusionStat stat);
-    cb::engine_errc doFusionAggregatedStatGroup(FusionStat statGroup,
-                                                CookieIface& cookie,
-                                                const AddStatFn& add_stat);
-    cb::engine_errc doFusionAggregatedGuestVolumesStats(
-            CookieIface& cookie, const AddStatFn& add_stat);
+    cb::engine_errc fusionStatDetail(FusionStat statGroup,
+                                     CookieIface& cookie,
+                                     const AddStatFn& add_stat);
+
+    cb::engine_errc fusionStatGuestVolumesDetail(CookieIface& cookie,
+                                                 const AddStatFn& add_stat);
+    cb::engine_errc fusionStatGuestVolumesAggregate(CookieIface& cookie,
+                                                    const AddStatFn& add_stat);
 
     void deleteVbucketImpl(LockedVBucketPtr& lockedVB) override;
 

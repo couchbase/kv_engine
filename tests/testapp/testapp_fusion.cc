@@ -472,7 +472,7 @@ TEST_P(FusionTest, Stat_Uploader) {
     EXPECT_EQ(0, json["snapshot_pending_bytes"]);
 }
 
-TEST_P(FusionTest, Stat_Uploader_Aggregate) {
+TEST_P(FusionTest, Stat_Uploader_Detail) {
     if (!isFusionSupportedInBucket()) {
         GTEST_SKIP() << "Fusion is not supported in this bucket";
     }
@@ -482,7 +482,7 @@ TEST_P(FusionTest, Stat_Uploader_Aggregate) {
     connection->store("bump-vb-high-seqno", vb1, {});
     connection->waitForSeqnoToPersist(Vbid(1), 1);
 
-    const auto [ec, res] = fusionStats("uploader");
+    const auto [ec, res] = fusionStats("uploader", "detail");
     ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.is_object());
@@ -586,7 +586,7 @@ TEST_P(FusionTest, Stat_Migration) {
     EXPECT_EQ(0, json["total_bytes"]);
 }
 
-TEST_P(FusionTest, Stat_Migration_Aggregate) {
+TEST_P(FusionTest, Stat_Migration_Detail) {
     if (!isFusionSupportedInBucket()) {
         GTEST_SKIP() << "Fusion is not supported in this bucket";
     }
@@ -596,7 +596,7 @@ TEST_P(FusionTest, Stat_Migration_Aggregate) {
     connection->store("bump-vb-high-seqno", vb1, {});
     connection->waitForSeqnoToPersist(Vbid(1), 1);
 
-    const auto [ec, res] = fusionStats("migration");
+    const auto [ec, res] = fusionStats("migration", "detail");
     ASSERT_EQ(cb::engine_errc::success, ec);
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.is_object());
@@ -762,6 +762,59 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes_Aggregate) {
             getGuestVolumeFullPath(vbid9).generic_string(),
             getGuestVolumeFullPath(vbid).generic_string()};
     EXPECT_EQ(expected, resVolumes);
+
+    setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
+
+    // Clean up
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};
+    cmd.setVBucket(vbid9);
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              adminConnection->execute(cmd).getStatus());
+}
+
+TEST_P(FusionTest, Stat_ActiveGuestVolumes_Detail) {
+    if (!isFusionSupportedInBucket()) {
+        auto [ec, json] = fusionStats("active_guest_volumes", "detail");
+        ASSERT_EQ(cb::engine_errc::not_supported, ec);
+        return;
+    }
+
+    // Create 2 vbuckets
+    const auto vbid5 = Vbid(5);
+    const auto vbid7 = Vbid(7);
+    nlohmann::json meta;
+    meta["topology"] = nlohmann::json::array({{"active"}});
+    adminConnection->setVbucket(vbid5, vbucket_state_active, meta);
+    ensureKVStoreCreated(vbid5);
+    adminConnection->setVbucket(vbid7, vbucket_state_active, meta);
+    ensureKVStoreCreated(vbid7);
+
+    setMemcachedConfig("fusion_migration_rate_limit", 0);
+
+    recreateVbucketByMount(vbid5);
+    recreateVbucketByMount(vbid7);
+
+    // Verify active_guest_volumes stat
+    auto [ec, json] = fusionStats("active_guest_volumes", "detail");
+    ASSERT_EQ(cb::engine_errc::success, ec);
+
+    ASSERT_FALSE(json.empty());
+    ASSERT_TRUE(json.is_object());
+    ASSERT_TRUE(json.contains("vb_5"));
+    const auto vb_5 = json["vb_5"];
+    ASSERT_TRUE(vb_5.is_array());
+    ASSERT_TRUE(json.contains("vb_7"));
+    const auto vb_7 = json["vb_7"];
+    ASSERT_TRUE(vb_7.is_array());
+
+    const std::vector<std::string> expected5 = {
+            getGuestVolumeFullPath(vbid5).generic_string()};
+    const std::vector<std::string> volume5 = json["vb_5"];
+    EXPECT_EQ(expected5, volume5);
+    const std::vector<std::string> expected7 = {
+            getGuestVolumeFullPath(vbid7).generic_string()};
+    const std::vector<std::string> volume7 = json["vb_7"];
+    EXPECT_EQ(expected7, volume7);
 
     setMemcachedConfig("fusion_migration_rate_limit", 75_MiB);
 }
