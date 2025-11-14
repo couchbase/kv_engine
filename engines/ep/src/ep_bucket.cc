@@ -3361,38 +3361,28 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         return cb::engine_errc::not_supported;
     }
 
-    std::optional<std::string> subCmd;
-    std::optional<Vbid> vbid;
-
-    // Format: "fusion opt<sub_cmd> opt<vbid>"
+    // Format: "fusion sub_cmd opt<vbid>"
     std::string trimmedStatKey(statKey);
     boost::algorithm::trim(trimmedStatKey);
     const auto args = cb::string::split(trimmedStatKey, ' ');
-    if (args.size() == 0 || args.size() > 3) {
+    if (args.size() < 2 || args.size() > 3) {
         EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid arguments",
                         {"stat_key", statKey});
         return cb::engine_errc::invalid_arguments;
     }
 
     Expects(args.at(0) == "fusion");
-    if (args.size() == 2) {
-        const auto second = std::string(args.at(1));
-        if (std::ranges::all_of(second, ::isdigit)) {
-            // "fusion <vbid>"
-            const auto value = std::stoul(second);
-            if (value > std::numeric_limits<uint16_t>::max()) {
-                EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid vbid",
-                                {"stat_key", statKey});
-                return cb::engine_errc::invalid_arguments;
-            }
-            vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
-        } else {
-            // "fusion <sub_cmd>"
-            subCmd = second;
-        }
-    } else if (args.size() == 3) {
-        // "fusion <sub_cmd> <vbid>"
-        subCmd = args.at(1);
+
+    const auto subCmd = std::string(args.at(1));
+    const auto stat = toFusionStat(subCmd);
+    if (stat == FusionStat::Invalid) {
+        EP_LOG_WARN_CTX("EPBucket::doFusionStats: Invalid arguments",
+                        {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    std::optional<Vbid> vbid;
+    if (args.size() == 3) {
         const auto third = std::string(args.at(2));
         if (!std::ranges::all_of(third, ::isdigit)) {
             EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid arguments",
@@ -3401,23 +3391,11 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         }
         const auto value = std::stoul(third);
         if (value > std::numeric_limits<uint16_t>::max()) {
-            EP_LOG_WARN_CTX(
-                    "EPBucket::::doFusionStats: invalid vbid (after subcmd)",
-                    {"stat_key", statKey});
+            EP_LOG_WARN_CTX("EPBucket::::doFusionStats: invalid vbid",
+                            {"stat_key", statKey});
             return cb::engine_errc::invalid_arguments;
         }
         vbid = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
-    }
-
-    if (!subCmd) {
-        return cb::engine_errc::not_supported;
-    }
-
-    const auto stat = toFusionStat(*subCmd);
-    if (stat == FusionStat::Invalid) {
-        EP_LOG_WARN_CTX("EPBucket::doFusionStats: Invalid arguments",
-                        {"stat", *subCmd});
-        return cb::engine_errc::invalid_arguments;
     }
 
     if (vbid) {

@@ -385,8 +385,22 @@ TEST_P(FusionTest, FusionSyncRateLimit) {
  * present
  */
 TEST_P(FusionTest, FusionStatNoSubgroup) {
+    // Note: This encodes "fusion <vbid>"
+    const auto [ec, _] = fusionStats({"0"});
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments, ec);
+    } else {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
+    }
+}
+
+TEST_P(FusionTest, FusionStatNoSubgroupNoVbid) {
     const auto [ec, _] = fusionStats({});
-    ASSERT_EQ(cb::engine_errc::not_supported, ec);
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments, ec);
+    } else {
+        EXPECT_EQ(cb::engine_errc::not_supported, ec);
+    }
 }
 
 TEST_P(FusionTest, InvalidStat) {
