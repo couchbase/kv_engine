@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -30,6 +29,84 @@
 #include <string>
 
 std::atomic<uint64_t> ServerSocket::numInstances{0};
+
+/**
+ * A tiny helper class to handle accept failures and log appropriately.
+ *
+ * One problem is that when we run out of connections and start closing them,
+ * the client will try to reconnect quickly and we'll end up with a flood
+ * of these log messages. Given that we only keep a certain limit of logging
+ * around these log messages will make the log rotate quickly and drop
+ * more important log messages.
+ *
+ * This class implements the following logic:
+ *
+ * The first time we see an accept failure we log it immediately. We then
+ * log at most once a minute (happens upon when we see another accept failure)
+ *
+ * We don't immediately clear the state when we see a successful accept as
+ * that would be noisy in the case where we are close to the limit and keeps
+ * bouncing around it. Instead we wait until we've freed up at least
+ * 100 connections before we reset the state.
+ */
+class AcceptLogger {
+public:
+    AcceptLogger(bool system) : is_system(system) {
+    }
+
+    // Notify the logger about a successful accept
+    void onAcceptSuccess(size_t current, std::size_t limit) {
+        if (failure_count == 0) {
+            return;
+        }
+
+        if ((current + NumFreeConnections) < limit) {
+            // We've free'd a chunk of connections. Start enabling
+            // logging again
+            failure_count = 0;
+            success_count = 0;
+        } else {
+            ++success_count;
+        }
+    }
+
+    // Notify the logger about a failed accept
+    void onAcceptFailure(std::size_t limit) {
+        const auto now = cb::time::steady_clock::now();
+
+        ++failure_count;
+        if (failure_count == 1) {
+            first_failure = now;
+            // make sure we log immediately
+            next_log = now - std::chrono::seconds(1);
+        }
+
+        if (next_log < now) {
+            LOG_WARNING_CTX(
+                    "Shutting down client as we're running out of connections",
+                    {"system", is_system},
+                    {"failures", failure_count},
+                    {"success", success_count},
+                    {"first_failure",
+                     fmt::format("{} ago",
+                                 cb::time2text(std::chrono::duration_cast<
+                                               std::chrono::nanoseconds>(
+                                         now - first_failure)))},
+                    {"limit", limit});
+            next_log = now + LogInterval;
+        }
+    }
+
+protected:
+    static constexpr std::size_t NumFreeConnections = 100;
+    static constexpr auto LogInterval = std::chrono::minutes(1);
+
+    const bool is_system;
+    std::size_t success_count = 0;
+    std::size_t failure_count = 0;
+    std::chrono::steady_clock::time_point first_failure;
+    std::chrono::steady_clock::time_point next_log;
+};
 
 class LibeventServerSocketImpl : public ServerSocket {
 public:
@@ -98,6 +175,9 @@ protected:
 
     /// The notification handler registered in libevent
     static void listen_event_handler(evutil_socket_t, short, void* arg);
+
+    AcceptLogger system_accept_handler{true};
+    AcceptLogger user_system_accept_handler{false};
 };
 
 /**
@@ -277,11 +357,11 @@ void LibeventServerSocketImpl::acceptNewClient() {
 
     if (current > limit) {
         global_statistics.rejected_conns++;
-        LOG_WARNING_CTX(
-                "Shutting down client as we're running out of connections",
-                {"system", interface->system},
-                {"current", current},
-                {"limit", limit});
+        if (interface->system) {
+            system_accept_handler.onAcceptFailure(limit);
+        } else {
+            user_system_accept_handler.onAcceptFailure(limit);
+        }
         close_client_socket(client);
         if (interface->system) {
             --global_statistics.system_conns;
@@ -318,6 +398,12 @@ void LibeventServerSocketImpl::acceptNewClient() {
         LOG_WARNING_CTX("cb::net::setsockopt TCP_NODELAY failed",
                         {"socket", static_cast<uint64_t>(client)},
                         {"error", cb_strerror(cb::net::get_socket_error())});
+    }
+
+    if (interface->system) {
+        system_accept_handler.onAcceptSuccess(current, limit);
+    } else {
+        user_system_accept_handler.onAcceptSuccess(current, limit);
     }
 
     FrontEndThread::dispatch(client, interface);
