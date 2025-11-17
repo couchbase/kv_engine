@@ -26,12 +26,6 @@ public:
     void copyToOutputStream(std::string_view data) override;
     void copyToOutputStream(gsl::span<std::string_view> data) override;
     void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) override;
-#ifndef WIN32
-    bool isSendfileSupported() const override {
-        return !isTlsEnabled();
-    }
-#endif
-    cb::engine_errc sendFile(int fd, off_t offset, off_t length) override;
     bool isPacketAvailable() const override;
     const cb::mcbp::Header& getPacket() const override;
     void nextPacket() override;

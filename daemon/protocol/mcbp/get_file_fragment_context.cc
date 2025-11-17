@@ -29,7 +29,6 @@
 GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       uuid(cookie.getRequest().getKeyString()),
-      useSendfile(cookie.getConnection().isSendfileSupported()),
       max_read_size(Settings::instance().getFileFragmentMaxReadSize()),
       state(State::Initialize),
       chunk_size(Settings::instance().getFileFragmentMaxChunkSize()) {
@@ -41,9 +40,7 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     offset = stoll(json.value("offset", "0"));
     length = stoll(json["length"].get<std::string>());
     length = std::min(length, max_read_size);
-    if (!useSendfile) {
-        filestream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    }
+    filestream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 }
 
 GetFileFragmentContext::~GetFileFragmentContext() {
@@ -79,9 +76,6 @@ cb::engine_errc GetFileFragmentContext::step() {
             break;
         case State::ChainFileChunk:
             ret = chain_file_chunk();
-            break;
-        case State::TransferWithSendFile:
-            ret = transfer_with_sendfile();
             break;
         case State::Done:
             cookie.clearEwouldblock();
@@ -123,32 +117,8 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                         return;
                     }
 
-                    if (useSendfile) {
-                        fd = ::open(filename.c_str(), O_RDONLY);
-                        if (fd == -1) {
-                            LOG_WARNING_CTX(
-                                    "Failed to open file",
-                                    {"conn_id", cookie.getConnectionId()},
-                                    {"error", cb_strerror()},
-                                    {"file", filename});
-                            if (errno == ENOENT) {
-                                cookie.notifyIoComplete(
-                                        cb::engine_errc::no_such_key);
-                                return;
-                            }
-                            if (errno == EACCES) {
-                                cookie.notifyIoComplete(
-                                        cb::engine_errc::no_access);
-                                return;
-                            }
-                            cookie.notifyIoComplete(cb::engine_errc::failed);
-                            return;
-                        }
-                    } else {
-                        filestream.open(filename,
-                                        std::ios::binary | std::ios::in);
-                        filestream.seekg(offset);
-                    }
+                    filestream.open(filename, std::ios::binary | std::ios::in);
+                    filestream.seekg(offset);
 
                     length = std::min(length, max_read_size);
                     state = State::SendResponseHeader;
@@ -172,11 +142,7 @@ cb::engine_errc GetFileFragmentContext::send_response_header() {
                                    {},
                                    length,
                                    PROTOCOL_BINARY_RAW_BYTES);
-    if (connection.isSendfileSupported()) {
-        state = State::TransferWithSendFile;
-    } else {
-        state = State::ReadFileChunk;
-    }
+    state = State::ReadFileChunk;
     return cb::engine_errc::success;
 }
 
@@ -214,16 +180,6 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
     // // No more data to send; we're done!
     state = State::Done;
     return cb::engine_errc::success;
-}
-
-cb::engine_errc GetFileFragmentContext::transfer_with_sendfile() {
-    const auto ret = connection.sendFile(fd, offset, length);
-    if (ret == cb::engine_errc::success) {
-        // evbuffer took the ownership..
-        fd = -1;
-    }
-    state = State::Done;
-    return ret;
 }
 
 cb::engine_errc GetFileFragmentContext::chain_file_chunk() {

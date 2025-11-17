@@ -410,16 +410,6 @@ void LibeventConnection::chainDataToOutputStream(
     updateSendBytes(data.size());
 }
 
-cb::engine_errc LibeventConnection::sendFile(int fd,
-                                             off_t offset,
-                                             off_t length) {
-    if (evbuffer_add_file(
-                bufferevent_get_output(bev.get()), fd, offset, length) == 0) {
-        return cb::engine_errc::success;
-    }
-    throw std::bad_alloc();
-}
-
 constexpr const char* invalidPacketHeaderMessage =
         "Invalid packet header detected";
 

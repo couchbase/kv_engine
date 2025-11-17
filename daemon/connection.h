@@ -426,23 +426,6 @@ public:
     virtual void chainDataToOutputStream(
             std::unique_ptr<SendBuffer> buffer) = 0;
 
-    /// Do the underlying implementation used by this backed support using
-    /// sendfile(2) to transfer data between two file descriptors without
-    /// copying the data via userspace. Given that it is only our bufferevent
-    /// backend supporting this (and for !TLS) we save ourself some typing
-    /// by not making it a pure virtual
-    virtual bool isSendfileSupported() const {
-        return false;
-    }
-
-    /// Send length bytes starting from the provided offset of the file
-    /// descriptor fd to the other end. Given that it is only our bufferevent
-    /// backend supporting this (and for !TLS) we save ourself some typing
-    /// by not making it a pure virtual
-    virtual cb::engine_errc sendFile(int fd, off_t offset, off_t length) {
-        return cb::engine_errc::not_supported;
-    }
-
     /**
      * Enable the datatype which corresponds to the feature
      *

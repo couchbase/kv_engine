@@ -43,7 +43,6 @@ public:
         SendResponseHeader,
         ReadFileChunk,
         ChainFileChunk,
-        TransferWithSendFile,
         Done
     };
 
@@ -58,9 +57,7 @@ protected:
     cb::engine_errc send_response_header();
     cb::engine_errc read_file_chunk();
     cb::engine_errc chain_file_chunk();
-    cb::engine_errc transfer_with_sendfile();
     const std::string uuid;
-    const bool useSendfile;
     std::string filename;
     std::size_t id{0};
     std::size_t offset{0};
