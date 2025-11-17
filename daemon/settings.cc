@@ -1372,15 +1372,7 @@ void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
 }
 
 void Settings::setSubdocMultiMaxPaths(size_t val) {
-    // Can only change this for internal R&D, SDKs are generally hardcoded with
-    // the default so this would be pointless/dangerous to change outside of a
-    // controlled test.
-    if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
-        subdoc_multi_max_paths.store(val, std::memory_order_release);
-        has.subdoc_multi_max_paths = true;
-        notify_changed("subdoc_multi_max_paths");
-    } else {
-        LOG_WARNING_RAW(
-                "Settings::setSubdocMultiMaxPaths: ignoring request to change");
-    }
+    subdoc_multi_max_paths.store(val, std::memory_order_release);
+    has.subdoc_multi_max_paths = true;
+    notify_changed("subdoc_multi_max_paths");
 }
