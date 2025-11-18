@@ -189,6 +189,7 @@ bool AuditFile::open() {
     // In order for this to happen in production you would generate
     // so much audit data that you would rotate within the same second
     int count = 0;
+    std::error_code ec;
     do {
         if (count == 0) {
             open_file_name =
@@ -202,7 +203,7 @@ bool AuditFile::open() {
                                                          extension);
         }
         ++count;
-    } while (exists(open_file_name));
+    } while (exists(open_file_name, ec));
 
     try {
         file = cb::crypto::FileWriter::create(
@@ -286,15 +287,15 @@ void AuditFile::set_log_directory(const std::string& new_directory) {
     }
 
     log_directory = cb::io::makeExtendedLengthPath(new_directory);
-    try {
-        create_directories(log_directory);
-    } catch (const std::runtime_error& error) {
+    std::error_code ec;
+    create_directories(log_directory, ec);
+    if (ec) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the
         // node won't be able to do any auditing
         LOG_WARNING_CTX("Audit: failed to create audit directory",
                         {"path", new_directory},
-                        {"error", error.what()});
+                        {"error", ec.message()});
     }
 }
 
@@ -327,13 +328,13 @@ bool AuditFile::flush() {
 }
 
 void AuditFile::remove_file(const std::filesystem::path& path) {
-    if (exists(path)) {
-        try {
-            remove(path);
-        } catch (const std::exception& exception) {
+    std::error_code ec;
+    if (exists(path, ec)) {
+        remove(path, ec);
+        if (ec) {
             LOG_WARNING_CTX("Audit: Failed to remove file",
                             {"path", path.generic_string()},
-                            {"error", exception.what()});
+                            {"error", ec.message()});
         }
     }
 }

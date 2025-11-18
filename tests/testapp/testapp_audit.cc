@@ -16,6 +16,7 @@
 
 #include "testapp_client_test.h"
 #include <auditd/couchbase_audit_events.h>
+#include <folly/ScopeGuard.h>
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -654,38 +655,66 @@ TEST_P(AuditTest, MB51863) {
     ASSERT_EQ("0x0", document["collection_id"].get<std::string>());
 }
 
-#ifdef WIN32
-#define AuditDroppedTest DISABLED_AuditDroppedTest
-#endif
 TEST_P(AuditTest, AuditDroppedTest) {
+    using namespace std::filesystem;
     auto orgLogDir = mcd_env->getAuditLogDir();
     setEnabled(true);
 
     auto stats = getAdminConnection().stats("audit");
     // Get the current count for dropped events:
-    const auto org_dropped = stats["dropped_events"].get<size_t>();
+    auto org_dropped = stats["dropped_events"].get<size_t>();
 
     auto& json = mcd_env->getAuditConfig();
-    // Set the audit log to a path which cannot be created
-    // due to access permissions (not just the file but
-    // missing path elements in the path which needs to be
-    // created which we won't have access to create).
-    json["log_path"] = "/AuditTest/auditlog/myaudit";
-    try {
-        mcd_env->rewriteAuditConfig();
-    } catch (std::exception& e) {
-        FAIL() << "Failed to toggle audit state: " << e.what();
+
+    auto writeProtectedDir = orgLogDir / "writeprotected";
+    auto filesystem_permission_guard = folly::makeGuard([&writeProtectedDir]() {
+        std::error_code ec;
+        permissions(
+                writeProtectedDir, perms::owner_all, perm_options::replace, ec);
+        if (ec) {
+            std::cerr << "Failed to restore permissions on '"
+                      << writeProtectedDir.string() << "': " << ec.message()
+                      << std::endl;
+        }
+    });
+
+    create_directories(writeProtectedDir);
+#ifdef WIN32
+    // Seems like we can't remove the ability for a user to create a directory
+    // in a directory by removing the write permission on the parent directory.
+    // Let's just create a file with the name of the audit directory. That
+    // should cause creation of the file to fail ;)
+    {
+        auto* fp = fopen((writeProtectedDir / "myaudit").string().c_str(), "w");
+        ASSERT_NE(nullptr, fp);
+        fclose(fp);
+        std::error_code ec;
+        create_directories(writeProtectedDir / "myaudit", ec);
+        ASSERT_TRUE(ec) << ec.message();
     }
+#endif
+    // Verify that it work with both read-exec and read-only permissions
+    // set for the directory
+    for (const auto mode :
+         {perms::owner_read | perms::owner_exec, perms::owner_read}) {
+        permissions(writeProtectedDir, mode, perm_options::replace);
+        json["log_path"] = writeProtectedDir / "myaudit";
+        try {
+            mcd_env->rewriteAuditConfig();
+        } catch (std::exception& e) {
+            FAIL() << "Failed to toggle audit state: " << e.what();
+        }
 
-    getAdminConnection().reloadAuditConfiguration();
-
-    stats = getAdminConnection().stats("audit");
-    while (!stats["enabled"].get<bool>()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        getAdminConnection().reloadAuditConfiguration();
         stats = getAdminConnection().stats("audit");
-    }
+        while (!stats["enabled"].get<bool>()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            stats = getAdminConnection().stats("audit");
+        }
 
-    EXPECT_LT(org_dropped, stats["dropped_events"].get<size_t>());
+        EXPECT_LT(org_dropped, stats["dropped_events"].get<size_t>());
+        org_dropped = stats["dropped_events"].get<size_t>();
+    }
 
     // Rewrite the config back to the original one
     json["log_path"] = orgLogDir;
