@@ -13,7 +13,17 @@
 StatsGroupManager::StatsGroupManager()
     : entries({
               {StatGroupId::All, "", "Get the common stats", false, true},
-              {StatGroupId::Reset, "reset", "Reset stats", true, true},
+              {StatGroupId::Reset,
+               "reset",
+               "For dev and test use only. Using the reset command in "
+               "production can cause production problems, as well as the "
+               "inability to diagnose issues. The reset command is not a "
+               "single atomic operation; therefore, threads may keep updating "
+               "some stats while the reset operation is causing others to be "
+               "cleared. This can cause overflows for calculated values and "
+               "other stats used by the cluster",
+               true,
+               true},
               {StatGroupId::WorkerThreadInfo,
                "worker_thread_info",
                "Information about the worker threads",
