@@ -345,13 +345,13 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
 
     if (cacheTransfer && vb->shouldUseDcpCacheTransfer() &&
         isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
-        OBJ_LOG_INFO_CTX(*logger, "Requesting cache transfer", {"vb", vbucket});
         flags |= cb::mcbp::DcpAddStreamFlag::CacheTransfer;
-        // Cache transfer is currently a one-shot and shoud be done once for a
-        // replica vbucket, we don't currently want transfers to trigger later
-        // down the line if VBs change state many times
-        vb->disableCacheTransfer();
     }
+    // Cache transfer is currently a one-shot and should be done once for a
+    // replica vbucket, we don't currently want transfers to trigger later
+    // down the line if VBs change state many times. Unconditionally disable
+    // for all future add-stream requests against this vbucket.
+    vb->disableCacheTransfer();
 
     stream = makePassiveStream(engine_,
                                shared_from_base<DcpConsumer>(),
