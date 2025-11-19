@@ -260,9 +260,10 @@ void FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
                     auto [ec, json] = fusionStats("uploader", vbid);
                     if (ec != cb::engine_errc::success) {
                         throw std::runtime_error(fmt::format(
-                                "waitForUploaderState: Failed to "
-                                "fetch fusion uploader stats for {}: {}",
+                                "waitForUploaderState: Failed to fetch fusion "
+                                "uploader stats for {} state:{}: {}",
                                 vbid,
+                                state,
                                 ec));
                     }
                     return json["state"].get<std::string>() == state;
