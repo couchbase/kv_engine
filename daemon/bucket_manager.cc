@@ -333,18 +333,26 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                                 {"bucket", name},
                                 {"type", type},
                                 {"chronicle_auth_token", "not-set"},
-                                {"collection_manifest", "not-set"}};
+                                {"collection_manifest", "not-set"},
+                                {"throttle_reserved", "not-set"},
+                                {"throttle_hard_limit", "not-set"}};
 
     // Parse the configuration string and strip out various sensitive data to
     // avoid that being logged
     nlohmann::json encryption;
     std::string chronicleAuthToken;
     nlohmann::json collectionManifest;
+    std::optional<std::size_t> throttle_reserved;
+    std::optional<std::size_t> throttle_hard_limit;
 
     const auto stripped = cb::config::filter(
             config,
-            [&details, &encryption, &chronicleAuthToken, &collectionManifest](
-                    auto k, auto v) -> bool {
+            [&details,
+             &encryption,
+             &chronicleAuthToken,
+             &collectionManifest,
+             &throttle_reserved,
+             &throttle_hard_limit](auto k, auto v) -> bool {
                 if (k == "encryption") {
                     encryption = nlohmann::json::parse(v);
 
@@ -371,6 +379,16 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                     details["collection_manifest"] = "present";
                     return false;
                 }
+                if (k == "throttle_reserved") {
+                    throttle_reserved = std::stoull(std::string(v));
+                    details["throttle_reserved"] = throttle_reserved;
+                    return false;
+                }
+                if (k == "throttle_hard_limit") {
+                    throttle_hard_limit = std::stoull(std::string(v));
+                    details["throttle_hard_limit"] = throttle_hard_limit;
+                    return false;
+                }
 
                 try {
                     details["configuration"][k] = nlohmann::json::parse(v);
@@ -383,8 +401,26 @@ void BucketManager::createEngineInstance(Bucket& bucket,
 
     LOG_INFO_CTX("Initialize bucket", std::move(details));
 
+    // Set the throttle limits to the default values if not provided
+    auto& settings = Settings::instance();
+    throttle_reserved = throttle_reserved.value_or(
+            settings.getDefaultThrottleReservedUnits());
+    throttle_hard_limit = throttle_hard_limit.value_or(
+            settings.getDefaultThrottleHardLimit());
+    auto result = bucket.setThrottleLimits(throttle_reserved.value(),
+                                           throttle_hard_limit.value());
+    if (result != cb::engine_errc::success) {
+        LOG_ERROR_CTX("Failed to set throttle limits",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"throttle_reserved", throttle_reserved},
+                      {"throttle_hard_limit", throttle_hard_limit},
+                      {"error", result});
+        throw cb::engine_error(result, "Failed to set throttle limits");
+    }
+
     start = std::chrono::steady_clock::now();
-    auto result = bucket.getEngine().initialize(
+    result = bucket.getEngine().initialize(
             stripped, encryption, chronicleAuthToken, collectionManifest);
     if (result != cb::engine_errc::success) {
         throw cb::engine_error(result, "initializeEngineInstance failed");
@@ -686,7 +722,7 @@ void BucketManager::tick() {
 
     forEach([&limit](auto& b) {
         if (b.type != BucketType::NoBucket) {
-            auto [reserved, hard] = b.getThrottleLimits();
+            auto reserved = b.getThrottleReservedLimit();
             if (reserved != std::numeric_limits<std::size_t>::max()) {
                 if (reserved < limit) {
                     limit -= reserved;

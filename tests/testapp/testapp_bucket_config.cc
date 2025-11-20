@@ -116,3 +116,27 @@ TEST_P(BucketConfigTest, ValidateConditionalParameters) {
     EXPECT_EQ(response["ephemeral_full_policy"]["value"], "auto_delete");
     EXPECT_EQ(response.find("item_eviction_policy"), response.end());
 }
+
+TEST_P(BucketConfigTest, ValidateThrottleParameters) {
+    using namespace std::string_view_literals;
+
+    const auto testConfig =
+            "bucket_type=persistent;throttle_reserved=1000;throttle_hard_limit="
+            "2000";
+    auto response = adminConnection->validateBucketConfig(
+            testConfig, BucketType::Couchbase);
+    EXPECT_EQ(response["throttle_reserved"]["value"], "1000");
+    EXPECT_EQ(response["throttle_hard_limit"]["value"], "2000");
+}
+
+TEST_P(BucketConfigTest, ValidateInvalidThrottleParameters) {
+    using namespace std::string_view_literals;
+
+    const auto testConfig =
+            "bucket_type=persistent;throttle_reserved=invalid;throttle_hard_"
+            "limit=invalid";
+    auto response = adminConnection->validateBucketConfig(
+            testConfig, BucketType::Couchbase);
+    EXPECT_EQ(response["throttle_reserved"]["error"], "invalid_arguments");
+    EXPECT_EQ(response["throttle_hard_limit"]["error"], "invalid_arguments");
+}

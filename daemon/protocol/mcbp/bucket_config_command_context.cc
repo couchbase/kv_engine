@@ -39,8 +39,17 @@ cb::engine_errc BucketConfigCommandContext::execute() {
     }
 
     ParameterMap parameters;
-    cb::config::tokenize(
-            config, [&](auto key, auto val) { parameters.emplace(key, val); });
+    ParameterMap extracted_params;
+    cb::config::tokenize(config, [&](auto key, auto val) {
+        // Extract throttling configuration before passing to the engine
+        if (key == "throttle_reserved") {
+            extracted_params.emplace(key, val);
+        } else if (key == "throttle_hard_limit") {
+            extracted_params.emplace(key, val);
+        } else {
+            parameters.emplace(key, val);
+        }
+    });
 
     ParameterValidationMap validation;
 
@@ -52,6 +61,26 @@ cb::engine_errc BucketConfigCommandContext::execute() {
             configuration = create_bucket_configuration(type);
             Expects(configuration);
             validation = configuration->validateParameters(parameters);
+
+            // These are manually added as ep-engine doesn't require knowledge
+            // of these parameters. They are not added to the configuration
+            // interface to prevent auto-gen methods for ep-engine.
+            for (const auto& [key, val] : extracted_params) {
+                if (key == "throttle_reserved" ||
+                    key == "throttle_hard_limit") {
+                    try {
+                        cb::config::value_as_size_t(val);
+                        validation.emplace(
+                                key,
+                                ParameterInfo(val,
+                                              /*requiresRestart*/ false,
+                                              ParameterVisibility::Public));
+                    } catch (const std::exception& e) {
+                        validation.emplace(
+                                key, ParameterError::invalidValue(e.what()));
+                    }
+                }
+            }
         } catch (const std::exception& e) {
             response = "Failed to validate bucket configuration: " +
                        std::string(e.what());

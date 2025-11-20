@@ -4555,6 +4555,22 @@
         "stability": "internal"
     },
     {
+        "key": "throttle_reserved",
+        "unit": "none",
+        "type": "gauge",
+        "description": "Current reserved throttle limit for a bucket (units per second).",
+        "added": "8.1.0",
+        "stability": "internal"
+    },
+    {
+        "key": "throttle_hard_limit",
+        "unit": "none",
+        "type": "gauge",
+        "description": "Current hard throttle limit for a bucket (units per second).",
+        "added": "8.1.0",
+        "stability": "internal"
+    },
+    {
         "key": "storage",
         "unit": "bytes",
         "type": "gauge",

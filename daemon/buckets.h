@@ -292,14 +292,22 @@ public:
      * @param reserved The reserved number of units (RU+WU) the bucket gets
      * @param hard_limit The maximum number of units to use before throttling
      *                   commands
+     * @return cb::engine_errc::success if the limits were set successfully,
      */
-    void setThrottleLimits(std::size_t reserved, size_t hard_limit);
+    cb::engine_errc setThrottleLimits(std::size_t reserved, size_t hard_limit);
 
     /**
-     * Get the throttle limits specified for this bucket
+     * Get the throttle reserved limit specified for this bucket
      */
-    std::pair<std::size_t, std::size_t> getThrottleLimits() const {
-        return {throttle_reserved.load(), throttle_hard_limit.load()};
+    std::size_t getThrottleReservedLimit() const {
+        return throttle_reserved.load();
+    }
+
+    /**
+     * Get the throttle hard limit specified for this bucket
+     */
+    std::size_t getThrottleHardLimit() const {
+        return throttle_hard_limit.load();
     }
 
     bool isCollectionCapable() {

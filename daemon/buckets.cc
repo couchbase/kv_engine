@@ -195,6 +195,9 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
             Key::throttle_seconds_total,
             duration_cast<duration<double>>(microseconds(throttle_wait_time))
                     .count());
+
+    collector.addStat(Key::throttle_reserved, throttle_reserved.load());
+    collector.addStat(Key::throttle_hard_limit, throttle_hard_limit.load());
 }
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
@@ -244,9 +247,15 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
                     .count());
 }
 
-void Bucket::setThrottleLimits(std::size_t reserved, std::size_t hard) {
+cb::engine_errc Bucket::setThrottleLimits(std::size_t reserved,
+                                          std::size_t hard) {
+    if (reserved > hard) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
     throttle_reserved.store(reserved);
     throttle_hard_limit.store(hard);
+    return cb::engine_errc::success;
 }
 
 DcpIface* Bucket::getDcpIface() const {

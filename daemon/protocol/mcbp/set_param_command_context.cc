@@ -51,7 +51,19 @@ SetParamCommandContext::SetParamCommandContext(Cookie& cookie)
 cb::engine_errc SetParamCommandContext::step() {
     cb::engine_errc ret = cb::engine_errc::success;
     try {
-        ret = bucket_set_parameter(cookie, category, key, value, vbid);
+        // Extract throttling configuration before setting at engine level
+        if (key == "throttle_reserved") {
+            auto& bucket = cookie.getConnection().getBucket();
+            ret = bucket.setThrottleLimits(std::stoul(value),
+                                           bucket.getThrottleHardLimit());
+        } else if (key == "throttle_hard_limit") {
+            auto& bucket = cookie.getConnection().getBucket();
+            ret = bucket.setThrottleLimits(bucket.getThrottleReservedLimit(),
+                                           std::stoul(value));
+        } else {
+            // For all other parameters, set at engine level
+            ret = bucket_set_parameter(cookie, category, key, value, vbid);
+        }
     } catch (const std::exception& e) {
         LOG_WARNING_CTX("SetParamCommandContext: ",
                         {"conn_id", cookie.getConnectionId()},
