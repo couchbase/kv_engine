@@ -11,8 +11,11 @@
 
 #include <fmt/core.h>
 #include <platform/cb_malloc.h>
+
+#include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <iterator>
 
 std::string cb::config::internal::next_field(std::string_view& src, char stop) {
     auto trim_tail = [](std::string& str, std::size_t minimum) {
@@ -118,8 +121,7 @@ bool cb::config::value_as_bool(const std::string& val) {
 
     // may be upper or a mix of case... lowercase and test again
     std::string lowercase;
-    std::transform(
-            val.begin(), val.end(), std::back_inserter(lowercase), tolower);
+    std::ranges::transform(val, std::back_inserter(lowercase), tolower);
 
     if ("true"sv == lowercase || "on"sv == lowercase) {
         return true;
