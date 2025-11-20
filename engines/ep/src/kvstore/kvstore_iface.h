@@ -933,15 +933,6 @@ public:
     virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
             FusionStat stat, Vbid vbid) = 0;
 
-    virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid,
-            std::time_t validity) = 0;
-    virtual cb::engine_errc releaseFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid) = 0;
     virtual cb::engine_errc setChronicleAuthToken(std::string_view token) = 0;
     virtual std::string getChronicleAuthToken() const = 0;
     virtual cb::engine_errc syncFusionLogstore(Vbid vbid) = 0;

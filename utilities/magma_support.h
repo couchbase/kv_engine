@@ -36,6 +36,7 @@ public:
 
 class Magma {
 public:
+    using KVStoreID = uint16_t;
     static std::tuple<Status, nlohmann::json> GetFusionNamespaces(
             const std::string&,
             const std::string&,
@@ -58,6 +59,23 @@ public:
     }
     static size_t GetFusionSyncRateLimit() {
         return 0;
+    }
+    static std::tuple<Status, nlohmann::json> GetFusionStorageSnapshot(
+            const std::string& fusionMetadataStoreURI,
+            const std::string& fusionMetadataStoreAuthToken,
+            const std::string& fusionNamespace,
+            const std::vector<KVStoreID>& kvIDs,
+            const std::string& snapshotUUID,
+            std::chrono::time_point<std::chrono::system_clock> validTill) {
+        return {{}, {}};
+    }
+    static Status ReleaseFusionStorageSnapshot(
+            const std::string& fusionMetadataStoreURI,
+            const std::string& fusionMetadataStoreAuthToken,
+            const std::string& fusionNamespace,
+            const std::vector<KVStoreID>& kvIDs,
+            const std::string& snapshotUUID) {
+        return {};
     }
     enum ThreadType {
         Flusher,

@@ -4767,47 +4767,6 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
     folly::assume_unreachable();
 }
 
-std::pair<cb::engine_errc, nlohmann::json>
-MagmaKVStore::getFusionStorageSnapshot(std::string_view fusionNamespace,
-                                       Vbid vbid,
-                                       std::string_view snapshotUuid,
-                                       std::time_t validity) {
-    const auto res =
-            magma->GetFusionStorageSnapshot(std::string(fusionNamespace),
-                                            Magma::KVStoreID(vbid.get()),
-                                            std::string(snapshotUuid),
-                                            validity);
-    if (std::get<Status>(res).ErrorCode() != Status::Code::Ok) {
-        EP_LOG_WARN_CTX("MagmaKVStore::getFusionStorageSnapshot: ",
-                        {"vb", vbid.get()},
-                        {"status", std::get<Status>(res).String()},
-                        {"fusion_namespace", fusionNamespace},
-                        {"snapshot_uuid", snapshotUuid},
-                        {"validity", validity});
-        return {cb::engine_errc::failed, {}};
-    }
-    return {cb::engine_errc::success, std::get<nlohmann::json>(res)};
-}
-
-cb::engine_errc MagmaKVStore::releaseFusionStorageSnapshot(
-        std::string_view fusionNamespace,
-        Vbid vbid,
-        std::string_view snapshotUuid) {
-    const auto res =
-            magma->ReleaseFusionStorageSnapshot(std::string(fusionNamespace),
-                                                Magma::KVStoreID(vbid.get()),
-                                                std::string(snapshotUuid));
-    if (res.ErrorCode() != Status::Code::Ok) {
-        EP_LOG_WARN_CTX("MagmaKVStore::releaseFusionStorageSnapshot: ",
-                        {"vb", vbid.get()},
-                        {"status", res.String()},
-                        {"fusion_namespace", fusionNamespace},
-                        {"snapshot_uuid", snapshotUuid});
-        return cb::engine_errc::failed;
-    }
-    return cb::engine_errc::success;
-}
-
 cb::engine_errc MagmaKVStore::setChronicleAuthToken(std::string_view token) {
     magma->SetFusionMetadataStoreAuthToken(std::string(token));
     return cb::engine_errc::success;

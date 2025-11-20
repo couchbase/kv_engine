@@ -54,18 +54,6 @@ cb::engine_errc EngineIface::cancelRangeScan(CookieIface& cookie,
     return cb::engine_errc::not_supported;
 }
 
-std::pair<cb::engine_errc, nlohmann::json>
-EngineIface::getFusionStorageSnapshot(Vbid vbid,
-                                      std::string_view snapshotUuid,
-                                      std::time_t validity) {
-    return {cb::engine_errc::not_supported, {}};
-}
-
-cb::engine_errc EngineIface::releaseFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid) {
-    return cb::engine_errc::not_supported;
-}
-
 cb::engine_errc EngineIface::mountVBucket(
         CookieIface& cookie,
         Vbid vbid,

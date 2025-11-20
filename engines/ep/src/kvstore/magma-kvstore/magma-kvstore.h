@@ -661,17 +661,6 @@ public:
     std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
             FusionStat stat, Vbid vbid) override;
 
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid,
-            std::time_t validity) override;
-
-    cb::engine_errc releaseFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid) override;
-
     cb::engine_errc setChronicleAuthToken(std::string_view token) override;
     std::string getChronicleAuthToken() const override;
 

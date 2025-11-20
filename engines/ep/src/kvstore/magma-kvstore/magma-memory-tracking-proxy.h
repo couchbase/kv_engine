@@ -285,17 +285,6 @@ public:
     std::tuple<magma::Status, std::vector<std::string>>
     GetActiveFusionGuestVolumes(const magma::Magma::KVStoreID kvID);
 
-    std::tuple<magma::Status, nlohmann::json> GetFusionStorageSnapshot(
-            const std::string& fusionNamespace,
-            magma::Magma::KVStoreID kvID,
-            const std::string& snapshotUuid,
-            std::time_t validity);
-
-    magma::Status ReleaseFusionStorageSnapshot(
-            const std::string& fusionNamespace,
-            magma::Magma::KVStoreID kvID,
-            const std::string& snapshotUuid);
-
     void SetFusionMetadataStoreAuthToken(const std::string& token);
     std::string GetFusionMetadataStoreAuthToken() const;
 

@@ -1001,21 +1001,6 @@ public:
         return {cb::engine_errc::not_supported, {}};
     }
 
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid,
-            std::time_t validity) override {
-        return {cb::engine_errc::not_supported, {}};
-    }
-
-    cb::engine_errc releaseFusionStorageSnapshot(
-            std::string_view fusionNamespace,
-            Vbid vbid,
-            std::string_view snapshotUuid) override {
-        return cb::engine_errc::not_supported;
-    }
-
     cb::engine_errc setChronicleAuthToken(std::string_view token) override {
         return cb::engine_errc::not_supported;
     }

@@ -299,12 +299,6 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
-            Vbid vbid,
-            std::string_view snapshotUuid,
-            std::time_t validity) override;
-    cb::engine_errc releaseFusionStorageSnapshot(
-            Vbid vbid, std::string_view snapshotUuid) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
@@ -1629,10 +1623,6 @@ protected:
                                                const AddResponseFn& response);
 
     cb::engine_errc unmountVBucketInner(Vbid vbid);
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshotInner(
-            Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
-    cb::engine_errc releaseFusionStorageSnapshotInner(
-            Vbid vbid, std::string_view snapshotUuid);
     cb::engine_errc syncFusionLogstoreInner(Vbid vbid);
     cb::engine_errc startFusionUploaderInner(Vbid vbid, uint64_t term);
     cb::engine_errc stopFusionUploaderInner(Vbid vbid);

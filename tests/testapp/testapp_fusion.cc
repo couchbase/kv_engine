@@ -37,12 +37,20 @@ protected:
      * @param validity Timestamp in seconds
      * @return BinprotResponse
      */
-    BinprotResponse getFusionStorageSnapshot(Vbid vbid,
-                                             std::string_view snapshotUuid,
-                                             size_t validity);
+    BinprotResponse getFusionStorageSnapshot(
+            const std::vector<Vbid>& vbucketList,
+            std::string_view snapshotUuid,
+            std::string_view bucketUuid,
+            std::string_view metadatastoreUri,
+            std::string_view metadatastoreAuthToken,
+            size_t validity);
 
-    BinprotResponse releaseFusionStorageSnapshot(Vbid vbid,
-                                                 std::string_view snapshotUuid);
+    BinprotResponse releaseFusionStorageSnapshot(
+            const std::vector<Vbid>& vbucketList,
+            std::string_view snapshotUuid,
+            std::string_view bucketUuid,
+            std::string_view metadatastoreUri,
+            std::string_view metadatastoreAuthToken);
 
     BinprotResponse startFusionUploader(Vbid vbid, const nlohmann::json& term);
 
@@ -203,25 +211,46 @@ BinprotResponse FusionTest::mountVbucket(Vbid vbid,
 }
 
 BinprotResponse FusionTest::getFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid, size_t validity) {
+        const std::vector<Vbid>& vbucketList,
+        std::string_view snapshotUuid,
+        std::string_view bucketUuid,
+        std::string_view metadatastoreUri,
+        std::string_view metadatastoreAuthToken,
+        size_t validity) {
     auto cmd = BinprotGenericCommand{
             cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
-    cmd.setVBucket(vbid);
     nlohmann::json json;
-    json["snapshotUuid"] = snapshotUuid;
-    json["validity"] = validity;
+    json["snapshot_uuid"] = snapshotUuid;
+    json["bucket_uuid"] = bucketUuid;
+    json["metadatastore_uri"] = metadatastoreUri;
+    json["metadatastore_auth_token"] = metadatastoreAuthToken;
+    json["vbucket_list"] = nlohmann::json::array();
+    for (const auto& vb : vbucketList) {
+        json["vbucket_list"].push_back(vb.get());
+    }
+    json["valid_till"] = validity;
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     return connection->execute(cmd);
 }
 
 BinprotResponse FusionTest::releaseFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid) {
+        const std::vector<Vbid>& vbucketList,
+        std::string_view snapshotUuid,
+        std::string_view bucketUuid,
+        std::string_view metadatastoreUri,
+        std::string_view metadatastoreAuthToken) {
     auto cmd = BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
-    cmd.setVBucket(vbid);
     nlohmann::json json;
-    json["snapshotUuid"] = snapshotUuid;
+    json["snapshot_uuid"] = snapshotUuid;
+    json["bucket_uuid"] = bucketUuid;
+    json["metadatastore_uri"] = metadatastoreUri;
+    json["metadatastore_auth_token"] = metadatastoreAuthToken;
+    json["vbucket_list"] = nlohmann::json::array();
+    for (const auto& vb : vbucketList) {
+        json["vbucket_list"].push_back(vb.get());
+    }
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     return connection->execute(cmd);
@@ -654,13 +683,31 @@ void FusionTest::recreateVbucketByMount(Vbid vbid) {
 
     // Create a snapshot - That returns the volumeID
     const auto snapshotUuid = "some-snapshot-uuid";
+    const auto dbPath = mcd_env->getDbPath();
+    ASSERT_TRUE(exists(dbPath));
+    const auto metadatastoreUri =
+            "local://" + dbPath.generic_string() + "/metadatastore";
+    const auto metadatastoreAuthToken = "some-token";
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
     const auto validity = secs.time_since_epoch().count();
-    const auto resp = getFusionStorageSnapshot(vbid, snapshotUuid, validity);
+    std::vector vbucketList{vbid};
+    // GetFusionStorageSnapshot is expected to be called after the uploader
+    // has been started on the vb, as part of which, the entry is created on
+    // chronicle.
+    ASSERT_EQ(cb::mcbp::Status::Success,
+              startFusionUploader(vbid, "1").getStatus());
+    const auto resp = getFusionStorageSnapshot(vbucketList,
+                                               snapshotUuid,
+                                               bucketUuid,
+                                               metadatastoreUri,
+                                               metadatastoreAuthToken,
+                                               validity);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    const auto& snapshotData = resp.getDataJson();
-    ASSERT_FALSE(snapshotData.empty());
+    const auto& respData = resp.getDataJson();
+    ASSERT_FALSE(respData.empty());
+    ASSERT_TRUE(respData.is_array());
+    const auto snapshotData = respData[0];
     ASSERT_TRUE(snapshotData.contains("volumeID"));
     const auto volumeId = snapshotData["volumeID"].get<std::string>();
     ASSERT_EQ(fmt::format("kv/{}/kvstore-{}", bucketUuid, vbid.get()),
@@ -681,7 +728,6 @@ void FusionTest::recreateVbucketByMount(Vbid vbid) {
     ASSERT_TRUE(std::filesystem::create_directories(guestVolumePath));
 
     // Copy data from the fusion logstore to the guest volume directory
-    const auto dbPath = mcd_env->getDbPath();
     ASSERT_TRUE(exists(dbPath));
     const auto volumeIdPathInLogstore =
             dbPath / logstoreRelativePath / volumeId;
@@ -837,7 +883,16 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
     // magma. Here big-enough for preventing SSO that hides memory domain
     // alloc issues.
     const auto nonexistentUuid = std::string(1024, 'u');
-    auto resp = releaseFusionStorageSnapshot(vbid, nonexistentUuid);
+    const auto dbPath = mcd_env->getDbPath().generic_string();
+    ASSERT_TRUE(std::filesystem::exists(dbPath));
+    const auto metadatastoreUri = "local://" + dbPath + "/metadatastore";
+    const auto metadatastoreAuthToken = "some-token";
+    std::vector vbucketList{vbid};
+    auto resp = releaseFusionStorageSnapshot(vbucketList,
+                                             nonexistentUuid,
+                                             bucketUuid,
+                                             metadatastoreUri,
+                                             metadatastoreAuthToken);
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
 }
 
@@ -845,33 +900,67 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
     if (!isFusionSupportedInBucket()) {
         GTEST_SKIP() << "Fusion is not supported in this bucket";
     }
+
+    // Create another vbucket (vbid:0 already exists)
+    nlohmann::json meta;
+    meta["topology"] = nlohmann::json::array({{"active"}});
+    adminConnection->setVbucket(Vbid(1), vbucket_state_active, meta);
+    ensureKVStoreCreated(Vbid(1));
+
     // Create a snapshot
     // MB-65649: snaps uuid reported in the GetFusionStorageSnapshot response.
     // Here big-enough for preventing SSO that hides memory domain alloc issues.
     const auto snapshotUuid = std::string(1024, 'u');
-
+    const auto dbPath = mcd_env->getDbPath().generic_string();
+    ASSERT_TRUE(std::filesystem::exists(dbPath));
+    const auto metadatastoreUri = "local://" + dbPath + "/metadatastore";
+    const auto metadatastoreAuthToken = "some-token";
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
-    const auto validity = secs.time_since_epoch().count();
+    const auto validTill = secs.time_since_epoch().count();
+    std::vector vbucketList{vbid, Vbid(1)};
+    for (const auto& vb : vbucketList) {
+        // GetFusionStorageSnapshot is expected to be called after the uploader
+        // has been started on the vb, as part of which, the entry is created on
+        // chronicle.
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  startFusionUploader(vb, "1").getStatus());
+    }
 
-    const auto resp = getFusionStorageSnapshot(vbid, snapshotUuid, validity);
+    const auto resp = getFusionStorageSnapshot(vbucketList,
+                                               snapshotUuid,
+                                               bucketUuid,
+                                               metadatastoreUri,
+                                               metadatastoreAuthToken,
+                                               validTill);
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& json = resp.getDataJson();
     ASSERT_FALSE(json.empty());
-    ASSERT_TRUE(json.contains("createdAt"));
-    EXPECT_NE(0, json["createdAt"]);
-    ASSERT_TRUE(json.contains("logManifestName"));
-    ASSERT_TRUE(json.contains("snapshotUUID"));
-    EXPECT_EQ(snapshotUuid, json["snapshotUUID"].get<std::string>());
-    ASSERT_TRUE(json.contains("validTill"));
-    ASSERT_TRUE(json.contains("version"));
-    EXPECT_EQ(1, json["version"]);
-    ASSERT_TRUE(json.contains("volumeID"));
-    EXPECT_FALSE(json["volumeID"].empty());
+    ASSERT_TRUE(json.is_array());
+    for (const auto& vb : json) {
+        ASSERT_TRUE(vb.contains("createdAt"));
+        EXPECT_NE(0, vb["createdAt"]);
+        ASSERT_TRUE(vb.contains("logManifestName"));
+        ASSERT_TRUE(vb.contains("snapshotUUID"));
+        EXPECT_EQ(snapshotUuid, vb["snapshotUUID"].get<std::string>());
+        ASSERT_TRUE(vb.contains("validTill"));
+        ASSERT_TRUE(vb.contains("version"));
+        EXPECT_EQ(1, vb["version"]);
+        ASSERT_TRUE(vb.contains("volumeID"));
+        EXPECT_FALSE(vb["volumeID"].empty());
+    }
 
     // Then release it
     EXPECT_EQ(cb::mcbp::Status::Success,
-              releaseFusionStorageSnapshot(vbid, snapshotUuid).getStatus());
+              releaseFusionStorageSnapshot(vbucketList,
+                                           snapshotUuid,
+                                           bucketUuid,
+                                           metadatastoreUri,
+                                           metadatastoreAuthToken)
+                      .getStatus());
+
+    // Clean up additional vbucket
+    adminConnection->delVbucket(Vbid(1));
 }
 
 TEST_P(FusionTest, MountFusionVbucket_InvalidArgs) {

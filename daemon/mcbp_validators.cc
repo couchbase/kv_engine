@@ -2802,28 +2802,101 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("snapshotUuid")) {
+    if (!json.contains("snapshot_uuid")) {
         cookie.setErrorContext(
-                "get_fusion_storage_snapshot_validator: Missing snapshotUuid");
+                "get_fusion_storage_snapshot_validator: Missing snapshot_uuid");
         return Status::Einval;
     }
-    if (!json["snapshotUuid"].is_string()) {
+    if (!json["snapshot_uuid"].is_string()) {
         cookie.setErrorContext(
-                "get_fusion_storage_snapshot_validator: snapshotUuid not "
+                "get_fusion_storage_snapshot_validator: snapshot_uuid not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("validity")) {
+    if (!json.contains("bucket_uuid")) {
         cookie.setErrorContext(
-                "get_fusion_storage_snapshot_validator: Missing validity");
+                "get_fusion_storage_snapshot_validator: Missing bucket_uuid");
         return Status::Einval;
     }
-    const auto validity = json["validity"];
-    if (!validity.is_number_integer() || validity.get<int64_t>() < 0) {
+    if (!json["bucket_uuid"].is_string()) {
         cookie.setErrorContext(
-                "get_fusion_storage_snapshot_validator: validity not positive "
-                "integer");
+                "get_fusion_storage_snapshot_validator: bucket_uuid not "
+                "string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_uri")) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: Missing "
+                "metadatastore_uri");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_uri"].is_string()) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: metadatastore_uri not "
+                "string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_auth_token")) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: Missing "
+                "metadatastore_auth_token");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_auth_token"].is_string()) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: "
+                "metadatastore_auth_token not string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("vbucket_list")) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: Missing vbucket_list");
+        return Status::Einval;
+    }
+    const auto& vbList = json["vbucket_list"];
+    if (!vbList.is_array()) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: vbucket_list must be "
+                "an array");
+        return Status::Einval;
+    }
+    if (vbList.empty()) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: vbucket_list must not "
+                "be empty");
+        return Status::Einval;
+    }
+    const Vbid::id_type maxVbid = std::numeric_limits<Vbid::id_type>::max();
+    for (const auto& vb : vbList) {
+        if (!vb.is_number_integer()) {
+            cookie.setErrorContext(
+                    "get_fusion_storage_snapshot_validator: vbucket_list must "
+                    "only contain unsigned integer values");
+            return Status::Einval;
+        }
+        const auto vbId = vb.get<int64_t>();
+        if (vbId < 0 || vbId > maxVbid) {
+            cookie.setErrorContext(
+                    "get_fusion_storage_snapshot_validator: vbucket_list "
+                    "contains vbucket outside valid range");
+            return Status::Einval;
+        }
+    }
+
+    if (!json.contains("valid_till")) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: Missing valid_till");
+        return Status::Einval;
+    }
+    const auto validTill = json["valid_till"];
+    if (!validTill.is_number_integer() || validTill.get<int64_t>() < 0) {
+        cookie.setErrorContext(
+                "get_fusion_storage_snapshot_validator: valid_till not "
+                "positive integer");
         return Status::Einval;
     }
 
@@ -2856,17 +2929,92 @@ static Status release_fusion_storage_snapshot_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("snapshotUuid")) {
+    if (!json.contains("snapshot_uuid")) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
-                "snapshotUuid");
+                "snapshot_uuid");
         return Status::Einval;
     }
-    if (!json["snapshotUuid"].is_string()) {
+    if (!json["snapshot_uuid"].is_string()) {
         cookie.setErrorContext(
-                "release_fusion_storage_snapshot_validator: snapshotUuid not "
+                "release_fusion_storage_snapshot_validator: snapshot_uuid not "
                 "string");
         return Status::Einval;
+    }
+
+    if (!json.contains("bucket_uuid")) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: Missing "
+                "bucket_uuid");
+        return Status::Einval;
+    }
+    if (!json["bucket_uuid"].is_string()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: bucket_uuid not "
+                "string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_uri")) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: Missing "
+                "metadatastore_uri");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_uri"].is_string()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: metadatastore_uri "
+                "not string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("metadatastore_auth_token")) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: Missing "
+                "metadatastore_auth_token");
+        return Status::Einval;
+    }
+    if (!json["metadatastore_auth_token"].is_string()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: "
+                "metadatastore_auth_token not string");
+        return Status::Einval;
+    }
+
+    if (!json.contains("vbucket_list")) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: Missing "
+                "vbucket_list");
+        return Status::Einval;
+    }
+    const auto& vbList = json["vbucket_list"];
+    if (!vbList.is_array()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: vbucket_list must "
+                "be an array");
+        return Status::Einval;
+    }
+    if (vbList.empty()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: vbucket_list must "
+                "not be empty");
+        return Status::Einval;
+    }
+    const Vbid::id_type maxVbid = std::numeric_limits<Vbid::id_type>::max();
+    for (const auto& vb : vbList) {
+        if (!vb.is_number_integer()) {
+            cookie.setErrorContext(
+                    "release_fusion_storage_snapshot_validator: vbucket_list "
+                    "must only contain unsigned integer values");
+            return Status::Einval;
+        }
+        const auto vbId = vb.get<int64_t>();
+        if (vbId < 0 || vbId > maxVbid) {
+            cookie.setErrorContext(
+                    "release_fusion_storage_snapshot_validator: vbucket_list "
+                    "contains vbucket outside valid range");
+            return Status::Einval;
+        }
     }
 
     return status;

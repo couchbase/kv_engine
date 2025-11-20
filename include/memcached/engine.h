@@ -878,21 +878,6 @@ struct EngineIface {
             CookieIface& cookie, Vbid vbid, cb::rangescan::Id uuid);
 
     /**
-     * Proxy to magma->GetFusionStorageSnapshot. See magma's API for details.
-     */
-    [[nodiscard]] virtual std::pair<cb::engine_errc, nlohmann::json>
-    getFusionStorageSnapshot(Vbid vbid,
-                             std::string_view snapshotUuid,
-                             std::time_t validity);
-
-    /**
-     * Proxy to magma->releaseFusionStorageSnapshot. See magma's API for
-     * details.
-     */
-    [[nodiscard]] virtual cb::engine_errc releaseFusionStorageSnapshot(
-            Vbid vbid, std::string_view snapshotUuid);
-
-    /**
      * Force flush to disk of the magma write cache for the given vbucket and
      * sync the data to fusion.
      *

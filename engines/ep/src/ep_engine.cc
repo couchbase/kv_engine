@@ -7361,20 +7361,6 @@ template <class T>
     return obj;
 };
 
-std::pair<cb::engine_errc, nlohmann::json>
-EventuallyPersistentEngine::getFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
-    return copyToNonBucketDomain(
-            acquireEngine(this)->getFusionStorageSnapshotInner(
-                    vbid, snapshotUuid, validity));
-}
-
-cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid) {
-    return acquireEngine(this)->releaseFusionStorageSnapshotInner(vbid,
-                                                                  snapshotUuid);
-}
-
 cb::engine_errc EventuallyPersistentEngine::mountVBucket(
         CookieIface& cookie,
         Vbid vbid,
@@ -7623,31 +7609,6 @@ cb::engine_errc EventuallyPersistentEngine::maybeRemapStatus(
 cb::engine_errc EventuallyPersistentEngine::unmountVBucketInner(Vbid vbid) {
     Expects(kvBucket);
     return kvBucket->unmountVBucket(vbid);
-}
-
-std::pair<cb::engine_errc, nlohmann::json>
-EventuallyPersistentEngine::getFusionStorageSnapshotInner(
-        Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
-    Expects(kvBucket);
-    if (!kvBucket->getStorageProperties().supportsFusion()) {
-        return {cb::engine_errc::not_supported, {}};
-    }
-
-    const auto fusionNamespace = getFusionNamespace();
-    return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
-            fusionNamespace, vbid, snapshotUuid, validity);
-}
-
-cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshotInner(
-        Vbid vbid, std::string_view snapshotUuid) {
-    Expects(kvBucket);
-    if (!kvBucket->getStorageProperties().supportsFusion()) {
-        return cb::engine_errc::not_supported;
-    }
-
-    const auto fusionNamespace = getFusionNamespace();
-    return kvBucket->getRWUnderlying(vbid)->releaseFusionStorageSnapshot(
-            fusionNamespace, vbid, snapshotUuid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setChronicleAuthToken(

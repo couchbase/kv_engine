@@ -241,12 +241,6 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
-            Vbid vbid,
-            std::string_view snapshotUuid,
-            std::time_t validity) override;
-    cb::engine_errc releaseFusionStorageSnapshot(
-            Vbid vbid, std::string_view snapshotUuid) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
@@ -1404,16 +1398,6 @@ cb::engine_errc EWB_Engine::cancelRangeScan(CookieIface& cookie,
                                             Vbid vbid,
                                             cb::rangescan::Id uuid) {
     return real_engine->cancelRangeScan(cookie, vbid, uuid);
-}
-
-std::pair<cb::engine_errc, nlohmann::json> EWB_Engine::getFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
-    return real_engine->getFusionStorageSnapshot(vbid, snapshotUuid, validity);
-}
-
-cb::engine_errc EWB_Engine::releaseFusionStorageSnapshot(
-        Vbid vbid, std::string_view snapshotUuid) {
-    return real_engine->releaseFusionStorageSnapshot(vbid, snapshotUuid);
 }
 
 cb::engine_errc EWB_Engine::mountVBucket(

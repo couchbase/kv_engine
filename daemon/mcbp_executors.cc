@@ -617,7 +617,7 @@ static void auth_provider_executor(Cookie& cookie) {
 }
 
 static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+    if (isFusionSupportEnabled()) {
         cookie.obtainContext<GetFusionStorageSnapshotCommandContext>(cookie)
                 .drive();
 
@@ -627,7 +627,7 @@ static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
 }
 
 static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
-    if (cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+    if (isFusionSupportEnabled()) {
         cookie.obtainContext<ReleaseFusionStorageSnapshotCommandContext>(cookie)
                 .drive();
     } else {

@@ -79,7 +79,6 @@ Example response for `fusion migration 0`:
 Requests that the server creates a logical snapshot in the fusion backend.
 
 The request has:
-* Vbucket
 * No extras
 * No key
 * A value (JSON object encoding the arguments)
@@ -96,20 +95,40 @@ The following keys are accepted input. All keys are mandatory.
 Any key not shown in the following sections will be ignored.
 
 * The uuid to assign to the snapshot being created
-  * `"snapshotUuid"`
+  * `"snapshot_uuid"`
+  * The value is a string
+
+* The uuid to assign to the bucket being created
+  * `"bucket_uuid"`
+  * The value is a string
+
+* The URI of the Metadatastore
+  * `"metadatastore_uri"`
+  * The value is a string
+
+* The Auth token for accessing the Metadatastore
+  * `"metadatastore_auth_token"`
   * The value is a string
 
 * The temporal validity of the preserved snapshot
-  * `"validity"`
+  * `"valid_till"`
   * The value is an unsigned integer
   * Timestamp, in seconds
+
+* The list of vbuckets to get their fusion storage snapshots for
+  * `"vbucket_list"`
+  * The value is a Json array of unsigned integers
 
 ### Examples
 
 ```
 {
-  "snapshotUuid": "some-snapshot-uuid",
-  "validity": 123456879
+    "snapshot_uuid": "some-snapshot-uuid",
+    "bucket_uid": "some-bucket-uuid",
+    "metadatastore_uri": "uri2",
+    "metadatastore_auth_token": "some-token",
+    "valid_till": 123456879,
+    "vbucket_list": [12,23,25,66]
 }
 ```
 
@@ -127,11 +146,11 @@ following keys:
   * String
 
 * The uuid assigned to the created snapshot
-  * `"snapshotUUID"`
+  * `"snapshot_uuid"`
   * String
 
 * The validity of the created snapshot
-  * `"validTill"`
+  * `"valid_till"`
   * Timestamp, in milliseconds
 
 * The fusion version
@@ -163,7 +182,6 @@ This status code is used for unexpected internal failure.
 Requests that the server releases a logical snapshot in the fusion backend.
 
 The request has:
-* Vbucket
 * No extras
 * No key
 * A value (JSON object encoding the arguments)
@@ -179,15 +197,35 @@ preserves the data files that make that snapshot.
 The following keys are accepted input. All keys are mandatory.
 Any key not shown in the following sections will be ignored.
 
-* The uuid to of the snapshot being released
-  * `"snapshotUuid"`
+* The uuid to assign to the snapshot being created
+  * `"snapshot_uuid"`
   * The value is a string
+
+* The uuid to assign to the bucket being created
+  * `"bucket_uuid"`
+  * The value is a string
+
+* The URI of the Metadatastore
+  * `"metadatastore_uri"`
+  * The value is a string
+
+* The Auth token for accessing the Metadatastore
+  * `"metadatastore_auth_token"`
+  * The value is a string
+
+* The list of vbuckets to release their fusion storage snapshots for.
+  * `"vbucket_list"`
+  * The value is a Json array of unsigned integers
 
 ### Examples
 
 ```
 {
-  "snapshotUuid": "some-snapshot-uuid"
+    "snapshot_uuid": "some-snapshot-uuid",
+    "bucket_uid": "some-bucket-uuid",
+    "metadatastore_uri": "uri2",
+    "metadatastore_auth_token": "some-token",
+    "vbucket_list": [12,23,25,66]
 }
 ```
 
