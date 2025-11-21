@@ -13,8 +13,8 @@
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
 #include <logger/logger.h>
-#include <utilities/fusion_support.h>
 #include <utilities/fusion_utilities.h>
+#include <utilities/magma_support.h>
 
 GetFusionNamespacesCommandContext::GetFusionNamespacesCommandContext(
         Cookie& cookie)

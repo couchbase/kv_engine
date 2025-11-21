@@ -39,7 +39,7 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <utilities/string_utilities.h>
 #include <chrono>
 #include <cinttypes>

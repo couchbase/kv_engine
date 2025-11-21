@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "fusion_support.h"
+#include "magma_support.h"
 
 bool isFusionSupportEnabled() {
 #ifdef HAVE_FUSION_SUPPORT

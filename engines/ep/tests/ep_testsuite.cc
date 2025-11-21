@@ -36,7 +36,7 @@
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_engine.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <chrono>

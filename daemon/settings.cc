@@ -20,9 +20,9 @@
 #include <platform/dirutils.h>
 #include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
-#include <utilities/fusion_support.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
+#include <utilities/magma_support.h>
 #include <algorithm>
 #include <cstring>
 #include <regex>

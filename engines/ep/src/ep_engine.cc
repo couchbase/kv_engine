@@ -85,9 +85,9 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <utilities/fusion_support.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/logtags.h>
+#include <utilities/magma_support.h>
 #include <utilities/math_utilities.h>
 #include <xattr/utils.h>
 #include <functional>

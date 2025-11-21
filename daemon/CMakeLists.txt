@@ -152,7 +152,7 @@ target_link_libraries(memcached_daemon
                       ep
                       ewouldblock_engine
                       folly_io_callbacks
-                      fusion_support
+                      magma_support
                       mcd_dek
                       mcd_executor
                       mcd_tracing

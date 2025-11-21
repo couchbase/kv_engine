@@ -30,7 +30,7 @@
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <protocol/mcbp/ewb_encode.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <atomic>
 #include <chrono>
 #include <csignal>

@@ -29,7 +29,7 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <statistics/prometheus_collector.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <utilities/string_utilities.h>
 #include <string_view>
 

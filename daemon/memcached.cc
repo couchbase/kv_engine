@@ -59,7 +59,7 @@
 #include <serverless/config.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>

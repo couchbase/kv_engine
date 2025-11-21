@@ -72,7 +72,7 @@
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <utilities/throttle_utilities.h>
 
 /**

@@ -24,7 +24,7 @@
 #include "vbucket.h"
 
 #include <platform/cb_arena_malloc.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/synchronization/Baton.h>

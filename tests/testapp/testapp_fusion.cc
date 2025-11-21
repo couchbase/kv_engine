@@ -12,7 +12,7 @@
 #include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
-#include <utilities/fusion_support.h>
+#include <utilities/magma_support.h>
 
 class FusionTest : public TestappClientTest {
 protected:
