@@ -35,6 +35,8 @@ add_library(memcached_daemon STATIC
             error_map_manager.h
             external_auth_manager_thread.cc
             external_auth_manager_thread.h
+            filedescriptor_distribution.cc
+            filedescriptor_distribution.h
             front_end_thread.cc
             front_end_thread.h
             get_authorization_task.cc
@@ -220,6 +222,7 @@ cb_add_test_executable(memcached_unit_tests
                        datatype_filter_test.cc
                        error_map_manager_test.cc
                        executor_tracing_test.cc
+                       filedescriptor_distribution_test.cc
                        function_chain_test.cc
                        json_validator_test.cc
                        mc_time_test.cc

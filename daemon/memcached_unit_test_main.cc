@@ -60,8 +60,7 @@ int main(int argc, char** argv) {
         cb::logger::createBlackholeLogger();
     }
 
-    environment.max_file_descriptors = 2048;
-    environment.engine_file_descriptors = 1024;
+    cb::Environment::instance();
 
     ExecutorPool::create(ExecutorPool::Backend::Folly,
                          0,

@@ -13,7 +13,6 @@
 
 #include "bucket_logger.h"
 #include "configuration.h"
-#include "environment.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore-config.h"
 
@@ -74,8 +73,6 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       backend(_backend),
       shardId(_shardId),
       logger(getGlobalBucketLogger().get()) {
-    auto& env = Environment::get();
-    maxFileDescriptors = env.getMaxBackendFileDescriptors();
 }
 
 KVStoreConfig::KVStoreConfig(const KVStoreConfig& other)

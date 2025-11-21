@@ -70,8 +70,6 @@ struct ServerCoreIface {
     virtual uint32_t limit_expiry_time(uint32_t t,
                                        std::chrono::seconds limit) = 0;
 
-    virtual size_t getMaxEngineFileDescriptors() = 0;
-
     /// The number of concurrent paging visitors to use for quota sharing.
     virtual size_t getQuotaSharingPagerConcurrency() = 0;
 

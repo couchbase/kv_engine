@@ -13,7 +13,6 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
-#include "environment.h"
 #include "item.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_iface.h"
@@ -74,9 +73,6 @@ protected:
 class KVStoreBench : public benchmark::Fixture {
 protected:
     void SetUp(benchmark::State& state) override {
-        auto& env = Environment::get();
-        env.engineFileDescriptors = env.reservedFileDescriptors;
-
         numItems = state.range(0);
         auto storage = state.range(1);
 

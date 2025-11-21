@@ -82,10 +82,6 @@ public:
         periodicSyncBytes = bytes;
     }
 
-    size_t getMaxFileDescriptors() const {
-        return maxFileDescriptors;
-    }
-
     void setMetadataPurgeAge(std::chrono::seconds age) {
         metadataPurgeAge = age;
     }
@@ -126,12 +122,6 @@ protected:
     std::string backend;
     uint16_t shardId;
     BucketLogger* logger;
-
-    /**
-     * Maximum number of file descriptors that the backend may use. This is the
-     * maximum number across all shards and buckets.
-     */
-    size_t maxFileDescriptors;
 
     // Following config variables are atomic as can be changed (via
     // ConfigChangeListener) at runtime by front-end threads while read by

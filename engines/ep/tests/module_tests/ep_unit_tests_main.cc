@@ -17,7 +17,6 @@
 
 #include "bucket_logger.h"
 #include "ep_time.h"
-#include <engines/ep/src/environment.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/Stdlib.h>
 #include <fuzzing/init.h>
@@ -68,10 +67,6 @@ public:
                                std::chrono::seconds limit) override {
         throw std::runtime_error(
                 "UnitTestServerCore::limit_expiry_time() not implemented");
-    }
-
-    size_t getMaxEngineFileDescriptors() override {
-        return 0;
     }
 
     size_t getQuotaSharingPagerConcurrency() override {
@@ -206,18 +201,6 @@ int main(int argc, char **argv) {
     // Need to initialize ep_real_time and friends.
     UnitTestServerCore unitTestServerCore;
     initialize_time_functions(&unitTestServerCore);
-
-    // Need to set engine file descriptors as tests using CouchKVStore will use
-    // a file cache that requires a fixed limit
-    {
-        // Set to 2 x the number of reserved file descriptors (i.e. the minimum
-        // number of file descriptors required). This number will then be split
-        // between all the backends compiled in (couchstore/magma). This
-        // number won't be particularly high, but should be fine for unit
-        // testing.
-        auto& env = Environment::get();
-        env.engineFileDescriptors = env.reservedFileDescriptors * 2;
-    }
 
     // Ensure phosphor TraceLog singleton is initialised before we run any
     // tests - specifically before we create the ExecutorPool singleton and

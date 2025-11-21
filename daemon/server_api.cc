@@ -56,10 +56,6 @@ struct ServerCoreApi : public ServerCoreIface {
         return mc_time_limit_expiry_time(t, limit);
     }
 
-    size_t getMaxEngineFileDescriptors() override {
-        return environment.engine_file_descriptors;
-    }
-
     size_t getQuotaSharingPagerConcurrency() override {
         auto& instance = Settings::instance();
         auto numNonIO = ExecutorPool::get()->getNumNonIO();

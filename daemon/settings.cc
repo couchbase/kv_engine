@@ -9,6 +9,8 @@
  */
 
 #include "settings.h"
+
+#include "environment.h"
 #include "log_macros.h"
 #include "ssl_utils.h"
 #include <fmt/chrono.h>
@@ -807,21 +809,41 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    bool maxconn_failure = false;
     if (other.has.max_connections) {
         if (other.max_connections != max_connections) {
-            LOG_INFO_CTX("Change max connections",
-                         {"from", max_connections},
-                         {"to", other.max_connections});
-            setMaxConnections(other.max_connections);
+            auto& environment = cb::Environment::instance();
+            if (environment.recalculate(other.max_connections, true)) {
+                environment.recalculate(other.max_connections, false);
+                LOG_INFO_CTX("Change max connections",
+                             {"from", max_connections},
+                             {"to", other.max_connections});
+                setMaxConnections(other.max_connections);
+            } else {
+                maxconn_failure = true;
+                LOG_WARNING_CTX(
+                        "Cannot apply max connections change as it exceeds the "
+                        "maximum file descriptors",
+                        {"requested", other.max_connections},
+                        {"current", environment.to_json()});
+            }
         }
     }
 
-    if (other.has.system_connections) {
+    if (other.has.system_connections && !maxconn_failure) {
         if (other.system_connections != system_connections) {
-            LOG_INFO_CTX("Change system connections",
-                         {"from", system_connections},
-                         {"to", other.system_connections});
-            setSystemConnections(other.system_connections);
+            if (other.system_connections < getMaxConnections()) {
+                LOG_INFO_CTX("Change system connections",
+                             {"from", system_connections},
+                             {"to", other.system_connections});
+                setSystemConnections(other.system_connections);
+            } else {
+                LOG_WARNING_CTX(
+                        "Cannot apply system connections change as it exceeds "
+                        "the maximum number of connections",
+                        {"requested", other.system_connections},
+                        {"max_connections", getMaxConnections()});
+            }
         }
     }
 

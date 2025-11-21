@@ -88,9 +88,19 @@ public:
     static size_t GetNumThreads(ThreadType) {
         return 0;
     }
+
+    static void SetMaxOpenFiles(size_t, bool = false) {
+    }
+
+    static size_t GetNumOpenFiles() {
+        return 0;
+    }
 };
 } // namespace magma
 #endif
 
 /// Returns true if the system supports fusion, false otherwise.
 bool isFusionSupportEnabled();
+
+/// Returns true if the system supports magma, false otherwise.
+bool isMagmaSupportEnabled();

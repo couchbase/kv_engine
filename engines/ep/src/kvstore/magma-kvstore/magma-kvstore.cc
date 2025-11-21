@@ -839,7 +839,6 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
                               std::string_view chronicleAuthToken) {
     magma = std::make_unique<MagmaMemoryTrackingProxy>(configuration.magmaCfg);
 
-    magma->SetMaxOpenFiles(configuration.getMaxFileDescriptors());
     setMaxDataSize(configuration.getBucketQuota());
     setMagmaFragmentationPercentage(
             configuration.getMagmaFragmentationPercentage());

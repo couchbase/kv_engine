@@ -221,65 +221,12 @@ static size_t get_number_of_worker_threads() {
     return ret;
 }
 
-/// We might not support as many connections as requested if
-/// we don't have enough file descriptors available
-static void recalculate_max_connections() {
+static void log_filedescriptor_settings() {
     auto& settings = Settings::instance();
-
-    const auto desiredMaxConnections = settings.getMaxConnections();
-
-    // File descriptors reserved for worker threads
-    const auto workerThreadFds = (3 * (settings.getNumWorkerThreads() + 2));
-
-    auto totalReserved =
-            workerThreadFds + environment.memcached_reserved_file_descriptors;
-
-    // We won't allow engine_file_descriptors to change for now.
-    // @TODO allow this to be dynamic
-    if (environment.engine_file_descriptors == 0) {
-        totalReserved += environment.min_engine_file_descriptors;
-    } else {
-        totalReserved += environment.engine_file_descriptors;
-    }
-
-    const uint64_t maxfiles = desiredMaxConnections + totalReserved;
-
-    if (environment.max_file_descriptors < maxfiles) {
-        const auto newmax = environment.max_file_descriptors - totalReserved;
-        settings.setMaxConnections(newmax, false);
-        LOG_WARNING_CTX("Reducing max_connections",
-                        {"reason",
-                         "max_connections is set higher than the available "
-                         "number of file descriptors available"},
-                        {"to", newmax});
-
-        if (settings.getSystemConnections() > newmax) {
-            LOG_WARNING_CTX("Reducing system_connections",
-                            {"from", settings.getSystemConnections()},
-                            {"to", newmax / 2},
-                            {"max_connections", newmax});
-            settings.setSystemConnections(newmax / 2);
-        }
-
-        // @TODO allow this to be dynamic
-        if (environment.engine_file_descriptors == 0) {
-            environment.engine_file_descriptors =
-                    environment.min_engine_file_descriptors;
-        }
-    } else if (environment.engine_file_descriptors == 0) {
-        environment.engine_file_descriptors =
-                environment.max_file_descriptors -
-                (workerThreadFds +
-                 environment.memcached_reserved_file_descriptors +
-                 desiredMaxConnections);
-        // @TODO send down to the engine(s)
-    }
-
-    LOG_INFO_CTX("recalculate_max_connections",
-                 {"max_fds", environment.max_file_descriptors.load()},
-                 {"max_connections", settings.getMaxConnections()},
-                 {"system_connections", settings.getSystemConnections()},
-                 {"engine_fds", environment.engine_file_descriptors.load()});
+    auto config = cb::Environment::instance().to_json();
+    config["connection_limits"] = {{"user", settings.getMaxConnections()},
+                                   {"system", settings.getSystemConnections()}};
+    LOG_INFO_CTX("System file descriptor settings", config);
 }
 
 static void breakpad_changed_listener(const std::string&, Settings &s) {
@@ -770,9 +717,6 @@ int memcached_main(int argc, char** argv) {
     const std::string numa_status = configure_numa_policy();
 #endif
 
-    environment.max_file_descriptors = cb::io::maximizeFileDescriptors(
-            std::numeric_limits<uint32_t>::max());
-
     std::unique_ptr<ProcessMonitor> parent_monitor;
 
     try {
@@ -808,6 +752,9 @@ int memcached_main(int argc, char** argv) {
             }
         }
     }
+
+    // Initialize the environment (file descriptors, etc).
+    cb::Environment::instance();
 
     /* init settings */
     settings_init();
@@ -894,13 +841,15 @@ int memcached_main(int argc, char** argv) {
                         {"error", e.what()});
     }
 
-    // Call recalculate_max_connections to make sure we put log the number
-    // of file descriptors in the logfile
-    recalculate_max_connections();
+    // Log the file descriptor settings at startup (we might have
+    // set the connection sizes too high for the system to handle so
+    // we need to adjust the settings accordingly).
+    cb::Environment::instance().updateSettingsWithInitialSizes();
+
     // set up a callback to update it as part of parsing the configuration
     Settings::instance().addChangeListener(
             "max_connections", [](const std::string&, Settings& s) -> void {
-                recalculate_max_connections();
+                log_filedescriptor_settings();
             });
 
     /// Initialize breakpad crash catcher with our just-parsed settings
@@ -1002,7 +951,7 @@ int memcached_main(int argc, char** argv) {
     // inform interested parties of initial verbosity level
     populate_log_level();
 
-    recalculate_max_connections();
+    log_filedescriptor_settings();
 
     if (getenv("MEMCACHED_CRASH_TEST")) {
         create_crash_instance();

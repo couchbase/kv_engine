@@ -17,3 +17,11 @@ bool isFusionSupportEnabled() {
     return false;
 #endif
 }
+
+bool isMagmaSupportEnabled() {
+#ifdef HAVE_MAGMA_SUPPORT
+    return true;
+#else
+    return false;
+#endif
+}

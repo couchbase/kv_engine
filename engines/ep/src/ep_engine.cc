@@ -24,7 +24,6 @@
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
 #include "dockey_validator.h"
-#include "environment.h"
 #include "ep_bucket.h"
 #include "ep_engine_group.h"
 #include "ep_engine_public.h"
@@ -1990,9 +1989,6 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
                         {"path", dbPath / "collections.manifest"},
                         {"error", ec.message()});
     }
-
-    auto& env = Environment::get();
-    env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 

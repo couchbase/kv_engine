@@ -297,7 +297,6 @@ ADD_LIBRARY(ep STATIC
             src/durability/passive_durability_monitor.cc
             src/durability_timeout_task.cc
             src/encryption_key_provider.cc
-            src/environment.cc
             src/ep_bucket.cc
             src/ep_engine.cc
             src/ep_engine_group.cc

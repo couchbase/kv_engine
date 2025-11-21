@@ -193,13 +193,6 @@ struct MockServerCoreApi : public ServerCoreIface {
                                std::chrono::seconds limit) override {
         return mock_limit_expiry_time(t, limit);
     }
-    size_t getMaxEngineFileDescriptors() override {
-        // 1024 is kind of an abitrary limit (it just needs to be greater than
-        // the number of reserved file descriptors in the environment) but we
-        // don't link to the engine in mock_server so we can't get the
-        // environment to calculate the value.
-        return 1024;
-    }
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }

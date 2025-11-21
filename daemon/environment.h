@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2020-Present Couchbase, Inc.
  *
@@ -11,6 +10,8 @@
 
 #pragma once
 
+#include "filedescriptor_distribution.h"
+#include <nlohmann/json_fwd.hpp>
 #include <atomic>
 #include <cstddef>
 
@@ -21,30 +22,39 @@ namespace cb {
  * process-wide, environment information relevant to the memcached process. This
  * information includes things such as file descriptor limits.
  */
-struct Environment {
+class Environment {
+public:
+    Environment(const Environment&) = delete;
+    Environment& operator=(const Environment&) = delete;
+    Environment(Environment&&) = delete;
+    Environment& operator=(Environment&&) = delete;
+    static Environment& instance();
+
+    /// Recalculate the maximum number of connections and engine file
+    /// descriptors based upon the number of file descriptors available
+    ///
+    /// @param desiredMaxConnections The desired maximum number of connections
+    /// @param check If set to true, the method will only check if the desired
+    ///              number of connections can be supported, without actually
+    ///              applying the new limit.
+    /// @return true if the desired Max Connections may be used; false if it
+    ///         needs to be reduced
+    bool recalculate(size_t desiredMaxConnections, bool check);
+
+    void updateSettingsWithInitialSizes();
+
+    nlohmann::json to_json() const;
+
+protected:
     /// The maximum number of file descriptors we may have. During startup we
     /// try to increase the allowed number of file handles to the limit
     /// specified for the current user.
-    std::atomic<size_t> max_file_descriptors{0};
+    const size_t max_file_descriptors;
+    const size_t reserved_for_core;
+    const size_t reserved_for_epengine;
 
-    /// The maximum number of files descriptors that the engines can
-    /// (collectively) use.
-    std::atomic<size_t> engine_file_descriptors{0};
+    std::atomic<size_t> magma_file_limit{0};
 
-    /// File descriptors reserved for the engine.
-    /// This is the minimum number of file descriptors that we will give to the
-    /// engines. In reality we probably want to give them more, but we need them
-    /// to at least /work/ if the user has a restricted number of file
-    /// descriptors. This is the number of vBuckets of an EPBucket (1024)
-    /// rounded up to the nearest whole(ish) number for extra files the engine
-    /// may need to open.
-    const size_t min_engine_file_descriptors{1050};
-
-    /// File descriptors reserved for memcached.
-    /// Used for things such as log files, reading config, RBAC, and SSL certs.
-    /// @TODO is this a reasonable number?
-    const size_t memcached_reserved_file_descriptors{1000};
+    Environment(const environment::filedescriptor::Distribution& distribution);
 };
 } // namespace cb
-
-extern cb::Environment environment;
