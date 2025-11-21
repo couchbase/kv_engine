@@ -336,7 +336,6 @@ ADD_LIBRARY(ep STATIC
             src/kvstore/couch-kvstore/couch-fs-stats.cc
             src/kvstore/couch-kvstore/couch-kvstore-config.cc
             src/kvstore/couch-kvstore/couch-kvstore-db-holder.cc
-            src/kvstore/couch-kvstore/couch-kvstore-file-cache.cc
             src/kvstore/couch-kvstore/couch-kvstore.cc
             src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.cc
             src/kvstore/couch-kvstore/vbucket_encryption_keys_manager.h

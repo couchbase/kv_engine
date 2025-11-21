@@ -2004,12 +2004,6 @@
             "descr": "Enable couchstore to mprotect the iobuffer",
             "type" : "bool"
         },
-        "couchstore_file_cache_max_size": {
-            "default": "30720",
-            "dynamic": true,
-            "descr": "Maximum number of couchstore files that we will keep open. Default value is 30 * 1024 (i.e. one file for each vBucket and 30 Buckets - the supported limit).",
-            "type": "size_t"
-        },
         "couchstore_midpoint_rollback_optimisation": {
             "default": "true",
             "dynamic": false,

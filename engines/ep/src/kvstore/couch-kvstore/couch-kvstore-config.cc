@@ -12,7 +12,6 @@
 #include "couch-kvstore-config.h"
 
 #include "configuration.h"
-#include "couch-kvstore-file-cache.h"
 
 /// A listener class to update KVStore related configs at runtime.
 class CouchKVStoreConfig::ConfigChangeListener : public ValueChangedListener {
@@ -29,12 +28,6 @@ public:
         }
         if (key == "couchstore_mprotect") {
             config.setCouchstoreMprotectEnabled(value);
-        }
-    }
-
-    void sizeValueChanged(std::string_view key, size_t value) override {
-        if (key == "couchstore_file_cache_max_size") {
-            config.setCouchstoreFileCacheMaxSize(value);
         }
     }
 
@@ -59,10 +52,6 @@ CouchKVStoreConfig::CouchKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "couchstore_mprotect",
             std::make_unique<ConfigChangeListener>(*this));
-    setCouchstoreFileCacheMaxSize(config.getCouchstoreFileCacheMaxSize());
-    config.addValueChangedListener(
-            "couchstore_file_cache_max_size",
-            std::make_unique<ConfigChangeListener>(*this));
     midpointRollbackOptimisationEnabled =
             config.isCouchstoreMidpointRollbackOptimisation();
 }
@@ -77,8 +66,4 @@ CouchKVStoreConfig::CouchKVStoreConfig(uint16_t maxVBuckets,
       couchstoreTracingEnabled(false),
       couchstoreWriteValidationEnabled(false),
       couchstoreMprotectEnabled(false) {
-}
-
-void CouchKVStoreConfig::setCouchstoreFileCacheMaxSize(size_t value) {
-    CouchKVStoreFileCache::get().getHandle()->resize(value);
 }

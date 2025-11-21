@@ -94,7 +94,6 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "couchstore_mprotect",
         "allow_sanitize_value_in_deletion",
         "persistent_metadata_purge_age",
-        "couchstore_file_cache_max_size",
         "compaction_expire_from_start",
         "compaction_expiry_fetch_inline",
         "vbucket_mapping_sanity_checking",

@@ -101,7 +101,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/evp_vbucket_test.cc
         module_tests/executorpool_test.cc
         module_tests/failover_table_test.cc
-        module_tests/file_cache_test.cc
         module_tests/file_ops_tracker_test.cc
         module_tests/flusher_test.cc
         module_tests/futurequeue_test.cc
@@ -150,6 +149,11 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/item_compression_task_test.cc
         $<TARGET_OBJECTS:couchstore_test_fileops>
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+
+# MSVC get a warning due to shadow of a global variable
+set_source_files_properties(module_tests/file_ops_tracker_test.cc PROPERTIES
+                SKIP_UNITY_BUILD_INCLUSION TRUE)
+
 kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)
     target_compile_definitions(ep-engine_ep_unit_tests PUBLIC HAVE_MAGMA_SUPPORT=1)
