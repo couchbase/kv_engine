@@ -10,7 +10,7 @@
 
 #include "encryption_key_provider.h"
 
-cb::crypto::SharedEncryptionKey EncryptionKeyProvider::lookup(
+cb::crypto::SharedKeyDerivationKey EncryptionKeyProvider::lookup(
         std::string_view id) const {
     if (id.empty()) {
         return keyStore.lock()->getActiveKey();

@@ -24,7 +24,7 @@ public:
      * @param id the key to look up (empty == current active key)
      * @return The requested key
      */
-    [[nodiscard]] cb::crypto::SharedEncryptionKey lookup(
+    [[nodiscard]] cb::crypto::SharedKeyDerivationKey lookup(
             std::string_view id) const;
 
     /**

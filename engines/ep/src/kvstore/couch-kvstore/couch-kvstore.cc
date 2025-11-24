@@ -568,7 +568,7 @@ void CouchKVStore::initialize(
                     vbid, std::string(cb::couchstore::getEncryptionKeyId(*db)));
         } else {
             vbucketEncryptionKeysManager.setCurrentKey(
-                    vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+                    vbid, cb::crypto::KeyDerivationKey::UnencryptedKeyId);
         }
 
         const auto [readRes, state] = readVBStateAndUpdateCache(db, vbid);
@@ -1566,14 +1566,13 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 [this, vbid](auto id) {
                     auto ret = encryptionKeyProvider
                                        ? encryptionKeyProvider->lookup(id)
-                                       : cb::crypto::SharedEncryptionKey{};
+                                       : cb::crypto::SharedKeyDerivationKey{};
                     if (ret) {
                         vbucketEncryptionKeysManager.setNextKey(vbid, ret->id);
                     } else {
                         vbucketEncryptionKeysManager.setNextKey(
                                 vbid,
-                                cb::crypto::DataEncryptionKey::
-                                        UnencryptedKeyId);
+                                cb::crypto::KeyDerivationKey::UnencryptedKeyId);
                     }
                     return ret;
                 },
@@ -4560,7 +4559,7 @@ KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
         updateCachedVBState(vbid, result.state);
         if (encryptionKeyId.empty()) {
             vbucketEncryptionKeysManager.setCurrentKey(
-                    vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+                    vbid, cb::crypto::KeyDerivationKey::UnencryptedKeyId);
         } else {
             vbucketEncryptionKeysManager.setCurrentKey(
                     vbid, std::move(encryptionKeyId));
@@ -4792,7 +4791,7 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
                 vbid, std::string(cb::couchstore::getEncryptionKeyId(*db)));
     } else {
         vbucketEncryptionKeysManager.setCurrentKey(
-                vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+                vbid, cb::crypto::KeyDerivationKey::UnencryptedKeyId);
     }
 
     return std::move(db);
@@ -4843,10 +4842,10 @@ void CouchKVStore::resume() {
     // Nothing to do for Couchstore, no background tasks etc to resume.
 }
 
-std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
 CouchKVStore::getEncryptionLookupFunction() const {
     return [this](auto id) {
         return (encryptionKeyProvider) ? encryptionKeyProvider->lookup(id)
-                                       : cb::crypto::SharedEncryptionKey{};
+                                       : cb::crypto::SharedKeyDerivationKey{};
     };
 }

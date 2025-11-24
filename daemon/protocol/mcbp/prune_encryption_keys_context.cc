@@ -72,8 +72,8 @@ cb::engine_errc PruneEncryptionKeysContext::execute() {
 bool PruneEncryptionKeysContext::validateKeys() const {
     auto& manager = cb::dek::Manager::instance();
     for (const auto& key : keys) {
-        if (key != cb::crypto::DataEncryptionKey::UnencryptedKeyId &&
-            manager.lookup(entity, key) == cb::crypto::SharedEncryptionKey{}) {
+        if (key != cb::crypto::KeyDerivationKey::UnencryptedKeyId &&
+            !manager.lookup(entity, key)) {
             LOG_WARNING_CTX("Prune encryption keys: Key not found",
                             {"conn_id", cookie.getConnectionId()},
                             {"entity", entity},

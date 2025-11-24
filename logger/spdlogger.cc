@@ -440,13 +440,13 @@ std::unordered_set<std::string> cb::logger::getDeksInUse() {
                 LOG_WARNING_CTX(message, ctx);
             });
     if (unencrypted) {
-        deks.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+        deks.insert(cb::crypto::KeyDerivationKey::UnencryptedKeyId);
     }
     // Add the "current" key as it is always supposed to be "in use"
     auto& manager = cb::dek::Manager::instance();
     auto key = manager.lookup(cb::dek::Entity::Logs);
     if (key) {
-        deks.insert(std::string{key->getId()});
+        deks.insert(key->id);
     }
     return deks;
 }

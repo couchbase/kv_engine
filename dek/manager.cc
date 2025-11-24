@@ -49,11 +49,11 @@ Entity to_entity(std::string_view entity) {
 }
 
 class ManagerImpl : public Manager {
-    [[nodiscard]] SharedEncryptionKey lookup(
+    [[nodiscard]] SharedKeyDerivationKey lookup(
             Entity entity, std::string_view id) const override;
 
     void reset(const nlohmann::json& json) override;
-    void setActive(Entity entity, SharedEncryptionKey key) override;
+    void setActive(Entity entity, SharedKeyDerivationKey key) override;
     void setActive(Entity entity, crypto::KeyStore ks) override;
     [[nodiscard]] nlohmann::json to_json() const override;
     [[nodiscard]] nlohmann::json to_json(Entity entity) const override;
@@ -82,8 +82,8 @@ protected:
     }
 };
 
-SharedEncryptionKey ManagerImpl::lookup(Entity entity,
-                                        std::string_view id) const {
+SharedKeyDerivationKey ManagerImpl::lookup(Entity entity,
+                                           std::string_view id) const {
     const auto& store = getKeyStoreForEntity(entity);
     return store.withLock([id](const auto& oks) {
         if (id.empty()) {
@@ -116,7 +116,7 @@ void ManagerImpl::reset(const nlohmann::json& json) {
     }
 }
 
-void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
+void ManagerImpl::setActive(const Entity entity, SharedKeyDerivationKey key) {
     auto& store = getKeyStoreForEntity(entity);
     store.withLock([&key](auto& oks) {
         // This might not be an actual change (if so; ignore)

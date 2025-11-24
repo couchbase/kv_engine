@@ -344,7 +344,7 @@ TEST_P(SnapshotClusterTest, Snapshots) {
     for (const auto& p : std::filesystem::directory_iterator(
                  destination_path / bucket_name / "deks")) {
         auto json = nlohmann::json::parse(cb::io::loadFile(p.path()));
-        auto key = std::make_shared<cb::crypto::DataEncryptionKey>();
+        auto key = std::make_shared<cb::crypto::KeyDerivationKey>();
         *key = json;
         keystore.setActiveKey(key);
     }
@@ -358,7 +358,7 @@ TEST_P(SnapshotClusterTest, Snapshots) {
         std::filesystem::resize_file(dst, file.size);
 
         auto json = nlohmann::json::parse(cb::io::loadFile(dst));
-        auto key = std::make_shared<cb::crypto::DataEncryptionKey>();
+        auto key = std::make_shared<cb::crypto::KeyDerivationKey>();
         *key = json;
         keystore.add(key);
     }

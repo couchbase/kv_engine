@@ -18,7 +18,7 @@
 
 namespace cb::dek {
 
-using SharedEncryptionKey = crypto::SharedEncryptionKey;
+using cb::crypto::SharedKeyDerivationKey;
 
 /// The various entities supporting encryption in the core
 enum class Entity { Config = 0, Logs = 1, Audit = 2, Count = 3 };
@@ -66,7 +66,7 @@ public:
     [[nodiscard]] virtual nlohmann::json to_json(Entity entity) const = 0;
 
     /// Get a named current encryption key for the named entity
-    [[nodiscard]] virtual SharedEncryptionKey lookup(
+    [[nodiscard]] virtual SharedKeyDerivationKey lookup(
             Entity entity, std::string_view id = {}) const = 0;
 
     /// Parse the provided JSON and replace the list of known keys with the
@@ -74,7 +74,7 @@ public:
     virtual void reset(const nlohmann::json& json) = 0;
 
     /// Set the active encryption key for a given entity
-    virtual void setActive(Entity entity, SharedEncryptionKey key) = 0;
+    virtual void setActive(Entity entity, SharedKeyDerivationKey key) = 0;
     /// Set the list of active encryption keys for a given entity
     virtual void setActive(Entity entity, crypto::KeyStore ks) = 0;
 

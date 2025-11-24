@@ -39,7 +39,7 @@ class RandomIoFileReader {
 public:
     RandomIoFileReader(
             std::filesystem::path path,
-            std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+            std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
                     keyLookupFunction)
         : path(std::move(path)), lookupFunction(std::move(keyLookupFunction)) {
         open();
@@ -55,7 +55,7 @@ protected:
     }
 
     std::filesystem::path path;
-    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+    std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
             lookupFunction;
     uint64_t current_offset = 0;
     std::string current_block;
@@ -85,7 +85,7 @@ std::size_t RandomIoFileReader::pread(std::span<uint8_t> blob,
 
 MutationLogReader::MutationLogReader(
         std::string path,
-        std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+        std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
                 keyLookupFunction,
         std::function<void()> fileIoTestingHook)
     : fileIoTestingHook(std::move(fileIoTestingHook)),

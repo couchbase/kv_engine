@@ -20,9 +20,6 @@
 #include <string>
 #include <string_view>
 
-namespace cb::crypto {
-struct DataEncryptionKey;
-}
 class MemcachedConnection;
 enum class BucketType : uint8_t;
 

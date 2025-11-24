@@ -719,7 +719,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
         {
             cb::UseArenaMallocSecondaryDomain secondaryDomainGuard;
             if (key) {
-                return *key;
+                return cb::crypto::DataEncryptionKey(
+                        key->id, key->cipher, key->derivationKey);
             }
             if (id.empty()) {
                 return cb::crypto::DataEncryptionKey{};

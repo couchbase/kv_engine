@@ -18,7 +18,7 @@
 MutationLogWriter::MutationLogWriter(
         std::string path,
         const size_t bs,
-        cb::crypto::SharedEncryptionKey encryption_key,
+        cb::crypto::SharedKeyDerivationKey encryption_key,
         cb::crypto::Compression compression,
         std::function<void(std::string_view)> fileWriteTestHook)
     : fileWriteTestHook(std::move(fileWriteTestHook)),

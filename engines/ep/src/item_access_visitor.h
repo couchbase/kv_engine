@@ -56,7 +56,7 @@ private:
     EPStats& stats;
     time_t startTime;
     cb::time::steady_clock::time_point taskStart;
-    cb::crypto::SharedEncryptionKey encryptionKey;
+    cb::crypto::SharedKeyDerivationKey encryptionKey;
     std::string prev;
     std::string next;
     std::string name;

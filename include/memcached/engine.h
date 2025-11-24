@@ -31,10 +31,6 @@ struct EngineErrorGetScopeIDResult;
 struct EngineErrorGetCollectionMetaResult;
 } // namespace cb
 
-namespace cb::crypto {
-struct DataEncryptionKey;
-}
-
 namespace cb::durability {
 class Requirements;
 } // namespace cb::durability

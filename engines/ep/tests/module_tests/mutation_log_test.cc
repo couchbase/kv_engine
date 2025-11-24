@@ -32,7 +32,7 @@ protected:
         // Generate a temporary log filename.
         tmp_log_filename = cb::io::mktemp("mlt_test");
         if (GetParam()) {
-            encryption_key = cb::crypto::DataEncryptionKey::generate();
+            encryption_key = cb::crypto::KeyDerivationKey::generate();
         }
     }
 
@@ -42,13 +42,13 @@ protected:
 
     // Storage for temporary log filename
     std::string tmp_log_filename;
-    cb::crypto::SharedEncryptionKey encryption_key;
-    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+    cb::crypto::SharedKeyDerivationKey encryption_key;
+    std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
             key_lookup_function = [this](std::string_view key) {
-                if (encryption_key && key == encryption_key->getId()) {
+                if (encryption_key && key == encryption_key->id) {
                     return encryption_key;
                 }
-                return cb::crypto::SharedEncryptionKey{};
+                return cb::crypto::SharedKeyDerivationKey{};
             };
 };
 

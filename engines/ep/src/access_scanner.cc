@@ -104,8 +104,8 @@ ItemAccessVisitor::ItemAccessVisitor(
             "Attempting to generate new access file",
             {"path", next},
             {"encryption_key",
-             encryptionKey ? encryptionKey->getId()
-                           : cb::crypto::DataEncryptionKey::UnencryptedKeyId});
+             encryptionKey ? encryptionKey->id
+                           : cb::crypto::KeyDerivationKey::UnencryptedKeyId});
 }
 
 ItemAccessVisitor::~ItemAccessVisitor() {
@@ -262,8 +262,8 @@ void ItemAccessVisitor::complete() {
             {"name", encryptionKey ? name + ".cef" : name},
             {"num_items", static_cast<uint64_t>(num_items)},
             {"encryption_key",
-             encryptionKey ? encryptionKey->getId()
-                           : cb::crypto::DataEncryptionKey::UnencryptedKeyId});
+             encryptionKey ? encryptionKey->id
+                           : cb::crypto::KeyDerivationKey::UnencryptedKeyId});
 }
 
 AccessScanner::AccessScanner(KVBucket& _store,

@@ -3711,8 +3711,7 @@ cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
     auto& keys = std::get<std::unordered_set<std::string>>(rv);
     auto active = encryptionKeyProvider.lookup({});
     if (active) {
-        std::string key(active->getId());
-        keys.insert(key);
+        keys.insert(active->id);
     }
 
     bool unencrypted = false;
@@ -3732,7 +3731,7 @@ cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
                 LOG_WARNING_CTX(message, ctx);
             });
     if (unencrypted) {
-        deks.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+        deks.insert(cb::crypto::KeyDerivationKey::UnencryptedKeyId);
     }
     keys.insert(deks.begin(), deks.end());
 

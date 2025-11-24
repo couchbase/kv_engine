@@ -53,11 +53,6 @@ class RollbackCB;
 class RollbackResult;
 class VBucket;
 
-namespace cb::crypto {
-struct DataEncryptionKey;
-class KeyStore;
-}
-
 namespace cb::mcbp {
 class Request;
 } // namespace cb::mcbp

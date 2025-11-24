@@ -24,7 +24,7 @@ public:
         // Verify that the file was written encypted/plain
         auto reader = cb::crypto::FileReader::create(
                 mcd_env->getConfigurationFile(),
-                [encrypted](auto id) -> cb::crypto::SharedEncryptionKey {
+                [encrypted](auto id) -> cb::crypto::SharedKeyDerivationKey {
                     if (encrypted) {
                         return mcd_env->getDekManager().lookup(
                                 cb::dek::Entity::Config, id);
@@ -76,12 +76,12 @@ public:
     /// Test that we can set the encryption keys for the provided entity
     /// when we mark all keys as unavailable
     void testSetEncryptionKeysWithAllUnavailable(
-            cb::dek::Entity entity, cb::crypto::SharedEncryptionKey key);
+            cb::dek::Entity entity, cb::crypto::SharedKeyDerivationKey key);
 
     /// Test that we can set the encryption keys the bucket when we mark
     /// all current keys as unavailable
     void testSetEncryptionKeysWithAllUnavailable_bucket(
-            cb::crypto::SharedEncryptionKey key);
+            cb::crypto::SharedKeyDerivationKey key);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -95,7 +95,7 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
     // the key)
     auto& manager = mcd_env->getDekManager();
     manager.setActive(cb::dek::Entity::Config,
-                      cb::crypto::DataEncryptionKey::generate());
+                      cb::crypto::KeyDerivationKey::generate());
     rewriteMemcachedJson(true);
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
@@ -114,8 +114,7 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     // Disable encryption of the file
-    manager.setActive(cb::dek::Entity::Config,
-                      cb::crypto::SharedEncryptionKey{});
+    manager.setActive(cb::dek::Entity::Config, nullptr);
     rewriteMemcachedJson(false);
 
     // Memcached should detect that it isn't encrypted and be able
@@ -136,12 +135,12 @@ TEST_P(EncryptionTest, TestAuditAndLogDeksInUse) {
     ASSERT_TRUE(stats["@audit"].is_array());
     ASSERT_EQ(stats["@audit"].size(), 1);
     ASSERT_EQ(stats["@audit"].front().get<std::string>(),
-              mcd_env->getDekManager().lookup(cb::dek::Entity::Audit)->getId());
+              mcd_env->getDekManager().lookup(cb::dek::Entity::Audit)->id);
     ASSERT_TRUE(stats.contains("@logs"));
     ASSERT_TRUE(stats["@logs"].is_array());
     ASSERT_EQ(stats["@logs"].size(), 1);
     ASSERT_EQ(stats["@logs"].front().get<std::string>(),
-              mcd_env->getDekManager().lookup(cb::dek::Entity::Logs)->getId());
+              mcd_env->getDekManager().lookup(cb::dek::Entity::Logs)->id);
 }
 
 TEST_P(EncryptionTest, TestEncryptionKeyIds) {
@@ -160,7 +159,8 @@ TEST_P(EncryptionTest, TestEncryptionKeyIds) {
     //     ]
     EXPECT_FALSE(stats.empty());
     EXPECT_TRUE(stats.is_array()) << stats.dump();
-    const auto unencrypted = cb::crypto::DataEncryptionKey().getId();
+    const std::string_view unencrypted =
+            cb::crypto::KeyDerivationKey::UnencryptedKeyId;
     for (const auto& key : stats) {
         ASSERT_TRUE(key.is_string()) << stats.dump();
         if (key.get<std::string>() != unencrypted) {
@@ -216,11 +216,11 @@ TEST_P(EncryptionTest, TestPruneDeks) {
     // Make sure we have a bunch of keys in use for our logs
     auto& dekManager = mcd_env->getDekManager();
     std::vector<std::string> ids;
-    ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->getId());
+    ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->id);
     for (int ii = 0; ii < 10; ++ii) {
         dekManager.setActive(cb::dek::Entity::Logs,
-                             cb::crypto::DataEncryptionKey::generate());
-        ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->getId());
+                             cb::crypto::KeyDerivationKey::generate());
+        ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->id);
         auto rsp = adminConnection->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
                 format_as(cb::dek::Entity::Logs),
@@ -257,7 +257,7 @@ TEST_P(EncryptionTest, TestPruneDeks) {
     ASSERT_TRUE(stats["@logs"].is_array());
     ASSERT_EQ(stats["@logs"].size(), 1) << stats["@logs"].dump();
     ASSERT_EQ(stats["@logs"].front().get<std::string>(),
-              dekManager.lookup(cb::dek::Entity::Logs)->getId());
+              dekManager.lookup(cb::dek::Entity::Logs)->id);
 }
 
 TEST_P(EncryptionTest, TestPruneDeks_UnknownKeyId) {
@@ -315,7 +315,7 @@ TEST_P(EncryptionTest, TestDisableEncryption) {
     // Turn encryption back on as other tests expect the bucket to be
     // encrypted
     mcd_env->getTestBucket().keystore.setActiveKey(
-            cb::crypto::DataEncryptionKey::generate());
+            cb::crypto::KeyDerivationKey::generate());
     config = nlohmann::json(mcd_env->getTestBucket().keystore).dump();
     rsp = connection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
@@ -364,7 +364,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
 
     // Now wait for the access scanner to run and rewrite the access log
     // unencrypted
-    waitForEncryptionKey(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    waitForEncryptionKey(cb::crypto::KeyDerivationKey::UnencryptedKeyId);
     while (num_runs == waitForSnoozedAccessScanner()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -377,8 +377,8 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
 
     // Turn encryption back on and verify that the access log is
     // rewritten encrypted, and the .old files are removed
-    cb::crypto::SharedEncryptionKey key =
-            cb::crypto::DataEncryptionKey::generate();
+    cb::crypto::SharedKeyDerivationKey key =
+            cb::crypto::KeyDerivationKey::generate();
 
     // Turn encryption back on and verify that the access log is rewritten
     // encrypted
@@ -393,7 +393,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
 
     // Now wait for the access scanner to run and rewrite the access log
     // unencrypted
-    waitForEncryptionKey(key->getId());
+    waitForEncryptionKey(key->id);
     while (num_runs == waitForSnoozedAccessScanner()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -436,7 +436,7 @@ TEST_P(EncryptionTest, BucketReloadWhenMissingKeys) {
 }
 
 void EncryptionTest::testSetEncryptionKeysWithAllUnavailable(
-        cb::dek::Entity entity, cb::crypto::SharedEncryptionKey key) {
+        cb::dek::Entity entity, cb::crypto::SharedKeyDerivationKey key) {
     using namespace cb::crypto;
 
     std::vector<std::string> existing_keys;
@@ -445,7 +445,7 @@ void EncryptionTest::testSetEncryptionKeysWithAllUnavailable(
                 if (ent == entity) {
                     ks.iterateKeys([&existing_keys](const auto k) {
                         if (k) {
-                            existing_keys.emplace_back(k->getId());
+                            existing_keys.emplace_back(k->id);
                         }
                     });
                 }
@@ -481,15 +481,15 @@ void EncryptionTest::testSetEncryptionKeysWithAllUnavailable(
 }
 
 void EncryptionTest::testSetEncryptionKeysWithAllUnavailable_bucket(
-        cb::crypto::SharedEncryptionKey key) {
+        cb::crypto::SharedKeyDerivationKey key) {
     using namespace cb::crypto;
 
     std::vector<std::string> existing_keys;
     auto& bucket_keystore = mcd_env->getTestBucket().keystore;
 
-    bucket_keystore.iterateKeys([&existing_keys](const auto k) {
+    bucket_keystore.iterateKeys([&existing_keys](const auto& k) {
         if (k) {
-            existing_keys.emplace_back(k->getId());
+            existing_keys.emplace_back(k->id);
         }
     });
     bucket_keystore.setActiveKey(key);
@@ -526,7 +526,7 @@ TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_logs) {
     testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Logs, {});
     // set new active
     testSetEncryptionKeysWithAllUnavailable(
-            cb::dek::Entity::Logs, cb::crypto::DataEncryptionKey::generate());
+            cb::dek::Entity::Logs, cb::crypto::KeyDerivationKey::generate());
 }
 
 TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_audit) {
@@ -534,7 +534,7 @@ TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_audit) {
     testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Audit, {});
     // set new active
     testSetEncryptionKeysWithAllUnavailable(
-            cb::dek::Entity::Audit, cb::crypto::DataEncryptionKey::generate());
+            cb::dek::Entity::Audit, cb::crypto::KeyDerivationKey::generate());
 }
 
 TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_config) {
@@ -542,7 +542,7 @@ TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_config) {
     testSetEncryptionKeysWithAllUnavailable(cb::dek::Entity::Config, {});
     // set new active
     testSetEncryptionKeysWithAllUnavailable(
-            cb::dek::Entity::Config, cb::crypto::DataEncryptionKey::generate());
+            cb::dek::Entity::Config, cb::crypto::KeyDerivationKey::generate());
 }
 
 TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_bucket) {
@@ -550,5 +550,5 @@ TEST_P(EncryptionTest, SetActiveKeysWhenMissingKey_bucket) {
     testSetEncryptionKeysWithAllUnavailable_bucket({});
     // set new active
     testSetEncryptionKeysWithAllUnavailable_bucket(
-            cb::crypto::DataEncryptionKey::generate());
+            cb::crypto::KeyDerivationKey::generate());
 }

@@ -1061,7 +1061,7 @@ protected:
 
     /// Get a function to use the encryptionKeyProvider to look up the
     /// encryption key to use
-    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+    std::function<cb::crypto::SharedKeyDerivationKey(std::string_view)>
     getEncryptionLookupFunction() const;
 
     /**

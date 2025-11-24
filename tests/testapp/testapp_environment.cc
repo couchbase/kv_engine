@@ -123,7 +123,7 @@ void TestBucket::setParam(MemcachedConnection& conn,
 TestBucket::TestBucket(const std::filesystem::path& test_directory,
                        std::string extraConfig)
     : dbPath(test_directory / "dbase"), extraConfig(std::move(extraConfig)) {
-    keystore.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    keystore.setActiveKey(cb::crypto::KeyDerivationKey::generate());
 }
 
 void TestBucket::createBucket(const std::string& name,
@@ -246,11 +246,11 @@ McdEnvironment::McdEnvironment(std::string engineConfig)
     create_directories(log_dir);
 
     dek_manager->setActive(cb::dek::Entity::Logs,
-                           cb::crypto::DataEncryptionKey::generate());
+                           cb::crypto::KeyDerivationKey::generate());
     dek_manager->setActive(cb::dek::Entity::Audit,
-                           cb::crypto::DataEncryptionKey::generate());
+                           cb::crypto::KeyDerivationKey::generate());
     dek_manager->setActive(cb::dek::Entity::Config,
-                           cb::crypto::DataEncryptionKey::generate());
+                           cb::crypto::KeyDerivationKey::generate());
 
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..

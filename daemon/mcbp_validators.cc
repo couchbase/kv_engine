@@ -1868,7 +1868,7 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
                     return Status::Einval;
                 }
                 if (unavailabe.get<std::string>() ==
-                    cb::crypto::DataEncryptionKey::UnencryptedKeyId) {
+                    cb::crypto::KeyDerivationKey::UnencryptedKeyId) {
                     cookie.setErrorContext(
                             "It does not make sense to mark the unencrypted "
                             "key as unavailable");

@@ -18,12 +18,6 @@
 #include <atomic>
 #include <mutex>
 
-namespace cb::crypto {
-struct DataEncryptionKey;
-using SharedEncryptionKey = std::shared_ptr<const DataEncryptionKey>;
-class KeyStore;
-}
-
 /**
  * Base class encapsulating individual couchstore(vbucket) into a
  * logical group representing underlying storage operations

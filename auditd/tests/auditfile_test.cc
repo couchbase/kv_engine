@@ -329,7 +329,7 @@ TEST_F(AuditFileTest, TestDekRotation) {
         // trigger the file to be rotated)
         cb::dek::Manager::instance().setActive(
                 cb::dek::Entity::Audit,
-                cb::crypto::DataEncryptionKey::generate());
+                cb::crypto::KeyDerivationKey::generate());
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
     }

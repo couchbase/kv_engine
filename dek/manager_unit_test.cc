@@ -20,7 +20,7 @@ TEST(ManagerTest, GenerationUpdated) {
     auto version = Manager::instance()
                            .getEntityGenerationCounter(Entity::Config)
                            ->load();
-    SharedEncryptionKey key = cb::crypto::DataEncryptionKey::generate();
+    SharedKeyDerivationKey key = cb::crypto::KeyDerivationKey::generate();
     Manager::instance().setActive(Entity::Config, key);
     EXPECT_EQ(version + 1,
               Manager::instance()
@@ -40,7 +40,7 @@ TEST(ManagerTest, GenerationUpdated) {
 
     // But setting a new key will
     Manager::instance().setActive(Entity::Config,
-                                  cb::crypto::DataEncryptionKey::generate());
+                                  cb::crypto::KeyDerivationKey::generate());
     EXPECT_EQ(version + 2,
               Manager::instance()
                       .getEntityGenerationCounter(Entity::Config)
@@ -49,7 +49,7 @@ TEST(ManagerTest, GenerationUpdated) {
 
 TEST(ManagerTest, GenerationUpdatedKeyStore) {
     cb::crypto::KeyStore ks;
-    ks.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    ks.setActiveKey(cb::crypto::KeyDerivationKey::generate());
     Manager::instance().setActive(Entity::Config, ks);
     auto version = Manager::instance()
                            .getEntityGenerationCounter(Entity::Config)
@@ -67,7 +67,7 @@ TEST(ManagerTest, GenerationUpdatedKeyStore) {
                       ->load());
 
     // Setting a new value does change
-    ks.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    ks.setActiveKey(cb::crypto::KeyDerivationKey::generate());
     Manager::instance().setActive(Entity::Config, ks);
     EXPECT_EQ(version + 1,
               Manager::instance()

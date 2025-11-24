@@ -204,13 +204,13 @@ void ClusterImpl::createBucketOnNode(const Node& node,
     create_directories(deks);
 
     cb::crypto::KeyStore keystore;
-    keystore.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    keystore.setActiveKey(cb::crypto::KeyDerivationKey::generate());
     keystore.iterateKeys([&deks](auto key) {
         // ns_server generates (encrypted) files with the content of the
         // key (and possibly more info). While creating snapshots we
         // have logic which tries to copy all these files into the
         // snapshot so we need a file
-        cb::io::FileSink file(deks / fmt::format("{}.key.0", key->getId()));
+        cb::io::FileSink file(deks / fmt::format("{}.key.0", key->id));
         nlohmann::json json = *key;
         file.sink(json.dump(2));
         file.close();
