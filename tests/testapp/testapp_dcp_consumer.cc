@@ -123,6 +123,13 @@ public:
         BinprotResponse rsp;
         conn->recvResponse(rsp);
         ASSERT_TRUE(rsp.isSuccess());
+        ASSERT_EQ(cb::mcbp::ClientOpcode::DcpAddStream, rsp.getOp());
+        ASSERT_EQ(sizeof(cb::mcbp::response::DcpAddStreamPayload),
+                  rsp.getExtrasView().size());
+        auto payload = reinterpret_cast<
+                const cb::mcbp::response::DcpAddStreamPayload*>(
+                rsp.getExtrasView().data());
+        stream_opaque = payload->getOpaque();
     }
 
     std::string getValue() const {
@@ -223,6 +230,7 @@ public:
     std::string consumerName;
     static uint64_t seqno;
     static uint64_t cas;
+    uint32_t stream_opaque{std::numeric_limits<uint32_t>::max()};
 };
 
 uint64_t DcpConsumerAckTest::seqno{1};
@@ -259,8 +267,11 @@ INSTANTIATE_TEST_SUITE_P(
         ToStringCombinedTestName());
 
 TEST_P(DcpConsumerAckTest, Basic) {
-    const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
+    const auto markerBytes =
+            conn->dcpSnapshotMarkerV2(stream_opaque /*opaque */,
+                                      seqno /*start*/,
+                                      seqno + 2 /*end*/,
+                                      {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -274,7 +285,7 @@ TEST_P(DcpConsumerAckTest, Basic) {
     }
 
     const auto mutationBytes =
-            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+            conn->dcpMutation(doc, stream_opaque /*opaque*/, nextSeqno());
 
     if (testOutOfMem()) {
         ASSERT_EQ(mutationBytes, getUnackedBytes());
@@ -290,7 +301,8 @@ TEST_P(DcpConsumerAckTest, Basic) {
     doc.value = {};
     doc.info.datatype = cb::mcbp::Datatype::Raw;
     doc.info.cas = nextCas();
-    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes =
+            conn->dcpDeletionV2(doc, stream_opaque /*opaque*/, nextSeqno());
 
     if (testOutOfMem()) {
         ASSERT_EQ(delBytes, getUnackedBytes());
@@ -300,8 +312,11 @@ TEST_P(DcpConsumerAckTest, Basic) {
 }
 
 TEST_P(DcpConsumerAckTest, DeleteWithValue) {
-    const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
+    const auto markerBytes =
+            conn->dcpSnapshotMarkerV2(stream_opaque /*opaque */,
+                                      seqno /*start*/,
+                                      seqno + 2 /*end*/,
+                                      {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -316,7 +331,7 @@ TEST_P(DcpConsumerAckTest, DeleteWithValue) {
     }
 
     const auto mutationBytes =
-            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+            conn->dcpMutation(doc, stream_opaque /*opaque*/, nextSeqno());
 
     if (testOutOfMem()) {
         ASSERT_EQ(mutationBytes, getUnackedBytes());
@@ -330,7 +345,8 @@ TEST_P(DcpConsumerAckTest, DeleteWithValue) {
     }
 
     doc.info.cas = nextCas();
-    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes =
+            conn->dcpDeletionV2(doc, stream_opaque /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
@@ -354,8 +370,11 @@ TEST_P(DcpConsumerAckTest, DeleteWithValue) {
 TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
-    const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
+    const auto markerBytes =
+            conn->dcpSnapshotMarkerV2(stream_opaque /*opaque */,
+                                      seqno /*start*/,
+                                      seqno + 2 /*end*/,
+                                      {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -370,7 +389,7 @@ TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     }
 
     const auto mutationBytes =
-            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+            conn->dcpMutation(doc, stream_opaque /*opaque*/, nextSeqno());
 
     if (testOutOfMem()) {
         ASSERT_EQ(mutationBytes, getUnackedBytes());
@@ -384,7 +403,8 @@ TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     }
 
     doc.info.cas = nextCas();
-    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes =
+            conn->dcpDeletionV2(doc, stream_opaque /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
@@ -417,8 +437,11 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     std::string xattrKey = "_" + std::string(5, 'a');
     generateDocumentValue(getSmallValue(), xattrKey, 10);
 
-    const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
+    const auto markerBytes =
+            conn->dcpSnapshotMarkerV2(stream_opaque /*opaque */,
+                                      seqno /*start*/,
+                                      seqno + 2 /*end*/,
+                                      {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -433,7 +456,7 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     }
 
     const auto mutationBytes =
-            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+            conn->dcpMutation(doc, stream_opaque /*opaque*/, nextSeqno());
 
     if (testOutOfMem()) {
         ASSERT_EQ(mutationBytes, getUnackedBytes());
@@ -447,7 +470,8 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     }
 
     doc.info.cas = nextCas();
-    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes =
+            conn->dcpDeletionV2(doc, stream_opaque /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
