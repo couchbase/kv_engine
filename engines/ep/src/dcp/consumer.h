@@ -566,6 +566,10 @@ protected:
      */
     void addNoopSecondsPendingControl(Controls& controls);
 
+    cb::engine_errc doAddStream(uint32_t opaque,
+                                Vbid vbucket,
+                                cb::mcbp::DcpAddStreamFlag flags);
+
     /**
      * The container of DCP control negotiations. BlockingDcpControlNegotiation
      * objects are added by construction and can even be added by the success or
@@ -579,6 +583,17 @@ protected:
      * thread.
      */
     folly::Synchronized<Controls, std::mutex> pendingControls;
+
+    struct AddStreamsData {
+        AddStreamsData(uint32_t op, Vbid vb, cb::mcbp::DcpAddStreamFlag fl)
+            : opaque(op), vbucket(vb), flags(fl) {
+        }
+        uint32_t opaque;
+        Vbid vbucket;
+        cb::mcbp::DcpAddStreamFlag flags;
+    };
+    using AddStreams = std::deque<AddStreamsData>;
+    folly::Synchronized<AddStreams, std::mutex> pendingAddStreams;
 
     /// Opaque generator. uint32_t as that is the maxium opaque supported by the
     /// MCBP protocol.

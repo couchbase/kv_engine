@@ -273,6 +273,11 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
 cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                        Vbid vbucket,
                                        cb::mcbp::DcpAddStreamFlag flags) {
+    // MB-69547: Allow bypassing control negotiation for testing purposes
+    //           as a lot of the old DCP tests don't drive the state
+    //           machine to complete control negotiation.
+    const bool BYPASS_CONTROL_NEGOTIATION =
+            getenv("MB69547_BYPASS_CONTROL_NEGOTIATION") != nullptr;
     TRACE_EVENT2("DcpConsumer",
                  "addStream",
                  "vbid",
@@ -284,7 +289,22 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
+    pendingAddStream = false;
+    if (BYPASS_CONTROL_NEGOTIATION || pendingControls.lock()->empty()) {
+        // All controls have been sent - we can process this now
+        return doAddStream(opaque, vbucket, flags);
+    }
 
+    // We need to wait for the controls to be sent first. Queue this
+    // request and process it once the controls have been sent.
+    pendingAddStreams.lock()->emplace_back(opaque, vbucket, flags);
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpAddStreamFlag flags) {
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         OBJ_LOG_WARN_CTX(*logger,
@@ -373,7 +393,6 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     registerStream(stream);
     readyStreamsVBQueue.lock()->push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
-    pendingAddStream = false;
 
     // A DcpStreamRequest should be ready for transmission
     scheduleNotify();
@@ -852,6 +871,28 @@ cb::engine_errc DcpConsumer::step(bool throttled,
         return ret;
     }
 
+    // Process any pending add stream requests
+    if (pendingControls.lock()->empty()) {
+        auto locked = pendingAddStreams.lock();
+        while (!locked->empty()) {
+            auto opaque = locked->front().opaque;
+            auto vbucket = locked->front().vbucket;
+            auto flags = locked->front().flags;
+            locked->pop_front();
+
+            const auto rv = doAddStream(opaque, vbucket, flags);
+            if (rv != cb::engine_errc::success) {
+                auto status = cb::mcbp::Status::KeyEexists;
+                if (rv == cb::engine_errc::not_my_vbucket) {
+                    status = cb::mcbp::Status::NotMyVbucket;
+                } else {
+                    Expects(rv == cb::engine_errc::key_already_exists);
+                }
+                return producers.add_stream_rsp(opaque, 0, status);
+            }
+        }
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return cb::engine_errc::would_block;
@@ -932,12 +973,6 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
 
     const auto opcode = response.getClientOpcode();
     const auto opaque = response.getOpaque();
-
-    OBJ_LOG_DEBUG_CTX(*logger,
-                      "handleResponse()",
-                      {"opcode", opcode},
-                      {"opaque", opaque},
-                      {"status", response.getStatus()});
 
     if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
         auto oitr = opaqueMap_.find(opaque);

@@ -170,6 +170,11 @@ int main(int argc, char **argv) {
 
     putenv(allow_no_stats_env.data());
     setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    // MB-69547: Allow bypassing control negotiation for testing purposes
+    //           as a lot of the old DCP tests don't drive the state
+    //           machine to complete control negotiation.
+    // https://jira.issues.couchbase.com/browse/MB-69547
+    setenv("MB69547_BYPASS_CONTROL_NEGOTIATION", "true", 1);
 
     cb::ArenaMalloc::setTCacheEnabled(threadCacheEnabled);
 
