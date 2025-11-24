@@ -1507,26 +1507,6 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                         *cookie[i], 0, Vbid(gsl::narrow<Vbid::id_type>(i)), {}),
                 "Failed to set up stream");
 
-        MockDcpMessageProducers producers;
-
-        checkeq(cb::engine_errc::success,
-                dcp->step(*cookie[i], false, producers),
-                "GetErrorMap not processed");
-        checkeq(cb::mcbp::ClientOpcode::GetErrorMap,
-                producers.last_op,
-                "Unexpected last_op");
-        checkeq(""s, producers.last_key, "Unexpected non-empty key");
-
-        // Simulate that the GetErrorMap response has been received.
-        // This step is necessary, as a pending GetErrorMap response would
-        // not let the next dcp_step() to execute the
-        // DcpControl/set_noop_interval call.
-        cb::mcbp::Response resp{};
-        resp.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-        resp.setStatus(cb::mcbp::Status::Success);
-        dcpHandleResponse(h, cookie[i], resp, producers);
-
         checkBufferSize(i + 1);
     }
 
@@ -3093,23 +3073,6 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
             };
 
     if (get_bool_stat(engine, "ep_dcp_enable_noop")) {
-        // MB-29441: Check that the GetErrorMap message is sent
-        dcp_step(engine, cookie, producers);
-        checkeq(ClientOpcode::GetErrorMap,
-                producers.last_op,
-                "Unexpected last_op");
-        checkeq(""s, producers.last_key, "Unexpected non-empty key");
-
-        // Simulate that the GetErrorMap response has been received.
-        // This step is necessary, as a pending GetErrorMap response would
-        // not let the next dcp_step() to execute the
-        // DcpControl/set_noop_interval call.
-        cb::mcbp::Response resp{};
-        resp.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-        resp.setStatus(cb::mcbp::Status::Success);
-        dcpHandleResponse(engine, cookie, resp, producers);
-
         // Check that the enable noop message is sent
         dcpStepAndExpectControlMsg(DcpControlKeys::EnableNoop);
 
@@ -3117,6 +3080,7 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
         dcpStepAndExpectControlMsg(DcpControlKeys::SetNoopInterval);
         // MB-56973: Consumer ewouldblocks waiting for a response from producer,
         // so send a response so setup can continue.
+        cb::mcbp::Response resp{};
         resp.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.setOpaque(producers.last_opaque);
         resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);

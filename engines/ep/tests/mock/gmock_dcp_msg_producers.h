@@ -149,11 +149,6 @@ public:
                 (override));
 
     MOCK_METHOD(cb::engine_errc,
-                get_error_map,
-                (uint32_t opaque, uint16_t version),
-                (override));
-
-    MOCK_METHOD(cb::engine_errc,
                 prepare,
                 (uint32_t opaque,
                  Item* itm,

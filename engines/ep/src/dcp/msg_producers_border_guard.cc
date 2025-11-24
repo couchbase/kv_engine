@@ -194,11 +194,6 @@ cb::engine_errc DcpMsgProducersBorderGuard::system_event(
     return guarded.system_event(
             opaque, vbucket, event, bySeqno, version, key, eventData, sid);
 }
-cb::engine_errc DcpMsgProducersBorderGuard::get_error_map(uint32_t opaque,
-                                                          uint16_t version) {
-    NonBucketAllocationGuard guard;
-    return guarded.get_error_map(opaque, version);
-}
 cb::engine_errc DcpMsgProducersBorderGuard::prepare(
         uint32_t opaque,
         cb::unique_item_ptr itm,

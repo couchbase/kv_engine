@@ -569,13 +569,6 @@ cb::engine_errc MockDcpMessageProducers::cache_transfer_end_tx(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc MockDcpMessageProducers::get_error_map(uint32_t opaque,
-                                                       uint16_t version) {
-    clear_dcp_data();
-    last_op = cb::mcbp::ClientOpcode::GetErrorMap;
-    return cb::engine_errc::success;
-}
-
 void MockDcpMessageProducers::setMutationStatus(cb::engine_errc code) {
     mutationStatus = code;
 }

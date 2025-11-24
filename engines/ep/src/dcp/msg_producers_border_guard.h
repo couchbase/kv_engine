@@ -118,8 +118,6 @@ public:
                                  cb::const_byte_buffer eventData,
                                  cb::mcbp::DcpStreamId sid) override;
 
-    cb::engine_errc get_error_map(uint32_t opaque, uint16_t version) override;
-
     cb::engine_errc prepare(uint32_t opaque,
                             cb::unique_item_ptr,
                             Vbid vbucket,

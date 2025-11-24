@@ -433,16 +433,6 @@ protected:
                         cb::mcbp::Status status,
                         cb::const_byte_buffer newFailoverLog);
 
-    /*
-     * Sends a GetErrorMap request to the other side
-     *
-     * @param producers Pointers to message producers
-     *
-     * @return cb::engine_errc::failed if the step has completed,
-     * cb::engine_errc::success otherwise
-     */
-    cb::engine_errc handleGetErrorMap(DcpMessageProducersIface& producers);
-
     cb::engine_errc handleNoop(DcpMessageProducersIface& producers);
 
     /**
@@ -640,22 +630,6 @@ protected:
     // Sync Replication: The identifier the consumer should to identify itself
     // to the producer.
     const std::string consumerName;
-
-    /*
-     * MB-29441: The following variables are used to set the the proper
-     * noop-interval on the producer depending on the producer version:
-     * 1) if state::PendingRequest, then the consumer sends a GetErrorMap
-     *     request to the producer
-     * 2) we wait until state!=PendingResponse (i.e., response ready)
-     * 3) the GetErrorMap command is available from version >= 5.0.0, so
-     *     - if GetErrorMap succeeds, we have >= 5.0.0 producer and continue.
-     *     - if GetErrorMap fails, we have <= 5.0.0 producer and disconnect.
-     */
-    enum class GetErrorMapState : uint8_t {
-        Skip = 0, // Covers "do not send request" and "response ready"
-        PendingRequest,
-        PendingResponse
-    } getErrorMapState{GetErrorMapState::Skip};
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;

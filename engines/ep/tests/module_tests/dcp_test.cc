@@ -1305,45 +1305,6 @@ TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(ConnectionTest, consumer_get_error_map) {
-    // We want to test that the Consumer processes the GetErrorMap negotiation
-    // with the Producer correctly. I.e., the Consumer must check the
-    // Producer's version and set internal flags accordingly.
-    // Note: we test both the cases of pre-5.0.0 and post-5.0.0 Producer
-    for (auto prodIsV5orHigher : {true, false}) {
-        auto* cookie = create_mock_cookie(engine);
-        // GetErrorMap negotiation performed only if NOOP is enabled
-        engine->getConfiguration().setDcpEnableNoop(true);
-        MockDcpMessageProducers producers;
-
-        // Create a mock DcpConsumer
-        MockDcpConsumer consumer(*engine, cookie, "test_consumer");
-        consumer.setPendingAddStream(false);
-        ASSERT_EQ(1 /*PendingRequest*/,
-                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
-
-        // The next call to step() is expected to start the GetErrorMap
-        // negotiation
-        ASSERT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-        ASSERT_EQ(2 /*PendingResponse*/,
-                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
-
-        // At this point the consumer is waiting for a response from the
-        // producer. I simulate the producer's response with a call to
-        // handleResponse()
-        cb::mcbp::Response resp{};
-        resp.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-        resp.setStatus(prodIsV5orHigher ? cb::mcbp::Status::Success
-                                        : cb::mcbp::Status::UnknownCommand);
-        // pre-5.0.0 producer is no longer supported, handleResponse will return
-        // false in that case.
-        ASSERT_EQ(prodIsV5orHigher, consumer.handleResponse(resp));
-
-        destroy_mock_cookie(cookie);
-    }
-}
-
 // Regression test for MB 20645 - ensure that a call to addStats after a
 // connection has been disconnected (and closeAllStreams called) doesn't crash.
 TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {

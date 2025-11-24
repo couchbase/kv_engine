@@ -60,10 +60,6 @@ public:
         return backoffs.load();
     }
 
-    GetErrorMapState getGetErrorMapState() {
-        return getErrorMapState;
-    }
-
     FlowControl& getFlowControl() {
         return flowControl;
     }

@@ -109,7 +109,6 @@ public:
     cb::engine_errc control(uint32_t opaque,
                             std::string_view key,
                             std::string_view value) override;
-    cb::engine_errc get_error_map(uint32_t opaque, uint16_t version) override;
     // Change the status code returned from mutation() to the specified value.
     void setMutationStatus(cb::engine_errc code);
 

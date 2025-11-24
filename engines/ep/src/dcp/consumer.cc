@@ -165,9 +165,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                     addNoopSecondsPendingControl(controls);
                     return false;
                 });
-        // When noop is enabled, GetErrorMap is used to determine if the
-        // producer is the correct version.
-        getErrorMapState = GetErrorMapState::PendingRequest;
     }
     controls->emplace_back(DcpControlKeys::SetPriority, "high");
     controls->emplace_back(DcpControlKeys::SupportsCursorDroppingVulcan,
@@ -846,17 +843,6 @@ cb::engine_errc DcpConsumer::step(bool throttled,
         return ret;
     }
 
-    // MB-29441: Send a GetErrorMap to the producer to determine if it
-    // is a pre-5.0.0 node. The consumer will set the producer's noop-interval
-    // accordingly in 'handleNoop()', so 'handleGetErrorMap()' *must* execute
-    // before 'handleNoop()'.
-    // Note: We only support mixed-mode cluster one major version apart, so
-    // as of 7.x we don't support communicating with v5.x; but we still perform
-    // detection of v5 so we can at least report a clean error to the user.
-    if ((ret = handleGetErrorMap(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
     // Process all controls before anything else.
     if (auto controls = pendingControls.lock(); !controls->empty()) {
         return stepControlNegotiation(producers, controls->front());
@@ -1064,30 +1050,6 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         // next.
         controls->pop_front();
         return stayConnected;
-    }
-    if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
-        auto status = response.getStatus();
-        // GetErrorMap is supported on versions >= 5.0.0.
-        // "Unknown Command" is returned on pre-5.0.0 versions.
-        // We only support mixed-mode (online upgrade) for the previous major
-        // - which of of writing is 6.x - so 5.x is no longer supported. However,
-        // there isn't a simple way to detect 5.x - only less than 5 - so for
-        // now we are slightly more permissive and still allow 5.x, rejecting
-        // 4.x and lower.
-        auto producerIsVersion5orHigher =
-                status != cb::mcbp::Status::UnknownCommand;
-        if (!producerIsVersion5orHigher) {
-            OBJ_LOG_ERROR_CTX(
-                    *logger,
-                    "Incompatible Producer node version detected - this "
-                    "version of CB Server requires version 6 or higher - "
-                    "disconnecting. (Producer responded to GetErrorMap "
-                    "request indicating version <5.0.0)",
-                    {"status", status});
-            return false;
-        }
-        getErrorMapState = GetErrorMapState::Skip;
-        return true;
     }
     if (opcode == cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged) {
         // Seqno ack might respond in a non-success case if the vBucket has gone
@@ -1484,27 +1446,6 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
                 {"since_last_message", (now - lastMessageTime)},
                 {"dcp_noop_tx_interval", dcpNoopTxInterval});
         return cb::engine_errc::disconnect;
-    }
-
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::handleGetErrorMap(
-        DcpMessageProducersIface& producers) {
-    if (getErrorMapState == GetErrorMapState::PendingRequest) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        // Note: just send 0 as version to get the default error map loaded
-        //     from file at startup. The error map returned is not used, we
-        //     just want to issue a valid request.
-        ret = producers.get_error_map(opaque, 0 /*version*/);
-        getErrorMapState = GetErrorMapState::PendingResponse;
-        return ret;
-    }
-
-    // We have to wait for the GetErrorMap response before proceeding
-    if (getErrorMapState == GetErrorMapState::PendingResponse) {
-        return cb::engine_errc::would_block;
     }
 
     return cb::engine_errc::failed;

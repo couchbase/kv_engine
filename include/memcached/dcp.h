@@ -289,17 +289,6 @@ struct DcpMessageProducersIface {
             cb::const_byte_buffer eventData,
             cb::mcbp::DcpStreamId sid) = 0;
 
-    /*
-     * Send a GetErrorMap message to the other end
-     *
-     * @param opaque The opaque to send over
-     * @param version The version of the error map
-     *
-     * @return cb::engine_errc::success upon success
-     */
-    [[nodiscard]] virtual cb::engine_errc get_error_map(uint32_t opaque,
-                                                        uint16_t version) = 0;
-
     /**
      * See mutation for a description of the parameters except for:
      *

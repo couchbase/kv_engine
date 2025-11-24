@@ -2271,18 +2271,6 @@ cb::engine_errc Connection::system_event(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-cb::engine_errc Connection::get_error_map(uint32_t opaque, uint16_t version) {
-    cb::mcbp::request::GetErrmapPayload body;
-    body.setVersion(version);
-    cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-    builder.setOpaque(opaque);
-    builder.setValue(body.getBuffer());
-
-    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
-}
-
 cb::engine_errc Connection::prepare(uint32_t opaque,
                                     cb::unique_item_ptr it,
                                     Vbid vbucket,
