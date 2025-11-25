@@ -16,6 +16,9 @@
 
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
+#include "mock/mock_dcp.h"
+
+#include <memcached/dcp.h>
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
@@ -477,4 +480,113 @@ std::ostream& operator<<(std::ostream& os, const ObserveKeyState& oks) {
         return os;
     }
     throw std::invalid_argument("Unknown value for ObserveKeyState");
+}
+
+gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
+    return dynamic_cast<DcpIface*>(engine);
+}
+
+bool dcp_step(EngineIface* engine,
+              CookieIface* cookie,
+              MockDcpMessageProducers& producers) {
+    auto dcp = requireDcpIface(engine);
+    cb::engine_errc err = dcp->step(*cookie, false, producers);
+
+    if (err == cb::engine_errc::would_block) {
+        // Preserve last_opaque, as that is sometimes needed by the other
+        // side of the connection to respond to the message.
+        auto last_opaque = producers.last_opaque;
+        producers.clear_dcp_data();
+        producers.last_opaque = last_opaque;
+        return false;
+    }
+
+    checkeq(cb::engine_errc::success,
+            err,
+            "Expected success or engine_ewouldblock");
+    return true;
+}
+
+cb::engine_errc add_stream(
+        EngineIface* engine,
+        CookieIface* cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        const std::function<void(cb::mcbp::Status, uint32_t)>&
+                onDcpAddStreamRsp,
+        const std::function<cb::engine_errc(DcpIface*, uint32_t)>&
+                onDcpStreamReq) {
+    using namespace cb::mcbp;
+    auto dcp = requireDcpIface(engine);
+    const auto ret = dcp->add_stream(*cookie, opaque, vbucket, {});
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    MockDcpMessageProducers producers;
+    while (dcp_step(engine, cookie, producers)) {
+        if (producers.last_op == ClientOpcode::DcpControl) {
+            Response resp{};
+            resp.setMagic(Magic::ClientResponse);
+            resp.setOpcode(ClientOpcode::DcpControl);
+            resp.setStatus(Status::Success);
+            resp.setOpaque(producers.last_opaque);
+            checkeq(cb::engine_errc::success,
+                    dcp->response_handler(*cookie, resp),
+                    "Expected success");
+            continue;
+        }
+
+        if (producers.last_op == ClientOpcode::DcpStreamReq) {
+            if (onDcpStreamReq) {
+                onDcpStreamReq(dcp.get(), producers.last_opaque);
+                continue;
+            }
+            std::vector<uint8_t> pkt(sizeof(Response) + (sizeof(uint64_t) * 2));
+            ResponseBuilder builder(pkt);
+            builder.setMagic(Magic::ClientResponse);
+            builder.setOpcode(ClientOpcode::DcpStreamReq);
+            builder.setStatus(Status::Success);
+            builder.setOpaque(producers.last_opaque);
+
+            struct {
+                uint64_t vb_uuid = htonll(123456789);
+                uint64_t by_seqno = 0;
+            } payload;
+            static_assert(sizeof(payload) == (sizeof(uint64_t) * 2),
+                          "Unexpected struct size");
+            builder.setValue({reinterpret_cast<const uint8_t*>(&payload),
+                              sizeof(payload)});
+
+            checkeq(cb::engine_errc::success,
+                    dcp->response_handler(*cookie, *builder.getFrame()),
+                    "Expected success");
+            continue;
+        }
+
+        if (producers.last_op == ClientOpcode::DcpAddStream) {
+            if (onDcpAddStreamRsp) {
+                onDcpAddStreamRsp(producers.last_status,
+                                  producers.last_stream_opaque);
+            }
+            if (producers.last_status == Status::Success) {
+                return cb::engine_errc::success;
+            }
+            if (producers.last_status == Status::KeyEexists) {
+                return cb::engine_errc::key_already_exists;
+            }
+            if (producers.last_status == Status::NotMyVbucket) {
+                return cb::engine_errc::not_my_vbucket;
+            }
+
+            std::cerr << "Received unexpected status code for DcpAddStream: "
+                      << producers.last_status << std::endl;
+            std::abort();
+        }
+
+        std::cerr << "Received unexpected opcode " << producers.last_op
+                  << std::endl;
+        std::abort();
+    }
+    return cb::engine_errc::would_block;
 }

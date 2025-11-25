@@ -35,34 +35,6 @@ using namespace std::string_view_literals;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-/**
- * Converts the given engine to a DcpIface*. If engine doesn't implement
- * DcpIface then throws.
- * @returns non-null ptr to DcpIface.
- */
-static gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
-    return dynamic_cast<DcpIface*>(engine);
-}
-
-static void dcp_step(EngineIface* engine,
-                     CookieIface* cookie,
-                     MockDcpMessageProducers& producers) {
-    auto dcp = requireDcpIface(engine);
-    cb::engine_errc err = dcp->step(*cookie, false, producers);
-
-    if (err == cb::engine_errc::would_block) {
-        // Preserve last_opaque, as that is sometimes needed by the other
-        // side of the connection to respond to the message.
-        auto last_opaque = producers.last_opaque;
-        producers.clear_dcp_data();
-        producers.last_opaque = last_opaque;
-    } else {
-        checkeq(cb::engine_errc::success,
-                err,
-                "Expected success or engine_ewouldblock");
-    }
-}
-
 static void dcpHandleResponse(EngineIface* engine,
                               CookieIface* cookie,
                               const cb::mcbp::Response& response,
@@ -4363,7 +4335,7 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
+static test_result test_dcp_add_stream_exists(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
@@ -4385,12 +4357,12 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream to consumer */
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, ++opaque, vbucket, {}),
+            add_stream(h, cookie, ++opaque, vbucket),
             "Add stream request failed");
 
     /* Send add stream to consumer twice and expect failure */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(*cookie, ++opaque, Vbid(0), {}),
+            add_stream(h, cookie, ++opaque, vbucket),
             "Stream exists for this vbucket");
 
     /* Try adding another stream for the vbucket in another consumer conn */
@@ -4409,7 +4381,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(*cookie1, ++opaque1, vbucket, {}),
+            add_stream(h, cookie1, ++opaque1, vbucket),
             "Stream exists for this vbucket");
 
     /* Just check that we can add passive stream for another vbucket in this
@@ -4419,14 +4391,14 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
                     h, Vbid(vbucket.get() + 1), vbucket_state_replica),
             "Failed to set vbucket state.");
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie1, ++opaque1, Vbid(vbucket.get() + 1), {}),
+            add_stream(h, cookie1, ++opaque1, Vbid(vbucket.get() + 1)),
             "Add stream request failed in the second conn");
     testHarness->destroy_cookie(cookie);
     testHarness->destroy_cookie(cookie1);
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
+static test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
@@ -4448,7 +4420,7 @@ static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
     checkeq(cb::engine_errc::not_my_vbucket,
-            dcp->add_stream(*cookie, opaque, Vbid(1), {}),
+            add_stream(h, cookie, opaque, Vbid(1)),
             "Add stream expected not my vbucket");
     testHarness->destroy_cookie(cookie);
 

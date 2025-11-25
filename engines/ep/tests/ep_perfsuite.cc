@@ -1194,11 +1194,14 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                      {} /*flags*/,
                      "test_consumer"),
             "dcp.open failed");
+    uint32_t stream_opaque = 0;
     checkeq(cb::engine_errc::success,
-            dcp.add_stream(*passiveCookie,
-                           opaque,
-                           vbid,
-                           cb::mcbp::DcpAddStreamFlag::None),
+            add_stream(
+                    h,
+                    passiveCookie,
+                    opaque,
+                    vbid,
+                    [&stream_opaque](auto, auto val) { stream_opaque = val; }),
             "dcp.add_stream failed");
 
     std::vector<hrtime_t> timings;
@@ -1213,7 +1216,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         checkeq(cb::engine_errc::success,
                 dcp.snapshot_marker(
                         *passiveCookie,
-                        opaque,
+                        stream_opaque,
                         vbid,
                         seqno /*snapStart*/,
                         seqno /*snapEnd*/,
@@ -1230,7 +1233,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         checkeq(cb::engine_errc::success,
                 dcp.mutation(
                         *passiveCookie,
-                        opaque,
+                        stream_opaque,
                         DocKeyView(key, DocKeyEncodesCollectionId::No),
                         cb::const_byte_buffer(
                                 reinterpret_cast<const uint8_t*>("value"), 5),

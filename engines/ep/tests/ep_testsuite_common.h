@@ -282,3 +282,50 @@ void checkPersistentBucketTempItems(EngineIface* h, int exp);
 
 // Set the Bucket quota to the given value and wait for it to take effect
 void setAndWaitForQuotaChange(EngineIface* h, uint64_t newQuota);
+
+struct DcpIface;
+class MockDcpMessageProducers;
+
+/**
+ * Converts the given engine to a DcpIface*. If engine doesn't implement
+ * DcpIface then throws.
+ * @returns non-null ptr to DcpIface.
+ */
+gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine);
+
+/**
+ * Run step for the dcp connection
+ *
+ * @param engine the engine in use
+ * @param cookie the cookie for the connection
+ * @param producers the producer object for providing responses
+ * @return true if a new message was produced, false if it would block
+ */
+bool dcp_step(EngineIface* engine,
+              CookieIface* cookie,
+              MockDcpMessageProducers& producers);
+
+/**
+ * Helper function to send an add stream request to the engine and
+ * process the control messages (and stream request) until we get the
+ * response for the add stream message and return its status.
+ *
+ * @param engine the engine in use
+ * @param cookie the cookie for the connection
+ * @param opaque the opaque to use for the add stream request
+ * @param vbucket the vbucket to create the stream on
+ * @param onDcpAddStreamRsp callback which will be invoked when we receive
+ *                          the add stream response
+ * @param onDcpStreamReq callback which will be invoked when we receive
+ *                       the stream request message
+ * @return engine error code indicating the result of the add stream request
+ */
+cb::engine_errc add_stream(
+        EngineIface* engine,
+        CookieIface* cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        const std::function<void(cb::mcbp::Status, uint32_t)>&
+                onDcpAddStreamRsp = {},
+        const std::function<cb::engine_errc(DcpIface*, uint32_t)>&
+                onDcpStreamReq = {});
