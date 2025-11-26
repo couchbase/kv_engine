@@ -340,7 +340,7 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
 }
 
 Bucket& Connection::getBucket() const {
-    return all_buckets[getBucketIndex()];
+    return BucketManager::instance().at(getBucketIndex());
 }
 
 EngineIface& Connection::getBucketEngine() const {
@@ -476,7 +476,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    createContext(all_buckets[index].name));
+                    createContext(BucketManager::instance().at(index).name));
         } else {
             // The user has not authenticated. Assign an empty profile which
             // won't give you any privileges.

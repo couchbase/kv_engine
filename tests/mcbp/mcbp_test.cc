@@ -2303,9 +2303,9 @@ TEST_P(CommandSpecificErrorContextTest, DcpStreamRequest) {
     header.setBodylen(48 + 10);
 
     if (isCollectionsEnabled()) {
-        EXPECT_EQ("Attached bucket does not support DCP",
+        EXPECT_EQ("The command can only be sent on a DCP connection",
                   validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq,
-                                         cb::mcbp::Status::NotSupported));
+                                         cb::mcbp::Status::Einval));
     } else {
         EXPECT_EQ("Request must not include value",
                   validate_error_context(cb::mcbp::ClientOpcode::DcpStreamReq));
@@ -2448,9 +2448,9 @@ TEST_P(CommandSpecificErrorContextTest, DcpCachedKeyMeta) {
     builder.setExtras(extras.getBuffer());
     header.setBodylen(extlen + 10); // value is 0 bytes
     header.setDatatype(cb::mcbp::Datatype::Snappy);
-    EXPECT_EQ("Attached bucket does not support DCP",
+    EXPECT_EQ("The command can only be sent on a DCP connection",
               validate_error_context(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
-                                     cb::mcbp::Status::NotSupported));
+                                     cb::mcbp::Status::Einval));
 }
 
 TEST_P(CommandSpecificErrorContextTest, Hello) {

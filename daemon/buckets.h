@@ -424,6 +424,10 @@ class BucketManager {
 public:
     static BucketManager& instance();
 
+    /// Get information about a bucket as a JSON object
+    /// If name is empty, return information about all buckets
+    nlohmann::json getBucketInfo(std::string_view name);
+
     /**
      * Wait for all buckets to be in a quiescent state, and then
      * destroy all of the underlying engines.
@@ -506,6 +510,10 @@ public:
 
     /// Get the bucket with the given index
     Bucket& at(size_t idx);
+
+    Bucket& getNoBucket() {
+        return at(0);
+    }
 
     /// Get the name of the bucket with the given index
     std::string getName(size_t idx) const;

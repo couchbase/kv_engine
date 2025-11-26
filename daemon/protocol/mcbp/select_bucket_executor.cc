@@ -44,7 +44,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
             // It wasn't valid, try to jump back to the bucket we used to be
             // associated with..
             if (oldIndex != connection.getBucketIndex()) {
-                bm.associateBucket(cookie, all_buckets[oldIndex].name);
+                bm.associateBucket(cookie, bm.at(oldIndex).name);
             }
             cookie.setErrorContext(
                     "Destination bucket does not support collections");
@@ -57,7 +57,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
                 Config::instance().maxConnectionsPerBucket.load(
                         std::memory_order_acquire)) {
                 if (oldIndex != connection.getBucketIndex()) {
-                    bm.associateBucket(cookie, all_buckets[oldIndex].name);
+                    bm.associateBucket(cookie, bm.at(oldIndex).name);
                 }
                 cookie.setErrorContext("Too many bucket connections");
                 return cb::engine_errc::too_many_connections;
@@ -71,7 +71,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
     if (oldIndex != connection.getBucketIndex()) {
         // try to jump back to the bucket we used to be associated
         // with..
-        bm.associateBucket(cookie, all_buckets[oldIndex].name);
+        bm.associateBucket(cookie, bm.at(oldIndex).name);
     }
     return cb::engine_errc::no_such_key;
 }

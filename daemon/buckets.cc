@@ -514,6 +514,40 @@ BucketManager& BucketManager::instance() {
     return instance;
 }
 
+nlohmann::json BucketManager::getBucketInfo(std::string_view name) {
+    if (name.empty()) {
+        // Return all buckets
+        nlohmann::json array = nlohmann::json::array();
+
+        for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
+            Bucket& bucket = all_buckets[ii];
+            nlohmann::json json = bucket;
+            if (!json.empty()) {
+                json["index"] = ii;
+                array.emplace_back(std::move(json));
+            }
+        }
+
+        nlohmann::json json;
+        json["buckets"] = array;
+        return json;
+    }
+
+    // Return the bucket details for the bucket with the requested name
+    // To avoid racing with bucket creation/deletion/pausing and all the
+    // other commands potentially changing bucket states _AND_ make sure
+    // we don't skip any states lets create a json dump of the bucket and
+    // check if it was the bucket we wanted.
+    for (const auto& bucket : all_buckets) {
+        nlohmann::json json = bucket;
+        if (!json.empty() && json["name"].get<std::string>() == name) {
+            return json;
+        }
+    }
+
+    return {};
+}
+
 void BucketManager::shutdown() {
     for (auto& bucket : all_buckets) {
         bool waiting;

@@ -150,8 +150,9 @@ static void push_cluster_config(std::string_view bucketname) {
             return;
         }
 
-        auto& bucket =
-                bucketname.empty() ? all_buckets[0] : connection.getBucket();
+        auto& bucket = bucketname.empty()
+                               ? BucketManager::instance().getNoBucket()
+                               : connection.getBucket();
         try {
             auto active = bucket.clusterConfiguration.maybeGetConfiguration(
                     bucket.type == BucketType::NoBucket

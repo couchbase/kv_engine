@@ -637,9 +637,11 @@ protected:
     }
 };
 
+// All buckets support DCP, but thy require the connection to be set
+// up as a DCP connection
 TEST_P(DcpMutationValidatorTest, CorrectMessage) {
-    EXPECT_EQ("Attached bucket does not support DCP",
-              validate_error_context(cb::mcbp::Status::NotSupported));
+    EXPECT_EQ("The command can only be sent on a DCP connection",
+              validate_error_context(cb::mcbp::Status::Einval));
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlen) {

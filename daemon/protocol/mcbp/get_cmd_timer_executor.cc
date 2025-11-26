@@ -167,7 +167,9 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
         // Use check privilege to ensure that it get logged if we don't
         // have access.
         if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).success()) {
-            auto* histo = all_buckets[0].timings.get_timing_histogram(opcode);
+            auto* histo = BucketManager::instance()
+                                  .getNoBucket()
+                                  .timings.get_timing_histogram(opcode);
             if (histo) {
                 return {cb::engine_errc::success, histo->to_string()};
             }
@@ -176,7 +178,7 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
         return {cb::engine_errc::no_access, {}};
     }
 
-    if (bucket.empty() || bucket == all_buckets[index].name) {
+    if (bucket.empty() || bucket == BucketManager::instance().at(index).name) {
         // Use checkPrivilege to ensure that it gets logged.
         if (cookie.checkPrivilege(cb::rbac::Privilege::SimpleStats).failed()) {
             return {cb::engine_errc::no_access, {}};

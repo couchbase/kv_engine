@@ -38,6 +38,10 @@ public:
         remove_all(bucketPath);
     }
 
+    static void SetUpTestSuite() {
+        BucketManager::instance();
+    }
+
     static void TearDownTestSuite() {
         // Nuke temporary test files created by previous runs of
         // the test suite

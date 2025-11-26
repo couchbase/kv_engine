@@ -112,7 +112,7 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
         global_statistics.auth_cmds = 0;
         global_statistics.auth_errors = 0;
         bucket_reset_stats(cookie);
-        all_buckets[0].timings.reset();
+        BucketManager::instance().getNoBucket().timings.reset();
         BucketManager::instance().aggregatedTimings.reset();
         cookie.getConnection().getBucket().timings.reset();
         return cb::engine_errc::success;
@@ -184,41 +184,16 @@ static cb::engine_errc stat_audit_executor(const std::string& arg,
  */
 static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
                                                     Cookie& cookie) {
+    auto json = BucketManager::instance().getBucketInfo(arg);
+    if (json.empty()) {
+        return cb::engine_errc::no_such_key;
+    }
     if (arg.empty()) {
-        // Return all buckets
-        nlohmann::json array = nlohmann::json::array();
-
-        for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-            Bucket& bucket = BucketManager::instance().at(ii);
-            nlohmann::json json = bucket;
-            if (!json.empty()) {
-                json["index"] = ii;
-                array.emplace_back(std::move(json));
-            }
-        }
-
-        nlohmann::json json;
-        json["buckets"] = array;
-        const auto stats_str = json.dump();
-        append_stats("bucket details"sv, stats_str, cookie);
-        return cb::engine_errc::success;
+        append_stats("bucket details"sv, json.dump(), cookie);
+    } else {
+        append_stats(arg, json.dump(), cookie);
     }
-
-    // Return the bucket details for the bucket with the requested name
-    // To avoid racing with bucket creation/deletion/pausing and all the
-    // other commands potentially changing bucket states _AND_ make sure
-    // we don't skip any states lets create a json dump of the bucket and
-    // check if it was the bucket we wanted.
-    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        Bucket& bucket = BucketManager::instance().at(ii);
-        nlohmann::json json = bucket;
-        if (!json.empty() && json["name"] == arg) {
-            append_stats(arg, json.dump(), cookie);
-            return cb::engine_errc::success;
-        }
-    }
-
-    return cb::engine_errc::no_such_key;
+    return cb::engine_errc::success;
 }
 
 /**
@@ -327,9 +302,11 @@ static cb::engine_errc stat_histogram_executor(
         if (index == 0) {
             // Aggregrated timings for all buckets.
             Hdr1sfMicroSecHistogram aggregated{};
-            for (const auto& bucket : all_buckets) {
-                aggregated += bucket.*histogram;
-            }
+            BucketManager::instance().forEach(
+                    [&aggregated, &histogram](Bucket& bucket) {
+                        aggregated += bucket.*histogram;
+                        return true;
+                    });
             json_str = aggregated.to_string();
         } else {
             // Timings for a specific bucket.
