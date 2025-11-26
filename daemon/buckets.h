@@ -425,6 +425,12 @@ public:
     static BucketManager& instance();
 
     /**
+     * Wait for all buckets to be in a quiescent state, and then
+     * destroy all of the underlying engines.
+     */
+    void shutdown();
+
+    /**
      * Create a bucket
      *
      * @param cookie The cookie requested bucket creation

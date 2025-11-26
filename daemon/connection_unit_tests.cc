@@ -104,7 +104,7 @@ public:
     }
 
     static void TearDownTestCase() {
-        cleanup_buckets();
+        BucketManager::instance().shutdown();
     }
 
     void resetConnectionTest(bool emptySendQueue);

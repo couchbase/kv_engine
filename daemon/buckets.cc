@@ -513,6 +513,37 @@ BucketManager& BucketManager::instance() {
     return instance;
 }
 
+void BucketManager::shutdown() {
+    for (auto& bucket : all_buckets) {
+        bool waiting;
+
+        do {
+            waiting = false;
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                switch (bucket.state.load()) {
+                case Bucket::State::Destroying:
+                case Bucket::State::Creating:
+                case Bucket::State::Initializing:
+                    waiting = true;
+                    break;
+                default:
+                        /* Empty */
+                        ;
+                }
+            }
+            if (waiting) {
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+            }
+        } while (waiting);
+
+        if (bucket.state == Bucket::State::Ready) {
+            bucket.destroyEngine(false);
+            bucket.reset();
+        }
+    }
+}
+
 /**
  * All the buckets in couchbase is stored in this array.
  */

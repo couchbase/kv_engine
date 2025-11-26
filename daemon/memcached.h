@@ -29,9 +29,6 @@ class Cookie;
 class Connection;
 struct thread_stats;
 
-void initialize_buckets();
-void cleanup_buckets();
-
 void associate_initial_bucket(Connection& connection);
 
 /*

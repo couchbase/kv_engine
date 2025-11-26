@@ -671,37 +671,6 @@ const char* get_server_version() {
     return PRODUCT_VERSION;
 }
 
-void cleanup_buckets() {
-    for (auto &bucket : all_buckets) {
-        bool waiting;
-
-        do {
-            waiting = false;
-            {
-                std::lock_guard<std::mutex> guard(bucket.mutex);
-                switch (bucket.state.load()) {
-                case Bucket::State::Destroying:
-                case Bucket::State::Creating:
-                case Bucket::State::Initializing:
-                    waiting = true;
-                    break;
-                default:
-                        /* Empty */
-                        ;
-                }
-            }
-            if (waiting) {
-                std::this_thread::sleep_for(std::chrono::microseconds(250));
-            }
-        } while (waiting);
-
-        if (bucket.state == Bucket::State::Ready) {
-            bucket.destroyEngine(false);
-            bucket.reset();
-        }
-    }
-}
-
 static void initialize_sasl() {
     try {
         LOG_INFO_RAW("Initialize SASL");
@@ -1225,7 +1194,7 @@ int memcached_main(int argc, char** argv) {
     threads_shutdown();
 
     LOG_INFO_RAW("Releasing bucket resources");
-    cleanup_buckets();
+    BucketManager::instance().shutdown();
 
     LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
