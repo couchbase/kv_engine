@@ -294,7 +294,7 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     cb::rbac::PrivilegeContext{getUser().domain});
 
-            if (bucketIndex.load() == 0) {
+            if (selected_bucket->type == BucketType::NoBucket) {
                 // If we're connected to the no bucket we should return
                 // no bucket instead of EACCESS. Lets give the connection all
                 // possible bucket privileges
@@ -326,7 +326,7 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
             }
         }
 
-        if (bucketIndex.load() == 0) {
+        if (selected_bucket->type == BucketType::NoBucket) {
             // If we're connected to the no bucket we should return
             // no bucket instead of EACCESS. Lets give the connection all
             // possible bucket privileges
@@ -340,7 +340,8 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
 }
 
 Bucket& Connection::getBucket() const {
-    return BucketManager::instance().at(getBucketIndex());
+    Expects(selected_bucket);
+    return *selected_bucket;
 }
 
 EngineIface& Connection::getBucketEngine() const {
@@ -461,8 +462,13 @@ void Connection::updateDescription() {
     description = desc;
 }
 
-void Connection::setBucketIndex(int index, Cookie* cookie) {
-    bucketIndex.store(index, std::memory_order_release);
+std::size_t Connection::getBucketIndex() const {
+    return selected_bucket->index;
+}
+
+void Connection::setBucketIndex(std::shared_ptr<Bucket> bucketptr,
+                                Cookie* cookie) {
+    selected_bucket = std::move(bucketptr);
 
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
@@ -476,7 +482,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    createContext(BucketManager::instance().at(index).name));
+                    createContext(selected_bucket->name));
         } else {
             // The user has not authenticated. Assign an empty profile which
             // won't give you any privileges.
@@ -488,7 +494,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
                 cb::rbac::PrivilegeContext{getUser().domain});
     }
 
-    if (index == 0) {
+    if (selected_bucket->type == BucketType::NoBucket) {
         // If we're connected to the no bucket we should return
         // no bucket instead of EACCESS. Lets give the connection all
         // possible bucket privileges
@@ -1505,7 +1511,7 @@ void Connection::setPriority(ConnectionPriority priority_) {
 
 bool Connection::selectedBucketIsXattrEnabled() const {
     // The unit tests call this method with no bucket
-    if (bucketIndex == 0) {
+    if (selected_bucket->type == BucketType::NoBucket) {
         return Settings::instance().isXattrEnabled();
     }
     return Settings::instance().isXattrEnabled() &&

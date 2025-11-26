@@ -194,11 +194,9 @@ public:
      */
     cb::engine_errc dropPrivilege(cb::rbac::Privilege privilege);
 
-    unsigned int getBucketIndex() const {
-        return bucketIndex.load(std::memory_order_relaxed);
-    }
+    std::size_t getBucketIndex() const;
 
-    void setBucketIndex(int index, Cookie* cookie = nullptr);
+    void setBucketIndex(std::shared_ptr<Bucket> bucketptr, Cookie* cookie);
 
     Bucket& getBucket() const;
 
@@ -1157,8 +1155,8 @@ protected:
     /// The actual socket descriptor used by this connection
     const SOCKET socketDescriptor;
 
-    /// The index of the connected bucket
-    std::atomic<unsigned int> bucketIndex{0};
+    /// The bucket this connection is currently connected to
+    std::shared_ptr<Bucket> selected_bucket;
 
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;

@@ -2546,7 +2546,13 @@
         "unit": "none",
         "added": "8.0.0"
     },
-/* Amount of memory allocated by the daemon. */
+    {
+        "key": "curr_bucket_connections",
+        "description": "The current number of connections for this bucket",
+        "unit": "none",
+        "added": "8.1.0"
+    },
+    /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",
         "description": "Total amount of memory allocated (outside the context of a bucket)",

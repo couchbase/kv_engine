@@ -79,11 +79,14 @@ bool Bucket::supports(cb::engine::Feature feature) {
 nlohmann::json Bucket::to_json() const {
     const bool serverless = cb::serverless::isEnabled();
     std::lock_guard<std::mutex> guard(mutex);
+    auto self = shared_from_this();
 
     if (state != State::None) {
         try {
             nlohmann::json json;
             json["index"] = index;
+            json["connections"] =
+                    self.use_count() - 2; // exclude this and BucketManager
             json["state"] = state.load();
             json["clients"] = clients.load();
             json["name"] = name;
@@ -175,6 +178,15 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
     uint64_t total_resp_errors = std::accumulate(
             std::begin(respCounters) + 1, std::end(respCounters), uint64_t(0));
     collector.addStat(Key::total_resp_errors, total_resp_errors);
+
+    std::size_t connections = 0;
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        auto self = shared_from_this();
+        connections = self.use_count() - 2; // exclude this and BucketManager
+    }
+
+    collector.addStat(Key::curr_bucket_connections, connections);
 
     collector.addStat(Key::clients, clients);
     collector.addStat(Key::items_in_transit, items_in_transit);
@@ -585,7 +597,7 @@ void BucketManager::associateInitialBucket(Connection& connection) {
         b.clients++;
     }
 
-    connection.setBucketIndex(0);
+    connection.setBucketIndex(all_buckets_ptr[0], nullptr);
 }
 bool BucketManager::associateBucket(Cookie& cookie,
                                     const std::string_view name) {
@@ -595,6 +607,7 @@ bool BucketManager::associateBucket(Cookie& cookie,
                                                         Code::AssociateBucket);
     return associateBucket(cookie.getConnection(), name, &cookie);
 }
+
 bool BucketManager::associateBucket(Connection& connection,
                                     const std::string_view name,
                                     Cookie* cookie) {
@@ -621,7 +634,7 @@ bool BucketManager::associateBucket(Connection& connection,
     }
 
     if (idx != 0) {
-        connection.setBucketIndex(gsl::narrow<int>(idx), cookie);
+        connection.setBucketIndex(all_buckets_ptr[idx], cookie);
         audit_bucket_selection(connection, cookie);
     } else {
         // Bucket not found, connect to the "no-bucket"
@@ -634,7 +647,7 @@ bool BucketManager::associateBucket(Connection& connection,
                                          std::chrono::milliseconds(5));
             b.clients++;
         }
-        connection.setBucketIndex(0, cookie);
+        connection.setBucketIndex(all_buckets_ptr[0], cookie);
     }
 
     return idx != 0;
@@ -642,7 +655,7 @@ bool BucketManager::associateBucket(Connection& connection,
 
 void BucketManager::disassociateBucket(Connection& connection, Cookie* cookie) {
     disconnectBucket(connection.getBucket(), cookie);
-    connection.setBucketIndex(0, cookie);
+    connection.setBucketIndex(all_buckets_ptr[0], cookie);
 }
 
 void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {

@@ -41,7 +41,7 @@ enum class ResourceAllocationDomain : uint8_t;
 
 constexpr static const size_t MaxBucketNameLength = 100;
 
-class Bucket {
+class Bucket : public std::enable_shared_from_this<Bucket> {
 public:
     enum class State : uint8_t {
         /// This bucket entry is not used

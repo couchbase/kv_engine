@@ -38,6 +38,7 @@ public:
                           this);
 
         bufferevent_enable(bev.get(), EV_READ);
+        BucketManager::instance().associateInitialBucket(*this);
     }
 
     /// Simulates a connection reset.

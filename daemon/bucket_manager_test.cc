@@ -431,6 +431,7 @@ void BucketManagerTest::testPauseBucketCancellable(
 
     FrontEndThread thread;
     McbpMockConnection conn{thread};
+    associateInitialBucket(conn);
 
     // When cancelling the pause before disconnect, we want at least one
     // client connection associated with the bucket being paused - that

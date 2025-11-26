@@ -187,6 +187,36 @@ TEST_P(StatsTest, TestDefaultStats) {
             });
 }
 
+TEST_P(StatsTest, curr_bucket_connections) {
+    size_t before = 0;
+    userConnection->stats([&before](auto key, auto value) {
+        if (key == "curr_bucket_connections") {
+            before = std::stoull(value);
+        }
+    });
+
+    // Connect a new client to the bucket
+    auto conn = userConnection->clone();
+    conn->authenticate("Luke");
+    conn->selectBucket(bucketName);
+
+    auto after = 0;
+    userConnection->stats([&after](auto key, auto value) {
+        if (key == "curr_bucket_connections") {
+            after = std::stoull(value);
+        }
+    });
+    EXPECT_EQ(after, before + 1);
+    conn.reset();
+    after = 0;
+    userConnection->stats([&after](auto key, auto value) {
+        if (key == "curr_bucket_connections") {
+            after = std::stoull(value);
+        }
+    });
+    EXPECT_EQ(after, before);
+}
+
 TEST_P(StatsTest, TestGetMeta) {
     // Set a document
     Document doc;
@@ -479,15 +509,16 @@ TEST_P(StatsTest, TestBucketDetails) {
     // of the actual values
     for (const auto& bucket : array) {
         if (cb::serverless::isEnabled()) {
-            EXPECT_EQ(16, bucket.size());
+            EXPECT_EQ(17, bucket.size());
             EXPECT_TRUE(bucket.contains("ru"));
             EXPECT_TRUE(bucket.contains("wu"));
             EXPECT_TRUE(bucket.contains("num_commands_with_metered_units"));
             EXPECT_TRUE(bucket.contains("num_metered_dcp_messages"));
         } else {
-            EXPECT_EQ(12, bucket.size());
+            EXPECT_EQ(13, bucket.size()) << bucket.dump(2);
         }
         EXPECT_TRUE(bucket.contains("index"));
+        EXPECT_TRUE(bucket.contains("connections"));
         EXPECT_TRUE(bucket.contains("state"));
         EXPECT_TRUE(bucket.contains("clients"));
         EXPECT_TRUE(bucket.contains("name"));
