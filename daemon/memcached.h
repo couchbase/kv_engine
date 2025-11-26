@@ -58,14 +58,6 @@ struct ServerApi;
 ServerApi* get_server_api();
 
 void shutdown_server();
-/// associate to a bucket when running from a cookie context (to allow
-/// trace span
-bool associate_bucket(Cookie& cookie, const std::string_view name);
-bool associate_bucket(Connection& connection,
-                      const std::string_view name,
-                      Cookie* cookie = nullptr);
-void disassociate_bucket(Connection& connection, Cookie* cookie = nullptr);
-void disconnect_bucket(Bucket& bucket, Cookie* cookie);
 
 /// Iterate over all of the connections and call the provided callback in
 /// the context of the front end thread it is bound to. This means

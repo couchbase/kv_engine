@@ -1058,7 +1058,7 @@ bool Connection::executeCommandsCallback() {
             if (isDCP()) {
                 thread.removeThrottleableDcpConnection(*this);
             }
-            disassociate_bucket(*this);
+            BucketManager::instance().disassociateBucket(*this);
 
             --global_statistics.curr_conn_closing;
             using namespace std::chrono;

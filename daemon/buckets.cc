@@ -14,6 +14,7 @@
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
+#include "mcaudit.h"
 #include "memcached.h"
 #include "resource_allocation_domain.h"
 #include "stats.h"
@@ -552,6 +553,80 @@ void BucketManager::associateInitialBucket(Connection& connection) {
     }
 
     connection.setBucketIndex(0);
+}
+bool BucketManager::associateBucket(Cookie& cookie,
+                                    const std::string_view name) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                        Code::AssociateBucket);
+    return associateBucket(cookie.getConnection(), name, &cookie);
+}
+bool BucketManager::associateBucket(Connection& connection,
+                                    const std::string_view name,
+                                    Cookie* cookie) {
+    // leave the current bucket
+    disassociateBucket(connection, cookie);
+
+    std::size_t idx = 0;
+    /* Try to associate with the named bucket */
+    for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
+        Bucket& b = all_buckets.at(ii);
+        if (b.state == Bucket::State::Ready) {
+            // Lock and rerun the test
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
+            if (b.state == Bucket::State::Ready && b.name == name) {
+                b.clients++;
+                idx = ii;
+                break;
+            }
+        }
+    }
+
+    if (idx != 0) {
+        connection.setBucketIndex(gsl::narrow<int>(idx), cookie);
+        audit_bucket_selection(connection, cookie);
+    } else {
+        // Bucket not found, connect to the "no-bucket"
+        Bucket& b = all_buckets.at(0);
+        {
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
+            b.clients++;
+        }
+        connection.setBucketIndex(0, cookie);
+    }
+
+    return idx != 0;
+}
+
+void BucketManager::disassociateBucket(Connection& connection, Cookie* cookie) {
+    disconnectBucket(connection.getBucket(), cookie);
+    connection.setBucketIndex(0, cookie);
+}
+
+void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+            cookie, Code::DisassociateBucket);
+    cb::tracing::MutexSpan guard(cookie,
+                                 bucket.mutex,
+                                 Code::BucketLockWait,
+                                 Code::BucketLockHeld,
+                                 std::chrono::milliseconds(5));
+
+    if (--bucket.clients == 0 && (bucket.state == Bucket::State::Destroying ||
+                                  bucket.state == Bucket::State::Pausing)) {
+        bucket.cond.notify_one();
+    }
 }
 
 /**
@@ -1111,7 +1186,7 @@ void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
                 }
                 // disconnect from the bucket (remove the client reference
                 // we added earlier
-                disconnect_bucket(bucket, nullptr);
+                disconnectBucket(bucket, nullptr);
                 if (do_break) {
                     break;
                 }
@@ -1145,7 +1220,7 @@ Bucket* BucketManager::tryAssociateBucket(EngineIface* engine) {
 
 void BucketManager::disassociateBucket(Bucket* bucket) {
     // Remove the client reference we added earlier
-    disconnect_bucket(*bucket, nullptr);
+    disconnectBucket(*bucket, nullptr);
 }
 
 Bucket& BucketManager::at(size_t idx) {

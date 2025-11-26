@@ -128,7 +128,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
     // If we're connected to the given bucket we should switch to another
     // bucket first
     if (name == connection.getBucket().name) {
-        associate_bucket(cookie, "");
+        BucketManager::instance().associateBucket(cookie, {});
     }
 
     auto [status, optDestroyer] = BucketManager::instance().startDestroy(

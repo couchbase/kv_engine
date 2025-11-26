@@ -433,6 +433,13 @@ public:
     /// Associate provided connection withthe initial bucket (no bucket)
     void associateInitialBucket(Connection& connection);
 
+    bool associateBucket(Cookie& cookie, const std::string_view name);
+    bool associateBucket(Connection& connection,
+                         const std::string_view name,
+                         Cookie* cookie = nullptr);
+    void disassociateBucket(Connection& connection, Cookie* cookie = nullptr);
+    void disconnectBucket(Bucket& bucket, Cookie* cookie);
+
     /**
      * Create a bucket
      *

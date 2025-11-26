@@ -92,23 +92,23 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         // associate the connection with the appropriate bucket
         const auto username = connection.getUser().name;
         if (cookie.mayAccessBucket(username)) {
-            associate_bucket(cookie, username);
+            BucketManager::instance().associateBucket(cookie, username);
             // Auth succeeded but the connection may not be valid for the
             // bucket
             if (connection.isCollectionsSupported() &&
                 !connection.getBucket().supports(
                         cb::engine::Feature::Collections)) {
                 // Move back to the "no bucket" as this is not valid
-                associate_bucket(cookie, "");
+                BucketManager::instance().associateBucket(cookie, {});
             }
         } else {
             // the user don't have access to that bucket, move the
             // connection to the "no bucket"
-            associate_bucket(cookie, "");
+            BucketManager::instance().associateBucket(cookie, {});
         }
     } else if (connection.getBucket().type == BucketType::NoBucket ||
                !cookie.mayAccessBucket(connection.getBucket().name)) {
-        associate_bucket(cookie, "");
+        BucketManager::instance().associateBucket(cookie, {});
     }
 
     cookie.sendResponse(cb::mcbp::Status::Success,

@@ -438,7 +438,7 @@ void BucketManagerTest::testPauseBucketCancellable(
     // front-end thread to actually disconnect - as such only associate
     // if we know we are going to cancel before we properly wait.
     if (expectedPhase == "before_disconnect") {
-        associate_bucket(conn, "mybucket");
+        associateBucket(conn, "mybucket");
     }
 
     bool pausing = false;
@@ -513,7 +513,7 @@ void BucketManagerTest::testPauseBucketCancellable(
     }
     bucketStateChangeListenerFunc.reset();
     if (expectedPhase == "before_disconnect") {
-        disassociate_bucket(conn);
+        disassociateBucket(conn);
     }
     destroy("1", "mybucket", false, {});
 }
