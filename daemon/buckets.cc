@@ -544,6 +544,16 @@ void BucketManager::shutdown() {
     }
 }
 
+void BucketManager::associateInitialBucket(Connection& connection) {
+    Bucket& b = all_buckets.at(0);
+    {
+        std::lock_guard<std::mutex> guard(b.mutex);
+        b.clients++;
+    }
+
+    connection.setBucketIndex(0);
+}
+
 /**
  * All the buckets in couchbase is stored in this array.
  */

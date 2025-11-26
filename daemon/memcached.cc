@@ -212,16 +212,6 @@ bool associate_bucket(Cookie& cookie, const std::string_view name) {
     return associate_bucket(cookie.getConnection(), name, &cookie);
 }
 
-void associate_initial_bucket(Connection& connection) {
-    Bucket &b = all_buckets.at(0);
-    {
-        std::lock_guard<std::mutex> guard(b.mutex);
-        b.clients++;
-    }
-
-    connection.setBucketIndex(0);
-}
-
 static void populate_log_level() {
     const auto val = Settings::instance().getLogLevel();
 

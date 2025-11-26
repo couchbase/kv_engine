@@ -304,7 +304,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
         auto* c = connection.get();
         add_connection(std::move(connection));
         global_statistics.total_conns++;
-        associate_initial_bucket(*c);
+        BucketManager::instance().associateInitialBucket(*c);
         success = true;
     } catch (const std::bad_alloc&) {
         LOG_WARNING_RAW("Failed to allocate memory for connection");

@@ -430,6 +430,9 @@ public:
      */
     void shutdown();
 
+    /// Associate provided connection withthe initial bucket (no bucket)
+    void associateInitialBucket(Connection& connection);
+
     /**
      * Create a bucket
      *

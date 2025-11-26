@@ -29,8 +29,6 @@ class Cookie;
 class Connection;
 struct thread_stats;
 
-void associate_initial_bucket(Connection& connection);
-
 /*
  * Functions such as the libevent-related calls that need to do cross-thread
  * communication in multithreaded mode (rather than actually doing the work
