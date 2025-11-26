@@ -504,7 +504,7 @@ void BucketManagerTest::testPauseBucketCancellable(
     };
 
     err = pause("1", "mybucket");
-    EXPECT_EQ(cb::engine_errc::cancelled, err);
+    ASSERT_EQ(cb::engine_errc::cancelled, err);
     EXPECT_TRUE(pausing) << "Expected callback for state Pausing";
     EXPECT_TRUE(ready)
             << "Expected callback for state Ready (after resume() called)";

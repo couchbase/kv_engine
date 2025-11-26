@@ -389,12 +389,6 @@ void to_json(BasicJsonType& j, Bucket::State state) {
 }
 
 /**
- * All of the buckets are stored in the following array. Index 0 is reserved
- * for the "no bucket" where all connections start off.
- */
-extern std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
-
-/**
  * Is the connected bucket currently dying?
  *
  * If the bucket is dying (being deleted) the connection object will be
@@ -596,6 +590,13 @@ public:
     Timings aggregatedTimings;
 
 protected:
+    /**
+     * All of the buckets are stored in the following array. Index 0 is reserved
+     * for the "no bucket" where all connections start off.
+     */
+    static std::mutex buckets_lock;
+    static std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
+
     /// Try to destroy all "ready" buckets in parallel
     void destroyBucketsInParallel();
 

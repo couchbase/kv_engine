@@ -666,8 +666,8 @@ void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
 /**
  * All the buckets in couchbase is stored in this array.
  */
-std::mutex buckets_lock;
-std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
+std::mutex BucketManager::buckets_lock;
+std::array<Bucket, cb::limits::TotalBuckets + 1> BucketManager::all_buckets;
 
 std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
         std::string_view name,
