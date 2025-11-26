@@ -2552,6 +2552,12 @@
         "unit": "none",
         "added": "8.1.0"
     },
+    {
+        "key": "curr_bucket_connections_closing",
+        "description": "The current number of connections currently closing down for this bucket",
+        "unit": "none",
+        "added": "8.1.0"
+    },
     /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",

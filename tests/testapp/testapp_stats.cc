@@ -13,6 +13,7 @@
 #include <folly/portability/GMock.h>
 #include <memcached/stat_group.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <serverless/config.h>
 #include <utilities/timing_histogram_printer.h>
@@ -215,6 +216,52 @@ TEST_P(StatsTest, curr_bucket_connections) {
         }
     });
     EXPECT_EQ(after, before);
+}
+
+TEST_P(StatsTest, curr_closing_bucket_connections) {
+    auto getCurrClosing = [this]() {
+        size_t closing = std::numeric_limits<size_t>::max();
+        userConnection->stats([&closing](auto key, auto value) {
+            if (key == "curr_bucket_connections_closing") {
+                closing = std::stoull(value);
+            }
+        });
+        return closing;
+    };
+
+    EXPECT_EQ(0, getCurrClosing());
+
+    // Create a connection we'll close and force in pending close state
+    auto conn = userConnection->clone();
+    conn->authenticate("Luke");
+    conn->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+    conn->selectBucket(bucketName);
+
+    auto testfile =
+            std::filesystem::current_path() / cb::io::mktemp("lockfile");
+    // Configure so that the engine will return
+    // cb::engine_errc::would_block and not process any operation given
+    // to it.  This means the connection will remain in a blocked state.
+    conn->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
+                                     cb::engine_errc::would_block /* unused */,
+                                     0,
+                                     testfile.generic_string());
+    conn->sendCommand(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "mykey"});
+    conn->close();
+
+    ASSERT_TRUE(cb::waitForPredicateUntil(
+            [&getCurrClosing]() { return getCurrClosing() == 1; },
+            std::chrono::seconds(5),
+            std::chrono::milliseconds(100)));
+
+    // Remove the lockfile and let the connection be closed
+    remove(testfile);
+
+    ASSERT_TRUE(cb::waitForPredicateUntil(
+            [&getCurrClosing]() { return getCurrClosing() == 0; },
+            std::chrono::seconds(5),
+            std::chrono::milliseconds(100)));
 }
 
 TEST_P(StatsTest, TestGetMeta) {
@@ -509,16 +556,17 @@ TEST_P(StatsTest, TestBucketDetails) {
     // of the actual values
     for (const auto& bucket : array) {
         if (cb::serverless::isEnabled()) {
-            EXPECT_EQ(17, bucket.size());
+            EXPECT_EQ(18, bucket.size());
             EXPECT_TRUE(bucket.contains("ru"));
             EXPECT_TRUE(bucket.contains("wu"));
             EXPECT_TRUE(bucket.contains("num_commands_with_metered_units"));
             EXPECT_TRUE(bucket.contains("num_metered_dcp_messages"));
         } else {
-            EXPECT_EQ(13, bucket.size()) << bucket.dump(2);
+            EXPECT_EQ(14, bucket.size()) << bucket.dump(2);
         }
         EXPECT_TRUE(bucket.contains("index"));
         EXPECT_TRUE(bucket.contains("connections"));
+        EXPECT_TRUE(bucket.contains("connections_closing"));
         EXPECT_TRUE(bucket.contains("state"));
         EXPECT_TRUE(bucket.contains("clients"));
         EXPECT_TRUE(bucket.contains("name"));

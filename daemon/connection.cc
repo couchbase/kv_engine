@@ -66,6 +66,7 @@ void Connection::shutdown() {
     //   closing -> immediate_close
     //   pending_close -> immediate_close
     if (state == State::running) {
+        ++selected_bucket->curr_conn_closing;
         ++global_statistics.curr_conn_closing;
         shutdown_initiated = std::chrono::steady_clock::now();
         pending_close_next_log = *shutdown_initiated + std::chrono::seconds(10);
@@ -1064,8 +1065,10 @@ bool Connection::executeCommandsCallback() {
             if (isDCP()) {
                 thread.removeThrottleableDcpConnection(*this);
             }
+
             BucketManager::instance().disassociateBucket(*this);
 
+            --selected_bucket->curr_conn_closing;
             --global_statistics.curr_conn_closing;
             using namespace std::chrono;
             const auto now = steady_clock::now();

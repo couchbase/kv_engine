@@ -97,6 +97,8 @@ public:
     /// The number of clients currently connected to the bucket
     std::atomic<uint32_t> clients{0};
 
+    std::atomic_size_t curr_conn_closing{0};
+
     /**
      * The current state of the bucket. Atomic as we permit it to be
      * read without acquiring the mutex, for example in

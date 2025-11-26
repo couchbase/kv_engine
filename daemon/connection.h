@@ -77,6 +77,10 @@ public:
         immediate_close
     };
 
+    bool isClosing() const {
+        return state != State::running;
+    }
+
     /// Factory method to create a new Connection structure
     static std::unique_ptr<Connection> create(
             SOCKET sfd,

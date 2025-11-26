@@ -87,6 +87,7 @@ nlohmann::json Bucket::to_json() const {
             json["index"] = index;
             json["connections"] =
                     self.use_count() - 2; // exclude this and BucketManager
+            json["connections_closing"] = curr_conn_closing.load();
             json["state"] = state.load();
             json["clients"] = clients.load();
             json["name"] = name;
@@ -185,8 +186,9 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
         auto self = shared_from_this();
         connections = self.use_count() - 2; // exclude this and BucketManager
     }
-
     collector.addStat(Key::curr_bucket_connections, connections);
+    collector.addStat(Key::curr_bucket_connections_closing,
+                      curr_conn_closing);
 
     collector.addStat(Key::clients, clients);
     collector.addStat(Key::items_in_transit, items_in_transit);
@@ -611,6 +613,7 @@ bool BucketManager::associateBucket(Cookie& cookie,
 bool BucketManager::associateBucket(Connection& connection,
                                     const std::string_view name,
                                     Cookie* cookie) {
+    Expects(!connection.isClosing());
     // leave the current bucket
     disassociateBucket(connection, cookie);
 
@@ -654,8 +657,14 @@ bool BucketManager::associateBucket(Connection& connection,
 }
 
 void BucketManager::disassociateBucket(Connection& connection, Cookie* cookie) {
+    if (connection.isClosing()) {
+        --connection.getBucket().curr_conn_closing;
+    }
     disconnectBucket(connection.getBucket(), cookie);
     connection.setBucketIndex(all_buckets_ptr[0], cookie);
+    if (connection.isClosing()) {
+        ++connection.getBucket().curr_conn_closing;
+    }
 }
 
 void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
