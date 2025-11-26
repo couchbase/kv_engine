@@ -61,7 +61,8 @@ public:
         Destroying
     };
 
-    Bucket();
+    const std::size_t index;
+    Bucket(std::size_t idx);
 
     /// The bucket contains pointers to other objects and we don't want to
     /// make a deep copy of them (or "share" the pointers). No one should need
@@ -504,6 +505,7 @@ public:
 
     /// Get the bucket with the given index
     Bucket& at(size_t idx);
+    const Bucket& at(size_t idx) const;
 
     Bucket& getNoBucket() {
         return at(0);
@@ -590,13 +592,6 @@ public:
     Timings aggregatedTimings;
 
 protected:
-    /**
-     * All of the buckets are stored in the following array. Index 0 is reserved
-     * for the "no bucket" where all connections start off.
-     */
-    static std::mutex buckets_lock;
-    static std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
-
     /// Try to destroy all "ready" buckets in parallel
     void destroyBucketsInParallel();
 
@@ -728,6 +723,14 @@ protected:
     cb::engine_errc resume(std::string_view cid, std::string_view name);
 
     BucketManager();
+
+    /**
+     * All of the buckets are stored in the following array. Index 0 is reserved
+     * for the "no bucket" where all connections start off.
+     */
+    static std::mutex buckets_lock;
+    static std::array<std::shared_ptr<Bucket>, cb::limits::TotalBuckets + 1>
+            all_buckets_ptr;
 
     /// The "unassigned resources" gauge to use for throttling of commands.
     SloppyGauge unassigned_resources_gauge;

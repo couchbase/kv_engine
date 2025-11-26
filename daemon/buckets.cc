@@ -34,7 +34,7 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
 
-Bucket::Bucket() = default;
+Bucket::Bucket(std::size_t idx) : index(idx) {};
 
 void Bucket::reset() {
     std::lock_guard<std::mutex> guard(mutex);
@@ -83,6 +83,7 @@ nlohmann::json Bucket::to_json() const {
     if (state != State::None) {
         try {
             nlohmann::json json;
+            json["index"] = index;
             json["state"] = state.load();
             json["clients"] = clients.load();
             json["name"] = name;
@@ -519,11 +520,9 @@ nlohmann::json BucketManager::getBucketInfo(std::string_view name) {
         // Return all buckets
         nlohmann::json array = nlohmann::json::array();
 
-        for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-            Bucket& bucket = all_buckets[ii];
-            nlohmann::json json = bucket;
+        for (const auto& bucket : all_buckets_ptr) {
+            nlohmann::json json = *bucket;
             if (!json.empty()) {
-                json["index"] = ii;
                 array.emplace_back(std::move(json));
             }
         }
@@ -538,8 +537,8 @@ nlohmann::json BucketManager::getBucketInfo(std::string_view name) {
     // other commands potentially changing bucket states _AND_ make sure
     // we don't skip any states lets create a json dump of the bucket and
     // check if it was the bucket we wanted.
-    for (const auto& bucket : all_buckets) {
-        nlohmann::json json = bucket;
+    for (const auto& bucket : all_buckets_ptr) {
+        nlohmann::json json = *bucket;
         if (!json.empty() && json["name"].get<std::string>() == name) {
             return json;
         }
@@ -549,14 +548,14 @@ nlohmann::json BucketManager::getBucketInfo(std::string_view name) {
 }
 
 void BucketManager::shutdown() {
-    for (auto& bucket : all_buckets) {
+    for (auto& bucket : all_buckets_ptr) {
         bool waiting;
 
         do {
             waiting = false;
             {
-                std::lock_guard<std::mutex> guard(bucket.mutex);
-                switch (bucket.state.load()) {
+                std::lock_guard<std::mutex> guard(bucket->mutex);
+                switch (bucket->state.load()) {
                 case Bucket::State::Destroying:
                 case Bucket::State::Creating:
                 case Bucket::State::Initializing:
@@ -572,15 +571,15 @@ void BucketManager::shutdown() {
             }
         } while (waiting);
 
-        if (bucket.state == Bucket::State::Ready) {
-            bucket.destroyEngine(false);
-            bucket.reset();
+        if (bucket->state == Bucket::State::Ready) {
+            bucket->destroyEngine(false);
+            bucket->reset();
         }
     }
 }
 
 void BucketManager::associateInitialBucket(Connection& connection) {
-    Bucket& b = all_buckets.at(0);
+    Bucket& b = getNoBucket();
     {
         std::lock_guard<std::mutex> guard(b.mutex);
         b.clients++;
@@ -604,8 +603,8 @@ bool BucketManager::associateBucket(Connection& connection,
 
     std::size_t idx = 0;
     /* Try to associate with the named bucket */
-    for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
-        Bucket& b = all_buckets.at(ii);
+    for (size_t ii = 1; ii < all_buckets_ptr.size(); ++ii) {
+        Bucket& b = at(ii);
         if (b.state == Bucket::State::Ready) {
             // Lock and rerun the test
             cb::tracing::MutexSpan guard(cookie,
@@ -626,7 +625,7 @@ bool BucketManager::associateBucket(Connection& connection,
         audit_bucket_selection(connection, cookie);
     } else {
         // Bucket not found, connect to the "no-bucket"
-        Bucket& b = all_buckets.at(0);
+        Bucket& b = getNoBucket();
         {
             cb::tracing::MutexSpan guard(cookie,
                                          b.mutex,
@@ -667,7 +666,8 @@ void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
  * All the buckets in couchbase is stored in this array.
  */
 std::mutex BucketManager::buckets_lock;
-std::array<Bucket, cb::limits::TotalBuckets + 1> BucketManager::all_buckets;
+std::array<std::shared_ptr<Bucket>, cb::limits::TotalBuckets + 1>
+        BucketManager::all_buckets_ptr;
 
 std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
         std::string_view name,
@@ -676,36 +676,36 @@ std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
     // (create/delete bucket or set cluster config).
     std::lock_guard<std::mutex> guard(buckets_lock);
 
-    auto first_free = all_buckets.size();
+    auto first_free = all_buckets_ptr.size();
 
     std::size_t ii = 0;
-    for (auto& bucket : all_buckets) {
-        std::lock_guard<std::mutex> bucketguard(bucket.mutex);
-        if (bucket.name == name) {
-            if (bucket.state == Bucket::State::Ready) {
-                bucket.clusterConfiguration.setConfiguration(
+    for (auto& bucket : all_buckets_ptr) {
+        std::lock_guard<std::mutex> bucketguard(bucket->mutex);
+        if (bucket->name == name) {
+            if (bucket->state == Bucket::State::Ready) {
+                bucket->clusterConfiguration.setConfiguration(
                         std::move(configuration));
                 return {cb::engine_errc::success, Bucket::State::Ready};
             }
             // We can't set the cluster configuration at this time as
             // the bucket is currently being initialized/paused/deleted,
             // but tell the client to try again :)
-            return {cb::engine_errc::temporary_failure, bucket.state};
+            return {cb::engine_errc::temporary_failure, bucket->state};
         }
 
-        if (bucket.state == Bucket::State::None &&
-            first_free == all_buckets.size()) {
+        if (bucket->state == Bucket::State::None &&
+            first_free == all_buckets_ptr.size()) {
             first_free = ii;
         }
         ++ii;
     }
 
-    if (first_free == all_buckets.size()) {
+    if (first_free == all_buckets_ptr.size()) {
         return {cb::engine_errc::too_big, Bucket::State::None};
     }
 
-    std::lock_guard<std::mutex> bucketguard(all_buckets[first_free].mutex);
-    auto& bucket = all_buckets[first_free];
+    std::lock_guard<std::mutex> bucketguard(all_buckets_ptr[first_free]->mutex);
+    auto& bucket = *all_buckets_ptr[first_free];
     bucket.type = BucketType::ClusterConfigOnly;
     bucket.clusterConfiguration.setConfiguration(std::move(configuration));
     bucket.name = name;
@@ -719,9 +719,9 @@ std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
 }
 
 void BucketManager::iterateBuckets(const std::function<bool(Bucket&)>& fn) {
-    for (auto& b : all_buckets) {
-        std::lock_guard<std::mutex> guard(b.mutex);
-        if (!fn(b)) {
+    for (auto& b : all_buckets_ptr) {
+        std::lock_guard<std::mutex> guard(b->mutex);
+        if (!fn(*b)) {
             return;
         }
     }
@@ -1194,7 +1194,9 @@ void BucketManager::tick() {
 }
 
 void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
-    for (Bucket& bucket : all_buckets) {
+    for (auto& bucket_ptr : all_buckets_ptr) {
+        auto& bucket = *bucket_ptr;
+
         bool do_break = false;
         if (bucket.state == Bucket::State::Ready) {
             // MB-44827: We don't want to hold the bucket mutex for the
@@ -1258,12 +1260,16 @@ void BucketManager::disassociateBucket(Bucket* bucket) {
 }
 
 Bucket& BucketManager::at(size_t idx) {
-    return all_buckets[idx];
+    return *all_buckets_ptr[idx];
+}
+
+const Bucket& BucketManager::at(size_t idx) const {
+    return *all_buckets_ptr[idx];
 }
 
 std::string BucketManager::getName(size_t idx) const {
-    if (idx < all_buckets.size()) {
-        auto& b = all_buckets[idx];
+    if (idx < all_buckets_ptr.size()) {
+        auto& b = at(idx);
         std::lock_guard<std::mutex> guard(b.mutex);
         if (b.state == Bucket::State::Ready) {
             return b.name;
@@ -1315,11 +1321,12 @@ void BucketManager::destroyAll() {
         active = false;
         // Start at one (not zero) because zero is reserved for "no bucket".
         // The "no bucket" has a state of Bucket::State::Ready but no name.
-        for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
-            if (all_buckets[ii].state != Bucket::State::None) {
+        for (size_t ii = 1; ii < all_buckets_ptr.size(); ++ii) {
+            auto& bucket = at(ii);
+            if (bucket.state != Bucket::State::None) {
                 LOG_INFO_CTX("Found bucket in unexpected state",
-                             {"name", all_buckets[ii].name},
-                             {"state", all_buckets[ii].state.load()});
+                             {"name", bucket.name},
+                             {"state", bucket.state.load()});
                 active = true;
             }
         }
@@ -1348,7 +1355,8 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
 
         // locate the bucket
         size_t idx = 0;
-        for (auto& b : all_buckets) {
+        for (auto& bptr : all_buckets_ptr) {
+            auto& b = *bptr;
             std::lock_guard<std::mutex> bucketguard(b.mutex);
             if (b.name == name) {
                 break;
@@ -1356,11 +1364,11 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
             ++idx;
         }
 
-        if (idx == all_buckets.size()) {
+        if (idx == all_buckets_ptr.size()) {
             return cb::engine_errc::no_such_key;
         }
 
-        bucket = &all_buckets.at(idx);
+        bucket = &at(idx);
         // Perform final checks on bucket, and if all good modify the bucket
         // state to Pausing. After this we can release the buckets_lock.
         {
@@ -1508,7 +1516,8 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
 
     // locate the bucket
     size_t idx = 0;
-    for (auto& bucket : all_buckets) {
+    for (auto& bucket_ptr : all_buckets_ptr) {
+        auto& bucket = *bucket_ptr;
         std::lock_guard<std::mutex> bucketguard(bucket.mutex);
         if (bucket.name == name) {
             // Can only resume Pausing buckets (in which case we cancel the
@@ -1523,11 +1532,11 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
         ++idx;
     }
 
-    if (idx == all_buckets.size()) {
+    if (idx == all_buckets_ptr.size()) {
         return cb::engine_errc::no_such_key;
     }
 
-    auto& bucket = all_buckets.at(idx);
+    auto& bucket = at(idx);
 
     // Check if a pause() operation is still in-flight. If so then no need to
     // perform a full resume operation - just cancel the in-flight pause.
@@ -1568,16 +1577,18 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
 
 BucketManager::BucketManager() {
     auto& settings = Settings::instance();
-
     size_t numthread = settings.getNumWorkerThreads() + 1;
-    for (auto& b : all_buckets) {
-        b.reset();
-        b.stats.resize(numthread);
+
+    for (size_t index = 0; index < all_buckets_ptr.size(); ++index) {
+        auto& b = all_buckets_ptr.at(index);
+        b = std::make_shared<Bucket>(index);
+        b->reset();
+        b->stats.resize(numthread);
     }
 
     // To make the life easier for us in the code, index 0 in the array is
     // "no bucket"
-    auto& nobucket = all_buckets.at(0);
+    auto& nobucket = *all_buckets_ptr[0];
     try {
         nobucket.setEngine(
                 new_engine_instance(BucketType::NoBucket, get_server_api));
@@ -1590,6 +1601,5 @@ BucketManager::BucketManager() {
     nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
     nobucket.type = BucketType::NoBucket;
-    bucketStateChangeListener(nobucket, Bucket::State::Ready);
     nobucket.state = Bucket::State::Ready;
 }

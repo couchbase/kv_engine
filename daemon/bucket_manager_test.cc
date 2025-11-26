@@ -130,7 +130,7 @@ TEST_F(BucketManagerTest, AllocateBucket) {
 
     // We should be able to create up to the max number of buckets:
     // Slot 0 == no bucket and slot 1 is what I created above
-    for (std::size_t ii = 2; ii < all_buckets.size(); ++ii) {
+    for (std::size_t ii = 2; ii < all_buckets_ptr.size(); ++ii) {
         auto [e, b] = allocateBucket(std::to_string(ii));
         ASSERT_EQ(cb::engine_errc::success, e);
         validateAllocatedBucket(std::to_string(ii), b);
@@ -567,7 +567,7 @@ public:
 
 // Destroy bucket with no clients.
 TEST_F(BucketManagerTest, DestroyBucketTest) {
-    auto& bucket = all_buckets.back();
+    auto& bucket = *all_buckets_ptr.back();
     bucket.setEngine(create_no_bucket_instance());
     BucketDestroyer destroyer(bucket, "", false);
     EXPECT_EQ(cb::engine_errc::success, destroyer.drive());
@@ -575,7 +575,7 @@ TEST_F(BucketManagerTest, DestroyBucketTest) {
 
 // We shouldn't destroy a bucket with clients.
 TEST_F(BucketManagerTest, DestroyBucketWaitsForClients) {
-    auto& bucket = all_buckets.back();
+    auto& bucket = *all_buckets_ptr.back();
     bucket.setEngine(create_no_bucket_instance());
     // Add a client and verify that we wait for it.
     bucket.clients++;

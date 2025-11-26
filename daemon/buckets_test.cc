@@ -24,9 +24,9 @@ TEST(BucketTest, Reset) {
     // check the main ones we run against.
     static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-            5696;
+            5704;
 #elif defined(__APPLE__)
-            5792;
+            5800;
 #else
             0;
 #endif
@@ -38,6 +38,8 @@ TEST(BucketTest, Reset) {
 
     class MockBucket : public Bucket {
     public:
+        MockBucket(std::size_t idx) : Bucket(idx) {
+        }
         void testReset() {
             throttle_gauge.increment(5);
             throttle_reserved = 1;
@@ -66,7 +68,8 @@ TEST(BucketTest, Reset) {
             EXPECT_EQ(cb::mcbp::Status::Success, data_ingress_status);
             EXPECT_FALSE(pause_cancellation_source.canBeCancelled());
         }
-    } bucket;
+    };
+    MockBucket bucket(0);
 
     bucket.testReset();
 }

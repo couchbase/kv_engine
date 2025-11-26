@@ -10,9 +10,9 @@
  */
 #include "mcbp_test.h"
 
+#include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/settings.h>
-#include <event2/event.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
@@ -35,6 +35,7 @@ ValidatorTest::ValidatorTest(bool collectionsEnabled)
 
 void ValidatorTest::SetUp() {
     Settings::instance().setXattrEnabled(true);
+    BucketManager::instance().associateInitialBucket(connection);
     connection.setCollectionsSupported(collectionsEnabled);
     memset(&request, 0, sizeof(request));
     request.setMagic(cb::mcbp::Magic::ClientRequest);

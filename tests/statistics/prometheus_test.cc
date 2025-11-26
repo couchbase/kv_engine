@@ -265,8 +265,10 @@ TEST_F(PrometheusStatTest, ThrottleSecondsTotalScaledToSeconds) {
 
     class MockBucket : public Bucket {
     public:
+        MockBucket(std::size_t idx) : Bucket(idx) {
+        }
         using Bucket::throttle_wait_time;
-    } b;
+    } b(0);
 
     using namespace std::chrono;
     using namespace std::chrono_literals;
