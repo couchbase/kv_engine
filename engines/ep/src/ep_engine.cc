@@ -446,7 +446,8 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupHigh(
     doTimingStats(collector);
     doRunTimeStats(collector);
 
-    if (status = doEngineStatsHighCardinality(collector);
+    if (status = doEngineStatsHighCardinality(
+                collector, cb::config::ExcludeWhenValueIsDefaultValue::Yes);
         status != cb::engine_errc::success) {
         return status;
     }
@@ -3122,7 +3123,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
         return status;
     }
 
-    status = doEngineStatsHighCardinality(collector);
+    status = doEngineStatsHighCardinality(
+            collector, cb::config::ExcludeWhenValueIsDefaultValue::No);
     return status;
 }
 cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
@@ -3407,8 +3409,9 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
-        const BucketStatCollector& collector) {
-    configuration.addStats(collector);
+        const BucketStatCollector& collector,
+        cb::config::ExcludeWhenValueIsDefaultValue exclude) {
+    configuration.addStats(collector, exclude);
 
     kvBucket->getAggregatedVBucketStats(collector,
                                         cb::prometheus::MetricGroup::High);
@@ -5294,7 +5297,8 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return cb::engine_errc::success;
     }
     if (key == "config"sv) {
-        configuration.addStats(bucketCollector);
+        configuration.addStats(bucketCollector,
+                               cb::config::ExcludeWhenValueIsDefaultValue::No);
         return cb::engine_errc::success;
     }
     if (key.size() > 15 && key.starts_with("dcp-vbtakeover")) {
