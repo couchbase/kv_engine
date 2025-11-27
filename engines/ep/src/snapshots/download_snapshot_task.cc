@@ -106,6 +106,17 @@ DownloadSnapshotTask::doDownloadManifest() {
     return cb::engine_errc::failed;
 }
 
+size_t DownloadSnapshotTask::getChecksumLength() {
+    if (!connection || connection->isSsl() ||
+        !engine->isFileFragmentChecksumEnabled()) {
+        // Don't checksum when using TLS, the encryption layer should detect
+        // problems. A value of 0 disables checksumming.
+        return 0;
+    }
+
+    return engine->getFileFragmentChecksumLength();
+}
+
 cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
         std::filesystem::path dir, const Manifest& manifest) {
     listener->setManifest(manifest);
@@ -117,6 +128,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                 dir,
                 manifest,
                 properties.fsync_interval,
+                getChecksumLength(),
                 [this](auto level, auto msg, auto json) {
                     auto& logger = getGlobalBucketLogger();
                     logger->logWithContext(level, msg, json);

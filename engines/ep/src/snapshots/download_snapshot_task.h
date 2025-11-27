@@ -53,6 +53,9 @@ protected:
                                     const Manifest& manifest);
 
     void createConnection();
+
+    size_t getChecksumLength();
+
     std::unique_ptr<MemcachedConnection> connection;
 
     bool run() override;

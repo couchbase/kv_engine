@@ -118,4 +118,14 @@ struct ServerCoreIface {
      * Whether blind write optimisation is enabled.
      */
     virtual bool isMagmaBlindWriteOptimisationEnabled() = 0;
+
+    /**
+     * Whether to checksum file fragments (FBR GetFileFragment).
+     */
+    virtual bool isFileFragmentChecksumEnabled() const = 0;
+
+    /**
+     * How many bytes to generate a checksum for (FBR GetFileFragment).
+     */
+    virtual size_t getFileFragmentChecksumLength() const = 0;
 };

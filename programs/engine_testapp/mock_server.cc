@@ -236,6 +236,16 @@ struct MockServerCoreApi : public ServerCoreIface {
     bool isMagmaBlindWriteOptimisationEnabled() override {
         return magma_blind_write_optimisation_enabled.load();
     }
+
+    bool isFileFragmentChecksumEnabled() const override {
+        return true;
+    }
+
+    size_t getFileFragmentChecksumLength() const override {
+        // Use a small chunk size in testing which may help improve test
+        // coverage
+        return 128;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

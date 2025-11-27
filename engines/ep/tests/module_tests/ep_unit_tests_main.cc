@@ -110,6 +110,16 @@ public:
     bool isMagmaBlindWriteOptimisationEnabled() override {
         return true;
     }
+
+    bool isFileFragmentChecksumEnabled() const override {
+        return true;
+    }
+
+    size_t getFileFragmentChecksumLength() const override {
+        // Use a small chunk size in testing which may help improve test
+        // coverage
+        return 128;
+    }
 };
 
 int main(int argc, char **argv) {

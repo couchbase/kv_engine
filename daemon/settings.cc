@@ -490,6 +490,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setFileFragmentMaxChunkSize(value.get<size_t>());
         } else if (key == "file_fragment_max_read_size"sv) {
             setFileFragmentMaxReadSize(value.get<size_t>());
+        } else if (key == "file_fragment_checksum_enabled"sv) {
+            setFileFragmentChecksumEnabled(value.get<bool>());
+        } else if (key == "file_fragment_checksum_length"sv) {
+            setFileFragmentChecksumLength(value.get<size_t>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
@@ -1304,6 +1308,28 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFileFragmentMaxReadSize()},
                          {"to", other.getFileFragmentMaxReadSize()});
             setFileFragmentMaxReadSize(other.getFileFragmentMaxReadSize());
+        }
+    }
+
+    if (other.has.file_fragment_checksum_enabled) {
+        if (other.isFileFragmentChecksumEnabled() !=
+            isFileFragmentChecksumEnabled()) {
+            LOG_INFO_CTX("Change file_fragment_checksum_enabled",
+                         {"from", isFileFragmentChecksumEnabled()},
+                         {"to", other.isFileFragmentChecksumEnabled()});
+            setFileFragmentChecksumEnabled(
+                    other.isFileFragmentChecksumEnabled());
+        }
+    }
+
+    if (other.has.file_fragment_checksum_length) {
+        if (other.getFileFragmentChecksumLength() !=
+            getFileFragmentChecksumLength()) {
+            LOG_INFO_CTX("Change file_fragment_checksum_length",
+                         {"from", getFileFragmentChecksumLength()},
+                         {"to", other.getFileFragmentChecksumLength()});
+            setFileFragmentChecksumLength(
+                    other.getFileFragmentChecksumLength());
         }
     }
 

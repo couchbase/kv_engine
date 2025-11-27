@@ -1130,6 +1130,26 @@ public:
         notify_changed("file_fragment_max_read_size");
     }
 
+    size_t getFileFragmentChecksumLength() const {
+        return file_fragment_checksum_length.load(std::memory_order_acquire);
+    }
+
+    void setFileFragmentChecksumLength(size_t val) {
+        file_fragment_checksum_length.store(val, std::memory_order_release);
+        has.file_fragment_checksum_length = true;
+        notify_changed("file_fragment_checksum_length");
+    }
+
+    bool isFileFragmentChecksumEnabled() const {
+        return file_fragment_checksum_enabled.load(std::memory_order_acquire);
+    }
+
+    void setFileFragmentChecksumEnabled(bool val) {
+        file_fragment_checksum_enabled.store(val, std::memory_order_release);
+        has.file_fragment_checksum_enabled = true;
+        notify_changed("file_fragment_checksum_enabled");
+    }
+
     double getDcpConsumerMaxMarkerVersion() const {
         return dcp_consumer_max_marker_version.load(std::memory_order_acquire);
     }
@@ -1522,6 +1542,19 @@ protected:
     /// The maximum read size used by GetFileFragment
     std::atomic<size_t> file_fragment_max_read_size{2_GiB};
 
+    /// Whether to checksum the file fragments
+    std::atomic<bool> file_fragment_checksum_enabled{true};
+
+    /// The length of the checksum to use for the file fragments, this also ends
+    /// up controlling the read size at the source.
+    /// 20MiB is so far the most tested read size and in terms of CRC (we use
+    /// CRC32-C) this length gives a hamming-distance of 4. If we wanted
+    /// to increase bit flip detetcion the next size to increase the
+    /// hamming-distance would be 5243 bytes which maybe too small for read
+    /// efficiency.
+    /// https://users.ece.cmu.edu/~koopman/crc/c32/0x8f6e37a0_len.txt
+    std::atomic<size_t> file_fragment_checksum_length{20_MiB};
+
     /// Magma's blind write optimisation, on or off. Default is on.
     std::atomic_bool magma_blind_write_optimisation_enabled{true};
 
@@ -1618,6 +1651,8 @@ public:
         bool clustermap_push_notifications_enabled = false;
         bool file_fragment_max_chunk_size = false;
         bool file_fragment_max_read_size = false;
+        bool file_fragment_checksum_enabled = false;
+        bool file_fragment_checksum_length = false;
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;

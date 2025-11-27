@@ -48,6 +48,8 @@ public:
      * @param directory destination directory for the file
      * @param uuid the uuid for the the snapshot the file belongs to
      * @param fsync_interval the number of bytes between each call to fsync()
+     * @param checksum_length the number of bytes to checksum as data is read (0
+     * disables checksumming)
      * @param log_callback a callback function to add information to the log
      * @param stats_collect_callback a callback function for stat collection
      * received)
@@ -56,6 +58,7 @@ public:
                    std::filesystem::path directory,
                    std::string uuid,
                    std::size_t fsync_interval,
+                   std::size_t checksum_length,
                    std::function<void(spdlog::level::level_enum,
                                       std::string_view,
                                       cb::logger::Json json)> log_callback,
@@ -100,6 +103,9 @@ protected:
     const std::string uuid;
     /// The number of bytes between each call to fsync()
     const std::size_t fsync_interval;
+    /// The number of bytes to checksum as data is read (0 disables
+    /// checksumming)
+    const std::size_t checksum_length{0};
     /// The callback method to log information
     const std::function<void(
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>

@@ -1199,6 +1199,16 @@ public:
      */
     bool isMagmaBlindWriteOptimisationEnabled() const;
 
+    /**
+     * Whether to checksum file fragments (FBR GetFileFragment).
+     */
+    bool isFileFragmentChecksumEnabled() const;
+
+    /**
+     * How many bytes to generate a checksum for (FBR GetFileFragment).
+     */
+    size_t getFileFragmentChecksumLength() const;
+
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
         cb::engine_errc status;

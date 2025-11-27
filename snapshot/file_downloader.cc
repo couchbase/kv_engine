@@ -27,6 +27,7 @@ FileDownloader::FileDownloader(
         std::filesystem::path directory,
         std::string uuid,
         std::size_t fsync_interval,
+        std::size_t checksum_length,
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
                            cb::logger::Json json)> log_callback,
@@ -35,6 +36,7 @@ FileDownloader::FileDownloader(
       directory(std::move(directory)),
       uuid(std::move(uuid)),
       fsync_interval(fsync_interval),
+      checksum_length(checksum_length),
       log_callback(std::move(log_callback)),
       stats_collect_callback(std::move(stats_collect_callback)) {
     // Empty
@@ -76,18 +78,22 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
     const auto file_download_start = std::chrono::steady_clock::now();
     while (offset < size) {
         std::size_t chunk = size - offset;
+        // When checksumming, it must not exceed the chunk size
+        const std::size_t chunk_checksum_length =
+                std::min(std::max(std::size_t{0}, checksum_length), chunk);
         file_meta["offset"] = std::to_string(offset);
         file_meta["length"] = std::to_string(chunk);
         log_callback(info,
                      "Request fragment",
                      {{"uuid", uuid},
                       {"path", meta.path.string()},
-                      {"chunk", file_meta}});
+                      {"chunk", file_meta},
+                      {"chunk_checksum_length", chunk_checksum_length}});
         offset += connection->getFileFragment(uuid,
                                               meta.id,
                                               offset,
                                               chunk,
-                                              0 /* no checksumming */,
+                                              chunk_checksum_length,
                                               sink.get(),
                                               stats_collect_callback);
     }

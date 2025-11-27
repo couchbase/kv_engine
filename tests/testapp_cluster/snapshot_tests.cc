@@ -253,6 +253,8 @@ void SnapshotClusterTest::do_snapshot_status(
 TEST_P(SnapshotClusterTest, Snapshots) {
     cluster->changeConfig([](nlohmann::json& config) {
         config["file_fragment_max_read_size"] = GetParam();
+        // Run with a small checksum length to help improve test coverage.
+        config["file_fragment_checksum_length"] = 128;
     });
 
     populate_docs_on_source();
