@@ -8,6 +8,7 @@
  */
 #include "mcbp_executors.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "config_parse.h"
 #include "error_map_manager.h"

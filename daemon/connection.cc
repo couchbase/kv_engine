@@ -9,6 +9,7 @@
  */
 #include "connection.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "connection_libevent.h"
 #include "cookie.h"

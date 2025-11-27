@@ -10,6 +10,7 @@
 
 #include "sasl_auth_command_context.h"
 
+#include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/mcaudit.h>

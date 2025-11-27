@@ -12,6 +12,7 @@
 #include "engine_wrapper.h"
 #include "utilities.h"
 
+#include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/external_auth_manager_thread.h>

@@ -11,10 +11,11 @@
 #include "executors.h"
 #include "utilities.h"
 
+#include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
-#include <hdrhistogram/hdrhistogram.h>
 
 /**
  * Check to see if the provided UserIdent have the provided privilege in

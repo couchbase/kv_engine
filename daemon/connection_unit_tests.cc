@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_manager.h"
 #include "connection_libevent.h"
 #include "daemon/external_auth_manager_thread.h"
 #include "enginemap.h"

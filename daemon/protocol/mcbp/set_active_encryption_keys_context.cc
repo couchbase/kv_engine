@@ -11,6 +11,7 @@
 #include "set_active_encryption_keys_context.h"
 
 #include <cbcrypto/key_store.h>
+#include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/one_shot_limited_concurrency_task.h>

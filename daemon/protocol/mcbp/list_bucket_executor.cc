@@ -11,6 +11,7 @@
 
 #include "executors.h"
 
+#include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>

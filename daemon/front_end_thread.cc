@@ -10,6 +10,7 @@
  * Thread management for memcached.
  */
 #include "front_end_thread.h"
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"

@@ -4,6 +4,7 @@ add_library(memcached_daemon STATIC
             bucket_type.cc
             bucket_destroyer.cc
             bucket_destroyer.h
+            bucket_manager.cc
             buckets.cc
             buckets.h
             client_cert_config.cc

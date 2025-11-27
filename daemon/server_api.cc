@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "environment.h"
 #include "mc_time.h"

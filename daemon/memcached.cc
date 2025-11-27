@@ -9,6 +9,7 @@
  * licenses/BSD-3-Clause-Danga-Interactive.txt
  */
 #include "memcached.h"
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "cmdline.h"
 #include "concurrency_semaphores.h"

@@ -1,0 +1,1128 @@
+/*
+ *     Copyright 2025-Present Couchbase, Inc.
+ *
+ *   Use of this software is governed by the Business Source License included
+ *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
+ *   in that file, in accordance with the Business Source License, use of this
+ *   software will be governed by the Apache License, Version 2.0, included in
+ *   the file licenses/APL2.txt.
+ */
+#include "bucket_manager.h"
+#include "bucket_destroyer.h"
+#include "buckets.h"
+#include "connection.h"
+#include "cookie.h"
+#include "enginemap.h"
+#include "front_end_thread.h"
+#include "log_macros.h"
+#include "mcaudit.h"
+#include "memcached.h"
+#include "resource_allocation_domain.h"
+#include "settings.h"
+#include <logger/logger.h>
+#include <memcached/config_parser.h>
+#include <platform/base64.h>
+#include <platform/json_log_conversions.h>
+#include <platform/scope_timer.h>
+#include <serverless/config.h>
+
+BucketManager& BucketManager::instance() {
+    static BucketManager instance;
+    return instance;
+}
+
+nlohmann::json BucketManager::getBucketInfo(std::string_view name) {
+    if (name.empty()) {
+        // Return all buckets
+        nlohmann::json array = nlohmann::json::array();
+
+        for (const auto& bucket : all_buckets_ptr) {
+            nlohmann::json json = *bucket;
+            if (!json.empty()) {
+                array.emplace_back(std::move(json));
+            }
+        }
+
+        nlohmann::json json;
+        json["buckets"] = array;
+        return json;
+    }
+
+    // Return the bucket details for the bucket with the requested name
+    // To avoid racing with bucket creation/deletion/pausing and all the
+    // other commands potentially changing bucket states _AND_ make sure
+    // we don't skip any states lets create a json dump of the bucket and
+    // check if it was the bucket we wanted.
+    for (const auto& bucket : all_buckets_ptr) {
+        nlohmann::json json = *bucket;
+        if (!json.empty() && json["name"].get<std::string>() == name) {
+            return json;
+        }
+    }
+
+    return {};
+}
+
+void BucketManager::shutdown() {
+    for (auto& bucket : all_buckets_ptr) {
+        bool waiting;
+
+        do {
+            waiting = false;
+            {
+                std::lock_guard<std::mutex> guard(bucket->mutex);
+                switch (bucket->state.load()) {
+                case Bucket::State::Destroying:
+                case Bucket::State::Creating:
+                case Bucket::State::Initializing:
+                    waiting = true;
+                    break;
+                default:
+                        /* Empty */
+                        ;
+                }
+            }
+            if (waiting) {
+                std::this_thread::sleep_for(std::chrono::microseconds(250));
+            }
+        } while (waiting);
+
+        if (bucket->state == Bucket::State::Ready) {
+            bucket->destroyEngine(false);
+            bucket->reset();
+        }
+    }
+}
+
+void BucketManager::associateInitialBucket(Connection& connection) {
+    Bucket& b = getNoBucket();
+    {
+        std::lock_guard<std::mutex> guard(b.mutex);
+        b.references++;
+    }
+
+    connection.setBucketIndex(all_buckets_ptr[0], nullptr);
+}
+bool BucketManager::associateBucket(Cookie& cookie,
+                                    const std::string_view name) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                        Code::AssociateBucket);
+    return associateBucket(cookie.getConnection(), name, &cookie);
+}
+
+bool BucketManager::associateBucket(Connection& connection,
+                                    const std::string_view name,
+                                    Cookie* cookie) {
+    Expects(!connection.isClosing());
+    // leave the current bucket
+    disassociateBucket(connection, cookie);
+
+    std::size_t idx = 0;
+    /* Try to associate with the named bucket */
+    for (size_t ii = 1; ii < all_buckets_ptr.size(); ++ii) {
+        Bucket& b = at(ii);
+        if (b.state == Bucket::State::Ready) {
+            // Lock and rerun the test
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
+            if (b.state == Bucket::State::Ready && b.name == name) {
+                b.references++;
+                idx = ii;
+                break;
+            }
+        }
+    }
+
+    if (idx != 0) {
+        connection.setBucketIndex(all_buckets_ptr[idx], cookie);
+        audit_bucket_selection(connection, cookie);
+    } else {
+        // Bucket not found, connect to the "no-bucket"
+        Bucket& b = getNoBucket();
+        {
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
+            b.references++;
+        }
+        connection.setBucketIndex(all_buckets_ptr[0], cookie);
+    }
+
+    return idx != 0;
+}
+
+void BucketManager::disassociateBucket(Connection& connection, Cookie* cookie) {
+    if (connection.isClosing()) {
+        --connection.getBucket().curr_conn_closing;
+    }
+    disconnectBucket(connection.getBucket(), cookie);
+    connection.setBucketIndex(all_buckets_ptr[0], cookie);
+    if (connection.isClosing()) {
+        ++connection.getBucket().curr_conn_closing;
+    }
+}
+
+void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+            cookie, Code::DisassociateBucket);
+    cb::tracing::MutexSpan guard(cookie,
+                                 bucket.mutex,
+                                 Code::BucketLockWait,
+                                 Code::BucketLockHeld,
+                                 std::chrono::milliseconds(5));
+
+    if (--bucket.references == 0 &&
+        (bucket.state == Bucket::State::Destroying ||
+         bucket.state == Bucket::State::Pausing)) {
+        bucket.cond.notify_one();
+    }
+}
+
+/**
+ * All the buckets in couchbase is stored in this array.
+ */
+std::mutex BucketManager::buckets_lock;
+std::array<std::shared_ptr<Bucket>, cb::limits::TotalBuckets + 1>
+        BucketManager::all_buckets_ptr;
+
+std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
+        std::string_view name,
+        std::shared_ptr<ClusterConfiguration::Configuration> configuration) {
+    // Make sure we don't race with anyone else touching the bucket array
+    // (create/delete bucket or set cluster config).
+    std::lock_guard<std::mutex> guard(buckets_lock);
+
+    auto first_free = all_buckets_ptr.size();
+
+    std::size_t ii = 0;
+    for (auto& bucket : all_buckets_ptr) {
+        std::lock_guard<std::mutex> bucketguard(bucket->mutex);
+        if (bucket->name == name) {
+            if (bucket->state == Bucket::State::Ready) {
+                bucket->clusterConfiguration.setConfiguration(
+                        std::move(configuration));
+                return {cb::engine_errc::success, Bucket::State::Ready};
+            }
+            // We can't set the cluster configuration at this time as
+            // the bucket is currently being initialized/paused/deleted,
+            // but tell the client to try again :)
+            return {cb::engine_errc::temporary_failure, bucket->state};
+        }
+
+        if (bucket->state == Bucket::State::None &&
+            first_free == all_buckets_ptr.size()) {
+            first_free = ii;
+        }
+        ++ii;
+    }
+
+    if (first_free == all_buckets_ptr.size()) {
+        return {cb::engine_errc::too_big, Bucket::State::None};
+    }
+
+    std::lock_guard<std::mutex> bucketguard(all_buckets_ptr[first_free]->mutex);
+    auto& bucket = *all_buckets_ptr[first_free];
+    bucket.type = BucketType::ClusterConfigOnly;
+    bucket.clusterConfiguration.setConfiguration(std::move(configuration));
+    bucket.name = name;
+    bucket.supportedFeatures.emplace(cb::engine::Feature::Collections);
+    bucketStateChangeListener(bucket, Bucket::State::Ready);
+    bucket.state = Bucket::State::Ready;
+    LOG_INFO_CTX("Created bucket", {"bucket", name}, {"type", bucket.type});
+    return {cb::engine_errc::success, Bucket::State::Ready};
+}
+
+void BucketManager::iterateBuckets(const std::function<bool(Bucket&)>& fn) {
+    for (auto& b : all_buckets_ptr) {
+        std::lock_guard<std::mutex> guard(b->mutex);
+        if (!fn(*b)) {
+            return;
+        }
+    }
+}
+
+std::pair<cb::engine_errc, Bucket*> BucketManager::allocateBucket(
+        std::string_view name) {
+    // Acquire the global mutex to lock out anyone else from adding/removing
+    // buckets in the bucket array
+    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
+    // We need to find a new slot for the bucket, and verify that
+    // the bucket don't exist.
+    Bucket* free_bucket = nullptr;
+    Bucket* existing_bucket = nullptr;
+    bool einprogress = false;
+    iterateBuckets(
+            [&free_bucket, &existing_bucket, name, &einprogress](auto& bucket) {
+                if (!free_bucket && bucket.state == Bucket::State::None) {
+                    free_bucket = &bucket;
+                } else if (name == bucket.name) {
+                    if (bucket.management_operation_in_progress) {
+                        einprogress = true;
+                    } else if (bucket.type == BucketType::ClusterConfigOnly) {
+                        free_bucket = &bucket;
+                        bucket.management_operation_in_progress = true;
+                    } else {
+                        existing_bucket = &bucket;
+                    }
+
+                    return false;
+                }
+                return true;
+            });
+
+    if (einprogress) {
+        return {cb::engine_errc::temporary_failure, nullptr};
+    }
+
+    if (existing_bucket) {
+        return {cb::engine_errc::key_already_exists, nullptr};
+    }
+
+    if (!free_bucket) {
+        return {cb::engine_errc::too_big, nullptr};
+    }
+
+    std::lock_guard<std::mutex> guard(free_bucket->mutex);
+    // Set the bucket state to creating and copy the name over.
+    // We can't set the state to Creating for a ClusterConfigOnly bucket as
+    // that would cause all clients to disconnect.
+    free_bucket->management_operation_in_progress = true;
+    if (free_bucket->type == BucketType::Unknown) {
+        free_bucket->name = name;
+        bucketStateChangeListener(*free_bucket, Bucket::State::Creating);
+        free_bucket->state = Bucket::State::Creating;
+    }
+    return {cb::engine_errc::success, free_bucket};
+}
+
+void BucketManager::createEngineInstance(Bucket& bucket,
+                                         BucketType type,
+                                         std::string_view name,
+                                         std::string_view config,
+                                         uint32_t cid) {
+    auto start = std::chrono::steady_clock::now();
+    bucket.setEngine(new_engine_instance(type, get_server_api));
+    auto stop = std::chrono::steady_clock::now();
+    if ((stop - start) > std::chrono::seconds{1}) {
+        LOG_WARNING_CTX("Creation of bucket instance",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"duration", stop - start});
+    }
+
+    // Set the state initializing so that people monitoring the
+    // bucket states can pick it up. We can't change the state
+    // for cluster-config-only buckets as that would cause clients
+    // to disconnect
+    if (bucket.type == BucketType::Unknown) {
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        bucketStateChangeListener(bucket, Bucket::State::Initializing);
+        bucket.state = Bucket::State::Initializing;
+    }
+
+    cb::logger::Json details = {{"conn_id", cid},
+                                {"bucket", name},
+                                {"type", type},
+                                {"chronicle_auth_token", "not-set"},
+                                {"collection_manifest", "not-set"}};
+
+    // Parse the configuration string and strip out various sensitive data to
+    // avoid that being logged
+    nlohmann::json encryption;
+    std::string chronicleAuthToken;
+    nlohmann::json collectionManifest;
+
+    const auto stripped = cb::config::filter(
+            config,
+            [&details, &encryption, &chronicleAuthToken, &collectionManifest](
+                    auto k, auto v) -> bool {
+                if (k == "encryption") {
+                    encryption = nlohmann::json::parse(v);
+
+                    auto no_keys = encryption;
+                    if (no_keys.contains("keys")) {
+                        for (auto& elem : no_keys["keys"]) {
+                            elem.erase("key");
+                        }
+                    }
+                    details["encryption"] = std::move(no_keys);
+                    return false;
+                }
+                if (k == "chronicle_auth_token") {
+                    chronicleAuthToken = v;
+                    details["chronicle_auth_token"] = "set";
+                    return false;
+                }
+                if (k == "collection_manifest") {
+                    if (v.empty()) {
+                        return false;
+                    }
+                    auto decoded = cb::base64url::decode(v);
+                    collectionManifest = nlohmann::json::parse(decoded);
+                    details["collection_manifest"] = "present";
+                    return false;
+                }
+
+                try {
+                    details["configuration"][k] = nlohmann::json::parse(v);
+                } catch (const std::exception&) {
+                    details["configuration"][k] = v;
+                }
+
+                return true;
+            });
+
+    LOG_INFO_CTX("Initialize bucket", std::move(details));
+
+    start = std::chrono::steady_clock::now();
+    auto result = bucket.getEngine().initialize(
+            stripped, encryption, chronicleAuthToken, collectionManifest);
+    if (result != cb::engine_errc::success) {
+        throw cb::engine_error(result, "initializeEngineInstance failed");
+    }
+    stop = std::chrono::steady_clock::now();
+    if ((stop - start) > std::chrono::seconds{1}) {
+        LOG_WARNING_CTX("Initialization of bucket completed",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"duration", stop - start});
+    }
+
+    // We don't pass the storage threads down in the config like we do for
+    // readers and writers because that evolved over time to be duplicated
+    // in both configs. Instead, we just inform the engine of the number
+    // of threads.
+    auto& engine = bucket.getEngine();
+    engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
+            Settings::instance().getNumStorageThreads()));
+
+    bucket.max_document_size = engine.getMaxItemSize();
+    bucket.supportedFeatures = engine.getFeatures();
+
+    // MB-53498: Set the bucket type to the correct type
+    bucketTypeChangeListener(bucket, type);
+    bucket.type.store(type, std::memory_order_seq_cst);
+}
+
+cb::engine_errc BucketManager::create(const CookieIface& cookie,
+                                      std::string_view name,
+                                      std::string_view config,
+                                      BucketType type) {
+    return create(cookie.getConnectionId(), name, config, type);
+}
+
+cb::engine_errc BucketManager::create(uint32_t cid,
+                                      std::string_view name,
+                                      std::string_view config,
+                                      BucketType type) {
+    LOG_INFO_CTX("Create bucket",
+                 {"conn_id", cid},
+                 {"bucket", name},
+                 {"type", type});
+    auto [err, free_bucket] = allocateBucket(name);
+    if (err != cb::engine_errc::success) {
+        LOG_ERROR_CTX("Create bucket failed",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", err});
+        return err;
+    }
+
+    if (!free_bucket) {
+        throw std::logic_error(
+                "BucketManager::create: allocateBucket returned success but no "
+                "bucket");
+    }
+    auto& bucket = *free_bucket;
+
+    auto& settings = Settings::instance();
+    bucket.setThrottleLimits(settings.getDefaultThrottleReservedUnits(),
+                             settings.getDefaultThrottleHardLimit());
+
+    cb::engine_errc result = cb::engine_errc::success;
+    try {
+        createEngineInstance(bucket, type, name, config, cid);
+
+        // The bucket is fully initialized and ready to use!
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.management_operation_in_progress = false;
+            bucketStateChangeListener(bucket, Bucket::State::Ready);
+            bucket.state = Bucket::State::Ready;
+        }
+        LOG_INFO_CTX("Bucket created successfully",
+                     {"conn_id", cid},
+                     {"bucket", name});
+    } catch (const cb::engine_error& exception) {
+        result = cb::engine_errc(exception.code().value());
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", exception.what()});
+    } catch (const std::bad_alloc&) {
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", "No memory"});
+        result = cb::engine_errc::no_memory;
+    } catch (const std::exception& e) {
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", e.what()});
+        result = cb::engine_errc::failed;
+    }
+
+    if (result != cb::engine_errc::success) {
+        // An error occurred, we need to roll back
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucketStateChangeListener(bucket, Bucket::State::Destroying);
+            bucket.state = Bucket::State::Destroying;
+        }
+        waitForEveryoneToDisconnect(
+                bucket, "bucket creation rollback", std::to_string(cid));
+
+        bucket.reset();
+        if (result != cb::engine_errc::encryption_key_not_available) {
+            result = cb::engine_errc::not_stored;
+        }
+    }
+    return result;
+}
+
+cb::engine_errc BucketManager::doBlockingDestroy(
+        const CookieIface& cookie,
+        std::string_view name,
+        bool force,
+        std::optional<BucketType> type) {
+    return destroy(std::to_string(cookie.getConnectionId()), name, force, type);
+}
+
+cb::engine_errc BucketManager::destroy(std::string_view cid,
+                                       std::string_view name,
+                                       bool force,
+                                       std::optional<BucketType> type) {
+    auto [res, destroyer] = startDestroy(cid, name, force, type);
+    Expects(destroyer || res != cb::engine_errc::would_block);
+    while (res == cb::engine_errc::would_block) {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(10ms);
+        res = destroyer->drive();
+    }
+
+    return res;
+}
+
+std::pair<cb::engine_errc, std::optional<BucketDestroyer>>
+BucketManager::startDestroy(std::string_view cid,
+                            std::string_view name,
+                            bool force,
+                            std::optional<BucketType> type) {
+    cb::engine_errc ret = cb::engine_errc::no_such_key;
+    Bucket* bucket_ptr = nullptr;
+
+    {
+        std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
+        iterateBuckets([&ret, &bucket_ptr, &name, this, &type](Bucket& b) {
+            if (name != b.name) {
+                return true;
+            }
+
+            if (b.management_operation_in_progress) {
+                // Someone else is currently operating on the bucket
+                ret = cb::engine_errc::temporary_failure;
+                return false;
+            }
+
+            if (b.state == Bucket::State::Ready ||
+                b.state == Bucket::State::Paused) {
+                if (type && b.type != type.value()) {
+                    ret = cb::engine_errc::key_already_exists;
+                } else {
+                    ret = cb::engine_errc::success;
+                    bucket_ptr = &b;
+                    b.management_operation_in_progress = true;
+                    bucketStateChangeListener(b, Bucket::State::Destroying);
+                    b.state = Bucket::State::Destroying;
+                }
+            } else {
+                ret = cb::engine_errc::key_already_exists;
+            }
+
+            return true;
+        });
+    }
+
+    if (ret != cb::engine_errc::success) {
+        LOG_WARNING_CTX("Delete bucket",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", ret});
+        return {ret, {}};
+    }
+    // The destroyer _could_ be stepped here until it first returns
+    // would_block, but startDestroy is called on a frontend thread and the
+    // destroyer may use e.g., iterate_all_connections which should not be
+    // called from a frontend thread context
+    return {cb::engine_errc::would_block,
+            BucketDestroyer(*bucket_ptr, std::string(cid), force)};
+}
+
+void BucketManager::waitForEveryoneToDisconnect(
+        Bucket& bucket,
+        std::string_view operation,
+        std::string_view id,
+        folly::CancellationToken cancellationToken) {
+    // Wait until all users disconnected...
+    {
+        std::unique_lock<std::mutex> guard(bucket.mutex);
+
+        if (bucket.references > 0) {
+            LOG_INFO_CTX("Operation waiting for clients to disconnect",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"references", bucket.references});
+
+            // Signal clients bound to the bucket before waiting
+            guard.unlock();
+            bucket.deleteThrottledCommands();
+            iterate_all_connections([&bucket](Connection& connection) {
+                if (&connection.getBucket() == &bucket) {
+                    connection.signalIfIdle();
+                }
+            });
+            guard.lock();
+        }
+
+        using std::chrono::minutes;
+        using std::chrono::seconds;
+        using std::chrono::steady_clock;
+
+        // We need to disconnect all the clients.
+        // Log pending connections that are connected every 2 minutes.
+        auto nextLog = steady_clock::now() + minutes(2);
+        while (bucket.references > 0) {
+            if (cancellationToken.isCancellationRequested()) {
+                // Give up on disconnecting connections.
+                return;
+            }
+
+            bucket.cond.wait_for(guard, seconds(1), [&bucket] {
+                return bucket.references == 0;
+            });
+
+            if (bucket.references == 0) {
+                break;
+            }
+
+            if (steady_clock::now() < nextLog) {
+                guard.unlock();
+                bucket.deleteThrottledCommands();
+                iterate_all_connections([&bucket](Connection& connection) {
+                    if (&connection.getBucket() == &bucket) {
+                        connection.signalIfIdle();
+                    }
+                });
+                if (bucket.type != BucketType::ClusterConfigOnly) {
+                    bucket.getEngine().cancel_all_operations_in_ewb_state();
+                }
+                guard.lock();
+                continue;
+            }
+
+            nextLog = steady_clock::now() + minutes(1);
+
+            // drop the lock and notify the worker threads
+            guard.unlock();
+
+            nlohmann::json currConns;
+            bucket.deleteThrottledCommands();
+            iterate_all_connections([&bucket, &currConns](Connection& conn) {
+                if (&conn.getBucket() == &bucket) {
+                    conn.signalIfIdle();
+                    currConns[std::to_string(conn.getId())] = conn.to_json();
+                }
+            });
+
+            LOG_INFO_CTX("Operation still waiting for clients to disconnect",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"references", bucket.references},
+                         {"connections", currConns.dump()});
+
+            guard.lock();
+        }
+    }
+
+    auto num = bucket.items_in_transit.load();
+    int counter = 0;
+    while (num != 0) {
+        if (++counter % 100 == 0) {
+            LOG_INFO_CTX("Operation waiting for items stuck in transfer",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"items", num});
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        num = bucket.items_in_transit.load();
+    }
+}
+
+void BucketManager::tick() {
+    auto limit = Settings::instance().getNodeCapacity();
+
+    forEach([&limit](auto& b) {
+        if (b.type != BucketType::NoBucket) {
+            auto [reserved, hard] = b.getThrottleLimits();
+            if (reserved != std::numeric_limits<std::size_t>::max()) {
+                if (reserved < limit) {
+                    limit -= reserved;
+                } else {
+                    limit = 0;
+                }
+            }
+            b.tick();
+        }
+        return true;
+    });
+
+    unassigned_resources_limit = limit;
+    // Reset the unassigned gauge instead of tick as we don't want
+    // to continue to pay on the overuse for the next sec ;)
+    unassigned_resources_gauge.reset();
+
+    FrontEndThread::forEach([](auto& thr) {
+        // Iterate over all of the DCP connections bound to this thread
+        // which is subject for throttling so that they may send more
+        // data (in the case they stopped producing data due to throttling
+        thr.iterateThrottleableDcpConnections([](Connection& c) {
+            c.resumeThrottledDcpStream();
+            c.triggerCallback();
+        });
+    });
+}
+
+void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
+    for (auto& bucket_ptr : all_buckets_ptr) {
+        auto& bucket = *bucket_ptr;
+
+        bool do_break = false;
+        if (bucket.state == Bucket::State::Ready) {
+            // MB-44827: We don't want to hold the bucket mutex for the
+            //           entire time of the callback as it would block
+            //           other threads to associate / leave the bucket,
+            //           and we don't know how slow the callback is going
+            //           to be. To make sure that the bucket won't get
+            //           killed while we run the callback we'll bump
+            //           the client reference and release it once
+            //           we're done with the callback
+            bool ready = true;
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                if (bucket.state == Bucket::State::Ready) {
+                    bucket.references++;
+                } else {
+                    ready = false;
+                }
+            }
+            if (ready) {
+                if (!fn(bucket)) {
+                    do_break = true;
+                }
+                // disconnect from the bucket (remove the client reference
+                // we added earlier
+                disconnectBucket(bucket, nullptr);
+                if (do_break) {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+Bucket* BucketManager::tryAssociateBucket(EngineIface* engine) {
+    Bucket* associated = nullptr;
+    forEach([&associated, engine](auto& bucket) {
+        // Find the correct bucket
+        if (engine != &bucket.getEngine()) {
+            return true;
+        }
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        if (bucket.state != Bucket::State::Ready) {
+            // If it is not in the correct state, we cannot associate it
+            return false;
+        }
+
+        // We "associate with a bucket" by incrementing the num of
+        // clients to the bucket.
+        bucket.references++;
+        associated = &bucket;
+        return false;
+    });
+
+    return associated;
+}
+
+void BucketManager::disassociateBucket(Bucket* bucket) {
+    // Remove the client reference we added earlier
+    disconnectBucket(*bucket, nullptr);
+}
+
+Bucket& BucketManager::at(size_t idx) {
+    return *all_buckets_ptr[idx];
+}
+
+const Bucket& BucketManager::at(size_t idx) const {
+    return *all_buckets_ptr[idx];
+}
+
+std::string BucketManager::getName(size_t idx) const {
+    if (idx < all_buckets_ptr.size()) {
+        auto& b = at(idx);
+        std::lock_guard<std::mutex> guard(b.mutex);
+        if (b.state == Bucket::State::Ready) {
+            return b.name;
+        }
+    }
+    return {};
+}
+
+void BucketManager::destroyBucketsInParallel() {
+    // Iterate over all "ready" buckets and initiate their shutdown
+    std::vector<std::pair<cb::engine_errc, BucketDestroyer>> destroyers;
+    BucketManager::forEach([this, &destroyers](auto& bucket) -> bool {
+        if (bucket.type == BucketType::NoBucket) {
+            return true;
+        }
+        auto [res, instance] = startDestroy("<none>", bucket.name, false, {});
+        if (res == cb::engine_errc::would_block && instance.has_value()) {
+            LOG_INFO_CTX("Destroying bucket", {"name", bucket.name});
+            destroyers.emplace_back(cb::engine_errc::would_block,
+                                    std::move(instance.value()));
+        }
+
+        return true;
+    });
+
+    bool done = destroyers.empty();
+    while (!done) {
+        done = true;
+        for (auto& [res, instance] : destroyers) {
+            if (res == cb::engine_errc::would_block) {
+                res = instance.drive();
+                if (res == cb::engine_errc::would_block) {
+                    done = false;
+                }
+            }
+        }
+        if (!done) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+    }
+}
+
+void BucketManager::destroyAll() {
+    LOG_INFO_RAW("Stop all buckets");
+
+    bool active;
+    do {
+        destroyBucketsInParallel();
+        active = false;
+        // Start at one (not zero) because zero is reserved for "no bucket".
+        // The "no bucket" has a state of Bucket::State::Ready but no name.
+        for (size_t ii = 1; ii < all_buckets_ptr.size(); ++ii) {
+            auto& bucket = at(ii);
+            if (bucket.state != Bucket::State::None) {
+                LOG_INFO_CTX("Found bucket in unexpected state",
+                             {"name", bucket.name},
+                             {"state", bucket.state.load()});
+                active = true;
+            }
+        }
+        if (active) {
+            LOG_INFO_RAW(
+                    "Sleep 1 seconds to allow buckets time to enter a state "
+                    "where they may be shut down");
+            std::this_thread::sleep_for(std::chrono::seconds{1});
+        }
+    } while (active);
+}
+
+cb::engine_errc BucketManager::pause(const CookieIface& cookie,
+                                     std::string_view name) {
+    return pause(std::to_string(cookie.getConnectionId()), name);
+}
+
+cb::engine_errc BucketManager::pause(std::string_view cid,
+                                     std::string_view name) {
+    // Find the specified bucket and check it can be paused.
+    Bucket* bucket{nullptr};
+    folly::CancellationToken cancellationToken;
+    {
+        // Make sure we don't race with anyone else touching the bucket array
+        // (create/delete/pause/resume bucket or set cluster config).
+        std::lock_guard all_bucket_lock(buckets_lock);
+
+        // locate the bucket
+        size_t idx = 0;
+        for (auto& bptr : all_buckets_ptr) {
+            auto& b = *bptr;
+            std::lock_guard<std::mutex> bucketguard(b.mutex);
+            if (b.name == name) {
+                break;
+            }
+            ++idx;
+        }
+
+        if (idx == all_buckets_ptr.size()) {
+            return cb::engine_errc::no_such_key;
+        }
+
+        bucket = &at(idx);
+        // Perform final checks on bucket, and if all good modify the bucket
+        // state to Pausing. After this we can release the buckets_lock.
+        {
+            std::lock_guard bucketguard(bucket->mutex);
+            if (bucket->state == Bucket::State::Pausing ||
+                bucket->state == Bucket::State::Paused) {
+                // Cannot pause bucket if already pausing / paused.
+                return cb::engine_errc::bucket_paused;
+            }
+            if (bucket->state != Bucket::State::Ready) {
+                // perhaps we want a new error code for this?
+                return cb::engine_errc::key_already_exists;
+            }
+
+            if (bucket->type == BucketType::ClusterConfigOnly) {
+                return cb::engine_errc::not_supported;
+            }
+
+            // Change to 'Pausing' State to block any more requests, and
+            // so observers can tell pausing has started.
+            bucket->management_operation_in_progress = true;
+            bucketStateChangeListener(*bucket, Bucket::State::Pausing);
+            bucket->state = Bucket::State::Pausing;
+            Expects(!bucket->pause_cancellation_source.canBeCancelled());
+            bucket->pause_cancellation_source = folly::CancellationSource{};
+            cancellationToken = bucket->pause_cancellation_source.getToken();
+        }
+    }
+
+    LOG_INFO_CTX("Pausing bucket",
+                 {"conn_id", cid},
+                 {"bucket", name},
+                 {"state", "notifying engine to quiesce state"});
+
+    bucketPausingListener(name, "before_cancellation_callback");
+
+    auto rollbackToResumed = [this, &bucket, cid, name] {
+        LOG_INFO_CTX("Cancelling pause of bucket",
+                     {"conn_id", cid},
+                     {"bucket", name});
+        Expects(bucket->state == Bucket::State::Pausing ||
+                bucket->state == Bucket::State::Paused);
+        bucket->management_operation_in_progress = false;
+        bucketStateChangeListener(*bucket, bucket->state);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
+        if (bucket->getEngine().resume() == cb::engine_errc::success) {
+            bucket->state = Bucket::State::Ready;
+        }
+        return cb::engine_errc::cancelled;
+    };
+
+    // Setup a cancellationCallback which, if pause is cancelled will restore
+    // bucket to the state before pause() was started.
+    //
+    // Note: This can either be executed on the cancelling thread (typical
+    // execution path), or it can be executed inline here if the
+    // cancellationToken is cancelled before the cancellationCallback is
+    // constructed, so we need to handle both cases:
+    // - For inline execution: we must acquire Bucket::mutex around
+    //   construction.
+    // - For execution via cancelling thread: we must acquire Bucket::mutex
+    //   before requesting cancellation - see BucketManager::resume().
+    folly::CancellationCallback cancellationCallback = [&] {
+        std::lock_guard guard(bucket->mutex);
+        return folly::CancellationCallback{cancellationToken, [] {}};
+    }();
+
+    bucketPausingListener(name, "before_disconnect");
+
+    waitForEveryoneToDisconnect(*bucket, "Pause", cid, cancellationToken);
+
+    {
+        // Check if cancellation was requested since waiting for clients to
+        // disconnect - if so cancel.
+        // Note we don't /need/ to take the Bucket::mutex here - given we could
+        // get cancellation occurring just after we unlock the mutex - but
+        // we do acquire Bucket::mutex before checking later on (just before
+        // we return success below) and hence for locking consistency we
+        // acquire Bucket::mutex here also.
+        std::lock_guard guard(bucket->mutex);
+        if (cancellationToken.isCancellationRequested()) {
+            // Cancel (fail) the pause() request. Registered callback(s) above
+            // (and potentially others registered at lower levels) will "undo"
+            // any necessary partial pause.
+            rollbackToResumed();
+            return cb::engine_errc::cancelled;
+        }
+    }
+
+    bucketPausingListener(name, "before_engine_pause");
+
+    auto status = bucket->getEngine().pause(cancellationToken);
+
+    if (status == cb::engine_errc::success) {
+        std::lock_guard bucketguard(bucket->mutex);
+        // Check if cancellation was requested (under the Bucket::mutex to
+        // avoid racing with another thread attempting to cancel). If so
+        // then return a failure status - note cleanup back to state ready etc
+        // is done by cancellationCallback above.
+        if (cancellationToken.isCancellationRequested()) {
+            rollbackToResumed();
+            return cb::engine_errc::cancelled;
+        }
+        LOG_INFO_CTX("Paused bucket",
+                     {"conn_id", cid},
+                     {"bucket", name},
+                     {"status", status});
+        bucket->management_operation_in_progress = false;
+        bucketStateChangeListener(*bucket, Bucket::State::Paused);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
+        bucket->state = Bucket::State::Paused;
+    } else {
+        std::lock_guard bucketguard(bucket->mutex);
+        if (cancellationToken.isCancellationRequested()) {
+            rollbackToResumed();
+            return cb::engine_errc::cancelled;
+        }
+        LOG_WARNING_CTX("Pausing bucket failed",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", status});
+        bucketStateChangeListener(*bucket, Bucket::State::Ready);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
+        if (bucket->getEngine().resume() == cb::engine_errc::success) {
+            bucket->state = Bucket::State::Ready;
+        }
+    }
+
+    return status;
+}
+
+cb::engine_errc BucketManager::resume(const CookieIface& cookie,
+                                      std::string_view name) {
+    return resume(std::to_string(cookie.getConnectionId()), name);
+}
+
+cb::engine_errc BucketManager::resume(std::string_view cid,
+                                      std::string_view name) {
+    // Make sure we don't race with anyone else touching the bucket array
+    // (create/delete/pause/resume bucket or set cluster config)
+    std::lock_guard all_bucket_lock(buckets_lock);
+
+    // locate the bucket
+    size_t idx = 0;
+    for (auto& bucket_ptr : all_buckets_ptr) {
+        auto& bucket = *bucket_ptr;
+        std::lock_guard<std::mutex> bucketguard(bucket.mutex);
+        if (bucket.name == name) {
+            // Can only resume Pausing buckets (in which case we cancel the
+            // in-progress pause) or Paused buckets.
+            if (bucket.state != Bucket::State::Pausing &&
+                bucket.state != Bucket::State::Paused) {
+                // @todo: Use a different error code?
+                return cb::engine_errc::key_already_exists;
+            }
+            break;
+        }
+        ++idx;
+    }
+
+    if (idx == all_buckets_ptr.size()) {
+        return cb::engine_errc::no_such_key;
+    }
+
+    auto& bucket = at(idx);
+
+    // Check if a pause() operation is still in-flight. If so then no need to
+    // perform a full resume operation - just cancel the in-flight pause.
+    // This must be done under Bucket::mutex to avoid a race between checking
+    // for in-flight pause and that pause completing - setting / clearing
+    // Bucket::pause_cancellation_source is done under Bucket::mutex.
+    {
+        std::lock_guard bucketguard(bucket.mutex);
+        if (bucket.pause_cancellation_source.canBeCancelled()) {
+            bool alreadyRequested =
+                    bucket.pause_cancellation_source.requestCancellation();
+            LOG_INFO_CTX(
+                    "Requesting cancellation of in-progress pause() request",
+                    {"conn_id", cid},
+                    {"bucket", name},
+                    {"previously_requested", alreadyRequested});
+            return cb::engine_errc::success;
+        }
+    }
+
+    LOG_INFO_CTX("Resuming bucket", {"conn_id", cid}, {"bucket", name});
+    auto status = bucket.getEngine().resume();
+    if (status == cb::engine_errc::success) {
+        LOG_INFO_CTX(
+                "Bucket is back online", {"conn_id", cid}, {"bucket", name});
+        std::lock_guard bucketguard(bucket.mutex);
+        bucketStateChangeListener(bucket, Bucket::State::Ready);
+        bucket.state = Bucket::State::Ready;
+    } else {
+        LOG_WARNING_CTX("Failed to resume bucket",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", status});
+    }
+
+    return status;
+}
+
+BucketManager::BucketManager() {
+    auto& settings = Settings::instance();
+    size_t numthread = settings.getNumWorkerThreads() + 1;
+
+    for (size_t index = 0; index < all_buckets_ptr.size(); ++index) {
+        auto& b = all_buckets_ptr.at(index);
+        b = std::make_shared<Bucket>(index);
+        b->reset();
+        b->stats.resize(numthread);
+    }
+
+    // To make the life easier for us in the code, index 0 in the array is
+    // "no bucket"
+    auto& nobucket = *all_buckets_ptr[0];
+    try {
+        nobucket.setEngine(
+                new_engine_instance(BucketType::NoBucket, get_server_api));
+    } catch (const std::exception& exception) {
+        FATAL_ERROR_CTX(
+                EXIT_FAILURE,
+                "Failed to create the internal bucket \"No bucket\": {}",
+                {"error", exception.what()});
+    }
+    nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
+    nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
+    nobucket.type = BucketType::NoBucket;
+    nobucket.state = Bucket::State::Ready;
+}

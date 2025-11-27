@@ -8,6 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_manager.h"
+
 #include <daemon/buckets.h>
 #include <daemon/stats.h>
 #include <platform/dirutils.h>

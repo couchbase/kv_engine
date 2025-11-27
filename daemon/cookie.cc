@@ -10,6 +10,7 @@
 
 #include "cookie.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "connection.h"
 #include "cookie_trace_context.h"

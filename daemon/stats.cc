@@ -10,6 +10,7 @@
 
 #include "stats.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "external_auth_manager_thread.h"
 #include "mc_time.h"

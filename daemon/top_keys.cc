@@ -10,7 +10,7 @@
 
 #include "top_keys.h"
 
-#include "buckets.h"
+#include "bucket_manager.h"
 
 #include <memcached/dockey_view.h>
 #include <memcached/limits.h>

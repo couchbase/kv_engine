@@ -10,6 +10,7 @@
 #include "bucket_management_command_context.h"
 
 #include <daemon/bucket_destroyer.h>
+#include <daemon/bucket_manager.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>

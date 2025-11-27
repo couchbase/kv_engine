@@ -10,6 +10,7 @@
 
 #include "ioctl.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"

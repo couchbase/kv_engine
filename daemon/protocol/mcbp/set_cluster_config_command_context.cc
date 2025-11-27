@@ -13,6 +13,7 @@
 #include "mcbp/protocol/framebuilder.h"
 
 #include <cbsasl/mechanism.h>
+#include <daemon/bucket_manager.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_limited_concurrency_task.h>

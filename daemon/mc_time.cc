@@ -33,6 +33,7 @@
  */
 #include "mc_time.h"
 
+#include "bucket_manager.h"
 #include "buckets.h"
 #include "memcached.h"
 
