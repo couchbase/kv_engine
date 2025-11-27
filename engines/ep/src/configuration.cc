@@ -197,6 +197,12 @@ struct Configuration::Attribute {
         return defaultValMap.begin()->second;
     }
 
+    /// @return true if the attributes value matches the default value for the
+    /// given version, false otherwise.
+    bool isSetToDefaultValue(cb::config::FeatureVersion version) const {
+        return getValue() == getDefaultForVersion(version);
+    }
+
 private:
     struct Value {
         std::vector<std::shared_ptr<ValueChangedListener>> changeListeners;
@@ -375,9 +381,11 @@ bool Configuration::isParameterConfigured(std::string_view key) const {
             });
 }
 
-void Configuration::maybeAddStat(const BucketStatCollector& collector,
-                                 cb::stats::Key key,
-                                 std::string_view keyStr) const {
+void Configuration::maybeAddStat(
+        const BucketStatCollector& collector,
+        cb::stats::Key key,
+        std::string_view keyStr,
+        cb::config::ExcludeWhenValueIsDefaultValue exclude) const {
     Expects(initialized);
     auto itr = attributes.find(keyStr);
     if (itr == attributes.end()) {
@@ -385,6 +393,10 @@ void Configuration::maybeAddStat(const BucketStatCollector& collector,
     }
     const auto& attribute = itr->second;
     if (!requirementsMet(*attribute)) {
+        return;
+    }
+    if (exclude == cb::config::ExcludeWhenValueIsDefaultValue::Yes &&
+        attribute->isSetToDefaultValue(getEffectiveCompatVersion())) {
         return;
     }
 
@@ -919,9 +931,9 @@ void Configuration::processCompatVersionChange(
         if (needsChange) {
             changes.emplace(key, std::make_pair(attr->getValue(), newValue));
             std::visit(
-                    [this, &key, &attr](auto&& val) {
-                        for (const auto& listener : attr->setValue(val)) {
-                            listener->valueChanged(key, val);
+                    [this, &k = key, &a = attr](auto&& val) {
+                        for (const auto& listener : a->setValue(val)) {
+                            listener->valueChanged(k, val);
                         }
                     },
                     std::move(newValue));

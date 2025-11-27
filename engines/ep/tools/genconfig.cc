@@ -914,7 +914,8 @@ void Configuration::set{}(const cb::config::{} &nval) {{
     // add to the definition of Configuration::addStat
     for (const auto& name : names) {
         addStatImplementation += fmt::format(
-                "    maybeAddStat(collector, Key::ep_{}, \"{}\"sv);\n",
+                "    maybeAddStat(collector, Key::ep_{}, \"{}\"sv, "
+                "exclude);\n",
                 name,
                 name);
     }
@@ -983,7 +984,8 @@ int main(int argc, char **argv) {
                  << initialization << "}" << std::endl
                  << std::endl
                  << "void Configuration::addStats(const BucketStatCollector& "
-                    "collector) const {"
+                    "collector, cb::config::ExcludeWhenValueIsDefaultValue "
+                    "exclude) const {"
                  << std::endl
                  << "    using namespace cb::stats;" << std::endl
                  << "    using namespace std::string_view_literals;"
