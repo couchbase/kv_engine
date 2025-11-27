@@ -299,7 +299,6 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            {"bucket_type", "persistent"},
                            {"item_eviction_policy", "value_only"},
                            {"max_ttl", 0},
-                           {"ht_locks", 47},
                            {"compression_mode", "off"},
                            {"failpartialwarmup", false},
                            {"max_num_shards", 4},

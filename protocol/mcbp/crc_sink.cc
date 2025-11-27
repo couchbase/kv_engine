@@ -103,7 +103,6 @@ std::string_view CRCSink::consume_checksum(std::string_view data) {
         uint32_t checksum_value = ntohl(
                 *reinterpret_cast<const uint32_t*>(partial_checksum.data()));
         if (current_crc != checksum_value) {
-            // todo: format error message with all member state
             throw std::runtime_error(fmt::format(
                     "CRCSink: mismatch: calculated: 0x{:08x}, found: 0x{:08x}, "
                     "network_stream_offset: {}, "

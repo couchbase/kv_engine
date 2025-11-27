@@ -57,12 +57,25 @@ protected:
     cb::engine_errc send_response_header();
     cb::engine_errc read_file_chunk();
     cb::engine_errc chain_file_chunk();
+
+    /// Helper to calculate the checksum of the given IOBuf and append it to the
+    /// IOBuf
+    void calculate_and_append_checksum(folly::IOBuf& iob);
+    /// Helper to create an IOBuf with the given length + optional checksum
+    /// space
+    std::unique_ptr<folly::IOBuf> create_io_buf(size_t length) const;
+
+    static size_t get_network_length(size_t file_read_length,
+                                     size_t file_checksum_length);
     const std::string uuid;
     std::string filename;
     std::size_t id{0};
     std::size_t offset{0};
+    /// How many bytes we need to read from the file.
     std::size_t length{0};
-    const std::size_t max_read_size{0};
+    /// How many bytes of the file are check-summed (0 not checksumming)
+    std::size_t checksum_length{0};
+
     folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
     /// We're using a file_stream to read the file if we need
     /// to read it in chunks (i.e., not using sendfile).
@@ -75,5 +88,9 @@ protected:
     State state;
 
     /// The size of the chunks we read from the file.
-    const std::size_t chunk_size;
+    std::size_t chunk_size{0};
+    /// How many bytes we need to send to the network. If check-summing this
+    /// can be larger than the requested length, but always less than or equal
+    /// to the max_read_size.
+    std::size_t network_length{0};
 };

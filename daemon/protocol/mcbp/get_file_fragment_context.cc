@@ -29,7 +29,6 @@
 GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       uuid(cookie.getRequest().getKeyString()),
-      max_read_size(Settings::instance().getFileFragmentMaxReadSize()),
       state(State::Initialize),
       chunk_size(Settings::instance().getFileFragmentMaxChunkSize()) {
     // The validator checked that the payload was JSON and that it contains
@@ -37,10 +36,65 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     const auto json =
             nlohmann::json::parse(cookie.getRequest().getValueString());
     id = json["id"].get<std::size_t>();
-    offset = stoll(json.value("offset", "0"));
-    length = stoll(json["length"].get<std::string>());
+    try {
+        offset = stoll(json.value("offset", "0"));
+        length = stoll(json["length"].get<std::string>());
+        checksum_length = stoll(json.value("checksum_length", "0"));
+    } catch (const std::exception& e) {
+        // When testing sometimes stoll would fail for say a negative number,
+        // decorate any exception and throw more detail
+        throw std::invalid_argument(
+                fmt::format("Failed to parse JSON: {} {}",
+                            cookie.getRequest().getValueString(),
+                            e.what()));
+    }
+
+    const size_t max_read_size =
+            Settings::instance().getFileFragmentMaxReadSize();
     length = std::min(length, max_read_size);
+    network_length = length;
+
+    if (checksum_length > 0) {
+        // When checksumming, we will write to the network the file data,
+        // interspersed with the checksums. E.g.
+        // {file data}{checksum}{file data}{checksum}...
+        //
+        // Caller (file_downloader) will set the checksum_length to match this
+        // requirement.
+        Expects(checksum_length <= length);
+
+        // When checksumming set chunk_size to the checksum_length. This means
+        // we read in checksum_length chunks and then generate the sum for each
+        // chunk.
+        chunk_size = checksum_length;
+
+        // When checksumming we need to recalculate the network_length because
+        // the addition of checksums per chunk increases the transmited network
+        // length.
+        network_length = get_network_length(length, checksum_length);
+        if (network_length > max_read_size) {
+            // network_length can though exceed the max_read_size, which means
+            // we must reduce the requested length and recompute the
+            // network_length.
+            const size_t max_chunks =
+                    max_read_size / (checksum_length + sizeof(uint32_t));
+            length = max_chunks * checksum_length;
+            network_length = get_network_length(length, checksum_length);
+        }
+    }
+
     filestream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+}
+
+size_t GetFileFragmentContext::get_network_length(size_t file_read_length,
+                                                  size_t file_checksum_length) {
+    const size_t chunk_size = file_checksum_length + sizeof(uint32_t);
+    const size_t tail_remainder = file_read_length % file_checksum_length;
+    const size_t whole_chunks = file_read_length / file_checksum_length;
+    if (tail_remainder) {
+        return whole_chunks * chunk_size + (tail_remainder + sizeof(uint32_t));
+    }
+    return whole_chunks * chunk_size;
 }
 
 GetFileFragmentContext::~GetFileFragmentContext() {
@@ -120,7 +174,6 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                     filestream.open(filename, std::ios::binary | std::ios::in);
                     filestream.seekg(offset);
 
-                    length = std::min(length, max_read_size);
                     state = State::SendResponseHeader;
                     cookie.notifyIoComplete(cb::engine_errc::success);
                 } catch (const std::exception& exception) {
@@ -140,7 +193,7 @@ cb::engine_errc GetFileFragmentContext::send_response_header() {
                                    cb::mcbp::Status::Success,
                                    {},
                                    {},
-                                   length,
+                                   network_length,
                                    PROTOCOL_BINARY_RAW_BYTES);
     state = State::ReadFileChunk;
     return cb::engine_errc::success;
@@ -156,11 +209,12 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                 [this]() {
                     try {
                         const auto to_read = std::min(length, chunk_size);
-                        auto iob = folly::IOBuf::createCombined(to_read);
+                        auto iob = create_io_buf(to_read);
                         filestream.read(
                                 reinterpret_cast<char*>(iob->writableTail()),
                                 to_read);
                         iob->append(to_read);
+                        calculate_and_append_checksum(*iob);
                         chunk.swap(iob);
                         length -= to_read;
                         offset += to_read;
@@ -202,4 +256,22 @@ cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
         state = State::Done;
     }
     return cb::engine_errc::too_much_data_in_output_buffer;
+}
+
+void GetFileFragmentContext::calculate_and_append_checksum(folly::IOBuf& iob) {
+    if (checksum_length == 0) {
+        return;
+    }
+    // Compute a checksum (put it into network order) and append it to the IOBuf
+    uint32_t crc = htonl(crc32c(iob.data(), iob.length(), 0));
+    std::memcpy(iob.writableTail(), &crc, sizeof(crc));
+    iob.append(sizeof(crc));
+}
+
+std::unique_ptr<folly::IOBuf> GetFileFragmentContext::create_io_buf(
+        size_t length) const {
+    if (checksum_length) {
+        length += sizeof(uint32_t);
+    }
+    return folly::IOBuf::createCombined(length);
 }

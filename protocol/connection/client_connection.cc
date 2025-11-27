@@ -18,6 +18,7 @@
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <json/syntax_validator.h>
 #include <json_web_token/builder.h>
+#include <mcbp/codec/crc_sink.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
@@ -2555,12 +2556,15 @@ class GetFileFragmentAsyncReadCallback
 public:
     GetFileFragmentAsyncReadCallback(
             folly::EventBase& base,
-            cb::io::FileSink& sink,
+            size_t checksum_length,
+            cb::io::Sink* sink,
             std::function<void(std::size_t)> stats_collect_callback)
         : base(base),
           buffer(2_MiB),
-          sink(sink),
+          destination_sink(sink),
+          checksum_length(checksum_length),
           stats_collect_callback(std::move(stats_collect_callback)) {
+        Expects(sink != nullptr);
     }
 
     ~GetFileFragmentAsyncReadCallback() override = default;
@@ -2600,7 +2604,15 @@ public:
                 base.terminateLoopSoon();
                 return;
             }
-
+            if (checksum_length) {
+                // Once we get the length of data being sent we can create the
+                // checksum sink and drive data to the provided sink.
+                checksum_sink = std::make_unique<cb::snapshot::CRCSink>(
+                        checksum_length,
+                        header->getBodylen(),
+                        *destination_sink);
+                destination_sink = checksum_sink.get();
+            }
             view.remove_prefix(sizeof(cb::mcbp::Header));
         }
 
@@ -2623,6 +2635,16 @@ public:
         }
     }
 
+    // @return how many bytes were written by this
+    // GetFileFragmentAsyncReadCallback instance
+    size_t getBytesWritten() const {
+        // When not checksumming don't use destination_sink->getBytesWritten()
+        // as the destination sink will be returning the accumulated bytes
+        // written over many getFileFragment calls.
+        return checksum_sink ? checksum_sink->getBytesPassedThrough()
+                             : bytes_processed;
+    }
+
     /// Set to true once we see EOF
     bool eof = false;
     /// Contains the exception if we encountered a read error
@@ -2633,8 +2655,15 @@ public:
     std::size_t offset = 0;
     /// A buffer to hold data
     std::vector<uint8_t> buffer;
-    cb::io::FileSink& sink;
-    std::size_t bytes_written = 0;
+    // Non owning pointer to the destination sink, this is either the provided
+    // sink or the checksum sink if checksumming is enabled
+    cb::io::Sink* destination_sink{nullptr};
+    /// The checksum sink (created only if checksumming is enabled)
+    std::unique_ptr<cb::snapshot::CRCSink> checksum_sink;
+    /// The length of the checksum to generate
+    size_t checksum_length{0};
+    /// The total number of bytes processed to the destination sink
+    std::size_t bytes_processed = 0;
 
     /// The header we received
     std::optional<cb::mcbp::Header> header;
@@ -2644,9 +2673,12 @@ public:
 
     /// Store the view to the file
     void storeData(std::string_view view) {
-        sink.sink(view);
-        bytes_written += view.size();
-        if (bytes_written == header->getBodylen()) {
+        // When CRC is enabled, view will be stripped of any checksum bytes and
+        // the file data passed to the sink orginally given to the callback
+        // class
+        destination_sink->sink(view);
+        bytes_processed += view.size();
+        if (bytes_processed == header->getBodylen()) {
             base.terminateLoopSoon();
         }
     }
@@ -2657,20 +2689,26 @@ uint64_t MemcachedConnection::getFileFragment(
         uint64_t id,
         uint64_t offset,
         uint64_t length,
-        cb::io::FileSink& sink,
+        size_t checksum_length,
+        cb::io::Sink* sink,
         std::function<void(std::size_t)> stats_collect_callback) {
     // This command cannot be used if there is pending data!
     Expects(asyncReadCallback->input_bytes == 0);
 
-    nlohmann::json file_meta{{"id", id},
-                             {"offset", std::to_string(offset)},
-                             {"length", std::to_string(length)}};
+    nlohmann::json file_meta{
+            {"id", id},
+            {"offset", std::to_string(offset)},
+            {"length", std::to_string(length)},
+            {"checksum_length", std::to_string(checksum_length)}};
 
     sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFileFragment,
                                       std::string{uuid},
                                       file_meta.dump()});
     GetFileFragmentAsyncReadCallback callback(
-            *eventBase, sink, std::move(stats_collect_callback));
+            *eventBase,
+            checksum_length,
+            sink,
+            std::move(stats_collect_callback));
     asyncSocket->setReadCB(&callback);
     eventBase->loop();
     asyncSocket->setReadCB(nullptr);
@@ -2687,5 +2725,5 @@ uint64_t MemcachedConnection::getFileFragment(
                 response);
     }
 
-    return callback.bytes_written;
+    return callback.getBytesWritten();
 }

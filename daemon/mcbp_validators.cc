@@ -2637,9 +2637,10 @@ static Status get_file_fragment_validator(Cookie& cookie) {
                     "length be provided and must be a string value");
             return Status::Einval;
         }
-        if (json.contains("checksum") && !json["checksum"].is_string()) {
+        if (json.contains("checksum_length") &&
+            !json["checksum_length"].is_string()) {
             cookie.setErrorContext(
-                    "If checksum is provided it has to be a string");
+                    "If checksum_length is provided it has to be a string");
             return Status::Einval;
         }
     } catch (const std::exception&) {

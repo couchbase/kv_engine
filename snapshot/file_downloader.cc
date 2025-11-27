@@ -14,7 +14,6 @@
 #include <cbcrypto/digest.h>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
-#include <platform/crc32c.h>
 #include <platform/json_log_conversions.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <cstdio>
@@ -84,10 +83,15 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
                      {{"uuid", uuid},
                       {"path", meta.path.string()},
                       {"chunk", file_meta}});
-        offset += connection->getFileFragment(
-                uuid, meta.id, offset, chunk, sink, stats_collect_callback);
+        offset += connection->getFileFragment(uuid,
+                                              meta.id,
+                                              offset,
+                                              chunk,
+                                              0 /* no checksumming */,
+                                              sink.get(),
+                                              stats_collect_callback);
     }
-    sink.close();
+    sink->close();
     const auto file_download_end = std::chrono::steady_clock::now();
 
     const auto start_checksum = std::chrono::steady_clock::now();
@@ -151,12 +155,12 @@ bool FileDownloader::validateChecksum(const std::filesystem::path& file,
     return false;
 }
 
-cb::io::FileSink FileDownloader::openFile(
+std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
         const std::filesystem::path& filename) const {
     if (filename.has_parent_path() && !exists(filename.parent_path())) {
         create_directories(filename.parent_path());
     }
-    return cb::io::FileSink(
+    return std::make_unique<cb::io::FileSink>(
             filename, cb::io::FileSink::Mode::Append, fsync_interval);
 }
 } // namespace cb::snapshot

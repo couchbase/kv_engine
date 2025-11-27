@@ -15,6 +15,7 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/node.h>
+#include <mcbp/codec/crc_sink.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/base64.h>
@@ -398,6 +399,118 @@ TEST_P(SnapshotClusterTest, Snapshots) {
     validate_docs_on_destination();
 
     destination_node->delVbucket(Vbid{0});
+}
+
+TEST_P(SnapshotClusterTest, PrepareSnapshot) {
+    cluster->changeConfig([](nlohmann::json& config) {
+        config["file_fragment_max_read_size"] = GetParam();
+    });
+
+    populate_docs_on_source();
+    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
+    prepare.setVBucket(Vbid{0});
+    auto rsp = source_node->execute(prepare);
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    // Must be able to construct a Manifest from the response
+    cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};
+    rsp = source_node->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+class GetFileFragmentTestSink : public cb::io::Sink {
+public:
+    void sink(std::string_view data) override {
+        bytes_written += data.size();
+    }
+
+    std::size_t fsync() override {
+        return 0;
+    }
+    std::size_t close() override {
+        return 0;
+    }
+    std::size_t getBytesWritten() const override {
+        return bytes_written;
+    }
+    size_t bytes_written = 0;
+};
+
+TEST_P(SnapshotClusterTest, GetFileFragment) {
+    cluster->changeConfig([](nlohmann::json& config) {
+        config["file_fragment_max_read_size"] = GetParam();
+    });
+
+    populate_docs_on_source();
+    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
+    prepare.setVBucket(Vbid{0});
+    auto rsp = source_node->execute(prepare);
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};
+    for (auto& file : manifest.files) {
+        size_t offset = 0;
+        while (file.size > 0) {
+            auto sink = std::make_unique<GetFileFragmentTestSink>();
+            source_node->getFileFragment(manifest.uuid,
+                                         file.id,
+                                         offset,
+                                         file.size,
+                                         0,
+                                         sink.get(),
+                                         [](std::size_t size) {});
+            if (GetParam() == 2_GiB) {
+                // When the server is configured with 2GiB max_read_size we will
+                // get the file in one go and can expect bytes written to match
+                // the file size.
+                EXPECT_EQ(sink->getBytesWritten(), file.size);
+            } // in the 1024 case the output will be trimmed
+            file.size -= sink->getBytesWritten();
+            offset += sink->getBytesWritten();
+        }
+    }
+
+    rsp = source_node->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+TEST_P(SnapshotClusterTest, GetFileFragmentWithChecksum) {
+    cluster->changeConfig([](nlohmann::json& config) {
+        config["file_fragment_max_read_size"] = GetParam();
+    });
+
+    populate_docs_on_source();
+    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
+    prepare.setVBucket(Vbid{0});
+    auto rsp = source_node->execute(prepare);
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};
+    for (auto& file : manifest.files) {
+        size_t offset = 0;
+        auto sink = std::make_unique<GetFileFragmentTestSink>();
+        size_t bytes_written = 0;
+        size_t expected_bytes_written = file.size;
+        while (file.size > 0) {
+            const auto fragment_bytes_written =
+                    source_node->getFileFragment(manifest.uuid,
+                                                 file.id,
+                                                 offset,
+                                                 file.size,
+                                                 15,
+                                                 sink.get(),
+                                                 [](std::size_t size) {});
+
+            bytes_written += fragment_bytes_written;
+            file.size -= fragment_bytes_written;
+            offset += fragment_bytes_written;
+        }
+        EXPECT_EQ(bytes_written, expected_bytes_written);
+        EXPECT_EQ(sink->getBytesWritten(), expected_bytes_written);
+    }
+
+    rsp = source_node->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 }
 
 INSTANTIATE_TEST_SUITE_P(SnapshotClusterTest,

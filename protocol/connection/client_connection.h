@@ -58,7 +58,7 @@ class SyntaxValidator;
 }
 
 namespace cb::io {
-class FileSink;
+class Sink;
 }
 
 /**
@@ -1194,7 +1194,11 @@ public:
      *               may limit the number of bytes to download and you should
      *               check the returned value for the number of bytes actually
      *               received
-     * @param sink The sink to write the data to
+     * @param checksum_length Optional (0 disabled) The number of bytes to
+     * checksum as data is read from the source. The stream of bytes written to
+     * the network will store the checksum every checksum_length bytes.
+     * @param sink Pointer to the sink to write the data to. For checksumming
+     * this sink will be wrapped by a CRCSink.
      * @param stats_collect_callback the callback function to get the buffer
      * size to return to the io layer (the default allocation size is provided
      * as a parameter to the callback)
@@ -1208,7 +1212,8 @@ public:
             uint64_t id,
             uint64_t offset,
             uint64_t length,
-            cb::io::FileSink& sink,
+            size_t checksum_length,
+            cb::io::Sink* sink,
             std::function<void(std::size_t)> stats_collect_callback = {});
 
     /**

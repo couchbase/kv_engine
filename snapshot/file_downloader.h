@@ -89,7 +89,8 @@ protected:
      * @throws std::exception if an error occurs (either failing to create
      *         directories or opening the file)
      */
-    cb::io::FileSink openFile(const std::filesystem::path& filename) const;
+    std::unique_ptr<cb::io::FileSink> openFile(
+            const std::filesystem::path& filename) const;
 
     /// The connection to the server used to fetch the files from
     std::unique_ptr<MemcachedConnection> connection;
