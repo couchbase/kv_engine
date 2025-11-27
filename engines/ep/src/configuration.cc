@@ -280,12 +280,16 @@ void Configuration::addParameter(
 #endif
     if MAYBE_CONSTEXPR (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
         (void)itr->second->setValue(*defaultTSAN);
+        itr->second->defaultVal = *defaultTSAN;
     } else if (isDevAssertEnabled && defaultDevAssert.has_value()) {
         (void)itr->second->setValue(*defaultDevAssert);
+        itr->second->defaultVal = *defaultDevAssert;
     } else if (isServerless && defaultServerless.has_value()) {
         (void)itr->second->setValue(*defaultServerless);
+        itr->second->defaultVal = *defaultServerless;
     } else {
         (void)itr->second->setValue(defaultVal);
+        itr->second->defaultVal = defaultVal;
     }
 #undef MAYBE_CONSTEXPR
 }
