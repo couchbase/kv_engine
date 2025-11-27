@@ -965,6 +965,20 @@ TEST_P(StatsTest, ThreadDetails) {
     EXPECT_LT(10, json.size()) << "There should be some threads reported";
 }
 
+/// Verify that MB-69572 is resolved. A privileged user may request the
+/// default set of stats without selecting bucket, and an unprivileged user
+/// would get "no bucket" as the reply.
+TEST_P(StatsTest, MB69572) {
+    auto unprivileged = userConnection->clone();
+    unprivileged->authenticate("Luke");
+    auto rsp = unprivileged->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat});
+    EXPECT_EQ(cb::mcbp::Status::NoBucket, rsp.getStatus());
+
+    const auto stats = adminConnection->stats("");
+    EXPECT_FALSE(stats.empty());
+}
+
 /// The stats should contain max user and system connections to allow
 /// for alerting by monitoring the current levels with the max
 TEST_P(StatsTest, MB58199) {

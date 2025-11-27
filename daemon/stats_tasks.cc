@@ -136,13 +136,24 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
         return getBufferSize() >= max_send_size;
     };
 
-    // The underlying engines seems to throttle before reaching the size
-    // limit
-    do {
-        command_error = bucket_get_stats(
-                cookie, key, value, add_stat_callback, check_yield_callback);
-    } while (command_error == cb::engine_errc::throttled &&
-             !check_yield_callback());
+    if (cookie.getConnection().getBucket().type == BucketType::NoBucket) {
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats).failed()) {
+            command_error = cb::engine_errc::no_bucket;
+            return;
+        }
+        command_error = cb::engine_errc::success;
+    } else {
+        // The underlying engines seems to throttle before reaching the size
+        // limit
+        do {
+            command_error = bucket_get_stats(cookie,
+                                             key,
+                                             value,
+                                             add_stat_callback,
+                                             check_yield_callback);
+        } while (command_error == cb::engine_errc::throttled &&
+                 !check_yield_callback());
+    }
 
     if (key.empty() && command_error == cb::engine_errc::success) {
         CBStatCollector collector(add_stat_callback, cookie);

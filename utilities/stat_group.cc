@@ -12,7 +12,12 @@
 
 StatsGroupManager::StatsGroupManager()
     : entries({
-              {StatGroupId::All, "", "Get the common stats", false, true},
+              {StatGroupId::All,
+               "",
+               "Get the common stats. Users holding the Stats privilege may "
+               "request system statistics without a bucket context",
+               false,
+               true},
               {StatGroupId::Reset,
                "reset",
                "For dev and test use only. Using the reset command in "
