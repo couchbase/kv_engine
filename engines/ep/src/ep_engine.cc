@@ -2426,8 +2426,11 @@ EventuallyPersistentEngine::createItem(const DocKey& key,
                                        int64_t bySeq,
                                        Vbid vbid,
                                        int64_t revSeq) {
-    if (!memoryTracker->isBelowMutationMemoryQuota(sizeof(Item) + sizeof(Blob) +
-                                                   key.size() + nbytes)) {
+    // MB-69575: Use the backfill threshold so that in the case a write workload
+    // is blocked by the mutation threshold reads are not totally blocked. The
+    // backfill threshold is normally greater than the mutation threshold.
+    if (!memoryTracker->isBelowBackfillThreshold(sizeof(Item) + sizeof(Blob) +
+                                                 key.size() + nbytes)) {
         return {memoryCondition(), nullptr};
     }
     try {

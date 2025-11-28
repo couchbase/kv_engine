@@ -47,7 +47,7 @@ public:
      * Are we currently below the backfill memory quota?
      * @return true if we are below the quota
      */
-    virtual bool isBelowBackfillThreshold() const = 0;
+    virtual bool isBelowBackfillThreshold(size_t pendingBytes = 0) const = 0;
 
     /**
      * @returns true if we need to start memory reclaimation.
@@ -65,7 +65,7 @@ public:
 
     bool isBelowMutationMemoryQuota(size_t pendingBytes) const override;
     bool isBelowMemoryQuota(size_t pendingBytes) const override;
-    bool isBelowBackfillThreshold() const override;
+    bool isBelowBackfillThreshold(size_t pendingBytes) const override;
     bool needsToFreeMemory() const override;
 
 private:

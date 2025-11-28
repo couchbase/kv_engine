@@ -669,7 +669,7 @@ TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
     EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 }
 
-TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
+TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilBackfillThreshold) {
     // This test involves adjusting the bucket quota for the backend. Since
     // Nexus utilises both Magma and Couchstore, manipulating the bucket quota
     // to accommodate one backend will result in failure for the other.
@@ -721,17 +721,17 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     gv = store->get(key0, vbid, cookie1, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
-    // set bucket quota to current memory usage + 3MiB such that the first
+    // set bucket quota to current memory usage + 2MiB such that the first
     // bgfetch will pass and the second one will fail:
     // couchstore fetches value + addition overhead = ~1.3MiB
     // We want an additional 1MiB for fetching the first item successfully
     // Magma requires an addition 1MiB overhead than couchstore.
     if (engine->getConfiguration().getBackend() == "magma") {
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
-                               (4 * valueSize));
+                               (3 * valueSize));
     } else {
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
-                               (3 * valueSize));
+                               (2 * valueSize));
     }
 
     int callbackCounter = 0;
