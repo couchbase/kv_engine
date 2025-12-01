@@ -67,11 +67,11 @@ cb::engine_errc BucketDestroyer::start() {
                  {"bucket", name});
 
     std::unique_lock<std::mutex> guard(bucket.mutex);
-    if (bucket.clients > 0) {
+    if (bucket.references > 0) {
         LOG_INFO_CTX("Delete bucket. Wait for clients to disconnect",
                      {"conn_id", connectionId},
                      {"bucket", name},
-                     {"clients", bucket.clients});
+                     {"references", bucket.references});
         guard.unlock();
         bucket.deleteThrottledCommands();
         iterate_all_connections([&bucket = bucket](Connection& connection) {
@@ -92,7 +92,7 @@ cb::engine_errc BucketDestroyer::waitForConnections() {
 
     // We need to disconnect all of the clients before we can delete the
     // bucket. We log pending connections that are blocking bucket deletion.
-    if (bucket.clients > 0) {
+    if (bucket.references > 0) {
         if (steady_clock::now() < nextLogConnections) {
             guard.unlock();
             bucket.deleteThrottledCommands();
@@ -125,7 +125,7 @@ cb::engine_errc BucketDestroyer::waitForConnections() {
         LOG_INFO_CTX("Delete bucket. Still waiting: clients connected",
                      {"conn_id", connectionId},
                      {"bucket", name},
-                     {"clients", bucket.clients},
+                     {"references", bucket.references},
                      {"description", currConns});
 
         // we need to wait more

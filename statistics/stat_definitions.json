@@ -3075,12 +3075,6 @@
         "added": "7.0.0"
     },
     {
-        "key": "clients",
-        "unit": "none",
-        "description": "The number of references to the bucket",
-        "added": "7.6.0"
-    },
-    {
         "key": "items_in_transit",
         "unit": "none",
         "description": "The number of items currently in transit (with a reference into the engine)",

@@ -89,7 +89,7 @@ nlohmann::json Bucket::to_json() const {
                     self.use_count() - 2; // exclude this and BucketManager
             json["connections_closing"] = curr_conn_closing.load();
             json["state"] = state.load();
-            json["clients"] = clients.load();
+            json["references"] = references.load();
             json["name"] = name;
             json["type"] = type;
             json["data_ingress_status"] = data_ingress_status.load();
@@ -190,7 +190,6 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
     collector.addStat(Key::curr_bucket_connections_closing,
                       curr_conn_closing);
 
-    collector.addStat(Key::clients, clients);
     collector.addStat(Key::items_in_transit, items_in_transit);
 
     collector.addStat(Key::reject_count_total, num_rejected);
@@ -596,7 +595,7 @@ void BucketManager::associateInitialBucket(Connection& connection) {
     Bucket& b = getNoBucket();
     {
         std::lock_guard<std::mutex> guard(b.mutex);
-        b.clients++;
+        b.references++;
     }
 
     connection.setBucketIndex(all_buckets_ptr[0], nullptr);
@@ -629,7 +628,7 @@ bool BucketManager::associateBucket(Connection& connection,
                                          cb::tracing::Code::BucketLockHeld,
                                          std::chrono::milliseconds(5));
             if (b.state == Bucket::State::Ready && b.name == name) {
-                b.clients++;
+                b.references++;
                 idx = ii;
                 break;
             }
@@ -648,7 +647,7 @@ bool BucketManager::associateBucket(Connection& connection,
                                          cb::tracing::Code::BucketLockWait,
                                          cb::tracing::Code::BucketLockHeld,
                                          std::chrono::milliseconds(5));
-            b.clients++;
+            b.references++;
         }
         connection.setBucketIndex(all_buckets_ptr[0], cookie);
     }
@@ -678,8 +677,9 @@ void BucketManager::disconnectBucket(Bucket& bucket, Cookie* cookie) {
                                  Code::BucketLockHeld,
                                  std::chrono::milliseconds(5));
 
-    if (--bucket.clients == 0 && (bucket.state == Bucket::State::Destroying ||
-                                  bucket.state == Bucket::State::Pausing)) {
+    if (--bucket.references == 0 &&
+        (bucket.state == Bucket::State::Destroying ||
+         bucket.state == Bucket::State::Pausing)) {
         bucket.cond.notify_one();
     }
 }
@@ -1086,12 +1086,12 @@ void BucketManager::waitForEveryoneToDisconnect(
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
 
-        if (bucket.clients > 0) {
+        if (bucket.references > 0) {
             LOG_INFO_CTX("Operation waiting for clients to disconnect",
                          {"conn_id", id},
                          {"operation", operation},
                          {"bucket", bucket.name},
-                         {"clients", bucket.clients});
+                         {"references", bucket.references});
 
             // Signal clients bound to the bucket before waiting
             guard.unlock();
@@ -1111,18 +1111,17 @@ void BucketManager::waitForEveryoneToDisconnect(
         // We need to disconnect all the clients.
         // Log pending connections that are connected every 2 minutes.
         auto nextLog = steady_clock::now() + minutes(2);
-        while (bucket.clients > 0) {
-
+        while (bucket.references > 0) {
             if (cancellationToken.isCancellationRequested()) {
                 // Give up on disconnecting connections.
                 return;
             }
 
             bucket.cond.wait_for(guard, seconds(1), [&bucket] {
-                return bucket.clients == 0;
+                return bucket.references == 0;
             });
 
-            if (bucket.clients == 0) {
+            if (bucket.references == 0) {
                 break;
             }
 
@@ -1159,7 +1158,7 @@ void BucketManager::waitForEveryoneToDisconnect(
                          {"conn_id", id},
                          {"operation", operation},
                          {"bucket", bucket.name},
-                         {"clients", bucket.clients},
+                         {"references", bucket.references},
                          {"connections", currConns.dump()});
 
             guard.lock();
@@ -1233,7 +1232,7 @@ void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
             {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
                 if (bucket.state == Bucket::State::Ready) {
-                    bucket.clients++;
+                    bucket.references++;
                 } else {
                     ready = false;
                 }
@@ -1268,7 +1267,7 @@ Bucket* BucketManager::tryAssociateBucket(EngineIface* engine) {
 
         // We "associate with a bucket" by incrementing the num of
         // clients to the bucket.
-        bucket.clients++;
+        bucket.references++;
         associated = &bucket;
         return false;
     });

@@ -579,7 +579,7 @@ TEST_F(BucketManagerTest, DestroyBucketWaitsForClients) {
     auto& bucket = *all_buckets_ptr.back();
     bucket.setEngine(create_no_bucket_instance());
     // Add a client and verify that we wait for it.
-    bucket.clients++;
+    bucket.references++;
 
     using std::chrono::steady_clock;
     using namespace std::chrono_literals;
@@ -599,6 +599,6 @@ TEST_F(BucketManagerTest, DestroyBucketWaitsForClients) {
     EXPECT_EQ(cb::engine_errc::would_block, destroyer.drive());
 
     // We should succeed in deleting now that clients == 0.
-    bucket.clients--;
+    bucket.references--;
     EXPECT_EQ(cb::engine_errc::success, destroyer.drive());
 }

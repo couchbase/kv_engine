@@ -94,8 +94,8 @@ public:
     mutable std::mutex mutex;
     mutable std::condition_variable cond;
 
-    /// The number of clients currently connected to the bucket
-    std::atomic<uint32_t> clients{0};
+    /// The number of rererences currently held to the bucket
+    std::atomic<uint32_t> references{0};
 
     std::atomic_size_t curr_conn_closing{0};
 

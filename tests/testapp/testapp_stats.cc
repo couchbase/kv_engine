@@ -568,7 +568,7 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_TRUE(bucket.contains("connections"));
         EXPECT_TRUE(bucket.contains("connections_closing"));
         EXPECT_TRUE(bucket.contains("state"));
-        EXPECT_TRUE(bucket.contains("clients"));
+        EXPECT_TRUE(bucket.contains("references"));
         EXPECT_TRUE(bucket.contains("name"));
         EXPECT_TRUE(bucket.contains("type"));
         EXPECT_TRUE(bucket.contains("num_rejected"));
@@ -600,7 +600,7 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
             "bucket_details " + bucketName);
 
     EXPECT_EQ("ready", json["state"].get<std::string>());
-    EXPECT_LE(1, json["clients"].get<int>());
+    EXPECT_LE(1, json["references"].get<int>());
     EXPECT_EQ(bucketName, json["name"].get<std::string>());
     EXPECT_EQ("EWouldBlock", json["type"].get<std::string>());
 
