@@ -4114,6 +4114,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NReadIO", magmaStats->NReadIOs);
     fill("magma_NReadBytesCompact", magmaStats->NReadBytesCompact);
     fill("magma_BytesIncoming", magmaStats->BytesIncoming);
+    fill("magma_BytesOverwritten", magmaStats->BytesOverwritten);
     fill("magma_KeyIndex_BytesIncoming", magmaStats->KeyStats.BytesIncoming);
     fill("magma_SeqIndex_BytesIncoming", magmaStats->SeqStats.BytesIncoming);
     fill("magma_SeqIndex_Delta_BytesIncoming",

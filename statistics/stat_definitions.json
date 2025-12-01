@@ -1509,6 +1509,13 @@
         "description": "Data written as part of the KV frontend writes."
     },
     {
+        "key": "ep_magma_bytes_overwritten",
+        "unit": "bytes",
+        "type": "counter",
+        "added": "8.1.0",
+        "description": "Logical bytes that were overwritten during write operations (size of replaced documents)."
+    },
+    {
         "key": "ep_magma_keyindex_bytes_incoming",
         "unit": "bytes",
         "added": "7.6.0",

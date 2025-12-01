@@ -2715,7 +2715,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 70> statNames = {
+    constexpr std::array<std::string_view, 71> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2748,6 +2748,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 
              // Write amp analysis.
              "magma_BytesIncoming",
+             "magma_BytesOverwritten",
              "magma_KeyIndex_BytesIncoming",
              "magma_SeqIndex_BytesIncoming",
              "magma_SeqIndex_Delta_BytesIncoming",
@@ -2891,6 +2892,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Write amp.
     // To compute overall write amp.
     addStat(Key::ep_magma_bytes_incoming, "magma_BytesIncoming");
+    addStat(Key::ep_magma_bytes_overwritten, "magma_BytesOverwritten");
     addStat(Key::ep_magma_write_bytes, "magma_NWriteBytes");
     addStat(Key::ep_io_total_write_bytes, "magma_FSWriteBytes");
 

@@ -7181,6 +7181,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_bloom_filter_mem_used",
                           "ep_magma_buffer_mem_used",
                           "ep_magma_bytes_incoming",
+                          "ep_magma_bytes_overwritten",
                           "ep_magma_keyindex_bytes_incoming",
                           "ep_magma_seqindex_bytes_incoming",
                           "ep_magma_seqindex_delta_bytes_incoming",
