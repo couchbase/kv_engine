@@ -190,14 +190,18 @@ public:
      * the manifest will be discarded and the snapshot directory will be
      * removed by the caller.
      *
+     * @param cookie The cookie requesting the snapshot
      * @param snapshotDirectory the destination directory for the snapshot
      * @param vb The vbucket to create the snapshot for
+     * @param generateChecksums Whether to generate checksums for the snapshot
+     * (can be expensive at large scale)
      * @return Manifest for success or status code for failure
      */
     virtual std::variant<cb::engine_errc, cb::snapshot::Manifest>
     prepareSnapshot(CookieIface& cookie,
                     const std::filesystem::path& snapshotDirectory,
-                    Vbid vb) {
+                    Vbid vb,
+                    bool generateChecksums) {
         return cb::engine_errc::not_supported;
     }
 

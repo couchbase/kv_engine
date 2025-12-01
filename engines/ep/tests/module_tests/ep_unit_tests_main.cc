@@ -120,6 +120,10 @@ public:
         // coverage
         return 128;
     }
+
+    bool shouldPrepareSnapshotAlwaysChecksum() const override {
+        return true;
+    }
 };
 
 int main(int argc, char **argv) {

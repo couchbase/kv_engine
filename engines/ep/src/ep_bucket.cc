@@ -3140,6 +3140,20 @@ void EPBucket::setupWarmupConfig(std::string_view behavior) {
     }
 }
 
+bool EPBucket::shouldPrepareSnapshotGenerateChecksums() const {
+#ifdef CB_DEVELOPMENT_ASSERTS
+    bool generateCheckums = true;
+#else
+    bool generateCheckums = false;
+#endif
+
+    if (getenv("EP_SNAPSHOT_CHECKSUM_DISABLED")) {
+        generateCheckums = false;
+    }
+
+    return generateCheckums || engine.shouldPrepareSnapshotAlwaysChecksum();
+}
+
 cb::engine_errc EPBucket::prepareSnapshot(
         CookieIface& cookie,
         Vbid vbid,
@@ -3155,7 +3169,11 @@ cb::engine_errc EPBucket::prepareSnapshot(
 
     auto rv = snapshotCache.prepare(
             vbid, [this, &cookie](const std::filesystem::path& path, Vbid vb) {
-                return getRWUnderlying(vb)->prepareSnapshot(cookie, path, vb);
+                return getRWUnderlying(vb)->prepareSnapshot(
+                        cookie,
+                        path,
+                        vb,
+                        shouldPrepareSnapshotGenerateChecksums());
             });
     if (std::holds_alternative<cb::engine_errc>(rv)) {
         EP_LOG_WARN_CTX("EPBucket::prepareSnapshot failed",

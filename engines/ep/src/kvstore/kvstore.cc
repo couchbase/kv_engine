@@ -822,7 +822,10 @@ static void prepareSnapshotChecksums(CookieIface& cookie,
 }
 
 std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
-        CookieIface& cookie, const std::filesystem::path& path, Vbid vbid) {
+        CookieIface& cookie,
+        const std::filesystem::path& path,
+        Vbid vbid,
+        bool generateChecksums) {
     auto uuid = ::to_string(cb::uuid::random());
     const auto snapshotPath = path / uuid;
     const auto status = prepareSnapshotCreatePath(cookie, snapshotPath, vbid);
@@ -853,8 +856,10 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     }
     auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
 
-    // Add checksums for all files in the snapshot
-    prepareSnapshotChecksums(cookie, manifest, path);
+    if (generateChecksums) {
+        // Add checksums for all files in the snapshot
+        prepareSnapshotChecksums(cookie, manifest, path);
+    }
 
     ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
             cookie, cb::tracing::Code::PrepareSnapshotWriteManifest);

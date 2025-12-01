@@ -108,6 +108,10 @@ struct ServerCoreApi : public ServerCoreIface {
     size_t getFileFragmentChecksumLength() const override {
         return Settings::instance().getFileFragmentChecksumLength();
     }
+
+    bool shouldPrepareSnapshotAlwaysChecksum() const override {
+        return Settings::instance().shouldPrepareSnapshotAlwaysChecksum();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

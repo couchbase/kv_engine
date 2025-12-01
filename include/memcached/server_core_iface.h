@@ -128,4 +128,9 @@ struct ServerCoreIface {
      * How many bytes to generate a checksum for (FBR GetFileFragment).
      */
     virtual size_t getFileFragmentChecksumLength() const = 0;
+
+    /**
+     * Whether to always generate a checksum when preparing a snapshot.
+     */
+    virtual bool shouldPrepareSnapshotAlwaysChecksum() const = 0;
 };

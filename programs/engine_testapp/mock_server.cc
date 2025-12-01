@@ -246,6 +246,10 @@ struct MockServerCoreApi : public ServerCoreIface {
         // coverage
         return 128;
     }
+
+    bool shouldPrepareSnapshotAlwaysChecksum() const override {
+        return true;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

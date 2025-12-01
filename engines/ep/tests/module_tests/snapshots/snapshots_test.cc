@@ -45,9 +45,12 @@ public:
         return !exists(p1) && !exists(p2);
     }
 
-    auto doPrepareSnapshot(const std::filesystem::path& directory, Vbid vbid) {
+    auto doPrepareSnapshot(const std::filesystem::path& directory,
+                           Vbid vbid,
+                           bool generateChecksums) {
         MockCookie cookie;
-        return kvstore->prepareSnapshot(cookie, directory, vbid);
+        return kvstore->prepareSnapshot(
+                cookie, directory, vbid, generateChecksums);
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
@@ -57,7 +60,7 @@ public:
 
 TEST_P(SnapshotsTests, prepare) {
     auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
-        return doPrepareSnapshot(dir, vb);
+        return doPrepareSnapshot(dir, vb, true);
     });
     EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
     auto manifest = std::get<cb::snapshot::Manifest>(rv);

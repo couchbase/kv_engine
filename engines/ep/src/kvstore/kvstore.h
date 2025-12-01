@@ -1044,7 +1044,8 @@ public:
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
             CookieIface& cookie,
             const std::filesystem::path& snapshotDirectory,
-            Vbid vb) override;
+            Vbid vb,
+            bool generateChecksums) override;
 
     cb::engine_errc processSnapshots(const std::filesystem::path& path,
                                      cb::snapshot::Cache& cache) const override;

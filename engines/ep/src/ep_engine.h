@@ -1209,6 +1209,11 @@ public:
      */
     size_t getFileFragmentChecksumLength() const;
 
+    /**
+     * Whether to always generate a checksum when preparing a snapshot.
+     */
+    bool shouldPrepareSnapshotAlwaysChecksum() const;
+
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
         cb::engine_errc status;

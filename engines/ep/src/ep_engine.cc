@@ -7797,3 +7797,7 @@ size_t EventuallyPersistentEngine::getFileFragmentChecksumLength() const {
 bool EventuallyPersistentEngine::isFileFragmentChecksumEnabled() const {
     return serverApi->core->isFileFragmentChecksumEnabled();
 }
+
+bool EventuallyPersistentEngine::shouldPrepareSnapshotAlwaysChecksum() const {
+    return serverApi->core->shouldPrepareSnapshotAlwaysChecksum();
+}

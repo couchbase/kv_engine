@@ -670,6 +670,8 @@ protected:
 
     void deleteVbucketImpl(LockedVBucketPtr& lockedVB) override;
 
+    bool shouldPrepareSnapshotGenerateChecksums() const;
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not

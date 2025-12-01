@@ -494,6 +494,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setFileFragmentChecksumEnabled(value.get<bool>());
         } else if (key == "file_fragment_checksum_length"sv) {
             setFileFragmentChecksumLength(value.get<size_t>());
+        } else if (key == "prepare_snapshot_always_checksum"sv) {
+            setPrepareSnapshotAlwaysChecksum(value.get<bool>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
@@ -1330,6 +1332,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"to", other.getFileFragmentChecksumLength()});
             setFileFragmentChecksumLength(
                     other.getFileFragmentChecksumLength());
+        }
+    }
+
+    if (other.has.prepare_snapshot_always_checksum) {
+        if (other.shouldPrepareSnapshotAlwaysChecksum() !=
+            shouldPrepareSnapshotAlwaysChecksum()) {
+            LOG_INFO_CTX("Change prepare_snapshot_always_checksum",
+                         {"from", shouldPrepareSnapshotAlwaysChecksum()},
+                         {"to", other.shouldPrepareSnapshotAlwaysChecksum()});
+            setPrepareSnapshotAlwaysChecksum(
+                    other.shouldPrepareSnapshotAlwaysChecksum());
         }
     }
 
