@@ -1308,12 +1308,9 @@ protected:
      *  2) Expensive to gather
      *  3) Not necessary to record with very fine temporal granularity
      *     (e.g., rarely changing, not of critical debugging value)
-     * @param exclude if Yes/No, exclude config stats for parameters that are
-     * set to their default value
      */
     cb::engine_errc doEngineStatsHighCardinality(
-            const BucketStatCollector& collector,
-            cb::config::ExcludeWhenValueIsDefaultValue exclude);
+            const BucketStatCollector& collector);
 
     cb::engine_errc doMemoryStats(CookieIface& cookie,
                                   const AddStatFn& add_stat);

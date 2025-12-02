@@ -621,7 +621,7 @@ TEST_F(StatTest, ConfigStatDefinitions) {
 
     // config stats are per-bucket, wrap the collector up with a bucket label
     auto bucketC = collector.forBucket("bucket-name");
-    config.addStats(bucketC, cb::config::ExcludeWhenValueIsDefaultValue::No);
+    config.addStats(bucketC);
 }
 
 TEST_F(StatTest, StringStats) {

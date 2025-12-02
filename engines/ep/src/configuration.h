@@ -209,11 +209,8 @@ public:
     /**
      * Add all of the configuration variables as stats
      * @param collector where to store collected statistics
-     * @param exclude if Yes/No, exclude stats for parameters that are set to
-     * their default value
      */
-    void addStats(const BucketStatCollector& collector,
-                  cb::config::ExcludeWhenValueIsDefaultValue exclude) const;
+    void addStats(const BucketStatCollector& collector) const;
 
     using Visitor = std::function<void(
             std::string_view key, bool isDynamic, std::string value)>;
@@ -458,8 +455,7 @@ protected:
      */
     void maybeAddStat(const BucketStatCollector& collector,
                       cb::stats::Key key,
-                      std::string_view keyStr,
-                      cb::config::ExcludeWhenValueIsDefaultValue exclude) const;
+                      std::string_view keyStr) const;
 
     /**
      * Has the Configuration been initialized? Once initialized, the set of

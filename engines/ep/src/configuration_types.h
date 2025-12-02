@@ -81,6 +81,4 @@ static_assert(std::atomic<FeatureVersion>::is_always_lock_free,
 
 std::string format_as(const FeatureVersion& version);
 
-enum class ExcludeWhenValueIsDefaultValue { Yes, No };
-
 } // namespace cb::config
