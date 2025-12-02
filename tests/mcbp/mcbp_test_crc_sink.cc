@@ -150,7 +150,7 @@ TEST_P(CRCSinkTest, TestCrcDataCorrupt) {
                 view.remove_prefix(chunk.size());
                 sink->sink(chunk);
             }
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             continue;
         }
         FAIL();
