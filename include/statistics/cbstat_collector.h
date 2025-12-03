@@ -86,6 +86,11 @@ public:
         return true;
     }
 
+protected:
+    cb::engine_errc doTestPrivilege(cb::rbac::Privilege privilege,
+                                    std::optional<ScopeID> sid,
+                                    std::optional<CollectionID> cid) const;
+
 private:
     /**
      * Formats a CBStats-suitable stat key. This replaces any named format

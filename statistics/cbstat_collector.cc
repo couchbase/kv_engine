@@ -161,32 +161,30 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     if (additionalPriv) {
-        try {
-            const auto access = cookie.testPrivilege(*additionalPriv, sid, cid);
-            if (access.failed()) {
-                return access.getEngineErrorCode({}, cid);
-            }
-        } catch (const std::exception& e) {
-            LOG_ERROR(
-                    "CBStatCollector::testPrivilegeForStat: received exception"
-                    "while checking additionalPriv for sid:{}: cid:{} {}",
-                    sid ? sid->to_string() : "no-scope",
-                    cid ? cid->to_string() : "no-collection",
-                    e.what());
+        const auto ret = doTestPrivilege(*additionalPriv, sid, cid);
+        if (ret != cb::engine_errc::success) {
+            return ret;
         }
     }
 
+    return doTestPrivilege(cb::rbac::Privilege::SimpleStats, sid, cid);
+}
+
+cb::engine_errc CBStatCollector::doTestPrivilege(
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
     try {
-        const auto access = cookie.testPrivilege(
-                cb::rbac::Privilege::SimpleStats, sid, cid);
+        const auto access = cookie.testPrivilege(privilege, sid, cid);
         return access.getEngineErrorCode({}, cid);
     } catch (const std::exception& e) {
-        LOG_ERROR(
-                "CBStatCollector::testPrivilegeForStat: received exception"
-                "while checking privilege for sid:{}: cid:{} {}",
-                sid ? sid->to_string() : "no-scope",
-                cid ? cid->to_string() : "no-collection",
-                e.what());
+        LOG_ERROR_CTX(
+                "CBStatCollector::doTestPrivilege: received exception"
+                "while checking privilege",
+                {"privilege", privilege},
+                {"sid", sid ? sid->to_string() : "no-scope"},
+                {"cid", cid ? cid->to_string() : "no-collection"},
+                {"error", e.what()});
     }
     return cb::engine_errc::failed;
 }
