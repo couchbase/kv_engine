@@ -360,8 +360,7 @@ cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
-    if (cacheTransfer && vb->shouldUseDcpCacheTransfer() &&
-        isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
+    if (cacheTransfer && vb->shouldUseDcpCacheTransfer()) {
         flags |= cb::mcbp::DcpAddStreamFlag::CacheTransfer;
     }
     // Cache transfer is currently a one-shot and should be done once for a
