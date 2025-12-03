@@ -218,7 +218,7 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                         chunk.swap(iob);
                         length -= to_read;
                         offset += to_read;
-
+                        connection.getBucket().readFileChunkComplete(to_read);
                         cookie.notifyIoComplete(cb::engine_errc::success);
                     } catch (const std::exception& e) {
                         LOG_WARNING_CTX("Failed to read file chunk",

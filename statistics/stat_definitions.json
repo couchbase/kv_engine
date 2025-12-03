@@ -4573,5 +4573,13 @@
         "type": "counter",
         "description": "The number of bgfetches which are triggered by compaction",
         "added": "7.1.5"
+    },
+    {
+        "key": "file_chunk_read",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "Total number of bytes read from the bucket using GetFileFragment",
+        "added": "8.1.0",
+        "stability": "internal"
     }
 ]

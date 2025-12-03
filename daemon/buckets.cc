@@ -50,6 +50,7 @@ void Bucket::reset() {
     num_metered_dcp_messages = 0;
     num_rejected = 0;
     data_ingress_status = cb::mcbp::Status::Success;
+    file_chunk_read_bytes = 0;
 
     for (auto& c : responseCounters) {
         c.reset();
@@ -187,6 +188,7 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
 
     collector.addStat(Key::reject_count_total, num_rejected);
     collector.addStat(Key::throttle_count_total, num_throttled);
+    collector.addStat(Key::file_chunk_read, file_chunk_read_bytes.load());
 
     using namespace std::chrono;
     collector.addStat(

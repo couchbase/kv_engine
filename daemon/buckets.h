@@ -307,6 +307,15 @@ public:
                supports(cb::engine::Feature::Collections);
     }
 
+    /**
+     * A file chunk has been read (for updating counter tracking bytes read)
+     *
+     * @param nread The number of bytes read
+     */
+    void readFileChunkComplete(std::size_t nread) {
+        file_chunk_read_bytes.fetch_add(nread);
+    }
+
 protected:
     unique_engine_ptr engine;
 
@@ -370,6 +379,9 @@ protected:
 
     /// The number of commands we rejected to start executing
     std::atomic<uint64_t> num_rejected{0};
+
+    /// The total number of bytes read from the bucket
+    cb::RelaxedAtomic<uint64_t> file_chunk_read_bytes{0};
 
     /// A deque per front end thread containing all of the connections
     /// which have one or more cookies throttled. It should _only_ be
