@@ -162,15 +162,9 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
         std::optional<CollectionID> cid) const {
     if (additionalPriv) {
         try {
-            switch (cookie.testPrivilege(*additionalPriv, sid, cid)
-                            .getStatus()) {
-            case cb::rbac::PrivilegeAccess::Status::Ok:
-                break;
-            case cb::rbac::PrivilegeAccess::Status::Fail:
-                return cb::engine_errc::no_access;
-            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-                return cid ? cb::engine_errc::unknown_collection
-                           : cb::engine_errc::unknown_scope;
+            const auto access = cookie.testPrivilege(*additionalPriv, sid, cid);
+            if (access.failed()) {
+                return access.getEngineErrorCode({}, cid);
             }
         } catch (const std::exception& e) {
             LOG_ERROR(
@@ -183,16 +177,9 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
     }
 
     try {
-        switch (cookie.testPrivilege(cb::rbac::Privilege::SimpleStats, sid, cid)
-                        .getStatus()) {
-        case cb::rbac::PrivilegeAccess::Status::Ok:
-            return cb::engine_errc::success;
-        case cb::rbac::PrivilegeAccess::Status::Fail:
-            return cb::engine_errc::no_access;
-        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-            return cid ? cb::engine_errc::unknown_collection
-                       : cb::engine_errc::unknown_scope;
-        }
+        const auto access = cookie.testPrivilege(
+                cb::rbac::Privilege::SimpleStats, sid, cid);
+        return access.getEngineErrorCode({}, cid);
     } catch (const std::exception& e) {
         LOG_ERROR(
                 "CBStatCollector::testPrivilegeForStat: received exception"

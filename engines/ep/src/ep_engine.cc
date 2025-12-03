@@ -5448,27 +5448,12 @@ cb::engine_errc EventuallyPersistentEngine::testScopeAccess(
     if (!sid.isDefaultScope()) {
         using Collections::Visibility;
         if (systemScopePrivilege && visibility == Visibility::System) {
-            switch (cookie.testPrivilege(*systemScopePrivilege, sid, {})
-                            .getStatus()) {
-            case cb::rbac::PrivilegeAccess::Status::Ok:
-                break;
-            case cb::rbac::PrivilegeAccess::Status::Fail:
-                return cb::engine_errc::no_access;
-            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-                return cb::engine_errc::unknown_scope;
-            }
+            return cookie.testPrivilege(*systemScopePrivilege, sid, {})
+                    .getEngineErrorCode(sid, {});
         }
     }
 
-    switch (cookie.testPrivilege(priv, sid, {}).getStatus()) {
-    case cb::rbac::PrivilegeAccess::Status::Ok:
-        return cb::engine_errc::success;
-    case cb::rbac::PrivilegeAccess::Status::Fail:
-        return cb::engine_errc::no_access;
-    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-        return cb::engine_errc::unknown_scope;
-    }
-    folly::assume_unreachable();
+    return cookie.testPrivilege(priv, sid, {}).getEngineErrorCode(sid, {});
 }
 
 cb::engine_errc EventuallyPersistentEngine::testCollectionAccess(
@@ -5481,45 +5466,27 @@ cb::engine_errc EventuallyPersistentEngine::testCollectionAccess(
     if (!cid.isDefaultCollection()) {
         using Collections::Visibility;
         if (systemCollectionPrivilege && visibility == Visibility::System) {
-            switch (cookie.testPrivilege(*systemCollectionPrivilege, sid, cid)
-                            .getStatus()) {
-            case cb::rbac::PrivilegeAccess::Status::Ok:
-                break;
-            case cb::rbac::PrivilegeAccess::Status::Fail:
-                return cb::engine_errc::no_access;
-            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-                return cb::engine_errc::unknown_collection;
-            }
+            return cookie.testPrivilege(*systemCollectionPrivilege, sid, cid)
+                    .getEngineErrorCode({}, cid);
         }
     }
 
-    switch (cookie.testPrivilege(priv, sid, cid).getStatus()) {
-    case cb::rbac::PrivilegeAccess::Status::Ok:
-        return cb::engine_errc::success;
-    case cb::rbac::PrivilegeAccess::Status::Fail:
-        return cb::engine_errc::no_access;
-    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-        return cb::engine_errc::unknown_collection;
-    }
-    folly::assume_unreachable();
+    return cookie.testPrivilege(priv, sid, cid).getEngineErrorCode({}, cid);
 }
 
 cb::engine_errc
 EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
         CookieIface& cookie, cb::rbac::Privilege privilege) const {
     try {
-        switch (cookie.checkForPrivilegeAtLeastInOneCollection(privilege)
-                        .getStatus()) {
-        case cb::rbac::PrivilegeAccess::Status::Ok:
-            return cb::engine_errc::success;
-        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-        case cb::rbac::PrivilegeAccess::Status::Fail:
-            return cb::engine_errc::no_access;
-        }
+        return cookie.checkForPrivilegeAtLeastInOneCollection(privilege)
+                               .success()
+                       ? cb::engine_errc::success
+                       : cb::engine_errc::no_access;
     } catch (const std::exception& e) {
         EP_LOG_ERR_CTX(
                 "EPE::checkForPrivilegeAtLeastInOneCollection: received "
                 "exception while checking privilege",
+                {"privilege", privilege},
                 {"error", e.what()});
     }
 
@@ -5535,18 +5502,13 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         // Upon failure check_privilege may set an error message in the
         // cookie about the missing privilege
         NonBucketAllocationGuard guard;
-        switch (cookie.checkPrivilege(priv, sid, cid).getStatus()) {
-        case cb::rbac::PrivilegeAccess::Status::Ok:
-            return cb::engine_errc::success;
-        case cb::rbac::PrivilegeAccess::Status::Fail:
-            return cb::engine_errc::no_access;
-        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-            return cb::engine_errc::unknown_collection;
-        }
+        return cookie.checkPrivilege(priv, sid, cid)
+                .getEngineErrorCode({}, cid);
     } catch (const std::exception& e) {
         EP_LOG_ERR_CTX(
                 "EPE::checkPrivilege: received exception while checking "
                 "privilege",
+                {"privilege", priv},
                 {"sid", sid},
                 {"cid", cid},
                 {"error", e.what()});
@@ -5568,22 +5530,15 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (cookie.testPrivilege(priv, sid, cid).getStatus()) {
-        case cb::rbac::PrivilegeAccess::Status::Ok:
-            return cb::engine_errc::success;
-        case cb::rbac::PrivilegeAccess::Status::Fail:
-            return cb::engine_errc::no_access;
-        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-            return cid ? cb::engine_errc::unknown_collection
-                       : cb::engine_errc::unknown_scope;
-        }
+        return cookie.testPrivilege(priv, sid, cid).getEngineErrorCode({}, cid);
     } catch (const std::exception& e) {
         EP_LOG_ERR_CTX(
                 "EPE::testPrivilege: received exception while checking "
-                "privilege for sid:{}: cid:{} {}",
-                sid ? sid->to_string() : "no-scope",
-                cid ? cid->to_string() : "no-collection",
-                e.what());
+                "privilege",
+                {"privilege", priv},
+                {"sid", sid ? sid->to_string() : "no-scope"},
+                {"cid", cid ? cid->to_string() : "no-collection"},
+                {"error", e.what()});
     }
     return cb::engine_errc::failed;
 }

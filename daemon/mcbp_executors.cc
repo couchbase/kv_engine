@@ -1078,36 +1078,13 @@ void initialize_mbcp_lookup_map() {
 
 static cb::engine_errc getEngineErrorCode(
         const cb::rbac::PrivilegeAccess& access) {
-    switch (access.getStatus()) {
-    case cb::rbac::PrivilegeAccess::Status::Ok:
-        return cb::engine_errc::success;
-    case cb::rbac::PrivilegeAccess::Status::Fail:
-        return cb::engine_errc::no_access;
-    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-        // No scope specific commands are being checked here, privilege fail
-        // with no scope, collection privs is
-        // cb::engine_errc::unknown_collection
-        return cb::engine_errc::unknown_collection;
-    }
-    throw std::invalid_argument(
-            "getEngineErrorCode(PrivilegeAccess) unknown status:" +
-            std::to_string(uint32_t(access.getStatus())));
+    // We don't really care about the collection here, we just want the
+    // "unknown_collection" to be returned back
+    return access.getEngineErrorCode({}, CollectionID::Default);
 }
 
 static cb::mcbp::Status getStatusCode(const cb::rbac::PrivilegeAccess& access) {
-    switch (access.getStatus()) {
-    case cb::rbac::PrivilegeAccess::Status::Ok:
-        return cb::mcbp::Status::Success;
-    case cb::rbac::PrivilegeAccess::Status::Fail:
-        return cb::mcbp::Status::Eaccess;
-    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-        // No scope specific commands are being checked here, privilege fail
-        // with no scope, collection privs is UnknownCollection
-        return cb::mcbp::Status::UnknownCollection;
-    }
-    throw std::invalid_argument(
-            "getStatusCode(PrivilegeAccess) unknown status" +
-            std::to_string(uint32_t(access.getStatus())));
+    return cb::mcbp::to_status(getEngineErrorCode(access));
 }
 
 void execute_client_request_packet(Cookie& cookie,

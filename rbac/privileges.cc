@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
@@ -64,6 +65,25 @@ Privilege to_privilege(const std::string& str) {
         throw std::invalid_argument("to_privilege: Unknown privilege: " + str);
     }
     return it->second;
+}
+
+cb::engine_errc PrivilegeAccess::getEngineErrorCode(
+        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+    switch (status) {
+    case Status::Ok:
+        return cb::engine_errc::success;
+    case Status::Fail:
+        return cb::engine_errc::no_access;
+    case Status::FailNoPrivileges:
+        if (cid) {
+            return cb::engine_errc::unknown_collection;
+        }
+        if (sid) {
+            return cb::engine_errc::unknown_scope;
+        }
+        return cb::engine_errc::no_access;
+    }
+    Expects(false && "Unknown PrivilegeAccess status");
 }
 
 std::string PrivilegeAccess::to_string() const {

@@ -9,6 +9,8 @@
  */
 #pragma once
 
+#include <memcached/dockey_view.h>
+#include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 
@@ -199,6 +201,19 @@ public:
     Status getStatus() const {
         return status;
     }
+
+    /**
+     * Get the corresponding engine error code for the current status
+     *
+     * @param sid An optional scope id (used to determine the proper error code
+     *            when the error is FailNoPrivileges)
+     * @param cid An optional collection id (used to determine the proper error
+     *            code when the error is FailNoPrivileges)
+     * @return the engine error code
+     */
+    cb::engine_errc getEngineErrorCode(
+            std::optional<ScopeID> sid = std::nullopt,
+            std::optional<CollectionID> cid = std::nullopt) const;
 
     /// @return string of the status
     std::string to_string() const;
