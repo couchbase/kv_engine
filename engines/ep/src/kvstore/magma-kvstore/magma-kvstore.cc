@@ -3853,8 +3853,7 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     }
 
     for (auto cid : droppedStats) {
-        auto droppedInBatch = flushDroppedCollections.find(cid) !=
-                              flushDroppedCollections.end();
+        auto droppedInBatch = flushDroppedCollections.contains(cid);
         auto droppedDelta = 0;
 
         // Step 1) Read the current alive stats on disk, we'll add them to

@@ -656,7 +656,7 @@ ParameterValidationMap Configuration::validateParameters(
 
 void Configuration::fillDefaults(ParameterValidationMap& map) const {
     for (const auto& [key, attr] : attributes) {
-        if (map.find(key) == map.end() && requirementsMet(*attr)) {
+        if (!map.contains(key) && requirementsMet(*attr)) {
             map.emplace(
                     key,
                     ParameterInfo(to_json(attr->getValue()),

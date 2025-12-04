@@ -585,7 +585,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                ManifestUid flushUid,
                                                int64_t startSeqno) {
     // Check scope exists
-    if (scopes.find(identifiers.first) == scopes.end()) {
+    if (!scopes.contains(identifiers.first)) {
         throwException<std::logic_error>(
                 __func__,
                 "scope does not exist: failed adding collection:" +
