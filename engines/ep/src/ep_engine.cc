@@ -5848,7 +5848,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
 
 cb::engine_errc EventuallyPersistentEngine::checkMemoryForBGFetch(
         size_t pendingBytes) {
-    if (memoryTracker->isBelowMutationMemoryQuota(pendingBytes)) {
+    if (memoryTracker->isBelowBackfillThreshold(pendingBytes)) {
         return cb::engine_errc::success;
     }
     return memoryCondition();
