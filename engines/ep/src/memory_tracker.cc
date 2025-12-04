@@ -27,8 +27,9 @@ bool StrictQuotaMemoryTracker::isBelowMemoryQuota(size_t pendingBytes) const {
            engine.getEpStats().getMaxDataSize();
 }
 
-bool StrictQuotaMemoryTracker::isBelowBackfillThreshold() const {
-    return engine.getEpStats().getEstimatedTotalMemoryUsed() <
+bool StrictQuotaMemoryTracker::isBelowBackfillThreshold(
+        size_t pendingBytes) const {
+    return engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
            cb::fractionOf(engine.getEpStats().getMaxDataSize(),
                           engine.getKVBucket()->getBackfillMemoryThreshold());
 }

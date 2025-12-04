@@ -677,7 +677,7 @@ TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
     EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 }
 
-TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
+TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilBackfillThreshold) {
     // This test involves adjusting the bucket quota for the backend. Since
     // Nexus utilises both Magma and Couchstore, manipulating the bucket quota
     // to accommodate one backend will result in failure for the other.
@@ -742,7 +742,8 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
         if (hookRun == 1) {
             engine->setMaxDataSize(
                     stats.getPreciseTotalMemoryUsed() /
-                    engine->getConfiguration().getMutationMemRatio());
+                    (engine->getConfiguration().getBackfillMemThreshold() /
+                     100.0f));
             engineMaxDataSizeUpdated = true;
         }
         hookRun++;
