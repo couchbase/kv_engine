@@ -1113,6 +1113,42 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     EXPECT_EQ(1, vbucket->getNumItems());
 }
 
+// Positive test for validateSetStateMeta 'expected_next_state' key - check that
+// valid expected_next_state values are accepted.
+TEST(VBucketTest, validateSetStateMetaNextState) {
+    using nlohmann::json;
+
+    EXPECT_EQ(
+            ""s,
+            VBucket::validateSetStateMeta({{"expected_next_state", "active"}}));
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"expected_next_state", "replica"}}));
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta(
+                      {{"expected_next_state", "pending"}}));
+    EXPECT_EQ(""s,
+              VBucket::validateSetStateMeta({{"expected_next_state", "dead"}}));
+}
+
+// Negative test for validateSetStateMeta 'expected_next_state' key - check that
+// invalid expected_next_state values are rejected.
+TEST(VBucketTest, validateSetStateMetaNextStateNegative) {
+    using nlohmann::json;
+
+    EXPECT_NE(""s,
+              VBucket::validateSetStateMeta(
+                      {{"expected_next_state", "something"}}));
+    EXPECT_NE(""s, VBucket::validateSetStateMeta({{"expected_next_state", 1}}));
+    EXPECT_NE(""s,
+              VBucket::validateSetStateMeta(
+                      {{"expected_next_state", json::array({1, 2, 3})}}));
+    EXPECT_NE(
+            ""s,
+            VBucket::validateSetStateMeta(
+                    {{"expected_next_state", json::object({{"foo", "bar"}})}}));
+}
+
 // Test cases which run for persistent and ephemeral, and for each of their
 // respective eviction policies (Value/Full for persistent, Auto-delete and
 // fail new data for Ephemeral).

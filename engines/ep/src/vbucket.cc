@@ -680,15 +680,40 @@ std::string VBucket::validateReplicationTopology(
     return {};
 }
 
+static std::string validateExpectedNextState(
+        const nlohmann::json& expected_next_state) {
+    if (!expected_next_state.is_string()) {
+        return "'expected_next_state' must be a string, found:"s +
+               expected_next_state.dump();
+    }
+    if (expected_next_state != "active" && expected_next_state != "replica" &&
+        expected_next_state != "pending" && expected_next_state != "dead") {
+        return "'expected_next_state' must be one of: active, replica, pending, dead, found:"s +
+               expected_next_state.dump();
+    }
+    return {};
+}
+
 std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
     if (!meta.is_object()) {
         return "'meta' must be an object if specified, found:"s + meta.dump();
     }
     for (const auto& el : meta.items()) {
         if (el.key() == "topology") {
-            return validateReplicationTopology(el.value());
+            const auto error = validateReplicationTopology(el.value());
+            if (!error.empty()) {
+                return error;
+            }
+            continue;
         }
-        return "'topology' contains unsupported key:"s + el.key() +
+        if (el.key() == "expected_next_state") {
+            const auto error = validateExpectedNextState(el.value());
+            if (!error.empty()) {
+                return error;
+            }
+            continue;
+        }
+        return "'vbucket meta contains unsupported key:"s + el.key() +
                " with value:" + el.value().dump();
     }
     return {};
@@ -703,11 +728,12 @@ void VBucket::setState_UNLOCKED(
 
     // Validate (optional) meta content.
     if (meta) {
-        if (to != vbucket_state_active) {
+        if (meta->contains("topology") && to != vbucket_state_active) {
             throw std::invalid_argument(
-                    "VBucket::setState: meta only permitted for state:active, "
-                    "found state:"s +
-                    VBucket::toString(to) + " meta:" + meta->dump());
+                    fmt::format("VBucket::setState: topology only permitted "
+                                "for state:active, found state:{} meta:{}",
+                                VBucket::toString(to),
+                                meta->dump()));
         }
         auto error = validateSetStateMeta(*meta);
         if (!error.empty()) {
