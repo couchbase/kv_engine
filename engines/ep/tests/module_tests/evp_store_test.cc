@@ -773,7 +773,7 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilBackfillThreshold) {
     destroy_mock_cookie(cookie2);
 }
 
-TEST_P(EPBucketFullEvictionTest, DontQueueBGFetchItemAboveMutationWatermark) {
+TEST_P(EPBucketFullEvictionTest, DontQueueBGFetchItemAboveBackfillThreshold) {
     // This test relies on precise memory tracking
     const auto& stats = engine->getEpStats();
     if (!stats.isMemoryTrackingEnabled()) {
@@ -803,12 +803,14 @@ TEST_P(EPBucketFullEvictionTest, DontQueueBGFetchItemAboveMutationWatermark) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto cookie = create_mock_cookie();
 
-    // set bucket quota using current memory usage as 93%
-    double mutationWat = engine->getConfiguration().getMutationMemRatio();
-    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() / mutationWat);
+    // set bucket quota using current memory usage as 96%
+    double backfillThreshold =
+            engine->getConfiguration().getBackfillMemThreshold() / 100.0f;
+    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() /
+                           backfillThreshold);
 
     auto gv = store->get(key0, vbid, cookie, options);
-    EXPECT_NE(cb::engine_errc::would_block, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_memory, gv.getStatus());
 
     // BGFetch queue should remain empty
     auto vb = store->getVBucket(vbid);
