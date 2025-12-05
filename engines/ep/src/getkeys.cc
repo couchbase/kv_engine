@@ -86,7 +86,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
         }
     }
 
-    uint16_t outlen = htons(outKey.size());
+    uint16_t outlen = htons(gsl::narrow_cast<uint16_t>(outKey.size()));
     // insert 1 x u16
     const auto* outlenPtr = reinterpret_cast<const char*>(&outlen);
     buffer.insert(buffer.end(), outlenPtr, outlenPtr + sizeof(uint16_t));

@@ -553,7 +553,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
 
     if (!emd.empty()) {
         EXPECT_TRUE(emd.size() < std::numeric_limits<uint16_t>::max());
-        uint16_t emdSize = htons(emd.size());
+        uint16_t emdSize = htons(gsl::narrow_cast<uint16_t>(emd.size()));
         std::copy_n(reinterpret_cast<uint8_t*>(&emdSize),
                     sizeof(uint16_t),
                     std::back_inserter(extras_backing));
