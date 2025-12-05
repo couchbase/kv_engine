@@ -1516,8 +1516,10 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     }
 }
 
-HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
-                                                const Position& start_pos) {
+HashTable::Position HashTable::pauseResumeVisit(
+        HashTableVisitor& visitor,
+        const Position& start_pos,
+        VisitCompleteChain visitCompleteChain) {
     if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
         !isActive()) {
         // Nothing to visit
@@ -1580,10 +1582,18 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
                 }
 
                 StoredValue* v = values[hash_bucket].get().get();
-                while (!paused && v) {
-                    StoredValue* tmp = v->getNext().get().get();
-                    paused = !visitor.visit(hbl, *v);
-                    v = tmp;
+                if (visitCompleteChain == VisitCompleteChain::Yes) {
+                    while (v) {
+                        StoredValue* tmp = v->getNext().get().get();
+                        paused |= !visitor.visit(hbl, *v);
+                        v = tmp;
+                    }
+                } else {
+                    while (!paused && v) {
+                        StoredValue* tmp = v->getNext().get().get();
+                        paused = !visitor.visit(hbl, *v);
+                        v = tmp;
+                    }
                 }
             }
 

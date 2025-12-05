@@ -436,6 +436,62 @@ TEST_F(HashTableTest, ResizeDeferredByVisitor) {
     EXPECT_EQ(7, ht.getSize());
 }
 
+class PauseResumeVisitTest
+    : public HashTableTest,
+      public ::testing::WithParamInterface<HashTable::VisitCompleteChain> {
+    void SetUp() override {
+        HashTableTest::SetUp();
+    }
+};
+
+TEST_P(PauseResumeVisitTest, pauseResumeVisit) {
+    class AlwaysPauseVisitor : public HashTableVisitor {
+    public:
+        AlwaysPauseVisitor(HashTable& ht) : ht(ht) {
+        }
+
+        bool visit(const HashTable::HashBucketLock&, StoredValue& sv) override {
+            keys.insert(sv.getKey().to_string());
+            // Always pause
+            return false;
+        }
+
+        HashTable& ht;
+        std::unordered_set<std::string> keys;
+    };
+    const int size = 3;
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 size,
+                 size,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
+    const int numKeys = 3 * size;
+    auto keys = generateKeys(numKeys);
+    EXPECT_EQ(keys.size(), numKeys);
+    storeMany(ht, keys);
+    EXPECT_EQ(numKeys, ht.getNumItems());
+
+    AlwaysPauseVisitor visitor(ht);
+    HashTable::Position position;
+    while (position != ht.endPosition()) {
+        position = ht.pauseResumeVisit(visitor, position, GetParam());
+    }
+    if (GetParam() == HashTable::VisitCompleteChain::No) {
+        // Expect some keys to have been skipped because chains are longer than
+        // 1
+        EXPECT_LT(visitor.keys.size(), numKeys);
+    } else {
+        // Expect all keys to have been visited
+        EXPECT_EQ(visitor.keys.size(), numKeys);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(PauseResumeVisitTest,
+                         PauseResumeVisitTest,
+                         ::testing::Values(HashTable::VisitCompleteChain::No,
+                                           HashTable::VisitCompleteChain::Yes));
+
 TEST_F(HashTableTest, IncrementalResize) {
     HashTable ht(global_stats,
                  makeFactory(),

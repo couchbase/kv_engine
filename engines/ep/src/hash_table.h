@@ -204,6 +204,8 @@ public:
         ResizingTemporary
     };
 
+    enum class VisitCompleteChain { No, Yes };
+
     /**
      * Represents a position within the hashtable.
      *
@@ -1401,12 +1403,16 @@ public:
      *
      * @param visitor The visitor object to use.
      * @param start_pos At what position to start in the hashtable.
+     * @param visitCompleteChain Whether to visit all items in the chain, thus
+     * returning false may not immediately terminate the visit.
      * @return The final HashTable position visited; equal to
      *         HashTable::end() if all items were visited otherwise the
      *         position to resume from.
      */
-    Position pauseResumeVisit(HashTableVisitor& visitor,
-                              const Position& start_pos);
+    Position pauseResumeVisit(
+            HashTableVisitor& visitor,
+            const Position& start_pos,
+            VisitCompleteChain visitCompleteChain = VisitCompleteChain::No);
 
     /**
      * Return a position at the end of the hashtable. Has similar semantics
