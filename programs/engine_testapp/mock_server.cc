@@ -80,7 +80,7 @@ static rel_time_t mock_get_current_time() {
 #ifdef WIN32
     rel_time_t result = (rel_time_t)(time(NULL) - process_started + time_travel_offset);
 #else
-    struct timeval timer {};
+    timeval timer{};
     gettimeofday(&timer, nullptr);
     auto result =
             (rel_time_t)(timer.tv_sec - process_started + time_travel_offset);

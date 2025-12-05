@@ -39,7 +39,7 @@
  */
 class FuzzConnection : public Connection {
 public:
-    explicit FuzzConnection(struct FrontEndThread& thr) : Connection(thr) {
+    explicit FuzzConnection(FrontEndThread& thr) : Connection(thr) {
     }
 
     void copyToOutputStream(std::string_view data) override {

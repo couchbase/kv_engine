@@ -69,7 +69,7 @@ static char* get_command(char* buffer) {
      *
      * This could cause memcached to hang "forever"
      */
-    struct pollfd fds;
+    pollfd fds;
     fds.fd = fileno(stdin);
     fds.events = POLLIN;
 

@@ -37,9 +37,8 @@ Format parseFormat(std::string format) {
 int main(int argc, char** argv) {
     Format format{Format::Raw};
 
-    static struct option longopts[] = {
-            {"format", required_argument, nullptr, 'f'},
-            {nullptr, 0, nullptr, 0}};
+    static option longopts[] = {{"format", required_argument, nullptr, 'f'},
+                                {nullptr, 0, nullptr, 0}};
 
     int cmd;
     while ((cmd = getopt_long(argc, argv, "f:", longopts, nullptr)) != -1) {

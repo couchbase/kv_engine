@@ -473,7 +473,7 @@ void MemcachedConnection::close() {
 
 std::atomic<size_t> MemcachedConnection::totalSocketsCreated;
 
-SOCKET try_connect_socket(struct addrinfo* next,
+SOCKET try_connect_socket(addrinfo* next,
                           const std::string& hostname,
                           in_port_t port) {
     SOCKET sfd = cb::net::socket(
@@ -518,13 +518,13 @@ SOCKET try_connect_socket(struct addrinfo* next,
 static SOCKET new_socket(const std::string& host,
                          in_port_t port,
                          sa_family_t family) {
-    struct addrinfo hints = {};
+    addrinfo hints = {};
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = family;
 
-    struct addrinfo* ai;
+    addrinfo* ai;
     std::string hostname{host};
 
     if (hostname.empty() || hostname == "localhost") {

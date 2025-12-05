@@ -235,8 +235,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
     }
 }
 
-
-static SOCKET new_server_socket(struct addrinfo* ai) {
+static SOCKET new_server_socket(addrinfo* ai) {
     auto sfd = cb::net::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if (sfd == INVALID_SOCKET) {
         return INVALID_SOCKET;
@@ -312,7 +311,7 @@ NetworkInterfaceManager::createInterface(
         host_buf = host.c_str();
     }
 
-    struct addrinfo* ai;
+    addrinfo* ai;
     int error = getaddrinfo(host_buf,
                             std::to_string(description.getPort()).c_str(),
                             &hints,
@@ -337,7 +336,7 @@ NetworkInterfaceManager::createInterface(
     // Iterate over all of them and try to set up a listen object.
     // We need at least _one_ entry per requested configuration (IPv4/6) in
     // order to call it a success.
-    for (struct addrinfo* next = ai; next; next = next->ai_next) {
+    for (addrinfo* next = ai; next; next = next->ai_next) {
         if (next->ai_addr->sa_family != AF_INET &&
             next->ai_addr->sa_family != AF_INET6) {
             // Ignore unsupported address families

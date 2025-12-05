@@ -65,6 +65,6 @@ void set_ssl_ctx_ciphers(SSL_CTX* ctx,
     }
 }
 
-void ssl_st_deleter::operator()(struct ssl_st* st) {
+void ssl_st_deleter::operator()(SSL* st) {
     SSL_free(st);
 }

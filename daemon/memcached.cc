@@ -177,7 +177,7 @@ static bool prometheus_auth_callback(const std::string& user,
     }
 }
 
-struct thread_stats* get_thread_stats(Connection* c) {
+thread_stats* get_thread_stats(Connection* c) {
     auto& independent_stats = c->getBucket().stats;
     return &independent_stats.at(c->getThread().index);
 }
@@ -560,7 +560,7 @@ static void sigterm_handler(evutil_socket_t, short, void *) {
     memcached_shutdown = true;
 }
 
-static struct event* sigterm_event;
+static event* sigterm_event;
 
 static bool install_signal_handlers() {
     // SIGTERM - Used to shut down memcached cleanly

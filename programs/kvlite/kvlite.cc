@@ -31,7 +31,7 @@ static std::string credentials;
 
 /// Method to use to check if the user may do whatever...
 /// (@todo figure out where to use this ;)
-bool check_credentials(struct evhttp_request* req) {
+bool check_credentials(evhttp_request* req) {
     auto* headers = evhttp_request_get_input_headers(req);
     if (headers == nullptr) {
         evhttp_send_reply(req, 401, "Unauthorized", nullptr);
@@ -56,7 +56,7 @@ bool check_credentials(struct evhttp_request* req) {
     return false;
 }
 
-static void add_default_headers(struct evhttp_request* req,
+static void add_default_headers(evhttp_request* req,
                                 const char* contentType,
                                 size_t contentLength) {
     auto* headers = evhttp_request_get_output_headers(req);
@@ -69,7 +69,7 @@ static void add_default_headers(struct evhttp_request* req,
     evhttp_add_header(headers, "Server", "Couchbase Server");
 }
 
-static void handle_get_pools(struct evhttp_request* req) {
+static void handle_get_pools(evhttp_request* req) {
     cb::libevent::unique_evbuffer_ptr buf(evbuffer_new());
     if (!buf) {
         evhttp_send_reply(req, HTTP_INTERNAL, nullptr, nullptr);
@@ -107,7 +107,7 @@ decode_encoded_string(const std::string& string) {
     return vals;
 }
 
-static void settings_web_callback(struct evhttp_request* req, void*) {
+static void settings_web_callback(evhttp_request* req, void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_POST:
         break;
@@ -178,7 +178,7 @@ static void settings_web_callback(struct evhttp_request* req, void*) {
     evhttp_send_reply(req, HTTP_OK, "OK", nullptr);
 }
 
-static void settings_stats_callback(struct evhttp_request* req, void*) {
+static void settings_stats_callback(evhttp_request* req, void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_POST:
         break;
@@ -211,7 +211,7 @@ static void settings_stats_callback(struct evhttp_request* req, void*) {
     evhttp_send_reply(req, HTTP_OK, "OK", nullptr);
 }
 
-static void node_controller_setup_services_callback(struct evhttp_request* req,
+static void node_controller_setup_services_callback(evhttp_request* req,
                                                     void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_POST:
@@ -245,7 +245,7 @@ static void node_controller_setup_services_callback(struct evhttp_request* req,
     evhttp_send_reply(req, HTTP_OK, "OK", nullptr);
 }
 
-static void pools_default_b_callback(struct evhttp_request* req, void*) {
+static void pools_default_b_callback(evhttp_request* req, void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_GET:
         break;
@@ -293,8 +293,7 @@ static void pools_default_b_callback(struct evhttp_request* req, void*) {
     evhttp_send_reply(req, HTTP_OK, "OK", buf.get());
 }
 
-static void pools_default_buckets_callback(struct evhttp_request* req,
-                                           void* http) {
+static void pools_default_buckets_callback(evhttp_request* req, void* http) {
     if (!check_credentials(req)) {
         return;
     }
@@ -372,7 +371,7 @@ static void pools_default_buckets_callback(struct evhttp_request* req,
     evhttp_send_reply(req, HTTP_OK, "OK", nullptr);
 }
 
-static void pools_default_callback(struct evhttp_request* req, void*) {
+static void pools_default_callback(evhttp_request* req, void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_POST:
         break;
@@ -402,7 +401,7 @@ static void pools_default_callback(struct evhttp_request* req, void*) {
     evhttp_send_reply(req, HTTP_OK, "OK", nullptr);
 }
 
-static void pools_callback(struct evhttp_request* req, void*) {
+static void pools_callback(evhttp_request* req, void*) {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_GET:
         handle_get_pools(req);

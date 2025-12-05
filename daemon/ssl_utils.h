@@ -14,7 +14,9 @@
 #include <string>
 
 struct ssl_ctx_st;
-typedef struct ssl_ctx_st SSL_CTX;
+typedef ssl_ctx_st SSL_CTX;
+struct ssl_st;
+typedef ssl_st SSL;
 
 uint64_t decode_ssl_protocol(std::string_view protocol);
 
@@ -32,7 +34,7 @@ void set_ssl_ctx_ciphers(SSL_CTX* ctx,
 
 struct ssl_st;
 struct ssl_st_deleter {
-    void operator()(ssl_st* st);
+    void operator()(SSL* st);
 };
 
-using uniqueSslPtr = std::unique_ptr<ssl_st, ssl_st_deleter>;
+using uniqueSslPtr = std::unique_ptr<SSL, ssl_st_deleter>;

@@ -71,7 +71,7 @@ static void usage() {
 
 static int report_test(const char* name,
                        std::chrono::steady_clock::duration duration,
-                       enum test_result r,
+                       test_result r,
                        bool quiet,
                        bool compact) {
     int rc = 0;
@@ -273,7 +273,7 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
     auto executorBoarderGuard =
             folly::makeGuard([] { ExecutorPool::shutdown(); });
 
-    enum test_result ret = PENDING;
+    test_result ret = PENDING;
     cb_assert(test.tfun != nullptr || test.api_v2.tfun != nullptr);
     bool test_api_1 = test.tfun != nullptr;
 
@@ -642,7 +642,7 @@ int main(int argc, char **argv) {
             std::cout.flush();
 
             {
-                enum test_result ecode = FAIL;
+                test_result ecode = FAIL;
 
                 for (int attempt = 0;
                      (attempt < attempts) && ((ecode != SUCCESS) &&
