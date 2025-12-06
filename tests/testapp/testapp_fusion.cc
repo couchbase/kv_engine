@@ -1010,7 +1010,7 @@ TEST_P(FusionTest, ToggleUploader) {
     EXPECT_EQ(0, json["term"]);
 
     // Start uploader..
-    const uint64_t term = 123;
+    constexpr uint64_t term = 123;
     EXPECT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, std::to_string(term)).getStatus());
     // verify stats
@@ -1047,7 +1047,7 @@ TEST_P(FusionTest, ToggleUploader) {
 
     // Verify that re-starting a running uploader with a new term is equivalent
     // to Stop + Start(newTerm)
-    const auto newTerm = term + 1;
+    constexpr auto newTerm = term + 1;
     EXPECT_EQ(cb::mcbp::Status::Success,
               startFusionUploader(vbid, std::to_string(newTerm)).getStatus());
     // verify stats

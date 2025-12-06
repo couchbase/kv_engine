@@ -159,7 +159,7 @@ TEST_P(EncryptionTest, TestEncryptionKeyIds) {
     //     ]
     EXPECT_FALSE(stats.empty());
     EXPECT_TRUE(stats.is_array()) << stats.dump();
-    const std::string_view unencrypted =
+    constexpr std::string_view unencrypted =
             cb::crypto::KeyDerivationKey::UnencryptedKeyId;
     for (const auto& key : stats) {
         ASSERT_TRUE(key.is_string()) << stats.dump();
@@ -346,7 +346,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
     auto num_shards = getNumShards();
     std::vector<bool> shards_expected(num_shards, false);
     shards_expected[0] = true; // shard 0 has vb:0
-    const int one_alog_run_expected = 1;
+    constexpr int one_alog_run_expected = 1;
     auto num_runs = waitForSnoozedAccessScanner();
 
     // Disable encryption and verify that the access log is rewritten

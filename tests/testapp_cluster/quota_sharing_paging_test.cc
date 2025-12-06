@@ -104,7 +104,7 @@ protected:
         const size_t initialMemUsed = getMemStats(bucket).current;
         const size_t targetMemUsed = initialMemUsed + minTotalSize;
 
-        const intptr_t itemSize = 0.125_MiB;
+        constexpr intptr_t itemSize = 0.125_MiB;
         const auto itemValue = std::string(itemSize, 'x');
 
         std::vector<std::pair<Vbid, std::string>> docKeys;
@@ -257,7 +257,7 @@ public:
  * expected.
  */
 TEST_P(OneBucketQSPagingTest, SingleBucketEvictionWorks) {
-    const intptr_t testItemMemUsage = 15_MiB;
+    constexpr intptr_t testItemMemUsage = 15_MiB;
 
     generateItems(0, testItemMemUsage);
     setMemWatermarks(0, 20_MiB, 25_MiB);
@@ -291,7 +291,7 @@ INSTANTIATE_TEST_SUITE_P(QuotaSharingOnOff,
  */
 // TODO: Disabled until MB-53042: Use quota-shairng memory tracker
 TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreEvictedFromSingleBucket) {
-    const intptr_t testItemMemUsage = 15_MiB;
+    constexpr intptr_t testItemMemUsage = 15_MiB;
 
     generateItems(0, testItemMemUsage);
     setMemWatermarks(0, 20_MiB, 25_MiB);
@@ -348,7 +348,7 @@ TEST_F(TwoBucketQSPagingTest, DISABLED_BucketsCanStealQuota) {
  */
 // TODO: Disabled until MB-53042: Use quota-shairng memory tracker
 TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreFairlyEvictedFromTwoBuckets) {
-    const intptr_t testItemMemUsage = 15_MiB;
+    constexpr intptr_t testItemMemUsage = 15_MiB;
 
     generateItems(0, testItemMemUsage);
     generateItems(1, testItemMemUsage);
@@ -396,7 +396,7 @@ TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreFairlyEvictedFromTwoBuckets) {
  */
 // TODO: Disabled until MB-53042: Use quota-shairng memory tracker
 TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreEvictedFromLessHotBucketsFirst) {
-    const intptr_t testItemMemUsage = 20_MiB;
+    constexpr intptr_t testItemMemUsage = 20_MiB;
 
     auto hotBucketItems = generateItems(0, testItemMemUsage);
     auto coldBucketItems = generateItems(1, testItemMemUsage);

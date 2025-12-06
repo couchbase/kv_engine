@@ -445,7 +445,7 @@ TEST_P(MemTrackingBucketTest, MB_68823) {
         const auto line =
                 "EventuallyPersistentEngine::stream_req: Exception GSL: "
                 "Precondition failure: 'emplaced'";
-        const auto expectedLogInstances = 1;
+        constexpr auto expectedLogInstances = 1;
         do {
             if (mcd_env->verifyLogLine(line) == expectedLogInstances) {
                 return;

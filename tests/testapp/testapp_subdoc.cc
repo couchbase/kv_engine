@@ -168,11 +168,12 @@ void SubdocTestappTest::test_subdoc_fetch_dict_simple(
     ASSERT_TRUE((cmd == cb::mcbp::ClientOpcode::SubdocGet) ||
                 (cmd == cb::mcbp::ClientOpcode::SubdocExists));
 
-    const char dict[] = "{ \"int\": 1,"
-                        "  \"string\": \"two\","
-                        "  \"true\": true,"
-                        "  \"false\": false }";
-    store_document("dict", dict, 0 /*flags*/, 0 /*exptime*/, compressed);
+    const auto dict =
+            "{ \"int\": 1,"
+            "  \"string\": \"two\","
+            "  \"true\": true,"
+            "  \"false\": false }"_json;
+    store_document("dict", dict.dump(), 0 /*flags*/, 0 /*exptime*/, compressed);
 
     // a). Check successful access to each dict element.
     EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "int"), "1");
@@ -398,8 +399,8 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
                   cb::mcbp::Status::KeyEnoent);
 
     // b). Attempt to add to non-JSON document should return ENOT_JSON
-    const char not_JSON[] = "not; valid, JSON";
-    store_document("binary", not_JSON, 0 /*flags*/, 0 /*exptime*/, compress);
+    store_document(
+            "binary", "not; valid, JSON", 0 /*flags*/, 0 /*exptime*/, compress);
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "int", "2"),
                   cb::mcbp::Status::SubdocDocNotJson);
     delete_object("binary");
@@ -714,7 +715,8 @@ TEST_P(SubdocTestappTest, SubdocDictUpsert_Deep) {
 void SubdocTestappTest::test_subdoc_delete_simple(bool compress) {
     // a). Create a document containing each of the primitive types, and then
     // ensure we can successfully delete each type.
-    const char dict[] = "{"
+    std::string dict =
+            "{"
             "\"0\": 1,"
             "\"1\": 2.0,"
             "\"2\": 3.141e3,"
@@ -1793,9 +1795,8 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
 
 // Test that flags are preserved by subdoc mutation operations.
 TEST_P(SubdocTestappTest, SubdocFlags) {
-    const char array[] = "[0]";
     constexpr uint32_t flags = 0xcafebabe;
-    store_document("array", array, flags);
+    store_document("array", "[0]", flags);
 
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocReplace, "array", "[0]", "1"));
@@ -2034,8 +2035,7 @@ TEST_P(SubdocTestappTest, SubdocStatsCounter) {
 TEST_P(SubdocTestappTest, SubdocUTF8PathTest) {
     // Check that using UTF8 characters in the path works, which it should
 
-    const char dict[] = "{ \"kéy1\": 1 }";
-    store_document("dict", dict);
+    store_document("dict", "{ \"kéy1\": 1 }");
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDictAdd, "dict", "kéy2👏", "56"));
     EXPECT_SD_GET("dict", "kéy2👏", "56");
@@ -2053,9 +2053,7 @@ TEST_P(SubdocTestappTest, SubdocUTF8PathTest) {
 TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     // Check that using UTF8 characters in the value works, which it should
 
-    const char dict[] =
-            R"({ "key1": "Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ" })";
-    store_document("dict", dict);
+    store_document("dict", R"({ "key1": "Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ" })");
     EXPECT_SD_OK(BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocDictAdd,
                                       "dict",
                                       "key2",

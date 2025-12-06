@@ -26,10 +26,10 @@ void logCrashData(const std::filesystem::path& filename) {
 
         // OK to get a truncated input, 8K is plenty to capture most dumps and
         // get the CRITICAL messages into the log.
-        const size_t fileReadLimit = 8192;
+        constexpr size_t fileReadLimit = 8192;
         std::string data = cb::io::loadFile(filename, {}, fileReadLimit);
         auto ss = std::stringstream{data};
-        const int lineLimit = 70;
+        constexpr int lineLimit = 70;
         int lineCount = 0;
         for (std::string line; std::getline(ss, line) && lineCount < lineLimit;
              lineCount++) {

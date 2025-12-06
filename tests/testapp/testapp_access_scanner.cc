@@ -63,7 +63,7 @@ TEST_P(AccessScannerTest, DatabaseContaingData) {
     ASSERT_NE(0, shards);
     std::vector<bool> shards_expected(shards, false);
     shards_expected[0] = true; // shard 0 has vb:0
-    const int one_alog_run_expected = 1;
+    constexpr int one_alog_run_expected = 1;
 
     auto skipped = getNumAccessScannerSkips();
 

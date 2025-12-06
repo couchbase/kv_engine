@@ -313,7 +313,7 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
 TEST_P(DcpStreamReqValidatorTest, FlagsWithCacheTransfer) {
     cb::mcbp::request::DcpStreamReqPayload extras;
 
-    const std::array<uint32_t, 6> invalid = {
+    constexpr std::array<uint32_t, 6> invalid = {
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::DiskOnly),
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ToLatest),
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::NoValue),
@@ -321,7 +321,7 @@ TEST_P(DcpStreamReqValidatorTest, FlagsWithCacheTransfer) {
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::FromLatest),
             static_cast<uint32_t>(
                     cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)};
-    const std::array<uint32_t, 2> valid = {
+    constexpr std::array<uint32_t, 2> valid = {
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::TakeOver),
             static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ActiveVbOnly)};
 

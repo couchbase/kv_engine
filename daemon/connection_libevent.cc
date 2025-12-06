@@ -161,7 +161,7 @@ void LibeventConnection::rw_callback() {
         // transferred at least 64k to getting notified *too* often.
         const auto length = getSendQueueSize();
         if (length) {
-            const size_t chunk = 64_KiB;
+            constexpr size_t chunk = 64_KiB;
             if (length > chunk) {
                 const auto watermark =
                         std::min(length - chunk, max_send_watermark_size);
