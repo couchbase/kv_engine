@@ -23,6 +23,8 @@ add_library(mcd_util STATIC
             engine_errc_2_mcbp.h
             engine_storage.cc
             fusion_utilities.h
+            global_concurrency_semaphores.cc
+            global_concurrency_semaphores.h
             io_control.cc
             json_utilities.cc
             json_utilities.h
