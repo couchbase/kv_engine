@@ -555,6 +555,65 @@ TEST_P(DcpCacheTransferTest, all_keys) {
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
 }
 
+// Ensure that if an all_keys transfer was requested that all the keys are
+// transferred when the hash-table has more than 1 item in a chain.
+TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
+    engine->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
+    store->getVBucket(vbid)->ht.resizeInOneStep(1);
+    ASSERT_EQ(1, store->getVBucket(vbid)->ht.getSize());
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
+    ASSERT_EQ(2, expectedItems.size());
+
+    // CTS options are expressed in the JSON stream-request value
+    nlohmann::json ctsJson = {{"cts", {{"all_keys", true}}}};
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                      1,
+                      Vbid(0),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      store->getVBucket(vbid)->failovers->getLatestUUID(),
+                      0,
+                      store->getVBucket(vbid)->getHighSeqno(),
+                      nullptr,
+                      mock_dcp_add_failover_log,
+                      ctsJson.dump()));
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+
+    // In this test the hash-table has one bucket, so all items are in one
+    // chain. The visitor will pause after the chain has been visited even
+    // if the visitor's time was up.
+    runCacheTransferTask();
+    for (auto count = expectedItems.size(); count > 0; count--) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepAndExpect(
+                          producers, cb::mcbp::ClientOpcode::DcpCachedValue));
+        ASSERT_EQ(1,
+                  std::ranges::count_if(expectedItems, [&](const auto& item) {
+                      return item.getKey() == producers.last_dockey;
+                  }));
+        for (auto itr = expectedItems.begin(); itr != expectedItems.end();
+             ++itr) {
+            if (itr->getKey() == producers.last_dockey) {
+                expectedItems.erase(itr);
+                break;
+            }
+        }
+    }
+    ASSERT_TRUE(expectedItems.empty());
+
+    // But needs a final run to find the HT is complete
+    runCacheTransferTask();
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
 // A key-only transfer could be simulated...
 TEST_P(DcpCacheTransferTest, key_only_transfer) {
     expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));

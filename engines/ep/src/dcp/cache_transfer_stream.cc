@@ -114,6 +114,7 @@ public:
                       std::string_view descriptionDetail)
         : EpTask(e, TaskId::CacheTransferTask),
           vbid(vbid),
+          isAllKeys(stream->isAllKeys()),
           visitor(std::move(stream), e.getConfiguration()),
           descriptionDetail(descriptionDetail),
           startTime(cb::time::steady_clock::now()) {
@@ -131,10 +132,12 @@ public:
     }
 
 private:
-    Vbid vbid;
+    const Vbid vbid;
+    const bool isAllKeys;
+
     CacheTransferHashTableVisitor visitor;
     HashTable::Position position;
-    std::string descriptionDetail;
+    const std::string descriptionDetail;
     uint64_t queuedCount{0};
     uint64_t visitedCount{0};
     cb::time::steady_clock::time_point startTime;
@@ -210,7 +213,11 @@ bool CacheTransferTask::run() {
     auto guard = folly::makeGuard([this] { visitor.tearDownHashTableVisit(); });
 
     // Visit the vbucket from the last position.
-    position = vb->ht.pauseResumeVisit(visitor, position);
+    position = vb->ht.pauseResumeVisit(
+            visitor,
+            position,
+            isAllKeys ? HashTable::VisitCompleteChain::Yes
+                      : HashTable::VisitCompleteChain::No);
     // Nofify the producer if something was queued
     bool notify = visitor.getQueuedCount() > 0;
     auto& stream = visitor.getStream();

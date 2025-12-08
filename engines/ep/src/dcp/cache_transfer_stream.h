@@ -149,6 +149,10 @@ public:
         return request;
     }
 
+    bool isAllKeys() const {
+        return filter.isCacheTransferAllKeys();
+    }
+
 protected:
     uint64_t getMaxSeqno() const {
         // maxSeqno is the Stream start...
