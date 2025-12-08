@@ -115,7 +115,10 @@ protected:
 class StdinCheck : public ::testing::Test {
 public:
     void SetUpTestSuite() {
-        sigignore(SIGPIPE);
+        if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+            fmt::println(stderr, "Failed to ignore SIGPIPE");
+            std::exit(EXIT_FAILURE);
+        }
     }
 };
 

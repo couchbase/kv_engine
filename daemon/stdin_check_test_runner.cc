@@ -23,7 +23,10 @@
  * writing tests which to verify that it works as expected.
  */
 int main(int argc, char** argv) {
-    sigignore(SIGPIPE);
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        fmt::println(stderr, "Failed to ignore SIGPIPE");
+        std::exit(EXIT_FAILURE);
+    }
     std::mutex mutex;
     std::unique_lock lock(mutex);
     std::condition_variable condition;
