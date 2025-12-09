@@ -199,8 +199,8 @@ int main(int argc, char **argv) {
 
     // Create the console logger for test case output
     cb::logger::createConsoleLogger();
-    // Set the logging level in the api then setup the BucketLogger
-    cb::logger::get()->set_level(spd_log_level);
+    // Set the logging level
+    cb::logger::setLogLevels(spd_log_level);
 
     // Need to initialize ep_real_time and friends.
     UnitTestServerCore unitTestServerCore;
