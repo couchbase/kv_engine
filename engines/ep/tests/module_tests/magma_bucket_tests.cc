@@ -1167,8 +1167,6 @@ public:
                 ";magma_fusion_metadatastore_uri=" + fusionMetadatastoreURI;
         config_string += ";magma_fusion_upload_interval=" +
                          std::to_string(fusionUploadInterval);
-        config_string += ";magma_fusion_log_checkpoint_interval=" +
-                         std::to_string(fusionLogCheckpointInterval);
         config_string += ";magma_fusion_logstore_fragmentation_threshold=" +
                          std::to_string(fusionLogstoreFragmentationThreshold);
         config_string += ";magma_fusion_max_log_cleaning_size_ratio=" +
@@ -1233,7 +1231,6 @@ protected:
             uriPrefix + dbPathString + "/metadatastore";
     const std::filesystem::path fusionGuestVolumes = dbPath / "guestVolumes";
     const size_t fusionUploadInterval = 1234;
-    const size_t fusionLogCheckpointInterval = 5678;
     const float fusionLogstoreFragmentationThreshold = 0.3f;
     const float fusionMaxLogCleaningSizeRation = 0.2f;
     const size_t fusionMaxLogSize = 5_GiB;
@@ -1254,8 +1251,6 @@ TEST_P(STMagmaFusionTest, Config) {
 
     // The following configuration is propagated directly to magma
     EXPECT_EQ(fusionUploadInterval, kvstore.getFusionUploadInterval().count());
-    EXPECT_EQ(fusionLogCheckpointInterval,
-              kvstore.getFusionLogCheckpointInterval().count());
     EXPECT_EQ(fusionLogstoreFragmentationThreshold,
               kvstore.getMagmaFusionLogstoreFragmentationThreshold());
     EXPECT_EQ(fusionMaxLogCleaningSizeRation,

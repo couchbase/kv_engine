@@ -243,8 +243,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     fusionNamespace = generateFusionNamespace(config.getUuid());
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
-    fusionLogCheckpointInterval =
-            std::chrono::seconds(config.getMagmaFusionLogCheckpointInterval());
 
     fusionUploadInterval =
             std::chrono::seconds(config.getMagmaFusionUploadInterval());

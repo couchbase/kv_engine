@@ -308,12 +308,6 @@ public:
     void SetFusionUploadInterval(std::chrono::seconds interval);
     std::chrono::seconds GetFusionUploadInterval() const;
 
-    // The LogCheckpoint interval is the interval at which FusionFS should
-    // create a log checkpoint on the FusionMetadataStore and delete eligible
-    // logs from the FusionLogStore
-    void SetFusionLogCheckpointInterval(std::chrono::seconds interval);
-    std::chrono::seconds GetFusionLogCheckpointInterval() const;
-
     magma::Status SetFusionLogStoreURI(const std::string& uri);
     std::string GetFusionLogStoreURI() const;
 

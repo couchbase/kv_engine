@@ -1838,12 +1838,6 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "magma_fusion_log_checkpoint_interval": {
-            "default": "(60 * 15)",
-            "descr": "The interval at which FusionFS should create a log checkpoint on the FusionMetadataStore and delete eligible logs from the FusionLogStore, in seconds.",
-            "dynamic": false,
-            "type": "size_t"
-        },
         "magma_fusion_max_log_cleaning_size_ratio": {
             "default": "0.05",
             "descr": "Minimum log segment size after which logs will be split. The ratio is a percentage of used log data size.",
