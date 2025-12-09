@@ -144,6 +144,9 @@ public:
     }
 
 private:
+    double maybeLogHighMemoryPressure(CacheTransferStream& stream,
+                                      std::string_view msg);
+
     const Vbid vbid;
     const bool isAllKeys;
 
@@ -153,6 +156,7 @@ private:
     uint64_t queuedCount{0};
     uint64_t visitedCount{0};
     cb::time::steady_clock::time_point startTime;
+    cb::time::steady_clock::time_point lastLoggedHighMemoryPressure{};
 };
 
 bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -312,8 +316,7 @@ bool CacheTransferTask::run() {
     if (visitor.getStatus() == CacheTransferStream::Status::OOM) {
         // Ideally there should be a wake-up when memory reduces.
         // We may of queued nothing so cannot use producer wakeup
-        // @todo: configurable snooze time may be useful for testing
-        snooze(0.5);
+        snooze(maybeLogHighMemoryPressure(stream, "visiting reached OOM"));
     } else {
         // Cannot recall if this is needed - most of the time we want to yield
         // and run immediately, but ignore any previous snooze(0.1)
@@ -321,6 +324,22 @@ bool CacheTransferTask::run() {
     }
 
     return notifyAndGetRescheduleValue(true);
+}
+
+double CacheTransferTask::maybeLogHighMemoryPressure(
+        CacheTransferStream& stream, std::string_view msg) {
+    if (lastLoggedHighMemoryPressure.time_since_epoch().count() == 0 ||
+        (cb::time::steady_clock::now() - lastLoggedHighMemoryPressure) >
+                std::chrono::seconds(10)) {
+        OBJ_LOG_INFO_CTX(
+                stream,
+                "CacheTransferTask::backing off due to high memory pressure",
+                {"detail", msg},
+                {"vb", vbid});
+        lastLoggedHighMemoryPressure = cb::time::steady_clock::now();
+    }
+    return engine->getConfiguration()
+            .getDcpCacheTransferHighMemoryBackoffDuration();
 }
 
 CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
@@ -535,6 +554,10 @@ size_t CacheTransferStream::getMemoryUsed() const {
     return engine.getEpStats().getEstimatedTotalMemoryUsed();
 }
 
+CacheTransferStream::MemoryUsage CacheTransferStream::getMemoryUsage() const {
+    return {getMemoryUsed(), engine.getEpStats().mem_high_wat.load()};
+}
+
 bool CacheTransferStream::skip(const StoredValue& sv,
                                Collections::VB::ReadHandle& readHandle) const {
     // Check if the sv is eligible for transfer.
@@ -669,12 +692,12 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     }
 
     // Backoff off if over HWM
-    const auto hwm = engine.getEpStats().mem_high_wat.load();
-    const auto memoryUsed = getMemoryUsed();
-    if (memoryUsed > hwm) {
-        OBJ_LOG_DEBUG_CTX(*this,
-                          "CacheTransferStream OOM:",
-                          {{"mem_used", memoryUsed}, {"hwm", hwm}});
+    const auto memoryUsage = getMemoryUsage();
+    if (memoryUsage.isMemoryPressured()) {
+        OBJ_LOG_DEBUG_CTX(
+                *this,
+                "CacheTransferStream OOM:",
+                {{"mem_used", memoryUsage.used}, {"limit", memoryUsage.limit}});
         return Status::OOM;
     }
 

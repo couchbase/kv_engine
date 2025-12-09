@@ -159,7 +159,21 @@ protected:
         return getStartSeqno();
     }
 
+    // @return engine memory used (tests can override this to return a different
+    // value)
     virtual size_t getMemoryUsed() const;
+
+    struct MemoryUsage {
+        /// engine mem_used
+        size_t used{0};
+        /// memory limit (mem_high_wat)
+        size_t limit{0};
+        /// @return true if memory is pressured (used > limit)
+        bool isMemoryPressured() const {
+            return used > limit;
+        }
+    };
+    MemoryUsage getMemoryUsage() const;
 
     /**
      * Checks if the item should be skipped instead of queueing for transfer.

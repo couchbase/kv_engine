@@ -1312,6 +1312,12 @@
             "dynamic": true,
             "type": "bool"
         },
+        "dcp_cache_transfer_high_memory_backoff_duration": {
+            "default": "0.01",
+            "descr": "The duration in floating point seconds to snooze the CacheTransferTask when memory pressure is present and the task should back-off to avoid making memory usage worse (and wait for memory to reduce).",
+            "dynamic": true,
+            "type": "float"
+        },
         "dcp_cache_transfer_one_visit_per_step": {
             "default": "false",
             "descr": "Set to false for simpler unit-testing. When true CacheTransferTask to visit the hash table many times per step, when false one item per task step",
