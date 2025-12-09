@@ -651,13 +651,15 @@ FollyExecutorPool::FollyExecutorPool(
         ThreadPoolConfig::ThreadCount maxWriters_,
         ThreadPoolConfig::AuxIoThreadCount maxAuxIO_,
         ThreadPoolConfig::NonIoThreadCount maxNonIO_,
+        ThreadPoolConfig::SlowIoThreadCount maxSlowIO_,
         ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
     : ExecutorPool(maxThreads, ioThreadsPerCore),
       state(std::make_unique<State>()),
       maxReaders(calcNumReaders(maxReaders_)),
       maxWriters(calcNumWriters(maxWriters_)),
       maxAuxIO(calcNumAuxIO(maxAuxIO_)),
-      maxNonIO(calcNumNonIO(maxNonIO_)) {
+      maxNonIO(calcNumNonIO(maxNonIO_)),
+      maxSlowIO(calcNumSlowIO(maxSlowIO_)) {
     LOG_TRACE_CTX("FollyExecutorPool ctor()",
                   {"max_threads", maxThreads},
                   {"max_readers", maxReaders},
@@ -703,6 +705,8 @@ FollyExecutorPool::FollyExecutorPool(
             maxAuxIO, makeThreadFactory("AuxIoPool", TaskType::AuxIO));
     nonIoPool = std::make_unique<CancellableCPUExecutor>(
             maxNonIO, makeThreadFactory("NonIoPool", TaskType::NonIO));
+    slowIoPool = std::make_unique<CancellableCPUExecutor>(
+            maxAuxIO, makeThreadFactory("SlowIoPool", TaskType::SlowIO));
 }
 
 FollyExecutorPool::~FollyExecutorPool() {
@@ -719,6 +723,8 @@ FollyExecutorPool::~FollyExecutorPool() {
     writerPool.reset();
     readerPool->join();
     readerPool.reset();
+    slowIoPool->join();
+    slowIoPool.reset();
 
     auto* eventBase = futurePool->getEventBase();
     eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
@@ -728,7 +734,8 @@ FollyExecutorPool::~FollyExecutorPool() {
 
 size_t FollyExecutorPool::getNumWorkersStat() const {
     return readerPool->numThreads() + writerPool->numThreads() +
-           auxPool->numThreads() + nonIoPool->numThreads();
+           auxPool->numThreads() + nonIoPool->numThreads() +
+           slowIoPool->numThreads();
 }
 
 size_t FollyExecutorPool::getNumReaders() const {
@@ -745,6 +752,10 @@ size_t FollyExecutorPool::getNumAuxIO() const {
 
 size_t FollyExecutorPool::getNumNonIO() const {
     return nonIoPool->getPoolStats().threadCount;
+}
+
+size_t FollyExecutorPool::getNumSlowIO() const {
+    return slowIoPool->getPoolStats().threadCount;
 }
 
 void FollyExecutorPool::setNumReaders(ThreadPoolConfig::ThreadCount v) {
@@ -776,17 +787,23 @@ void FollyExecutorPool::setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) {
     nonIoPool->setNumThreads(maxNonIO);
 }
 
+void FollyExecutorPool::setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) {
+    maxSlowIO = calcNumSlowIO(v);
+    slowIoPool->setNumThreads(maxNonIO);
+}
+
 size_t FollyExecutorPool::getNumSleepers() const {
     return readerPool->getPoolStats().idleThreadCount +
            writerPool->getPoolStats().idleThreadCount +
            auxPool->getPoolStats().idleThreadCount +
-           nonIoPool->getPoolStats().idleThreadCount;
+           nonIoPool->getPoolStats().idleThreadCount +
+           slowIoPool->getPoolStats().idleThreadCount;
 }
 
 size_t FollyExecutorPool::getNumReadyTasks() const {
     return readerPool->getPendingTaskCount() +
            writerPool->getPendingTaskCount() + auxPool->getPendingTaskCount() +
-           nonIoPool->getPendingTaskCount();
+           nonIoPool->getPendingTaskCount() + slowIoPool->getPendingTaskCount();
 }
 
 void FollyExecutorPool::registerTaskable(Taskable& taskable) {
@@ -885,6 +902,15 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
                       {"pool", TaskType::NonIO},
                       {"taskable", taskable.getName()});
         for (auto task : nonIoPool->removeTasksForTaskable(taskable)) {
+            LOG_DEBUG_CTX("Cancelling task from runningQ",
+                          {"id", task->getId()});
+            state->cancelTask(task->getId(), true);
+        }
+
+        LOG_DEBUG_CTX("Removing tasks",
+                      {"pool", TaskType::SlowIO},
+                      {"taskable", taskable.getName()});
+        for (auto task : slowIoPool->removeTasksForTaskable(taskable)) {
             LOG_DEBUG_CTX("Cancelling task from runningQ",
                           {"id", task->getId()});
             state->cancelTask(task->getId(), true);
@@ -1116,6 +1142,10 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                     waitingTasksPerGroup[static_cast<size_t>(TaskType::AuxIO)],
                     add_stat,
                     cookie);
+    add_casted_stat("ep_workload:LowPrioQ_SlowIO:InQsize",
+                    waitingTasksPerGroup[static_cast<size_t>(TaskType::SlowIO)],
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_workload:LowPrioQ_NonIO:InQsize",
                     waitingTasksPerGroup[static_cast<size_t>(TaskType::NonIO)],
                     add_stat,
@@ -1131,6 +1161,10 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                     cookie);
     add_casted_stat("ep_workload:LowPrioQ_AuxIO:OutQsize",
                     auxPool->getTaskQueueSize(),
+                    add_stat,
+                    cookie);
+    add_casted_stat("ep_workload:LowPrioQ_SlowIO:OutQsize",
+                    slowIoPool->getTaskQueueSize(),
                     add_stat,
                     cookie);
     add_casted_stat("ep_workload:LowPrioQ_NonIO:OutQsize",
@@ -1151,6 +1185,8 @@ CancellableCPUExecutor* FollyExecutorPool::getPoolForTaskType(TaskType type) {
         return auxPool.get();
     case TaskType::NonIO:
         return nonIoPool.get();
+    case TaskType::SlowIO:
+        return slowIoPool.get();
     case TaskType::Count:
         folly::assume_unreachable();
     }

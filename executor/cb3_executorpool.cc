@@ -32,6 +32,11 @@ size_t CB3ExecutorPool::getNumAuxIO() const {
             numWorkers[static_cast<size_t>(TaskType::AuxIO)].load()));
 }
 
+size_t CB3ExecutorPool::getNumSlowIO() const {
+    return calcNumSlowIO(static_cast<ThreadPoolConfig::SlowIoThreadCount>(
+            numWorkers[static_cast<size_t>(TaskType::SlowIO)].load()));
+}
+
 size_t CB3ExecutorPool::getNumWriters() const {
     return calcNumWriters(ThreadPoolConfig::ThreadCount(
             numWorkers[static_cast<size_t>(TaskType::Writer)].load()));
@@ -48,6 +53,7 @@ CB3ExecutorPool::CB3ExecutorPool(
         ThreadPoolConfig::ThreadCount maxWriters,
         ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
         ThreadPoolConfig::NonIoThreadCount maxNonIO,
+        ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
         ThreadPoolConfig::IOThreadsPerCore ioThreadPerCore)
     : ExecutorPool(maxThreads, ioThreadPerCore),
       totReadyTasks(0),
@@ -70,6 +76,8 @@ CB3ExecutorPool::CB3ExecutorPool(
             static_cast<int>(maxAuxIO);
     numWorkers[static_cast<size_t>(TaskType::NonIO)] =
             static_cast<int>(maxNonIO);
+    numWorkers[static_cast<size_t>(TaskType::SlowIO)] =
+            static_cast<int>(maxSlowIO);
 }
 
 CB3ExecutorPool::~CB3ExecutorPool() {
@@ -514,11 +522,13 @@ bool CB3ExecutorPool::_startWorkers() {
     size_t numWriters = getNumWriters();
     size_t numAuxIO = getNumAuxIO();
     size_t numNonIO = getNumNonIO();
+    size_t numSlowIO = getNumSlowIO();
 
     _adjustWorkers(TaskType::Reader, numReaders);
     _adjustWorkers(TaskType::Writer, numWriters);
     _adjustWorkers(TaskType::AuxIO, numAuxIO);
     _adjustWorkers(TaskType::NonIO, numNonIO);
+    _adjustWorkers(TaskType::SlowIO, numSlowIO);
 
     return true;
 }

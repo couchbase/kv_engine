@@ -38,6 +38,7 @@ public:
                              ThreadPoolConfig::ThreadCount::Balanced,
                              ThreadPoolConfig::AuxIoThreadCount::Default,
                              ThreadPoolConfig::NonIoThreadCount::Default,
+                             ThreadPoolConfig::SlowIoThreadCount::Default,
                              ThreadPoolConfig::IOThreadsPerCore::Default);
     }
 

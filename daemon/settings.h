@@ -919,6 +919,16 @@ public:
         notify_changed("num_nonio_threads");
     }
 
+    int getNumSlowIoThreads() const {
+        return num_slowio_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumSlowIoThreads(int val) {
+        num_slowio_threads.store(val, std::memory_order_release);
+        has.num_slowio_threads = true;
+        notify_changed("num_slowio_threads");
+    }
+
     int getNumIOThreadsPerCore() const {
         return num_io_threads_per_core.load(std::memory_order_acquire);
     }
@@ -1431,6 +1441,8 @@ protected:
             static_cast<int>(ThreadPoolConfig::AuxIoThreadCount::Default)};
     std::atomic<int> num_nonio_threads{
             static_cast<int>(ThreadPoolConfig::NonIoThreadCount::Default)};
+    std::atomic<int> num_slowio_threads{
+            static_cast<int>(ThreadPoolConfig::SlowIoThreadCount::Default)};
 
     /// When calculating IO thread counts (AuxIO, later Reader & Writer),
     /// how many threads should be created per logical core - i.e. what
@@ -1647,6 +1659,7 @@ public:
         bool num_writer_threads = false;
         bool num_auxio_threads = false;
         bool num_nonio_threads = false;
+        bool num_slowio_threads = false;
         bool num_io_threads_per_core = false;
         bool num_storage_threads = false;
         bool not_locked_returns_tmpfail = false;

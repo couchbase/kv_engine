@@ -6481,6 +6481,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_workload:LowPrioQ_AuxIO:OutQsize",
               "ep_workload:LowPrioQ_NonIO:InQsize",
               "ep_workload:LowPrioQ_NonIO:OutQsize",
+              "ep_workload:LowPrioQ_SlowIO:InQsize",
+              "ep_workload:LowPrioQ_SlowIO:OutQsize",
               "ep_workload:LowPrioQ_Reader:InQsize",
               "ep_workload:LowPrioQ_Reader:OutQsize",
               "ep_workload:LowPrioQ_Writer:InQsize",

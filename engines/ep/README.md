@@ -231,7 +231,7 @@ ExTask myNewTask = new MyNewTask(&engine);
 myNewTaskId = ExecutorPool::get()->schedule(myNewTask, TaskType::NonIO);
 ```
 
-The 4 task queue types are:
+The 5 task queue types are:
 * Readers -  `TaskType::Reader`
  * Tasks that should primarily only read from 'disk'. They generally read from
 the vbucket database files, for example background fetch of a non-resident document.
@@ -242,6 +242,9 @@ the vbucket database files, for example when flushing the write queue.
  * Tasks that read and write 'disk', but not necessarily the vbucket data files.
 * Non IO `TaskType::NonIO`
  * Tasks that do not perform 'disk' I/O.
+* Slow IO `TaskType::SlowIO`
+ * Tasks that perform slow I/O operations which may block for a long time,
+   for example downloading a file over the network.
 
 ### Utilise `snooze`
 

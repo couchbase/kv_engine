@@ -101,6 +101,7 @@ public:
                     ThreadPoolConfig::ThreadCount maxWriters,
                     ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                     ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                    ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                     ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore);
 
     ~CB3ExecutorPool() override;
@@ -184,6 +185,8 @@ public:
 
     size_t getNumNonIO() const override;
 
+    size_t getNumSlowIO() const override;
+
     std::string_view getName() const override {
         return "CB3";
     }
@@ -210,6 +213,10 @@ public:
 
     void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) override {
         adjustWorkers(TaskType::NonIO, calcNumNonIO(v));
+    }
+
+    void setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) override {
+        adjustWorkers(TaskType::SlowIO, calcNumSlowIO(v));
     }
 
     size_t getNumReadyTasks() const override {

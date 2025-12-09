@@ -19,7 +19,8 @@ enum class TaskType {
     Reader = 1,
     AuxIO = 2,
     NonIO = 3,
-    Count = 4 // keep this as last element of the enum
+    SlowIO = 4,
+    Count = 5 // keep this as last element of the enum
 };
 
 static inline std::string to_string(const TaskType type) {
@@ -32,6 +33,8 @@ static inline std::string to_string(const TaskType type) {
         return "AuxIO";
     case TaskType::NonIO:
         return "NonIO";
+    case TaskType::SlowIO:
+        return "SlowIO";
     case TaskType::None:
         return "None";
     case TaskType::Count:

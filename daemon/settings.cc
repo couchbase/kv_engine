@@ -311,6 +311,19 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "unsigned integer or \"default\"!! Value:'{}'",
                         value.dump()));
             }
+        } else if (key == "num_slowio_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumSlowIoThreads(value.get<int>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumSlowIoThreads(static_cast<int>(
+                        ThreadPoolConfig::SlowIoThreadCount::Default));
+            } else {
+                throw std::invalid_argument(fmt::format(
+                        "Value to set number of SlowIO threads must be an "
+                        "unsigned integer or \"default\"! Value:'{}'",
+                        value.dump()));
+            }
         } else if (key == "num_io_threads_per_core"sv) {
             if (value.is_number_unsigned()) {
                 setNumIOThreadsPerCore(value.get<int>());
@@ -1128,6 +1141,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      {"from", getNumNonIoThreads()},
                      {"to", other.getNumNonIoThreads()});
         setNumNonIoThreads(other.getNumNonIoThreads());
+    }
+
+    if (other.has.num_slowio_threads &&
+        other.getNumSlowIoThreads() != getNumSlowIoThreads()) {
+        LOG_INFO_CTX("Change number of SlowIO threads",
+                     {"from", getNumSlowIoThreads()},
+                     {"to", other.getNumSlowIoThreads()});
+        setNumSlowIoThreads(other.getNumSlowIoThreads());
     }
 
     if (other.has.num_io_threads_per_core) {

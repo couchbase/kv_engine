@@ -28,6 +28,7 @@ void ExecutorPool::create(Backend backend,
                           ThreadPoolConfig::ThreadCount maxWriters,
                           ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                           ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                          ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                           ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore) {
     if (getInstance()) {
         throw std::logic_error("ExecutorPool::create() Pool already created");
@@ -40,6 +41,7 @@ void ExecutorPool::create(Backend backend,
                                                             maxWriters,
                                                             maxAuxIO,
                                                             maxNonIO,
+                                                            maxSlowIO,
                                                             ioThreadsPerCore);
         return;
     case Backend::CB3:
@@ -48,6 +50,7 @@ void ExecutorPool::create(Backend backend,
                                                           maxWriters,
                                                           maxAuxIO,
                                                           maxNonIO,
+                                                          maxSlowIO,
                                                           ioThreadsPerCore);
         return;
     case Backend::Fake:
@@ -209,6 +212,20 @@ size_t ExecutorPool::calcNumNonIO(
     }
 }
 
+size_t ExecutorPool::calcNumSlowIO(
+        ThreadPoolConfig::SlowIoThreadCount threadCount) const {
+    switch (threadCount) {
+    case ThreadPoolConfig::SlowIoThreadCount::Default: {
+        // Default to 4 SlowIO threads (allows for 4 vbucket transfers in
+        // parallel).
+        return 4;
+    }
+    default:
+        // User specified an explicit value - use that unmodified.
+        return static_cast<size_t>(threadCount);
+    }
+}
+
 int ExecutorPool::getThreadPriority(TaskType taskType) {
     // Decrease the priority of Writer and AuxIO threads to lessen their impact on
     // other threads (esp front-end workers which should be prioritized ahead
@@ -232,6 +249,7 @@ int ExecutorPool::getThreadPriority(TaskType taskType) {
     switch (taskType) {
     case TaskType::Writer:
     case TaskType::AuxIO:
+    case TaskType::SlowIO:
         // Linux uses the range -20..19 (highest..lowest).
         return 19;
     case TaskType::Reader:

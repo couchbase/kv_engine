@@ -67,6 +67,7 @@ int main(int argc, char** argv) {
                          ThreadPoolConfig::ThreadCount::Balanced,
                          ThreadPoolConfig::AuxIoThreadCount::Default,
                          ThreadPoolConfig::NonIoThreadCount::Default,
+                         ThreadPoolConfig::SlowIoThreadCount::Default,
                          ThreadPoolConfig::IOThreadsPerCore::Default);
 
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();

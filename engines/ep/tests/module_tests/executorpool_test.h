@@ -31,12 +31,14 @@ public:
                      ThreadPoolConfig::ThreadCount maxWriters,
                      ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                      ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                     ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                      ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
         : CB3ExecutorPool(maxThreads,
                           maxReaders,
                           maxWriters,
                           maxAuxIO,
                           maxNonIO,
+                          maxSlowIO,
                           ioThreadsPerCore) {
     }
 
@@ -57,7 +59,10 @@ protected:
                   int numWriters = 2,
                   int numAuxIO = 2,
                   int numNonIO = 2,
-                  int ioThreadsPerCore = 1);
+                  ThreadPoolConfig::SlowIoThreadCount maxSlowIO =
+                          static_cast<ThreadPoolConfig::SlowIoThreadCount>(2),
+                  ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore =
+                          static_cast<ThreadPoolConfig::IOThreadsPerCore>(1));
 
     std::unique_ptr<T> pool;
 

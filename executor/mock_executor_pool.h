@@ -24,6 +24,7 @@ public:
                           ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
                           ThreadPoolConfig::AuxIoThreadCount(1) /*maxAuxIO*/,
                           ThreadPoolConfig::NonIoThreadCount(1) /*maxNonIO*/,
+                          ThreadPoolConfig::SlowIoThreadCount(1),
                           ThreadPoolConfig::IOThreadsPerCore::Default) {
     }
 

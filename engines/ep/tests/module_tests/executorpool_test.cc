@@ -58,19 +58,21 @@ ExTask makeTask(Taskable& taskable,
 }
 
 template <typename T>
-void ExecutorPoolTest<T>::makePool(int maxThreads,
-                                   int numReaders,
-                                   int numWriters,
-                                   int numAuxIO,
-                                   int numNonIO,
-                                   int ioThreadsPerCore) {
-    pool = std::make_unique<T>(
-            maxThreads,
-            ThreadPoolConfig::ThreadCount(numReaders),
-            ThreadPoolConfig::ThreadCount(numWriters),
-            ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
-            ThreadPoolConfig::NonIoThreadCount(numNonIO),
-            ThreadPoolConfig::IOThreadsPerCore(ioThreadsPerCore));
+void ExecutorPoolTest<T>::makePool(
+        int maxThreads,
+        int numReaders,
+        int numWriters,
+        int numAuxIO,
+        int numNonIO,
+        ThreadPoolConfig::SlowIoThreadCount numSlowIO,
+        ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore) {
+    pool = std::make_unique<T>(maxThreads,
+                               ThreadPoolConfig::ThreadCount(numReaders),
+                               ThreadPoolConfig::ThreadCount(numWriters),
+                               ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
+                               ThreadPoolConfig::NonIoThreadCount(numNonIO),
+                               numSlowIO,
+                               ioThreadsPerCore);
 }
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
@@ -89,24 +91,24 @@ TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
     // Only CB3ExecutorPool starts / stops threads on first / last
     // taskable.
     const auto expectedInitialWorkers =
-            (typeid(TypeParam) == typeid(TestExecutorPool)) ? 0 : 8;
+            (typeid(TypeParam) == typeid(TestExecutorPool)) ? 0 : 10;
 
     ASSERT_EQ(expectedInitialWorkers, this->pool->getNumWorkersStat());
     ASSERT_EQ(0, this->pool->getNumTaskables());
 
     this->pool->registerTaskable(taskable);
 
-    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(10, this->pool->getNumWorkersStat());
     ASSERT_EQ(1, this->pool->getNumTaskables());
 
     this->pool->registerTaskable(taskable2);
 
-    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(10, this->pool->getNumWorkersStat());
     ASSERT_EQ(2, this->pool->getNumTaskables());
 
     this->pool->unregisterTaskable(taskable2, false);
 
-    ASSERT_EQ(8, this->pool->getNumWorkersStat());
+    ASSERT_EQ(10, this->pool->getNumWorkersStat());
     ASSERT_EQ(1, this->pool->getNumTaskables());
 
     this->pool->unregisterTaskable(taskable, false);
@@ -864,15 +866,21 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
     const size_t numWriters = 1;
     const size_t numAuxIO = 1;
     const size_t numNonIO = 1;
+    const size_t numSlowIO = 1;
 
     const size_t originalWorkers =
-            numReaders + numWriters + numAuxIO + numNonIO;
+            numReaders + numWriters + numAuxIO + numNonIO + numSlowIO;
 
     // This will allow us to check that numWriters + 1 writer tasks can run
     // concurrently after setNumWriters has been called.
     ThreadGate tg{numWriters + 1};
 
-    this->makePool(5, numReaders, numWriters, numAuxIO, numNonIO);
+    this->makePool(5,
+                   numReaders,
+                   numWriters,
+                   numAuxIO,
+                   numNonIO,
+                   static_cast<ThreadPoolConfig::SlowIoThreadCount>(numSlowIO));
 
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
@@ -1041,6 +1049,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStats) {
                 callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_SlowIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_SlowIO:OutQsize", "0", _));
 
     MockCookie cookie;
     this->pool->doTaskQStat(lowPriBucket, cookie, mockAddStat.asStdFunction());
@@ -1100,6 +1112,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
                 callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_SlowIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_SlowIO:OutQsize", "0", _));
 
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:HiPrioQ_Writer:InQsize", "3", _));
@@ -1117,6 +1133,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
                 callback("ep_workload:HiPrioQ_NonIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:HiPrioQ_NonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_SlowIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_SlowIO:OutQsize", "0", _));
 
     MockCookie cookie;
     this->pool->doTaskQStat(lowPriBucket, cookie, mockAddStat.asStdFunction());
@@ -1133,7 +1153,8 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
         GTEST_SKIP();
     }
 
-    this->makePool(1, 1, 1, 1, 1);
+    this->makePool(
+            1, 1, 1, 1, 1, static_cast<ThreadPoolConfig::SlowIoThreadCount>(1));
     // Create two buckets so they have different names.
     NiceMock<MockTaskable> bucket0("bucket0");
     NiceMock<MockTaskable> bucket1("bucket1");
@@ -1173,6 +1194,11 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:bucket", "bucket0", _));
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:state", "running", _));
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:task", "Lambda Task", _));
+
+    EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:state", _, _));
+    EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:task", _, _));
+    EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:cur_time", _, _));
+
     // The 'runtime' stat is only reported if the thread is in state
     // EXECUTOR_RUNNING. Nominally it will only be in that state when actually
     // running a task, however it also briefly exists in that state when
@@ -1622,6 +1648,7 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
                           expected.in_reader_writer,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
                           ThreadPoolConfig::NonIoThreadCount::Default,
+                          ThreadPoolConfig::SlowIoThreadCount::Default,
                           ThreadPoolConfig::IOThreadsPerCore::Default);
 
     pool.registerTaskable(taskable);

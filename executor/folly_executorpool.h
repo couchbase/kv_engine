@@ -159,6 +159,7 @@ public:
                       ThreadPoolConfig::ThreadCount maxWriters,
                       ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                       ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                      ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                       ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore);
 
     ~FollyExecutorPool() override;
@@ -168,12 +169,14 @@ public:
     size_t getNumWriters() const override;
     size_t getNumAuxIO() const override;
     size_t getNumNonIO() const override;
+    size_t getNumSlowIO() const override;
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override;
     void setNumReadersExactly(uint16_t v) override;
     size_t getNumReadersExactly() const override;
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override;
     void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) override;
     void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) override;
+    void setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) override;
     size_t getNumSleepers() const override;
     size_t getNumReadyTasks() const override;
     std::string_view getName() const override {
@@ -227,11 +230,13 @@ private:
     std::unique_ptr<CancellableCPUExecutor> writerPool;
     std::unique_ptr<CancellableCPUExecutor> auxPool;
     std::unique_ptr<CancellableCPUExecutor> nonIoPool;
+    std::unique_ptr<CancellableCPUExecutor> slowIoPool;
 
     size_t maxReaders;
     size_t maxWriters;
     size_t maxAuxIO;
     size_t maxNonIO;
+    size_t maxSlowIO;
 
     /// Grant friendship to TaskProxy as it needs to be able to re-schedule
     /// itself using the futurePool.

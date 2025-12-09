@@ -59,6 +59,17 @@ struct ThreadPoolConfig {
         /// (including zero which means "no threads", useful for testing).
     };
 
+    /// Number of SlowIO threads to be created. Similar to ThreadCount, except
+    /// has no 'DiskIOOptimized' setting, and '0' is a valid number of "real"
+    /// threads to create.
+    enum class SlowIoThreadCount : int {
+        /// Let the executor pool select the thread count based on # of CPU
+        /// cores
+        Default = -1,
+        // Any other non-negative integer value is an explicit number of threads
+        /// (including zero which means "no threads", useful for testing).
+    };
+
     /// Number of IO threads to create per CPU core, for thread pools which
     /// have (potentially) multiple threads created per CPU (currently AuxIO
     /// pool).
