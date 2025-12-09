@@ -260,8 +260,12 @@ TEST_P(StreamTest, VerifyProducerStats) {
     registerCursorAtCMStart();
 
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
+    // MB-69484: Note expected_next_state has no intended affect on this test,
+    // it is just sneaky check that this key can be added with topology without
+    // creating a whole new test
     nlohmann::json meta = {
-            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+            {"topology", nlohmann::json::array({{"active", "replica"}})},
+            {"expected_next_state", "active"}};
     vb->setState(vbucket_state_active, &meta);
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,

@@ -763,7 +763,11 @@ void VBucket::setState_UNLOCKED(
         setTakeoverBackedUpState(false);
     }
 
-    setupSyncReplication(vbStateLock, meta ? &meta->at("topology") : nullptr);
+    if (meta && meta->contains("topology")) {
+        setupSyncReplication(vbStateLock, &meta->at("topology"));
+    } else {
+        setupSyncReplication(vbStateLock, nullptr);
+    }
 
     updateStatsForStateChange(oldstate, to);
 

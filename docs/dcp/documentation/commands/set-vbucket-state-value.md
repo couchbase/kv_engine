@@ -9,6 +9,10 @@ The following keys can be include in the JSOn object.
 * `topology` - for setting a replication topology required for Synchronous
                Replication
 
+* `use_snapshot` - for creating a vbucket from an existing snapshot (File-Based rebalance or Fusion)
+
+* `next_expected_state` - to help optimise rebalance
+
 ## Key Definition
 
 ### topology
@@ -52,3 +56,19 @@ A replication topology with two chains
     "topology" : [[<active_name>, <replica_name>],[<new_active_name>, <new_replica_name>]]
 }
 ```
+
+### use_snapshot
+
+Accepts the string value "fbr" or "fusion". In these cases the vbucket will not be created in
+the empty/epoch state, instead the vbucket will use a disk snapshot to seed the creation.
+
+In this case the vbucket creation will run asynchronously as disk I/O is required to read the
+snapshot.
+
+### next_expected_state
+
+Accepts the string values "active", "replica", "pending" or "dead". This exists primarily for
+rebalance when a vbucket is first created as a replica, but may (provided no errors) switch
+to a new state, for example this vbucket will become an active once rebalance has moved data.
+This permits kv-engine to better manage the cache, for example priortising vbuckets that will
+become active and ensuring they get enough cache space.
