@@ -92,10 +92,10 @@ public:
 };
 
 TEST_P(DcpCacheTransferTest, basic_stream) {
-    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("2"), "2"));
+    expectedItems.insert(store_item(vbid, makeStoredDocKey("2"), "2"));
     auto stream = createStream(*producer,
                                1,
-                               Vbid(0),
+                               vbid,
                                store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno());
     runCacheTransferTask();
@@ -104,6 +104,19 @@ TEST_P(DcpCacheTransferTest, basic_stream) {
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
+
+    // MB-69678: Provide dcp-takeover stat payload to ns_server
+    std::unordered_map<std::string, std::string> payload;
+    const auto addStatFunc = [&payload](std::string_view key,
+                                        std::string_view value,
+                                        CookieIface&) {
+        payload.emplace(key, value);
+    };
+    engine->public_doDcpVbTakeoverStats(
+            *cookie, addStatFunc, producer->getName(), vbid);
+    for (const auto& key : {"status", "estimate", "chk_items"}) {
+        EXPECT_TRUE(payload.contains(key));
+    }
 }
 
 TEST_P(DcpCacheTransferTest, basic_stream2) {

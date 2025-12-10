@@ -403,9 +403,14 @@ void CacheTransferStream::cancelTransfer() {
 void CacheTransferStream::addTakeoverStats(const AddStatFn& add_stat,
                                            CookieIface& c,
                                            const VBucket& vb) {
-    // @todo: figure out if we need to provide takeover stats.
-    // We certainly need to provide some stats if the CTS is created during
-    // takeover.
+    // MB-69678: Since MB-68800 CacheTransfer runs over the initial stream
+    // phase (ie non-takeover phase). Still, ns_server pulls takeover-stats
+    // during non-takeover phases (eg for backfill information). On a
+    // CacheTransferStream we don't need to provide any useful information, but
+    // an empty payload wouldd break ns_server.
+    add_casted_stat("status", "calculating-item-count", add_stat, c);
+    add_casted_stat("estimate", 0, add_stat, c);
+    add_casted_stat("chk_items", 0, add_stat, c);
 }
 
 void CacheTransferStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
