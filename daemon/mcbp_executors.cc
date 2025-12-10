@@ -769,18 +769,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
     }
 }
 
-static void dcp_cached_value_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return dcp_cached_value(c);
-          }).drive();
-}
-
-static void dcp_cached_key_meta_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return dcp_cached_key_meta(c);
-          }).drive();
-}
-
 static void dcp_cache_transfer_end_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
               return dcp_cache_transfer_end(c);

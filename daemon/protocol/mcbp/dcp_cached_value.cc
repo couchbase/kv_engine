@@ -11,13 +11,14 @@
 #include "dcp_cached_value.h"
 #include "daemon/cookie.h"
 #include "engine_wrapper.h"
+#include "executors.h"
 
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-cb::engine_errc dcp_cached_value(Cookie& cookie) {
+static cb::engine_errc dcp_cached_value(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
@@ -47,7 +48,7 @@ cb::engine_errc dcp_cached_value(Cookie& cookie) {
                           extras.getNru());
 }
 
-cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
+static cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
@@ -68,4 +69,28 @@ cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
 cb::engine_errc dcp_cache_transfer_end(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     return dcpCacheTransferEnd(cookie, req.getOpaque(), req.getVBucket());
+}
+
+void dcp_cached_value_executor(Cookie& cookie) {
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
+
+    if (ret == cb::engine_errc::success) {
+        ret = dcp_cached_value(cookie);
+    }
+
+    if (ret != cb::engine_errc::success) {
+        handle_executor_status(cookie, ret);
+    }
+}
+
+void dcp_cached_key_meta_executor(Cookie& cookie) {
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
+
+    if (ret == cb::engine_errc::success) {
+        ret = dcp_cached_key_meta(cookie);
+    }
+
+    if (ret != cb::engine_errc::success) {
+        handle_executor_status(cookie, ret);
+    }
 }
