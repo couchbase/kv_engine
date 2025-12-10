@@ -262,15 +262,6 @@ bool CacheTransferTask::run() {
                  {"total_runtime_ms", totalRuntimeMs},
                  {"total_bytes_queued", stream.getTotalBytesQueued()}});
 
-        if (vb->ht.getNumItems() != visitedCount) {
-            OBJ_LOG_WARN_CTX(
-                    stream,
-                    "CacheTransferTask::run: ht_num_items != visitedCount",
-                    {{"vbid", vbid},
-                     {"ht_num_items", vb->ht.getNumItems()},
-                     {"visited_count", visitedCount}});
-        }
-
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
         // Notify the producer as we have queued a stream end.
         notify = true;
