@@ -1382,7 +1382,7 @@ protected:
 
     cb::engine_errc doDcpVbTakeoverStats(CookieIface& cookie,
                                          const AddStatFn& add_stat,
-                                         std::string& key,
+                                         std::string_view key,
                                          Vbid vbid);
     cb::engine_errc doVbIdFailoverLogStats(CookieIface& cookie,
                                            const AddStatFn& add_stat,

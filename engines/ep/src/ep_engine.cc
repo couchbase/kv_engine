@@ -6351,7 +6351,7 @@ bool EventuallyPersistentEngine::mustRemapNMVB() const {
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
-        std::string& key,
+        std::string_view key,
         Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
     if (!vb) {

@@ -98,7 +98,7 @@ public:
 
     cb::engine_errc public_doDcpVbTakeoverStats(CookieIface& cookie,
                                                 const AddStatFn& add_stat,
-                                                std::string& key,
+                                                std::string_view key,
                                                 Vbid vbid) {
         return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);
     }
