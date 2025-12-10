@@ -949,8 +949,11 @@ struct EngineIface {
      * sync the data to fusion.
      *
      * @param vbid The vbucket to sync
+     * @param reset If true the next upload will upload all data from scratch,
+     * else only sync new data.
      */
-    [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid);
+    [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid,
+                                                             bool reset);
 
     /**
      * Start uploading data to FusionLogStore for the latest revision of the

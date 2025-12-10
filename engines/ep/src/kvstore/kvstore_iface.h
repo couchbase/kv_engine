@@ -935,7 +935,7 @@ public:
 
     virtual cb::engine_errc setChronicleAuthToken(std::string_view token) = 0;
     virtual std::string getChronicleAuthToken() const = 0;
-    virtual cb::engine_errc syncFusionLogstore(Vbid vbid) = 0;
+    virtual cb::engine_errc syncFusionLogstore(Vbid vbid, bool reset) = 0;
     virtual cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) = 0;
     virtual cb::engine_errc stopFusionUploader(Vbid vbid) = 0;
 

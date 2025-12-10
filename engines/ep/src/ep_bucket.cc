@@ -3411,13 +3411,13 @@ cb::engine_errc EPBucket::doSnapshotDeks(const StatCollector& collector) {
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::syncFusionLogstore(Vbid vbid) {
+cb::engine_errc EPBucket::syncFusionLogstore(Vbid vbid, bool reset) {
     auto* underlying = getRWUnderlying(vbid);
     Expects(underlying);
     if (!underlying->getStorageProperties().supportsFusion()) {
         return cb::engine_errc::not_supported;
     }
-    return getRWUnderlying(vbid)->syncFusionLogstore(vbid);
+    return getRWUnderlying(vbid)->syncFusionLogstore(vbid, reset);
 }
 
 cb::engine_errc EPBucket::startFusionUploader(Vbid vbid, uint64_t term) {

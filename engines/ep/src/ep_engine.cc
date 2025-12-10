@@ -7606,8 +7606,9 @@ cb::engine_errc EventuallyPersistentEngine::unmountVBucket(Vbid vbid) {
     return acquireEngine(this)->unmountVBucketInner(vbid);
 }
 
-cb::engine_errc EventuallyPersistentEngine::syncFusionLogstore(Vbid vbid) {
-    return acquireEngine(this)->syncFusionLogstoreInner(vbid);
+cb::engine_errc EventuallyPersistentEngine::syncFusionLogstore(Vbid vbid,
+                                                               bool reset) {
+    return acquireEngine(this)->syncFusionLogstoreInner(vbid, reset);
 }
 
 cb::engine_errc EventuallyPersistentEngine::startFusionUploader(Vbid vbid,
@@ -7861,9 +7862,10 @@ std::string EventuallyPersistentEngine::getFusionNamespace() const {
     return generateFusionNamespace(configuration.getUuid());
 }
 
-cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(Vbid vbid) {
+cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(
+        Vbid vbid, bool reset) {
     Expects(kvBucket);
-    return kvBucket->syncFusionLogstore(vbid);
+    return kvBucket->syncFusionLogstore(vbid, reset);
 }
 
 cb::engine_errc EventuallyPersistentEngine::startFusionUploaderInner(

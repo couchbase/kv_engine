@@ -234,7 +234,9 @@ public:
     void SetHistoryRetentionTime(std::chrono::seconds historySeconds);
 
     magma::Status Sync(bool flushAll, bool fusion = false);
-    magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID, bool fusion);
+    magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID,
+                              bool fusion,
+                              bool reset = false);
 
     magma::Status WriteDocs(
             const magma::Magma::KVStoreID kvID,

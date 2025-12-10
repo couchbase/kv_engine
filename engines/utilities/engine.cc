@@ -67,7 +67,7 @@ cb::engine_errc EngineIface::unmountVBucket(Vbid vbid) {
     return cb::engine_errc::not_supported;
 }
 
-cb::engine_errc EngineIface::syncFusionLogstore(Vbid vbid) {
+cb::engine_errc EngineIface::syncFusionLogstore(Vbid vbid, bool reset) {
     return cb::engine_errc::not_supported;
 }
 

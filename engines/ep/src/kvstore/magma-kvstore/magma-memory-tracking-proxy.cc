@@ -536,10 +536,16 @@ magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll, bool fusion) {
 }
 
 magma::Status MagmaMemoryTrackingProxy::SyncKVStore(
-        const magma::Magma::KVStoreID kvID, bool fusion) {
+        const magma::Magma::KVStoreID kvID, bool fusion, bool reset) {
     TRACE_EVENT1("magma", "Magma::SyncKVStore", "vbid", kvID);
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->SyncKVStore(kvID, fusion);
+
+    magma::Magma::SyncMode mode = magma::Magma::SyncMode::Default;
+    if (fusion) {
+        mode = reset ? magma::Magma::SyncMode::FusionReset
+                     : magma::Magma::SyncMode::FusionCheckpoint;
+    }
+    return magma->SyncKVStore(kvID, mode);
 }
 
 magma::Status MagmaMemoryTrackingProxy::WriteDocs(

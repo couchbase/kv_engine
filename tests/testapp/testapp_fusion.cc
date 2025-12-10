@@ -56,7 +56,7 @@ protected:
 
     BinprotResponse stopFusionUploader(Vbid vbid);
 
-    BinprotResponse syncFusionLogstore(Vbid vbid);
+    BinprotResponse syncFusionLogstore(Vbid vbid, bool reset = false);
 
     /**
      * @param vbid
@@ -327,10 +327,14 @@ void FusionTest::waitForUploaderState(Vbid vbid, std::string_view state) {
     }
 }
 
-BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid) {
+BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid, bool reset) {
     auto cmd =
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SyncFusionLogstore};
     cmd.setVBucket(vbid);
+    nlohmann::json json;
+    json["reset"] = reset;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
     return connection->execute(cmd);
 }
 

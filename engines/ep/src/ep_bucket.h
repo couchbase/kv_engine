@@ -473,7 +473,7 @@ public:
     cb::engine_errc doSnapshotDebugStats(const StatCollector&,
                                          std::string_view) override;
 
-    cb::engine_errc syncFusionLogstore(Vbid vbid) override;
+    cb::engine_errc syncFusionLogstore(Vbid vbid, bool reset) override;
 
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
 

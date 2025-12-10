@@ -4858,7 +4858,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
     return {cb::engine_errc::success, std::get<std::vector<std::string>>(res)};
 }
 
-cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
+cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid, bool reset) {
     const auto status = magma->SyncKVStore(Magma::KVStoreID(vbid.get()), true);
     if (status.ErrorCode() != Status::Code::Ok) {
         if (status.ErrorCode() == Status::Code::InvalidKVStore) {
@@ -4866,7 +4866,8 @@ cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
         }
         EP_LOG_WARN_CTX("MagmaKVStore::syncFusionLogstore: ",
                         {"vb", vbid},
-                        {"status", status.String()});
+                        {"status", status.String()},
+                        {"reset", reset});
         return cb::engine_errc::failed;
     }
     return cb::engine_errc::success;

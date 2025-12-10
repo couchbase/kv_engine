@@ -3128,13 +3128,41 @@ static Status unmount_vbucket_validator(Cookie& cookie) {
 }
 
 static Status sync_fusion_logstore_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto value = cookie.getRequest().getValueString();
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(value);
+    } catch (const nlohmann::json::exception& e) {
+        const auto msg = fmt::format(
+                "sync_fusion_logstore_validator: Invalid json '{}' "
+                "{}",
+                value,
+                e.what());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    if (!json.contains("reset")) {
+        cookie.setErrorContext("sync_fusion_logstore_validator: Missing reset");
+        return Status::Einval;
+    }
+    if (!json["reset"].is_boolean()) {
+        cookie.setErrorContext(
+                "sync_fusion_logstore_validator: reset not boolean");
+        return Status::Einval;
+    }
+    return status;
 }
 
 static Status start_fusion_uploader_validator(Cookie& cookie) {

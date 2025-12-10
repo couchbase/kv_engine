@@ -28,8 +28,11 @@ SyncFusionLogstoreCommandContext::SyncFusionLogstoreCommandContext(
 
 cb::engine_errc SyncFusionLogstoreCommandContext::execute() {
     try {
+        const auto& req = cookie.getRequest();
+        const auto request = nlohmann::json::parse(req.getValueString());
+        const bool reset = request["reset"];
         auto& engine = cookie.getConnection().getBucketEngine();
-        return engine.syncFusionLogstore(vbid);
+        return engine.syncFusionLogstore(vbid, reset);
     } catch (const std::exception& e) {
         LOG_WARNING_CTX("SyncFusionLogstoreCommandContext: ",
                         {"error", e.what()});

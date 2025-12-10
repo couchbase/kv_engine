@@ -1010,7 +1010,7 @@ public:
         return {};
     }
 
-    cb::engine_errc syncFusionLogstore(Vbid vbid) override {
+    cb::engine_errc syncFusionLogstore(Vbid vbid, bool reset) override {
         return cb::engine_errc::not_supported;
     }
 

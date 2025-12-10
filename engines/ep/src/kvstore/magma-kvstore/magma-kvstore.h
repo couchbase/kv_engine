@@ -675,7 +675,7 @@ public:
             VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override;
 
-    cb::engine_errc syncFusionLogstore(Vbid vbid) override;
+    cb::engine_errc syncFusionLogstore(Vbid vbid, bool reset) override;
 
     /**
      * Schedules a task for starting the fusion uploader in bg-thread.

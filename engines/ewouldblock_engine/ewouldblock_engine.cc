@@ -267,7 +267,7 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
-    cb::engine_errc syncFusionLogstore(Vbid vbid) override;
+    cb::engine_errc syncFusionLogstore(Vbid vbid, bool reset) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
@@ -1493,8 +1493,8 @@ cb::engine_errc EWB_Engine::unmountVBucket(Vbid vbid) {
     return real_engine->unmountVBucket(vbid);
 }
 
-cb::engine_errc EWB_Engine::syncFusionLogstore(Vbid vbid) {
-    return real_engine->syncFusionLogstore(vbid);
+cb::engine_errc EWB_Engine::syncFusionLogstore(Vbid vbid, bool reset) {
+    return real_engine->syncFusionLogstore(vbid, reset);
 }
 
 cb::engine_errc EWB_Engine::startFusionUploader(Vbid vbid, uint64_t term) {

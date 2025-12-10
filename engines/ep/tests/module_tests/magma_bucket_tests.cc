@@ -1679,7 +1679,8 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
                 "StartFusionUploaderTask vb:0");
     ASSERT_TRUE(dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid))
                         .isFusionUploader(vbid));
-    EXPECT_EQ(cb::engine_errc::success, engine->syncFusionLogstore(vbid));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->syncFusionLogstore(vbid, false));
 
     const auto guestVolumePaths = setupGuestVolumes(3);
 
