@@ -55,7 +55,8 @@ void SubdocPerfTest::subdoc_perf_test_array(cb::mcbp::ClientOpcode cmd,
     store_document("list", "[]");
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(cmd, "list", "", std::to_string(i)));
+        ASSERT_TRUE(subdoc_verify_cmd(
+                BinprotSubdocCommand(cmd, "list", "", std::to_string(i))));
     }
 
     delete_object("list");
@@ -112,8 +113,8 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[0]"));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[0]")));
     }
     delete_object("list");
 }
@@ -124,8 +125,8 @@ TEST_P(SubdocPerfTest, Array_RemoveLast) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[-1]"));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[-1]")));
     }
     delete_object("list");
 }
@@ -136,8 +137,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[0]", "1"));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[0]", "1")));
     }
     delete_object("list");
 }
@@ -148,8 +149,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle) {
 
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocReplace, "list", path, "1"));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", path, "1")));
     }
     delete_object("list");
 }
@@ -159,8 +160,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceLast) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[-1]", "1"));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[-1]", "1")));
     }
     delete_object("list");
 }
@@ -171,8 +172,8 @@ TEST_P(SubdocPerfTest, Dict_Add) {
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocDictAdd, "dict", key, value));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDictAdd, "dict", key, value)));
     }
 
     delete_object("dict");
@@ -205,8 +206,8 @@ TEST_P(SubdocPerfTest, Dict_Remove) {
 
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                cb::mcbp::ClientOpcode::SubdocDelete, "dict", key));
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "dict", key)));
     }
     delete_object("dict");
 }
@@ -218,11 +219,11 @@ void SubdocPerfTest::subdoc_perf_test_dict(cb::mcbp::ClientOpcode cmd,
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        subdoc_verify_cmd(
+        ASSERT_TRUE(subdoc_verify_cmd(
                 BinprotSubdocCommand(
                         cb::mcbp::ClientOpcode::SubdocGet, "dict", key),
                 cb::mcbp::Status::Success,
-                value);
+                value));
     }
     delete_object("dict");
 }

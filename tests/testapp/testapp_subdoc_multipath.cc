@@ -297,7 +297,8 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
     BinprotSubdocResponse resp;
     BinprotSubdocCommand request(cb::mcbp::ClientOpcode::SubdocExists);
     request.setPath("int").setKey("dict");
-    subdoc_verify_cmd(request, cb::mcbp::Status::Success, "", resp);
+    ASSERT_TRUE(
+            subdoc_verify_cmd(request, cb::mcbp::Status::Success, "", resp));
     auto cas = resp.getCas();
 
     // 1. Attempt to mutate with an incorrect CAS - should fail.
