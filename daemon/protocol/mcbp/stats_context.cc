@@ -35,7 +35,6 @@
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/cb_arena_malloc.h>
-#include <platform/checked_snprintf.h>
 #include <sigar/sigar.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>

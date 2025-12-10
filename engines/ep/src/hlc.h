@@ -14,7 +14,6 @@
 #include <memcached/engine.h>
 #include <memcached/engine_common.h>
 #include <platform/atomic.h>
-#include <platform/checked_snprintf.h>
 #include <utilities/testing_hook.h>
 #include <chrono>
 

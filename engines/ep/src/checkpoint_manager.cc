@@ -1678,116 +1678,80 @@ size_t CheckpointManager::getMemOverheadIndex() const {
 void CheckpointManager::addStats(const AddStatFn& add_stat,
                                  CookieIface& cookie) {
     std::lock_guard<std::mutex> lh(queueLock);
-    std::array<char, 256> buf;
+    fmt::memory_buffer buf;
+    buf.reserve(80);
+    fmt::format_to(std::back_inserter(buf), "vb_{}:", vb.getId().get());
+    const auto length = buf.size();
+    const auto statkey = [&buf, length](const std::string_view statName,
+                                        std::string_view extra = {}) {
+        buf.resize(length);
+        if (!extra.empty()) {
+            fmt::format_to(std::back_inserter(buf), "{}:", extra);
+        }
+        fmt::format_to(std::back_inserter(buf), "{}", statName);
+        return std::string_view{buf.data(), buf.size()};
+    };
 
+    using namespace std::string_view_literals;
     try {
-        const auto vbucketId = vb.getId();
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:open_checkpoint_id",
-                         vb.getId().get());
-        add_casted_stat(buf.data(), getOpenCheckpointId(lh), add_stat, cookie);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:num_conn_cursors",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), cursors.size(), add_stat, cookie);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:num_checkpoint_items",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), numItems, add_stat, cookie);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:num_open_checkpoint_items",
-                         vbucketId.get());
-        add_casted_stat(buf.data(),
+        add_casted_stat(statkey("open_checkpoint_id"sv),
+                        getOpenCheckpointId(lh),
+                        add_stat,
+                        cookie);
+        add_casted_stat(statkey("num_conn_cursors"sv),
+                        cursors.size(),
+                        add_stat,
+                        cookie);
+        add_casted_stat(
+                statkey("num_checkpoint_items"sv), numItems, add_stat, cookie);
+        add_casted_stat(statkey("num_open_checkpoint_items"sv),
                         getOpenCheckpoint(lh).getNumItems(),
                         add_stat,
                         cookie);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:num_checkpoints",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), checkpointList.size(), add_stat, cookie);
-
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:mem_usage", vbucketId.get());
-        add_casted_stat(buf.data(), getMemUsage(lh), add_stat, cookie);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:mem_usage_key_index_overhead",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), memOverheadIndex, add_stat, cookie);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:mem_usage_queue_overhead",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), memOverheadQueue, add_stat, cookie);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:mem_usage_queued_items",
-                         vbucketId.get());
-        add_casted_stat(buf.data(), queuedItemsMemUsage, add_stat, cookie);
+        add_casted_stat(statkey("num_checkpoints"sv),
+                        checkpointList.size(),
+                        add_stat,
+                        cookie);
+        add_casted_stat(
+                statkey("mem_usage"sv), getMemUsage(lh), add_stat, cookie);
+        add_casted_stat(statkey("mem_usage_key_index_overhead"sv),
+                        memOverheadIndex,
+                        add_stat,
+                        cookie);
+        add_casted_stat(statkey("mem_usage_queue_overhead"sv),
+                        memOverheadQueue,
+                        add_stat,
+                        cookie);
+        add_casted_stat(statkey("mem_usage_queued_items"sv),
+                        queuedItemsMemUsage,
+                        add_stat,
+                        cookie);
 
         for (const auto& cursor : cursors) {
             const auto& name = cursor.second->getName();
-
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:cursor_checkpoint_id",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(buf.data(),
+            add_casted_stat(statkey("cursor_checkpoint_id"sv, name),
                             (*(cursor.second->getCheckpoint()))->getId(),
                             add_stat,
                             cookie);
 
             const auto pos = cursor.second->getPos();
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:cursor_distance",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(
-                    buf.data(), cursor.second->getDistance(), add_stat, cookie);
-
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:cursor_op",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(buf.data(),
+            add_casted_stat(statkey("cursor_distance"sv, name),
+                            cursor.second->getDistance(),
+                            add_stat,
+                            cookie);
+            add_casted_stat(statkey("cursor_op"sv, name),
                             to_string((*pos)->getOperation()),
                             add_stat,
                             cookie);
-
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:cursor_seqno",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(buf.data(), (*pos)->getBySeqno(), add_stat, cookie);
-
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:num_visits",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(
-                    buf.data(), cursor.second->getNumVisit(), add_stat, cookie);
-
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "vb_%d:%s:num_items_for_cursor",
-                             vbucketId.get(),
-                             name.c_str());
-            add_casted_stat(buf.data(),
+            add_casted_stat(statkey("cursor_seqno"sv, name),
+                            (*pos)->getBySeqno(),
+                            add_stat,
+                            cookie);
+            add_casted_stat(statkey("num_visits"sv, name),
+                            cursor.second->getNumVisit(),
+                            add_stat,
+                            cookie);
+            add_casted_stat(statkey("num_items_for_cursor"sv, name),
                             getNumItemsForCursor(lh, *cursor.second),
                             add_stat,
                             cookie);

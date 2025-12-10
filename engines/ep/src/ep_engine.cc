@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -71,7 +70,6 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
-#include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
@@ -3647,10 +3645,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
                                VBucketStatsDetailLevel detail) {
             if (detail == VBucketStatsDetailLevel::PreviousState) {
                 try {
-                    std::array<char, 16> buf;
-                    checked_snprintf(
-                            buf.data(), buf.size(), "vb_%d", vb.getId().get());
-                    add_casted_stat(buf.data(),
+                    add_casted_stat(fmt::format("vb_{}", vb.getId().get()),
                                     VBucket::toString(vb.getInitialState()),
                                     add_stat,
                                     cookie);
@@ -3754,11 +3749,20 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
 
         void visitBucket(VBucket& vb) override {
             Vbid vbid = vb.getId();
-            std::array<char, 32> buf;
+            fmt::memory_buffer buf;
+            buf.reserve(80);
+            fmt::format_to(std::back_inserter(buf), "vb_{}:", vbid.get());
+            const auto length = buf.size();
+            const auto statkey = [&buf,
+                                  length](const std::string_view statName) {
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf), "{}", statName);
+                return std::string_view{buf.data(), buf.size()};
+            };
+            using namespace std::string_view_literals;
+
             try {
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:state", vbid.get());
-                add_casted_stat(buf.data(),
+                add_casted_stat(statkey("state"sv),
                                 VBucket::toString(vb.getState()),
                                 add_stat,
                                 cookie);
@@ -3772,64 +3776,52 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
             vb.ht.visitDepth(depthVisitor);
 
             try {
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:size", vbid.get());
-                add_casted_stat(buf.data(), vb.ht.getSize(), add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:locks", vbid.get());
                 add_casted_stat(
-                        buf.data(), vb.ht.getNumLocks(), add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:min_depth", vbid.get());
-                add_casted_stat(buf.data(), depthVisitor.min, add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:max_depth", vbid.get());
-                add_casted_stat(buf.data(), depthVisitor.max, add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:histo", vbid.get());
-                add_casted_stat(
-                        buf.data(), depthVisitor.depthHisto, add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:reported", vbid.get());
-                add_casted_stat(buf.data(),
+                        statkey("size"sv), vb.ht.getSize(), add_stat, cookie);
+                add_casted_stat(statkey("locks"sv),
+                                vb.ht.getNumLocks(),
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("min_depth"sv),
+                                depthVisitor.min,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("max_depth"sv),
+                                depthVisitor.max,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("histo"sv),
+                                depthVisitor.depthHisto,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("reported"sv),
                                 vb.ht.getNumInMemoryItems(),
                                 add_stat,
                                 cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:counted", vbid.get());
-                add_casted_stat(
-                        buf.data(), depthVisitor.size, add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:resized", vbid.get());
-                add_casted_stat(
-                        buf.data(), vb.ht.getNumResizes(), add_stat, cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:mem_size", vbid.get());
-                add_casted_stat(
-                        buf.data(), vb.ht.getItemMemory(), add_stat, cookie);
+                add_casted_stat(statkey("counted"sv),
+                                depthVisitor.size,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("resized"sv),
+                                vb.ht.getNumResizes(),
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("mem_size"sv),
+                                vb.ht.getItemMemory(),
+                                add_stat,
+                                cookie);
 
                 if (compressionMode != BucketCompressionMode::Off) {
-                    checked_snprintf(buf.data(),
-                                     buf.size(),
-                                     "vb_%d:mem_size_uncompressed",
-                                     vbid.get());
-                    add_casted_stat(buf.data(),
+                    add_casted_stat(statkey("mem_size_uncompressed"sv),
                                     vb.ht.getUncompressedItemMemory(),
                                     add_stat,
                                     cookie);
                 }
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:mem_size_counted",
-                                 vbid.get());
-                add_casted_stat(
-                        buf.data(), depthVisitor.memUsed, add_stat, cookie);
-
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:num_system_items",
-                                 vbid.get());
-                add_casted_stat(buf.data(),
+                add_casted_stat(statkey("mem_size_counted"sv),
+                                depthVisitor.memUsed,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("num_system_items"sv),
                                 vb.ht.getNumSystemItems(),
                                 add_stat,
                                 cookie);
@@ -3961,10 +3953,8 @@ public:
                                   KVBucketIface* eps,
                                   VBucket& vb) {
         Vbid vbid = vb.getId();
-        std::array<char, 256> buf;
         try {
-            checked_snprintf(buf.data(), buf.size(), "vb_%d:state", vbid.get());
-            add_casted_stat(buf.data(),
+            add_casted_stat(fmt::format("vb_{}:state", vbid.get()),
                             VBucket::toString(vb.getState()),
                             add_stat,
                             cookie);
@@ -4656,49 +4646,37 @@ cb::engine_errc EventuallyPersistentEngine::doTasksStats(
 cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
     try {
-        std::array<char, 80> statname;
+        using namespace std::string_view_literals;
         ExecutorPool* expool = ExecutorPool::get();
 
         auto readers = expool->getNumReaders();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_readers");
-        add_casted_stat(statname.data(), readers, add_stat, cookie);
+        add_casted_stat("ep_workload:num_readers"sv, readers, add_stat, cookie);
 
         auto writers = expool->getNumWriters();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_writers");
-        add_casted_stat(statname.data(), writers, add_stat, cookie);
+        add_casted_stat("ep_workload:num_writers"sv, writers, add_stat, cookie);
 
         auto auxio = expool->getNumAuxIO();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_auxio");
-        add_casted_stat(statname.data(), auxio, add_stat, cookie);
+        add_casted_stat("ep_workload:num_auxio"sv, auxio, add_stat, cookie);
 
         auto nonio = expool->getNumNonIO();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_nonio");
-        add_casted_stat(statname.data(), nonio, add_stat, cookie);
+        add_casted_stat("ep_workload:num_nonio"sv, nonio, add_stat, cookie);
 
         auto threadsPerCore = expool->getNumIOThreadsPerCore();
-        checked_snprintf(statname.data(),
-                         statname.size(),
-                         "ep_workload:num_io_threads_per_core");
-        add_casted_stat(statname.data(), threadsPerCore, add_stat, cookie);
+        add_casted_stat("ep_workload:num_io_threads_per_core"sv,
+                        threadsPerCore,
+                        add_stat,
+                        cookie);
 
         auto shards = workload->getNumShards();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_shards");
-        add_casted_stat(statname.data(), shards, add_stat, cookie);
+        add_casted_stat("ep_workload:num_shards"sv, shards, add_stat, cookie);
 
         auto numReadyTasks = expool->getNumReadyTasks();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:ready_tasks");
-        add_casted_stat(statname.data(), numReadyTasks, add_stat, cookie);
+        add_casted_stat(
+                "ep_workload:ready_tasks"sv, numReadyTasks, add_stat, cookie);
 
         auto numSleepers = expool->getNumSleepers();
-        checked_snprintf(
-                statname.data(), statname.size(), "ep_workload:num_sleepers");
-        add_casted_stat(statname.data(), numSleepers, add_stat, cookie);
+        add_casted_stat(
+                "ep_workload:num_sleepers"sv, numSleepers, add_stat, cookie);
 
         expool->doTaskQStat(ObjectRegistry::getCurrentEngine()->getTaskable(),
                             cookie,

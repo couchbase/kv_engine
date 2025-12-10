@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2020-Present Couchbase, Inc.
  *
@@ -16,7 +15,6 @@
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
-#include <platform/checked_snprintf.h>
 #include <platform/string_hex.h>
 #include <platform/sysinfo.h>
 #include <statistics/cbstat_collector.h>
@@ -631,22 +629,25 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
 
     cb::NoArenaGuard guard;
     try {
-        std::array<char, 80> statname{};
+        fmt::memory_buffer buf;
+        buf.reserve(80);
+        fmt::format_to(std::back_inserter(buf), "ep_workload:");
+        const auto length = buf.size();
         if (isHiPrioQset) {
             for (size_t i = 0; i < numTaskSets; i++) {
-                checked_snprintf(statname.data(),
-                                 statname.size(),
-                                 "ep_workload:%s:InQsize",
-                                 hpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname.data(),
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf),
+                               "{}:InQsize",
+                               hpTaskQ[i]->getName());
+                add_casted_stat({buf.data(), buf.size()},
                                 hpTaskQ[i]->getFutureQueueSize(),
                                 add_stat,
                                 cookie);
-                checked_snprintf(statname.data(),
-                                 statname.size(),
-                                 "ep_workload:%s:OutQsize",
-                                 hpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname.data(),
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf),
+                               "{}:OutQsize",
+                               hpTaskQ[i]->getName());
+                add_casted_stat({buf.data(), buf.size()},
                                 hpTaskQ[i]->getReadyQueueSize(),
                                 add_stat,
                                 cookie);
@@ -654,19 +655,19 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
         }
         if (isLowPrioQset) {
             for (size_t i = 0; i < numTaskSets; i++) {
-                checked_snprintf(statname.data(),
-                                 (statname.size()),
-                                 "ep_workload:%s:InQsize",
-                                 lpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname.data(),
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf),
+                               "{}:InQsize",
+                               lpTaskQ[i]->getName());
+                add_casted_stat({buf.data(), buf.size()},
                                 lpTaskQ[i]->getFutureQueueSize(),
                                 add_stat,
                                 cookie);
-                checked_snprintf(statname.data(),
-                                 statname.size(),
-                                 "ep_workload:%s:OutQsize",
-                                 lpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname.data(),
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf),
+                               "{}:OutQsize",
+                               lpTaskQ[i]->getName());
+                add_casted_stat({buf.data(), buf.size()},
                                 lpTaskQ[i]->getReadyQueueSize(),
                                 add_stat,
                                 cookie);
@@ -682,39 +683,39 @@ static void addWorkerStats(const char* prefix,
                            CB3ExecutorThread& t,
                            CookieIface& cookie,
                            const AddStatFn& add_stat) {
-    std::array<char, 80> statname{};
+    fmt::memory_buffer buf;
+    buf.reserve(80);
+    fmt::format_to(std::back_inserter(buf), "{}:", prefix);
+    const auto length = buf.size();
+    const auto statkey = [&buf, length](const std::string_view statName) {
+        buf.resize(length);
+        fmt::format_to(std::back_inserter(buf), "{}", statName);
+        return std::string_view{buf.data(), buf.size()};
+    };
+    using namespace std::string_view_literals;
 
     try {
         std::string bucketName = t.getTaskableName();
         if (!bucketName.empty()) {
-            checked_snprintf(
-                    statname.data(), statname.size(), "%s:bucket", prefix);
             add_casted_stat(
-                    statname.data(), bucketName.c_str(), add_stat, cookie);
+                    statkey("bucket"sv), bucketName.c_str(), add_stat, cookie);
         }
-
-        checked_snprintf(statname.data(), statname.size(), "%s:state", prefix);
         add_casted_stat(
-                statname.data(), t.getStateName().c_str(), add_stat, cookie);
-        checked_snprintf(statname.data(), statname.size(), "%s:task", prefix);
-        add_casted_stat(statname.data(), t.getTaskName(), add_stat, cookie);
+                statkey("state"sv), t.getStateName().c_str(), add_stat, cookie);
+        add_casted_stat(statkey("task"sv), t.getTaskName(), add_stat, cookie);
 
-        if (strcmp(t.getStateName().c_str(), "running") == 0) {
-            checked_snprintf(
-                    statname.data(), statname.size(), "%s:runtime", prefix);
+        if (t.getStateName() == "running"sv) {
             const auto duration =
                     cb::time::steady_clock::now() - t.getTaskStart();
             add_casted_stat(
-                    statname.data(),
+                    statkey("runtime"sv),
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             duration)
                             .count(),
                     add_stat,
                     cookie);
         }
-        checked_snprintf(
-                statname.data(), statname.size(), "%s:cur_time", prefix);
-        add_casted_stat(statname.data(),
+        add_casted_stat(statkey("cur_time"sv),
                         to_ns_since_epoch(t.getCurTime()).count(),
                         add_stat,
                         cookie);

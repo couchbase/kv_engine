@@ -54,22 +54,14 @@ void HLCT<Clock>::addStats(const std::string& prefix,
         strftime(timeString, sizeof(timeString), "%Y-%m-%dT%H:%M:%S", &tm)) {
         // Get the fractional nanosecond part
         nanoseconds -= seconds;
-        char finalString[40];// Needs to store 1970-12-31T23:23:59.999999999
-        const char* maxCasStr = finalString;
-        try {
-            checked_snprintf(finalString,
-                             sizeof(finalString),
-                             "%s.%" PRId64,
-                             timeString,
-                             nanoseconds.count());
-        } catch (...) {
-            // snprint fail, point at timeString which at least has the
-            // majority of the time data.
-            maxCasStr = timeString;
-        }
-        add_prefixed_stat(prefix.data(), "max_cas_str", maxCasStr, add_stat, c);
+        auto string = fmt::format("{}.{}", timeString, nanoseconds.count());
+        add_prefixed_stat(prefix, "max_cas_str", string, add_stat, c);
     } else {
-        add_prefixed_stat(prefix.data(), "max_cas_str", "could not get string", add_stat, c);
+        add_prefixed_stat(prefix.data(),
+                          "max_cas_str",
+                          "could not get string",
+                          add_stat,
+                          c);
     }
 
     add_prefixed_stat(prefix.data(), "total_abs_drift", cummulativeDrift.load(), add_stat, c);

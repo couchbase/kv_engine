@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2014-Present Couchbase, Inc.
  *
@@ -14,7 +13,6 @@
 #include "bucket_logger.h"
 
 #include <nlohmann/json.hpp>
-#include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
 
 FailoverTable::FailoverTable(size_t capacity)
@@ -280,19 +278,27 @@ void FailoverTable::cacheTableJSON() {
 void FailoverTable::addStats(CookieIface& cookie,
                              Vbid vbid,
                              const AddStatFn& add_stat) {
-    std::lock_guard<std::mutex> lh(lock);
+    std::scoped_lock lh(lock);
     try {
-        std::array<char, 80> statname;
-        checked_snprintf(statname.data(),
-                         statname.size(),
-                         "vb_%d:num_entries",
-                         vbid.get());
-        add_casted_stat(statname.data(), table.size(), add_stat, cookie);
-        checked_snprintf(statname.data(),
-                         statname.size(),
-                         "vb_%d:num_erroneous_entries_erased",
-                         vbid.get());
-        add_casted_stat(statname.data(),
+        fmt::memory_buffer buf;
+        buf.reserve(80);
+        fmt::format_to(std::back_inserter(buf), "vb_{}:", vbid.get());
+        const auto length = buf.size();
+        const auto statkey = [&buf, length](
+                                     const std::string_view statName,
+                                     std::optional<uint64_t> statValue = {}) {
+            buf.resize(length);
+            if (statValue) {
+                fmt::format_to(std::back_inserter(buf), "{}:", *statValue);
+            }
+            fmt::format_to(std::back_inserter(buf), "{}", statName);
+            return std::string_view{buf.data(), buf.size()};
+        };
+
+        using namespace std::string_view_literals;
+        add_casted_stat(
+                statkey("num_entries"sv), table.size(), add_stat, cookie);
+        add_casted_stat(statkey("num_erroneous_entries_erased"sv),
                         getNumErroneousEntriesErased(),
                         add_stat,
                         cookie);
@@ -300,18 +306,14 @@ void FailoverTable::addStats(CookieIface& cookie,
         table_t::iterator it;
         int entrycounter = 0;
         for (it = table.begin(); it != table.end(); ++it) {
-            checked_snprintf(statname.data(),
-                             statname.size(),
-                             "vb_%d:%d:id",
-                             vbid.get(),
-                             entrycounter);
-            add_casted_stat(statname.data(), it->vb_uuid, add_stat, cookie);
-            checked_snprintf(statname.data(),
-                             statname.size(),
-                             "vb_%d:%d:seq",
-                             vbid.get(),
-                             entrycounter);
-            add_casted_stat(statname.data(), it->by_seqno, add_stat, cookie);
+            add_casted_stat(statkey("id"sv, entrycounter),
+                            it->vb_uuid,
+                            add_stat,
+                            cookie);
+            add_casted_stat(statkey("seq"sv, entrycounter),
+                            it->by_seqno,
+                            add_stat,
+                            cookie);
             entrycounter++;
         }
     } catch (std::exception& error) {

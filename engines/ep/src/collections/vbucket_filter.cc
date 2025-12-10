@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -22,7 +21,6 @@
 #include <memcached/rbac/privileges.h>
 #include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
-#include <platform/checked_snprintf.h>
 #include <platform/scope_timer.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/json_utilities.h>

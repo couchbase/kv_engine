@@ -1755,38 +1755,40 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(CookieIface& cookie,
         }
 
         void visitBucket(VBucket& vb) override {
-            std::array<char, 32> buf;
             Vbid vbid = vb.getId();
+
+            fmt::memory_buffer buf;
+            buf.reserve(80);
+            fmt::format_to(std::back_inserter(buf), "vb_{}:", vbid.get());
+            const auto length = buf.size();
+            const auto statkey = [&buf,
+                                  length](const std::string_view statName) {
+                buf.resize(length);
+                fmt::format_to(std::back_inserter(buf), "{}", statName);
+                return std::string_view{buf.data(), buf.size()};
+            };
+
+            using namespace std::string_view_literals;
             try {
                 auto dbInfo =
                         vb.getShard()->getRWUnderlying()->getDbFileInfo(vbid);
-
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:data_size", vbid.get());
-                add_casted_stat(buf.data(),
+                add_casted_stat(statkey("data_size"sv),
                                 dbInfo.getEstimatedLiveData(),
                                 add_stat,
                                 cookie);
-                checked_snprintf(
-                        buf.data(), buf.size(), "vb_%d:file_size", vbid.get());
-                add_casted_stat(buf.data(), dbInfo.fileSize, add_stat, cookie);
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:prepare_size",
-                                 vbid.get());
-                add_casted_stat(
-                        buf.data(), dbInfo.prepareBytes, add_stat, cookie);
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:history_disk_size",
-                                 vbid.get());
-                add_casted_stat(
-                        buf.data(), dbInfo.historyDiskSize, add_stat, cookie);
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:history_start_timestamp",
-                                 vbid.get());
-                add_casted_stat(buf.data(),
+                add_casted_stat(statkey("file_size"sv),
+                                dbInfo.fileSize,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("prepare_size"sv),
+                                dbInfo.prepareBytes,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("history_disk_size"sv),
+                                dbInfo.historyDiskSize,
+                                add_stat,
+                                cookie);
+                add_casted_stat(statkey("history_start_timestamp"sv),
                                 dbInfo.historyStartTimestamp.count(),
                                 add_stat,
                                 cookie);

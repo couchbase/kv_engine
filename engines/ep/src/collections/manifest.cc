@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -21,7 +20,6 @@
 #include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
-#include <platform/checked_snprintf.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>

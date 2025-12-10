@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2011-Present Couchbase, Inc.
  *
@@ -9,16 +8,15 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <gsl/gsl-lite.hpp>
-#include <platform/checked_snprintf.h>
-#include <string>
-#include <utility>
-#include "bucket_logger.h"
 #include "checkpoint.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "ep_time.h"
 #include "stats.h"
+#include <gsl/gsl-lite.hpp>
 #include <statistics/cbstat_collector.h>
+#include <string>
+#include <utility>
 
 class CookieIface;
 
@@ -596,108 +594,65 @@ CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat, CookieIface& cookie) {
-    std::array<char, 256> buf;
+    fmt::memory_buffer buf;
+    buf.reserve(250);
+    fmt::format_to(
+            std::back_inserter(buf), "vb_{}:id_{}:", vbucketId.get(), getId());
+    const auto length = buf.size();
+    const auto statkey = [&buf, length](const std::string_view statName) {
+        buf.resize(length);
+        fmt::format_to(std::back_inserter(buf), "{}", statName);
+        return std::string_view{buf.data(), buf.size()};
+    };
 
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":mem_usage_queued_items",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getQueuedItemsMemUsage(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":mem_usage_queue_overhead",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getMemOverheadQueue(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":mem_usage_key_index_overhead",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getMemOverheadIndex(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":key_index_allocator_bytes",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getKeyIndexAllocatorBytes(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":queue_allocator_bytes",
-                     vbucketId.get(),
-                     getId());
+    using namespace std::string_view_literals;
+    add_casted_stat(statkey("mem_usage_queued_items"sv),
+                    getQueuedItemsMemUsage(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("mem_usage_queue_overhead"sv),
+                    getMemOverheadQueue(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("mem_usage_key_index_overhead"sv),
+                    getMemOverheadIndex(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("key_index_allocator_bytes"sv),
+                    getKeyIndexAllocatorBytes(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("queue_allocator_bytes"sv),
+                    getWriteQueueAllocatorBytes(),
+                    add_stat,
+                    cookie);
     add_casted_stat(
-            buf.data(), getWriteQueueAllocatorBytes(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":state",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), to_string(getState()), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":type",
-                     vbucketId.get(),
-                     getId());
+            statkey("state"sv), to_string(getState()), add_stat, cookie);
+    add_casted_stat(statkey("type"sv),
+                    to_string(getCheckpointType()),
+                    add_stat,
+                    cookie);
     add_casted_stat(
-            buf.data(), to_string(getCheckpointType()), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":snap_start",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getSnapshotStartSeqno(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":snap_end",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getSnapshotEndSeqno(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":visible_snap_end",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getVisibleSnapshotEndSeqno(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":highest_expelled_seqno",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), highestExpelledSeqno, add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":historical",
-                     vbucketId.get(),
-                     getId());
+            statkey("snap_start"sv), getSnapshotStartSeqno(), add_stat, cookie);
     add_casted_stat(
-            buf.data(), isCheckpointHistorical(historical), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":num_items",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), getNumItems(), add_stat, cookie);
-
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:id_%" PRIu64 ":num_cursors_in_checkpoint",
-                     vbucketId.get(),
-                     getId());
-    add_casted_stat(buf.data(), numOfCursorsInCheckpoint, add_stat, cookie);
+            statkey("snap_end"sv), getSnapshotEndSeqno(), add_stat, cookie);
+    add_casted_stat(statkey("visible_snap_end"sv),
+                    getVisibleSnapshotEndSeqno(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("highest_expelled_seqno"sv),
+                    highestExpelledSeqno,
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("historical"sv),
+                    isCheckpointHistorical(historical),
+                    add_stat,
+                    cookie);
+    add_casted_stat(statkey("num_items"sv), getNumItems(), add_stat, cookie);
+    add_casted_stat(statkey("num_cursors_in_checkpoint"sv),
+                    numOfCursorsInCheckpoint,
+                    add_stat,
+                    cookie);
 }
 
 void Checkpoint::detachFromManager() {

@@ -3545,53 +3545,42 @@ void VBucket::doSeqnoStats(const AddStatFn& add_stat, CookieIface& c) {
     }
 
     try {
-        std::array<char, 64> buffer;
+        fmt::memory_buffer buf;
+        buf.reserve(80);
+        fmt::format_to(std::back_inserter(buf), "vb_{}:", id.get());
+        const auto length = buf.size();
+        const auto statkey = [&buf, length](const std::string_view statName) {
+            buf.resize(length);
+            fmt::format_to(std::back_inserter(buf), "{}", statName);
+            return std::string_view{buf.data(), buf.size()};
+        };
+        using namespace std::string_view_literals;
+
         failover_entry_t entry = failovers->getLatestEntry();
-        checked_snprintf(
-                buffer.data(), buffer.size(), "vb_%d:high_seqno", id.get());
-        add_casted_stat(buffer.data(), relHighSeqno, add_stat, c);
-        checked_snprintf(
-                buffer.data(), buffer.size(), "vb_%d:abs_high_seqno", id.get());
-        add_casted_stat(buffer.data(), getHighSeqno(), add_stat, c);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_seqno",
-                         id.get());
+        add_casted_stat(statkey("high_seqno"sv), relHighSeqno, add_stat, c);
         add_casted_stat(
-                buffer.data(), getPublicPersistenceSeqno(), add_stat, c);
-        checked_snprintf(buffer.data(), buffer.size(), "vb_%d:uuid", id.get());
-        add_casted_stat(buffer.data(), entry.vb_uuid, add_stat, c);
-        checked_snprintf(
-                buffer.data(), buffer.size(), "vb_%d:purge_seqno", id.get());
-        add_casted_stat(buffer.data(), getPurgeSeqno(), add_stat, c);
+                statkey("abs_high_seqno"sv), getHighSeqno(), add_stat, c);
+        add_casted_stat(statkey("last_persisted_seqno"sv),
+                        getPublicPersistenceSeqno(),
+                        add_stat,
+                        c);
+        add_casted_stat(statkey("uuid"sv), entry.vb_uuid, add_stat, c);
+        add_casted_stat(statkey("purge_seqno"sv), getPurgeSeqno(), add_stat, c);
         const snapshot_range_t range = getPersistedSnapshot();
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_snap_start",
-                         id.get());
-        add_casted_stat(buffer.data(), range.getStart(), add_stat, c);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:last_persisted_snap_end",
-                         id.get());
-        add_casted_stat(buffer.data(), range.getEnd(), add_stat, c);
-
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:high_prepared_seqno",
-                         id.get());
-        add_casted_stat(buffer.data(), hps, add_stat, c);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:high_completed_seqno",
-                         id.get());
-        add_casted_stat(buffer.data(), hcs, add_stat, c);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d:max_visible_seqno",
-                         id.get());
-        add_casted_stat(buffer.data(), getMaxVisibleSeqno(), add_stat, c);
-
+        add_casted_stat(statkey("last_persisted_snap_start"sv),
+                        range.getStart(),
+                        add_stat,
+                        c);
+        add_casted_stat(statkey("last_persisted_snap_end"sv),
+                        range.getEnd(),
+                        add_stat,
+                        c);
+        add_casted_stat(statkey("high_prepared_seqno"sv), hps, add_stat, c);
+        add_casted_stat(statkey("high_completed_seqno"sv), hcs, add_stat, c);
+        add_casted_stat(statkey("max_visible_seqno"sv),
+                        getMaxVisibleSeqno(),
+                        add_stat,
+                        c);
     } catch (const std::exception& error) {
         EP_LOG_WARN_CTX("VBucket::doSeqnoStats: error building stats",
                         {"error", error.what()});

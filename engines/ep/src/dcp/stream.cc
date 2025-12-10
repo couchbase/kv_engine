@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -10,8 +9,6 @@
  */
 #include "dcp/stream.h"
 #include "dcp/response.h"
-
-#include <platform/checked_snprintf.h>
 
 #include <engines/ep/src/bucket_logger.h>
 #include <statistics/cbstat_collector.h>
