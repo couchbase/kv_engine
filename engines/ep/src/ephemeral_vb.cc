@@ -56,7 +56,8 @@ EphemeralVBucket::EphemeralVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         bool mightContainXattrs,
-        const nlohmann::json* replicationTopology)
+        const nlohmann::json* replicationTopology,
+        std::optional<vbucket_state_t> expectedNextState)
     : VBucket(i,
               newState,
               st,
@@ -81,7 +82,8 @@ EphemeralVBucket::EphemeralVBucket(
               maxCas,
               0, // Every item in ephemeral has a HLC cas
               mightContainXattrs,
-              replicationTopology),
+              replicationTopology,
+              expectedNextState),
       seqList(std::make_unique<BasicLinkedList>(i, st)),
       configuration(config) {
 }

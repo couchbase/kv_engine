@@ -20,6 +20,7 @@
 
 #include "evp_store_test.h"
 
+#include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_paging_visitor.h"
 #include "bgfetcher.h"
@@ -3400,6 +3401,32 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotStraightToActive) {
     EXPECT_EQ(vbucket_state_replica, vb->getState());
     EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+}
+
+TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
+    auto docKey = prepareForUseSnapshot(vbid);
+
+    // Simulate replica move (non takeover)
+    const nlohmann::json meta{{"use_snapshot", "fbr"},
+                              {"expected_next_state", "replica"}};
+    for (;;) {
+        const auto ret = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                    "Loading VBucket vb:0");
+    }
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(vbucket_state_replica, vb->getState());
+    EXPECT_TRUE(vb->isNextState(vbucket_state_replica));
+    EXPECT_FALSE(vb->isNextState(vbucket_state_active));
+    EXPECT_FALSE(vb->isNextState(vbucket_state_pending));
+    EXPECT_FALSE(vb->isNextState(vbucket_state_dead));
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {

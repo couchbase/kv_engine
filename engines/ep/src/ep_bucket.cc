@@ -1841,7 +1841,8 @@ VBucketPtr EPBucket::makeVBucket(
         bool mightContainXattrs,
         const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno,
-        uint64_t maxPrepareSeqno) {
+        uint64_t maxPrepareSeqno,
+        std::optional<vbucket_state_t> expectedNextState) {
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
     // 2. allocate_shared has inconsistencies between platforms in calling
@@ -1872,7 +1873,8 @@ VBucketPtr EPBucket::makeVBucket(
                           mightContainXattrs,
                           replicationTopology,
                           maxVisibleSeqno,
-                          maxPrepareSeqno),
+                          maxPrepareSeqno,
+                          expectedNextState),
             VBucket::DeferredDeleter(engine)};
 }
 
@@ -1979,11 +1981,34 @@ struct LoadVBucketOptions {
     cb::engine_errc status = cb::engine_errc::failed;
     VBucketSnapshotSource source = VBucketSnapshotSource::Local;
     nlohmann::json topology;
+    std::optional<vbucket_state_t> expectedNextState;
 };
+
+static void from_json(const nlohmann::json& next, vbucket_state_t& nextState) {
+    if (!next.is_string()) {
+        throw std::invalid_argument(fmt::format(
+                "from_json: Invalid next state type: {}", next.type_name()));
+    }
+    if (next.get<std::string_view>() == "active") {
+        nextState = vbucket_state_active;
+    } else if (next.get<std::string_view>() == "replica") {
+        nextState = vbucket_state_replica;
+    } else if (next.get<std::string_view>() == "pending") {
+        nextState = vbucket_state_pending;
+    } else if (next.get<std::string_view>() == "dead") {
+        nextState = vbucket_state_dead;
+    } else {
+        throw std::invalid_argument(
+                fmt::format("from_json: Invalid next state value: {}",
+                            next.get<std::string_view>()));
+    }
+}
 
 static void from_json(const nlohmann::json& meta, LoadVBucketOptions& options) {
     auto useSnapshot = meta.find("use_snapshot");
-    if (useSnapshot == meta.end() || !useSnapshot->is_string()) {
+    auto expectedNextState = meta.find("expected_next_state");
+    if (useSnapshot == meta.end() || !useSnapshot->is_string() ||
+        (expectedNextState != meta.end() && !expectedNextState->is_string())) {
         options.status = cb::engine_errc::invalid_arguments;
         return;
     }
@@ -2002,6 +2027,9 @@ static void from_json(const nlohmann::json& meta, LoadVBucketOptions& options) {
     auto topology = meta.find("topology");
     if (topology != meta.end()) {
         options.topology = *topology;
+    }
+    if (expectedNextState != meta.end()) {
+        options.expectedNextState = *expectedNextState;
     }
     options.status = cb::engine_errc::success;
 }
@@ -2088,6 +2116,7 @@ cb::engine_errc EPBucket::loadVBucket_UNLOCKED(
                                                  options.source,
                                                  std::move(paths),
                                                  toState,
+                                                 options.expectedNextState,
                                                  std::move(options.topology));
     vbucketsLoading[vbid] = task;
     ExecutorPool::get()->schedule(std::move(task));

@@ -199,6 +199,7 @@ public:
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
             const nlohmann::json* replTopology = {},
+            std::optional<vbucket_state_t> expectedNextState = std::nullopt,
             uint64_t maxVisibleSeqno = 0,
             uint64_t maxPrepareSeqno = 0);
 
@@ -2070,6 +2071,13 @@ public:
                                      bool keyMetaDataOnly,
                                      bool checkMemUsed);
 
+    /**
+     * @return true if the vbucket has a nextState and it matches the given
+     * state
+     * @param state The state to check
+     */
+    bool isNextState(vbucket_state_t state) const;
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
@@ -2912,6 +2920,10 @@ private:
     // The seqno threshold below which we may replace a prepare with another
     // prepare (if the associated Commit/Abort may have been deduped)
     int64_t allowedDuplicatePrepareThreshold = 0;
+
+    // Primarily to assist CacheTransfer, ns_server can provide a hint as to
+    // what the next state of a vbucket may be.
+    std::optional<vbucket_state_t> expectedNextState;
 
     // Test hook used to determine if the method .getInternal() is called
     TestingHook<> isCalledHook;

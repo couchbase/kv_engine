@@ -28,6 +28,7 @@ std::shared_ptr<VBucketLoadingTask> VBucketLoadingTask::makeMountingTask(
                                                 source,
                                                 std::move(paths),
                                                 vbucket_state_dead,
+                                                std::nullopt,
                                                 nlohmann::json{});
 }
 
@@ -38,6 +39,7 @@ std::shared_ptr<VBucketLoadingTask> VBucketLoadingTask::makeCreationTask(
         VBucketSnapshotSource source,
         std::vector<std::string> paths,
         vbucket_state_t toState,
+        std::optional<vbucket_state_t> expectedNextState,
         nlohmann::json replicationTopology) {
     auto state = LoadingState::MountVBucket;
     if (source == VBucketSnapshotSource::FusionGuestVolumes ||
@@ -52,18 +54,21 @@ std::shared_ptr<VBucketLoadingTask> VBucketLoadingTask::makeCreationTask(
                                                 source,
                                                 std::move(paths),
                                                 toState,
+                                                expectedNextState,
                                                 std::move(replicationTopology));
 }
 
-VBucketLoadingTask::VBucketLoadingTask(bool justMounting,
-                                       LoadingState state,
-                                       CookieIface& cookie,
-                                       EPBucket& st,
-                                       Vbid vbid,
-                                       VBucketSnapshotSource source,
-                                       std::vector<std::string> paths,
-                                       vbucket_state_t toState,
-                                       nlohmann::json replicationTopology)
+VBucketLoadingTask::VBucketLoadingTask(
+        bool justMounting,
+        LoadingState state,
+        CookieIface& cookie,
+        EPBucket& st,
+        Vbid vbid,
+        VBucketSnapshotSource source,
+        std::vector<std::string> paths,
+        vbucket_state_t toState,
+        std::optional<vbucket_state_t> expectedNextState,
+        nlohmann::json replicationTopology)
     : EpTask(st.getEPEngine(), TaskId::VBucketLoadingTask, 0, false),
       justMounting(justMounting),
       shardId(st.getShardId(vbid)),
@@ -76,6 +81,7 @@ VBucketLoadingTask::VBucketLoadingTask(bool justMounting,
       source(source),
       paths(std::move(paths)),
       toState(toState),
+      expectedNextState(expectedNextState),
       replicationTopology(std::move(replicationTopology)) {
 }
 
@@ -284,6 +290,7 @@ void VBucketLoadingTask::createVBucket() {
             store.getEPEngine().getMaxFailoverEntries(),
             true,
             getCreateVbucketMethod(source),
+            expectedNextState,
             // readCollectionsManifest
             loadSnapshotResult.status == ReadVBStateStatus::Success);
     using Status = VBucketLoader::CreateVBucketStatus;

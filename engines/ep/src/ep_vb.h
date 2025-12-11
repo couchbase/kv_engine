@@ -55,7 +55,8 @@ public:
               bool mightContainXattrs = false,
               const nlohmann::json* replicationTopology = {},
               uint64_t maxVisibleSeqno = 0,
-              uint64_t maxPrepareSeqno = 0);
+              uint64_t maxPrepareSeqno = 0,
+              std::optional<vbucket_state_t> expectedNextState = std::nullopt);
 
     ~EPVBucket() override;
 

@@ -209,23 +209,25 @@ public:
     /**
      * Creates a VBucket object from warmup (can set collection state)
      */
-    VBucketPtr makeVBucket(Vbid id,
-                           vbucket_state_t state,
-                           KVShard* shard,
-                           std::unique_ptr<FailoverTable> table,
-                           std::unique_ptr<Collections::VB::Manifest> manifest,
-                           CreateVbucketMethod creationMethod,
-                           vbucket_state_t initState,
-                           int64_t lastSeqno,
-                           uint64_t lastSnapStart,
-                           uint64_t lastSnapEnd,
-                           uint64_t purgeSeqno,
-                           uint64_t maxCas,
-                           int64_t hlcEpochSeqno,
-                           bool mightContainXattrs,
-                           const nlohmann::json* replicationTopology,
-                           uint64_t maxVisibleSeqno,
-                           uint64_t maxPrepareSeqno) override;
+    VBucketPtr makeVBucket(
+            Vbid id,
+            vbucket_state_t state,
+            KVShard* shard,
+            std::unique_ptr<FailoverTable> table,
+            std::unique_ptr<Collections::VB::Manifest> manifest,
+            CreateVbucketMethod creationMethod,
+            vbucket_state_t initState,
+            int64_t lastSeqno,
+            uint64_t lastSnapStart,
+            uint64_t lastSnapEnd,
+            uint64_t purgeSeqno,
+            uint64_t maxCas,
+            int64_t hlcEpochSeqno,
+            bool mightContainXattrs,
+            const nlohmann::json* replicationTopology,
+            uint64_t maxVisibleSeqno,
+            uint64_t maxPrepareSeqno,
+            std::optional<vbucket_state_t> expectedNextState) override;
 
     KVBucketResult<std::vector<std::string>> mountVBucket(
             CookieIface& cookie,

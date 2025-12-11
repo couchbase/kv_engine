@@ -82,6 +82,7 @@ public:
             VBucketSnapshotSource source,
             std::vector<std::string> paths,
             vbucket_state_t toState,
+            std::optional<vbucket_state_t> expectedNextState,
             nlohmann::json replicationTopology);
 
     // Not be used directly, use makeMountingTask or makeCreationTask.
@@ -94,6 +95,7 @@ public:
                        VBucketSnapshotSource source,
                        std::vector<std::string> paths,
                        vbucket_state_t toState,
+                       std::optional<vbucket_state_t> expectedNextState,
                        nlohmann::json replicationTopology);
 
     ~VBucketLoadingTask() override;
@@ -213,6 +215,8 @@ protected:
     const std::vector<std::string> paths;
     /// VBucket state to set
     const vbucket_state_t toState;
+    /// Expected next state for this vbucket
+    const std::optional<vbucket_state_t> expectedNextState;
     /// Topology to set in the vbstate, if any
     const nlohmann::json replicationTopology;
 };

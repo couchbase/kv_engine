@@ -47,7 +47,8 @@ public:
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
             bool mightContainXattrs = false,
-            const nlohmann::json* replicationTopology = {});
+            const nlohmann::json* replicationTopology = {},
+            std::optional<vbucket_state_t> expectedNextState = std::nullopt);
 
     cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,

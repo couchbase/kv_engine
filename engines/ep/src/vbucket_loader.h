@@ -34,12 +34,14 @@ public:
         AlreadyExists
     };
 
-    CreateVBucketStatus createVBucket(Vbid vbid,
-                                      const vbucket_state& vbs,
-                                      size_t maxFailoverEntries,
-                                      bool cleanShutdown,
-                                      CreateVbucketMethod creationMethod,
-                                      bool readCollectionsManifest = true);
+    CreateVBucketStatus createVBucket(
+            Vbid vbid,
+            const vbucket_state& vbs,
+            size_t maxFailoverEntries,
+            bool cleanShutdown,
+            CreateVbucketMethod creationMethod,
+            std::optional<vbucket_state_t> expectedNextState = std::nullopt,
+            bool readCollectionsManifest = true);
 
     enum class LoadCollectionStatsStatus { Success, Failed, NoFileHandle };
 

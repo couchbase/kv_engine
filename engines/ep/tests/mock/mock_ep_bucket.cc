@@ -82,7 +82,8 @@ VBucketPtr MockEPBucket::makeVBucket(
         bool mightContainXattrs,
         const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno,
-        uint64_t maxPrepareSeqno) {
+        uint64_t maxPrepareSeqno,
+        std::optional<vbucket_state_t> expectedNextState) {
     auto vptr = EPBucket::makeVBucket(id,
                                       state,
                                       shard,
@@ -99,7 +100,8 @@ VBucketPtr MockEPBucket::makeVBucket(
                                       mightContainXattrs,
                                       replicationTopology,
                                       maxVisibleSeqno,
-                                      maxPrepareSeqno);
+                                      maxPrepareSeqno,
+                                      expectedNextState);
     // Create a MockCheckpointManager.
     vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
             stats,

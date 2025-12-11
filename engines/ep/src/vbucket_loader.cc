@@ -35,6 +35,7 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
         size_t maxFailoverEntries,
         bool cleanShutdown,
         CreateVbucketMethod creationMethod,
+        std::optional<vbucket_state_t> expectedNextState,
         bool readCollectionsManifest) {
     Expects(!vb);
     auto status = CreateVBucketStatus::Success;
@@ -88,7 +89,8 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
                                vbs.mightContainXattrs,
                                topology,
                                vbs.maxVisibleSeqno,
-                               vbs.persistedPreparedSeqno);
+                               vbs.persistedPreparedSeqno,
+                               expectedNextState);
 
         if (vbs.transition.state == vbucket_state_active &&
             (!cleanShutdown ||

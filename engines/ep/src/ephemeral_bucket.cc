@@ -310,7 +310,8 @@ VBucketPtr EphemeralBucket::makeVBucket(
         bool mightContainXattrs,
         const nlohmann::json* replicationTopology,
         uint64_t maxVisibleSeqno,
-        uint64_t maxPrepareSeqno) {
+        uint64_t maxPrepareSeqno,
+        std::optional<vbucket_state_t> expectedNextState) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
     (void)maxVisibleSeqno; // Ephemeral overrides this to be 0
     (void)maxPrepareSeqno; // Ephemeral overrides this to be 0
@@ -340,7 +341,8 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     purgeSeqno,
                                     maxCas,
                                     mightContainXattrs,
-                                    replicationTopology);
+                                    replicationTopology,
+                                    expectedNextState);
 
     vb->ht.setMemChangedCallback([vb, &stats = stats](int64_t delta) {
         auto state = vb->getState();

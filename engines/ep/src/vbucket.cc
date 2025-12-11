@@ -208,6 +208,7 @@ VBucket::VBucket(Vbid i,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
                  const nlohmann::json* replTopology,
+                 std::optional<vbucket_state_t> expectedNextState,
                  uint64_t maxVisibleSeqno,
                  uint64_t maxPrepareSeqno)
     : ht(
@@ -279,7 +280,8 @@ VBucket::VBucket(Vbid i,
       syncWriteResolvedCb(std::move(syncWriteResolvedCb)),
       syncWriteCompleteCb(std::move(syncWriteCb)),
       seqnoAckCb(std::move(seqnoAckCb)),
-      mayContainXattrs(mightContainXattrs) {
+      mayContainXattrs(mightContainXattrs),
+      expectedNextState(expectedNextState) {
     ht.minimumSize = [bucket]() { return bucket->getMinimumHashTableSize(); };
     // There are tests where we just create vbuckets & bucket can be null -
     // get the value from the KVBucket only when it's not null.
@@ -317,7 +319,10 @@ VBucket::VBucket(Vbid i,
             {"max_cas", getMaxCas()},
             {"uuid",
              failovers ? std::to_string(failovers->getLatestUUID()) : ""},
-            {"topology", getReplicationTopology()});
+            {"topology", getReplicationTopology()},
+            {"next_state",
+             expectedNextState ? VBucket::toString(*expectedNextState)
+                               : "unknown"});
 }
 
 VBucket::~VBucket() {
@@ -4602,4 +4607,8 @@ MutationStatus VBucket::upsertToHashTable(Item& itm,
     }
 
     return ht.upsertItem(itm, eject, keyMetaDataOnly, eviction);
+}
+
+bool VBucket::isNextState(vbucket_state_t state) const {
+    return expectedNextState == state;
 }
