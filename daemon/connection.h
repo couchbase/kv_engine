@@ -931,6 +931,15 @@ public:
             std::optional<std::chrono::system_clock::time_point> begin,
             std::optional<std::chrono::system_clock::time_point> end);
 
+    const TokenAuthData& getTokenAuthDataById(const uint16_t id) const {
+        auto iter = tokenAuthDataById.find(id);
+        if (iter == tokenAuthDataById.end()) {
+            throw cb::engine_error(cb::engine_errc::no_such_key,
+                                   "Unknown token auth id");
+        }
+        return *iter->second;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
@@ -1118,6 +1127,10 @@ protected:
 
     /// The token authentication data (if any) associated with the connection
     std::unique_ptr<TokenAuthData> tokenAuthData;
+
+    /// The registered tokens by their ID
+    std::unordered_map<uint16_t, std::unique_ptr<TokenAuthData>>
+            tokenAuthDataById;
 
     /// The number of times we've been backing off and yielding
     /// to allow other threads to run

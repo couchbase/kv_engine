@@ -255,6 +255,12 @@ protected:
                                   reinterpret_cast<const char*>(payload.data()),
                                   payload.size()};
                     break;
+                case cb::mcbp::request::FrameInfoId::
+                        ImpersonateWithTokenAuthDataId:
+                    ss << " euid-token-id="
+                       << ntohl(*reinterpret_cast<const uint32_t*>(
+                                  payload.data()));
+                    break;
                 }
 
                 vector.emplace_back(ss.str());

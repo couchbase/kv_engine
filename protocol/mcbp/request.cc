@@ -257,6 +257,10 @@ nlohmann::json Request::to_json(bool validated) const {
                             reinterpret_cast<const char*>(buffer.data()),
                             buffer.size()});
                     break;
+                case request::FrameInfoId::ImpersonateWithTokenAuthDataId:
+                    frameid["euid-token-id"] = ntohl(
+                            *reinterpret_cast<const uint32_t*>(buffer.data()));
+                    break;
                 }
 
                 return true;
@@ -681,9 +685,8 @@ bool Request::isValid() const {
 
 } // namespace cb::mcbp
 
-std::string to_string(cb::mcbp::request::FrameInfoId id) {
-    using cb::mcbp::request::FrameInfoId;
-
+namespace cb::mcbp::request {
+std::string format_as(FrameInfoId id) {
     switch (id) {
     case FrameInfoId::Barrier:
         return "Barrier";
@@ -697,10 +700,17 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "PreserveTtl";
     case FrameInfoId::ImpersonateExtraPrivilege:
         return "ImpersonateExtraPrivilege";
+    case FrameInfoId::ImpersonateWithTokenAuthDataId:
+        return "ImpersonateWithTokenAuthDataId";
     }
 
-    throw std::invalid_argument("to_string(): Invalid frame id: " +
-                                std::to_string(int(id)));
+    throw std::invalid_argument("format_as(): Invalid frame id: " +
+                                std::to_string(static_cast<int>(id)));
+}
+} // namespace cb::mcbp::request
+
+std::string to_string(cb::mcbp::request::FrameInfoId id) {
+    return format_as(id);
 }
 
 cb::durability::Level cb::mcbp::request::DcpPreparePayload::getDurabilityLevel()

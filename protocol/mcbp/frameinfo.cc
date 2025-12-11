@@ -21,6 +21,8 @@ ImpersonateUserFrameInfo::~ImpersonateUserFrameInfo() = default;
 ImpersonateUserExtraPrivilegeFrameInfo::
         ~ImpersonateUserExtraPrivilegeFrameInfo() = default;
 PreserveTtlFrameInfo::~PreserveTtlFrameInfo() = default;
+ImpersonateWithTokenAuthIdFrameInfo::~ImpersonateWithTokenAuthIdFrameInfo() =
+        default;
 
 using cb::mcbp::request::FrameInfoId;
 
@@ -114,4 +116,12 @@ std::vector<uint8_t> ImpersonateUserExtraPrivilegeFrameInfo::encode() const {
             {reinterpret_cast<const uint8_t*>(privilege.data()),
              privilege.size()});
 }
+
+std::vector<uint8_t> ImpersonateWithTokenAuthIdFrameInfo::encode() const {
+    const auto value = htons(id);
+    return FrameInfo::encode(
+            FrameInfoId::ImpersonateWithTokenAuthDataId,
+            {reinterpret_cast<const uint8_t*>(&value), sizeof(value)});
+}
+
 } // namespace cb::mcbp::request

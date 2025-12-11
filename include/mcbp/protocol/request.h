@@ -36,7 +36,9 @@ enum class FrameInfoId {
     Impersonate = 4,
     PreserveTtl = 5,
     ImpersonateExtraPrivilege = 6,
+    ImpersonateWithTokenAuthDataId = 7,
 };
+std::string format_as(FrameInfoId id);
 }
 
 /**

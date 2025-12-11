@@ -537,6 +537,8 @@ public:
         return euid.get();
     }
 
+    void setImpersonateWithTokenAuthDataId(const uint16_t id);
+
     void addImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
         const auto idx = size_t(privilege);
         euidExtraPrivileges.set(idx);
@@ -801,6 +803,10 @@ protected:
     /// (but the authenticated user must also have the privileges in the
     /// effective set)
     cb::rbac::PrivilegeMask euidExtraPrivileges;
+
+    /// The id of the AuthData entry used to perform token-based
+    /// impersonation, if any.
+    std::optional<uint16_t> impersonateWithTokenAuthDataId;
 
     /// The response status we sent for this cookie (for a multi-response
     /// command such as STATS it would be the _last_ status code)

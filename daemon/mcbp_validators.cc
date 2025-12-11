@@ -270,6 +270,34 @@ static Status parseFrameExtras(Cookie& cookie,
                     return false;
                 }
                 return true; // continue parsing
+
+            case cb::mcbp::request::FrameInfoId::ImpersonateWithTokenAuthDataId:
+                if (data.size() != sizeof(uint16_t)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext(
+                            "ImpersonateWithTokenAuthDataId invalid size:" +
+                            std::to_string(data.size()));
+                    return false;
+                }
+
+                if (!cookie.testPrivilege(cb::rbac::Privilege::Impersonate)
+                             .success()) {
+                    cookie.setErrorContext(
+                            "ImpersonateWithTokenAuthDataId requires "
+                            "Impersonate privilege");
+                    status = Status::Eaccess;
+                    return false;
+                }
+
+                try {
+                    cookie.setImpersonateWithTokenAuthDataId(ntohs(
+                            *reinterpret_cast<const uint16_t*>(data.data())));
+                    return true;
+                } catch (const cb::engine_error& error) {
+                    cookie.setErrorContext(error.what());
+                }
+                status = Status::Einval;
+                return false;
             } // switch (id)
             status = Status::UnknownFrameInfo;
             return false;

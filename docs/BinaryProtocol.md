@@ -188,6 +188,12 @@ to avoid privilege escalation)
 
 Multiple privileges may be added by adding multiple frame info entries
 
+##### ID:7 - Impersonate with token auth id
+
+Impersonate the user identified by the provided auth token registered
+with the token id. The frame info contains a uint16 token id in network
+byte order.
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |

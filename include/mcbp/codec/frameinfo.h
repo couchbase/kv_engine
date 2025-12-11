@@ -100,4 +100,14 @@ protected:
     const std::string privilege;
 };
 
+class ImpersonateWithTokenAuthIdFrameInfo : public FrameInfo {
+public:
+    explicit ImpersonateWithTokenAuthIdFrameInfo(uint16_t id_) : id(id_) {
+    }
+    ~ImpersonateWithTokenAuthIdFrameInfo() override;
+    std::vector<uint8_t> encode() const override;
+
+protected:
+    const uint16_t id;
+};
 } // namespace cb::mcbp::request

@@ -657,6 +657,7 @@ void Cookie::reset() {
     read_thottling_factor = 1.0;
     write_thottling_factor = 1.0;
     resource_allocation_domain = ResourceAllocationDomain::None;
+    impersonateWithTokenAuthDataId.reset();
 }
 
 void Cookie::setThrottled(bool val) {
@@ -849,7 +850,43 @@ cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
     return cb::mcbp::Status::Success;
 }
 
+void Cookie::setImpersonateWithTokenAuthDataId(const uint16_t id) {
+    impersonateWithTokenAuthDataId = id;
+    const auto& auth_data = connection.getTokenAuthDataById(id);
+    if (auth_data.isStale(std::chrono::steady_clock::now())) {
+        throw cb::engine_error(cb::engine_errc::authentication_stale,
+                               "Token auth data is stale");
+    }
+    const auto& userentry = auth_data.getUserEntry();
+
+    euid = std::make_unique<cb::rbac::UserIdent>(auth_data.getUser());
+    std::string bucket = connection.getBucket().name;
+
+    if (bucket.empty()) {
+        euidPrivilegeContext = std::make_unique<cb::rbac::PrivilegeContext>(
+                0,
+                euid->domain,
+                userentry.getPrivileges(),
+                std::shared_ptr<const cb::rbac::Bucket>{},
+                true);
+        return;
+    }
+
+    auto iter = userentry.getBuckets().find(bucket);
+    if (iter == userentry.getBuckets().end()) {
+        // No explicit match... Is there a wildcard entry
+        iter = userentry.getBuckets().find("*");
+        if (iter == userentry.getBuckets().end()) {
+            throw cb::engine_error(cb::engine_errc::no_access, "Access denied");
+        }
+    }
+
+    euidPrivilegeContext = std::make_unique<cb::rbac::PrivilegeContext>(
+            0, euid->domain, userentry.getPrivileges(), iter->second, true);
+}
+
 bool Cookie::fetchEuidPrivilegeSet() {
+    Expects(!impersonateWithTokenAuthDataId);
     if (privilegeContext->check(cb::rbac::Privilege::Impersonate, {}, {})
                 .failed()) {
         const auto command = to_string(getRequest().getClientOpcode());
