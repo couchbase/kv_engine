@@ -14,6 +14,7 @@
 #include "resource_allocation_domain.h"
 #include "sendbuffer.h"
 #include "stats.h"
+#include "token_auth_data.h"
 
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -922,15 +923,13 @@ public:
         return current_timeslice_end;
     }
 
-    /// Set the lifetime for the auth context
-    void setAuthContextLifetime(
+    /// Set the user entry provided by the token with the optional lifetime
+    /// spec
+    void setTokenProvidedUserEntry(
+            cb::rbac::UserIdent user_,
+            std::unique_ptr<cb::rbac::UserEntry> entry,
             std::optional<std::chrono::system_clock::time_point> begin,
             std::optional<std::chrono::system_clock::time_point> end);
-
-    /// Set the user entry provided by the token
-    void setTokenProvidedUserEntry(std::unique_ptr<cb::rbac::UserEntry> entry) {
-        tokenProvidedUserEntry = std::move(entry);
-    }
 
 protected:
     /// Protected constructor so that it may only be used from create();
@@ -1084,16 +1083,6 @@ protected:
     /// The (authenticated) user for the connection.
     std::optional<cb::rbac::UserIdent> user;
 
-    /// The authentication context may have restrictions on when it is valid
-    struct AuthContextLifetime {
-        std::optional<std::chrono::steady_clock::time_point> begin;
-        std::optional<std::chrono::steady_clock::time_point> end;
-        bool isStale(const std::chrono::steady_clock::time_point now) const {
-            return (end.has_value() && *end < now) ||
-                   (begin.has_value() && *begin > now);
-        }
-    } authContextLifetime;
-
     /// The description of the connection
     folly::Synchronized<nlohmann::json, std::mutex> description;
 
@@ -1127,8 +1116,8 @@ protected:
     /// to STEP).
     std::unique_ptr<cb::sasl::server::ServerContext> saslServerContext;
 
-    /// A user entry provided in the token when using JWT
-    std::unique_ptr<cb::rbac::UserEntry> tokenProvidedUserEntry;
+    /// The token authentication data (if any) associated with the connection
+    std::unique_ptr<TokenAuthData> tokenAuthData;
 
     /// The number of times we've been backing off and yielding
     /// to allow other threads to run

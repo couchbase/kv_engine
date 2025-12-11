@@ -718,7 +718,8 @@ void Connection::executeCommandPipeline() {
                !stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
                state == State::running) {
-            const auto auth_stale = authContextLifetime.isStale(now);
+            const auto auth_stale =
+                    tokenAuthData && tokenAuthData->isStale(now);
             if (!cookies.back()->empty()) {
                 // Create a new entry if we can't reuse the last entry
                 cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1265,27 +1266,17 @@ std::unique_ptr<Connection> Connection::create(
             sfd, thr, std::move(descr), std::move(context));
 }
 
-void Connection::setAuthContextLifetime(
+void Connection::setTokenProvidedUserEntry(
+        cb::rbac::UserIdent user_,
+        std::unique_ptr<cb::rbac::UserEntry> entry,
         std::optional<std::chrono::system_clock::time_point> begin,
         std::optional<std::chrono::system_clock::time_point> end) {
-    using namespace std::chrono;
-    const auto system_now = system_clock::now();
-    const auto steady_now = steady_clock::now();
-    auto setValue = [&system_now, &steady_now](auto& field, auto& tp) {
-        if (tp.has_value()) {
-            if (system_now < *tp) {
-                // Convert the system clock to offset from the steady clock as
-                // that's cheaper to read
-                field = steady_now + duration_cast<seconds>(*tp - system_now);
-            } else {
-                field = steady_now;
-            }
-        } else {
-            field.reset();
-        }
-    };
-    setValue(authContextLifetime.begin, begin);
-    setValue(authContextLifetime.end, end);
+    if (entry) {
+        tokenAuthData = std::make_unique<TokenAuthData>(
+                std::move(user_), std::move(entry), begin, end);
+    } else {
+        tokenAuthData.reset();
+    }
 }
 
 Connection::Connection(SOCKET sfd,
@@ -2696,7 +2687,7 @@ bool Connection::mayAccessBucket(std::string_view bucket) const {
         return false;
     }
 
-    if (tokenProvidedUserEntry) {
+    if (tokenAuthData) {
         try {
             (void)createContext(bucket);
             return true;
@@ -2710,28 +2701,28 @@ bool Connection::mayAccessBucket(std::string_view bucket) const {
 cb::rbac::PrivilegeContext Connection::createContext(
         std::string_view bucket) const {
     Expects(isAuthenticated());
-    if (tokenProvidedUserEntry) {
+    if (tokenAuthData) {
         std::string name(bucket);
         if (bucket.empty()) {
             return {0,
                     user->domain,
-                    tokenProvidedUserEntry->getPrivileges(),
+                    tokenAuthData->getUserEntry().getPrivileges(),
                     {},
                     true};
         }
         // Add the bucket specific privileges
-        auto iter = tokenProvidedUserEntry->getBuckets().find(name);
-        if (iter == tokenProvidedUserEntry->getBuckets().end()) {
+        auto iter = tokenAuthData->getUserEntry().getBuckets().find(name);
+        if (iter == tokenAuthData->getUserEntry().getBuckets().end()) {
             // No explicit match... Is there a wildcard entry
-            iter = tokenProvidedUserEntry->getBuckets().find("*");
-            if (iter == tokenProvidedUserEntry->getBuckets().cend()) {
+            iter = tokenAuthData->getUserEntry().getBuckets().find("*");
+            if (iter == tokenAuthData->getUserEntry().getBuckets().cend()) {
                 throw cb::rbac::NoSuchBucketException(name.c_str());
             }
         }
 
         return {0,
                 user->domain,
-                tokenProvidedUserEntry->getPrivileges(),
+                tokenAuthData->getUserEntry().getPrivileges(),
                 iter->second,
                 true};
     }

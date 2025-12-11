@@ -42,18 +42,12 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         std::string_view payload) {
     auto& serverContext = *connection.getSaslServerContext();
 
-    // reset any expiry time
-    connection.setAuthContextLifetime({}, {});
+    // reset any expiry time and previous tokens
+    connection.setTokenProvidedUserEntry({}, {}, {}, {});
     if (tokenMetadata) {
         auto& json = tokenMetadata.value();
         Expects(json.contains("rbac"));
         Expects(json["rbac"].contains(serverContext.getUser().name));
-        connection.setTokenProvidedUserEntry(
-                std::make_unique<cb::rbac::UserEntry>(
-                        serverContext.getUser().name,
-                        json["rbac"][serverContext.getUser().name],
-                        serverContext.getUser().domain));
-
         std::optional<std::chrono::system_clock::time_point> lifetimeBegin;
         std::optional<std::chrono::system_clock::time_point> lifetimeEnd;
         if (json.contains("nbf")) {
@@ -62,11 +56,17 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         if (json.contains("exp")) {
             lifetimeEnd = std::chrono::system_clock::from_time_t(json["exp"]);
         }
-        connection.setAuthContextLifetime(lifetimeBegin, lifetimeEnd);
+
+        const auto user = serverContext.getUser();
+        connection.setTokenProvidedUserEntry(
+                user,
+                std::make_unique<cb::rbac::UserEntry>(
+                        user.name, json["rbac"][user.name], user.domain),
+                lifetimeBegin,
+                lifetimeEnd);
     } else {
         // Authentication successful, but it still has to be defined in
         // our system
-        connection.setTokenProvidedUserEntry({});
         try {
             (void)createContext(serverContext.getUser(), {});
         } catch (const cb::rbac::NoSuchUserException&) {

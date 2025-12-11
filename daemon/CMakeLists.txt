@@ -108,6 +108,8 @@ add_library(memcached_daemon STATIC
             timings.h
             tls_configuration.cc
             tls_configuration.h
+            token_auth_data.cc
+            token_auth_data.h
             top_keys.cc
             top_keys.h
             tracing.cc
