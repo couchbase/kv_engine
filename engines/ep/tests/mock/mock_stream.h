@@ -367,4 +367,10 @@ public:
     bool public_supportSyncReplication() const {
         return supportsSyncReplication;
     }
+
+    void public_generateCacheTransferRequest(nlohmann::json& stream_req_json,
+                                             const VBucket& vb,
+                                             size_t freeMem) const {
+        generateCacheTransferRequest(stream_req_json, vb, freeMem);
+    }
 };

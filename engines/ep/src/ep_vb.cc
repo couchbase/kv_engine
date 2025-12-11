@@ -1835,6 +1835,12 @@ void EPVBucket::createFailoverEntry(uint64_t seqno) {
 }
 
 bool EPVBucket::shouldUseDcpCacheTransfer() const {
+    // Don't transfer for full eviction vbuckets that will become replica
+    if (isNextState(vbucket_state_replica) &&
+        eviction == EvictionPolicy::Full) {
+        return false;
+    }
+
     return (creationMethod == CreateVbucketMethod::FBR ||
             creationMethod == CreateVbucketMethod::Fusion) &&
            canReceiveCacheTransfer;

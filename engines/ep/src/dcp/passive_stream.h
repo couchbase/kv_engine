@@ -90,7 +90,7 @@ public:
      *
      * @params vb_uuid The UUID to use in the StreamRequest.
      */
-    void streamRequest(uint64_t vb_uuid);
+    void streamRequest(const VBucket& vb, uint64_t vb_uuid);
 
     void acceptStream(cb::mcbp::Status status, uint32_t add_opaque);
 
@@ -290,7 +290,7 @@ protected:
      *
      * @params vb_uuid The VB UUID to use in the StreamRequest.
      */
-    void streamRequest_UNLOCKED(uint64_t vb_uuid);
+    void streamRequest_UNLOCKED(const VBucket& vb, uint64_t vb_uuid);
 
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg,
@@ -324,7 +324,8 @@ protected:
      * @param freeMem free-memory available for a cache transfer
      * @return The stream request JSON as a string.
      */
-    [[nodiscard]] std::string createStreamReqValue(bool cacheTransferEnabled,
+    [[nodiscard]] std::string createStreamReqValue(const VBucket& vb,
+                                                   bool cacheTransferEnabled,
                                                    size_t freeMem) const;
 
     /**
@@ -390,16 +391,21 @@ protected:
      * Add any cache transfer request configuration to the given json object.
      * @param stream_req_json [outin] The stream request
      *                        json to add the cache* transfer request to.
+     * @param vb The vbucket to generate the cache transfer request for
+     * @param freeMem The free memory available for the cache (limits the
+     * producer from sending too much data)
      */
     void generateCacheTransferRequest(nlohmann::json& stream_req_json,
+                                      const VBucket& vb,
                                       size_t freeMem) const;
 
     /**
      * Setup the stream request for a new stream request. Checks current memory
      * conditions, generates the JSON value and maybe tweaks the flags
+     * @param vb The vbucket to setup the stream request for
      * @return the flags for the new stream request
      */
-    cb::mcbp::DcpAddStreamFlag setupForNewStreamRequest();
+    cb::mcbp::DcpAddStreamFlag setupForNewStreamRequest(const VBucket& vb);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

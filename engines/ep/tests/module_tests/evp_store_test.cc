@@ -3427,6 +3427,36 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
     EXPECT_FALSE(vb->isNextState(vbucket_state_active));
     EXPECT_FALSE(vb->isNextState(vbucket_state_pending));
     EXPECT_FALSE(vb->isNextState(vbucket_state_dead));
+
+    if (isFullEviction()) {
+        EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
+        return;
+    }
+    // Value eviction will configure CacheTransfer as an all_keys (no value
+    // transfer)
+
+    EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
+    // Create a stream and validate the CTS configurationauto consumer =
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test-consumer");
+    auto passiveStream = std::static_pointer_cast<MockPassiveStream>(
+            consumer->makePassiveStream(
+                    *engine,
+                    consumer,
+                    "test-passive-stream",
+                    cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                    0 /* opaque */,
+                    *vb,
+                    0 /* startSeqno */,
+                    0 /* vbUuid */,
+                    0 /* snapStartSeqno */,
+                    0 /* snapEndSeqno */,
+                    0 /* vb_high_seqno */,
+                    Collections::ManifestUid{} /* vb_manifest_uid */));
+    nlohmann::json streamReqJson;
+    passiveStream->public_generateCacheTransferRequest(streamReqJson, *vb, 1);
+    EXPECT_EQ(streamReqJson["cts"]["all_keys"], true);
+    EXPECT_EQ(streamReqJson["cts"]["free_memory"], 0); // 0 is no values
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {

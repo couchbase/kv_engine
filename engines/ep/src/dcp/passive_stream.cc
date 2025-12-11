@@ -66,7 +66,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       vb_manifest_uid(vb_manifest_uid),
       flatBuffersSystemEventsEnabled(c->areFlatBuffersSystemEventsEnabled()) {
     std::lock_guard<std::mutex> lh(streamMutex);
-    streamRequest_UNLOCKED(vb_uuid);
+    streamRequest_UNLOCKED(vb, vb_uuid);
     itemsReady.store(true);
     // Cannot call scheduleNotify here as we're not in the readyStreamsVBQueue.
     // The addStream path will call scheduleNotify as at that point this new
@@ -87,16 +87,17 @@ PassiveStream::~PassiveStream() {
     }
 }
 
-void PassiveStream::streamRequest(uint64_t vb_uuid) {
+void PassiveStream::streamRequest(const VBucket& vb, uint64_t vb_uuid) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
-        streamRequest_UNLOCKED(vb_uuid);
+        streamRequest_UNLOCKED(vb, vb_uuid);
     }
     notifyStreamReady();
 }
 
-void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
-    const auto flags = setupForNewStreamRequest();
+void PassiveStream::streamRequest_UNLOCKED(const VBucket& vb,
+                                           uint64_t vb_uuid) {
+    const auto flags = setupForNewStreamRequest(vb);
 
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
     pushToReadyQ(std::make_unique<StreamRequest>(
@@ -246,7 +247,7 @@ void PassiveStream::reconnectStream(const VBucket& vb,
         info.range.setStart(info.start);
     }
 
-    const auto flags = setupForNewStreamRequest();
+    const auto flags = setupForNewStreamRequest(vb);
 
     {
         std::lock_guard<std::mutex> lh(streamMutex);
@@ -1277,21 +1278,30 @@ void PassiveStream::notifyStreamReady() {
     }
 }
 
-std::string PassiveStream::createStreamReqValue(bool cacheTransferEnabled,
+std::string PassiveStream::createStreamReqValue(const VBucket& vb,
+                                                bool cacheTransferEnabled,
                                                 size_t freeMem) const {
     nlohmann::json stream_req_json;
     stream_req_json["uid"] = fmt::format("{:x}", vb_manifest_uid);
     if (cacheTransferEnabled) {
-        generateCacheTransferRequest(stream_req_json, freeMem);
+        generateCacheTransferRequest(stream_req_json, vb, freeMem);
     }
     return stream_req_json.dump();
 }
 
 void PassiveStream::generateCacheTransferRequest(
-        nlohmann::json& stream_req_json, size_t freeMem) const {
+        nlohmann::json& stream_req_json,
+        const VBucket& vb,
+        size_t freeMem) const {
     nlohmann::json cts;
     if (engine->getKVBucket()->isValueEviction()) {
         cts["all_keys"] = true;
+        if (vb.isNextState(vbucket_state_replica)) {
+            // Disabling transfer of values for a replica vbucket by setting
+            // freeMem to 0. The all_keys transfer will now just send all keys
+            // so that VE functions.
+            freeMem = 0;
+        }
     }
     cts["free_memory"] = freeMem;
     stream_req_json["cts"] = std::move(cts);
@@ -1534,7 +1544,8 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
     return cb::engine_errc::success;
 }
 
-cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest() {
+cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest(
+        const VBucket& vb) {
     size_t freeMem = 0;
     auto flags = flags_; // copy flags and tweak them as needed
 
@@ -1560,16 +1571,13 @@ cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest() {
             // How much memory available below HWM?
             const auto totalFreeMem = mem_high_wat - totalMem;
 
-            // freeMem is the amount of memory available per vbucket.
-            // Note we could possibly tweak this for takeover vs non-takeover
-            // (takeover will become active and could try and inflate freeMem).
+            // freeMem is the amount of memory available per vbucket. Note that
+            // replica cache-transfer is disabled so only consider active + 1
+            // share.
             freeMem = totalFreeMem /
                       (engine->getKVBucket()->getNumOfVBucketsInState(
                                vbucket_state_active) +
-                       engine->getKVBucket()->getNumOfVBucketsInState(
-                               vbucket_state_replica) +
-                       engine->getKVBucket()->getNumOfVBucketsInState(
-                               vbucket_state_pending));
+                       1);
         }
 
         OBJ_LOG_INFO_CTX(*this,
@@ -1583,6 +1591,7 @@ cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest() {
     }
 
     stream_req_value = createStreamReqValue(
+            vb,
             isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer),
             freeMem);
 

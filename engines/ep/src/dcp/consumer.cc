@@ -1133,7 +1133,7 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
                     {"num_entries", vb->failovers->getNumEntries()},
                     {"vb_uuid", entry.vb_uuid});
 
-            stream->streamRequest(entry.vb_uuid);
+            stream->streamRequest(*vb, entry.vb_uuid);
             return true;
         }
         OBJ_LOG_INFO_CTX(
