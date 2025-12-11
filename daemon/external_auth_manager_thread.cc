@@ -11,6 +11,7 @@
 
 #include "connection.h"
 #include "cookie.h"
+#include "decode_token_task.h"
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
 #include "platform/timeutils.h"
@@ -189,18 +190,9 @@ void ExternalAuthManagerThread::processRequestQueue() {
         auto currentRequest = incomingRequests.front();
         currentRequest->recordStartTime();
 
-        auto* saslTask = dynamic_cast<SaslAuthTask*>(currentRequest);
-        if (saslTask == nullptr) {
-            auto* getAuthz =
+        if (auto* getAuthz =
                     dynamic_cast<GetAuthorizationTask*>(currentRequest);
-            if (getAuthz == nullptr) {
-                LOG_CRITICAL_RAW(
-                        "ExternalAuthManagerThread::processRequestQueue(): "
-                        "Invalid entry found in request queue!");
-                incomingRequests.pop();
-                continue;
-            }
-
+            getAuthz != nullptr) {
             provider->getThread().eventBase.runInEventBaseThread(
                     [provider,
                      id = next,
@@ -223,7 +215,40 @@ void ExternalAuthManagerThread::processRequestQueue() {
                         provider->copyToOutputStream(
                                 builder.getFrame()->getFrame());
                     });
-        } else {
+        } else if (auto* decodeTokenTask =
+                           dynamic_cast<DecodeTokenTask*>(currentRequest);
+                   decodeTokenTask != nullptr) {
+            nlohmann::json json;
+            json["mechanism"] = decodeTokenTask->getMechanism();
+            json["challenge"] =
+                    cb::base64::encode(decodeTokenTask->getChallenge());
+            auto payload = json.dump();
+            if (isLoggingEnabled()) {
+                LOG_INFO_CTX("External auth request",
+                             {"conn_id",
+                              decodeTokenTask->getCookie().getConnectionId()},
+                             {"payload", json});
+            }
+
+            provider->getThread().eventBase.runInEventBaseThread(
+                    [provider, id = next, p = std::move(payload)]() {
+                        const size_t needed =
+                                sizeof(cb::mcbp::Request) + p.size();
+                        std::string buffer;
+                        buffer.resize(needed);
+                        cb::mcbp::RequestBuilder builder(buffer);
+                        builder.setMagic(cb::mcbp::Magic::ServerRequest);
+                        builder.setDatatype(provider->getEnabledDatatypes(
+                                cb::mcbp::Datatype::JSON));
+                        builder.setOpcode(cb::mcbp::ServerOpcode::Authenticate);
+                        builder.setOpaque(id);
+                        builder.setValue(p);
+                        // Inject our packet into the stream!
+                        provider->copyToOutputStream(
+                                builder.getFrame()->getFrame());
+                    });
+        } else if (auto* saslTask = dynamic_cast<SaslAuthTask*>(currentRequest);
+                   saslTask != nullptr) {
             nlohmann::json json;
             json["peer"] = saslTask->getPeer();
             if (!saslTask->getContext().empty()) {
@@ -258,6 +283,12 @@ void ExternalAuthManagerThread::processRequestQueue() {
                         provider->copyToOutputStream(
                                 builder.getFrame()->getFrame());
                     });
+        } else {
+            LOG_CRITICAL_RAW(
+                    "ExternalAuthManagerThread::processRequestQueue(): "
+                    "Invalid entry found in request queue!");
+            incomingRequests.pop();
+            continue;
         }
         requestMap[next] = std::make_pair(provider, currentRequest);
         auto timeout = currentRequest->getStartTime() +

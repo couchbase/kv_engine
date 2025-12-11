@@ -48,6 +48,7 @@
 #include "protocol/mcbp/prepare_snapshot_context.h"
 #include "protocol/mcbp/prune_encryption_keys_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
+#include "protocol/mcbp/register_auth_token_command_context.h"
 #include "protocol/mcbp/release_fusion_storage_snapshot_command_context.h"
 #include "protocol/mcbp/release_snapshot_context.h"
 #include "protocol/mcbp/remove_context.h"
@@ -460,6 +461,10 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
 
 static void prune_encryption_keys_executor(Cookie& cookie) {
     cookie.obtainContext<PruneEncryptionKeysContext>(cookie).drive();
+}
+
+static void register_auth_token_executor(Cookie& cookie) {
+    cookie.obtainContext<RegisterAuthTokenCommandContext>(cookie).drive();
 }
 
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
@@ -951,6 +956,8 @@ void initialize_mbcp_lookup_map() {
                   set_active_encryption_key_executor);
     setup_handler(cb::mcbp::ClientOpcode::PruneEncryptionKeys,
                   prune_encryption_keys_executor);
+    setup_handler(cb::mcbp::ClientOpcode::RegisterAuthToken,
+                  register_auth_token_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
                   create_remove_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_executor);

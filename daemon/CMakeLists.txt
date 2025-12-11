@@ -26,6 +26,8 @@ add_library(memcached_daemon STATIC
             cookie_trace_context.h
             datatype_filter.cc
             datatype_filter.h
+            decode_token_task.cc
+            decode_token_task.h
             enginemap.cc
             enginemap.h
             environment.cc

@@ -1279,6 +1279,16 @@ void Connection::setTokenProvidedUserEntry(
     }
 }
 
+void Connection::upsertTokenAuthDataById(
+        uint16_t id,
+        cb::rbac::UserIdent user_,
+        std::unique_ptr<cb::rbac::UserEntry> entry,
+        std::optional<std::chrono::system_clock::time_point> begin,
+        std::optional<std::chrono::system_clock::time_point> end) {
+    tokenAuthDataById[id] = std::make_unique<TokenAuthData>(
+            std::move(user_), std::move(entry), begin, end);
+}
+
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr)

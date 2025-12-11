@@ -352,6 +352,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::SetNodeThrottleProperties_Unsupported:
         case ClientOpcode::SetActiveEncryptionKeys:
         case ClientOpcode::PruneEncryptionKeys:
+        case ClientOpcode::RegisterAuthToken:
         case ClientOpcode::DcpCloseStream:
         case ClientOpcode::DcpGetFailoverLog:
         case ClientOpcode::DcpFlush_Unsupported:

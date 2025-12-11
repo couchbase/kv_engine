@@ -7,6 +7,7 @@ cb_add_test_executable(cluster_test
                durability_upgrade_tests.cc
                get_ex_tests.cc
                get_keys_test.cc
+               jwt_tests.cc
                main.cc
                misc_tests.cc
                out_of_order_tests.cc

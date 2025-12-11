@@ -383,6 +383,8 @@ public:
         setup(ClientOpcode::PruneEncryptionKeys,
               {"PRUNE_ENCRYPTION_KEYS"sv,
                {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::RegisterAuthToken,
+              {"REGISTER AUTH TOKEN"sv, {Attribute::Supported}});
         setup(ClientOpcode::Rget_Unsupported,
               {"RGET"sv, {Attribute::SubjectForThrottling}});
         setup(ClientOpcode::Rset_Unsupported,

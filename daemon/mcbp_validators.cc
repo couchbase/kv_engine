@@ -1966,6 +1966,58 @@ static Status prune_encryption_keys_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status register_auth_token_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+    const auto& req = cookie.getRequest();
+    if (req.getDatatype() != cb::mcbp::Datatype::JSON) {
+        cookie.setErrorContext("Datatype must be JSON");
+        return Status::Einval;
+    }
+    try {
+        auto payload = nlohmann::json::parse(req.getValueString());
+        if (!payload.contains("id") || !payload["id"].is_number_unsigned()) {
+            cookie.setErrorContext(
+                    "The provided JSON must contain 'id' which must be a "
+                    "number");
+            return Status::Einval;
+        }
+
+        if (payload.size() > 1) {
+            // (a payload of size 1 indicates a removal of the token)
+            if (!payload.contains("token") || !payload["token"].is_string()) {
+                cookie.setErrorContext(
+                        "The provided JSON must contain 'token' which must be "
+                        "a string");
+                return Status::Einval;
+            }
+            if (!payload.contains("type") || !payload["type"].is_string()) {
+                cookie.setErrorContext(
+                        "The provided JSON must contain 'type' which must be a "
+                        "string");
+                return Status::Einval;
+            }
+            if (payload["type"] != "JWT") {
+                cookie.setErrorContext("Only 'JWT' tokens is supported");
+                return Status::NotSupported;
+            }
+        }
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Failed to parse provided JSON");
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status get_meta_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -3229,7 +3281,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::SetActiveEncryptionKeys,
           set_active_encryption_key_validator);
     setup(ClientOpcode::PruneEncryptionKeys, prune_encryption_keys_validator);
-
+    setup(ClientOpcode::RegisterAuthToken, register_auth_token_validator);
     setup(ClientOpcode::SetBucketThrottleProperties,
           set_bucket_throttle_properties_validator);
     setup(ClientOpcode::SetNodeThrottleProperties_Unsupported,

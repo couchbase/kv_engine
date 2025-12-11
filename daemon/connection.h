@@ -940,6 +940,17 @@ public:
         return *iter->second;
     }
 
+    void upsertTokenAuthDataById(
+            uint16_t id,
+            cb::rbac::UserIdent user_,
+            std::unique_ptr<cb::rbac::UserEntry> entry,
+            std::optional<std::chrono::system_clock::time_point> begin,
+            std::optional<std::chrono::system_clock::time_point> end);
+
+    bool removeTokenAuthDataById(const uint16_t id) {
+        return tokenAuthDataById.erase(id) > 0;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
