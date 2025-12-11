@@ -1184,7 +1184,7 @@ bool DcpConsumer::doRollback(uint32_t opaque,
         }
         auto stream = findStream(vbid);
         if (stream) {
-            stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+            stream->reconnectStream(*vb, opaque, vb->getHighSeqno());
         }
         break;
     }

@@ -2252,7 +2252,7 @@ TEST_P(RollbackDcpTest, RollbackCollectionCounts) {
         // rollback has been performed
         auto* stream = dynamic_cast<MockPassiveStream*>(
                 (consumer->getVbucketStream(vbid).get()));
-        stream->reconnectStream(vb, 0, vb->getHighSeqno());
+        stream->reconnectStream(*vb, 0, vb->getHighSeqno());
     }
 
     check(2);

@@ -235,13 +235,13 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     }
 }
 
-void PassiveStream::reconnectStream(VBucketPtr& vb,
+void PassiveStream::reconnectStream(const VBucket& vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
-    auto uuidToUse = start_seqno ? vb->failovers->getLatestEntry().vb_uuid : 0;
+    auto uuidToUse = start_seqno ? vb.failovers->getLatestEntry().vb_uuid : 0;
 
-    snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
+    snapshot_info_t info = vb.checkpointManager->getSnapshotInfo();
     if (info.range.getEnd() == info.start) {
         info.range.setStart(info.start);
     }

@@ -94,7 +94,7 @@ public:
 
     void acceptStream(cb::mcbp::Status status, uint32_t add_opaque);
 
-    void reconnectStream(VBucketPtr& vb,
+    void reconnectStream(const VBucket& vb,
                          uint32_t new_opaque,
                          uint64_t start_seqno);
 

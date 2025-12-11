@@ -7860,7 +7860,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     // with snap_start_seqno=0. However this is not an initial disk snapshot as
     // we've already received items before i.e. vb->getHighSeqno() > 0. Hence
     // expect upserts for items in this snapshot.
-    stream->reconnectStream(vb, 0, 2);
+    stream->reconnectStream(*vb, 0, 2);
     stream->processMarker(&marker);
 
     ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
