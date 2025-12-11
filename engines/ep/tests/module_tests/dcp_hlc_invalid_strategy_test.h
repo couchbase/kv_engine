@@ -33,6 +33,8 @@ protected:
     cb::engine_errc testDcpReplicationWithInvalidCas(queued_item item) {
         auto consumer = std::make_shared<MockDcpConsumer>(
                 *engine, cookie, "test-consumer");
+        auto vb = engine->getVBucket(vbid);
+        Expects(vb);
         auto passiveStream = std::static_pointer_cast<MockPassiveStream>(
                 consumer->makePassiveStream(
                         *engine,
@@ -40,7 +42,7 @@ protected:
                         "test-passive-stream",
                         {} /* flags */,
                         0 /* opaque */,
-                        vbid,
+                        *vb,
                         0 /* startSeqno */,
                         0 /* vbUuid */,
                         0 /* snapStartSeqno */,

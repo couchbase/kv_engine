@@ -153,7 +153,7 @@ void PassiveStreamFuzzTest::receiveSnapshot(
                     "test-passive-stream",
                     {} /* flags */,
                     0 /* opaque */,
-                    vbid,
+                    vb,
                     0 /* startSeqno */,
                     0 /* vbUuid */,
                     0 /* snapStartSeqno */,

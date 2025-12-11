@@ -26,7 +26,7 @@ std::shared_ptr<PassiveStream> MockDcpConsumer::makePassiveStream(
         const std::string& name,
         cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
-        Vbid vb,
+        const VBucket& vb,
         uint64_t start_seqno,
         uint64_t vb_uuid,
         uint64_t snap_start_seqno,

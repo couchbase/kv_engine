@@ -32,6 +32,7 @@ class DcpResponse;
 class PassiveStream;
 class StreamEndResponse;
 class UpdateFlowControl;
+class VBucket;
 
 /**
  * A DCP Consumer object represents a DCP connection which receives streams
@@ -151,7 +152,7 @@ public:
             const std::string& name,
             cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
-            Vbid vb,
+            const VBucket& vb,
             uint64_t start_seqno,
             uint64_t vb_uuid,
             uint64_t snap_start_seqno,
