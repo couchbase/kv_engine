@@ -21,13 +21,14 @@ template <template <class, class...> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(
         const DocKeyView& key,
         typename StoredDocKeyT<Allocator>::allocator_type allocator)
-    : keydata(allocator) {
+    : keydata(key.getEncoding() == DocKeyEncodesCollectionId::Yes
+                      ? key.size()
+                      : key.size() + 1, // 1 byte for the Default CollectionID
+              0,
+              allocator) {
     if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-        keydata.resize(key.size());
         std::copy(key.data(), key.data() + key.size(), keydata.begin());
     } else {
-        // 1 byte for the Default CollectionID
-        keydata.resize(key.size() + 1);
         keydata[0] = DefaultCollectionLeb128Encoded;
         std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
     }
