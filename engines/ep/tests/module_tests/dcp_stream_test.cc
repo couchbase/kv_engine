@@ -2047,7 +2047,10 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerStatsLegacy) {
 
     // Put the stream in the producer's stream map.
     auto streamPtr = std::static_pointer_cast<ActiveStream>(stream);
-    producer->updateStreamsMap(Vbid(0), cb::mcbp::DcpStreamId(1), streamPtr);
+    producer->updateStreamsMap(Vbid(0),
+                               cb::mcbp::DcpStreamId(1),
+                               streamPtr,
+                               DcpProducer::AllowSwapInStreamMap::No);
     // Collect per-stream stats.
     producer->addStreamStats(
             add_stat, *cookie, ConnHandler::StreamStatsFormat::Legacy);
@@ -2068,7 +2071,10 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerStatsJson) {
 
     // Put the stream in the producer's stream map.
     auto streamPtr = std::static_pointer_cast<ActiveStream>(stream);
-    producer->updateStreamsMap(Vbid(0), cb::mcbp::DcpStreamId(1), streamPtr);
+    producer->updateStreamsMap(Vbid(0),
+                               cb::mcbp::DcpStreamId(1),
+                               streamPtr,
+                               DcpProducer::AllowSwapInStreamMap::No);
     // Collect per-stream stats.
     producer->addStreamStats(
             add_stat, *cookie, ConnHandler::StreamStatsFormat::Json);

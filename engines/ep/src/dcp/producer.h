@@ -449,6 +449,12 @@ public:
 
     TestingHook<> updateStreamsMapHook;
 
+    // Passed to updateStreamMap() for allowing/forbidding an exising stream
+    // for a same vbid/sid found at call. If found, depending on this param
+    // updateStreamMap() fails (AllowSwapInStreamMap::No) or just replaces the
+    // existing stream with the new one provided in input.
+    enum class AllowSwapInStreamMap { No, Yes };
+
 protected:
     cb::engine_errc checkConditionsForStreamRequest(
             StreamRequestInfo& req,
@@ -640,7 +646,8 @@ protected:
      */
     void updateStreamsMap(Vbid vbid,
                           cb::mcbp::DcpStreamId sid,
-                          std::shared_ptr<ProducerStream> stream);
+                          std::shared_ptr<ProducerStream> stream,
+                          AllowSwapInStreamMap allowSwap);
 
     /**
      * Attempt to locate a stream associated with the vbucket/stream-id and

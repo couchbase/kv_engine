@@ -809,7 +809,7 @@ cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
     // streams map.
     s->setActive();
 
-    updateStreamsMap(vbucket, streamID, s);
+    updateStreamsMap(vbucket, streamID, s, AllowSwapInStreamMap::No);
 
     return cb::engine_errc::success;
 }
@@ -891,9 +891,6 @@ cb::engine_errc DcpProducer::switchToActiveStream(Vbid vbid,
         return cb::engine_errc::failed;
     }
 
-    // Close the current stream and remove from the streams map.
-    closeStreamInner(vbid, sid, true);
-
     {
         std::shared_lock rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
@@ -916,7 +913,9 @@ cb::engine_errc DcpProducer::switchToActiveStream(Vbid vbid,
 
         s->setActive();
 
-        updateStreamsMap(vbid, sid, s);
+        // MB-69678: updateStreamsMap() perform a locked swap between the old
+        // CTStream and the new ActiveStream
+        updateStreamsMap(vbid, sid, s, AllowSwapInStreamMap::Yes);
     }
     notifyStreamReady(vbid);
     return cb::engine_errc::success;
@@ -2609,7 +2608,8 @@ std::vector<std::shared_ptr<ActiveStream>> DcpProducer::getActiveStreams(
 
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
-                                   std::shared_ptr<ProducerStream> stream) {
+                                   std::shared_ptr<ProducerStream> stream,
+                                   AllowSwapInStreamMap allowSwap) {
     using cb::tracing::Code;
     ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
                                              Code::StreamUpdateMap);
@@ -2625,6 +2625,14 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
             for (; !handle.end(); handle.next()) {
                 auto& sp = handle.get(); // get the shared_ptr<Stream>
                 if (sp->compareStreamId(sid)) {
+                    if (allowSwap == AllowSwapInStreamMap::Yes) {
+                        // We found that a stream for vbid/sid already exists in
+                        // the map, remove it, we'll add the new stream a few
+                        // lines below
+                        handle.erase();
+                        break;
+                    }
+
                     // Error if found - given we just checked this
                     // in the pre-flight checks for streamRequest.
                     auto msg = fmt::format(

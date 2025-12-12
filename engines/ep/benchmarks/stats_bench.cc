@@ -183,8 +183,10 @@ public:
         // Pretend we have the requested number of streams.
         producer->enableMultipleStreamRequests();
         for (uint16_t i = 0; i < state.range(1); i++) {
-            producer->updateStreamsMap(
-                    Vbid(0), cb::mcbp::DcpStreamId(i), streamPtr);
+            producer->updateStreamsMap(Vbid(0),
+                                       cb::mcbp::DcpStreamId(i),
+                                       streamPtr,
+                                       DcpProducer::AllowSwapInStreamMap::No);
         }
     }
 
