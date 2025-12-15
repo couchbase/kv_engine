@@ -1316,15 +1316,14 @@ void PassiveStream::logWithContext(spdlog::level::level_enum severity,
 }
 
 void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
-                                        const std::string& msgType,
-                                        int64_t seqno) {
+                                        const MutationResponse& mutation) {
     bool previousNoMem = isNoMemory.load();
     if (status == cb::engine_errc::no_memory && !previousNoMem) {
         OBJ_LOG_WARN_CTX(*this,
                          "Got error while trying to process with seqno",
                          {"status", cb::to_string(status)},
-                         {"message_type", msgType},
-                         {"seqno", seqno});
+                         {"message_type", mutation.to_string()},
+                         {"seqno", *mutation.getBySeqno()});
         isNoMemory.store(true);
     } else if (status == cb::engine_errc::success && previousNoMem) {
         OBJ_LOG_INFO_RAW(*this,
@@ -1418,7 +1417,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
                          mutation->getItem()->getKey().getCollectionID()});
             }
         }
-        maybeLogMemoryState(ret, resp->to_string(), *seqno);
+        maybeLogMemoryState(ret, *mutation);
     } else {
         if (ret != cb::engine_errc::success) {
             OBJ_LOG_WARN_CTX(*this,

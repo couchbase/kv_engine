@@ -306,13 +306,10 @@ protected:
      *
      * @param status last error code returned by the engine when processing
      *               a message
-     * @param msgType string indicating the type of the last message processed
-     *                ("mutation", "deletion", "expiration", "prepare")
-     * @param seqno seqno of last message processed
+     * @param mutation The mutation response that was processed
      */
     void maybeLogMemoryState(cb::engine_errc status,
-                             const std::string& msgType,
-                             int64_t seqno);
+                             const MutationResponse& mutation);
 
     /**
      * Notifies the consumer connection that the stream has items ready to be
