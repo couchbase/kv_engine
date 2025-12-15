@@ -26,6 +26,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_buffered(json.value("buffered", true));
     set_log_directory(json.at("log_path"));
     set_sync(json.at("sync"));
+    set_compression_enabled(json.value("compression_enabled", false));
 
     set_filtering_enabled(json.at("filtering_enabled"));
     set_uuid(json.at("uuid"));
@@ -88,6 +89,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     tags["disabled_userids"] = 1;
     tags["enabled_userids"] = 1;
     tags["event_states"] = 1;
+    tags["compression_enabled"] = 1;
 
     for (auto it = json.begin(); it != json.end(); ++it) {
         if (!tags.contains(it.key())) {
@@ -304,6 +306,7 @@ nlohmann::json AuditConfig::to_json() const {
     ret["log_path"] = get_log_directory();
     ret["filtering_enabled"] = is_filtering_enabled();
     ret["uuid"] = get_uuid();
+    ret["compression_enabled"] = is_compression_enabled();
 
     ret["sync"] = sync;
 

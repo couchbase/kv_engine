@@ -58,6 +58,12 @@ public:
     void set_filtering_enabled(bool value);
     void set_uuid(std::string uuid);
     std::string get_uuid() const;
+    void set_compression_enabled(bool enable) {
+        compression_enabled = enable;
+    }
+    bool is_compression_enabled() const {
+        return compression_enabled;
+    }
 
     /**
      * Create a JSON representation of the audit configuration. This is
@@ -107,6 +113,7 @@ protected:
     std::optional<std::chrono::seconds> prune_age;
     bool buffered{true};
     bool filtering_enabled{false};
+    bool compression_enabled{false};
     uint32_t version{0};
 
     std::string log_path;

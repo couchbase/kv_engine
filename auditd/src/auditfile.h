@@ -112,6 +112,8 @@ protected:
     [[nodiscard]] static time_t auditd_time();
     static void remove_file(const std::filesystem::path& path);
 
+    void rewrite_compressed() const;
+
     /**
      * Iterate over "old" audit log files (named hostname-<timestamp>-audit.log)
      * and call the provided callback with the path
@@ -136,6 +138,7 @@ protected:
     std::chrono::steady_clock::time_point next_prune =
             std::chrono::steady_clock::now();
     bool buffered = true;
+    bool compression_enabled = false;
     /// The version of the encryption data used when creating the current
     /// version of the file
     uint64_t encryption_config_version = 0;

@@ -9,6 +9,7 @@
  */
 #include "auditfile.h"
 
+#include <cbcrypto/file_reader.h>
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/ScopeGuard.h>
@@ -24,8 +25,8 @@
 /// The name of the link to the "current" audit trail
 static constexpr std::string_view current_audit_link_name = "current-audit.log";
 
-AuditFile::AuditFile(std::string hostname)
-    : hostname(std::move(hostname)),
+AuditFile::AuditFile(std::string hostname_)
+    : hostname(std::move(hostname_)),
       global_encryption_config_version(
               cb::dek::Manager::instance().getEntityGenerationCounter(
                       cb::dek::Entity::Audit)) {
@@ -42,6 +43,7 @@ void AuditFile::iterate_old_files(
             const auto filename = path.filename().string();
             if (filename.starts_with(hostname) &&
                 (filename.ends_with("-audit.log") ||
+                 filename.ends_with("-audit.log.gz") ||
                  filename.ends_with("-audit.cef"))) {
                 callback(path);
             }
@@ -75,7 +77,7 @@ void AuditFile::prune_old_audit_files() {
     auto oldest = filesystem_now;
 
     const auto then = filesystem_now - *prune_age;
-    iterate_old_files([this, then, &oldest](const auto& path) {
+    iterate_old_files([then, &oldest](const auto& path) {
         auto mtime = last_write_time(path);
         if (mtime < then) {
             remove(path);
@@ -243,6 +245,8 @@ void AuditFile::close_and_rotate_log() {
     if (empty) {
         // no output written; just remove the file
         remove_file(open_file_name);
+    } else if (compression_enabled) {
+        rewrite_compressed();
     }
 }
 
@@ -308,6 +312,7 @@ void AuditFile::reconfigure(const AuditConfig& config) {
     set_log_directory(config.get_log_directory());
     max_log_size = config.get_rotate_size();
     buffered = config.is_buffered();
+    compression_enabled = config.is_compression_enabled();
     prune_age = config.get_prune_age();
     next_prune = std::chrono::steady_clock::now();
 }
@@ -336,5 +341,61 @@ void AuditFile::remove_file(const std::filesystem::path& path) {
                             {"path", path.generic_string()},
                             {"error", ec.message()});
         }
+    }
+}
+
+void AuditFile::rewrite_compressed() const {
+    Expects(compression_enabled);
+    try {
+        auto key = cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit);
+        const auto* destination_extension = key ? "cef" : "log.gz";
+
+        std::filesystem::path next;
+        if (key) {
+            next = open_file_name.string() + ".tmp.cef";
+        } else {
+            next = open_file_name.string() + ".tmp.gz";
+        }
+        auto guard = folly::makeGuard([&]() {
+            if (exists(next)) {
+                remove(next);
+            }
+        });
+
+        auto writer = cb::crypto::FileWriter::create(
+                key, next, 64 * 1024, cb::crypto::Compression::GZIP);
+
+        auto lookup = [](auto k) -> cb::crypto::SharedKeyDerivationKey {
+            auto& instance = cb::dek::Manager::instance();
+            return instance.lookup(cb::dek::Entity::Audit, k);
+        };
+        auto reader = cb::crypto::FileReader::create(open_file_name, lookup);
+        std::vector<uint8_t> buffer(8 * 1024);
+        while (!reader->eof()) {
+            try {
+                auto nr = reader->read(buffer);
+                writer->write(
+                        {reinterpret_cast<const char*>(buffer.data()), nr});
+            } catch (const std::underflow_error&) {
+            }
+        }
+        writer->flush();
+        writer->close();
+        writer.reset();
+        reader.reset();
+        auto dest_filename = open_file_name;
+        dest_filename.replace_extension(destination_extension);
+        rename(next, dest_filename);
+        guard.dismiss();
+        if (dest_filename != open_file_name) {
+            remove(open_file_name);
+        }
+        LOG_INFO_CTX("Rewrote file",
+                     {"source", open_file_name.string()},
+                     {"destination", dest_filename.string()});
+    } catch (const std::exception& e) {
+        LOG_WARNING_CTX("AuditFile::rewrite_compressed: Failed to rewrite file",
+                        {"file", open_file_name.string()},
+                        {"error", e.what()});
     }
 }

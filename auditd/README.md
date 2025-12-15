@@ -290,6 +290,8 @@ the following fields:
   specified value (in seconds). (set to 0 (or remove) to disable the
   functionality).
 * buffered - should buffered file IO be used or not
+* compression_enabled - boolean stating whether log file compression is
+  enabled or not as part of file rotation.
 * sync - list of event ids containing those events that are synchronous.
   Synchronous events are not supported in Sherlock and so this should be the
   empty list.

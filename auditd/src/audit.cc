@@ -241,9 +241,10 @@ void AuditImpl::prune_deks(const std::vector<std::string>& keys) const {
 
     maybeRewriteFiles(
             directory,
-            [this, &keys](const auto& path, auto id) {
+            [&keys](const auto& path, auto id) {
                 const auto filename = path.filename().string();
-                if (id.empty() && filename.ends_with("-audit.log")) {
+                if (id.empty() && (filename.ends_with("-audit.log") ||
+                                   filename.ends_with("-audit.log.gz"))) {
                     return std::ranges::find(keys, "unencrypted") != keys.end();
                 }
 
@@ -261,7 +262,8 @@ void AuditImpl::prune_deks(const std::vector<std::string>& keys) const {
             [](std::string_view message, const nlohmann::json& ctx) {
                 LOG_WARNING_CTX(message, ctx);
             },
-            ".log");
+            ".log",
+            config.is_compression_enabled());
 }
 
 bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
