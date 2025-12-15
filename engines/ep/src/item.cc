@@ -53,8 +53,36 @@ Item::Item(const DocKeyView& k,
       key(k),
       bySeqno(i),
       vbucketId(vbid),
-      op(k.isInSystemEventCollection() ? queue_op::system_event
-                                       : queue_op::mutation),
+      op(key.isInSystemEventCollection() ? queue_op::system_event
+                                         : queue_op::mutation),
+      deleted(0), // false
+      maybeVisible(0),
+      preserveTtl(0),
+      deduplicate(1),
+      datatype(dtype) {
+    if (bySeqno == 0) {
+        throw std::invalid_argument("Item(): bySeqno must be non-zero");
+    }
+
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::Item(const PrefixedDocKeyView& k,
+           const uint32_t fl,
+           const uint32_t exp,
+           const value_t& val,
+           protocol_binary_datatype_t dtype,
+           uint64_t theCas,
+           int64_t i,
+           Vbid vbid,
+           uint64_t sno)
+    : metaData(theCas, sno, fl, exp),
+      value(TaggedPtr<Blob>(val.get().get(), unsetFreqCount)),
+      key(k),
+      bySeqno(i),
+      vbucketId(vbid),
+      op(key.isInSystemEventCollection() ? queue_op::system_event
+                                         : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),
@@ -83,8 +111,39 @@ Item::Item(const DocKeyView& k,
       key(k),
       bySeqno(i),
       vbucketId(vbid),
-      op(k.isInSystemEventCollection() ? queue_op::system_event
-                                       : queue_op::mutation),
+      op(key.isInSystemEventCollection() ? queue_op::system_event
+                                         : queue_op::mutation),
+      deleted(0), // false
+      maybeVisible(0),
+      preserveTtl(0),
+      deduplicate(1),
+      datatype(dtype) {
+    if (bySeqno == 0) {
+        throw std::invalid_argument("Item(): bySeqno must be non-zero");
+    }
+    setData(static_cast<const char*>(dta), nb);
+    setFreqCounterValue(freqCount);
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::Item(const PrefixedDocKeyView& k,
+           const uint32_t fl,
+           const uint32_t exp,
+           const void* dta,
+           const size_t nb,
+           protocol_binary_datatype_t dtype,
+           uint64_t theCas,
+           int64_t i,
+           Vbid vbid,
+           uint64_t sno,
+           std::optional<uint8_t> freqCount)
+    : metaData(theCas, sno, fl, exp),
+      value(TaggedPtr<Blob>(nullptr, freqCount ? *freqCount : unsetFreqCount)),
+      key(k),
+      bySeqno(i),
+      vbucketId(vbid),
+      op(key.isInSystemEventCollection() ? queue_op::system_event
+                                         : queue_op::mutation),
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),

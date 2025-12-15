@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <platform/sized_buffer.h>
 
 class CollectionIDNetworkOrder;
@@ -349,6 +350,57 @@ struct DocKeyInterface {
 };
 
 /**
+ * PrefixedDocKeyView is non owning view of a key that includes the CollectionID
+ * prefix. This is generally all keys within the database, e.g. hash-tables.
+ */
+struct PrefixedDocKeyView : DocKeyInterface<PrefixedDocKeyView> {
+    PrefixedDocKeyView(std::string_view keydata) : keydata(keydata) {
+    }
+
+    PrefixedDocKeyView(const uint8_t* keydata, size_t size)
+        : keydata(reinterpret_cast<const char*>(keydata), size) {
+    }
+
+    size_t size() const {
+        return keydata.size();
+    }
+
+    const uint8_t* data() const {
+        return reinterpret_cast<const uint8_t*>(keydata.data());
+    }
+
+    CollectionID getCollectionID() const {
+        return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(keydata)
+                .first;
+    }
+
+    /**
+     * @return true if the key has a collection of CollectionID::SystemEvent
+     */
+    bool isInSystemEventCollection() const {
+        return keydata[0] == CollectionID::SystemEvent;
+    }
+
+    /**
+     * @return true if the key has a collection of CollectionID::Default
+     */
+    bool isInDefaultCollection() const {
+        return keydata[0] == CollectionID::Default;
+    }
+
+    DocKeyEncodesCollectionId getEncoding() const {
+        return DocKeyEncodesCollectionId::Yes;
+    }
+
+    std::string to_string() const {
+        return std::string{keydata};
+    }
+
+private:
+    std::string_view keydata;
+};
+
+/**
  * DocKey is a non-owning structure used to describe a document keys over
  * the engine-API. All API commands working with "keys" must specify the
  * data, length and if the data contain an encoded CollectionID
@@ -411,12 +463,12 @@ struct DocKeyView : DocKeyInterface<DocKeyView> {
 
     /// Convert to a std::string_view, including the leb128 CollectionID prefix
     explicit operator std::string_view() const {
-        return std::string_view(reinterpret_cast<const char*>(data()), size());
+        return {reinterpret_cast<const char*>(data()), size()};
     }
 
     /// Convert to a std::string, including the leb128 CollectionID prefix
     explicit operator std::string() const {
-        return std::string(reinterpret_cast<const char*>(data()), size());
+        return {reinterpret_cast<const char*>(data()), size()};
     }
 
     int compare(const DocKeyView& rhs) const {
@@ -493,6 +545,11 @@ struct DocKeyView : DocKeyInterface<DocKeyView> {
     /// Get the view of the underlying keys data
     std::string_view getBuffer() const {
         return {reinterpret_cast<const char*>(buffer.data()), buffer.size()};
+    }
+
+    PrefixedDocKeyView to_prefixed_key_view() const {
+        Expects(encoding == DocKeyEncodesCollectionId::Yes);
+        return {getBuffer()};
     }
 
     /**

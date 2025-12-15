@@ -6621,6 +6621,19 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
     if ((flags & DcpOpenFlag::Producer) == DcpOpenFlag::Producer) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
+        // All supported versions we should be connected to support collections.
+        // The consumer now assumes as such so belts and braces reject the
+        // unexpected (collections supported from 7.0 onwards).
+        if (!cookie.isCollectionsSupported()) {
+            EP_LOG_WARN_CTX(
+                    "Failing new DCP Consumer as collections are required",
+                    {"name", connName},
+                    {"opaque", opaque},
+                    {"seqno", seqno},
+                    {"value", value});
+            return cb::engine_errc::disconnect;
+        }
+
         // Don't accept dcp consumer open requests before warm up has loaded
         // metadata. Primarily see MB-32577
         if (kvBucket->hasPrimaryWarmupLoadedMetaData()) {

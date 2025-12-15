@@ -91,6 +91,7 @@ TEST_F(RbacTest, DcpOpenWithConsumerAccess) {
     auto conn = cluster->getConnection(0);
     conn->authenticate(dcpuser);
     conn->selectBucket(bucket);
+    conn->setFeature(cb::mcbp::Feature::Collections, true);
     auto rsp = conn->execute(BinprotDcpOpenCommand{
             "DcpOpenWithConsumerAccess", cb::mcbp::DcpOpenFlag::Producer});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());

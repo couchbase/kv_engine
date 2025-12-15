@@ -363,7 +363,7 @@ std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
                                               HideLockedCas hideLockedCas,
                                               IncludeValue includeValue) const {
     auto item = std::make_unique<Item>(
-            getKey(),
+            getKey().to_prefixed_key_view(),
             getFlags(),
             getExptime(),
             includeValue == IncludeValue::Yes ? value : value_t{},

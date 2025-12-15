@@ -474,7 +474,8 @@ TEST_F(WarmupTest, MB_32577) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // Store an item to the vbucket
-    store_item(vbid, makeStoredDocKey(keyName), value);
+    const auto key = makeStoredDocKey(keyName);
+    store_item(vbid, key, value);
     // Change the type of vbucket to a replica
     store->setVBucketState(
             vbid, vbucket_state_replica, nullptr, TransferVB::Yes);
@@ -513,7 +514,8 @@ TEST_F(WarmupTest, MB_32577) {
         }
         runNextTask(readerQueue);
     }
-
+    // A DCP consumer needs collections enabling.
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     // Try and set a DCP connection, this should return
     // cb::engine_errc::temporary_failure as were in warm up but without the fix
     // for MB-32577 this will return cb::engine_errc::success
@@ -557,16 +559,11 @@ TEST_F(WarmupTest, MB_32577) {
                                       /*maxVisibleSeqno*/ {},
                                       /*purgeSeqno*/ {}));
 
-    // create a DocKey object for the delete request
-    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
-                            keyName.size(),
-                            DocKeyEncodesCollectionId::No};
-
     // Try and delete the doc
     EXPECT_EQ(cb::engine_errc::success,
               engine->deletion(*cookie,
                                /*opaque*/ 1,
-                               /*key*/ docKey,
+                               /*key*/ key,
                                /*value*/ {},
                                /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                                /*cas*/ 0,
@@ -576,8 +573,6 @@ TEST_F(WarmupTest, MB_32577) {
 
     // flush delete to disk
     EXPECT_NO_THROW(dynamic_cast<EPBucket&>(*store).flushVBucket(vbid));
-
-    // We shouldn't have deleted the doc and thus it should still be there
     EXPECT_EQ(0,
               store->getVBucket(vbid)->lockCollections().getItemCount(
                       CollectionID::Default));

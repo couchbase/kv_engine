@@ -26,9 +26,9 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"
-
 #include "module_tests/test_helpers.h"
 #include "module_tests/thread_gate.h"
+#include "programs/engine_testapp/mock_cookie.h"
 
 #include <folly/Portability.h>
 #include <memcached/engine.h>
@@ -1187,6 +1187,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
 
     // Create a DCP Consumer connection and add a passive stream on vbid
     auto* passiveCookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(passiveCookie)->setCollectionsSupport(true);
     checkeq(cb::engine_errc::success,
             dcp.open(*passiveCookie,
                      opaque,
@@ -1228,13 +1229,13 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                 "dcp.snapshot_marker failed");
 
         auto begin = cb::time::steady_clock::now();
-        std::string key = "key_" + std::to_string(seqno);
+        const StoredDocKey docKey{std::to_string(seqno), CollectionID::Default};
         // 2) snapshot-end mutation
         checkeq(cb::engine_errc::success,
                 dcp.mutation(
                         *passiveCookie,
                         stream_opaque,
-                        DocKeyView(key, DocKeyEncodesCollectionId::No),
+                        docKey,
                         cb::const_byte_buffer(
                                 reinterpret_cast<const uint8_t*>("value"), 5),
                         PROTOCOL_BINARY_RAW_BYTES,

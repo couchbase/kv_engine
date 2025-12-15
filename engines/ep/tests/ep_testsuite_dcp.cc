@@ -1077,7 +1077,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
     /* Stream Expiries */
     for (uint64_t i = start; i <= end; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->expiration(*cookie,
                                 opaque,
@@ -1127,6 +1127,7 @@ static void dcp_thread_func(void* args) {
     auto* ctx = static_cast<mb16357_ctx*>(args);
 
     auto* cookie = testHarness->create_cookie(ctx->h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     uint32_t opaque = 0xFFFF0000;
     cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None;
     std::string name = "unittest";
@@ -1168,9 +1169,6 @@ static void dcp_thread_func(void* args) {
             get_int_stat(ctx->h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     for (int i = 1; i <= ctx->items; i++) {
-        std::stringstream ss;
-        ss << "kamakeey-" << i;
-
         // send mutations in single mutation snapshots to race more with
         // compaction
         checkeq(cb::engine_errc::success,
@@ -1186,8 +1184,8 @@ static void dcp_thread_func(void* args) {
                                           {} /*purgeSeqno*/),
                 "snapshot marker failed");
 
-        const std::string key = ss.str();
-        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+        const std::string key = "ep_testsuite_dcp-" + std::to_string(i);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 ctx->dcp->mutation(*cookie,
                                    stream_opaque,
@@ -1333,17 +1331,18 @@ static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h) {
 
 static enum test_result test_dcp_consumer_open(EngineIface* h) {
     auto* cookie1 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie1)->setCollectionsSupport(true);
+
     const std::string name("unittest");
     const uint32_t opaque = 0;
     const uint32_t seqno = 0;
-    const cb::mcbp::DcpOpenFlag flags = {};
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie1,
                       opaque,
                       seqno,
-                      flags,
+                      {},
                       name,
                       R"({"consumer_name":"replica1"})"),
             "Failed dcp consumer open connection.");
@@ -1358,11 +1357,12 @@ static enum test_result test_dcp_consumer_open(EngineIface* h) {
     testHarness->time_travel(600);
 
     auto* cookie2 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie2)->setCollectionsSupport(true);
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie2,
                       opaque,
                       seqno,
-                      flags,
+                      {},
                       name,
                       R"({"consumer_name":"replica1"})"),
             "Failed dcp consumer open connection.");
@@ -1380,17 +1380,18 @@ static enum test_result test_dcp_consumer_open(EngineIface* h) {
 static enum test_result test_dcp_consumer_flow_control_disabled(
         EngineIface* h) {
     auto* cookie1 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie1)->setCollectionsSupport(true);
+
     const std::string name("unittest");
     const uint32_t opaque = 0;
     const uint32_t seqno = 0;
-    const cb::mcbp::DcpOpenFlag flags = {};
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie1,
                       opaque,
                       seqno,
-                      flags,
+                      {},
                       name,
                       R"({"consumer_name":"replica1"})"),
             "Failed dcp consumer open connection.");
@@ -1469,6 +1470,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     // existing conns decreases
     for (size_t i = 0; i < numConsumers; ++i) {
         cookie[i] = testHarness->create_cookie(h);
+        cookie_to_mock_cookie(cookie[i])->setCollectionsSupport(true);
         const auto connName = connNamePrefix + std::to_string(i);
         checkeq(cb::engine_errc::success,
                 dcp->open(*cookie[i], opaque, seqno, flags, connName),
@@ -1649,6 +1651,8 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h) {
     check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
                      "Failed to set vbucket state.");
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     const std::string name("unittest");
     const uint32_t seqno = 0;
     const Vbid vbucket = Vbid(0);
@@ -2400,6 +2404,8 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
  */
 static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     Vbid vbid = Vbid(0);
     const char* name = "unittest";
@@ -2443,7 +2449,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
 
-    const DocKeyView docKey("key", DocKeyEncodesCollectionId::No);
+    const StoredDocKey docKey{"key", CollectionID::Default};
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -2585,6 +2591,8 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const int num_items = 10;
@@ -3188,6 +3196,8 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
     int items = full ? 10 : 5;
@@ -3223,7 +3233,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     for (int i = 1; i <= items; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3257,7 +3267,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
     }
 
     cookie = testHarness->create_cookie(h);
-
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie,
                       opaque,
@@ -3312,6 +3322,8 @@ static enum test_result test_dcp_crash_reconnect_partial(EngineIface* h) {
 
 static test_result test_dcp_consumer_takeover(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3355,7 +3367,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
             "snapshot marker failed");
     for (int i = 1; i <= 5; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3390,7 +3402,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
             "snapshot marker failed");
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3466,6 +3478,8 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3510,7 +3524,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     // Send items for snapshot
     for (auto i = 0; i < snapshotNumItems; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3554,6 +3568,8 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3593,7 +3609,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     uint64_t i;
     for (i = 1; i <= 4; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3625,7 +3641,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Consumer processes 5th mutation
     const std::string key("key" + std::to_string(i));
-    const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+    const StoredDocKey docKey{key, CollectionID::Default};
     checkeq(cb::engine_errc::stream_not_found,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -3648,6 +3664,8 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
 static enum test_result test_dcp_add_stream(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name("unittest");
 
@@ -3690,6 +3708,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
     stop_persistence(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3732,7 +3751,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
 
     for (int i = 1; i <= 20; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3767,6 +3786,8 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3860,6 +3881,8 @@ static test_result test_chk_manager_rollback(EngineIface* engine) {
 
     // Create rollback stream
     auto* cookie = testHarness->create_cookie(engine);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -3953,6 +3976,8 @@ static test_result test_fullrollback_for_consumer(EngineIface* engine) {
             "Item count should've been 10");
 
     auto* cookie = testHarness->create_cookie(engine);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4073,6 +4098,8 @@ static test_result test_partialrollback_for_consumer(EngineIface* engine) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(engine);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4337,6 +4364,8 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
 
 static test_result test_dcp_add_stream_exists(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
     Vbid vbucket = Vbid(0);
@@ -4368,6 +4397,8 @@ static test_result test_dcp_add_stream_exists(EngineIface* h) {
     /* Try adding another stream for the vbucket in another consumer conn */
     /* Open another consumer connection */
     auto* cookie1 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie1)->setCollectionsSupport(true);
+
     uint32_t opaque1 = 0xFFFF0000;
     std::string name1("unittest1");
     checkeq(cb::engine_errc::success,
@@ -4400,6 +4431,8 @@ static test_result test_dcp_add_stream_exists(EngineIface* h) {
 
 static test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4429,6 +4462,8 @@ static test_result test_dcp_add_stream_nmvb(EngineIface* h) {
 
 static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4454,6 +4489,8 @@ static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h) {
 
 static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4478,6 +4515,8 @@ static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h) {
 
 static enum test_result test_dcp_close_stream_no_stream(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4501,6 +4540,8 @@ static enum test_result test_dcp_close_stream_no_stream(EngineIface* h) {
 
 static enum test_result test_dcp_close_stream(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -4536,6 +4577,8 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
 
 static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     Vbid vbucket = Vbid(0);
     const char *name = "unittest";
@@ -4578,6 +4621,8 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     uint32_t flags = 0;
@@ -4606,7 +4651,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
     opaque = add_stream_for_consumer(
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
-    std::string key("key");
     uint32_t dataLen = 100;
     char *data = static_cast<char *>(cb_malloc(dataLen));
     memset(data, 'x', dataLen);
@@ -4640,7 +4684,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Ensure that we don't accept invalid opaque values
-    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey{"key", CollectionID::Default};
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->mutation(*cookie,
                           opaque + 1,
@@ -4659,7 +4703,8 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     /* Add mutation bytes to unacked bytes. Since we are shipping out
        acks by calling dcp->step(), the unacked bytes will increase */
-    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    exp_unacked_bytes +=
+            (dcp_mutation_base_msg_bytes + docKey.size() + dataLen);
     checkeq(exp_unacked_bytes,
             get_int_stat(h, flow_ctl_stat_buf, "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
@@ -4702,7 +4747,8 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           0),
             "Failed dcp mutate.");
 
-    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    exp_unacked_bytes +=
+            (dcp_mutation_base_msg_bytes + docKey.size() + dataLen);
     checkeq(exp_unacked_bytes,
             get_int_stat(h, flow_ctl_stat_buf, "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
@@ -4730,6 +4776,8 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0;
     uint8_t cas = 0x1;
     Vbid vbucket = Vbid(0);
@@ -4770,8 +4818,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
 
-    const std::string key{"key"};
-    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey{"key", CollectionID::Default};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->deletion(*cookie,
@@ -4784,7 +4831,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           bySeqno,
                           revSeqno),
             "Failed to detect invalid DCP opaque value.");
-    exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
+    exp_unacked_bytes += dcp_deletion_base_msg_bytes + docKey.size();
 
     // Consume an DCP deletion
     checkeq(cb::engine_errc::success,
@@ -4799,7 +4846,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           revSeqno),
             "Failed dcp delete.");
 
-    exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
+    exp_unacked_bytes += dcp_deletion_base_msg_bytes + docKey.size();
     checkeq(exp_unacked_bytes,
             get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
@@ -4820,6 +4867,8 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0;
     uint8_t cas = 0x1;
     Vbid vbucket = Vbid(0);
@@ -4861,8 +4910,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
 
-    const std::string key{"key"};
-    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey{"key", CollectionID::Default};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->expiration(*cookie,
@@ -4876,7 +4924,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                             revSeqno,
                             {}),
             "Failed to detect invalid DCP opaque value.");
-    exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
+    exp_unacked_bytes += dcp_expiration_base_msg_bytes + docKey.size();
 
     // Consume an DCP expiration
     checkeq(cb::engine_errc::success,
@@ -4892,7 +4940,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                             {}),
             "Failed dcp expire.");
 
-    exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
+    exp_unacked_bytes += dcp_expiration_base_msg_bytes + docKey.size();
     checkeq(exp_unacked_bytes,
             get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl expiration bytes not accounted correctly");
@@ -4909,6 +4957,8 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const int num_items = 100;
@@ -4978,6 +5028,8 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
             "flusher_batch_split_trigger must be less than items");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const char* name = "MB_34173";
@@ -5019,6 +5071,8 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     wait_for_warmup_complete(h);
 
     cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     opaque = 0xFFFF0000;
     dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
@@ -5057,6 +5111,8 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const int num_items = 100;
@@ -5115,6 +5171,8 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const int num_items = 100;
@@ -5225,6 +5283,8 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const int num_items = 100;
@@ -5331,6 +5391,8 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
 static enum test_result test_dcp_replica_stream_one_collection_on_disk(
         EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     std::string manifest(R"({
    "scopes":[
       {
@@ -5477,6 +5539,8 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
  */
 static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     std::string manifest(R"({
    "scopes":[
       {
@@ -5644,6 +5708,7 @@ static test_result test_dcp_replica_stream_expiries(
                      "Failed to set vbucket state.");
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
 
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
@@ -5866,6 +5931,8 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
 
     /* set up a DCP consumer connection */
     auto* consumerCookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(consumerCookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char* name = "unittest";
 
@@ -6128,6 +6195,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name("err_mutations");
 
@@ -6162,7 +6231,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
@@ -6181,8 +6250,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
     }
 
     // Send a mutation and a deletion both out-of-sequence
-    const DocKeyView key{
-            (const uint8_t*)"key", 3, DocKeyEncodesCollectionId::No};
+    const StoredDocKey key{"key", CollectionID::Default};
     checkeq(dcp->mutation(*cookie,
                           stream_opaque,
                           key,
@@ -6198,8 +6266,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           INITIAL_NRU_VALUE),
             cb::engine_errc::out_of_range,
             "Mutation should've returned ERANGE!");
-    const DocKeyView key5{
-            (const uint8_t*)"key5", 4, DocKeyEncodesCollectionId::No};
+    const StoredDocKey key5{"key5", CollectionID::Default};
     checkeq(dcp->deletion(*cookie,
                           stream_opaque,
                           key5,
@@ -6212,8 +6279,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             cb::engine_errc::out_of_range,
             "Deletion should've returned ERANGE!");
 
-    const DocKeyView docKey20{
-            (const uint8_t*)"key20", 5, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey20{"key20", CollectionID::Default};
     cb::engine_errc err = dcp->mutation(*cookie,
                                         stream_opaque,
                                         docKey20,
@@ -6256,6 +6322,8 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie1 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie1)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name("first_marker");
 
@@ -6289,7 +6357,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(dcp->mutation(*cookie1,
                               stream_opaque,
                               docKey,
@@ -6313,6 +6381,8 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     testHarness->destroy_cookie(cookie1);
 
     auto* cookie2 = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie2)->setCollectionsSupport(true);
+
     opaque = 0xFFFFF000;
     name.assign("second_marker");
 
@@ -6360,7 +6430,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 15; i++) {
         const std::string key("key_" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         cb::engine_errc err = dcp->mutation(*cookie2,
                                             stream_opaque,
                                             docKey,
@@ -6397,6 +6467,8 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name("err_mutations");
 
@@ -6416,8 +6488,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
     uint32_t stream_opaque = get_int_stat(h, opaqueStr, "dcp");
 
     // Mutation(s) or deletion(s) with seqno 0 are invalid!
-    const std::string key("key");
-    DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey{"key", CollectionID::Default};
     cb::const_byte_buffer value{(const uint8_t*)"value", 5};
 
     checkeq(dcp->mutation(*cookie,
@@ -6459,6 +6530,8 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name("unittest");
 
@@ -6492,7 +6565,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -6794,6 +6867,8 @@ static enum test_result test_mb16357(EngineIface* h) {
 static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     // Attempt to insert a item with CAS of -1 via dcp->
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name = "test_mb17517_cas_minus_1";
 
@@ -6836,7 +6911,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     std::string value{"value"};
     for (unsigned int ii = 0; ii < 2; ii++) {
         const std::string key{prefix + std::to_string(ii)};
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -6859,7 +6934,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
 
     // Delete one of them (to allow us to test DCP deletion).
     const std::string delete_key{prefix + "0"};
-    const DocKeyView docKey{delete_key, DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey{delete_key, CollectionID::Default};
 
     // Stream the delete in a new snapshot since a snapshot cannot have
     // duplicate items.
@@ -7032,6 +7107,8 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
 
@@ -7070,7 +7147,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
                                  {},
                                  {}),
             "Failed to send snapshot marker");
-    const DocKeyView docKey("key", DocKeyEncodesCollectionId::No);
+    const StoredDocKey docKey("key", CollectionID::Default);
     const std::string value = "value";
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
@@ -7103,7 +7180,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
 
 static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
-    testHarness->set_collections_support(cookie, true);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
 
     const int num_vbuckets = 10;
 
@@ -7151,8 +7228,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker!");
 
-    const std::string key("key");
-    const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+    const StoredDocKey docKey{"key", CollectionID::Default};
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -7397,8 +7473,8 @@ static enum test_result test_mb19153(EngineIface* h) {
                       0,
                       flags,
                       name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp Consumer open connection.");
+                      R"({"producer_name":"unittest"})"),
+            "Failed dcp Producer open connection.");
 
     // Initiate a stream request
     uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
@@ -7451,6 +7527,8 @@ static enum test_result test_mb19982(EngineIface* h) {
     int iterations = 1000; // how many stats calls
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     std::string name = "unittest";
     // Switch to replica
@@ -7498,7 +7576,7 @@ static enum test_result test_mb19982(EngineIface* h) {
 
     for (int i = 1; i <= num_items; i++) {
         const std::string key("key-" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -7567,6 +7645,8 @@ static enum test_result test_set_dcp_param(EngineIface* h) {
 // had it (the crash was an exception inside KV-engine.)
 static enum test_result test_MB_34634(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     const std::string conn_name("test_MB_34634");
@@ -7608,7 +7688,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "snapshot_marker returned an error");
-    const DocKeyView docKey1{"syncw", DocKeyEncodesCollectionId::No};
+    const StoredDocKey docKey1{"syncw", CollectionID::Default};
     checkeq(cb::engine_errc::success,
             dcp->prepare(*cookie,
                          opaque,
@@ -7706,6 +7786,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
     int num_items = 2;
 
     auto* cookie = testHarness->create_cookie(h);
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     uint32_t opaque = 0xFFFF0000;
     std::string name = "unittest";
     // Switch to replica
@@ -7744,7 +7825,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
 
     for (int i = 1; i <= num_items; i++) {
         const std::string key("key-" + std::to_string(i));
-        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
+        const StoredDocKey docKey{key, CollectionID::Default};
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,

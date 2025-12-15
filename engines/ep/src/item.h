@@ -84,6 +84,33 @@ public:
          Vbid vbid = Vbid(0),
          uint64_t sno = 1);
 
+    /**
+     * Construct a new Item using a key that is prefixed with a collection ID.
+     *
+     * Used to reference an existing value_t (Blob)
+     *
+     * This is slighly more efficient than using DocKeyView
+     *
+     * @param k The key of the item.
+     * @param fl The flags of the item.
+     * @param exp The expiry time of the item.
+     * @param val The value of the item.
+     * @param dtype The datatype of the item.
+     * @param theCas The CAS of the item.
+     * @param bySeqno The by sequence number of the item.
+     * @param vbid The vbucket ID of the item.
+     * @param revSeqno The revision sequence number of the item.
+     */
+    Item(const PrefixedDocKeyView& k,
+         const uint32_t fl,
+         const uint32_t exp,
+         const value_t& val,
+         protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
+         uint64_t theCas = 0,
+         int64_t bySeqno = -1,
+         Vbid vbid = Vbid(0),
+         uint64_t revSeqno = 1);
+
     /* Constructor (new value).
      * k         specify the item's DocKey.
      * fl        Item flags.
@@ -106,6 +133,35 @@ public:
          uint64_t sno = 1,
          std::optional<uint8_t> freqCount = {});
 
+    /**
+     * Construct a new Item using a key that is prefixed with a collection ID.
+     *
+     * This is slighly more efficient constructor than using DocKeyView
+     *
+     * @param k The key of the item.
+     * @param fl The flags of the item.
+     * @param exp The expiry time of the item.
+     * @param dta The data of the item.
+     * @param nb The size of the data of the item.
+     * @param dtype The datatype of the item.
+     * @param theCas The CAS of the item.
+     * @param bySeqno The by sequence number of the item.
+     * @param vbid The vbucket ID of the item.
+     * @param revSeqno The revision sequence number of the item.
+     * @param freqCount The frequency count of the item.
+     */
+    Item(const PrefixedDocKeyView& k,
+         const uint32_t fl,
+         const uint32_t exp,
+         const void* dta,
+         const size_t nb,
+         protocol_binary_datatype_t dtype,
+         uint64_t theCas,
+         int64_t bySeqno,
+         Vbid vbid,
+         uint64_t revSeqno,
+         std::optional<uint8_t> freqCount);
+
     Item(const DocKeyView& k,
          const Vbid vb,
          queue_op o,
@@ -119,7 +175,7 @@ public:
 
     static Item* makeDeletedItem(
             DeleteSource cause,
-            const DocKeyView& k,
+            const PrefixedDocKeyView& k,
             const uint32_t fl,
             const uint32_t exp,
             const void* dta,
@@ -130,19 +186,10 @@ public:
             Vbid vbid = Vbid(0),
             uint64_t sno = 1,
             uint8_t freqCount = initialFreqCount) {
-        auto ret = new Item(k,
-                            fl,
-                            exp,
-                            dta,
-                            nb,
-                            dtype,
-                            theCas,
-                            i,
-                            vbid,
-                            sno,
-                            freqCount);
+        auto ret = std::make_unique<Item>(
+                k, fl, exp, dta, nb, dtype, theCas, i, vbid, sno, freqCount);
         ret->setDeleted(cause);
-        return ret;
+        return ret.release();
     }
 
     /**
@@ -605,6 +652,16 @@ public:
     }
 
 private:
+    Item(const uint32_t fl,
+         const uint32_t exp,
+         const void* dta,
+         const size_t nb,
+         protocol_binary_datatype_t dtype,
+         uint64_t theCas,
+         int64_t i,
+         Vbid vbid,
+         uint64_t sno,
+         std::optional<uint8_t> freqCount);
     /**
      * Set the item's data. This is only used by constructors, so we
      * make it private.

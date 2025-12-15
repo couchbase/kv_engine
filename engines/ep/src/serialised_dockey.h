@@ -101,6 +101,10 @@ public:
         return {bytes.data(), length, DocKeyEncodesCollectionId::Yes};
     }
 
+    PrefixedDocKeyView to_prefixed_key_view() const {
+        return {bytes.data(), length};
+    }
+
     /**
      * make a SerialisedDocKey and return a unique_ptr to it - this is used
      * in test code only.

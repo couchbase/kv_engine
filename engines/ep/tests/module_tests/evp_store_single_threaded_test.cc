@@ -2823,8 +2823,9 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
             /*purgeSeqno*/ {});
 
     // 2. Now add a deletion.
+    const auto key1 = makeStoredDocKey("key1");
     consumer->deletion(/*opaque*/ 1,
-                       {"key1", DocKeyEncodesCollectionId::No},
+                       key1,
                        /*value*/ {},
                        /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                        /*cas*/ 0,
@@ -2844,21 +2845,13 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
     uint32_t deleted = 0;
     uint8_t datatype = 0;
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
 
     runBGFetcherTask();
     EXPECT_EQ(cb::engine_errc::success,
-              store->getMetaData(makeStoredDocKey("key1"),
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
     EXPECT_EQ(1, deleted);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
@@ -2906,6 +2899,9 @@ void STParameterizedBucketTest::test_replicateDeleteTime(uint32_t deleteTime) {
     EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ {}));
 
+    const auto key1 = makeStoredDocKey("key1");
+    const auto key2 = makeStoredDocKey("key2");
+
     // 1. Add the first message, a snapshot marker.
     consumer->snapshotMarker(/*opaque*/ 1,
                              vbid,
@@ -2918,7 +2914,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(uint32_t deleteTime) {
                              /*purgeSeqno*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
-                         {"key1", DocKeyEncodesCollectionId::No},
+                         key1,
                          /*values*/ {},
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 1,
@@ -2928,7 +2924,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(uint32_t deleteTime) {
                          /*deleteTime*/ 0);
 
     consumer->deletionV2(/*opaque*/ 1,
-                         {"key2", DocKeyEncodesCollectionId::No},
+                         key2,
                          /*value*/ {},
                          /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 2,
@@ -2950,28 +2946,19 @@ void STParameterizedBucketTest::test_replicateDeleteTime(uint32_t deleteTime) {
     time_t tombstoneTime;
     if (persistent()) {
         EXPECT_EQ(cb::engine_errc::would_block,
-                  store->getMetaData(makeStoredDocKey("key1"),
-                                     vbid,
-                                     cookie,
-                                     metadata,
-                                     deleted,
-                                     datatype));
+                  store->getMetaData(
+                          key1, vbid, cookie, metadata, deleted, datatype));
         runBGFetcherTask();
         EXPECT_EQ(cb::engine_errc::success,
-                  store->getMetaData(makeStoredDocKey("key1"),
-                                     vbid,
-                                     cookie,
-                                     metadata,
-                                     deleted,
-                                     datatype));
+                  store->getMetaData(
+                          key1, vbid, cookie, metadata, deleted, datatype));
         tombstoneTime = metadata.exptime;
     } else {
         //  Ephemeral tombstone time is not in the expiry field, we can only
         // check the value by directly peeking at the StoredValue
         auto vb = store->getVBucket(vbid);
-        auto ro = vb->ht.findForRead(makeStoredDocKey("key1"),
-                                     TrackReference::No,
-                                     WantsDeleted::Yes);
+        auto ro =
+                vb->ht.findForRead(key1, TrackReference::No, WantsDeleted::Yes);
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
@@ -2988,27 +2975,18 @@ void STParameterizedBucketTest::test_replicateDeleteTime(uint32_t deleteTime) {
     datatype = 0;
     if (persistent()) {
         EXPECT_EQ(cb::engine_errc::would_block,
-                  store->getMetaData(makeStoredDocKey("key2"),
-                                     vbid,
-                                     cookie,
-                                     metadata,
-                                     deleted,
-                                     datatype));
+                  store->getMetaData(
+                          key2, vbid, cookie, metadata, deleted, datatype));
         runBGFetcherTask();
         EXPECT_EQ(cb::engine_errc::success,
-                  store->getMetaData(makeStoredDocKey("key2"),
-                                     vbid,
-                                     cookie,
-                                     metadata,
-                                     deleted,
-                                     datatype));
+                  store->getMetaData(
+                          key2, vbid, cookie, metadata, deleted, datatype));
 
         tombstoneTime = metadata.exptime;
     } else {
         auto vb = store->getVBucket(vbid);
-        auto ro = vb->ht.findForRead(makeStoredDocKey("key2"),
-                                     TrackReference::No,
-                                     WantsDeleted::Yes);
+        auto ro =
+                vb->ht.findForRead(key2, TrackReference::No, WantsDeleted::Yes);
         auto* sv = ro.storedValue;
         ASSERT_NE(nullptr, sv);
         deleted = sv->isDeleted();
@@ -3329,7 +3307,6 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(opaque, vbid, /*flags*/ {}));
 
-    std::string key = "key";
     std::string body = "body";
 
     // Manually manage the xattr blob - later we will prune user keys
@@ -3343,10 +3320,10 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     std::string data;
     std::ranges::copy(xattr_value, std::back_inserter(data));
     std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
-
-    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
+
+    const auto docKey = makeStoredDocKey("key");
 
     // Send mutation in a single seqno snapshot
     int64_t bySeqno = 1;
@@ -3843,11 +3820,12 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
 
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
+    const auto key = makeStoredDocKey("key");
     EXPECT_EQ(
             cb::engine_errc::success,
             consumer->deletion(
                     opaque,
-                    {"key", DocKeyEncodesCollectionId::No},
+                    key,
                     valueBuf,
                     PROTOCOL_BINARY_DATATYPE_XATTR |
                             (isSnappy() ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0),
@@ -3867,18 +3845,15 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
-    auto gv = store->get(
-            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    auto gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
-    gv = store->get({"key", DocKeyEncodesCollectionId::No},
-                    vbid,
-                    cookie,
-                    GET_DELETED_VALUE);
+    gv = store->get(key, vbid, cookie, GET_DELETED_VALUE);
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
-    // This is the only system key test_helpers::createXattrValue gives us
+    // This is the only system key test_helpers::createXattrValue gives
+    // us
     cb::xattr::Blob blob;
     blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
 
@@ -3918,9 +3893,10 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgSeqno*/));
 
+    const auto key = makeStoredDocKey("key");
     EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(opaque,
-                                 {"key", DocKeyEncodesCollectionId::No},
+                                 key,
                                  {reinterpret_cast<const uint8_t*>(body.data()),
                                   body.size()},
                                  PROTOCOL_BINARY_DATATYPE_SNAPPY |
@@ -3941,15 +3917,11 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
-    auto gv = store->get(
-            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    auto gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
-    gv = store->get({"key", DocKeyEncodesCollectionId::No},
-                    vbid,
-                    cookie,
-                    GET_DELETED_VALUE);
+    gv = store->get(key, vbid, cookie, GET_DELETED_VALUE);
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     EXPECT_TRUE(gv.item->isDeleted());
