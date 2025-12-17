@@ -27,21 +27,44 @@ thread_local TaskType GlobalTask::currentTaskType{TaskType::None};
 
 std::atomic<size_t> GlobalTask::task_id_counter(1);
 
-GlobalTask::GlobalTask(Taskable& t,
-                       TaskId taskId,
-                       double initialSleepTime,
-                       bool completeBeforeShutdown)
-    : blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING),
+GlobalTask::GlobalTask(Taskable& taskable_,
+                       TaskId taskId_,
+                       double initialSleepTime_,
+                       bool completeBeforeShutdown_)
+    : blockShutdown(completeBeforeShutdown_),
       uid(nextTaskId()),
-      taskId(taskId),
-      taskType(getTaskType(taskId)),
-      taskable(t),
-      totalRuntime(0),
-      previousRuntime(0),
-      lastStartTime(0) {
-    priority = getTaskPriority(taskId);
-    snooze(initialSleepTime);
+      taskId(taskId_),
+      taskType(getTaskType(taskId_)),
+      taskable(taskable_) {
+    priority = getTaskPriority(taskId_);
+    snooze(initialSleepTime_);
+}
+
+GlobalTask::GlobalTask(
+        Taskable& taskable_,
+        TaskId taskId_,
+        const std::chrono::steady_clock::duration& initialSleepTime_,
+        bool completeBeforeShutdown_)
+    : blockShutdown(completeBeforeShutdown_),
+      uid(nextTaskId()),
+      taskId(taskId_),
+      taskType(getTaskType(taskId_)),
+      taskable(taskable_) {
+    priority = getTaskPriority(taskId_);
+    snooze(initialSleepTime_);
+}
+
+GlobalTask::GlobalTask(Taskable& taskable_,
+                       TaskId taskId_,
+                       const std::chrono::steady_clock::time_point& wakeTime_,
+                       bool completeBeforeShutdown_)
+    : blockShutdown(completeBeforeShutdown_),
+      uid(nextTaskId()),
+      taskId(taskId_),
+      taskType(getTaskType(taskId_)),
+      taskable(taskable_) {
+    priority = getTaskPriority(taskId_);
+    snooze(wakeTime_);
 }
 
 GlobalTask::~GlobalTask() = default;
@@ -108,6 +131,22 @@ void GlobalTask::snooze(const double secs) {
     } else {
         updateWaketime(curTime);
     }
+}
+
+void GlobalTask::snooze(const std::chrono::steady_clock::duration& sleepTime) {
+    const auto now = cb::time::steady_clock::now();
+    const auto wakeTime = now + sleepTime;
+    if (now == wakeTime) {
+        updateWaketime(now);
+    } else {
+        setState(TASK_SNOOZED, TASK_RUNNING);
+        updateWaketime(wakeTime);
+    }
+}
+
+void GlobalTask::snooze(const cb::time::steady_clock::time_point& tp) {
+    setState(TASK_SNOOZED, TASK_RUNNING);
+    updateWaketime(tp);
 }
 
 void GlobalTask::wakeUp() {

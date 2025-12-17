@@ -57,10 +57,20 @@ class GlobalTask {
     friend class CB3ExecutorPool;
 
 public:
-    GlobalTask(Taskable& t,
-               TaskId taskId,
+    GlobalTask(Taskable& taskable_,
+               TaskId taskId_,
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
+
+    GlobalTask(Taskable& taskable_,
+               TaskId taskId_,
+               const std::chrono::steady_clock::duration& sleeptime_,
+               bool completeBeforeShutdown_ = true);
+
+    GlobalTask(Taskable& taskable_,
+               TaskId taskId_,
+               const std::chrono::steady_clock::time_point& waketime_,
+               bool completeBeforeShutdown_ = true);
 
     virtual ~GlobalTask();
 
@@ -125,6 +135,12 @@ public:
      * Puts the task to sleep for a given duration.
      */
     void snooze(const double secs);
+
+    /// Overload of snooze to accept std::chrono durations
+    void snooze(const std::chrono::steady_clock::duration& sleepTime);
+
+    /// Overload of snooze to accept a time_point to wake up at
+    void snooze(const cb::time::steady_clock::time_point& tp);
 
     /**
      * Returns the id of this task.
@@ -299,7 +315,7 @@ protected:
      */
     using atomic_time_point = std::atomic<int64_t>;
     using atomic_duration = std::atomic<int64_t>;
-    std::atomic<task_state_t> state;
+    std::atomic<task_state_t> state{TASK_RUNNING};
     const size_t uid;
     const TaskId taskId;
     const TaskType taskType;
@@ -312,14 +328,14 @@ protected:
         return task_id_counter.fetch_add(1);
     }
 
-    atomic_duration totalRuntime;
-    atomic_duration previousRuntime;
+    atomic_duration totalRuntime{0};
+    atomic_duration previousRuntime{0};
     /**
      * If the task is currently executing, the time it started. If the task
      * is not currently executing then zero.
      * Can be used to measure task runtime so far before task finishes.
      */
-    atomic_time_point lastStartTime;
+    atomic_time_point lastStartTime{0};
     /// How many times this task has been run.
     std::atomic<uint64_t> runCount{0};
 
