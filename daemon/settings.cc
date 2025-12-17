@@ -122,6 +122,21 @@ void Settings::setDcpDisconnectWhenStuckNameRegex(std::string val) {
     notify_changed("dcp_disconnect_when_stuck_name_regex");
 }
 
+template <typename T>
+static std::chrono::microseconds getTimeFromJson(const nlohmann::json& value,
+                                                 const std::string_view key) {
+    switch (value.type()) {
+    case nlohmann::json::value_t::number_unsigned:
+        return T(value.get<int>());
+    case nlohmann::json::value_t::string:
+        return std::chrono::duration_cast<std::chrono::microseconds>(
+                cb::text2time(value.get<std::string>()));
+    default:
+        cb::throwJsonTypeError(
+                fmt::format(R"("{}" must be a number of string)", key));
+    }
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file (this is a bit messy).
@@ -361,53 +376,14 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "external_auth_service_scram_support"sv) {
             setExternalAuthServiceScramSupport(value.get<bool>());
         } else if (key == "active_external_users_push_interval"sv) {
-            switch (value.type()) {
-            case nlohmann::json::value_t::number_unsigned:
-                setActiveExternalUsersPushInterval(
-                        std::chrono::seconds(value.get<int>()));
-                break;
-            case nlohmann::json::value_t::string:
-                setActiveExternalUsersPushInterval(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                                cb::text2time(value.get<std::string>())));
-                break;
-            default:
-                cb::throwJsonTypeError(
-                        "\"active_external_users_push_interval\" must be a "
-                        "number or string");
-            }
+            setActiveExternalUsersPushInterval(
+                    getTimeFromJson<std::chrono::microseconds>(value, key));
         } else if (key == "external_auth_slow_duration"sv) {
-            switch (value.type()) {
-            case nlohmann::json::value_t::number_unsigned:
-                setExternalAuthSlowDuration(
-                        std::chrono::seconds(value.get<int>()));
-                break;
-            case nlohmann::json::value_t::string:
-                setExternalAuthSlowDuration(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                                cb::text2time(value.get<std::string>())));
-                break;
-            default:
-                cb::throwJsonTypeError(
-                        "\"external_auth_slow_duration\" must be a "
-                        "number or string");
-            }
+            setExternalAuthSlowDuration(
+                    getTimeFromJson<std::chrono::seconds>(value, key));
         } else if (key == "external_auth_request_timeout"sv) {
-            switch (value.type()) {
-            case nlohmann::json::value_t::number_unsigned:
-                setExternalAuthRequestTimeout(
-                        std::chrono::seconds(value.get<int>()));
-                break;
-            case nlohmann::json::value_t::string:
-                setExternalAuthRequestTimeout(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                                cb::text2time(value.get<std::string>())));
-                break;
-            default:
-                cb::throwJsonTypeError(
-                        "\"external_auth_request_timeout\" must be a "
-                        "number or string");
-            }
+            setExternalAuthRequestTimeout(
+                    getTimeFromJson<std::chrono::seconds>(value, key));
         } else if (key == "max_concurrent_commands_per_connection"sv) {
             setMaxConcurrentCommandsPerConnection(value.get<size_t>());
         } else if (key == "fusion_migration_rate_limit"sv) {
