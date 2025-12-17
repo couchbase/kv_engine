@@ -235,9 +235,7 @@ void McProgramGetopt::assemble(std::shared_ptr<folly::EventBase> base) {
 
     connection = std::make_unique<MemcachedConnection>(
             host, in_port, family, secure, std::move(base));
-    if (ssl_cert && ssl_key) {
-        connection->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
-    }
+    connection->setTlsConfigFiles(ssl_cert, ssl_key, ca_store);
     if (token_auth) {
         connection->setTokenBuilder(token_builder->clone());
     }
@@ -252,9 +250,7 @@ McProgramGetopt::createAuthenticatedConnection(
         std::shared_ptr<folly::EventBase> base) const {
     auto ret = std::make_unique<MemcachedConnection>(
             std::move(h), p, f, s, std::move(base));
-    if (ssl_cert && ssl_key) {
-        ret->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
-    }
+    ret->setTlsConfigFiles(ssl_cert, ssl_key, ca_store);
     if (token_builder) {
         ret->setTokenBuilder(token_builder->clone());
     }

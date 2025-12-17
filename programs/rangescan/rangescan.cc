@@ -447,11 +447,8 @@ void setupVBMap(const std::string& host,
                 const std::string& bucket,
                 std::shared_ptr<folly::EventBase> base) {
     MemcachedConnection connection(host, in_port, family, tls, base);
-    if (tls_certificate_file && tls_private_key_file) {
-        connection.setTlsConfigFiles(*tls_certificate_file,
-                                     *tls_private_key_file,
-                                     tls_ca_store_file);
-    }
+    connection.setTlsConfigFiles(
+            tls_certificate_file, tls_private_key_file, tls_ca_store_file);
     connection.connect();
 
     if (!user.empty()) {

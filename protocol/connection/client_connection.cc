@@ -916,28 +916,40 @@ nlohmann::json MemcachedConnection::stats(
 }
 
 void MemcachedConnection::setTlsConfigFiles(
-        std::filesystem::path cert,
-        std::filesystem::path key,
+        std::optional<std::filesystem::path> cert,
+        std::optional<std::filesystem::path> key,
         std::optional<std::filesystem::path> castore) {
     auto validate = [](auto file, auto description) {
-        if (!exists(file)) {
+        if (!file.has_value() || file->empty()) {
+            return false;
+        }
+        if (!exists(*file)) {
             throw std::system_error(
                     std::make_error_code(std::errc::no_such_file_or_directory),
                     fmt::format("Can't use [{}] as {} file",
-                                file.generic_string(),
+                                file->generic_string(),
                                 description));
         }
+        return true;
     };
 
-    validate(cert, "certificate");
-    validate(key, "key");
-    if (castore) {
-        validate(*castore, "CA store");
+    if (validate(cert, "certificate")) {
+        ssl_cert_file = std::move(cert);
+    } else {
+        ssl_cert_file = std::nullopt;
     }
 
-    ssl_cert_file = std::move(cert);
-    ssl_key_file = std::move(key);
-    ca_file = std::move(castore);
+    if (validate(key, "key")) {
+        ssl_key_file = std::move(key);
+    } else {
+        ssl_key_file = std::nullopt;
+    }
+
+    if (validate(castore, "CA store")) {
+        ca_file = std::move(castore);
+    } else {
+        ca_file = std::nullopt;
+    }
 }
 
 void MemcachedConnection::setTlsProtocol(TlsVersion protocol) {

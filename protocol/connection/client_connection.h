@@ -402,9 +402,10 @@ public:
      *
      * @throws std::system_error if any of the provided files doesn't exist
      */
-    void setTlsConfigFiles(std::filesystem::path cert,
-                           std::filesystem::path key,
-                           std::optional<std::filesystem::path> castore = {});
+    void setTlsConfigFiles(
+            std::optional<std::filesystem::path> cert,
+            std::optional<std::filesystem::path> key,
+            std::optional<std::filesystem::path> castore = std::nullopt);
 
     /// Set the TLS version to use
     void setTlsProtocol(TlsVersion version);

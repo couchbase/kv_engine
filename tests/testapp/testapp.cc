@@ -128,6 +128,11 @@ void TestappTest::rebuildUserConnection(bool tls) {
     connectionMap.iterate([&](const auto& c) {
         if (!userConnection && (c.isSsl() == tls)) {
             userConnection = c.clone();
+            // Just to make sure we have test coverage when we provide empty
+            // paths
+            userConnection->setTlsConfigFiles(std::filesystem::path{},
+                                              std::filesystem::path{},
+                                              std::filesystem::path{});
             userConnection->authenticate("Luke");
             userConnection->selectBucket(bucketName);
         }
@@ -349,7 +354,7 @@ void TestappTest::setClientCertData(MemcachedConnection& connection,
         ca = directory / "root" / "ca_root.cert";
     }
 
-    connection.setTlsConfigFiles(*cert, *key, ca);
+    connection.setTlsConfigFiles(cert, key, ca);
 }
 
 bool TestappTest::isJSON(std::string_view value) {
