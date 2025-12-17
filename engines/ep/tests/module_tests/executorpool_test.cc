@@ -1211,6 +1211,8 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
             .Times(AtMost(1));
     EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:runtime", _, _))
             .Times(AtMost(1));
+    EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:runtime", _, _))
+            .Times(AtMost(1));
 
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:runtime", _, _));
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:cur_time", _, _));
