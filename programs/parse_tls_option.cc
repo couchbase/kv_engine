@@ -21,9 +21,9 @@ TlsSpec parse_tls_option_or_exit(std::string_view argument) {
         return {{}, {}, {}};
     }
 
-    std::optional<std::filesystem::path> ssl_cert;
-    std::optional<std::filesystem::path> ssl_key;
-    std::optional<std::filesystem::path> ca_store;
+    std::filesystem::path ssl_cert;
+    std::filesystem::path ssl_key;
+    std::filesystem::path ca_store;
 
     auto parts = cb::string::split(argument, ',');
     if (parts.size() < 2 || parts.size() > 3) {
@@ -47,11 +47,9 @@ TlsSpec parse_tls_option_or_exit(std::string_view argument) {
             exit(EXIT_FAILURE);
         }
     };
-    validate(*ssl_cert, "Certificate");
-    validate(*ssl_key, "Private key");
-    if (ca_store) {
-        validate(*ca_store, "CA store");
-    }
+    validate(ssl_cert, "Certificate");
+    validate(ssl_key, "Private key");
+    validate(ca_store, "CA store");
 
     return {ssl_cert, ssl_key, ca_store};
 }

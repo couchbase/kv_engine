@@ -707,14 +707,14 @@ void MemcachedConnection::connect() {
                                      tls12_ciphers);
         }
 
-        if (ssl_cert_file && ssl_key_file) {
+        if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
             SSL_CTX_set_default_passwd_cb(context, my_pem_password_cb);
             SSL_CTX_set_default_passwd_cb_userdata(context, this);
             if (!SSL_CTX_use_certificate_chain_file(
-                        context, ssl_cert_file->generic_string().c_str()) ||
+                        context, ssl_cert_file.generic_string().c_str()) ||
                 !SSL_CTX_use_PrivateKey_file(
                         context,
-                        ssl_key_file->generic_string().c_str(),
+                        ssl_key_file.generic_string().c_str(),
                         SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
                 std::vector<char> ssl_err(1024);
@@ -728,9 +728,9 @@ void MemcachedConnection::connect() {
             }
         }
 
-        if (ca_file) {
+        if (!ca_file.empty()) {
             if (!SSL_CTX_load_verify_locations(
-                        context, ca_file->generic_string().c_str(), nullptr)) {
+                        context, ca_file.generic_string().c_str(), nullptr)) {
                 std::vector<char> ssl_err(1024);
                 ERR_error_string_n(
                         ERR_get_error(), ssl_err.data(), ssl_err.size());
@@ -918,19 +918,18 @@ nlohmann::json MemcachedConnection::stats(
     return ret;
 }
 
-void MemcachedConnection::setTlsConfigFiles(
-        std::optional<std::filesystem::path> cert,
-        std::optional<std::filesystem::path> key,
-        std::optional<std::filesystem::path> castore) {
+void MemcachedConnection::setTlsConfigFiles(std::filesystem::path cert,
+                                            std::filesystem::path key,
+                                            std::filesystem::path castore) {
     auto validate = [](auto file, auto description) {
-        if (!file.has_value() || file->empty()) {
+        if (file.empty()) {
             return false;
         }
-        if (!exists(*file)) {
+        if (!exists(file)) {
             throw std::system_error(
                     std::make_error_code(std::errc::no_such_file_or_directory),
                     fmt::format("Can't use [{}] as {} file",
-                                file->generic_string(),
+                                file.generic_string(),
                                 description));
         }
         return true;
@@ -939,19 +938,19 @@ void MemcachedConnection::setTlsConfigFiles(
     if (validate(cert, "certificate")) {
         ssl_cert_file = std::move(cert);
     } else {
-        ssl_cert_file = std::nullopt;
+        ssl_cert_file.clear();
     }
 
     if (validate(key, "key")) {
         ssl_key_file = std::move(key);
     } else {
-        ssl_key_file = std::nullopt;
+        ssl_key_file.clear();
     }
 
     if (validate(castore, "CA store")) {
         ca_file = std::move(castore);
     } else {
-        ca_file = std::nullopt;
+        ca_file.clear();
     }
 }
 

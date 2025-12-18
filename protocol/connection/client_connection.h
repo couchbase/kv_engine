@@ -399,14 +399,15 @@ public:
     }
 
     /**
-     * Set the SSL Certificate, private key and optionally CA store files to use
+     * Set the SSL Certificate, private key and optionally CA store files to
+     * use. If any of the files doesn't exist a std::system_error will be
+     * thrown. If the paths are empty no value would be used for that file.
      *
      * @throws std::system_error if any of the provided files doesn't exist
      */
-    void setTlsConfigFiles(
-            std::optional<std::filesystem::path> cert,
-            std::optional<std::filesystem::path> key,
-            std::optional<std::filesystem::path> castore = std::nullopt);
+    void setTlsConfigFiles(std::filesystem::path cert,
+                           std::filesystem::path key,
+                           std::filesystem::path castore);
 
     /// Set the TLS version to use
     void setTlsProtocol(TlsVersion version);
@@ -1284,9 +1285,9 @@ protected:
     std::string tls13_ciphers{
             "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_"
             "GCM_SHA256"};
-    std::optional<std::filesystem::path> ssl_cert_file;
-    std::optional<std::filesystem::path> ssl_key_file;
-    std::optional<std::filesystem::path> ca_file;
+    std::filesystem::path ssl_cert_file;
+    std::filesystem::path ssl_key_file;
+    std::filesystem::path ca_file;
     // By default we verify the peer unless we're running in unit test mode
     // as we have waaay to many unit tests which connects to a localhost
     // server using a self-signed certificate and locate all these instances

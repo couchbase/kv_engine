@@ -10,12 +10,11 @@
 #pragma once
 
 #include <filesystem>
-#include <optional>
 #include <tuple>
 
-using TlsSpec = std::tuple<std::optional<std::filesystem::path>,
-                           std::optional<std::filesystem::path>,
-                           std::optional<std::filesystem::path>>;
+using TlsSpec = std::tuple<std::filesystem::path,
+                           std::filesystem::path,
+                           std::filesystem::path>;
 
 /**
  * Parse the --tls command line option which is in the format:

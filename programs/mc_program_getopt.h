@@ -107,9 +107,9 @@ protected:
     std::string user;
     std::string password;
     std::string sasl_mechanism;
-    std::optional<std::filesystem::path> ssl_cert;
-    std::optional<std::filesystem::path> ssl_key;
-    std::optional<std::filesystem::path> ca_store;
+    std::filesystem::path ssl_cert;
+    std::filesystem::path ssl_key;
+    std::filesystem::path ca_store;
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
     bool token_auth = false;

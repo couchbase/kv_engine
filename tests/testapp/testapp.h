@@ -144,9 +144,9 @@ public:
      */
     void setClientCertData(MemcachedConnection& connection,
                            std::string_view user,
-                           std::optional<std::filesystem::path> cert = {},
-                           std::optional<std::filesystem::path> key = {},
-                           std::optional<std::filesystem::path> ca = {});
+                           std::filesystem::path cert = {},
+                           std::filesystem::path key = {},
+                           std::filesystem::path ca = {});
 
     /**
      * Attempts to store a document with the given key, value, flags and expiry

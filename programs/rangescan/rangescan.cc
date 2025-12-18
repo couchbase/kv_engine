@@ -57,10 +57,10 @@ public:
 /// on all connections we're trying to create
 bool tls = false;
 /// The TLS certificate file if provided
-std::optional<std::filesystem::path> tls_certificate_file;
+std::filesystem::path tls_certificate_file;
 /// The TLS private key file if provided
-std::optional<std::filesystem::path> tls_private_key_file;
-std::optional<std::filesystem::path> tls_ca_store_file;
+std::filesystem::path tls_private_key_file;
+std::filesystem::path tls_ca_store_file;
 
 /// When set to true we'll print out each message we see
 bool verbose = false;

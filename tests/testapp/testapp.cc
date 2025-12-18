@@ -336,21 +336,21 @@ void TestappTest::reconfigure_security_level(int level) {
 
 void TestappTest::setClientCertData(MemcachedConnection& connection,
                                     std::string_view user,
-                                    std::optional<std::filesystem::path> cert,
-                                    std::optional<std::filesystem::path> key,
-                                    std::optional<std::filesystem::path> ca) {
+                                    std::filesystem::path cert,
+                                    std::filesystem::path key,
+                                    std::filesystem::path ca) {
     auto directory = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert";
-    if (!cert) {
+    if (cert.empty()) {
         cert = directory / "clients" /
                std::filesystem::path{std::string(user) + ".cert"};
     }
 
-    if (!key) {
+    if (key.empty()) {
         key = directory / "clients" /
               std::filesystem::path{std::string(user) + ".key"};
     }
 
-    if (!ca) {
+    if (ca.empty()) {
         ca = directory / "root" / "ca_root.cert";
     }
 
