@@ -11,6 +11,7 @@
 #include "mc_program_getopt.h"
 #include <cbsasl/mechanism.h>
 #include <json_web_token/builder.h>
+#include <memcached/unit_test_mode.h>
 #include <platform/dirutils.h>
 #include <platform/getpass.h>
 #include <platform/terminal_color.h>
@@ -30,6 +31,10 @@ static std::filesystem::path skeleton_file = ".";
 McProgramGetopt::~McProgramGetopt() = default;
 
 McProgramGetopt::McProgramGetopt() {
+    // Disable unit test mode as that would change the default value for
+    // ssl-peer-verify
+    setUnitTestMode(false);
+
     const auto* home = getenv("HOME");
     if (home) {
         passphrase_file = fmt::format("{}/.couchbase/shared_secret", home);
@@ -77,6 +82,9 @@ McProgramGetopt::McProgramGetopt() {
                "so it may authenticate to the server by using the information "
                "in the certificate). A non-default CA store may optionally be "
                "provided."});
+    addOption({[this](auto value) { ssl_peer_verify = false; },
+               "no-peer-verify",
+               "Disable verification of peer's certificate"});
     addOption({[this](auto value) { family = AF_INET; },
                '4',
                "ipv4",
@@ -236,6 +244,7 @@ void McProgramGetopt::assemble(std::shared_ptr<folly::EventBase> base) {
     connection = std::make_unique<MemcachedConnection>(
             host, in_port, family, secure, std::move(base));
     connection->setTlsConfigFiles(ssl_cert, ssl_key, ca_store);
+    connection->setSslPeerVerify(ssl_peer_verify);
     if (token_auth) {
         connection->setTokenBuilder(token_builder->clone());
     }
@@ -251,11 +260,26 @@ McProgramGetopt::createAuthenticatedConnection(
     auto ret = std::make_unique<MemcachedConnection>(
             std::move(h), p, f, s, std::move(base));
     ret->setTlsConfigFiles(ssl_cert, ssl_key, ca_store);
+    ret->setSslPeerVerify(ssl_peer_verify);
     if (token_builder) {
         ret->setTokenBuilder(token_builder->clone());
     }
 
-    ret->connect();
+    try {
+        ret->connect();
+    } catch (std::runtime_error& e) {
+        std::string message = e.what();
+        if (message.contains("certificate verify failed")) {
+            throw std::runtime_error(fmt::format(
+                    "Failed to connect to \"{}\" as certificate "
+                    "verification failed.\nIf you want to disable "
+                    "certificate verification, use the --no-peer-verify "
+                    "option.\nFull error message:{}",
+                    h,
+                    message));
+        }
+        throw;
+    }
     if (token_auth) {
         ret->authenticateWithToken();
     } else if (!user.empty() && !password.empty()) {
@@ -271,7 +295,21 @@ McProgramGetopt::createAuthenticatedConnection(
 std::unique_ptr<MemcachedConnection> McProgramGetopt::getConnection() {
     if (connection) {
         auto ret = connection->clone(false);
-        ret->connect();
+        try {
+            ret->connect();
+        } catch (std::runtime_error& e) {
+            std::string message = e.what();
+            if (message.contains("certificate verify failed")) {
+                throw std::runtime_error(fmt::format(
+                        "Failed to connect to \"{}\" as certificate "
+                        "verification failed.\nIf you want to disable "
+                        "certificate verification, use the --no-peer-verify "
+                        "option.\nFull error message:{}",
+                        host,
+                        message));
+            }
+            throw;
+        }
         if (token_auth) {
             ret->authenticateWithToken();
         } else if (!user.empty() && !password.empty()) {

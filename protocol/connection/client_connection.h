@@ -18,6 +18,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>
 #include <memcached/types.h>
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <platform/backtrace.h>
 #include <platform/socket.h>
@@ -413,6 +414,10 @@ public:
     void setTls12Ciphers(std::string ciphers);
     /// Set the ciphers to use for TLS >= 1.3
     void setTls13Ciphers(std::string ciphers);
+    /// Set whether to verify the peer's certificate
+    void setSslPeerVerify(bool val) {
+        ssl_peer_verify = val;
+    }
 
     /// Set the passphrase to use for decoding the PEM file
     void setPemPassphrase(std::string pass) {
@@ -1282,6 +1287,13 @@ protected:
     std::optional<std::filesystem::path> ssl_cert_file;
     std::optional<std::filesystem::path> ssl_key_file;
     std::optional<std::filesystem::path> ca_file;
+    // By default we verify the peer unless we're running in unit test mode
+    // as we have waaay to many unit tests which connects to a localhost
+    // server using a self-signed certificate and locate all these instances
+    // and set the ca file would be too much work for now. Note that the
+    // unit test for downloading snapshots will set this to true so it is
+    // tested by that
+    bool ssl_peer_verify = !isUnitTestMode();
     std::string pem_passphrase;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;

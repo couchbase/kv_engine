@@ -728,14 +728,21 @@ void MemcachedConnection::connect() {
             }
         }
 
-        if (ca_file &&
-            !SSL_CTX_load_verify_locations(
-                    context, ca_file->generic_string().c_str(), nullptr)) {
-            std::vector<char> ssl_err(1024);
-            ERR_error_string_n(ERR_get_error(), ssl_err.data(), ssl_err.size());
-            SSL_CTX_free(context);
-            throw std::runtime_error(std::string("Failed to use CA file: ") +
-                                     ssl_err.data());
+        if (ca_file) {
+            if (!SSL_CTX_load_verify_locations(
+                        context, ca_file->generic_string().c_str(), nullptr)) {
+                std::vector<char> ssl_err(1024);
+                ERR_error_string_n(
+                        ERR_get_error(), ssl_err.data(), ssl_err.size());
+                SSL_CTX_free(context);
+                throw std::runtime_error(
+                        std::string("Failed to use CA file: ") +
+                        ssl_err.data());
+            }
+        }
+
+        if (ssl_peer_verify) {
+            SSL_CTX_set_verify(context, SSL_VERIFY_PEER, nullptr);
         }
 
         auto ctx = std::make_shared<folly::SSLContext>(context);
@@ -976,6 +983,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     ret->ssl_cert_file = ssl_cert_file;
     ret->ssl_key_file = ssl_key_file;
     ret->ca_file = ca_file;
+    ret->ssl_peer_verify = ssl_peer_verify;
     ret->tls_protocol = tls_protocol;
     ret->tls12_ciphers = tls12_ciphers;
     ret->tls13_ciphers = tls13_ciphers;

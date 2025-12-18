@@ -159,6 +159,7 @@ void SnapshotClusterTest::SetUpTestCase() {
                         {"cert",
                          OBJECT_ROOT "/tests/cert/clients/internal.cert"},
                         {"key", OBJECT_ROOT "/tests/cert/clients/internal.key"},
+                        {"ssl_peer_verify", true},
                         {"ca_store",
                          OBJECT_ROOT "/tests/cert/root/ca_root.cert"}};
 

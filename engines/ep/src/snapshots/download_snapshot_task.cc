@@ -57,6 +57,7 @@ void DownloadSnapshotTask::createConnection() {
         if (!properties.tls->passphrase.empty()) {
             connection->setPemPassphrase(properties.tls->passphrase);
         }
+        connection->setSslPeerVerify(properties.tls->ssl_peer_verify);
     }
     connection->connect();
     if (properties.sasl.has_value()) {

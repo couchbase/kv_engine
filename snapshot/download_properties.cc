@@ -37,6 +37,7 @@ void to_json(nlohmann::json& json, const DownloadProperties::Tls& tls) {
     json = {{"cert", tls.cert},
             {"key", tls.key},
             {"ca_store", tls.ca_store},
+            {"ssl_peer_verify", tls.ssl_peer_verify},
             {"passphrase", cb::base64::encode(tls.passphrase)}};
 }
 
@@ -65,6 +66,7 @@ void from_json(const nlohmann::json& json, DownloadProperties::Tls& tls) {
     tls.cert = json.value("cert", "");
     tls.key = json.value("key", "");
     tls.ca_store = json.value("ca_store", "");
+    tls.ssl_peer_verify = json.value("ssl_peer_verify", true);
     if (json.contains("passphrase")) {
         tls.passphrase = cb::base64::decode(json.value("passphrase", ""));
     }

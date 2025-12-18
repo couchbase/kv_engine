@@ -81,6 +81,7 @@ TEST(DownloadPropertiesTest, ConversionTls) {
     "cert": "/foo/mycert.pem",
     "key": "/foo/mykey.pem",
     "ca_store": "/foo/CA",
+    "ssl_peer_verify": false,
     "passphrase": "c2VjcmV0"
   }
 }
@@ -90,7 +91,8 @@ TEST(DownloadPropertiesTest, ConversionTls) {
     properties.bucket = "travel-sample";
     properties.hostname = "::1";
     properties.port = 11210;
-    properties.tls = {"/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", "secret"};
+    properties.tls = {
+            "/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", false, "secret"};
 
     nlohmann::json json = properties;
 
@@ -118,6 +120,7 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     "cert": "/foo/mycert.pem",
     "key": "/foo/mykey.pem",
     "ca_store": "/foo/CA",
+    "ssl_peer_verify": true,
     "passphrase": "c2VjcmV0"
   }
 }
@@ -128,7 +131,8 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     properties.hostname = "::1";
     properties.port = 11210;
     properties.sasl = {"PLAIN", "Administrator", "asdfasdf"};
-    properties.tls = {"/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", "secret"};
+    properties.tls = {
+            "/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", true, "secret"};
 
     nlohmann::json json = properties;
 
@@ -138,4 +142,49 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     // test from_json methods
     DownloadProperties parsed = json;
     EXPECT_EQ(properties, parsed);
+}
+
+TEST(DownloadPropertiesTest, FromJson) {
+    // tls.ssl_peer_verify defaults to true if not provided
+    nlohmann::json json = R"(
+{
+  "bucket": "travel-sample",
+  "fsync_interval":52428800,
+  "host": "::1",
+  "port": 11210,
+  "sasl": {
+    "mechanism": "PLAIN",
+    "username": "Administrator",
+    "password": "asdfasdf"
+  },
+  "tls": {
+    "cert": "/foo/mycert.pem",
+    "key": "/foo/mykey.pem",
+    "ca_store": "",
+    "passphrase": "c2VjcmV0"
+  }
+}
+)"_json;
+
+    DownloadProperties properties = json;
+    EXPECT_EQ("travel-sample", properties.bucket);
+    EXPECT_EQ(52428800, properties.fsync_interval);
+    EXPECT_EQ("::1", properties.hostname);
+    EXPECT_EQ(11210, properties.port);
+    ASSERT_TRUE(properties.sasl.has_value());
+    EXPECT_EQ("PLAIN", properties.sasl->mechanism);
+    EXPECT_EQ("Administrator", properties.sasl->username);
+    EXPECT_EQ("asdfasdf", properties.sasl->password);
+    ASSERT_TRUE(properties.tls.has_value());
+    EXPECT_EQ("/foo/mycert.pem", properties.tls->cert);
+    EXPECT_EQ("/foo/mykey.pem", properties.tls->key);
+    EXPECT_EQ("", properties.tls->ca_store);
+    EXPECT_TRUE(properties.tls->ssl_peer_verify);
+    EXPECT_EQ("secret", properties.tls->passphrase);
+
+    // now set ssl_peer_verify to false and re-parse
+    json["tls"]["ssl_peer_verify"] = false;
+    properties = json;
+    ASSERT_TRUE(properties.tls.has_value());
+    EXPECT_FALSE(properties.tls->ssl_peer_verify);
 }

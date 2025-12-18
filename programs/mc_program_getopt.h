@@ -113,6 +113,7 @@ protected:
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
     bool token_auth = false;
+    bool ssl_peer_verify = true;
     std::unique_ptr<cb::jwt::Builder> token_builder;
     std::chrono::seconds token_lifetime = std::chrono::minutes{1};
 };

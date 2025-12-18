@@ -48,6 +48,8 @@ struct DownloadProperties {
         std::string key;
         /// The CA store to use
         std::string ca_store;
+        /// Peer certificate verification
+        bool ssl_peer_verify = true;
         /// The passphrase to decode the
         std::string passphrase;
         friend bool operator==(const Tls& lhs, const Tls& rhs) {

@@ -40,7 +40,7 @@ TlsSpec parse_tls_option_or_exit(std::string_view argument) {
     }
 
     auto validate = [](auto file, auto descr) {
-        if (!exists(file)) {
+        if (!file.empty() && !exists(file)) {
             std::cerr << TerminalColor::Red << descr << " file " << file
                       << " does not exists" << TerminalColor::Reset
                       << std::endl;
