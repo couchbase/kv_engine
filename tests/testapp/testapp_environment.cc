@@ -17,6 +17,7 @@
 #include <dek/manager.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
@@ -254,7 +255,7 @@ McdEnvironment::McdEnvironment(std::string engineConfig)
 
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
-    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    setUnitTestMode(true);
 
     testBucket = std::make_unique<TestBucket>(test_directory,
                                               std::move(engineConfig));
@@ -313,7 +314,7 @@ void McdEnvironment::setupPasswordDatabase() {
 }
 
 void McdEnvironment::terminate(int exitcode) {
-    unsetenv("MEMCACHED_UNIT_TESTS");
+    setUnitTestMode(false);
     unsetenv("CBSASL_PWFILE");
 
     // If exit-code != EXIT_SUCCESS it means that we had at least one

@@ -17,10 +17,12 @@
 #include <folly/portability/Stdlib.h>
 #include <getopt.h>
 #include <logger/logger.h>
+#include <memcached/unit_test_mode.h>
+
 #include <iostream>
 
 int main(int argc, char** argv) {
-    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    setUnitTestMode(true);
 
     // peek at the arguments to check if we're just going to dump the tests
     bool list_tests = false;

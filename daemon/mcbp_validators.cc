@@ -29,9 +29,9 @@
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/storeddockey.h>
+#include <memcached/unit_test_mode.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
-#include <platform/string_hex.h>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/fusion_utilities.h>
@@ -2250,18 +2250,18 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
     }
 
     // The method should only be available for unit tests
-    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
-        cookie.setErrorContext("Only available for unit tests");
-        return Status::NotSupported;
+    if (isUnitTestMode()) {
+        const auto& payload =
+                cookie.getRequest().getCommandSpecifics<AdjustTimePayload>();
+        if (!payload.isValid()) {
+            cookie.setErrorContext("Unexpected value for TimeType");
+        }
+
+        return Status::Success;
     }
 
-    const auto& payload =
-            cookie.getRequest().getCommandSpecifics<AdjustTimePayload>();
-    if (!payload.isValid()) {
-        cookie.setErrorContext("Unexpected value for TimeType");
-    }
-
-    return Status::Success;
+    cookie.setErrorContext("Only available for unit tests");
+    return Status::NotSupported;
 }
 
 static Status ewb_validator(Cookie& cookie) {
@@ -2278,12 +2278,12 @@ static Status ewb_validator(Cookie& cookie) {
     }
 
     // The method should only be available for unit tests
-    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
-        cookie.setErrorContext("Only available for unit tests");
-        return Status::NotSupported;
+    if (isUnitTestMode()) {
+        return Status::Success;
     }
 
-    return Status::Success;
+    cookie.setErrorContext("Only available for unit tests");
+    return Status::NotSupported;
 }
 
 static Status get_random_key_validator(Cookie& cookie) {

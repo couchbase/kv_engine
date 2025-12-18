@@ -12,6 +12,7 @@
 #include <cbsasl/user.h>
 #include <folly/Synchronized.h>
 #include <memcached/limits.h>
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
@@ -292,10 +293,9 @@ static User::PasswordMetaData generateArgon2id13Secret(
     std::vector<uint8_t> salt(crypto_pwhash_argon2id_saltbytes());
     generateSalt(salt, encodedSalt);
 
-    const auto ops = getenv("MEMCACHED_UNIT_TESTS")
-                             ? crypto_pwhash_opslimit_min()
-                             : crypto_pwhash_opslimit_moderate();
-    const auto mcost = getenv("MEMCACHED_UNIT_TESTS")
+    const auto ops = isUnitTestMode() ? crypto_pwhash_opslimit_min()
+                                      : crypto_pwhash_opslimit_moderate();
+    const auto mcost = isUnitTestMode()
                                ? crypto_pwhash_memlimit_min()
                                : crypto_pwhash_argon2i_memlimit_moderate();
 

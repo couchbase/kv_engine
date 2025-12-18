@@ -12,6 +12,7 @@
 #include "connection.h"
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/unit_test_mode.h>
 
 using cb::mcbp::ClientOpcode;
 using cb::rbac::Privilege;
@@ -303,7 +304,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::GetFusionNamespaces,
           require<Privilege::NodeSupervisor>);
 
-    if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
+    if (isUnitTestMode()) {
         // The opcode used to set the clock by our extension
         setup(ClientOpcode::AdjustTimeofday, empty);
         // The opcode used by ewouldblock

@@ -41,6 +41,7 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 #include <json_web_token/token.h>
+#include <memcached/unit_test_mode.h>
 
 #include <stdexcept>
 #include <string>
@@ -65,11 +66,6 @@ nlohmann::json MemcachedConnection::ifconfig(std::string_view command,
         throw ConnectionError(fmt::format("ifconfig({}) Failed", command), rsp);
     }
     return rsp.getDataJson();
-}
-
-/// Helper function to check if we're running in unit test mode or not
-static bool is_unit_test_mode() {
-    return getenv("MEMCACHED_UNIT_TESTS") != nullptr;
 }
 
 /**
@@ -425,8 +421,8 @@ MemcachedConnection::MemcachedConnection(std::string host,
       family(family),
       ssl(ssl),
       eventBase(eb ? std::move(eb) : std::make_shared<folly::EventBase>()),
-      validateReceivedFrame(is_unit_test_mode()) {
-    if (is_unit_test_mode()) {
+      validateReceivedFrame(isUnitTestMode()) {
+    if (isUnitTestMode()) {
         // When running in unit tests we want it to fail fast, but not
         // too fast as the CV builders are sometimes heavily loaded
         timeout = std::chrono::seconds{10};
@@ -555,14 +551,14 @@ static SOCKET new_socket(const std::string& host,
     // both IPv4 and IPv6 address, and IPv4 could fail while IPv6
     // might succeed.
     for (auto* next = ai; next; next = next->ai_next) {
-        int retry = is_unit_test_mode() ? 200 : 0;
+        int retry = isUnitTestMode() ? 200 : 0;
         do {
             try {
                 auto sfd = try_connect_socket(next, hostname, port);
                 freeaddrinfo(ai);
                 return sfd;
             } catch (const std::system_error& exception) {
-                if (is_unit_test_mode()) {
+                if (isUnitTestMode()) {
                     std::cerr << "Failed building socket: " << exception.what()
                               << std::endl;
 #ifndef WIN32
@@ -587,7 +583,7 @@ static SOCKET new_socket(const std::string& host,
 }
 
 SOCKET MemcachedConnection::releaseSocket() {
-    if (ssl && !is_unit_test_mode()) {
+    if (ssl && !isUnitTestMode()) {
         throw std::runtime_error(
                 "MemcachedConnection::releaseSocket: Can't release SSL socket");
     }
@@ -777,7 +773,7 @@ void MemcachedConnection::connect() {
         throw std::runtime_error("Failed to create folly async socket");
     }
 
-    if (!ssl && is_unit_test_mode()) {
+    if (!ssl && isUnitTestMode()) {
         // Enable LINGER with zero timeout. This changes the
         // behaviour of close() - any unsent data will be
         // discarded, and the connection will be immediately
@@ -1122,7 +1118,7 @@ void MemcachedConnection::doValidateReceivedFrame(
 }
 
 std::string getTimeoutExceptionMessage(std::string message) {
-    if (is_unit_test_mode()) {
+    if (isUnitTestMode()) {
         return fmt::format(
                 "{}\nCallstack:\n{}", message, cb::backtrace::current());
     }

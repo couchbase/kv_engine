@@ -25,6 +25,7 @@
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
+#include <memcached/unit_test_mode.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_time.h>
@@ -183,7 +184,7 @@ int main(int argc, char **argv) {
     }
 
     putenv(allow_no_stats_env.data());
-    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    setUnitTestMode(true);
     // MB-69547: Allow bypassing control negotiation for testing purposes
     //           as a lot of the old DCP tests don't drive the state
     //           machine to complete control negotiation.

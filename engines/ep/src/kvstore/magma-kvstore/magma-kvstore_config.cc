@@ -20,6 +20,7 @@
 
 #include <fmt/args.h>
 #include <memcached/server_core_iface.h>
+#include <memcached/unit_test_mode.h>
 #include <utilities/fusion_utilities.h>
 
 /// A listener class to update MagmaKVSTore related configs at runtime.
@@ -394,7 +395,7 @@ void MagmaKVStoreConfig::setContinousBackupInterval(
 }
 
 void MagmaKVStoreConfig::setMakeDirectoryFn(magma::DirectoryConstructor fn) {
-    Expects(getenv("MEMCACHED_UNIT_TESTS") != nullptr);
+    Expects(isUnitTestMode());
     magmaCfg.FS.MakeDirectory = fn;
 }
 

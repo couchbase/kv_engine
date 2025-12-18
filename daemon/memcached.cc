@@ -46,6 +46,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
@@ -795,7 +796,7 @@ int memcached_main(int argc, char** argv) {
 
     // We don't have the infrastructure to pass the keys on via stdin
     // so lets just use an environment variable for now
-    if (getenv("MEMCACHED_UNIT_TESTS")) {
+    if (isUnitTestMode()) {
         if (const char* env = getenv("BOOTSTRAP_DEK"); env != nullptr) {
             try {
                 cb::dek::Manager::instance().reset(nlohmann::json::parse(env));

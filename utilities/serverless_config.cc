@@ -8,6 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 #include "throttle_utilities.h"
+
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>
 #include <atomic>
@@ -22,7 +24,7 @@ bool isEnabled() {
 
 void setEnabled(bool value) {
     static std::atomic_bool initialized{false};
-    if (initialized && getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+    if (initialized && !isUnitTestMode()) {
         throw std::runtime_error(
                 "cb::serverless::setEnabled(): serverless deployment status "
                 "may only be reconfigured in unit test");

@@ -11,6 +11,7 @@
 #include "cluster_framework/cluster.h"
 #include "clustertest.h"
 #include <event2/thread.h>
+#include <memcached/unit_test_mode.h>
 #include <platform/cbassert.h>
 #include <platform/command_line_options_parser.h>
 #include <platform/dirutils.h>
@@ -43,10 +44,7 @@ int main(int argc, char** argv) {
 
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
-    static std::array<char, 80> envvar;
-    snprintf(envvar.data(), envvar.size(), "MEMCACHED_UNIT_TESTS=true");
-    putenv(envvar.data());
-
+    setUnitTestMode(true);
     const auto isasl_file_name = cb::io::sanitizePath(
             SOURCE_ROOT "/tests/testapp_cluster/cbsaslpw.json");
 
