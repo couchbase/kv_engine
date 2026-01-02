@@ -514,8 +514,8 @@ public:
 
 class BinprotValidateBucketConfigCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotValidateBucketConfigCommand(const std::string& module,
-                                                const std::string& config);
+    explicit BinprotValidateBucketConfigCommand(std::string_view module,
+                                                std::string_view config);
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
@@ -525,8 +525,8 @@ private:
 class BinprotCreateBucketCommand : public BinprotGenericCommand {
 public:
     explicit BinprotCreateBucketCommand(std::string name,
-                                        const std::string& module,
-                                        const std::string& config);
+                                        std::string_view module,
+                                        std::string_view config);
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:

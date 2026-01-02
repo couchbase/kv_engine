@@ -486,7 +486,7 @@ const cb::mcbp::Header& BinprotResponse::getHeader() const {
 }
 
 BinprotValidateBucketConfigCommand::BinprotValidateBucketConfigCommand(
-        const std::string& module, const std::string& config)
+        const std::string_view module, const std::string_view config)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::ValidateBucketConfig) {
     module_config.assign(module.begin(), module.end());
     module_config.push_back(0x00);
@@ -515,7 +515,9 @@ void BinprotCreateBucketCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), module_config.begin(), module_config.end());
 }
 BinprotCreateBucketCommand::BinprotCreateBucketCommand(
-        std::string name, const std::string& module, const std::string& config)
+        std::string name,
+        const std::string_view module,
+        const std::string_view config)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::CreateBucket,
                             std::move(name)) {
     module_config.assign(module.begin(), module.end());
