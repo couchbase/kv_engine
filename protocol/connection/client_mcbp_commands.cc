@@ -485,45 +485,6 @@ const cb::mcbp::Header& BinprotResponse::getHeader() const {
     return ret;
 }
 
-void BinprotSaslAuthCommand::encode(std::vector<uint8_t>& buf) const {
-    if (key.empty()) {
-        throw std::logic_error(
-                "BinprotSaslAuthCommand: Missing mechanism (setMechanism)");
-    }
-
-    writeHeader(buf, challenge.size(), 0);
-    buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), challenge.begin(), challenge.end());
-}
-void BinprotSaslAuthCommand::setMechanism(const std::string& mech_) {
-    setKey(mech_);
-}
-void BinprotSaslAuthCommand::setChallenge(std::string_view data) {
-    challenge = data;
-}
-
-void BinprotSaslStepCommand::encode(std::vector<uint8_t>& buf) const {
-    if (key.empty()) {
-        throw std::logic_error(
-                "BinprotSaslStepCommand::encode: Missing mechanism "
-                "(setMechanism");
-    }
-    if (challenge.empty()) {
-        throw std::logic_error(
-                "BinprotSaslStepCommand::encode: Missing challenge response");
-    }
-
-    writeHeader(buf, challenge.size(), 0);
-    buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), challenge.begin(), challenge.end());
-}
-void BinprotSaslStepCommand::setMechanism(const std::string& mech) {
-    setKey(mech);
-}
-void BinprotSaslStepCommand::setChallenge(std::string_view data) {
-    challenge = data;
-}
-
 BinprotValidateBucketConfigCommand::BinprotValidateBucketConfigCommand(
         const std::string& module, const std::string& config)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::ValidateBucketConfig) {

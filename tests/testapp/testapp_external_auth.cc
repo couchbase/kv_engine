@@ -133,9 +133,8 @@ protected:
     std::unique_ptr<MemcachedConnection> loginOsbourne() {
         auto ret = getConnection().clone();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
+        const BinprotSaslAuthCommand saslAuthCommand{
+                "PLAIN", {"\0osbourne\0password", 18}};
         ret->sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -219,12 +218,11 @@ TEST_P(ExternalAuthTest, TestExternalAuthWithNoExternalProvider) {
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthSuccessful) {
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0password", 18}};
     for (int ii = 0; ii < 10; ++ii) {
         auto& conn = getConnection();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -237,12 +235,11 @@ TEST_P(ExternalAuthTest, TestExternalAuthSuccessful) {
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthUnknownUser) {
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0foo\0password", 13}};
     for (int ii = 0; ii < 10; ++ii) {
         auto& conn = getConnection();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0foo\0password", 13});
-        saslAuthCommand.setMechanism("PLAIN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -256,12 +253,11 @@ TEST_P(ExternalAuthTest, TestExternalAuthUnknownUser) {
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthIncorrectPasword) {
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0bubba", 15}};
     for (int ii = 0; ii < 10; ++ii) {
         auto& conn = getConnection();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0bubba", 15});
-        saslAuthCommand.setMechanism("PLAIN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -275,12 +271,11 @@ TEST_P(ExternalAuthTest, TestExternalAuthIncorrectPasword) {
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthNoRbacUser) {
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0undefined\0bubba", 16}};
     for (int ii = 0; ii < 10; ++ii) {
         auto& conn = getConnection();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0undefined\0bubba", 16});
-        saslAuthCommand.setMechanism("PLAIN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -294,11 +289,10 @@ TEST_P(ExternalAuthTest, TestExternalAuthNoRbacUser) {
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthServiceDying) {
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0undefined\0bubba", 16}};
     auto& conn = getConnection();
 
-    BinprotSaslAuthCommand saslAuthCommand;
-    saslAuthCommand.setChallenge({"\0undefined\0bubba", 16});
-    saslAuthCommand.setMechanism("PLAIN");
     conn.sendCommand(saslAuthCommand);
 
     // kill the connection
@@ -315,9 +309,8 @@ TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
     auto auth = [this]() {
         auto& conn = getConnection();
 
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
+        const BinprotSaslAuthCommand saslAuthCommand{
+                "PLAIN", {"\0osbourne\0password", 18}};
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -455,9 +448,8 @@ TEST_P(ExternalAuthTest, TestExternalAuthAudit) {
 
     auto& conn = getConnection();
 
-    BinprotSaslAuthCommand saslAuthCommand;
-    saslAuthCommand.setChallenge({"\0TestExternalAuthAudit\0password", 31});
-    saslAuthCommand.setMechanism("PLAIN");
+    BinprotSaslAuthCommand saslAuthCommand{
+            "PLAIN", {"\0TestExternalAuthAudit\0password", 31}};
     conn.sendCommand(saslAuthCommand);
 
     stepAuthProvider();
@@ -499,10 +491,9 @@ TEST_P(ExternalAuthSingleThreadTest, TestCountersForExternalAuthentication) {
     auto authRequestsRecieved =
             getStat<size_t>(adminConnection, "", "auth_external_sent");
 
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0password", 18}};
     for (int ii = 0; ii < 10; ++ii) {
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
         conn->sendCommand(saslAuthCommand);
         ++authRequestsSent;
 
@@ -526,10 +517,9 @@ TEST_P(ExternalAuthSingleThreadTest, TestCountersForExternalAuthentication) {
 }
 
 TEST_P(ExternalAuthSingleThreadTest, TestSlowResponseFromAuthProvider) {
-    BinprotSaslAuthCommand saslAuthCommand;
     auto& conn = getConnection();
-    saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-    saslAuthCommand.setMechanism("PLAIN");
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0password", 18}};
     conn.sendCommand(saslAuthCommand);
 
     // Delay 101ms to force slow response
@@ -567,10 +557,9 @@ TEST_P(ExternalAuthSingleThreadTest, TestTimeOutRequestToAuthProvider) {
     memcached_cfg["external_auth_request_timeout"] = "100 ms";
     reconfigure();
 
-    BinprotSaslAuthCommand saslAuthCommand;
     auto& conn = getConnection();
-    saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-    saslAuthCommand.setMechanism("PLAIN");
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0password", 18}};
     conn.sendCommand(saslAuthCommand);
 
     // Delay 101ms (timeout) + 20ms (max ExternalAuthManagerThread::run() will
@@ -622,10 +611,9 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
         // Histogram is undefined, keep counter at 0
     }
 
+    const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
+                                                 {"\0osbourne\0password", 18}};
     for (int ii = 0; ii < 10; ++ii) {
-        BinprotSaslAuthCommand saslAuthCommand;
-        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
         conn->sendCommand(saslAuthCommand);
 
         stepAuthProvider();

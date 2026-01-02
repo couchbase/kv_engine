@@ -293,10 +293,7 @@ TEST_P(AuditTest, AuditStartedStopped) {
  * Validate that a failed SASL auth is audit logged.
  */
 TEST_P(AuditTest, AuditFailedAuth) {
-    BinprotSaslAuthCommand cmd;
-    cmd.setChallenge({"\0nouser\0nopassword", 18});
-    cmd.setMechanism("PLAIN");
-
+    BinprotSaslAuthCommand cmd("PLAIN", {"\0nouser\0nopassword", 18});
     auto rsp = getConnection().execute(cmd);
     EXPECT_EQ(cb::mcbp::ClientOpcode::SaslAuth, rsp.getOp());
     EXPECT_EQ(cb::mcbp::Status::AuthError, rsp.getStatus());
@@ -590,9 +587,7 @@ TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
 }
 
 TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {
-    BinprotSaslAuthCommand cmd;
-    cmd.setChallenge({"\0MB41183\0nopassword", 18});
-    cmd.setMechanism("PLAIN");
+    BinprotSaslAuthCommand cmd{"PLAIN", {"\0MB41183\0nopassword", 18}};
 
     auto rsp = getConnection().execute(cmd);
     EXPECT_EQ(cb::mcbp::ClientOpcode::SaslAuth, rsp.getOp());

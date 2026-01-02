@@ -231,10 +231,7 @@ protected:
         challenge.append(user);
         challenge.push_back('\0');
         challenge.append(password);
-        BinprotSaslAuthCommand cmd;
-        cmd.setChallenge(challenge);
-        cmd.setMechanism("PLAIN");
-        injectCommand(cmd);
+        injectCommand(BinprotSaslAuthCommand{"PLAIN", challenge});
         scheduleTimeout(authenticationTimeout.count());
     }
 

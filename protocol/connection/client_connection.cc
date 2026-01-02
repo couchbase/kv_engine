@@ -1339,10 +1339,7 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
                                              client_data.first));
     }
 
-    BinprotSaslAuthCommand authCommand;
-    authCommand.setChallenge(client_data.second);
-    authCommand.setMechanism(client.getName());
-    auto response = execute(authCommand);
+    auto response = execute(BinprotSaslAuthCommand{mech, client_data.second});
 
     while (response.getStatus() == cb::mcbp::Status::AuthContinue) {
         client_data = client.step(response.getDataView());
@@ -1354,10 +1351,7 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
                                                  client_data.first));
         }
 
-        BinprotSaslStepCommand stepCommand;
-        stepCommand.setMechanism(client.getName());
-        stepCommand.setChallenge(client_data.second);
-        response = execute(stepCommand);
+        response = execute(BinprotSaslStepCommand{mech, client_data.second});
     }
 
     if (response.isSuccess()) {

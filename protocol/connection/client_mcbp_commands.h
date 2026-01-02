@@ -475,33 +475,20 @@ public:
 
 class BinprotSaslAuthCommand : public BinprotGenericCommand {
 public:
-    BinprotSaslAuthCommand()
-        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslAuth) {
+    BinprotSaslAuthCommand(const std::string_view mech, std::string challenge)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslAuth,
+                                std::string{mech},
+                                std::move(challenge)) {
     }
-    void setMechanism(const std::string& mech_);
-
-    void setChallenge(std::string_view data);
-
-    void encode(std::vector<uint8_t>&) const override;
-
-private:
-    std::string challenge;
 };
 
 class BinprotSaslStepCommand : public BinprotGenericCommand {
 public:
-    BinprotSaslStepCommand()
-        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslStep) {
+    BinprotSaslStepCommand(const std::string_view mech, std::string challenge)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SaslStep,
+                                std::string{mech},
+                                std::move(challenge)) {
     }
-
-    void setMechanism(const std::string& mech);
-
-    void setChallenge(std::string_view data);
-
-    void encode(std::vector<uint8_t>&) const override;
-
-private:
-    std::string challenge;
 };
 
 class BinprotHelloCommand : public BinprotGenericCommand {

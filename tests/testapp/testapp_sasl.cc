@@ -245,10 +245,7 @@ TEST_P(SaslTest, StepWithoutStart) {
                 "cbsasl_client_start ({}): {}", client.getName(), status));
     }
 
-    BinprotSaslStepCommand stepCommand;
-    stepCommand.setMechanism(client.getName());
-    stepCommand.setChallenge(challenge);
-    auto response = conn.execute(stepCommand);
+    auto response = conn.execute(BinprotSaslStepCommand{mech, challenge});
 
     EXPECT_FALSE(response.isSuccess());
 }
