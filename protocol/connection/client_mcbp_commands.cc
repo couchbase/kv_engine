@@ -142,23 +142,6 @@ void BinprotCommand::addFrameInfo(cb::const_byte_buffer section) {
     std::ranges::copy(std::as_const(section), std::back_inserter(frame_info));
 }
 
-void BinprotCommand::ExpiryValue::assign(uint32_t value_) {
-    value = value_;
-    set = true;
-}
-
-void BinprotCommand::ExpiryValue::clear() {
-    set = false;
-}
-
-bool BinprotCommand::ExpiryValue::isSet() const {
-    return set;
-}
-
-uint32_t BinprotCommand::ExpiryValue::getValue() const {
-    return value;
-}
-
 BinprotCommandResponse::BinprotCommandResponse(cb::mcbp::ClientOpcode opcode,
                                                uint32_t opaque,
                                                cb::mcbp::Status status)
@@ -250,7 +233,7 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
 
     // Expiry (optional) is encoded in extras. Only include if non-zero or
     // if explicit encoding of zero was requested.
-    const bool include_expiry = (expiry.getValue() != 0 || expiry.isSet());
+    const bool include_expiry = (expiry.has_value());
     const bool include_doc_flags = !isNone(doc_flags);
 
     // Populate the header.
@@ -274,13 +257,13 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     buf.push_back(static_cast<uint8_t>(flags));
 
     if (userFlags) {
-        append(buf, expiry.getValue());
+        append(buf, expiry.value_or(0));
         append(buf, *userFlags);
     } else if (include_expiry) {
         // As expiry is optional (and immediately follows subdoc_flags,
         // i.e. unaligned) there's no field in the struct; so use low-level
         // memcpy to populate it.
-        append(buf, expiry.getValue());
+        append(buf, *expiry);
     }
 
     if (include_doc_flags) {
@@ -324,7 +307,7 @@ BinprotSubdocCommand& BinprotSubdocCommand::addDocFlags(
     return *this;
 }
 BinprotSubdocCommand& BinprotSubdocCommand::setExpiry(uint32_t value_) {
-    expiry.assign(value_);
+    expiry = value_;
     return *this;
 }
 BinprotSubdocCommand& BinprotSubdocCommand::setUserFlags(uint32_t flags) {
@@ -703,7 +686,7 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
         getOp() == cb::mcbp::ClientOpcode::Appendq ||
         getOp() == cb::mcbp::ClientOpcode::Prepend ||
         getOp() == cb::mcbp::ClientOpcode::Prependq) {
-        if (expiry.getValue() != 0) {
+        if (expiry.value_or(0) != 0) {
             throw std::invalid_argument(
                     "BinprotMutationCommand::encode: Expiry invalid with "
                     "append/prepend");
@@ -722,7 +705,7 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
         // Write the extras:
         cb::mcbp::request::MutationPayload mp;
         mp.setFlags(flags);
-        mp.setExpiration(expiry.getValue());
+        mp.setExpiration(expiry.value_or(0));
         auto buffer = mp.getBuffer();
         buf.insert(buf.end(), buffer.begin(), buffer.end());
     }
@@ -775,7 +758,7 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentFlags(
     return *this;
 }
 BinprotMutationCommand& BinprotMutationCommand::setExpiry(uint32_t expiry_) {
-    expiry.assign(expiry_);
+    expiry = expiry_;
     return *this;
 }
 
@@ -917,17 +900,17 @@ void BinprotSubdocMultiMutationCommand::encode(
     if (userFlags) {
         extlen += sizeof(uint32_t) // exptime
                   + sizeof(uint32_t); // user flags
-    } else if (expiry.isSet()) {
+    } else if (expiry.has_value()) {
         extlen += sizeof(uint32_t); // exptime;
     }
 
     writeHeader(buf, total, extlen);
 
     if (userFlags) {
-        append(buf, expiry.getValue());
+        append(buf, expiry.value_or(0));
         append(buf, *userFlags);
-    } else if (expiry.isSet()) {
-        append(buf, expiry.getValue());
+    } else if (expiry.has_value()) {
+        append(buf, *expiry);
     }
     if (!isNone(docFlags)) {
         const auto* doc_flag_ptr = reinterpret_cast<const uint8_t*>(&docFlags);
@@ -991,7 +974,7 @@ BinprotSubdocMultiMutationCommand::addMutation(cb::mcbp::ClientOpcode opcode,
 }
 BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
         uint32_t expiry_) {
-    expiry.assign(expiry_);
+    expiry = expiry_;
     return *this;
 }
 
@@ -1092,15 +1075,13 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
     }
 
     const uint8_t extlen =
-            (expiry.isSet() ? 4 : 0) + (!isNone(docFlags) ? 1 : 0);
+            (expiry.has_value() ? 4 : 0) + (!isNone(docFlags) ? 1 : 0);
     writeHeader(buf, total, extlen);
 
     // Note: Expiry isn't supported for multi lookups, but we specifically
     // test for it, and therefore allowed at the API level
-    if (expiry.isSet()) {
-        uint32_t expbuf = htonl(expiry.getValue());
-        const char* p = reinterpret_cast<const char*>(&expbuf);
-        buf.insert(buf.end(), p, p + 4);
+    if (expiry.has_value()) {
+        append(buf, *expiry);
     }
     if (!isNone(docFlags)) {
         const auto* doc_flag_ptr = reinterpret_cast<const uint8_t*>(&docFlags);
@@ -1811,7 +1792,7 @@ void BinprotDcpMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     payload.setBySeqno(bySeqno);
     payload.setRevSeqno(revSeqno);
     payload.setFlags(flags);
-    payload.setExpiration(expiry.getValue());
+    payload.setExpiration(expiry.value_or(0));
     payload.setLockTime(lockTime);
     payload.setNru(nru);
 

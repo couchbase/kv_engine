@@ -114,23 +114,6 @@ protected:
     BinprotCommand() = default;
 
     /**
-     * This class exposes a tri-state expiry object, to allow for a 0-value
-     * expiry. This is not used directly by this class, but is used a bit in
-     * subclasses
-     */
-    class ExpiryValue {
-    public:
-        void assign(uint32_t value_);
-        void clear();
-        bool isSet() const;
-        uint32_t getValue() const;
-
-    private:
-        bool set = false;
-        uint32_t value = 0;
-    };
-
-    /**
      * Writes the header to the buffer
      * @param buf Buffer to write to
      * @param payload_len Payload length (excluding keylen and extlen)
@@ -327,7 +310,7 @@ public:
 private:
     std::string path;
     std::string value;
-    BinprotCommand::ExpiryValue expiry;
+    std::optional<uint32_t> expiry;
     cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::None;
     cb::mcbp::subdoc::DocFlag doc_flags = cb::mcbp::subdoc::DocFlag::None;
     std::optional<uint32_t> userFlags;
@@ -387,7 +370,7 @@ public:
 
 protected:
     std::vector<MutationSpecifier> specs;
-    ExpiryValue expiry;
+    std::optional<uint32_t> expiry;
     cb::mcbp::subdoc::DocFlag docFlags;
     std::optional<uint32_t> userFlags;
 };
@@ -454,7 +437,7 @@ public:
 
 protected:
     std::vector<LookupSpecifier> specs;
-    ExpiryValue expiry;
+    std::optional<uint32_t> expiry;
     cb::mcbp::subdoc::DocFlag docFlags;
 };
 
@@ -686,7 +669,7 @@ protected:
     /** This contains value references (e.g. addValueBuffer/setValueBuffers) */
     std::vector<cb::const_byte_buffer> value_refs;
 
-    BinprotCommand::ExpiryValue expiry;
+    std::optional<uint32_t> expiry;
     uint32_t flags = 0;
 };
 
