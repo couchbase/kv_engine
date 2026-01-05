@@ -11,27 +11,20 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/storeddockey.h>
 #include <platform/memory_tracking_allocator.h>
-#include <iomanip>
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
     return os << key.to_string();
 }
 
 template <template <class, class...> class Allocator>
-StoredDocKeyT<Allocator>::StoredDocKeyT(
-        const DocKeyView& key,
-        typename StoredDocKeyT<Allocator>::allocator_type allocator)
-    : keydata(key.getEncoding() == DocKeyEncodesCollectionId::Yes
-                      ? key.size()
-                      : key.size() + 1, // 1 byte for the Default CollectionID
-              0,
-              allocator) {
-    if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-        std::copy(key.data(), key.data() + key.size(), keydata.begin());
-    } else {
-        keydata[0] = DefaultCollectionLeb128Encoded;
-        std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
-    }
+void StoredDocKeyT<Allocator>::constructIntoDefaultCollection(
+        const DocKeyView& key) {
+    // The uncommon case of a key with no prefix (a client which isn't
+    // explicitly using collections and is thus using the default collection).
+    // We must resize and prepend the default collection prefix.
+    keydata.resize(key.size() + 1);
+    keydata[0] = DefaultCollectionLeb128Encoded;
+    std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
 }
 
 template <template <class, class...> class Allocator>

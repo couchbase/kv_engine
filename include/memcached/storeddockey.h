@@ -68,7 +68,14 @@ public:
      *
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKeyT(const DocKeyView& key, allocator_type allocator);
+    StoredDocKeyT(const DocKeyView& key, allocator_type allocator)
+        : keydata(reinterpret_cast<const char*>(key.data()),
+                  key.size(),
+                  allocator) {
+        if (key.getEncoding() == DocKeyEncodesCollectionId::No) {
+            constructIntoDefaultCollection(key);
+        }
+    }
 
     /**
      * Create a StoredDocKey from another, essentially wrapping a DocKey
@@ -192,6 +199,8 @@ public:
     }
 
 protected:
+    void constructIntoDefaultCollection(const DocKeyView& key);
+
     std::basic_string<std::string::value_type,
                       std::string::traits_type,
                       allocator_type>
