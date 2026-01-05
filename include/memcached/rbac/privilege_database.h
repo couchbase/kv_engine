@@ -57,15 +57,12 @@ struct UserIdent {
 
     std::string name;
     Domain domain{cb::rbac::Domain::Local};
+
+    bool operator==(const UserIdent&) const = default;
 };
 
 /// Get a JSON dump of the UserIdent
 void to_json(nlohmann::json& json, const UserIdent& ui);
-
-[[nodiscard]] inline bool operator==(const UserIdent& lhs,
-                                     const UserIdent& rhs) {
-    return lhs.domain == rhs.domain && lhs.name == rhs.name;
-}
 
 /**
  * An array containing all of the possible privileges we've got. It is
@@ -92,7 +89,7 @@ public:
     [[nodiscard]] PrivilegeAccess check(Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    [[nodiscard]] bool operator==(const Collection& other) const;
+    [[nodiscard]] bool operator==(const Collection&) const = default;
 
 protected:
     /// The privilege mask describing the access to this collection
@@ -141,7 +138,7 @@ public:
             Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    [[nodiscard]] bool operator==(const Scope& other) const;
+    [[nodiscard]] bool operator==(const Scope&) const = default;
 
 protected:
     /// The privilege mask describing the access to this scope IFF no
@@ -193,7 +190,7 @@ public:
             Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    [[nodiscard]] bool operator==(const Bucket& other) const;
+    [[nodiscard]] bool operator==(const Bucket&) const = default;
 
     /// Get the underlying privilege mask (used for some of the old unit
     /// tests.. should be removed when we drop the support for the old

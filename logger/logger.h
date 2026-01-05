@@ -183,9 +183,12 @@ private:
  * See note about thread safety at the top of the file
  *
  * @param logger_settings the configuration for the logger
+ * @param log_level the log level to set the logger
  * @return optional error message if something goes wrong
  */
-std::optional<std::string> initialize(const Config& logger_settings);
+std::optional<std::string> initialize(
+        const Config& logger_settings,
+        spdlog::level::level_enum log_level = spdlog::level::level_enum::info);
 
 /**
  * Initialize the logger with the blackhole logger object

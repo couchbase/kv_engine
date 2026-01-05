@@ -168,7 +168,7 @@ bool cb::logger::isInitialized() {
  * specified in a separate settings object.
  */
 std::optional<std::string> cb::logger::initialize(
-        const Config& logger_settings) {
+        const Config& logger_settings, spdlog::level::level_enum log_level) {
     NoArenaGuard guard;
 
     auto fname = logger_settings.filename;
@@ -254,7 +254,7 @@ std::optional<std::string> cb::logger::initialize(
         }
 
         file_logger->set_pattern(log_pattern);
-        file_logger->set_level(logger_settings.log_level);
+        file_logger->set_level(log_level);
 
         // Set the flushing interval policy
         spdlog::flush_every(std::chrono::seconds(1));

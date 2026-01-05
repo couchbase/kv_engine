@@ -41,7 +41,6 @@ protected:
     void SetUp() override {
         RemoveFiles();
         // Use a 2 k file size to make sure that we rotate :)
-        config.log_level = spdlog::level::level_enum::debug;
         config.cyclesize = 2048;
         cb::dek::Manager::instance().setActive(cb::dek::Entity::Logs, nullptr);
         setUpLogger();

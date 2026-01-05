@@ -20,8 +20,7 @@ namespace cb::logger {
 struct Config {
     Config() = default;
 
-    bool operator==(const Config& other) const;
-    bool operator!=(const Config& other) const;
+    bool operator==(const Config& other) const = default;
 
     /// The base name of the log files (we'll append: .000000.txt where
     /// the numbers is a sequence counter. The higher the newer ;)
@@ -36,8 +35,6 @@ struct Config {
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr
     bool console = true;
-    /// The default log level to initialize the logger to
-    spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 };
 
 void to_json(nlohmann::json& json, const Config& config);

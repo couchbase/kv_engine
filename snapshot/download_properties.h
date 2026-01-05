@@ -32,13 +32,7 @@ struct DownloadProperties {
         /// The users password
         std::string password;
 
-        friend bool operator==(const Sasl& lhs, const Sasl& rhs) {
-            return lhs.mechanism == rhs.mechanism &&
-                   lhs.username == rhs.username && lhs.password == rhs.password;
-        }
-        friend bool operator!=(const Sasl& lhs, const Sasl& rhs) {
-            return !(lhs == rhs);
-        }
+        bool operator==(const Sasl& other) const = default;
     };
 
     struct Tls {
@@ -52,26 +46,10 @@ struct DownloadProperties {
         bool ssl_peer_verify = true;
         /// The passphrase to decode the
         std::string passphrase;
-        friend bool operator==(const Tls& lhs, const Tls& rhs) {
-            return lhs.cert == rhs.cert && lhs.key == rhs.key &&
-                   lhs.ca_store == rhs.ca_store &&
-                   lhs.passphrase == rhs.passphrase;
-        }
-        friend bool operator!=(const Tls& lhs, const Tls& rhs) {
-            return !(lhs == rhs);
-        }
+        bool operator==(const Tls&) const = default;
     };
 
-    friend bool operator==(const DownloadProperties& lhs,
-                           const DownloadProperties& rhs) {
-        return lhs.hostname == rhs.hostname && lhs.port == rhs.port &&
-               lhs.bucket == rhs.bucket && lhs.sasl == rhs.sasl &&
-               lhs.tls == rhs.tls;
-    }
-    friend bool operator!=(const DownloadProperties& lhs,
-                           const DownloadProperties& rhs) {
-        return !(lhs == rhs);
-    }
+    bool operator==(const DownloadProperties&) const = default;
 
     /// The hostname to connect to
     std::string hostname;

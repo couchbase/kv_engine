@@ -17,7 +17,6 @@
 
 SpdloggerTest::SpdloggerTest() {
     // Use default values from cb::logger::Config, apart from:
-    config.log_level = spdlog::level::level_enum::debug;
     config.filename = "spdlogger_test";
     config.unit_test = true; // Enable unit test mode (synchronous logging)
     config.console = false; // Don't print to stderr
@@ -42,10 +41,8 @@ void SpdloggerTest::RemoveFiles() {
 void SpdloggerTest::setUpLogger() {
     shutdownLoggerAndRemoveFiles();
 
-    const auto ret = cb::logger::initialize(config);
+    const auto ret = cb::logger::initialize(config, log_level);
     EXPECT_FALSE(ret) << ret.value();
-
-    cb::logger::get()->set_level(config.log_level);
 }
 
 static auto getLoggerWeakPtrs() {

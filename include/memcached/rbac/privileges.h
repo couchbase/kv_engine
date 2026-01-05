@@ -189,13 +189,7 @@ public:
         return !success();
     }
 
-    bool operator==(const PrivilegeAccess& other) const {
-        return status == other.status;
-    }
-
-    bool operator!=(const PrivilegeAccess& other) const {
-        return status != other.status;
-    }
+    bool operator==(const PrivilegeAccess&) const = default;
 
     /// @return the current Status
     Status getStatus() const {

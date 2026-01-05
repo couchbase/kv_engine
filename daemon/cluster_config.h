@@ -26,9 +26,7 @@ public:
     ClustermapVersion(int64_t epoch, int64_t revno)
         : epoch(epoch), revno(revno){};
 
-    bool operator==(const ClustermapVersion& other) const {
-        return epoch == other.epoch && revno == other.revno;
-    }
+    bool operator==(const ClustermapVersion&) const = default;
 
     bool operator<(const ClustermapVersion& other) const {
         if (epoch < other.epoch) {

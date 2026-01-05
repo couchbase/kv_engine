@@ -14,19 +14,6 @@
 
 namespace cb::logger {
 
-bool Config::operator==(const Config& other) const {
-    return (this->filename == other.filename) &&
-           (this->buffersize == other.buffersize) &&
-           (this->cyclesize == other.cyclesize) &&
-           (this->unit_test == other.unit_test) &&
-           (this->max_aggregated_size == other.max_aggregated_size) &&
-           (this->console == other.console);
-}
-
-bool Config::operator!=(const Config& other) const {
-    return !(*this == other);
-}
-
 void to_json(nlohmann::json& json, const Config& config) {
     json = {{"filename", config.filename},
             {"buffersize", config.buffersize},

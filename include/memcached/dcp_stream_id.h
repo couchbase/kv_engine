@@ -59,13 +59,7 @@ public:
         return (id >= other.id);
     }
 
-    bool operator==(const DcpStreamId& other) const {
-        return (id == other.id);
-    }
-
-    bool operator!=(const DcpStreamId& other) const {
-        return !(*this == other);
-    }
+    bool operator==(const DcpStreamId&) const = default;
 
 protected:
     uint16_t id{0};

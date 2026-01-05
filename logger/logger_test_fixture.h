@@ -72,4 +72,5 @@ protected:
     std::vector<std::string> files;
 
     cb::logger::Config config;
+    spdlog::level::level_enum log_level = spdlog::level::level_enum::debug;
 };

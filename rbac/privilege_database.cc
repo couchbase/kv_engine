@@ -137,10 +137,6 @@ static int to_index(Domain domain) {
     throw std::invalid_argument("to_index(): Invalid domain provided");
 }
 
-bool Collection::operator==(const Collection& other) const {
-    return privilegeMask == other.privilegeMask;
-}
-
 Collection::Collection(const nlohmann::json& json) {
     auto iter = json.find("privileges");
     if (iter != json.end()) {
@@ -169,11 +165,6 @@ void to_json(nlohmann::json& json, const Collection& collection) {
 PrivilegeAccess Collection::check(Privilege privilege) const {
     return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccessOk
                                                   : PrivilegeAccessFail;
-}
-
-bool Scope::operator==(const Scope& other) const {
-    return privilegeMask == other.privilegeMask &&
-           collections == other.collections;
 }
 
 Scope::Scope(const nlohmann::json& json) {
@@ -253,10 +244,6 @@ PrivilegeAccess Scope::checkForPrivilegeAtLeastInOneCollection(
     }
 
     return PrivilegeAccessFail;
-}
-
-bool Bucket::operator==(const Bucket& other) const {
-    return privilegeMask == other.privilegeMask && scopes == other.scopes;
 }
 
 Bucket::Bucket(const nlohmann::json& json) {

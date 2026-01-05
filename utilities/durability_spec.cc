@@ -23,10 +23,6 @@
 
 namespace cb::durability {
 
-bool operator==(const Timeout& lhs, const Timeout& rhs) {
-    return lhs.get() == rhs.get();
-}
-
 std::string to_string(Timeout t) {
     if (t.isDefault()) {
         return "default";
@@ -35,11 +31,6 @@ std::string to_string(Timeout t) {
         return "infinite";
     }
     return std::to_string(t.get());
-}
-
-bool operator==(const Requirements& lhs, const Requirements& rhs) {
-    return (lhs.getLevel() == rhs.getLevel()) &&
-           (lhs.getTimeout() == rhs.getTimeout());
 }
 
 std::string to_string(Requirements r) {

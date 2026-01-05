@@ -100,6 +100,8 @@ public:
         return value == InfinityVal;
     }
 
+    bool operator==(const Timeout&) const = default;
+
 private:
     class PrivateCtorTag {};
 
@@ -115,8 +117,6 @@ private:
     uint16_t value{BucketDefaultVal};
 };
 
-bool operator==(const Timeout& lhs, const Timeout& rhs);
-
 std::string to_string(Timeout);
 
 /**
@@ -125,6 +125,7 @@ std::string to_string(Timeout);
 class Requirements {
 public:
     Requirements() = default;
+    bool operator==(const Requirements&) const = default;
 
     constexpr Requirements(Level level_, Timeout timeout_)
         : level(level_), timeout(timeout_) {
@@ -186,8 +187,6 @@ protected:
 
 /// Get a JSON dump of the Requirements
 void to_json(nlohmann::json& obj, const Requirements& req);
-
-bool operator==(const Requirements& lhs, const Requirements& rhs);
 
 // @todo-durability: Might be able to remove this now we are using
 // std::optional for requirements in VBucket, and Item uses the queue_op

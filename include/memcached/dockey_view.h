@@ -96,13 +96,7 @@ public:
         return value;
     }
 
-    bool operator==(const CollectionID& other) const {
-        return value == other.value;
-    }
-
-    bool operator!=(const CollectionID& other) const {
-        return value != other.value;
-    }
+    bool operator==(const CollectionID&) const = default;
 
     bool operator<(const CollectionID& other) const {
         return value < other.value;
@@ -197,13 +191,7 @@ public:
         return value;
     }
 
-    bool operator==(const ScopeID& other) const {
-        return value == other.value;
-    }
-
-    bool operator!=(const ScopeID& other) const {
-        return value != other.value;
-    }
+    bool operator==(const ScopeID&) const = default;
 
     bool isDefaultScope() const {
         return value == Default;

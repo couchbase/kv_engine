@@ -50,13 +50,7 @@ struct FileInfo {
     /// status of this file - assume exists unless detected otherwise
     FileStatus status{FileStatus::Present};
 
-    friend bool operator==(const FileInfo& lhs, const FileInfo& rhs) {
-        return lhs.path == rhs.path && lhs.size == rhs.size &&
-               lhs.id == rhs.id && lhs.sha512 == rhs.sha512;
-    }
-    friend bool operator!=(const FileInfo& lhs, const FileInfo& rhs) {
-        return !(lhs == rhs);
-    }
+    bool operator==(const FileInfo&) const = default;
 
     /// Add the state of this FileInfo to the collector
     void addDebugStats(std::string_view label, const StatCollector&) const;
@@ -85,13 +79,7 @@ struct Manifest {
     enum class Status : uint8_t { Complete, Incomplete };
     Status status{Status::Complete};
 
-    friend bool operator==(const Manifest& lhs, const Manifest& rhs) {
-        return lhs.uuid == rhs.uuid && lhs.files == rhs.files &&
-               lhs.deks == rhs.deks;
-    }
-    friend bool operator!=(const Manifest& lhs, const Manifest& rhs) {
-        return !(lhs == rhs);
-    }
+    bool operator==(const Manifest&) const = default;
 
     /// Add the state of this Manifest to the collector
     void addDebugStats(const StatCollector&) const;

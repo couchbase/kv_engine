@@ -93,13 +93,7 @@ public:
         return (vbid >= other.get());
     }
 
-    bool operator==(const Vbid& other) const {
-        return (vbid == other.get());
-    }
-
-    bool operator!=(const Vbid& other) const {
-        return (vbid != other.get());
-    }
+    bool operator==(const Vbid&) const = default;
 
     Vbid operator++() {
         return Vbid(++vbid);

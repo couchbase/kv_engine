@@ -29,15 +29,7 @@ public:
 
     NetworkInterface() = default;
 
-    bool operator==(const NetworkInterface& o) const {
-        return host == o.host && tls == o.tls && port == o.port &&
-               ipv6 == o.ipv6 && ipv4 == o.ipv4 && tag == o.tag &&
-               system == o.system;
-    }
-
-    bool operator!=(const NetworkInterface& o) const {
-        return !(*this == o);
-    }
+    bool operator==(const NetworkInterface&) const = default;
 
     std::string tag;
     std::string host;

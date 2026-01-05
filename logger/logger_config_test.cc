@@ -22,7 +22,6 @@ TEST(LoggerConfig, AllDefault) {
     EXPECT_EQ(100_MiB, config.cyclesize);
     EXPECT_FALSE(config.unit_test);
     EXPECT_TRUE(config.console);
-    EXPECT_EQ(spdlog::level::level_enum::info, config.log_level);
 }
 
 /// Test that we can dump to JSON, and it should be the same

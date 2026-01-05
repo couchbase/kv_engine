@@ -195,10 +195,7 @@ public:
     }
 
     cb::logger::Config getLoggerConfig() const {
-        auto config = logger_settings;
-        // log_level is synthesised from settings.verbose.
-        config.log_level = getLogLevel();
-        return config;
+        return logger_settings;
     };
 
     void setLoggerConfig(const cb::logger::Config& config) {
