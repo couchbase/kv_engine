@@ -479,7 +479,7 @@ public:
                 sid, cid, manifestUid, metered, systemCollection);
     }
 
-    const std::pair<std::optional<ScopeID>, std::optional<CollectionID>>
+    std::pair<std::optional<ScopeID>, std::optional<CollectionID>>
     getScopeAndCollection() const {
         return {currentCollectionInfo.sid, currentCollectionInfo.cid};
     }
