@@ -1539,6 +1539,8 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    OBJ_LOG_INFO_CTX(
+            *this, "PassiveStream::processCacheTransferEnd", {"vb", vb_});
     vb->setSnapshotRebalanceCanContinue();
 
     return cb::engine_errc::success;
