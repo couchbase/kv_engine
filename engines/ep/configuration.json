@@ -16,7 +16,10 @@
  *     "public_since": "major.minor"
  * }
  *
- * * "key" - the name of the parameter
+ * * "key" - the name of the parameter, this should be convertible to camelCase
+             and back to snake_case by ns_server for use in the REST API. As
+             such, words (delimited by '_' in snake_case) can only begin with a
+             letter.
  * * "type" - the type of the parameter, which must be one of the following:
  *     "bool" - a boolean value
  *     "size_t" - an unsigned integer value
