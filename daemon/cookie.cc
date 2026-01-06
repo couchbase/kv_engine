@@ -134,7 +134,7 @@ std::string Cookie::getErrorContext() const {
     return {};
 }
 
-std::string Cookie::getErrorJson() {
+std::string Cookie::getErrorJson() const {
     if (error_json.empty()) {
         return {};
     }
@@ -483,7 +483,7 @@ void Cookie::initialize(std::chrono::steady_clock::time_point now,
 }
 
 cb::mcbp::Status Cookie::validateServerRequest(
-        const cb::mcbp::Request& request) {
+        const cb::mcbp::Request& request) const {
     using namespace cb::mcbp;
     // We should not be receiving a server command.
     auto opcode = request.getServerOpcode();

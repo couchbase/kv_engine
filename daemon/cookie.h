@@ -147,7 +147,7 @@ public:
      *
      * @return An empty string if no extended error information is being set
      */
-    std::string getErrorJson();
+    std::string getErrorJson() const;
 
     ConnectionIface& getConnectionIface() override;
 
@@ -220,7 +220,7 @@ public:
         }
     }
 
-    bool isRequestPreserved() {
+    bool isRequestPreserved() const {
         return frame_copy.get() != nullptr;
     }
 
@@ -384,10 +384,6 @@ public:
         return *ret;
     }
 
-    CommandContext* getCommandContext() {
-        return commandContext.get();
-    }
-
     void setCommandContext(CommandContext* ctx = nullptr);
 
     // The source code was initially written in C which didn't have the
@@ -546,7 +542,7 @@ public:
         euidExtraPrivileges.set(idx);
     }
 
-    bool hasImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
+    bool hasImposedUserExtraPrivilege(cb::rbac::Privilege privilege) const {
         const auto idx = size_t(privilege);
         return euidExtraPrivileges.test(idx);
     }
@@ -639,7 +635,8 @@ public:
 
 protected:
     cb::mcbp::Status validateClientRequest(const cb::mcbp::Request& request);
-    cb::mcbp::Status validateServerRequest(const cb::mcbp::Request& request);
+    cb::mcbp::Status validateServerRequest(
+            const cb::mcbp::Request& request) const;
 
     /// Set the internal ewouldblock variable
     void setEwouldblockVariable(cb::engine_errc value);
