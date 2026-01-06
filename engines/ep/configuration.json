@@ -1764,7 +1764,7 @@
             "descr": "Maximum amount of data that is replayed from the WAL during magma recovery. When this threshold is reached magma, creates a temporary checkpoint to recover at. This is per kvstore and in bytes.",
             "type": "size_t"
         },
-        "magma_max_level_0_ttl": {
+        "magma_max_level0_ttl": {
             "default": "600",
             "dynamic": false,
             "descr": "Maximum time (in seconds) that data is kept in level 0 before it is merged.",
