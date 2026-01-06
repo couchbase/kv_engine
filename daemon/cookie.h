@@ -63,6 +63,8 @@ public:
      * commands (DCP depends on this feature) we have a separate method
      * to initialize the object.
      *
+     * @param now the current time point (used to mark the start time without
+     *          needing to call std::chrono::steady_clock::now() again)
      * @param packet the entire packet
      */
     void initialize(std::chrono::steady_clock::time_point now,
@@ -523,7 +525,7 @@ public:
     /**
      * Set the effective user executing this command
      *
-     * @param user the effective user for the command
+     * @param e the effective user for the command
      * @return engine_success if the user holds the Impersonate privilege and
      *                        the user is found
      *         engine_eaccess if the user lacks the impersonate privilege
