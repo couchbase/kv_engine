@@ -150,26 +150,6 @@ public:
     static std::pair<T, cb::const_byte_buffer> decodeNoThrow(
             cb::const_byte_buffer buf);
 
-    // string_view convenience methods - see above for docs
-    static std::pair<T, cb::const_byte_buffer> decode(std::string_view buf) {
-        return decode(cb::const_byte_buffer{
-                reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
-    }
-
-    // string_view convenience methods - see above for docs
-    static std::pair<T, cb::const_byte_buffer> decodeCanonical(
-            std::string_view buf) {
-        return decodeCanonical(cb::const_byte_buffer{
-                reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
-    }
-
-    // string_view convenience methods - see above for docs
-    static std::pair<T, cb::const_byte_buffer> decodeNoThrow(
-            std::string_view buf) {
-        return decodeNoThrow(cb::const_byte_buffer{
-                reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
-    }
-
 protected:
     struct NoThrow {};
     /**

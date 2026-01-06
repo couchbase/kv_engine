@@ -52,18 +52,6 @@ public:
     }
 
     /**
-     * Create a StoredDocKey from a PrefixedDocKeyView.
-     *
-     * This is the preferred constructor for paths that always work with
-     * collection prefixed keys.
-     *
-     * @param key PrefixedDocKeyView that is to be copied-in
-     */
-    StoredDocKeyT(const PrefixedDocKeyView& key)
-        : keydata(reinterpret_cast<const char*>(key.data()), key.size()) {
-    }
-
-    /**
      * Create a StoredDocKey from a DocKey
      *
      * @param key DocKey that is to be copied-in
@@ -183,7 +171,7 @@ public:
     }
 
     // Add no lint to allow implicit casting to class DocKey as we use this to
-    // implicitly cast to other forms of DocKeys throughout the code.
+    // implicitly cast to other forms of DocKeys thought out code.
     // NOLINTNEXTLINE(google-explicit-constructor)
     operator DocKeyView() const {
         return {keydata, DocKeyEncodesCollectionId::Yes};
@@ -192,10 +180,6 @@ public:
     /// Convert to a std::string including the leb128 CollectionID prefix
     explicit operator std::string() const {
         return std::string{keydata.data(), keydata.size()};
-    }
-
-    PrefixedDocKeyView to_prefixed_key_view() const {
-        return PrefixedDocKeyView{keydata};
     }
 
 protected:

@@ -530,7 +530,7 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    queued_item item(new Item(key.to_prefixed_key_view(),
+    queued_item item(new Item(key,
                               flags,
                               exptime,
                               value.data(),
@@ -626,7 +626,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
     }
 
     queued_item item(Item::makeDeletedItem(deletionCause,
-                                           key.to_prefixed_key_view(),
+                                           key,
                                            0,
                                            deleteTime,
                                            value.data(),
@@ -1581,7 +1581,7 @@ cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    queued_item item(new Item(key.to_prefixed_key_view(),
+    queued_item item(new Item(key,
                               flags,
                               expiration,
                               value.data(),
@@ -1793,7 +1793,7 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
                                           uint8_t nru) {
     lastMessageTime = ep_uptime_now();
 
-    queued_item item(new Item(key.to_prefixed_key_view(),
+    queued_item item(new Item(key,
                               flags,
                               expiration,
                               value.data(),
@@ -1829,7 +1829,7 @@ cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
                                              uint32_t expiration) {
     lastMessageTime = ep_uptime_now();
 
-    queued_item item(new Item(key.to_prefixed_key_view(),
+    queued_item item(new Item(key,
                               flags,
                               expiration,
                               nullptr,

@@ -2613,10 +2613,9 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
     // Receive a mutation
     // Note: Only paused connections are added to the pending notifications
     consumer->pause();
-    const auto key = makeStoredDocKey("key");
     ASSERT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
-                                 key,
+                                 {"key", DocKeyEncodesCollectionId::No},
                                  {}, // value
                                  PROTOCOL_BINARY_RAW_BYTES,
                                  0, // cas

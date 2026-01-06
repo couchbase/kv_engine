@@ -2887,11 +2887,10 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                              protocol_binary_datatype_t datatype) -> void {
         const uint32_t opaque = 1;
         int64_t bySeqno = 1;
-        const auto key = makeStoredDocKey("key");
         if (durReqs) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments,
                       consumer->prepare(opaque,
-                                        key,
+                                        {"key", DocKeyEncodesCollectionId::No},
                                         value,
                                         datatype,
                                         0 /*cas*/,
@@ -2907,7 +2906,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
         } else {
             EXPECT_EQ(cb::engine_errc::invalid_arguments,
                       consumer->deletion(opaque,
-                                         key,
+                                         {"key", DocKeyEncodesCollectionId::No},
                                          value,
                                          datatype,
                                          0 /*cas*/,
@@ -3138,11 +3137,11 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     if (compressed) {
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
-    const auto key = makeStoredDocKey("key");
+
     if (durReqs) {
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->prepare(opaque,
-                                    key,
+                                    {"key", DocKeyEncodesCollectionId::No},
                                     valueBuf,
                                     datatype,
                                     0 /*cas*/,
@@ -3158,7 +3157,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     } else {
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->deletion(opaque,
-                                     key,
+                                     {"key", DocKeyEncodesCollectionId::No},
                                      valueBuf,
                                      datatype,
                                      0 /*cas*/,
@@ -8194,7 +8193,8 @@ TEST_P(StreamTest, sync_writes_denied) {
  */
 TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     uint32_t opaque = 0;
-    const auto key = makeStoredDocKey("key");
+    const std::string keyStr("key");
+    DocKeyView key(keyStr, DocKeyEncodesCollectionId::No);
 
     // check error code when stream isn't present for vbucket 99
     EXPECT_EQ(cb::engine_errc::no_such_key,

@@ -278,7 +278,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     /* Send a mutation */
-    const StoredDocKey docKey{"key", CollectionID::Default};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(1 /*opaque*/,
                                  docKey,
@@ -612,11 +612,10 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
     ASSERT_EQ(0, vb.getHighSeqno());
     ASSERT_EQ(0, stream->getUnackedBytes());
 
-    const StoredDocKey key{"key", CollectionID::Default};
     // Receive an item. At OOM the item is queued into the checkpoint but not
     // acked back to the Producer.
     const auto res = consumer->mutation(opaque,
-                                        key,
+                                        {"key", DocKeyEncodesCollectionId::No},
                                         {}, // value
                                         PROTOCOL_BINARY_RAW_BYTES,
                                         0, // cas
@@ -821,7 +820,11 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());
 
-    const StoredDocKey docKey{"key", CollectionID::Default};
+    std::string key = "key";
+    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                            key.size(),
+                            DocKeyEncodesCollectionId::No};
+
     consumer->deletion(/*opaque*/ 1,
                        /*key*/ docKey,
                        /*value*/ {},
@@ -831,7 +834,7 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
                        /*bySeqno*/ 1,
                        /*revSeqno*/ 0);
 
-    auto messageSize = MutationResponse::deletionBaseMsgBytes + docKey.size();
+    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size();
 
     EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 
@@ -867,8 +870,11 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());
 
-    StoredDocKey docKey{"key", CollectionID::Default};
+    std::string key = "key";
     std::string data = R"({"json":"yes"})";
+    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                            key.size(),
+                            DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
 
@@ -885,8 +891,8 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
                        /*lock_time*/ 0,
                        /*nru*/ 0);
 
-    auto messageSize = MutationResponse::mutationBaseMsgBytes + docKey.size() +
-                       data.size();
+    auto messageSize =
+            MutationResponse::mutationBaseMsgBytes + key.size() + data.size();
 
     EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 
@@ -938,7 +944,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        {} /*purgeSeqno*/));
 
     /* Send an item for replication */
-    const StoredDocKey docKey{"key", CollectionID::Default};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,
