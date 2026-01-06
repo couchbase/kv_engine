@@ -3453,8 +3453,7 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
                     Collections::ManifestUid{} /* vb_manifest_uid */));
-    nlohmann::json streamReqJson;
-    passiveStream->public_generateCacheTransferRequest(streamReqJson, *vb, 1);
+    auto streamReqJson = passiveStream->public_setupForNewStreamRequest(*vb);
     EXPECT_EQ(streamReqJson["cts"]["all_keys"], true);
     EXPECT_EQ(streamReqJson["cts"]["free_memory"], 0); // 0 is no values
 }

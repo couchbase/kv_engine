@@ -322,11 +322,11 @@ protected:
      * @param cacheTransferEnabled whether cache transfer is enabled (set in
      * stream request flags)
      * @param freeMem free-memory available for a cache transfer
-     * @return The stream request JSON as a string.
+     * @return The stream request JSON
      */
-    [[nodiscard]] std::string createStreamReqValue(const VBucket& vb,
-                                                   bool cacheTransferEnabled,
-                                                   size_t freeMem) const;
+    [[nodiscard]] nlohmann::json createStreamReqValue(const VBucket& vb,
+                                                      bool cacheTransferEnabled,
+                                                      size_t freeMem) const;
 
     /**
      * RAII class. At dtor the logic triggers post-processMessage steps.
@@ -491,7 +491,7 @@ protected:
     // Flag indicating if the CacheTransfer has logged out of memory.
     bool hasLoggedCacheTransferOutOfMemory{false};
 
-    std::string stream_req_value;
+    nlohmann::json stream_req_value;
 
     // Set of states that the vbucket must match for a PassiveStream to attempt
     // processing messages.

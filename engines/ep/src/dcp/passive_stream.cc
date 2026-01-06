@@ -109,7 +109,7 @@ void PassiveStream::streamRequest_UNLOCKED(const VBucket& vb,
             start_seqno_ ? vb_uuid : 0,
             snap_start_seqno_,
             snap_end_seqno_,
-            stream_req_value));
+            stream_req_value.dump()));
 
     const bool isTakeover =
             isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver);
@@ -279,7 +279,7 @@ void PassiveStream::reconnectStream(const VBucket& vb,
                 vb_uuid_,
                 snap_start_seqno_,
                 snap_end_seqno_,
-                stream_req_value));
+                stream_req_value.dump()));
     }
     notifyStreamReady();
 }
@@ -1205,7 +1205,7 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
                         add_stat,
                         c);
 
-        add_casted_stat("request_value", stream_req_value, add_stat, c);
+        add_casted_stat("request_value", stream_req_value.dump(), add_stat, c);
 
     } catch (std::exception& error) {
         OBJ_LOG_INFO_CTX(*this,
@@ -1278,15 +1278,15 @@ void PassiveStream::notifyStreamReady() {
     }
 }
 
-std::string PassiveStream::createStreamReqValue(const VBucket& vb,
-                                                bool cacheTransferEnabled,
-                                                size_t freeMem) const {
+nlohmann::json PassiveStream::createStreamReqValue(const VBucket& vb,
+                                                   bool cacheTransferEnabled,
+                                                   size_t freeMem) const {
     nlohmann::json stream_req_json;
     stream_req_json["uid"] = fmt::format("{:x}", vb_manifest_uid);
     if (cacheTransferEnabled) {
         generateCacheTransferRequest(stream_req_json, vb, freeMem);
     }
-    return stream_req_json.dump();
+    return stream_req_json;
 }
 
 void PassiveStream::generateCacheTransferRequest(
@@ -1296,12 +1296,6 @@ void PassiveStream::generateCacheTransferRequest(
     nlohmann::json cts;
     if (engine->getKVBucket()->isValueEviction()) {
         cts["all_keys"] = true;
-        if (vb.isNextState(vbucket_state_replica)) {
-            // Disabling transfer of values for a replica vbucket by setting
-            // freeMem to 0. The all_keys transfer will now just send all keys
-            // so that VE functions.
-            freeMem = 0;
-        }
     }
     cts["free_memory"] = freeMem;
     stream_req_json["cts"] = std::move(cts);
@@ -1548,54 +1542,57 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
 
 cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest(
         const VBucket& vb) {
-    size_t freeMem = 0;
+    size_t memAvailableForCacheTransfer = 0;
     auto flags = flags_; // copy flags and tweak them as needed
+    const auto hwm = engine->getEpStats().mem_high_wat.load();
+    const auto memUsed = engine->getEpStats().getEstimatedTotalMemoryUsed();
 
     if (isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
-        // CacheTransfer we can check memory and provide guidance to the
-        // producer so they don't just dump the entire cache that may not fit.
-        const auto mem_high_wat = engine->getEpStats().mem_high_wat.load();
-        const auto totalMem =
-                engine->getEpStats().getEstimatedTotalMemoryUsed();
-
-        if (totalMem >= mem_high_wat) {
-            // Full-Eviction. Disable doing a cache transfer as we're over HWM.
-            // Note we could also add a threshold in the detection, it's likely
-            // a cache transfer is not much use if we're some small number of
-            // bytes under HWM...
+        if (memUsed >= hwm) {
+            // Full-Eviction. Disable doing a cache transfer as we're over
+            // HWM. Note we could also add a threshold in the detection,
+            // it's likely a cache transfer is not much use if we're some
+            // small number of bytes under HWM...
             if (engine->getKVBucket()->isFullEviction()) {
                 flags = flags & ~cb::mcbp::DcpAddStreamFlag::CacheTransfer;
             }
-            // else value-eviction must keep the cache transfer enabled but we
-            // must set freeMem to 0 in both cases.
-            freeMem = 0;
+            // else value-eviction must keep the cache transfer enabled but
+            // we must set freeMem to 0 in both cases.
+            memAvailableForCacheTransfer = 0;
         } else {
             // How much memory available below HWM?
-            const auto totalFreeMem = mem_high_wat - totalMem;
+            const auto freeMem = hwm - memUsed;
 
-            // freeMem is the amount of memory available per vbucket. Note that
-            // replica cache-transfer is disabled so only consider active + 1
-            // share.
-            freeMem = totalFreeMem /
-                      (engine->getKVBucket()->getNumOfVBucketsInState(
-                               vbucket_state_active) +
-                       1);
+            // freeMem is the amount of memory available per vbucket. Note
+            // that replica cache-transfer is disabled so only consider
+            // active + 1 share.
+            memAvailableForCacheTransfer =
+                    freeMem / (engine->getKVBucket()->getNumOfVBucketsInState(
+                                       vbucket_state_active) +
+                               1);
         }
 
-        OBJ_LOG_INFO_CTX(*this,
-                         "PassiveStream::"
-                         "setupForNewStreamRequest "
-                         "CacheTransfer",
-                         {"freeMem", freeMem},
-                         {"totalMem", totalMem},
-                         {"mem_high_wat", mem_high_wat},
-                         {"flags", flags});
+        if (engine->getKVBucket()->isValueEviction() &&
+            vb.isNextState(vbucket_state_replica)) {
+            // Disabling transfer of values for a replica vbucket by setting
+            // memory to 0. The transfer will now just send all keys, but no
+            // values.
+            memAvailableForCacheTransfer = 0;
+        }
     }
 
     stream_req_value = createStreamReqValue(
             vb,
             isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer),
-            freeMem);
+            memAvailableForCacheTransfer);
+
+    OBJ_LOG_INFO_CTX(
+            *this,
+            "PassiveStream::setupForNewStreamRequest",
+            {"memAvailableForCacheTransfer", memAvailableForCacheTransfer},
+            {"memUsed", memUsed},
+            {"hwm", hwm},
+            {"flags", flags});
 
     return flags;
 }
