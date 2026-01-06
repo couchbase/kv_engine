@@ -86,8 +86,11 @@ public:
     }
 
 private:
+    void maybeLogForLongHashTableChain();
+
     uint64_t queuedCount{0};
     uint64_t visitedCount{0};
+
     ProgressTracker progressTracker;
     CacheTransferStream::Status status{
             CacheTransferStream::Status::KeepVisiting};
@@ -104,6 +107,15 @@ private:
     Collections::VB::ReadHandle readHandle;
     const std::chrono::milliseconds visitDurationMs;
     const bool oneVisitPerStep{false};
+
+    // The following three members exist just for paranoia. If we do an all_keys
+    // transfer and for some other bug the hash-table chain is huge at least log
+    // that fact - lots of bad things could be a side affect of such a scenario.
+    uint64_t hashChainCount{0};
+    size_t bucketNum{std::numeric_limits<size_t>::max()};
+    std::chrono::steady_clock::time_point lastLogTime{};
+    constexpr static size_t longHashTableChainLength{50};
+    constexpr static std::chrono::seconds longHashTableChainLogInterval{2};
 };
 
 class CacheTransferTask : public EpTask {
@@ -145,6 +157,17 @@ private:
 
 bool CacheTransferHashTableVisitor::visit(const HashTable::HashBucketLock& lh,
                                           StoredValue& v) {
+    // As we can be visiting entire chains before pausing, which in theory (and
+    // under some other bug) could be very long, count each chain and log if it
+    // exceeds some largish threshold.
+    if (lh.getBucketNum() != bucketNum) {
+        bucketNum = lh.getBucketNum();
+        hashChainCount = 0;
+    }
+    ++hashChainCount;
+    if (hashChainCount > longHashTableChainLength) {
+        maybeLogForLongHashTableChain();
+    }
     // Track total visit count.
     ++visitedCount;
 
@@ -198,6 +221,22 @@ void CacheTransferHashTableVisitor::tearDownHashTableVisit() {
 bool CacheTransferHashTableVisitor::setUpHashBucketVisit() {
     status = CacheTransferStream::Status::QueuedItem;
     return stream->isActive();
+}
+
+void CacheTransferHashTableVisitor::maybeLogForLongHashTableChain() {
+    auto now = cb::time::steady_clock::now();
+
+    // Log if first call or some seconds since last log.
+    if (lastLogTime.time_since_epoch().count() == 0 ||
+        (now - lastLogTime) > longHashTableChainLogInterval) {
+        lastLogTime = now;
+        OBJ_LOG_WARN_CTX(
+                *stream,
+                "CacheTransferHashTableVisitor: long hash table chain detected",
+                {"vb", stream->getVBucket()},
+                {"bucket", bucketNum},
+                {"length", hashChainCount});
+    }
 }
 
 // Run visits the single vbucket the CacheTransferStream is associated with
