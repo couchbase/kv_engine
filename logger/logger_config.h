@@ -30,8 +30,8 @@ struct Config {
     size_t buffersize = 8192;
     /// 100 MB per cycled file
     size_t cyclesize = 100_MiB;
-    /// Start deleting old log files when we exceed 500MB
-    size_t max_aggregated_size = 500_MiB;
+    /// Start deleting old log files when we exceed 200MB
+    size_t max_aggregated_size = 200_MiB;
     /// if running in a unit test or not
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr
