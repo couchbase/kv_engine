@@ -256,7 +256,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 60> statNames = {{
+    constexpr std::array<std::string_view, 61> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -291,6 +291,7 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_NWriteBytesCompact",
             "magma_KeyIndex_NWriteBytesFileCountCompact",
             "magma_SeqIndex_NWriteBytesFileCountCompact",
+            "magma_NCorruptionErrors",
             "magma_LogicalDataSize",
             "magma_LogicalDiskSize",
             "magma_TotalDiskUsage",

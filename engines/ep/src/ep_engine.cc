@@ -2713,7 +2713,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 72> statNames = {
+    constexpr std::array<std::string_view, 73> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2729,6 +2729,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NWriterCompacts",
              "magma_KeyIndex_NWriterCompacts",
              "magma_SeqIndex_NWriterCompacts",
+             "magma_NCorruptionErrors",
              "magma_BytesOutgoing",
              "magma_NReadBytes",
              "magma_FSReadBytes",
@@ -2847,6 +2848,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
             "magma_KeyIndex_NWriterCompacts");
     addStat(Key::ep_magma_seqindex_writer_compactions,
             "magma_SeqIndex_NWriterCompacts");
+    addStat(Key::ep_magma_corruption_errors, "magma_NCorruptionErrors");
 
     // Read amp, ReadIOAmp.
     size_t bytesOutgoing = 0;

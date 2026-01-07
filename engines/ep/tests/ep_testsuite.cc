@@ -7228,6 +7228,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_seqindex_filecount_compactions",
                           "ep_magma_seqindex_data_compactions",
                           "ep_magma_seqindex_writer_compactions",
+                          "ep_magma_corruption_errors",
                           "ep_magma_sets",
                           "ep_magma_syncs",
                           "ep_magma_table_meta_mem_used",

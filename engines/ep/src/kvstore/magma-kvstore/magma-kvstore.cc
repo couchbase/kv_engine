@@ -4084,6 +4084,7 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats->KeyStats.NWriterCompacts);
     fill("magma_SeqIndex_NWriterCompacts",
          magmaStats->SeqStats.NWriterCompacts);
+    fill("magma_NCorruptionErrors", magmaStats->NCorruptionErrors);
     fill("magma_BytesOutgoing", magmaStats->BytesOutgoing);
     fill("magma_NReadBytes", magmaStats->NReadBytes);
     fill("magma_FSReadBytes", magmaStats->FSReadBytes);

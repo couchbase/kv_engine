@@ -1446,6 +1446,12 @@
         "description": "Number of compaction performed on the writer thread for the SeqIndex",
         "added": "7.2.0"
     },
+    {
+        "key": "ep_magma_corruption_errors",
+        "unit": "none",
+        "description": "Number of corruption errors detected by Magma",
+        "added": "8.1.0"
+    },
 /* Read amp. */
     {
         "key": "ep_magma_readamp",
