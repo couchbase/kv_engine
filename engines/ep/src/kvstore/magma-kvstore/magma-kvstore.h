@@ -754,13 +754,6 @@ protected:
     CompactDBStatus compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                                       std::shared_ptr<CompactionContext> ctx);
 
-    GetValue makeItem(Vbid vb,
-                      const magma::Slice& keySlice,
-                      const magma::Slice& metaSlice,
-                      const magma::Slice& valueSlice,
-                      ValueFilter filter,
-                      CreateItemCB createItemCb) const;
-
     GetValue makeGetValue(Vbid vb,
                           const magma::Slice& keySlice,
                           const magma::Slice& metaSlice,

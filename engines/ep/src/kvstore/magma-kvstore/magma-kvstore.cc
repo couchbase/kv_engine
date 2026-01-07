@@ -1576,12 +1576,12 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
     return true;
 }
 
-GetValue MagmaKVStore::makeItem(Vbid vb,
-                                const Slice& keySlice,
-                                const Slice& metaSlice,
-                                const Slice& valueSlice,
-                                ValueFilter filter,
-                                CreateItemCB createItemCb) const {
+GetValue MagmaKVStore::makeGetValue(Vbid vb,
+                                    const Slice& keySlice,
+                                    const Slice& metaSlice,
+                                    const Slice& valueSlice,
+                                    ValueFilter filter,
+                                    CreateItemCB createItemCb) const {
     auto key = makeDiskDocKey(keySlice);
     const auto meta = magmakv::getDocMeta(metaSlice);
 
@@ -1661,20 +1661,6 @@ GetValue MagmaKVStore::makeItem(Vbid vb,
     }
 
     return GetValue(std::move(item), status);
-}
-
-GetValue MagmaKVStore::makeGetValue(Vbid vb,
-                                    const Slice& keySlice,
-                                    const Slice& metaSlice,
-                                    const Slice& valueSlice,
-                                    ValueFilter filter,
-                                    CreateItemCB createItemCb) const {
-    return makeItem(vb,
-                    keySlice,
-                    metaSlice,
-                    valueSlice,
-                    filter,
-                    std::move(createItemCb));
 }
 
 int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
@@ -2599,12 +2585,12 @@ ScanStatus MagmaKVStore::scanOne(
                 magmakv::isCompressed(docMeta));
     }
 
-    auto gv = makeItem(ctx.vbid,
-                       keySlice,
-                       metaSlice,
-                       value,
-                       ctx.valFilter,
-                       getDefaultCreateItemCallback());
+    auto gv = makeGetValue(ctx.vbid,
+                           keySlice,
+                           metaSlice,
+                           value,
+                           ctx.valFilter,
+                           getDefaultCreateItemCallback());
     Expects(gv.getStatus() == cb::engine_errc::success);
 
     // When we are requested to return the values as compressed AND
@@ -4506,12 +4492,12 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
     }
 
     if (status.IsOkDocFound()) {
-        rv = makeItem(vbid,
-                      *key,
-                      *meta,
-                      *value,
-                      filter,
-                      getDefaultCreateItemCallback());
+        rv = makeGetValue(vbid,
+                          *key,
+                          *meta,
+                          *value,
+                          filter,
+                          getDefaultCreateItemCallback());
         Expects(rv.getStatus() == cb::engine_errc::success);
         return rv;
     }
