@@ -124,5 +124,7 @@ if (TARGET magma)
         target_compile_definitions(magma_support PUBLIC HAVE_FUSION_SUPPORT=1)
     endif ()
 else()
-    target_link_libraries(magma_support PUBLIC nlohmann_json::nlohmann_json)
+    target_link_libraries(magma_support PUBLIC
+                          nlohmann_json::nlohmann_json
+                          spdlog::spdlog)
 endif ()

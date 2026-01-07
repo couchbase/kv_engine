@@ -20,6 +20,7 @@
 #include <libmagma/magma.h>
 #else
 #include <nlohmann/json.hpp>
+#include <spdlog/logger.h>
 #include <string>
 #include <tuple>
 
@@ -37,6 +38,8 @@ public:
 class Magma {
 public:
     using KVStoreID = uint16_t;
+    static void SetGlobalLogger(std::shared_ptr<spdlog::logger>) {
+    }
     static std::tuple<Status, nlohmann::json> GetFusionNamespaces(
             const std::string&,
             const std::string&,

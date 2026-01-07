@@ -858,6 +858,9 @@ int memcached_main(int argc, char** argv) {
     cb::breakpad::initialize(Settings::instance().getBreakpadSettings(),
                              Settings::instance().getLoggerConfig());
 
+    // Allow magma functions to log using our logger
+    magma::Magma::SetGlobalLogger(cb::logger::get()->getSpdLogger());
+
     // Simple benchmark of clock performance - the system clock can have a
     // significant impact on opration latency (given we time all sorts of
     // things), so printing this at startup allows us to determine
