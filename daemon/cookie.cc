@@ -751,7 +751,7 @@ nlohmann::json Cookie::getPrivilegeFailedErrorMessage(
     if (euid) {
         auto nm = nlohmann::json(*euid);
         json["euid"] = nm;
-        json["euid"]["user"] = cb::tagUserData(nm["user"]);
+        json["euid"]["user"] = euid->getSanitizedName();
         if (euidPrivilegeContext) {
             json["euid"]["context"] = euidPrivilegeContext->to_string();
         }

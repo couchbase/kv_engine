@@ -650,11 +650,9 @@ void createPrivilegeDatabase(std::string_view content) {
     if (!error.empty()) {
         throw std::runtime_error(
                 fmt::format("Failed to parse RBAC database: {}. RBAC database "
-                            "content: {}{}{}",
+                            "content: {}",
                             error,
-                            cb::userdataStartTag,
-                            content,
-                            cb::userdataEndTag));
+                            UserDataView{content}));
     }
 
     auto& ctx = contexts[to_index(Domain::Local)];

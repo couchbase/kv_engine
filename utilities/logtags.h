@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <cstdint>
+#include <fmt/format.h>
 #include <iosfwd>
 #include <string>
 
@@ -21,13 +21,6 @@
  */
 
 namespace cb {
-/**
- * Wrap user/customer specific data with specific tags so that these data can
- * be scrubbed away during log collection.
- */
-
-const std::string userdataStartTag = "<ud>";
-const std::string userdataEndTag = "</ud>";
 
 /**
  * Tag user data with the surrounding userdata tags
@@ -35,8 +28,8 @@ const std::string userdataEndTag = "</ud>";
  * @param data The string to tag
  * @return A tagged string in the form: <ud>string</ud>
  */
-static inline std::string tagUserData(const std::string& data) {
-    return userdataStartTag + data + userdataEndTag;
+[[nodiscard]] static std::string tagUserData(const std::string_view data) {
+    return fmt::format("<ud>{}</ud>", data);
 }
 
 /**
@@ -44,19 +37,16 @@ static inline std::string tagUserData(const std::string& data) {
  * userdata tags. UserDataView is a non-owning type, so if ownership is required
  * use UserData
  */
-class UserDataView {
+class [[nodiscard]] UserDataView {
 public:
     explicit UserDataView(const char* dataParam, size_t dataLen)
         : data(dataParam, dataLen){};
-
-    explicit UserDataView(const uint8_t* dataParam, size_t dataLen)
-        : data((const char*)dataParam, dataLen){};
 
     explicit UserDataView(std::string_view dataParam) : data(dataParam){};
 
     // Retrieve tagged user data as a string
     std::string getSanitizedValue() const {
-        return userdataStartTag + std::string(data) + userdataEndTag;
+        return tagUserData(data);
     }
 
     // Retrieve untagged user data as a std::string_view
@@ -83,7 +73,7 @@ void to_json(BasicJsonType& j, const UserDataView& d) {
  * that could be printed in any format. UserData is an owning type, so in
  * cases where this is not needed, use UserDataView for efficiency
  */
-class UserData {
+class [[nodiscard]] UserData {
 public:
     explicit UserData(std::string dataParam) : data(std::move(dataParam)){};
 
@@ -93,7 +83,7 @@ public:
 
     // Retrieve tagged user data as a string
     std::string getSanitizedValue() const {
-        return userdataStartTag + data + userdataEndTag;
+        return tagUserData(data);
     }
 
     // Retrieve untagged data as a string

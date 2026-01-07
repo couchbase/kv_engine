@@ -237,15 +237,15 @@ nlohmann::json Request::to_json(bool validated) const {
                     break;
                 case request::FrameInfoId::Impersonate:
                     if (buffer[0] == '^') {
-                        frameid["euid"]["user"] = cb::tagUserData(std::string{
-                                reinterpret_cast<const char*>(buffer.data() +
-                                                              1),
-                                buffer.size() - 1});
+                        frameid["euid"]["user"] =
+                                UserDataView(reinterpret_cast<const char*>(
+                                                     buffer.data() + 1),
+                                             buffer.size() - 1);
                         frameid["euid"]["domain"] = "external";
                     } else {
-                        frameid["euid"]["user"] = cb::tagUserData(std::string{
+                        frameid["euid"]["user"] = UserDataView(
                                 reinterpret_cast<const char*>(buffer.data()),
-                                buffer.size()});
+                                buffer.size());
                         frameid["euid"]["domain"] = "local";
                     }
                     break;
