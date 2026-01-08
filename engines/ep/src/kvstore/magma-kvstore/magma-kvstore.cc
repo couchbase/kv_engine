@@ -3997,6 +3997,11 @@ void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
                       histoStats.FlushWaitTimeHisto,
                       add_stat,
                       c);
+    add_prefixed_stat(prefix,
+                      "flushTime",
+                      histoStats.FlushTimeHisto,
+                      add_stat,
+                      c);
     add_prefixed_stat(
             prefix, "getStatsTime", histoStats.GetStatsTimeHisto, add_stat, c);
     add_prefixed_stat(prefix,
