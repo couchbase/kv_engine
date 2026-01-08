@@ -374,7 +374,7 @@ bool PassiveStream::isCacheTransferAndFullEviction(
 
 void PassiveStream::maybeLogCacheTransferOutOfMemory() {
     // Log only once as there could be many messages in flight.
-    if (hasLoggedCacheTransferOutOfMemory) {
+    if (!hasLoggedCacheTransferOutOfMemory) {
         OBJ_LOG_INFO_CTX(
                 *this, "CacheTransfer signalling out of memory", {"vb", vb_});
         hasLoggedCacheTransferOutOfMemory = true;
