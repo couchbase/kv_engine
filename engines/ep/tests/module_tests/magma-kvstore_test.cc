@@ -256,7 +256,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 59> statNames = {{
+    constexpr std::array<std::string_view, 60> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -275,6 +275,7 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_KeyIterator_ItemsSkipped",
             "magma_SeqIterator_ItemsSkipped",
             "magma_NGets",
+            "magma_NMetaOnlyGets",
             "magma_NSets",
             "magma_NInserts",
             "magma_NReadIO",

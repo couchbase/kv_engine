@@ -1269,6 +1269,12 @@
         "added": "7.1.0"
     },
     {
+        "key": "ep_magma_metaonly_gets",
+        "unit": "none",
+        "description": "Number of metadata-only get operations",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_magma_inserts",
         "unit": "none",
         "description": "Number of DocInsert operations",

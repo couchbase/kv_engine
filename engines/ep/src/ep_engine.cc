@@ -2713,7 +2713,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 71> statNames = {
+    constexpr std::array<std::string_view, 72> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2739,6 +2739,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_KeyIterator_ItemsSkipped",
              "magma_SeqIterator_ItemsSkipped",
              "magma_NGets",
+             "magma_NMetaOnlyGets",
              "magma_NSets",
              "magma_NInserts",
              "magma_NReadIO",
@@ -2812,6 +2813,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Ops counters.
     addStat(Key::ep_magma_sets, "magma_NSets");
     addStat(Key::ep_magma_gets, "magma_NGets");
+    addStat(Key::ep_magma_metaonly_gets, "magma_NMetaOnlyGets");
     addStat(Key::ep_magma_inserts, "magma_NInserts");
     addStat(Key::ep_magma_keyitr_items_read, "magma_KeyIterator_ItemsRead");
     addStat(Key::ep_magma_keyitr_items_skipped,

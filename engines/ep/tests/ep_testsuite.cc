@@ -7202,6 +7202,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_keyitr_items_skipped",
                           "ep_magma_seqitr_items_skipped",
                           "ep_magma_gets",
+                          "ep_magma_metaonly_gets",
                           "ep_magma_histogram_mem_used",
                           "ep_magma_history_logical_data_size",
                           "ep_magma_history_logical_disk_size",

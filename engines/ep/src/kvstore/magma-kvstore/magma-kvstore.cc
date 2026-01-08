@@ -4097,6 +4097,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_SeqIterator_ItemsSkipped",
          magmaStats->SeqStats.NumIteratorItemsSkipped);
     fill("magma_NGets", magmaStats->NGets);
+    fill("magma_NMetaOnlyGets", magmaStats->NMetaOnlyGets);
     fill("magma_NSets", magmaStats->NSets);
     fill("magma_NInserts", magmaStats->NInserts);
     fill("magma_NReadIO", magmaStats->NReadIOs);
