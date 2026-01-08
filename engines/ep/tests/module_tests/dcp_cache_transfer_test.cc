@@ -88,6 +88,12 @@ public:
                     "for vb:0");
     }
 
+    /**
+     * Helper method to test backfill threshold behavior.
+     * @param allKeys Whether to use all_keys mode
+     */
+    void testBackfillThresholdBehavior(bool allKeys);
+
     std::unordered_set<Item> expectedItems;
 };
 
@@ -654,6 +660,89 @@ TEST_P(DcpCacheTransferTest, key_only_transfer) {
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
+void DcpCacheTransferTest::testBackfillThresholdBehavior(bool allKeys) {
+    // This test relies on precise memory tracking
+    const auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    // Need static clock for this test so we can run the yielded task
+    cb::time::steady_clock::use_chrono = false;
+    auto scopeGuard = folly::makeGuard(
+            []() { cb::time::steady_clock::use_chrono = true; });
+
+    // Store items for testing
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
+
+    // Remember original max data size
+    const auto originalMaxDataSize = stats.getMaxDataSize();
+
+    // Set bucket quota using current memory usage such that we exceed the
+    // backfill threshold
+    double backfillThreshold =
+            engine->getConfiguration().getBackfillMemThreshold() / 100.0;
+    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() /
+                           backfillThreshold);
+
+    // Verify we're actually above the threshold
+    ASSERT_TRUE(store->isMemUsageAboveBackfillThreshold());
+
+    // Create stream with or without all_keys based on parameter
+    auto stream = createStream(
+            *producer,
+            1,
+            Vbid(0),
+            store->getVBucket(vbid)->getHighSeqno(),
+            store->getVBucket(vbid)->getHighSeqno(),
+            nlohmann::json{{"cts", {{"all_keys", allKeys}}}}.dump());
+
+    // Run the cache transfer task
+    runCacheTransferTask();
+
+    if (allKeys) {
+        // Yield case: stream should remain active, no items queued yet
+        EXPECT_TRUE(stream->isActive());
+        EXPECT_EQ(0, stream->getItemsRemaining())
+                << "Task should yield without queueing items or stream-end";
+
+        // Restore memory to normal
+        engine->setMaxDataSize(originalMaxDataSize);
+        ASSERT_FALSE(store->isMemUsageAboveBackfillThreshold());
+
+        // Advance time so the yielded task can run again
+        cb::time::steady_clock::advance(std::chrono::seconds(1));
+
+        // Now the transfer should complete successfully
+        runCacheTransferTask();
+        ASSERT_EQ(3, stream->getItemsRemaining());
+        EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+        EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+        EXPECT_TRUE(stream->validateNextResponseIsEnd());
+    } else {
+        // Cancel case: stream should be cancelled with stream-end queued
+        EXPECT_FALSE(stream->isActive());
+        ASSERT_EQ(1, stream->getItemsRemaining())
+                << "Only stream-end should be queued, no items transferred";
+        EXPECT_TRUE(stream->validateNextResponseIsEnd());
+
+        // Restore original memory limit
+        engine->setMaxDataSize(originalMaxDataSize);
+    }
+}
+
+// Test that CacheTransferTask yields when all_keys=true and memory usage is
+// above backfill threshold
+TEST_P(DcpCacheTransferTest, backfill_threshold_all_keys_yields) {
+    testBackfillThresholdBehavior(true);
+}
+
+// Test that CacheTransferTask cancels when all_keys=false and memory usage is
+// above backfill threshold
+TEST_P(DcpCacheTransferTest, backfill_threshold_cancels) {
+    testBackfillThresholdBehavior(false);
 }
 
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as

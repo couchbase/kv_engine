@@ -252,6 +252,27 @@ bool CacheTransferTask::run() {
         return false;
     }
 
+    // Yield an all_keys transfer when memory usage is over the backfill
+    // threshold, or cancel when this is not an all_keys transfer.
+    if (engine->getKVBucket()->isMemUsageAboveBackfillThreshold()) {
+        if (isAllKeys) {
+            snooze(maybeLogHighMemoryPressure(
+                    visitor.getStream(),
+                    "task yielded due to backfill threshold"));
+            // run again
+            return true;
+        }
+        auto& stream = visitor.getStream();
+        OBJ_LOG_WARN_CTX(stream,
+                         "CacheTransferTask::run: cancelling transfer due "
+                         "to backfill "
+                         "threshold",
+                         {"vb", vbid});
+        stream.cancelTransfer();
+        // stop running the task
+        return false;
+    }
+
     // Ensure we always teardown the hash table visit (drops stream reference)
     auto guard = folly::makeGuard([this] { visitor.tearDownHashTableVisit(); });
 
