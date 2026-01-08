@@ -5855,7 +5855,6 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     const auto extras = request.getExtdata();
 
     CheckConflicts checkConflicts = CheckConflicts::Yes;
-    PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
     if (!decodeSetWithMetaOptions(extras, generateCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
@@ -5899,7 +5898,6 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           commandCas,
                           &bySeqno,
                           cookie,
-                          permittedVBStates,
                           checkConflicts,
                           allowExisting,
                           GenerateBySeqno::Yes,
@@ -5976,7 +5974,6 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         uint64_t& cas,
         uint64_t* seqno,
         CookieIface& cookie,
-        PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         bool allowExisting,
         GenerateBySeqno genBySeqno,
@@ -6078,7 +6075,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                      cas,
                                      seqno,
                                      &cookie,
-                                     permittedVBStates,
+                                     PermittedVBStates{vbucket_state_active},
                                      checkConflicts,
                                      allowExisting,
                                      genBySeqno,
@@ -6103,7 +6100,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     const auto extras = request.getExtdata();
 
     CheckConflicts checkConflicts = CheckConflicts::Yes;
-    PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
     DeleteSource deleteSource = DeleteSource::Explicit;
     if (!decodeWithMetaOptions(
@@ -6176,7 +6172,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                  cas,
                                  &bySeqno,
                                  cookie,
-                                 permittedVBStates,
                                  checkConflicts,
                                  GenerateBySeqno::Yes,
                                  generateCas,
@@ -6192,7 +6187,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               cas,
                               &bySeqno,
                               cookie,
-                              permittedVBStates,
                               checkConflicts,
                               true /*allowExisting*/,
                               GenerateBySeqno::Yes,
@@ -6235,7 +6229,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         uint64_t& cas,
         uint64_t* seqno,
         CookieIface& cookie,
-        PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
@@ -6245,7 +6238,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                     seqno,
                                     vbucket,
                                     &cookie,
-                                    permittedVBStates,
+                                    PermittedVBStates{vbucket_state_active},
                                     checkConflicts,
                                     itemMeta,
                                     genBySeqno,

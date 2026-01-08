@@ -1565,7 +1565,6 @@ protected:
      * @param cas [in,out] CAS for the command (updated with new CAS)
      * @param seqno [out] optional - returns the seqno allocated to the mutation
      * @param cookie connection's cookie
-     * @param permittedVBStates set of VB states that the target VB can be in
      * @param checkConflicts set to Yes if conflict resolution must be done
      * @param allowExisting true if the set can overwrite existing key
      * @param genBySeqno generate a new seqno? (yes/no)
@@ -1581,7 +1580,6 @@ protected:
                                 uint64_t& cas,
                                 uint64_t* seqno,
                                 CookieIface& cookie,
-                                PermittedVBStates permittedVBStates,
                                 CheckConflicts checkConflicts,
                                 bool allowExisting,
                                 GenerateBySeqno genBySeqno,
@@ -1596,7 +1594,6 @@ protected:
      * @param cas [in,out] CAS for the command (updated with new CAS)
      * @param seqno [out] optional - returns the seqno allocated to the mutation
      * @param cookie connection's cookie
-     * @param permittedVBStates set of VB states that the target VB can be in
      * @param checkConflicts set to Yes if conflict resolution must be done
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
@@ -1609,7 +1606,6 @@ protected:
                                    uint64_t& cas,
                                    uint64_t* seqno,
                                    CookieIface& cookie,
-                                   PermittedVBStates permittedVBStates,
                                    CheckConflicts checkConflicts,
                                    GenerateBySeqno genBySeqno,
                                    GenerateCas genCas,

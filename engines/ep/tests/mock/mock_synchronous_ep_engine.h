@@ -120,7 +120,6 @@ public:
                                        uint64_t& cas,
                                        uint64_t* seqno,
                                        CookieIface& cookie,
-                                       PermittedVBStates permittedVBStates,
                                        CheckConflicts checkConflicts,
                                        bool allowExisting,
                                        GenerateBySeqno genBySeqno,

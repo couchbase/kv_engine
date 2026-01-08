@@ -128,7 +128,6 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 opCas,
                 &seqno,
                 *cookie,
-                {vbucket_state_active} /*permittedVBStates*/,
                 CheckConflicts::Yes,
                 true /*allowExisting*/,
                 GenerateBySeqno::Yes,
