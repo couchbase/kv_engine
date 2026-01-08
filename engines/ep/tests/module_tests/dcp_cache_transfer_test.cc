@@ -561,17 +561,16 @@ TEST_P(DcpCacheTransferTest, all_keys) {
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
 }
 
-// Ensure that if an all_keys transfer was requested that all the keys are
-// transferred when the hash-table has more than 1 item in a chain.
+// Ensure case when HT chains are >1 we do see all keys. This test removes the
+// free_memory setting as we don't need to test that aspect here.
 TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
     engine->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
     store->getVBucket(vbid)->ht.resizeInOneStep(1);
     ASSERT_EQ(1, store->getVBucket(vbid)->ht.getSize());
     expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
     ASSERT_EQ(2, expectedItems.size());
-
-    // CTS options are expressed in the JSON stream-request value
     nlohmann::json ctsJson = {{"cts", {{"all_keys", true}}}};
+    // CTS options are expressed in the JSON stream-request value
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(
                       cb::mcbp::DcpAddStreamFlag::CacheTransfer,
@@ -585,14 +584,14 @@ TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
                       nullptr,
                       mock_dcp_add_failover_log,
                       ctsJson.dump()));
-
     MockDcpMessageProducers producers;
+
     EXPECT_EQ(cb::engine_errc::would_block,
               producer->stepWithBorderGuard(producers));
 
-    // In this test the hash-table has one bucket, so all items are in one
-    // chain. The visitor will pause after the chain has been visited even
-    // if the visitor's time was up.
+    // In this test the hash-table has one bucket/chain.
+    // Even with the CTS task set to pause after every visit, it will visit the
+    // entire chain in on run
     runCacheTransferTask();
     for (auto count = expectedItems.size(); count > 0; count--) {
         EXPECT_EQ(cb::engine_errc::success,
@@ -743,6 +742,79 @@ TEST_P(DcpCacheTransferTest, backfill_threshold_all_keys_yields) {
 // above backfill threshold
 TEST_P(DcpCacheTransferTest, backfill_threshold_cancels) {
     testBackfillThresholdBehavior(false);
+}
+
+// Test that memory pressure on the server causes a switch to key-only transfer.
+TEST_P(DcpCacheTransferTest, all_keys_memory_pressure) {
+    // Need static clock for this test as memory pressure will delay task
+    // re-execution
+    cb::time::steady_clock::use_chrono = false;
+    auto scopeGuard = folly::makeGuard(
+            []() { cb::time::steady_clock::use_chrono = true; });
+    engine->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    vb->ht.resizeInOneStep(3);
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
+
+    using cb::mcbp::DcpAddStreamFlag;
+    const uint64_t hs = store->getVBucket(vbid)->getHighSeqno();
+    const uint64_t uuid = store->getVBucket(vbid)->failovers->getLatestUUID();
+    auto stream = producer->addMockCacheTransferStream(
+            1,
+            *vb,
+            StreamRequestInfo{
+                    DcpAddStreamFlag::CacheTransfer, uuid, hs, hs, hs, 0, hs},
+            nlohmann::json{{"cts", {{"all_keys", true}}}}.dump());
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+
+    for (auto count = expectedItems.size(); count > 0; --count) {
+        runCacheTransferTask();
+
+        // Configured to pause after every step, so run every iteration
+        if (stream->memoryUsedOffset == 0) {
+            // Set the offset so we will certainly exceed the HWM on next step
+            stream->memoryUsedOffset = engine->getEpStats().mem_high_wat + 1;
+
+            // Previous run is expected to have queued a value
+            EXPECT_EQ(
+                    cb::engine_errc::success,
+                    producer->stepAndExpect(
+                            producers, cb::mcbp::ClientOpcode::DcpCachedValue));
+        } else {
+            // Previous run is expected to have queued a key (memory is
+            // pressured)
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepAndExpect(
+                              producers,
+                              cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
+            // In the pressured state the task yields for a short time, we must
+            // advance the clock so the next run sees the task is ready
+            cb::time::steady_clock::advance(std::chrono::seconds(1));
+        }
+
+        ASSERT_EQ(1,
+                  std::ranges::count_if(expectedItems, [&](const auto& item) {
+                      return item.getKey() == producers.last_dockey;
+                  }));
+        for (auto itr = expectedItems.begin(); itr != expectedItems.end();
+             ++itr) {
+            if (itr->getKey() == producers.last_dockey) {
+                expectedItems.erase(itr);
+                break;
+            }
+        }
+    }
+    ASSERT_TRUE(expectedItems.empty());
+
+    runCacheTransferTask();
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
 }
 
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as

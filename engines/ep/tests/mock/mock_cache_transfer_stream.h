@@ -48,6 +48,10 @@ public:
 
     size_t getMemoryUsed() const override;
 
+    cb::mcbp::DcpStreamId getStreamId() const {
+        return sid;
+    }
+
     // Allows for easy testing of OOM conditions.
     size_t memoryUsedOffset{0};
 

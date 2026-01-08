@@ -209,6 +209,17 @@ public:
             std::optional<std::string_view> jsonFilter,
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
+    /**
+     * Place a mock cache transfer stream into the producer
+     */
+    std::shared_ptr<MockCacheTransferStream> addMockCacheTransferStream(
+            uint32_t opaque,
+            VBucket& vb,
+            const StreamRequestInfo& req,
+            std::optional<std::string_view> jsonFilter = {},
+            std::function<void(MockCacheTransferStream&)> preSetActiveHook =
+                    {});
+
     std::shared_ptr<ProducerStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,

@@ -265,8 +265,7 @@ bool CacheTransferTask::run() {
         auto& stream = visitor.getStream();
         OBJ_LOG_WARN_CTX(stream,
                          "CacheTransferTask::run: cancelling transfer due "
-                         "to backfill "
-                         "threshold",
+                         "to backfill threshold",
                          {"vb", vbid});
         stream.cancelTransfer();
         // stop running the task
@@ -673,6 +672,29 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         }
     }
 
+    // An "all_keys" transfer is configured to visit the entire hash-table
+    // chain. This could mean that a request to pause due to memory pressure
+    // results in more callbacks. To minimise the extra pressure whilst the
+    // chain is fully visited, switch to just sending the key for this item.
+    //
+    // Note that we're checking the memory usage before the next allocation.
+    // The largest part of the SV (the Blob which could be 20MiB) isn't
+    // necessarily going to be reallocated and increase memory by 20MiB, thus if
+    // we're 1 byte under ("no pressure") it's unlikely to jump memory by the
+    // document/Blob size.
+    //
+    const auto memoryUsage = getMemoryUsage();
+    auto includeVal = includeValue;
+    if (memoryUsage.isMemoryPressured() && includeVal == IncludeValue::Yes &&
+        isAllKeys()) {
+        includeVal = IncludeValue::No;
+        OBJ_LOG_DEBUG_CTX(*this,
+                          "CacheTransferStream isAllKeys and memory is "
+                          "pressured, sending the key only",
+                          {"mem_used", memoryUsage.used},
+                          {"limit", memoryUsage.limit});
+    }
+
     OBJ_LOG_DEBUG_CTX(
             *this, "CacheTransferStream queuing", {"sv", nlohmann::json{sv}});
 
@@ -686,7 +708,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     auto response = std::make_unique<MutationResponse>(
             queued_item{sv.toItem(getVBucket(),
                                   StoredValue::HideLockedCas::No,
-                                  includeValue == IncludeValue::Yes
+                                  includeVal == IncludeValue::Yes
                                           ? StoredValue::IncludeValue::Yes
                                           : StoredValue::IncludeValue::No)},
             opaque_,
@@ -694,7 +716,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
             sid,
-            includeValue == IncludeValue::Yes && sv.isResident()
+            includeVal == IncludeValue::Yes && sv.isResident()
                     ? DcpResponse::Event::CachedValue
                     : DcpResponse::Event::CachedKeyMeta);
     {
@@ -713,7 +735,6 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     }
 
     // Backoff off if over HWM
-    const auto memoryUsage = getMemoryUsage();
     if (memoryUsage.isMemoryPressured()) {
         OBJ_LOG_DEBUG_CTX(
                 *this,

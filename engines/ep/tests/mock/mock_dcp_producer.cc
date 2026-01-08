@@ -11,6 +11,7 @@
 
 #include "mock_dcp_producer.h"
 
+#include "collections/vbucket_filter.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/response.h"
@@ -137,6 +138,45 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::addMockActiveStream(
     if (found == streams->end()) {
         throw std::logic_error(
                 "MockDcpProducer::addMockActiveStream "
+                "failed to insert requested stream");
+    }
+    notifyStreamReady(vb.getId());
+    return stream;
+}
+
+std::shared_ptr<MockCacheTransferStream>
+MockDcpProducer::addMockCacheTransferStream(
+        uint32_t opaque,
+        VBucket& vb,
+        const StreamRequestInfo& req,
+        std::optional<std::string_view> jsonFilter,
+        std::function<void(MockCacheTransferStream&)> preSetActiveHook) {
+    Collections::VB::Filter filter(
+            jsonFilter.value_or(""), vb.getManifest(), *getCookie(), engine_);
+    auto stream = std::make_shared<MockCacheTransferStream>(
+            std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
+            opaque,
+            req,
+            vb.getId(),
+            engine_,
+            std::move(filter));
+
+    if (preSetActiveHook) {
+        preSetActiveHook(*stream);
+    }
+
+    stream->setActive();
+
+    auto baseStream = std::dynamic_pointer_cast<ProducerStream>(stream);
+    updateStreamsMap(vb.getId(),
+                     stream->getStreamId(),
+                     baseStream,
+                     AllowSwapInStreamMap::No);
+
+    auto found = streams->find(vb.getId().get());
+    if (found == streams->end()) {
+        throw std::logic_error(
+                "MockDcpProducer::addMockCacheTransferStream "
                 "failed to insert requested stream");
     }
     notifyStreamReady(vb.getId());
