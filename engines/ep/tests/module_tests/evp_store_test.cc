@@ -36,6 +36,8 @@
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore.h"
 #endif
+#include "durability/active_durability_monitor.h"
+#include "durability/passive_durability_monitor.h"
 #include "learning_age_and_mfu_based_eviction.h"
 #include "tasks.h"
 #include "tests/mock/mock_ep_bucket.h"
@@ -3232,9 +3234,12 @@ public:
 
     /**
      * Prepare a couchstore snapshot for a subsequent set-vb-state that uses
-     * "use_snapshot" feature
+     * "use_snapshot" feature.
+     *
+     * If topology is not empty, a prepare sync-write is written to the vb, else
+     * a commited doc is written
      */
-    StoredDocKey prepareForUseSnapshot(Vbid id);
+    StoredDocKey prepareForUseSnapshot(Vbid id, nlohmann::json topology = {});
 };
 
 // Relates to MB-43242 where we need to be sure we can trigger compaction
@@ -3275,10 +3280,15 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     }
 }
 
-StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(Vbid id) {
+StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
+        Vbid id, nlohmann::json topology) {
     const auto docKey = makeStoredDocKey("key");
-    setVBucketStateAndRunPersistTask(id, vbucket_state_active);
-    store_item(id, docKey, "valueA");
+    setVBucketStateAndRunPersistTask(id, vbucket_state_active, topology);
+    if (!topology.empty()) {
+        store_pending_item(id, docKey, "valueA");
+    } else {
+        store_item(id, docKey, "valueA");
+    }
     flushVBucket(id);
 
     nlohmann::json manifest;
@@ -3291,8 +3301,11 @@ StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(Vbid id) {
     // couchstore file is hardlinked and will be modified
     std::filesystem::copy(snap / couchFile, snap / "vb.tmp");
 
-    store_item(vbid, docKey, "valueB");
-    flushVBucket(vbid);
+    if (topology.empty()) {
+        // Don't store again if prepare, will fail for sync write in progress
+        store_item(vbid, docKey, "valueB");
+        flushVBucket(vbid);
+    }
 
     auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
@@ -3456,6 +3469,79 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
     auto streamReqJson = passiveStream->public_setupForNewStreamRequest(*vb);
     EXPECT_EQ(streamReqJson["cts"]["all_keys"], true);
     EXPECT_EQ(streamReqJson["cts"]["free_memory"], 0); // 0 is no values
+}
+
+TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotWithPrepare) {
+    nlohmann::json topology = {
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+    auto docKey = prepareForUseSnapshot(vbid, topology);
+
+    const nlohmann::json meta{{"use_snapshot", "fbr"}};
+    for (;;) {
+        const auto ret = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                    "Loading VBucket vb:0");
+    }
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(vbucket_state_replica, vb->getState());
+    EXPECT_EQ(1, vb->getHighSeqno());
+    EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
+    EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+    EXPECT_FALSE(vb->canSnapshotRebalanceContinue());
+    // use_snapshot warmed up the prepares
+    const auto& pdm = dynamic_cast<const PassiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, pdm.getNumTracked());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+    EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid,
+                                     vbucket_state_active,
+                                     &topology,
+                                     TransferVB::No,
+                                     cookie));
+    EXPECT_EQ(vbucket_state_active, vb->getState());
+    const auto& adm = dynamic_cast<const ActiveDurabilityMonitor&>(
+            vb->getDurabilityMonitor());
+    EXPECT_EQ(1, adm.getNumTracked());
+    EXPECT_EQ(0, adm.getHighCompletedSeqno());
+
+    EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
+    EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+    EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1);
+    vb->processResolvedSyncWrites();
+    EXPECT_EQ(0, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getHighCompletedSeqno());
+    EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
+    EXPECT_EQ(1, vb->ht.getNumItems());
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    for (;;) {
+        auto getValue = store->get(docKey, vbid, cookie, options);
+        const auto status = getValue.getStatus();
+        if (status != cb::engine_errc::would_block) {
+            ASSERT_EQ(cb::engine_errc::success, status);
+            ASSERT_TRUE(getValue.item);
+            EXPECT_EQ(std::string_view("valueA"),
+                      getValue.item->getValue()->to_string_view());
+            break;
+        }
+        runBGFetcherTask();
+    }
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
