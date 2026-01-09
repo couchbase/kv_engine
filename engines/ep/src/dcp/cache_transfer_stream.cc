@@ -339,19 +339,22 @@ void CacheTransferStream::setActive() {
 
 void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     ExecutorPool::get()->cancel(tid);
-    std::lock_guard<std::mutex> lh(streamMutex);
-    if (state != State::Active) {
-        return;
+    {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        if (state != State::Active) {
+            return;
+        }
+        if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
+            request.end_seqno > request.start_seqno) {
+            state = State::SwitchingToActiveStream;
+            pushToReadyQ(std::make_unique<CacheTransferToActiveStreamResponse>(
+                    opaque_, getVBucket(), sid));
+        } else {
+            state = State::Dead;
+            pushToReadyQ(makeEndStreamResponse(status));
+        }
     }
-    if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
-        request.end_seqno > request.start_seqno) {
-        state = State::SwitchingToActiveStream;
-        pushToReadyQ(std::make_unique<CacheTransferToActiveStreamResponse>(
-                opaque_, getVBucket(), sid));
-    } else {
-        state = State::Dead;
-        pushToReadyQ(makeEndStreamResponse(status));
-    }
+    notifyStreamReady(false, getProducer().get());
 }
 
 bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {

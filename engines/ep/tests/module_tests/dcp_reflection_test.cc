@@ -2961,6 +2961,13 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
     ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
     EXPECT_EQ(status, streams.second->messageReceived(std::move(msg)));
     if (fullEviction()) {
+        // Another Producer::step loop is required for removing vbid from
+        // vbReady
+        msg = route0_1.producer->public_getNextItem();
+        ASSERT_FALSE(msg);
+        auto& vbReady = route0_1.producer->getReadyQueue();
+        EXPECT_EQ(0, vbReady.size());
+
         // Generate the cancelled response and now force the transfer to end
         cb::mcbp::Response message{};
         message.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -2974,6 +2981,11 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
         ASSERT_TRUE(msg);
         ASSERT_EQ(DcpResponse::Event::CacheTransferToActiveStream,
                   msg->getEvent());
+
+        // MB-69933: Ensure that we notified the stream, we could miss
+        // to run Producer::step and thus miss to send a CacheTransferEnd
+        // message to the Consumer otherwise
+        EXPECT_TRUE(vbReady.exists(vbid));
     }
 }
 
