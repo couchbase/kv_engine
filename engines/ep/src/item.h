@@ -25,38 +25,9 @@
 #include <memcached/storeddockey.h>
 #include <memcached/types.h>
 #include <platform/cb_time.h>
-#include <platform/n_byte_integer.h>
 
 #include <optional>
 #include <string>
-
-const uint64_t DEFAULT_REV_SEQ_NUM = 1;
-
-/**
- * The ItemMetaData structure is used to pass meta data information of
- * an Item.
- */
-class ItemMetaData {
-public:
-    ItemMetaData() :
-        cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
-    }
-
-    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, uint32_t e)
-        : cas(c),
-          revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s),
-          flags(f),
-          exptime(e) {
-    }
-
-    uint64_t cas;
-    cb::uint48_t revSeqno;
-    uint32_t flags;
-    uint32_t exptime;
-};
-
-bool operator==(const ItemMetaData& lhs, const ItemMetaData& rhs);
-std::ostream& operator<<(std::ostream& os, const ItemMetaData& md);
 
 item_info to_item_info(const ItemMetaData& itemMeta,
                        uint8_t datatype,

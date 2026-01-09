@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -21,34 +20,6 @@ bool isDiskCheckpointType(CheckpointType type) {
 
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
     return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
-}
-
-std::string to_string(GenerateBySeqno generateBySeqno) {
-    using GenerateBySeqnoUType = std::underlying_type_t<GenerateBySeqno>;
-
-    switch (generateBySeqno) {
-    case GenerateBySeqno::Yes:
-        return "Yes";
-    case GenerateBySeqno::No:
-        return "No";
-    }
-    throw std::invalid_argument(
-            "to_string(GenerateBySeqno) unknown " +
-            std::to_string(static_cast<GenerateBySeqnoUType>(generateBySeqno)));
-}
-
-std::string to_string(GenerateCas generateCas) {
-    using GenerateByCasUType = std::underlying_type_t<GenerateCas>;
-
-    switch (generateCas) {
-    case GenerateCas::Yes:
-        return "Yes";
-    case GenerateCas::No:
-        return "No";
-    }
-    throw std::invalid_argument(
-            "to_string(GenerateCas) unknown " +
-            std::to_string(static_cast<GenerateByCasUType>(generateCas)));
 }
 
 std::string to_string(TrackCasDrift trackCasDrift) {

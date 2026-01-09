@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,6 +10,13 @@
 
 #include <memcached/types.h>
 #include <platform/string_hex.h>
+
+std::ostream& operator<<(std::ostream& os, const ItemMetaData& md) {
+    os << "ItemMetaData[" << &md << "] with"
+       << " cas:" << md.cas << " revSeqno:" << md.revSeqno
+       << " flags:" << md.flags << " exptime:" << md.exptime;
+    return os;
+}
 
 std::string to_string(const DocumentState& ds) {
     switch (ds) {

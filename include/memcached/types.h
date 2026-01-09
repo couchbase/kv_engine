@@ -11,8 +11,10 @@
 
 #include <fmt/ostream.h>
 #include <mcbp/protocol/datatype.h>
+#include <memcached/define_yes_no_enum.h>
 #include <memcached/dockey_view.h>
 #include <platform/byte_literals.h>
+#include <platform/n_byte_integer.h>
 #include <sys/types.h>
 #include <chrono>
 #include <cstdint>
@@ -56,6 +58,40 @@ std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc);
 inline auto format_as(EngineParamCategory epc) {
     return to_string(epc);
 }
+
+constexpr uint64_t DEFAULT_REV_SEQ_NUM = 1;
+
+/**
+ * The ItemMetaData structure is used to pass meta data information of
+ * an Item.
+ */
+class ItemMetaData {
+public:
+    ItemMetaData()
+        : cas(0), revSeqno(DEFAULT_REV_SEQ_NUM), flags(0), exptime(0) {
+    }
+
+    ItemMetaData(uint64_t c, uint64_t s, uint32_t f, uint32_t e)
+        : cas(c),
+          revSeqno(s == 0 ? DEFAULT_REV_SEQ_NUM : s),
+          flags(f),
+          exptime(e) {
+    }
+
+    bool operator==(const ItemMetaData&) const = default;
+
+    uint64_t cas;
+    cb::uint48_t revSeqno;
+    uint32_t flags;
+    uint32_t exptime;
+};
+std::ostream& operator<<(std::ostream& os, const ItemMetaData& md);
+
+DEFINE_YES_NO_ENUM(CheckConflicts)
+DEFINE_YES_NO_ENUM(GenerateBySeqno)
+DEFINE_YES_NO_ENUM(GenerateRevSeqno)
+DEFINE_YES_NO_ENUM(GenerateCas)
+DEFINE_YES_NO_ENUM(GenerateDeleteTime)
 
 /**
  * Data common to any item stored in memcached.

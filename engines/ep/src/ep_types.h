@@ -16,6 +16,7 @@
 
 #include <fmt/ostream.h>
 #include <folly/container/F14Map-fwd.h>
+#include <memcached/types.h>
 #include <memcached/vbucket.h>
 #include <platform/cb_time.h>
 #include <memory>
@@ -36,14 +37,9 @@ using UniqueItemPtr = std::unique_ptr<Item>;
 
 // Enumerations representing binary states - more explicit than using a generic
 // bool.
-enum class GenerateBySeqno : char { No, Yes };
-enum class GenerateRevSeqno : char { No, Yes };
-enum class GenerateCas : char { No, Yes };
-enum class GenerateDeleteTime { No, Yes };
 enum class TrackCasDrift : char { No, Yes };
 enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
-enum class CheckConflicts : char { No, Yes };
 enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
@@ -191,8 +187,6 @@ struct EventDrivenDurabilityTimeoutIface {
 enum class TransferVB : char { No, Yes };
 std::ostream& operator<<(std::ostream&, TransferVB transfer);
 
-std::string to_string(GenerateBySeqno generateBySeqno);
-std::string to_string(GenerateCas generateCas);
 std::string to_string(TrackCasDrift trackCasDrift);
 std::string to_string(CheckpointType checkpointType);
 

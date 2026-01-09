@@ -254,22 +254,6 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     return os;
 }
 
-bool operator==(const ItemMetaData& lhs, const ItemMetaData& rhs) {
-    return (lhs.cas == rhs.cas) &&
-           (lhs.revSeqno == rhs.revSeqno) &&
-           (lhs.flags == rhs.flags) &&
-           (lhs.exptime == rhs.exptime);
-}
-
-std::ostream& operator<<(std::ostream& os, const ItemMetaData& md) {
-    os << "ItemMetaData[" << &md << "] with"
-       << " cas:" << md.cas
-       << " revSeqno:" << md.revSeqno
-       << " flags:" << md.flags
-       << " exptime:" << md.exptime;
-    return os;
-}
-
 bool operator==(const Blob& lhs, const Blob& rhs) {
     return (lhs.size == rhs.size) &&
            (lhs.age == rhs.age) &&
