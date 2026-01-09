@@ -111,19 +111,22 @@ public:
 
     std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 
-    cb::engine_errc public_setWithMeta(Vbid vbucket,
-                                       DocKeyView key,
-                                       cb::const_byte_buffer value,
-                                       ItemMetaData itemMeta,
-                                       bool isDeleted,
-                                       protocol_binary_datatype_t datatype,
-                                       uint64_t& cas,
-                                       uint64_t* seqno,
-                                       CookieIface& cookie,
-                                       CheckConflicts checkConflicts,
-                                       bool allowExisting,
-                                       GenerateBySeqno genBySeqno,
-                                       GenerateCas genCas);
+    cb::engine_errc public_setWithMeta(
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData itemMeta,
+            bool isDeleted,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            uint64_t* seqno,
+            CookieIface& cookie,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno,
+            GenerateCas genCas,
+            ForceAcceptWithMetaOperation force =
+                    ForceAcceptWithMetaOperation::No);
 
     DocKeyView public_makeDocKey(CookieIface& cookie,
                                  const std::string& key) const;

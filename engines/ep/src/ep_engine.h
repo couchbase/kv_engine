@@ -1468,20 +1468,25 @@ protected:
 
     bool fetchLookupResult(CookieIface& cookie, std::unique_ptr<Item>& itm);
 
+    bool validateWithMetaOptions(CookieIface& cookie,
+                                 ForceAcceptWithMetaOperation force,
+                                 GenerateCas generateCas,
+                                 CheckConflicts checkConflicts);
+
     /**
      * Private helper method for decoding the options on set/del_with_meta.
      * Tighly coupled to the logic of both those functions, it will
      * take a request pointer and locate and validate any options within.
      *
      * @param extras byte buffer containing the incoming meta extras
+     * param forceFlag[out] set to Yes if force acceptance is enabled.
      * @param generateCas[out] set to Yes if CAS regeneration is enabled.
      * @param checkConflicts[out] set to No if conflict resolution should
      *        not be performed.
      * @param deleteSource Changes to TTL if IS_EXPIRATION flag (del_with_meta)
-     * @return true if everything is OK, false for an invalid combination of
-     *              options
      */
-    bool decodeWithMetaOptions(cb::const_byte_buffer extras,
+    void decodeWithMetaOptions(cb::const_byte_buffer extras,
+                               ForceAcceptWithMetaOperation& forceFlag,
                                GenerateCas& generateCas,
                                CheckConflicts& checkConflicts,
                                DeleteSource& deleteSource);
@@ -1489,10 +1494,9 @@ protected:
     /**
      * Private wrapper method for decodeWithMetaOptions called from setWithMeta
      * to abstract out deleteSource, which is unused by setWithMeta.
-     * @return true if everything is OK, false for an invalid combination of
-     *              options
      */
-    bool decodeSetWithMetaOptions(cb::const_byte_buffer extras,
+    void decodeSetWithMetaOptions(cb::const_byte_buffer extras,
+                                  ForceAcceptWithMetaOperation& forceFlag,
                                   GenerateCas& generateCas,
                                   CheckConflicts& checkConflicts);
 
@@ -1569,6 +1573,7 @@ protected:
      * @param allowExisting true if the set can overwrite existing key
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
+     * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
     cb::engine_errc setWithMeta(Vbid vbucket,
@@ -1583,7 +1588,8 @@ protected:
                                 CheckConflicts checkConflicts,
                                 bool allowExisting,
                                 GenerateBySeqno genBySeqno,
-                                GenerateCas genCas);
+                                GenerateCas genCas,
+                                ForceAcceptWithMetaOperation force);
 
     /**
      * Process the del_with_meta with the given buffers/values.
@@ -1598,6 +1604,7 @@ protected:
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
      * @param deleteSource whether it should delete or expire
+     * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
     cb::engine_errc deleteWithMeta(Vbid vbucket,
@@ -1609,7 +1616,8 @@ protected:
                                    CheckConflicts checkConflicts,
                                    GenerateBySeqno genBySeqno,
                                    GenerateCas genCas,
-                                   DeleteSource deleteSource);
+                                   DeleteSource deleteSource,
+                                   ForceAcceptWithMetaOperation force);
 
     /// Make a DocKey from the key buffer
     DocKeyView makeDocKey(CookieIface& cookie, cb::const_byte_buffer key) const;

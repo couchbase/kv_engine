@@ -29,6 +29,7 @@ add_library(mcbp STATIC
             range_scan_continue_codec.cc
             sla.cc
             status.cc
+            with_meta_options.cc
             )
 
 target_link_libraries(mcbp

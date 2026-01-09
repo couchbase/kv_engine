@@ -56,6 +56,7 @@
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
+#include <mcbp/codec/with_meta_options.h>
 #include <memcached/audit_interface.h>
 #include <memcached/collections.h>
 #include <memcached/connection_iface.h>
@@ -5737,65 +5738,83 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
     return std::make_pair(maybeRemapStatus(ret), metadata);
 }
 
-bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
+void EventuallyPersistentEngine::decodeSetWithMetaOptions(
         cb::const_byte_buffer extras,
+        ForceAcceptWithMetaOperation& forceFlag,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts) {
     // DeleteSource not needed by SetWithMeta, so set to default of explicit
     DeleteSource deleteSource = DeleteSource::Explicit;
-    return EventuallyPersistentEngine::decodeWithMetaOptions(
-            extras, generateCas, checkConflicts, deleteSource);
+    decodeWithMetaOptions(extras,
+                          forceFlag,
+                          generateCas,
+                          checkConflicts,
+                          deleteSource);
 }
-bool EventuallyPersistentEngine::decodeWithMetaOptions(
+
+bool EventuallyPersistentEngine::validateWithMetaOptions(
+        CookieIface& cookie,
+        ForceAcceptWithMetaOperation force,
+        GenerateCas generateCas,
+        CheckConflicts checkConflicts) {
+    const bool forceFlag = force == ForceAcceptWithMetaOperation::Yes;
+
+    // Validate options
+    // 1) If GenerateCas::Yes then we must have CheckConflicts::No
+    const bool check1 = generateCas == GenerateCas::Yes &&
+                        checkConflicts == CheckConflicts::Yes;
+
+    if (check1) {
+        setErrorContext(
+                cookie,
+                "GenerateCas::Yes then we must have CheckConflicts::No");
+        return false;
+    }
+
+    // 2) If bucket is LWW/Custom and forceFlag is not set and GenerateCas::No
+    const bool check2 =
+            conflictResolutionMode != ConflictResolutionMode::RevisionId &&
+            !forceFlag && generateCas == GenerateCas::No;
+
+    if (check2) {
+        setErrorContext(cookie,
+                        "For LWW/Custom buckets, forceFlag must be set or "
+                        "GenerateCas::Yes");
+        return false;
+    }
+
+    // 3) If bucket is revid then forceFlag must be false.
+    const bool check3 =
+            conflictResolutionMode == ConflictResolutionMode::RevisionId &&
+            forceFlag;
+
+    if (check3) {
+        setErrorContext(cookie,
+                        "For RevisionId buckets, forceFlag cannot be set");
+        return false;
+    }
+
+    return true;
+}
+
+void EventuallyPersistentEngine::decodeWithMetaOptions(
         cb::const_byte_buffer extras,
+        ForceAcceptWithMetaOperation& forceFlag,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts,
         DeleteSource& deleteSource) {
-    bool forceFlag = false;
+    forceFlag = ForceAcceptWithMetaOperation::No;
     if (extras.size() == 28 || extras.size() == 30) {
         const size_t fixed_extras_size = 24;
         uint32_t options;
         memcpy(&options, extras.data() + fixed_extras_size, sizeof(options));
         options = ntohl(options);
-
-        if (options & (SKIP_CONFLICT_RESOLUTION_FLAG | FORCE_WITH_META_OP)) {
-            // FORCE_WITH_META_OP used to change permittedVBStates to include
-            // replica and pending, which is incredibly dangerous. This flag is
-            // still supported but now only permits a change to the
-            // checkConflicts flag. MB-67207
-            checkConflicts = CheckConflicts::No;
-        }
-
-        if (options & FORCE_ACCEPT_WITH_META_OPS) {
-            forceFlag = true;
-        }
-
-        if (options & REGENERATE_CAS) {
-            generateCas = GenerateCas::Yes;
-        }
-
-        if (options & IS_EXPIRATION) {
-            deleteSource = DeleteSource::TTL;
-        }
+        cb::mcbp::WithMetaOptions with_meta_options(options);
+        forceFlag = with_meta_options.force_accept;
+        generateCas = with_meta_options.generate_cas;
+        checkConflicts = with_meta_options.check_conflicts;
+        deleteSource = with_meta_options.delete_source;
     }
-
-    // Validate options
-    // 1) If GenerateCas::Yes then we must have CheckConflicts::No
-    bool check1 = generateCas == GenerateCas::Yes &&
-                  checkConflicts == CheckConflicts::Yes;
-
-    // 2) If bucket is LWW/Custom and forceFlag is not set and GenerateCas::No
-    bool check2 =
-            conflictResolutionMode != ConflictResolutionMode::RevisionId &&
-            !forceFlag && generateCas == GenerateCas::No;
-
-    // 3) If bucket is revid then forceFlag must be false.
-    bool check3 =
-            conflictResolutionMode == ConflictResolutionMode::RevisionId &&
-            forceFlag;
-
-    // So if either check1/2/3 is true, return false
-    return !(check1 || check2 || check3);
 }
 
 /**
@@ -5861,10 +5880,12 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     GenerateCas generateCas = GenerateCas::No;
-    if (!decodeSetWithMetaOptions(extras, generateCas, checkConflicts)) {
+    ForceAcceptWithMetaOperation forceFlag = ForceAcceptWithMetaOperation::No;
+    decodeSetWithMetaOptions(extras, forceFlag, generateCas, checkConflicts);
+    if (!validateWithMetaOptions(
+                cookie, forceFlag, generateCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
     }
-
     auto value = adjustValueForExtendedMeta(request.getValue(), extras);
 
     cb::time::steady_clock::time_point startTime;
@@ -5906,7 +5927,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           checkConflicts,
                           allowExisting,
                           GenerateBySeqno::Yes,
-                          generateCas);
+                          generateCas,
+                          forceFlag);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
@@ -5982,7 +6004,11 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         CheckConflicts checkConflicts,
         bool allowExisting,
         GenerateBySeqno genBySeqno,
-        GenerateCas genCas) {
+        GenerateCas genCas,
+        ForceAcceptWithMetaOperation force) {
+    if (!validateWithMetaOptions(cookie, force, genCas, checkConflicts)) {
+        return cb::engine_errc::invalid_arguments;
+    }
     if (cb::mcbp::datatype::is_snappy(datatype) &&
         !cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         setErrorContext(cookie, "Client did not negotiate Snappy support");
@@ -6107,8 +6133,12 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     GenerateCas generateCas = GenerateCas::No;
     DeleteSource deleteSource = DeleteSource::Explicit;
-    if (!decodeWithMetaOptions(
-                extras, generateCas, checkConflicts, deleteSource)) {
+    ForceAcceptWithMetaOperation forceFlag = ForceAcceptWithMetaOperation::No;
+
+    decodeWithMetaOptions(
+            extras, forceFlag, generateCas, checkConflicts, deleteSource);
+    if (!validateWithMetaOptions(
+                cookie, forceFlag, generateCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -6180,7 +6210,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                  checkConflicts,
                                  GenerateBySeqno::Yes,
                                  generateCas,
-                                 deleteSource);
+                                 deleteSource,
+                                 forceFlag);
         } else {
             // A delete with a value
             ret = setWithMeta(request.getVBucket(),
@@ -6195,7 +6226,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               checkConflicts,
                               true /*allowExisting*/,
                               GenerateBySeqno::Yes,
-                              generateCas);
+                              generateCas,
+                              forceFlag);
         }
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -6237,7 +6269,11 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        DeleteSource deleteSource) {
+        DeleteSource deleteSource,
+        ForceAcceptWithMetaOperation force) {
+    if (!validateWithMetaOptions(cookie, force, genCas, checkConflicts)) {
+        return cb::engine_errc::invalid_arguments;
+    }
     return kvBucket->deleteWithMeta(key,
                                     cas,
                                     seqno,

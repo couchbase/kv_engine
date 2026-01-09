@@ -92,6 +92,7 @@ DEFINE_YES_NO_ENUM(GenerateBySeqno)
 DEFINE_YES_NO_ENUM(GenerateRevSeqno)
 DEFINE_YES_NO_ENUM(GenerateCas)
 DEFINE_YES_NO_ENUM(GenerateDeleteTime)
+DEFINE_YES_NO_ENUM(ForceAcceptWithMetaOperation)
 
 /**
  * Data common to any item stored in memcached.
