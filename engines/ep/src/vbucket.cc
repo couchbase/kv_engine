@@ -2253,6 +2253,8 @@ cb::engine_errc VBucket::setWithMeta(
             {} /*overwritingPrepareSeqno*/,
             cHandle.getCanDeduplicate(),
             enforceMemCheck};
+    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+    queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
 
     auto [status, notifyCtx] = processSet(htRes,
                                           v,

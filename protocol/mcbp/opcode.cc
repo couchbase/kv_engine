@@ -449,6 +449,12 @@ public:
                 Attribute::Reorder,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::MutateWithMeta,
+              {"MUTATE_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
         setup(ClientOpcode::DcpOpen, {"DCP_OPEN"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpAddStream,
               {"DCP_ADD_STREAM"sv, {Attribute::Supported}});

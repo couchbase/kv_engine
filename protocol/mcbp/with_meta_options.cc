@@ -35,7 +35,7 @@ WithMetaOptions::WithMetaOptions(uint32_t options) {
     }
 }
 
-uint32_t WithMetaOptions::encode() {
+uint32_t WithMetaOptions::encode() const {
     uint32_t options = 0;
 
     if (check_conflicts == CheckConflicts::No) {

@@ -988,6 +988,25 @@ protected:
     cb::mcbp::request::DelWithMetaPayload extras;
 };
 
+class BinprotMutateWithMetaCommand : public BinprotGenericCommand {
+public:
+    BinprotMutateWithMetaCommand(
+            Document doc,
+            Vbid vbucket,
+            cb::mcbp::request::MutateWithMetaCommand command,
+            uint64_t operation_cas,
+            uint32_t meta_option,
+            uint64_t rev_seqno,
+            std::vector<std::size_t> cas_offsets,
+            std::vector<std::size_t> seqno_offsets);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const Document doc;
+    nlohmann::json extras;
+};
+
 class BinprotReturnMetaCommand : public BinprotGenericCommand {
 public:
     BinprotReturnMetaCommand(cb::mcbp::request::ReturnMetaType type,

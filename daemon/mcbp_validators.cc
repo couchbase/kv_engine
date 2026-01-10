@@ -2086,6 +2086,17 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status mutate_with_meta_ex_validator(Cookie& cookie) {
+    // The command performs deeper validation of the extras
+    return McbpValidator::verify_header(cookie,
+                                        cookie.getHeader().getExtlen(),
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Any,
+                                        ExpectedCas::Any,
+                                        GeneratesDocKey::Yes,
+                                        McbpValidator::AllSupportedDatatypes);
+}
+
 static Status get_errmap_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(cookie,
                                                0,
@@ -3521,6 +3532,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::SetWithMeta, mutate_with_meta_validator);
     setup(ClientOpcode::AddWithMeta, mutate_with_meta_validator);
     setup(ClientOpcode::DelWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::MutateWithMeta, mutate_with_meta_ex_validator);
     setup(ClientOpcode::GetErrorMap, get_errmap_validator);
     setup(ClientOpcode::GetLocked, get_locked_validator);
     setup(ClientOpcode::UnlockKey, unlock_validator);

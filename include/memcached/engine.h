@@ -594,9 +594,7 @@ struct EngineIface {
             bool allow_existing,
             GenerateBySeqno generate_by_seqno,
             GenerateCas generate_cas,
-            ForceAcceptWithMetaOperation force) {
-        return cb::engine_errc::not_supported;
-    }
+            ForceAcceptWithMetaOperation force);
 
     /**
      * Process the del_with_meta with the given buffers/values.
@@ -627,9 +625,7 @@ struct EngineIface {
             GenerateBySeqno generate_by_seqno,
             GenerateCas generate_cas,
             DeleteSource delete_source,
-            ForceAcceptWithMetaOperation force) {
-        return cb::engine_errc::not_supported;
-    }
+            ForceAcceptWithMetaOperation force);
 
     /**
      * Flush the cache.

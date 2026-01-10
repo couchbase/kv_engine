@@ -294,6 +294,7 @@ nlohmann::json Request::to_json(bool validated) const {
         switch (getClientOpcode()) {
         case ClientOpcode::GetEx:
         case ClientOpcode::GetExReplica:
+        case ClientOpcode::MutateWithMeta:
         case ClientOpcode::Get:
         case ClientOpcode::Getq:
         case ClientOpcode::Getk:

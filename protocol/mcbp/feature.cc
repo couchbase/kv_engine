@@ -87,6 +87,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "GetRandomKeyIncludeXattr";
     case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         return "SubdocAllowReplicaReadOnDeletedDocs";
+    case Feature::MutateWithMeta:
+        return "MutateWithMeta";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

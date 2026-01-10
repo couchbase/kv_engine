@@ -84,6 +84,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::RangeScanIncludeXattr:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         case Feature::GetRandomKeyIncludeXattr:
+        case Feature::MutateWithMeta:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -129,6 +130,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::TcpNoDelay:
         case Feature::TCPDELAY_Unsupported:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
+        case Feature::MutateWithMeta:
             // No other dependency
             break;
 
@@ -383,6 +385,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::RangeScanIncludeXattr:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         case Feature::GetRandomKeyIncludeXattr:
+        case Feature::MutateWithMeta:
             // Informative features don't need special handling
             added = true;
             break;

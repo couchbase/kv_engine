@@ -11,9 +11,23 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <mcbp/codec/mutate_with_meta_payload.h>
+#include <platform/string_hex.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+
+/// Find all offsets of a pattern in a string
+static std::vector<std::size_t> findAllOffsets(std::string_view haystack,
+                                               std::string_view needle) {
+    std::vector<std::size_t> offsets;
+    std::size_t pos = 0;
+    while ((pos = haystack.find(needle, pos)) != std::string_view::npos) {
+        offsets.push_back(pos);
+        pos += needle.size();
+    }
+    return offsets;
+}
 
 class WithMetaTest : public TestappXattrClientTest {
 public:
@@ -388,6 +402,511 @@ TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_AllowValuePruning_DTXattr) {
 
 TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_DTXattr) {
     testDeleteWithMetaRejectsBody(false, true);
+}
+
+TEST_P(WithMetaTest, MutateWithMeta) {
+    using namespace cb::mcbp;
+    using namespace cb::mcbp::subdoc;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+
+    cb::xattr::Blob blob;
+    blob.set("user",
+             R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    blob.set("_sys",
+             R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.value.append(
+            R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    doc.info.datatype = static_cast<cb::mcbp::Datatype>(
+            PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON);
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    // Find offsets for CAS and seqno replacement within the xattrs section only
+    auto xattr_section =
+            doc.value.substr(0, cb::xattr::get_body_offset(doc.value));
+    auto cas_offsets = findAllOffsets(xattr_section, "1xffffffffffffffff");
+    auto seqno_offsets = findAllOffsets(xattr_section, "1xfffffffffffffffe");
+
+    auto info = userConnection->mutateWithMeta(
+            doc,
+            Vbid{0},
+            cb::mcbp::request::MutateWithMetaCommand::Add,
+            cb::mcbp::cas::Wildcard,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            1,
+            cas_offsets,
+            seqno_offsets);
+
+    auto validateDocument = [this, &info]() {
+        BinprotSubdocMultiLookupCommand cmd{
+                name,
+                {
+                        {ClientOpcode::SubdocGet,
+                         PathFlag::XattrPath,
+                         "$document"},
+                        {ClientOpcode::SubdocGet, PathFlag::XattrPath, "user"},
+                        {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sys"},
+                        {ClientOpcode::SubdocGet, PathFlag::None, "CAS"},
+                        {ClientOpcode::SubdocGet, PathFlag::None, "seqno"},
+                },
+                DocFlag::None};
+
+        const auto resp =
+                BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
+        ASSERT_EQ(Status::Success, resp.getStatus());
+
+        // Ensure that the CAS is equal:
+        EXPECT_EQ(info.cas, resp.getCas());
+        auto results = resp.getResults();
+        EXPECT_EQ(Status::Success, results[0].status);
+        nlohmann::json meta = nlohmann::json::parse(results[0].value);
+        EXPECT_EQ(Status::Success, results[1].status);
+        nlohmann::json user = nlohmann::json::parse(results[1].value);
+        // So this is a bit of a mess.. using macro-expansion will store the
+        // cas in network byte order.. but returned from $document it is in
+        // host byte order...
+        EXPECT_EQ(user["CAS"].get<std::string>(),
+                  cb::to_hex(htonll(
+                          cb::from_hex(meta["CAS"].get<std::string>()))));
+        EXPECT_EQ(user["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+        EXPECT_EQ(user["seqno"].get<std::string>(),
+                  meta["seqno"].get<std::string>());
+        EXPECT_EQ(user["seqno"].get<std::string>(), cb::to_hex(info.seqno));
+        EXPECT_EQ(Status::Success, results[2].status);
+        nlohmann::json sys = nlohmann::json::parse(results[2].value);
+        EXPECT_EQ(sys["CAS"].get<std::string>(),
+                  cb::to_hex(htonll(
+                          cb::from_hex(meta["CAS"].get<std::string>()))));
+        EXPECT_EQ(sys["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+        EXPECT_EQ(sys["seqno"].get<std::string>(),
+                  meta["seqno"].get<std::string>());
+        // The fields in the body should not have been touched.
+        EXPECT_EQ(Status::Success, results[3].status);
+        EXPECT_EQ(R"("1xffffffffffffffff")", results[3].value);
+        EXPECT_EQ(Status::Success, results[4].status);
+        EXPECT_EQ(R"("1xfffffffffffffffe")", results[4].value);
+    };
+
+    validateDocument();
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                cb::mcbp::request::MutateWithMetaCommand::Add,
+                cb::mcbp::cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                seqno_offsets);
+        FAIL() << "Expected a key exists error";
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::KeyEexists, error.getReason());
+    }
+
+    // but we should be able to replace it (using cas)
+    info = userConnection->mutateWithMeta(
+            doc,
+            Vbid{0},
+            cb::mcbp::request::MutateWithMetaCommand::Set,
+            info.cas,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            1,
+            cas_offsets,
+            seqno_offsets);
+
+    validateDocument();
+
+    // But fail if the cas is incorrect
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                cb::mcbp::request::MutateWithMetaCommand::Set,
+                info.cas + 1,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                seqno_offsets);
+        FAIL() << "Expected a key exists error";
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::KeyEexists, error.getReason());
+    }
+
+    // But succeed with unconditional set
+    info = userConnection->mutateWithMeta(
+            doc,
+            Vbid{0},
+            cb::mcbp::request::MutateWithMetaCommand::Set,
+            cb::mcbp::cas::Wildcard,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            1,
+            cas_offsets,
+            seqno_offsets);
+
+    validateDocument();
+
+    blob.prune_user_keys();
+    const auto system_xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(system_xattrs, std::back_inserter(doc.value));
+
+    // Recalculate offsets for the reduced document
+    xattr_section = doc.value.substr(0, cb::xattr::get_body_offset(doc.value));
+    cas_offsets = findAllOffsets(xattr_section, "1xffffffffffffffff");
+    seqno_offsets = findAllOffsets(xattr_section, "1xfffffffffffffffe");
+
+    // and we can delete it
+    info = userConnection->mutateWithMeta(
+            doc,
+            Vbid{0},
+            cb::mcbp::request::MutateWithMetaCommand::Delete,
+            cb::mcbp::cas::Wildcard,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            1,
+            cas_offsets,
+            seqno_offsets);
+
+    BinprotSubdocMultiLookupCommand cmd{
+            name,
+            {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"},
+             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sys"}},
+            DocFlag::AccessDeleted};
+
+    auto resp = BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    // Ensure that the CAS is equal:
+    EXPECT_EQ(info.cas, resp.getCas());
+    auto results = resp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    nlohmann::json meta = nlohmann::json::parse(results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+    nlohmann::json sys = nlohmann::json::parse(results[1].value);
+    EXPECT_EQ(sys["CAS"].get<std::string>(),
+              cb::to_hex(htonll(cb::from_hex(meta["CAS"].get<std::string>()))));
+    EXPECT_EQ(sys["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+    EXPECT_EQ(sys["seqno"].get<std::string>(),
+              meta["seqno"].get<std::string>());
+}
+
+TEST_P(WithMetaTest, MutateWithMetaInvalidOffsets) {
+    using namespace cb::mcbp;
+    using namespace cb::mcbp::subdoc;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+
+    cb::xattr::Blob blob;
+    blob.set("user",
+             R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    blob.set("_sys",
+             R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.value.append(
+            R"({"CAS":"1xffffffffffffffff", "seqno":"1xfffffffffffffffe"})");
+    doc.info.datatype = static_cast<cb::mcbp::Datatype>(
+            PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON);
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+    std::vector<std::size_t> cas_offsets = {{2, 3, 4}};
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                cb::mcbp::request::MutateWithMetaCommand::Add,
+                cb::mcbp::cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to invalid offsets";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments())
+                << "mutateWithMeta threw an unexpected exception: "
+                << error.what();
+        EXPECT_EQ("Patching seqno and cas would garble the xattr section",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaCasOffsetOutOfBounds) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    cb::xattr::Blob blob;
+    blob.set("user", R"({"CAS":"1xffffffffffffffff"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.info.datatype = Datatype::Xattr;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    // Use an offset that would be beyond the xattr section
+    std::vector<std::size_t> cas_offsets = {1000};
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Add,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to out of bounds "
+                  "CAS offset";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("CAS offset is out of bounds of the xattr section",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaSeqnoOffsetOutOfBounds) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    cb::xattr::Blob blob;
+    blob.set("user", R"({"seqno":"1xfffffffffffffffe"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.info.datatype = Datatype::Xattr;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    // Use an offset that would be beyond the xattr section
+    std::vector<std::size_t> seqno_offsets = {1000};
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Add,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                {},
+                seqno_offsets);
+        FAIL() << "Expected mutateWithMeta to throw due to out of bounds "
+                  "seqno offset";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Seqno offset is out of bounds of the xattr section",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaPatternOnEmptyDocument) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    doc.value.clear();
+    doc.info.datatype = Datatype::Raw;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    std::vector<std::size_t> cas_offsets = {0};
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Add,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to empty document";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Cannot use pattern macros on empty documents",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaPatternOnDocumentWithoutXattr) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    doc.value = R"({"body":"value"})";
+    doc.info.datatype = Datatype::JSON;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    std::vector<std::size_t> cas_offsets = {0};
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Add,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                cas_offsets,
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to missing xattrs";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Cannot use pattern macros documents without xattr",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaDeleteWithBody) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    cb::xattr::Blob blob;
+    blob.set("_sys", R"({"author":"bubba"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.value.append("body content");
+    doc.info.datatype = Datatype::Xattr;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Delete,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                {},
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to body in delete";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Delete with meta: Document cannot have a body",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaDeleteWithUserXattrs) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    cb::xattr::Blob blob;
+    blob.set("user", R"({"author":"bubba"})");
+    const auto xattrs = blob.finalize();
+    doc.value.clear();
+    std::ranges::copy(xattrs, std::back_inserter(doc.value));
+    doc.info.datatype = Datatype::Xattr;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Delete,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                {},
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to user xattrs in "
+                  "delete";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Delete with meta: user-xattrs is not allowed",
+                  error.getErrorContext());
+    }
+}
+
+TEST_P(WithMetaTest, MutateWithMetaDeleteWithBodyNoXattr) {
+    using namespace cb::mcbp;
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::No ||
+        ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
+        GTEST_SKIP();
+    }
+
+    Document doc{};
+    doc.value = "body content";
+    doc.info.datatype = Datatype::Raw;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.flags = 0xdeadbeef;
+
+    try {
+        userConnection->mutateWithMeta(
+                doc,
+                Vbid{0},
+                request::MutateWithMetaCommand::Delete,
+                cas::Wildcard,
+                REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                1,
+                {},
+                {});
+        FAIL() << "Expected mutateWithMeta to throw due to body in delete";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        EXPECT_EQ("Delete with meta: Document cannot have a body",
+                  error.getErrorContext());
+    }
 }
 
 class WithMetaRegenerateCasTest : public TestappXattrClientTest {
