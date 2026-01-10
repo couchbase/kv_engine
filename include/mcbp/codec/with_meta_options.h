@@ -22,7 +22,7 @@ struct WithMetaOptions {
     bool operator==(const WithMetaOptions&) const = default;
 
     /// Encode the options back into a bitfield
-    uint32_t encode();
+    uint32_t encode() const;
 
     CheckConflicts check_conflicts = CheckConflicts::Yes;
     GenerateCas generate_cas = GenerateCas::No;

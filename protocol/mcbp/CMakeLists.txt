@@ -22,6 +22,7 @@ add_library(mcbp STATIC
             json_utilities.cc
             lldb_dump_parser.cc
             magic.cc
+            mutate_with_meta_payload.cc
             opcode.cc
             request.cc
             response.cc
@@ -60,6 +61,7 @@ cb_add_test_executable(mcbp_unit_tests
                json_utilities_test.cc
                magic_test.cc
                mcbp_dump_parser_test.cc
+               mutate_with_meta_payload_test.cc
                request_test.cc
                sla_test.cc)
 kv_enable_pch(mcbp_unit_tests)

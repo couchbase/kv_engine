@@ -85,6 +85,16 @@ public:
         prune_keys(Type::System);
     }
 
+    /// Check if the blob contains any user keys
+    [[nodiscard]]
+    bool has_user_keys() const {
+        // If the blob is empty the size is reported as 0 bytes.
+        // otherwise a Blob section user (or system) would be at least
+        // 4 bytes (the length field for the Blob). Any *actual* user
+        // keys would make the size larger than 4 bytes.
+        return get_user_size() > 4;
+    }
+
     /**
      * Finalize the buffer and return it's content.
      *

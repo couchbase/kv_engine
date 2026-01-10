@@ -485,6 +485,7 @@ information about a given command.
 | 0x48 | Get all vb seqnos |
 | 0x49 | [GetEx](#0x49-getex) |
 | 0x4a | [GetExReplica](#0x50-getexreplica) |
+| 0x4b | [MutateWithMeta](mutate-with-meta.md) |
 | 0x50 | [Dcp Open](dcp/documentation/commands/open-connection.md) |
 | 0x51 | [Dcp add stream](dcp/documentation/commands/add-stream.md) |
 | 0x52 | [Dcp close stream](dcp/documentation/commands/close-stream.md) |

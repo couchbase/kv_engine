@@ -126,6 +126,7 @@ enum class ClientOpcode : uint8_t {
 
     GetEx = 0x49,
     GetExReplica = 0x4a,
+    MutateWithMeta = 0x4b,
 
     /* DCP */
     DcpOpen = 0x50,

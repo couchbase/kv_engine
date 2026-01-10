@@ -43,6 +43,7 @@
 #include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/ioctl_command_context.h"
 #include "protocol/mcbp/mount_fusion_vbucket_command_context.h"
+#include "protocol/mcbp/mutate_with_meta_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/no_success_response_steppable_context.h"
 #include "protocol/mcbp/observe_context.h"
@@ -194,6 +195,10 @@ static void set_executor(Cookie& cookie) {
 
 static void replace_executor(Cookie& cookie) {
     add_set_replace_executor(cookie, StoreSemantics::Replace);
+}
+
+static void mutate_with_meta_executor(Cookie& cookie) {
+    cookie.obtainContext<MutateWithMetaCommandContext>(cookie).drive();
 }
 
 static void append_prepend_executor(Cookie& cookie) {
@@ -864,6 +869,8 @@ void initialize_mbcp_lookup_map() {
         handler = process_bin_unknown_packet;
     }
 
+    setup_handler(cb::mcbp::ClientOpcode::MutateWithMeta,
+                  mutate_with_meta_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpOpen, dcp_open_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpAddStream,
                   dcp_add_stream_executor);

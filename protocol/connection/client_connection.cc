@@ -1998,6 +1998,36 @@ MutationInfo MemcachedConnection::mutateWithMeta(
     return response.getMutationInfo();
 }
 
+MutationInfo MemcachedConnection::mutateWithMeta(
+        Document& doc,
+        Vbid vbucket,
+        cb::mcbp::request::MutateWithMetaCommand command,
+        uint64_t operation_cas,
+        uint32_t meta_option,
+        uint64_t rev_seqno,
+        std::vector<std::size_t> cas_offsets,
+        std::vector<std::size_t> seqno_offsets,
+        const GetFrameInfoFunction& getFrameInfo) {
+    BinprotMutateWithMetaCommand cmd(doc,
+                                     vbucket,
+                                     command,
+                                     operation_cas,
+                                     meta_option,
+                                     rev_seqno,
+                                     std::move(cas_offsets),
+                                     std::move(seqno_offsets));
+    applyFrameInfos(cmd, getFrameInfo);
+
+    const auto response = BinprotMutationResponse(execute(cmd));
+    if (!response.isSuccess()) {
+        throw ConnectionError(
+                fmt::format("Failed to mutateWithMeta {}", doc.info.id),
+                response);
+    }
+
+    return response.getMutationInfo();
+}
+
 ObserveInfo MemcachedConnection::observeSeqno(
         Vbid vbid, uint64_t uuid, const GetFrameInfoFunction& getFrameInfo) {
     BinprotObserveSeqnoCommand observe(vbid, uuid);

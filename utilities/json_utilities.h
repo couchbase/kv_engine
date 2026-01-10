@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,7 +10,12 @@
 
 #pragma once
 
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/string_hex.h>
+
+#include <gsl/gsl-lite.hpp>
+#include <charconv>
 #include <optional>
 
 namespace cb {
@@ -146,4 +150,52 @@ void throwIfWrongType(const std::string& errorKey,
                       const nlohmann::json& object,
                       nlohmann::json::value_t expectedType,
                       const std::string& calledFrom = "");
+
+/**
+ * Helper function to extract a value of type T from a json object
+ * given a key. If the key does not exist or the type is incorrect
+ * an exception is thrown. It allows the number to either be a JSON
+ * number, a string containing a decimal number, or a string containing
+ * a hex number prefixed with "0x".
+ *
+ * @param json the json object to extract from
+ * @param key the key to extract
+ * @return the extracted value
+ * @throws std::logic_error if the key does not exist or if its not a number
+ *                          or string
+ * @throws std::out_of_range if the value won't fit in the provided datatype
+ */
+template <typename T>
+static T getValueFromJson(const nlohmann::json& json, const std::string& key) {
+    if (!json.contains(key)) {
+        throw std::logic_error("Missing required field: " + key);
+    }
+
+    if (json[key].is_number()) {
+        return json[key].get<T>();
+    }
+
+    if (json[key].is_string()) {
+        std::string value = json[key].get<std::string>();
+        if (value.starts_with("0x")) {
+            return gsl::narrow_cast<T>(cb::from_hex(value));
+        }
+
+        T ret;
+        const auto [ptr, ec]{std::from_chars(
+                value.data(), value.data() + value.size(), ret)};
+        if (ec != std::errc()) {
+            if (ec == std::errc::result_out_of_range) {
+                throw std::out_of_range(fmt::format(
+                        "Value for '{}' won't fit in the datatype", key));
+            }
+            throw std::system_error(std::make_error_code(ec));
+        }
+        return ret;
+    }
+
+    throw std::logic_error(fmt::format(
+            "Field '{}' must be a number: '{}'", key, json[key].dump()));
+}
+
 } // namespace cb

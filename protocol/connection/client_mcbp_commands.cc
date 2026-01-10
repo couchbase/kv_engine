@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -12,8 +11,12 @@
 #include <dek/manager.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/codec/frameinfo.h>
+#include <mcbp/codec/mutate_with_meta_payload.h>
+#include <mcbp/codec/with_meta_options.h>
 #include <mcbp/mcbp.h>
 #include <memcached/tracer.h>
+#include <platform/string_hex.h>
+
 #include <array>
 #include <utility>
 
@@ -1916,6 +1919,51 @@ void BinprotDelWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), doc.value.begin(), doc.value.end());
+}
+
+BinprotMutateWithMetaCommand::BinprotMutateWithMetaCommand(
+        Document document,
+        Vbid vbucket,
+        cb::mcbp::request::MutateWithMetaCommand command,
+        uint64_t operation_cas,
+        uint32_t meta_option,
+        uint64_t rev_seqno,
+        std::vector<std::size_t> cas_offsets,
+        std::vector<std::size_t> seqno_offsets)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::MutateWithMeta,
+                            document.info.id),
+      doc(std::move(document)) {
+    const auto options = cb::mcbp::WithMetaOptions(meta_option);
+    cb::mcbp::request::MutateWithMetaPayload payload;
+    payload.flags = doc.info.flags;
+    payload.exptime = doc.info.expiration;
+    if (rev_seqno != DEFAULT_REV_SEQ_NUM) {
+        payload.rev_seqno = rev_seqno;
+    }
+    if (options.generate_cas != GenerateCas::Yes) {
+        payload.cas = doc.info.cas;
+    }
+    payload.options = meta_option;
+    payload.command = command;
+    payload.cas_offsets = std::move(cas_offsets);
+    payload.seqno_offsets = std::move(seqno_offsets);
+    extras = payload;
+
+    setVBucket(vbucket);
+    setCas(operation_cas);
+    setDatatype(doc.info.datatype);
+}
+
+void BinprotMutateWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
+    std::string meta = extras.dump();
+    uint32_t meta_len = htonl(static_cast<uint32_t>(meta.size()));
+    writeHeader(buf, doc.value.size() + meta.size(), sizeof(meta_len));
+    buf.insert(buf.end(),
+               reinterpret_cast<uint8_t*>(&meta_len),
+               reinterpret_cast<uint8_t*>(&meta_len) + sizeof(meta_len));
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), doc.value.begin(), doc.value.end());
+    buf.insert(buf.end(), meta.begin(), meta.end());
 }
 
 BinprotReturnMetaCommand::BinprotReturnMetaCommand(

@@ -168,6 +168,10 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// server). It may be used from the client to determine if the server
     /// supports returning xattrs along with documents for GetRandomKey
     GetRandomKeyIncludeXattr = 0x24,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports the MutateWithMeta command.
+    MutateWithMeta = 0x25,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);

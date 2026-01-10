@@ -238,6 +238,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::AddqWithMeta, requireMetaWriteOnCurrentDocument);
     setup(ClientOpcode::DelWithMeta, requireMetaWriteOnCurrentDocument);
     setup(ClientOpcode::DelqWithMeta, requireMetaWriteOnCurrentDocument);
+    setup(ClientOpcode::MutateWithMeta, requireMetaWriteOnCurrentDocument);
     setup(ClientOpcode::EnableTraffic, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::DisableTraffic, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::Ifconfig, require<Privilege::NodeSupervisor>);

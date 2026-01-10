@@ -1203,7 +1203,8 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
              cb::mcbp::Feature::SELECT_BUCKET,
              cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
              cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
-             cb::mcbp::Feature::SubdocBinaryXattr}};
+             cb::mcbp::Feature::SubdocBinaryXattr,
+             cb::mcbp::Feature::MutateWithMeta}};
     switch (hasSnappySupport()) {
     case ClientSnappySupport::Everywhere:
         features.push_back(cb::mcbp::Feature::SnappyEverywhere);

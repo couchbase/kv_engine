@@ -77,6 +77,8 @@ add_library(memcached_daemon_mcbp OBJECT
         list_bucket_executor.cc
         mount_fusion_vbucket_command_context.cc
         mount_fusion_vbucket_command_context.h
+        mutate_with_meta_context.cc
+        mutate_with_meta_context.h
         mutation_context.cc
         mutation_context.h
         no_success_response_steppable_context.h

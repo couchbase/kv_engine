@@ -2239,6 +2239,8 @@ cb::engine_errc VBucket::setWithMeta(
         v->unlock();
     }
 
+    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+
     // MB-33919: Do not generate the delete-time - delete's can come through
     // this path and the delete time from the input should be used (unless it
     // is 0, where it must be regenerated)
@@ -2249,7 +2251,7 @@ cb::engine_errc VBucket::setWithMeta(
             (genCas == GenerateCas::Yes) ? TrackCasDrift::No
                                          : TrackCasDrift::Yes,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
-            nullptr /* No pre link step needed */,
+            &preLinkDocumentContext,
             {} /*overwritingPrepareSeqno*/,
             cHandle.getCanDeduplicate(),
             enforceMemCheck};

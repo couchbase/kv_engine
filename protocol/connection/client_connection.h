@@ -13,6 +13,7 @@
 #include <fmt/ostream.h>
 #include <folly/Synchronized.h>
 #include <folly/io/async/DelayedDestruction.h>
+#include <mcbp/codec/with_meta_options.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine_error.h>
 #include <memcached/protocol_binary.h>
@@ -39,6 +40,7 @@ class Builder;
 }
 namespace cb::mcbp::request {
 class FrameInfo;
+enum class MutateWithMetaCommand;
 }
 
 using FrameInfoVector =
@@ -950,6 +952,38 @@ public:
                                 uint32_t metaOption,
                                 std::vector<uint8_t> metaExtras = {},
                                 const GetFrameInfoFunction& getFrameInfo = {});
+
+    MutationInfo mutateWithMeta(
+            Document& doc,
+            Vbid vbucket,
+            cb::mcbp::request::MutateWithMetaCommand command,
+            uint64_t operation_cas,
+            uint32_t meta_option,
+            uint64_t rev_seqno,
+            std::vector<std::size_t> cas_offsets = {},
+            std::vector<std::size_t> seqno_offsets = {},
+            const GetFrameInfoFunction& getFrameInfo = {});
+
+    MutationInfo mutateWithMeta(
+            Document& doc,
+            Vbid vbucket,
+            cb::mcbp::request::MutateWithMetaCommand command,
+            uint64_t operation_cas,
+            cb::mcbp::WithMetaOptions meta_option,
+            uint64_t rev_seqno,
+            std::vector<std::size_t> cas_offsets = {},
+            std::vector<std::size_t> seqno_offsets = {},
+            const GetFrameInfoFunction& getFrameInfo = {}) {
+        return mutateWithMeta(doc,
+                              vbucket,
+                              command,
+                              operation_cas,
+                              meta_option.encode(),
+                              rev_seqno,
+                              std::move(cas_offsets),
+                              std::move(seqno_offsets),
+                              getFrameInfo);
+    }
 
     /**
      * Call GetMeta for the provided document in the provided vbucket.

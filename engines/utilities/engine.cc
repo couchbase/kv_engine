@@ -99,6 +99,39 @@ cb::EngineErrorItemPair EngineIface::get_random_document(CookieIface& cookie,
     return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
 }
 
+cb::engine_errc EngineIface::set_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force) {
+    return cb::engine_errc::not_supported;
+}
+
+cb::engine_errc EngineIface::delete_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force) {
+    return cb::engine_errc::not_supported;
+}
+
 std::string to_string(const TrafficControlMode mode) {
     switch (mode) {
     case TrafficControlMode::Enabled:
