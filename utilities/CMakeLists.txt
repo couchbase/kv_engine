@@ -10,6 +10,8 @@ add_library(mcd_util STATIC
             breakpad_common.cc
             breakpad_settings.cc
             breakpad_settings.h
+            clustermap_utils.cc
+            clustermap_utils.h
             configuration_iface.cc
             config_parser.cc
             connection_iface.cc
@@ -74,6 +76,7 @@ target_link_libraries(mcd_util
                 engine_utilities
                 memcached_logger
                 hdrhistogram
+                nlohmann_json::nlohmann_json
                 OpenSSL::SSL)
 add_sanitizers(mcd_util)
 kv_enable_pch(mcd_util)
@@ -88,6 +91,7 @@ kv_enable_pch(mcd_test_util)
 
 cb_add_test_executable(utilities_testapp
         breakpad_settings_test.cc
+        clustermap_utils_test.cc
         config_parser_test.cc
         dek_file_utilities_test.cc
         stat_group_test.cc
