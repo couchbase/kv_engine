@@ -257,8 +257,6 @@ bool CacheTransferTask::run() {
             position,
             isAllKeys ? HashTable::VisitCompleteChain::Yes
                       : HashTable::VisitCompleteChain::No);
-    // Nofify the producer if something was queued
-    bool notify = visitor.getQueuedCount() > 0;
     auto& stream = visitor.getStream();
     // Accumulate stats for the overall HT visit
     visitedCount += visitor.getVisitedCount();
@@ -266,25 +264,24 @@ bool CacheTransferTask::run() {
 
     // Helper function to try and notify the producer and select the correct
     // return value for the tasks continuation
-    auto notifyAndGetRescheduleValue =
-            [&notify, &stream, this](bool reschedule) {
-                if (!stream.isActive()) {
-                    // Stream is dead, but we may still need to notify.
-                    // The task should not reschedule
-                    reschedule = false;
-                }
-                if (notify) {
-                    // Notify producer to ship the queued data
-                    auto producer = stream.getProducer();
-                    if (producer) {
-                        producer->notifyStreamReady(vbid);
-                    } else {
-                        // No producer, stop the task.
-                        return false;
-                    }
-                }
-                return reschedule;
-            };
+    auto notifyAndGetRescheduleValue = [&stream, this](bool reschedule) {
+        if (!stream.isActive()) {
+            // Stream is dead, but we may still need to notify.
+            // The task should not reschedule
+            reschedule = false;
+        }
+        // Nofify the producer if something was queued
+        if (visitor.getQueuedCount() > 0) {
+            auto producer = stream.getProducer();
+            if (producer) {
+                producer->notifyStreamReady(vbid);
+            } else {
+                // No producer, stop the task.
+                return false;
+            }
+        }
+        return reschedule;
+    };
 
     if (position == vb->ht.endPosition() ||
         CacheTransferStream::isFinished(visitor.getStatus())) {
@@ -309,9 +306,7 @@ bool CacheTransferTask::run() {
                  {"total_bytes_queued", stream.getTotalBytesQueued()}});
 
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
-        // Notify the producer as we have queued a stream end.
-        notify = true;
-        return notifyAndGetRescheduleValue(false);
+        return false;
     }
 
     if (visitor.getStatus() == CacheTransferStream::Status::OOM) {
