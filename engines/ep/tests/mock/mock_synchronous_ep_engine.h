@@ -116,7 +116,7 @@ public:
             DocKeyView key,
             cb::const_byte_buffer value,
             ItemMetaData itemMeta,
-            bool isDeleted,
+            std::optional<DeleteSource> deleteSource,
             protocol_binary_datatype_t datatype,
             uint64_t& cas,
             uint64_t* seqno,

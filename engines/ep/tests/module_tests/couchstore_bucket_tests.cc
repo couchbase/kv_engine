@@ -123,7 +123,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 engine->public_makeDocKey(*cookie, key),
                 valBuf,
                 {cas, revSeqno, 0 /*flags*/, 0 /*exp*/},
-                false /*isDeleted*/,
+                std::nullopt /*isDeleted*/,
                 PROTOCOL_BINARY_RAW_BYTES,
                 opCas,
                 &seqno,

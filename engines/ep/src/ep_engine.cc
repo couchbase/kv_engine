@@ -5919,7 +5919,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           makeDocKey(cookie, request.getKey()),
                           value,
                           {cas, seqno, flags, expiration},
-                          false /*isDeleted*/,
+                          std::nullopt /*isDeleted*/,
                           uint8_t(request.getDatatype()),
                           commandCas,
                           &bySeqno,
@@ -5996,7 +5996,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         DocKeyView key,
         cb::const_byte_buffer value,
         ItemMetaData itemMeta,
-        bool isDeleted,
+        std::optional<DeleteSource> deleteSource,
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
         uint64_t* seqno,
@@ -6099,8 +6099,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     stats.itemAllocSizeHisto.addValue(finalValue.size());
 
     item->setRevSeqno(itemMeta.revSeqno);
-    if (isDeleted) {
-        item->setDeleted();
+    if (deleteSource.has_value()) {
+        item->setDeleted(*deleteSource);
     }
     auto ret = kvBucket->setWithMeta(*item,
                                      cas,
@@ -6218,7 +6218,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               key,
                               value,
                               {metacas, seqno, flags, delete_time},
-                              true /*isDeleted*/,
+                              deleteSource,
                               PROTOCOL_BINARY_DATATYPE_XATTR,
                               cas,
                               &bySeqno,

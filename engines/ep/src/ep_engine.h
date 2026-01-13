@@ -1574,7 +1574,7 @@ protected:
      * @param key DocKey initialised with key data
      * @param value buffer for the mutation's value
      * @param itemMeta mutation's cas/revseq/flags/expiration
-     * @param isDeleted the Item is deleted (with value)
+     * @param deleteSource the Item is deleted (with value) if has_value()
      * @param datatype datatype of the mutation
      * @param cas [in,out] CAS for the command (updated with new CAS)
      * @param seqno [out] optional - returns the seqno allocated to the mutation
@@ -1590,7 +1590,7 @@ protected:
                                 DocKeyView key,
                                 cb::const_byte_buffer value,
                                 ItemMetaData itemMeta,
-                                bool isDeleted,
+                                std::optional<DeleteSource> deleteSource,
                                 protocol_binary_datatype_t datatype,
                                 uint64_t& cas,
                                 uint64_t* seqno,
