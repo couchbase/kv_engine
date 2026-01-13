@@ -111,6 +111,11 @@ public:
         return std::chrono::steady_clock::now();
     }
 
+    std::optional<FutureVBucketInfo> getFutureVbucketCounts(
+            std::optional<FutureVBucketInfo> previousInfo) const override {
+        return std::nullopt;
+    }
+
 protected:
     DummyConnection connection;
 };

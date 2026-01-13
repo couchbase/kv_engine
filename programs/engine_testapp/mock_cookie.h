@@ -210,6 +210,15 @@ public:
     std::unique_ptr<folly::IOBuf> inflateSnappy(
             std::string_view input) override;
 
+    std::optional<FutureVBucketInfo> getFutureVbucketCounts(
+            std::optional<FutureVBucketInfo>) const override {
+        return futureVbucketCounts;
+    }
+
+    void setFutureVbucketCounts(std::optional<FutureVBucketInfo> info) {
+        futureVbucketCounts = std::move(info);
+    }
+
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
     static CheckForPrivilegeAtLeastInOneCollectionFunction
@@ -229,6 +238,7 @@ protected:
     std::function<void(cb::engine_errc)> userNotifyIoComplete;
     std::chrono::steady_clock::time_point startTime =
             std::chrono::steady_clock::now();
+    std::optional<FutureVBucketInfo> futureVbucketCounts;
 };
 
 MockCookie* create_mock_cookie(EngineIface* engine = nullptr);

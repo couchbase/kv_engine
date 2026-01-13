@@ -549,7 +549,7 @@ TEST(FFMapSignature, IdenticalMapsProduceSameSignature) {
 
 TEST(FFMapSignature, DifferentVBucketMapProducesDifferentSignature) {
     // Two configs with different vBucketMapForward should produce different
-    // signatures. These two ensure
+    // signatures.
     constexpr std::string_view config1 = R"({
         "nodesExt": [
             {"services": {"kv": 11210}, "thisNode": true},

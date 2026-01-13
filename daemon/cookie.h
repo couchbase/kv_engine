@@ -466,6 +466,10 @@ public:
     std::unique_ptr<folly::IOBuf> inflateSnappy(
             std::string_view input) override;
 
+    std::optional<FutureVBucketInfo> getFutureVbucketCounts(
+            std::optional<FutureVBucketInfo> previousInfo =
+                    std::nullopt) const override;
+
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,

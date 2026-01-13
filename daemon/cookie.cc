@@ -39,6 +39,7 @@
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
 #include <serverless/config.h>
+#include <utilities/clustermap_utils.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <cctype>
@@ -1096,4 +1097,37 @@ cb::engine_errc Cookie::preLinkDocument(item_info& info) {
     }
 
     return cb::engine_errc::success;
+}
+
+std::optional<FutureVBucketInfo> Cookie::getFutureVbucketCounts(
+        std::optional<FutureVBucketInfo> previousInfo) const {
+    // Ensure that this function runs off any arena as the config could destruct
+    // in this scope.
+    cb::NoArenaGuard guard;
+    auto& bucket = connection.getBucket();
+    auto config = bucket.clusterConfiguration.maybeGetConfiguration(
+            ClustermapVersion(), false);
+
+    if (!config) {
+        return std::nullopt;
+    }
+
+    if (previousInfo &&
+        ClustermapVersion(previousInfo->epoch, previousInfo->revno) ==
+                config->version) {
+        // Current map matches the caller's info, return what they gave us (skip
+        // parsing)
+        return previousInfo;
+    }
+
+    auto vbucketCounts = cb::getFutureVbucketCounts(config->uncompressed);
+    if (!vbucketCounts) {
+        return std::nullopt;
+    }
+
+    return FutureVBucketInfo{config->version.getEpoch(),
+                             config->version.getRevno(),
+                             vbucketCounts->active,
+                             vbucketCounts->replica,
+                             vbucketCounts->signature};
 }

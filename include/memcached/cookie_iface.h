@@ -20,6 +20,7 @@
 #include <optional>
 
 namespace cb {
+struct VBucketCounts;
 enum class engine_errc;
 }
 namespace cb::mcbp {
@@ -44,6 +45,33 @@ enum class Operation;
 namespace folly {
 class IOBuf;
 }
+
+/**
+ * FutureVBucketInfo is used to return data about the fast-forward map.
+ * epoch/revno are copied from the cluster configuration and can allow callers
+ * to determine if the map has changed since the last time they looked at it.
+ * This is to avoid reparsing the cluster-map.
+ *
+ * active/replica counts are the number of active and replica vbuckets in the
+ * fast-forward map for this node.
+ *
+ * signature is a hash of the fast-forward map so that even if the
+ * active/replica counts matched, there is a way to determine if positions
+ * have changed,
+ *
+ * This uses system types to reduce dependencies between each side of the great
+ * daemon/engine divide.
+ *
+ */
+struct FutureVBucketInfo {
+    int64_t epoch{0};
+    int64_t revno{0};
+    size_t active{0};
+    size_t replica{0};
+    size_t signature{0};
+
+    bool operator==(const FutureVBucketInfo& other) const = default;
+};
 
 /**
  * The CookieIface is an abstract class representing a single command
@@ -316,6 +344,20 @@ public:
 
     /// Get the start time for the command associated with this cookie
     virtual std::chrono::steady_clock::time_point getStartTime() const = 0;
+
+    /**
+     * Get the current clustermap version and future vBucket counts for the
+     * connected bucket's configuration.
+     *
+     * @param previousInfo Optional: The caller should provide the last
+     * FutureVBucketInfo they retrieved to avoid reparsing the config if nothing
+     * has changed.
+     * @return FutureVBucketInfo (see struct comments) or std::nullopt if no
+     * fast forward map is available or if it could not be parsed.
+     */
+    virtual std::optional<FutureVBucketInfo> getFutureVbucketCounts(
+            std::optional<FutureVBucketInfo> previousInfo =
+                    std::nullopt) const = 0;
 
 protected:
     std::atomic<size_t> document_bytes_read = 0;
