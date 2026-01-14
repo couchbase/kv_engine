@@ -4661,6 +4661,11 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
         auto nonio = expool->getNumNonIO();
         add_casted_stat("ep_workload:num_nonio"sv, nonio, add_stat, cookie);
 
+        add_casted_stat("ep_workload:num_slowio"sv,
+                        expool->getNumSlowIO(),
+                        add_stat,
+                        cookie);
+
         auto threadsPerCore = expool->getNumIOThreadsPerCore();
         add_casted_stat("ep_workload:num_io_threads_per_core"sv,
                         threadsPerCore,
