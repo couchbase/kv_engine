@@ -937,7 +937,7 @@ public:
                               uint64_t operationCas,
                               uint64_t seqno,
                               uint32_t options,
-                              std::vector<uint8_t> meta);
+                              const std::vector<uint8_t>& meta = {});
 
     BinprotSetWithMetaCommand& setQuiet(bool quiet);
 

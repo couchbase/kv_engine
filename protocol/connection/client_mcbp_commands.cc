@@ -1457,7 +1457,7 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
         extlen += 2;
     }
 
-    writeHeader(buf, doc.value.size(), extlen);
+    writeHeader(buf, doc.value.size() + meta.size(), extlen);
     auto& request = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
     request.setDatatype(doc.info.datatype);
     append(buf, getFlags());
@@ -1470,7 +1470,7 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     }
 
     if (!meta.empty()) {
-        append(buf, uint16_t(htons(gsl::narrow<uint16_t>(meta.size()))));
+        append(buf, uint16_t(gsl::narrow<uint16_t>(meta.size())));
     }
 
     buf.insert(buf.end(), key.begin(), key.end());
@@ -1478,18 +1478,19 @@ void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), meta.begin(), meta.end());
 }
 
-BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
-                                                     Vbid vbucket,
-                                                     uint64_t operationCas,
-                                                     uint64_t seqno,
-                                                     uint32_t options,
-                                                     std::vector<uint8_t> meta)
+BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(
+        const Document& doc,
+        Vbid vbucket,
+        uint64_t operationCas,
+        uint64_t seqno,
+        uint32_t options,
+        const std::vector<uint8_t>& emeta)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetWithMeta),
       doc(doc),
       seqno(seqno),
       operationCas(operationCas),
       options(options),
-      meta(std::move(meta)) {
+      meta(emeta) {
     setVBucket(vbucket);
     setCas(operationCas);
     setKey(doc.info.id);

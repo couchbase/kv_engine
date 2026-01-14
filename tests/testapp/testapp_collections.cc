@@ -1025,14 +1025,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetWithMeta_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1044,14 +1042,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetWithMeta_with_euid_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1063,14 +1059,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetWithMeta_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetWithMeta);
     execute(*admin, command, false, false, false, Status::Success);
@@ -1082,14 +1076,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetWithMeta_with_euid_with_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetWithMeta);
     execute(*admin, command, true, false, true, Status::Success);
@@ -1101,14 +1093,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetqWithMeta_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetqWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1120,14 +1110,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetqWithMeta_with_euid_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetqWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1139,14 +1127,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetqWithMeta_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetqWithMeta);
     admin->sendCommand(command);
@@ -1168,14 +1154,12 @@ TEST_P(CollectionsTest, ClientOpcode_SetqWithMeta_with_euid_with_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::SetqWithMeta);
     command.addFrameInfo(euid);
@@ -1200,14 +1184,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddWithMeta_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1219,14 +1201,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddWithMeta_with_euid_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1238,14 +1218,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddWithMeta_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
     command.setOp(ClientOpcode::AddWithMeta);
     execute(*admin, command, false, false, false, Status::Success);
 }
@@ -1256,14 +1234,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddWithMeta_with_euid_with_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
     command.setOp(ClientOpcode::AddWithMeta);
     execute(*admin, command, true, false, true, Status::Success);
 }
@@ -1274,14 +1250,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddqWithMeta_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddqWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1293,14 +1267,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddqWithMeta_with_euid_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddqWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1312,14 +1284,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddqWithMeta_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddqWithMeta);
     admin->sendCommand(command);
@@ -1341,14 +1311,12 @@ TEST_P(CollectionsTest, ClientOpcode_AddqWithMeta_with_euid_with_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::AddqWithMeta);
     command.addFrameInfo(euid);
@@ -1372,14 +1340,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelWithMeta_no_access) {
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1390,14 +1356,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelWithMeta_with_euid_no_access) {
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1408,14 +1372,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelWithMeta_access) {
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelWithMeta);
     execute(*admin, command, false, false, false, Status::Success);
@@ -1426,14 +1388,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelWithMeta_with_euid_with_access) {
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelWithMeta);
     execute(*admin, command, true, false, true, Status::Success);
@@ -1444,14 +1404,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelqWithMeta_no_access) {
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelWithMeta);
     executeInSystemCollectionWithoutAccess(*user, command, false);
@@ -1463,14 +1421,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelqWithMeta_with_euid_no_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelqWithMeta);
     executeInSystemCollectionWithoutAccess(*admin, command, true);
@@ -1482,14 +1438,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelqWithMeta_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelqWithMeta);
     admin->sendCommand(command);
@@ -1511,14 +1465,12 @@ TEST_P(CollectionsTest, ClientOpcode_DelqWithMeta_with_euid_with_access) {
     doc.info.flags = 0xcafefeed;
     doc.value = "foo";
 
-    std::vector<uint8_t> meta;
     BinprotSetWithMetaCommand command{
             doc,
             Vbid{0},
             cb::mcbp::cas::Wildcard,
             127,
-            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
-            meta};
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG};
 
     command.setOp(ClientOpcode::DelqWithMeta);
     command.addFrameInfo(euid);

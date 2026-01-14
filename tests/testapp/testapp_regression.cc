@@ -18,7 +18,10 @@
 #include <algorithm>
 #include <filesystem>
 
-class RegressionTest : public TestappClientTest {};
+class RegressionTest : public TestappClientTest {
+protected:
+    void runSetWithMetaRegressionTest(const std::vector<uint8_t>& emeta);
+};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          RegressionTest,
@@ -732,4 +735,101 @@ TEST_P(RegressionTest, MB64825) {
     rsp = userConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "foo"});
     ASSERT_EQ(cb::mcbp::Status::NoBucket, rsp.getStatus());
+}
+
+void RegressionTest::runSetWithMetaRegressionTest(
+        const std::vector<uint8_t>& emeta) {
+    Document doc{};
+    doc.value = "value";
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+    doc.info.id = name;
+    doc.info.cas = 1;
+    doc.info.expiration = 0;
+    doc.info.flags = 0xdeadbeef;
+
+    userConnection->mutateWithMeta(
+            doc, Vbid(0), cb::mcbp::cas::Wildcard, 1, 0, emeta);
+
+    auto info = userConnection->get(name, Vbid(0));
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, info.info.datatype);
+    EXPECT_EQ("value", info.value);
+    EXPECT_EQ(1, info.info.cas);
+    EXPECT_EQ(0, info.info.expiration);
+    EXPECT_EQ(0xdeadbeef, info.info.flags);
+}
+
+/// Watson (4.6) accepts valid encodings, but ignores them
+TEST_P(RegressionTest, MB70169_testcase_1) {
+    runSetWithMetaRegressionTest({0xfe, 0xff, 0x02, 0x03});
+}
+
+/// Set the key and junk nmeta that's quite large
+TEST_P(RegressionTest, MB70169_testcase_2) {
+    std::vector<uint8_t> emeta(65535);
+    runSetWithMetaRegressionTest(emeta);
+}
+
+/// Set the key and valid nmeta meta ext 1 and adjust time
+TEST_P(RegressionTest, MB70169_testcase_3) {
+    std::vector<uint8_t> emeta = {0x01,
+                                  0x01,
+                                  0x00,
+                                  0x08,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff};
+    runSetWithMetaRegressionTest(emeta);
+}
+
+/// Set the key and valid nmeta meta ext 1 and conflict res mode
+TEST_P(RegressionTest, MB70169_testcase_4) {
+    std::vector<uint8_t> emeta = {0x01, 0x02, 0x00, 0x01, 0xff};
+    runSetWithMetaRegressionTest(emeta);
+}
+
+/// Set the key and valid nmeta meta ext 1 and conflict res mode and adjust time
+TEST_P(RegressionTest, MB70169_testcase_5) {
+    std::vector<uint8_t> emeta = {0x01,
+                                  0x02,
+                                  0x00,
+                                  0x01,
+                                  0xff,
+                                  0x01,
+                                  0x00,
+                                  0x08,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff};
+    runSetWithMetaRegressionTest(emeta);
+}
+
+/// Same as testcase 5 in reverse order
+TEST_P(RegressionTest, MB70169_testcase_6) {
+    std::vector<uint8_t> emeta = {0x01,
+                                  0x01,
+                                  0x00,
+                                  0x08,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0xff,
+                                  0x02,
+                                  0x00,
+                                  0x01,
+                                  0xff};
+    runSetWithMetaRegressionTest(emeta);
 }
