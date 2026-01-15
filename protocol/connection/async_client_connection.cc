@@ -307,7 +307,8 @@ void AsyncClientConnection::authenticate(std::string_view user,
                     client_data.first));
         }
 
-        response = execute(BinprotSaslStepCommand{mech, client_data.second});
+        response = execute(
+                BinprotSaslStepCommand{client.getName(), client_data.second});
     }
 
     if (response.isSuccess()) {
