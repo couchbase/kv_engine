@@ -955,6 +955,27 @@ def stats_diskinfo(mc, with_detail=None):
     stats_formatter(stats_perform(mc, cmd_str))
 
 
+def parse_fusion_arg(arg):
+    if arg == "detail":
+        return arg
+
+    try:
+        return int(arg)
+    except (TypeError, ValueError):
+        print(f"Invalid argument: {arg}")
+        print('Argument must be "detail" or an integer vbId')
+        sys.exit(1)
+
+
+@cmd
+def stats_fusion(mc, subcmd, detailOrvbId=None):
+    cmd_str = f"fusion {subcmd}"
+    if detailOrvbId is not None:
+        arg = parse_fusion_arg(detailOrvbId)
+        cmd_str += f" {arg}"
+    stats_formatter(stats_perform(mc, cmd_str))
+
+
 @cmd
 def stats_diskfailures(mc):
     stats_formatter(stats_perform(mc, "disk-failures"))
@@ -1139,6 +1160,7 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
+    c.addCommand('fusion', stats_fusion, 'fusion subcmd [detail | vbid]')
     c.addCommand('disk-failures', stats_diskfailures, 'disk-failures')
     c.addCommand(
         'durability-monitor',
