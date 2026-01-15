@@ -20,6 +20,8 @@
 #include "failover-table.h"
 #include "vbucket_state.h"
 
+#include <fmt/format.h>
+
 VBucketLoader::~VBucketLoader() = default;
 
 VBucketLoader::VBucketLoader(EPBucket& st,
@@ -171,6 +173,8 @@ VBucketLoader::loadPreparedSyncWrites() {
 
 EPBucket::FlushResult VBucketLoader::addToVBucketMap() {
     Expects(vb);
+    // Ensure serialization with collection manifest updates.
+    std::unique_lock vbset(store.vbsetMutex);
     // Take the vBucket lock to stop the flusher from racing with our
     // set vBucket state. It MUST go to disk in the first flush batch
     // or we run the risk of not rolling back replicas that we should
@@ -180,21 +184,32 @@ EPBucket::FlushResult VBucketLoader::addToVBucketMap() {
 
     vb->checkpointManager->queueSetVBState();
 
-    {
+    if (vb->getState() == vbucket_state_active) {
         // Note this lock is here for correctness - the VBucket is not
         // accessible yet, so its state cannot be changed by other code.
         std::shared_lock rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_active) {
-            // For all active vbuckets, call through to the manager so
-            // that they are made 'current' with the manifest.
-            store.getCollectionsManager().maybeUpdate(rlh, *vb);
-        }
+        // For all active vbuckets, call through to the manager so
+        // that they are made 'current' with the manifest.
+        store.getCollectionsManager().maybeUpdate(rlh, *vb);
     }
+
+    // We needed to lock vbset before the vb to avoid lock inversion.
+    // We can hold vb on its own, so unlock vbset for now.
+    vbset.unlock();
 
     auto result =
             store.flushVBucket_UNLOCKED({vb, std::move(lockedVb.getLock())});
 
-    store.vbMap.addBucket(vb);
+    // We can lock again as lockedVb is not locked.
+    vbset.lock();
+
+    if (auto status = store.vbMap.addBucket(vb);
+        status != cb::engine_errc::success) {
+        throw std::logic_error(fmt::format(
+                "VBucketLoader::addToVBucketMap: vbMap failed with '{}' {}",
+                status,
+                vb->getId()));
+    }
 
     return result;
 }
