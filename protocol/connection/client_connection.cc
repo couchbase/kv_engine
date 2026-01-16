@@ -2568,10 +2568,11 @@ public:
     GetFileFragmentAsyncReadCallback(
             folly::EventBase& base,
             size_t checksum_length,
+            size_t write_size,
             cb::io::Sink* sink,
             std::function<void(std::size_t)> stats_collect_callback)
         : base(base),
-          buffer(2_MiB),
+          buffer(write_size),
           destination_sink(sink),
           checksum_length(checksum_length),
           stats_collect_callback(std::move(stats_collect_callback)) {
@@ -2701,6 +2702,7 @@ uint64_t MemcachedConnection::getFileFragment(
         uint64_t offset,
         uint64_t length,
         size_t checksum_length,
+        size_t write_size,
         cb::io::Sink* sink,
         std::function<void(std::size_t)> stats_collect_callback) {
     // This command cannot be used if there is pending data!
@@ -2718,6 +2720,7 @@ uint64_t MemcachedConnection::getFileFragment(
     GetFileFragmentAsyncReadCallback callback(
             *eventBase,
             checksum_length,
+            write_size,
             sink,
             std::move(stats_collect_callback));
     asyncSocket->setReadCB(&callback);

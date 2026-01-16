@@ -1208,6 +1208,16 @@ public:
      */
     bool shouldPrepareSnapshotAlwaysChecksum() const;
 
+    /**
+     * Get the default fsync interval for snapshot downloads (in bytes).
+     */
+    size_t getSnapshotDownloadFsyncInterval() const;
+
+    /**
+     * Get the default write size for snapshot downloads (in bytes).
+     */
+    size_t getSnapshotDownloadWriteSize() const;
+
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
         cb::engine_errc status;

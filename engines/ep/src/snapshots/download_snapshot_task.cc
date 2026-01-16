@@ -133,7 +133,10 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                 std::move(connection),
                 dir,
                 manifest,
-                properties.fsync_interval,
+                properties.fsync_interval.value_or(
+                        engine->getSnapshotDownloadFsyncInterval()),
+                properties.write_size.value_or(
+                        engine->getSnapshotDownloadWriteSize()),
                 getChecksumLength(),
                 [this](auto level, auto msg, auto json) {
                     auto& logger = getGlobalBucketLogger();

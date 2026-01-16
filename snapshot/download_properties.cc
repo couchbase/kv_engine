@@ -16,9 +16,14 @@ namespace cb::snapshot {
 void to_json(nlohmann::json& json, const DownloadProperties& prop) {
     json = {{"host", prop.hostname},
             {"port", prop.port},
-            {"bucket", prop.bucket},
-            {"fsync_interval", prop.fsync_interval}};
+            {"bucket", prop.bucket}};
 
+    if (prop.fsync_interval.has_value()) {
+        json["fsync_interval"] = *prop.fsync_interval;
+    }
+    if (prop.write_size.has_value()) {
+        json["write_size"] = *prop.write_size;
+    }
     if (prop.sasl.has_value()) {
         json["sasl"] = *prop.sasl;
     }
@@ -45,9 +50,13 @@ void from_json(const nlohmann::json& json, DownloadProperties& prop) {
     prop.hostname = json.value("host", "");
     prop.port = json.value("port", 0);
     prop.bucket = json.value("bucket", "");
-    prop.fsync_interval = json.value("fsync_interval",
-                                     DownloadProperties::DefaultFsyncInterval);
 
+    if (json.contains("fsync_interval")) {
+        prop.fsync_interval = json["fsync_interval"];
+    }
+    if (json.contains("write_size")) {
+        prop.write_size = json["write_size"];
+    }
     if (json.contains("sasl")) {
         prop.sasl = json["sasl"];
     }

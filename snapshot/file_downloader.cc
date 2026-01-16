@@ -27,6 +27,7 @@ FileDownloader::FileDownloader(
         std::filesystem::path directory,
         std::string uuid,
         std::size_t fsync_interval,
+        std::size_t write_size,
         std::size_t checksum_length,
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
@@ -36,6 +37,7 @@ FileDownloader::FileDownloader(
       directory(std::move(directory)),
       uuid(std::move(uuid)),
       fsync_interval(fsync_interval),
+      write_size(write_size),
       checksum_length(checksum_length),
       log_callback(std::move(log_callback)),
       stats_collect_callback(std::move(stats_collect_callback)) {
@@ -94,6 +96,7 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
                                               offset,
                                               chunk,
                                               chunk_checksum_length,
+                                              write_size,
                                               sink.get(),
                                               stats_collect_callback);
     }

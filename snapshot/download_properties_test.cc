@@ -18,7 +18,6 @@ TEST(DownloadPropertiesTest, ConversionSimple) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
-  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210
 }
@@ -43,7 +42,6 @@ TEST(DownloadPropertiesTest, ConversionSasl) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
-  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210,
   "sasl": {
@@ -74,7 +72,6 @@ TEST(DownloadPropertiesTest, ConversionTls) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
-  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210,
   "tls": {
@@ -108,7 +105,6 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
-  "fsync_interval":52428800,
   "host": "::1",
   "port": 11210,
   "sasl": {
@@ -149,7 +145,6 @@ TEST(DownloadPropertiesTest, FromJson) {
     nlohmann::json json = R"(
 {
   "bucket": "travel-sample",
-  "fsync_interval":52428800,
   "host": "::1",
   "port": 11210,
   "sasl": {
@@ -168,7 +163,8 @@ TEST(DownloadPropertiesTest, FromJson) {
 
     DownloadProperties properties = json;
     EXPECT_EQ("travel-sample", properties.bucket);
-    EXPECT_EQ(52428800, properties.fsync_interval);
+    EXPECT_FALSE(properties.fsync_interval.has_value());
+    EXPECT_FALSE(properties.write_size.has_value());
     EXPECT_EQ("::1", properties.hostname);
     EXPECT_EQ(11210, properties.port);
     ASSERT_TRUE(properties.sasl.has_value());

@@ -459,6 +459,7 @@ TEST_P(SnapshotClusterTest, GetFileFragment) {
                                          offset,
                                          file.size,
                                          0,
+                                         2_MiB,
                                          sink.get(),
                                          [](std::size_t size) {});
             if (GetParam() == 2_GiB) {
@@ -500,6 +501,7 @@ TEST_P(SnapshotClusterTest, GetFileFragmentWithChecksum) {
                                                  offset,
                                                  file.size,
                                                  15,
+                                                 2_MiB,
                                                  sink.get(),
                                                  [](std::size_t size) {});
 

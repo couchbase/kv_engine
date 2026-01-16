@@ -48,6 +48,7 @@ public:
      * @param directory destination directory for the file
      * @param uuid the uuid for the the snapshot the file belongs to
      * @param fsync_interval the number of bytes between each call to fsync()
+     * @param write_size the number of bytes to write in each chunk
      * @param checksum_length the number of bytes to checksum as data is read (0
      * disables checksumming)
      * @param log_callback a callback function to add information to the log
@@ -58,6 +59,7 @@ public:
                    std::filesystem::path directory,
                    std::string uuid,
                    std::size_t fsync_interval,
+                   std::size_t write_size,
                    std::size_t checksum_length,
                    std::function<void(spdlog::level::level_enum,
                                       std::string_view,
@@ -103,6 +105,8 @@ protected:
     const std::string uuid;
     /// The number of bytes between each call to fsync()
     const std::size_t fsync_interval;
+    /// The number of bytes to write in each chunk
+    const std::size_t write_size;
     /// The number of bytes to checksum as data is read (0 disables
     /// checksumming)
     const std::size_t checksum_length{0};

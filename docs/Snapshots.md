@@ -35,8 +35,10 @@ of the packet contains a JSON object with the following fields:
   * `passphrase` - The passphrase to use when decrypting the private key.
     (This field is base64 encoded).
 * `fsync_interval` - The interval (in bytes) to call fsync() when writing
-                     the files to disk (default 50MB). Set to 0 to disable
-                     fsync.
+                     the files to disk. Set to 0 to disable fsync. If set
+                     overrides the server default.
+* `write_size` - The number of bytes to write in each chunk If set
+                 overrides the server default.
 
 Example:
 
@@ -45,6 +47,7 @@ Example:
       "host": "::1",
       "port": 58036,
       "fsync_interval": 52428800,
+      "write_size": 1048576,
       "sasl": {
         "mechanism": "PLAIN",
         "password": "password",

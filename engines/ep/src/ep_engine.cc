@@ -7735,3 +7735,11 @@ bool EventuallyPersistentEngine::isFileFragmentChecksumEnabled() const {
 bool EventuallyPersistentEngine::shouldPrepareSnapshotAlwaysChecksum() const {
     return serverApi->core->shouldPrepareSnapshotAlwaysChecksum();
 }
+
+size_t EventuallyPersistentEngine::getSnapshotDownloadFsyncInterval() const {
+    return 50_MiB;
+}
+
+size_t EventuallyPersistentEngine::getSnapshotDownloadWriteSize() const {
+    return 2_MiB;
+}
