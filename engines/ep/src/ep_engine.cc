@@ -7737,9 +7737,9 @@ bool EventuallyPersistentEngine::shouldPrepareSnapshotAlwaysChecksum() const {
 }
 
 size_t EventuallyPersistentEngine::getSnapshotDownloadFsyncInterval() const {
-    return 50_MiB;
+    return serverApi->core->getSnapshotDownloadFsyncInterval();
 }
 
 size_t EventuallyPersistentEngine::getSnapshotDownloadWriteSize() const {
-    return 2_MiB;
+    return serverApi->core->getSnapshotDownloadWriteSize();
 }

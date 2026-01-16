@@ -487,6 +487,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setFileFragmentChecksumLength(value.get<size_t>());
         } else if (key == "prepare_snapshot_always_checksum"sv) {
             setPrepareSnapshotAlwaysChecksum(value.get<bool>());
+        } else if (key == "snapshot_download_fsync_interval"sv) {
+            setSnapshotDownloadFsyncInterval(value.get<size_t>());
+        } else if (key == "snapshot_download_write_size"sv) {
+            setSnapshotDownloadWriteSize(value.get<size_t>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
@@ -1362,6 +1366,27 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"to", other.shouldPrepareSnapshotAlwaysChecksum()});
             setPrepareSnapshotAlwaysChecksum(
                     other.shouldPrepareSnapshotAlwaysChecksum());
+        }
+    }
+
+    if (other.has.snapshot_download_fsync_interval) {
+        if (other.getSnapshotDownloadFsyncInterval() !=
+            getSnapshotDownloadFsyncInterval()) {
+            LOG_INFO_CTX("Change snapshot_download_fsync_interval",
+                         {"from", getSnapshotDownloadFsyncInterval()},
+                         {"to", other.getSnapshotDownloadFsyncInterval()});
+            setSnapshotDownloadFsyncInterval(
+                    other.getSnapshotDownloadFsyncInterval());
+        }
+    }
+
+    if (other.has.snapshot_download_write_size) {
+        if (other.getSnapshotDownloadWriteSize() !=
+            getSnapshotDownloadWriteSize()) {
+            LOG_INFO_CTX("Change snapshot_download_write_size",
+                         {"from", getSnapshotDownloadWriteSize()},
+                         {"to", other.getSnapshotDownloadWriteSize()});
+            setSnapshotDownloadWriteSize(other.getSnapshotDownloadWriteSize());
         }
     }
 

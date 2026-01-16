@@ -131,4 +131,14 @@ struct ServerCoreIface {
      * Whether to always generate a checksum when preparing a snapshot.
      */
     virtual bool shouldPrepareSnapshotAlwaysChecksum() const = 0;
+
+    /**
+     * Get the default fsync interval for snapshot downloads (in bytes).
+     */
+    virtual size_t getSnapshotDownloadFsyncInterval() const = 0;
+
+    /**
+     * Get the default write size for snapshot downloads (in bytes).
+     */
+    virtual size_t getSnapshotDownloadWriteSize() const = 0;
 };

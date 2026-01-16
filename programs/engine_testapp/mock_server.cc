@@ -243,6 +243,14 @@ struct MockServerCoreApi : public ServerCoreIface {
     bool shouldPrepareSnapshotAlwaysChecksum() const override {
         return true;
     }
+
+    size_t getSnapshotDownloadFsyncInterval() const override {
+        return 50_MiB;
+    }
+
+    size_t getSnapshotDownloadWriteSize() const override {
+        return 2_MiB;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

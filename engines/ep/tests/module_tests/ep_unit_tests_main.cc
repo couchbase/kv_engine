@@ -120,6 +120,14 @@ public:
     bool shouldPrepareSnapshotAlwaysChecksum() const override {
         return true;
     }
+
+    size_t getSnapshotDownloadFsyncInterval() const override {
+        return 50_MiB;
+    }
+
+    size_t getSnapshotDownloadWriteSize() const override {
+        return 2_MiB;
+    }
 };
 
 int main(int argc, char **argv) {

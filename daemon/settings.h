@@ -1167,6 +1167,26 @@ public:
         return prepare_snapshot_always_checksum.load(std::memory_order_acquire);
     }
 
+    size_t getSnapshotDownloadFsyncInterval() const {
+        return snapshot_download_fsync_interval.load(std::memory_order_acquire);
+    }
+
+    void setSnapshotDownloadFsyncInterval(size_t val) {
+        snapshot_download_fsync_interval.store(val, std::memory_order_release);
+        has.snapshot_download_fsync_interval = true;
+        notify_changed("snapshot_download_fsync_interval");
+    }
+
+    size_t getSnapshotDownloadWriteSize() const {
+        return snapshot_download_write_size.load(std::memory_order_acquire);
+    }
+
+    void setSnapshotDownloadWriteSize(size_t val) {
+        snapshot_download_write_size.store(val, std::memory_order_release);
+        has.snapshot_download_write_size = true;
+        notify_changed("snapshot_download_write_size");
+    }
+
     double getDcpConsumerMaxMarkerVersion() const {
         return dcp_consumer_max_marker_version.load(std::memory_order_acquire);
     }
@@ -1568,6 +1588,12 @@ protected:
     /// more expensive checksumming option.
     std::atomic<bool> prepare_snapshot_always_checksum{false};
 
+    /// The default fsync interval for snapshot downloads (in bytes)
+    std::atomic<size_t> snapshot_download_fsync_interval{50_MiB};
+
+    /// The default write size for snapshot downloads (in bytes)
+    std::atomic<size_t> snapshot_download_write_size{2_MiB};
+
     /// The length of the checksum to use for the file fragments, this also ends
     /// up controlling the read size at the source.
     /// 20MiB is so far the most tested read size and in terms of CRC (we use
@@ -1678,6 +1704,8 @@ public:
         bool file_fragment_checksum_enabled = false;
         bool file_fragment_checksum_length = false;
         bool prepare_snapshot_always_checksum = false;
+        bool snapshot_download_fsync_interval = false;
+        bool snapshot_download_write_size = false;
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;

@@ -109,6 +109,14 @@ struct ServerCoreApi : public ServerCoreIface {
     bool shouldPrepareSnapshotAlwaysChecksum() const override {
         return Settings::instance().shouldPrepareSnapshotAlwaysChecksum();
     }
+
+    size_t getSnapshotDownloadFsyncInterval() const override {
+        return Settings::instance().getSnapshotDownloadFsyncInterval();
+    }
+
+    size_t getSnapshotDownloadWriteSize() const override {
+        return Settings::instance().getSnapshotDownloadWriteSize();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {
