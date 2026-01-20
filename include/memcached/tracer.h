@@ -99,7 +99,7 @@ class Span {
 public:
     /// Type used for storing durations - 32bit microsecond.
     /// gives maximum duration of 35.79minutes.
-    using Duration = std::chrono::duration<int32_t, std::micro>;
+    using Duration = std::chrono::duration<uint32_t, std::micro>;
 
     Span(Code code,
          Clock::time_point start,
