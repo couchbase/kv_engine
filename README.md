@@ -48,6 +48,7 @@ built via the Couchbase
 * [HiFi MFU Eviction Policy](docs/HiFi_MFU_eviction_policy.md)
 * [Throttling](docs/Throttling.md)
 * [Top Keys](docs/Topkeys.md)
+* [Bucket Configuration](docs/BucketConfiguration.md)
 
 ### Protocols
 

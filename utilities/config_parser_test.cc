@@ -73,6 +73,36 @@ TEST(ConfigTokenize, SingleKVPair) {
     EXPECT_TRUE(callback) << "Callback not called";
 }
 
+TEST(ConfigTokenize, SingleKVPairSpuriousEscape) {
+    bool callback = false;
+    tokenize(R"(key=va\lue)"sv, [&callback](auto k, auto v) {
+        EXPECT_EQ("key"sv, k);
+        EXPECT_EQ("value", v);
+        callback = true;
+    });
+    EXPECT_TRUE(callback) << "Callback not called";
+}
+
+TEST(ConfigTokenize, SingleKVPairIncludingStrippedSpaces) {
+    bool callback = false;
+    tokenize(R"( key =  value )"sv, [&callback](auto k, auto v) {
+        EXPECT_EQ("key"sv, k);
+        EXPECT_EQ("value", v);
+        callback = true;
+    });
+    EXPECT_TRUE(callback) << "Callback not called";
+}
+
+TEST(ConfigTokenize, SingleKVPairTrailingSeparator) {
+    bool callback = false;
+    tokenize(R"(key=value;)"sv, [&callback](auto k, auto v) {
+        EXPECT_EQ("key"sv, k);
+        EXPECT_EQ("value", v);
+        callback = true;
+    });
+    EXPECT_TRUE(callback) << "Callback not called";
+}
+
 TEST(ConfigTokenize, SingleKVPairIncludingEscapedSeparator) {
     bool callback = false;
     tokenize(R"(\ key\ = \ value\;next)"sv, [&callback](auto k, auto v) {
@@ -92,6 +122,42 @@ TEST(ConfigTokenize, MultipleKVPairs) {
             k1 = true;
         } else if (k == "k2"sv) {
             EXPECT_EQ("v2", v);
+            k2 = true;
+        } else {
+            FAIL() << "Unexpected callback: k:" << k << " v:" << v;
+        }
+    });
+    EXPECT_TRUE(k1) << "Callback for k1 not called";
+    EXPECT_TRUE(k2) << "Callback for k2 not called";
+}
+
+TEST(ConfigTokenize, MultipleKVPairsMultipleSeparators) {
+    bool k1 = false;
+    bool k2 = false;
+    tokenize(R"(k1=v1;;k2=v2)"sv, [&k1, &k2](auto k, auto v) {
+        if (k == "k1"sv) {
+            EXPECT_EQ("v1", v);
+            k1 = true;
+        } else if (k == ";k2"sv) {
+            EXPECT_EQ("v2", v);
+            k2 = true;
+        } else {
+            FAIL() << "Unexpected callback: k:" << k << " v:" << v;
+        }
+    });
+    EXPECT_TRUE(k1) << "Callback for k1 not called";
+    EXPECT_TRUE(k2) << "Callback for k2 not called";
+}
+
+TEST(ConfigTokenize, MultipleKVPairsUnescapedSeparator) {
+    bool k1 = false;
+    bool k2 = false;
+    tokenize(R"(k1=v1==x;k2==v2)"sv, [&k1, &k2](auto k, auto v) {
+        if (k == "k1"sv) {
+            EXPECT_EQ("v1==x", v);
+            k1 = true;
+        } else if (k == "k2"sv) {
+            EXPECT_EQ("=v2", v);
             k2 = true;
         } else {
             FAIL() << "Unexpected callback: k:" << k << " v:" << v;
