@@ -25,9 +25,11 @@ void MockConnection::scheduleDcpStep() {
 void MockConnection::setUserScheduleDcpStep(std::function<void()> func) {
     userScheduleDcpStep = std::move(func);
 }
+
 nlohmann::json MockConnection::getDescription() const {
-    return {{"peer", "you"}, {"socket", "me"}};
+    return description;
 }
+
 const cb::rbac::UserIdent& MockConnection::getUser() const {
     return user;
 }

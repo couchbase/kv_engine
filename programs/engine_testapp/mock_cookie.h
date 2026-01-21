@@ -53,6 +53,7 @@ public:
 protected:
     ConnectionPriority priority{ConnectionPriority::Medium};
     cb::rbac::UserIdent user{"nobody", cb::rbac::Domain::Local};
+    const nlohmann::json description{{"peer", "you"}, {"socket", "me"}};
 };
 
 class MockCookie : public CookieIface {
