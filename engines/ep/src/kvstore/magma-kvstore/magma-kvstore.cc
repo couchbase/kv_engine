@@ -2286,7 +2286,7 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
-    logger->infoWithContext(
+    logger->debugWithContext(
             "MagmaKVStore::initByIdScanContext finishing",
             {{"vb", vbid},
              {"history_start_seqno", historyStartSeqno},
