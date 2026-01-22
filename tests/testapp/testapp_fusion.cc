@@ -58,6 +58,8 @@ protected:
 
     BinprotResponse syncFusionLogstore(Vbid vbid, bool reset = false);
 
+    BinprotResponse deleteFusionNamespace();
+
     /**
      * @param vbid
      * @return The full local path used as "guest volume" in a data migration
@@ -333,6 +335,20 @@ BinprotResponse FusionTest::syncFusionLogstore(Vbid vbid, bool reset) {
     cmd.setVBucket(vbid);
     nlohmann::json json;
     json["reset"] = reset;
+    cmd.setValue(json.dump());
+    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+    return connection->execute(cmd);
+}
+
+BinprotResponse FusionTest::deleteFusionNamespace() {
+    auto cmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::DeleteFusionNamespace};
+    nlohmann::json json;
+    const auto dbPath = mcd_env->getDbPath().generic_string();
+    json["logstore_uri"] = "local://" + dbPath + "/logstore";
+    json["metadatastore_uri"] = "local://" + dbPath + "/metadatastore";
+    json["metadatastore_auth_token"] = "some-token";
+    json["namespace"] = std::string("kv/") + bucketUuid;
     cmd.setValue(json.dump());
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     return connection->execute(cmd);
@@ -1219,6 +1235,34 @@ TEST_P(FusionTest, GetFusionNamespaces) {
     cmd.setDatatype(cb::mcbp::Datatype::JSON);
     const auto resp = adminConnection->execute(cmd);
     if (isFusionSupportEnabled()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
+}
+
+TEST_P(FusionTest, CreateFusionNamespace) {
+    auto createNamespaceCmd = BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::CreateFusionNamespace};
+    auto resp = connection->execute(createNamespaceCmd);
+    // Namespace already exist
+    if (isFusionSupportedInBucket()) {
+        EXPECT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
+
+    // Clean up existing namespace
+    resp = deleteFusionNamespace();
+    if (isFusionSupportEnabled()) {
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    } else {
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
+    }
+
+    // when creating the same ns again, cmd should success
+    resp = connection->execute(createNamespaceCmd);
+    if (isFusionSupportedInBucket()) {
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     } else {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());

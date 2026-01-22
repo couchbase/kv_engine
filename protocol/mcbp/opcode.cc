@@ -851,6 +851,8 @@ public:
               {"DELETE_FUSION_NAMESPACE"sv, {Attribute::Supported}});
         setup(ClientOpcode::GetFusionNamespaces,
               {"GET_FUSION_NAMESPACES"sv, {Attribute::Supported}});
+        setup(ClientOpcode::CreateFusionNamespace,
+              {"CREATE_FUSION_NAMESPACE"sv, {Attribute::Supported}});
     }
 
 protected:

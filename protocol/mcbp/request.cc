@@ -416,6 +416,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::StopFusionUploader:
         case ClientOpcode::DeleteFusionNamespace:
         case ClientOpcode::GetFusionNamespaces:
+        case ClientOpcode::CreateFusionNamespace:
         case ClientOpcode::SetChronicleAuthToken:
         case ClientOpcode::DcpCachedValue:
         case ClientOpcode::DcpCachedKeyMeta:

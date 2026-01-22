@@ -27,8 +27,12 @@
 namespace magma {
 class Status {
 public:
+    enum Code : int { Cancelled };
     bool IsOK() const {
         return false;
+    }
+    Code ErrorCode() const {
+        return {};
     }
     std::string String() const {
         return "NotSupported: The system does not support this operation";
@@ -78,6 +82,13 @@ public:
             const std::string& fusionNamespace,
             const std::vector<KVStoreID>& kvIDs,
             const std::string& snapshotUUID) {
+        return {};
+    }
+    static Status CreateFusionNamespace(
+            const std::string& metadataStoreURI,
+            const std::string& metadataStoreAuthToken,
+            const std::string& ns,
+            uint16_t numVolumes) {
         return {};
     }
     enum ThreadType {

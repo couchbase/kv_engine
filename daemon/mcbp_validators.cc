@@ -3397,6 +3397,16 @@ Status get_fusion_namespaces_validator(Cookie& cookie) {
     return status;
 }
 
+Status create_fusion_namespace_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type_t<ClientOpcode>(command);
     if (validators[idx]) {
@@ -3666,4 +3676,6 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::DeleteFusionNamespace,
           delete_fusion_namespace_validator);
     setup(ClientOpcode::GetFusionNamespaces, get_fusion_namespaces_validator);
+    setup(ClientOpcode::CreateFusionNamespace,
+          create_fusion_namespace_validator);
 }

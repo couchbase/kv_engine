@@ -23,6 +23,7 @@
 #include "protocol/mcbp/audit_configure_context.h"
 #include "protocol/mcbp/bucket_config_command_context.h"
 #include "protocol/mcbp/bucket_management_command_context.h"
+#include "protocol/mcbp/create_fusion_namespace_command_context.h"
 #include "protocol/mcbp/dcp_cached_value.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
@@ -740,6 +741,14 @@ static void get_fusion_namespaces_executor(Cookie& cookie) {
     }
 }
 
+static void create_fusion_namespace_executor(Cookie& cookie) {
+    if (!cookie.getConnection().getBucket().supports(Feature::Fusion)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<CreateFusionNamespaceCommandContext>(cookie).drive();
+}
+
 static void process_bin_noop_response(Cookie&) {
     // do nothing
 }
@@ -1074,6 +1083,8 @@ void initialize_mbcp_lookup_map() {
                   delete_fusion_namespace_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetFusionNamespaces,
                   get_fusion_namespaces_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CreateFusionNamespace,
+                  create_fusion_namespace_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

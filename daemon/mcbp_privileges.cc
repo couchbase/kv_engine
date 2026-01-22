@@ -304,6 +304,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::GetFusionNamespaces,
           require<Privilege::NodeSupervisor>);
+    setup(ClientOpcode::CreateFusionNamespace,
+          require<Privilege::NodeSupervisor>);
 
     if (isUnitTestMode()) {
         // The opcode used to set the clock by our extension

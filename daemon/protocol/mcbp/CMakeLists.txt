@@ -17,6 +17,8 @@ add_library(memcached_daemon_mcbp OBJECT
         collections_get_manifest_executor.cc
         collections_get_scope_id_executor.cc
         command_context.h
+        create_fusion_namespace_command_context.cc
+        create_fusion_namespace_command_context.h
         dcp_abort_executor.cc
         dcp_add_failover_log.cc
         dcp_add_failover_log.h

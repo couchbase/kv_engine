@@ -955,6 +955,8 @@ struct EngineIface {
     [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid,
                                                              bool reset);
 
+    [[nodiscard]] virtual cb::engine_errc createFusionNamespace();
+
     /**
      * Start uploading data to FusionLogStore for the latest revision of the
      * given vbucket/kvstore.

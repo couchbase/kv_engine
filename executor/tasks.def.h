@@ -81,6 +81,7 @@ TASK(StopFusionUploaderTask, TaskType::AuxIO, 6)
 TASK(Core_SetChronicleAuthTokenTask, TaskType::AuxIO, 6)
 TASK(Core_DeleteFusionNamespaceTask, TaskType::AuxIO, 6)
 TASK(Core_GetFusionNamespacesTask, TaskType::AuxIO, 6)
+TASK(Core_CreateFusionNamespaceTask, TaskType::AuxIO, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, TaskType::Writer, 1)

@@ -7602,6 +7602,26 @@ cb::engine_errc EventuallyPersistentEngine::mountVBucket(
     return cb::engine_errc::success;
 }
 
+cb::engine_errc EventuallyPersistentEngine::createFusionNamespace() {
+    const auto ns = getFusionNamespace();
+    const auto authToken = getCachedChronicleAuthToken();
+    const auto metadataStoreURI =
+            configuration.getMagmaFusionMetadatastoreUri();
+    const auto numVolumes = configuration.getMaxVbuckets();
+    const auto status = magma::Magma::CreateFusionNamespace(
+            metadataStoreURI, authToken, ns, static_cast<uint16_t>(numVolumes));
+    if (status.ErrorCode() == magma::Status::Cancelled) {
+        LOG_INFO_CTX(
+                "EventuallyPersistentEngine::createFusionNamespace: namespace "
+                "already exists",
+                {"metadatastore_uri", metadataStoreURI},
+                {"namespace", ns},
+                {"numVolumes", numVolumes});
+        return cb::engine_errc::key_already_exists;
+    }
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc EventuallyPersistentEngine::unmountVBucket(Vbid vbid) {
     return acquireEngine(this)->unmountVBucketInner(vbid);
 }
