@@ -1690,7 +1690,8 @@ cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     if (configuration.getBucketTypeString() == "ephemeral") {
         return {cb::engine::Feature::Collections};
     }
-    if (isFusionSupportEnabled()) {
+    if (isFusionSupportEnabled() &&
+        configuration.getBackendString() == "magma") {
         return {cb::engine::Feature::Collections,
                 cb::engine::Feature::Persistence,
                 cb::engine::Feature::Fusion};
