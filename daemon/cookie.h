@@ -625,7 +625,7 @@ public:
     }
 
     /// Get the timepoint when the command started
-    std::chrono::steady_clock::time_point getStartTime() const {
+    std::chrono::steady_clock::time_point getStartTime() const override {
         return start;
     }
 

@@ -119,7 +119,8 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) override;
+            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes,
+            uint64_t* vbucket_uuid = nullptr) override;
 
     cb::engine_errc prepare(Item& item,
                             CookieIface* cookie,
@@ -151,7 +152,8 @@ public:
                                    GenerateCas generateCas,
                                    uint64_t bySeqno,
                                    DeleteSource deleteSource,
-                                   EnforceMemCheck enforceMemCheck) override;
+                                   EnforceMemCheck enforceMemCheck,
+                                   uint64_t* vbucket_uuid = nullptr) override;
 
     void reset() override;
 

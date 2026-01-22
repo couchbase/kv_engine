@@ -135,7 +135,9 @@ public:
 
     void reserve() override;
     void release() override;
-
+    std::chrono::steady_clock::time_point getStartTime() const override {
+        return startTime;
+    }
     void notifyIoComplete(cb::engine_errc status) override;
 
     std::mutex& getMutex();
@@ -225,6 +227,8 @@ protected:
     EngineIface* engine = nullptr;
     std::unique_ptr<MockConnection> connection;
     std::function<void(cb::engine_errc)> userNotifyIoComplete;
+    std::chrono::steady_clock::time_point startTime =
+            std::chrono::steady_clock::now();
 };
 
 MockCookie* create_mock_cookie(EngineIface* engine = nullptr);

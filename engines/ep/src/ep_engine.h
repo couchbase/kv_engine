@@ -227,6 +227,32 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
+    cb::engine_errc set_with_meta(CookieIface& cookie,
+                                  Vbid vbucket,
+                                  DocKeyView key,
+                                  cb::const_byte_buffer value,
+                                  ItemMetaData item_meta,
+                                  std::optional<DeleteSource> delete_source,
+                                  protocol_binary_datatype_t datatype,
+                                  uint64_t& cas,
+                                  mutation_descr_t& mut_info,
+                                  CheckConflicts check_conflicts,
+                                  bool allow_existing,
+                                  GenerateBySeqno generate_by_seqno,
+                                  GenerateCas generate_cas,
+                                  ForceAcceptWithMetaOperation force) override;
+    cb::engine_errc delete_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            ItemMetaData item_meta,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            GenerateBySeqno gen_by_seqno,
+            GenerateCas gen_cas,
+            DeleteSource delete_source,
+            ForceAcceptWithMetaOperation force) override;
     // Need to explicilty import EngineIface::flush to avoid warning about
     // DCPIface::flush hiding it.
     using EngineIface::flush;
@@ -1531,17 +1557,13 @@ protected:
      * seqno of the mutation.
      *
      * @param response callback func to send the response
-     * @param vbucket vbucket that was mutated
-     * @param bySeqno the seqno to send
-     * @param status a mcbp status code
+     * @param mut_info the mutation details
      * @param cas cas assigned to the mutation
      * @param cookie conn cookie
      * @returns NMVB if VB can't be located, or the ADD_RESPONSE return code.
      */
     cb::engine_errc sendMutationExtras(const AddResponseFn& response,
-                                       Vbid vbucket,
-                                       uint64_t bySeqno,
-                                       cb::mcbp::Status status,
+                                       mutation_descr_t mut_info,
                                        uint64_t cas,
                                        CookieIface& cookie);
 
@@ -1577,7 +1599,8 @@ protected:
      * @param deleteSource the Item is deleted (with value) if has_value()
      * @param datatype datatype of the mutation
      * @param cas [in,out] CAS for the command (updated with new CAS)
-     * @param seqno [out] optional - returns the seqno allocated to the mutation
+     * @param mut_info [out] - returns the seqno allocated to the mutation and
+     *                         vbucket uuid
      * @param cookie connection's cookie
      * @param checkConflicts set to Yes if conflict resolution must be done
      * @param allowExisting true if the set can overwrite existing key
@@ -1593,7 +1616,7 @@ protected:
                                 std::optional<DeleteSource> deleteSource,
                                 protocol_binary_datatype_t datatype,
                                 uint64_t& cas,
-                                uint64_t* seqno,
+                                mutation_descr_t& mut_info,
                                 CookieIface& cookie,
                                 CheckConflicts checkConflicts,
                                 bool allowExisting,
@@ -1608,7 +1631,8 @@ protected:
      * @param key DocKey initialised with key data
      * @param itemMeta mutation's cas/revseq/flags/expiration
      * @param cas [in,out] CAS for the command (updated with new CAS)
-     * @param seqno [out] optional - returns the seqno allocated to the mutation
+     * @param mut_info [out] returns the seqno allocated to the mutation
+     *                        and vbucket uuid
      * @param cookie connection's cookie
      * @param checkConflicts set to Yes if conflict resolution must be done
      * @param genBySeqno generate a new seqno? (yes/no)
@@ -1621,7 +1645,7 @@ protected:
                                    DocKeyView key,
                                    ItemMetaData itemMeta,
                                    uint64_t& cas,
-                                   uint64_t* seqno,
+                                   mutation_descr_t& mut_info,
                                    CookieIface& cookie,
                                    CheckConflicts checkConflicts,
                                    GenerateBySeqno genBySeqno,

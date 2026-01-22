@@ -149,6 +149,88 @@ cb::EngineErrorCasPair bucket_store_if(
     return {rstatus, rcas};
 }
 
+[[nodiscard]] cb::engine_errc bucket_set_with_meta(
+        Cookie& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force) {
+    auto& c = cookie.getConnection();
+    auto status = c.getBucketEngine().set_with_meta(cookie,
+                                                    vbucket,
+                                                    key,
+                                                    value,
+                                                    item_meta,
+                                                    delete_source,
+                                                    datatype,
+                                                    cas,
+                                                    mut_info,
+                                                    check_conflicts,
+                                                    allow_existing,
+                                                    generate_by_seqno,
+                                                    generate_cas,
+                                                    force);
+    if (status == cb::engine_errc::success) {
+        using namespace cb::audit::document;
+        cookie.addDocumentWriteBytes(value.size() + key.size());
+        add(cookie, Operation::Modify, cookie.getRequestKey());
+    } else if (status == cb::engine_errc::disconnect) {
+        LOG_WARNING_CTX("set_with_meta return cb::engine_errc::disconnect",
+                        {"conn_id", c.getId()},
+                        {"description", c.getDescription()});
+        c.setTerminationReason("Engine forced disconnect");
+    }
+
+    return status;
+}
+
+[[nodiscard]] cb::engine_errc bucket_delete_with_meta(
+        Cookie& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno gen_by_seqno,
+        GenerateCas gen_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force) {
+    auto& c = cookie.getConnection();
+    auto status = c.getBucketEngine().delete_with_meta(cookie,
+                                                       vbucket,
+                                                       key,
+                                                       item_meta,
+                                                       cas,
+                                                       mut_info,
+                                                       check_conflicts,
+                                                       gen_by_seqno,
+                                                       gen_cas,
+                                                       delete_source,
+                                                       force);
+    if (status == cb::engine_errc::success) {
+        using namespace cb::audit::document;
+        cookie.addDocumentWriteBytes(key.size());
+        add(cookie, Operation::Modify, cookie.getRequestKey());
+    } else if (status == cb::engine_errc::disconnect) {
+        LOG_WARNING_CTX("delete_with_meta return cb::engine_errc::disconnect",
+                        {"conn_id", c.getId()},
+                        {"description", c.getDescription()});
+        c.setTerminationReason("Engine forced disconnect");
+    }
+
+    return status;
+}
+
 cb::engine_errc bucket_remove(
         Cookie& cookie,
         const DocKeyView& key,

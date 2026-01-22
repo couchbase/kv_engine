@@ -173,6 +173,32 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
+    cb::engine_errc set_with_meta(CookieIface& cookie,
+                                  Vbid vbucket,
+                                  DocKeyView key,
+                                  cb::const_byte_buffer value,
+                                  ItemMetaData item_meta,
+                                  std::optional<DeleteSource> delete_source,
+                                  protocol_binary_datatype_t datatype,
+                                  uint64_t& cas,
+                                  mutation_descr_t& mut_info,
+                                  CheckConflicts check_conflicts,
+                                  bool allow_existing,
+                                  GenerateBySeqno generate_by_seqno,
+                                  GenerateCas generate_cas,
+                                  ForceAcceptWithMetaOperation force) override;
+    cb::engine_errc delete_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            ItemMetaData item_meta,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            GenerateBySeqno gen_by_seqno,
+            GenerateCas gen_cas,
+            DeleteSource delete_source,
+            ForceAcceptWithMetaOperation force) override;
     cb::engine_errc flush(CookieIface& cookie) override;
     cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
@@ -1160,6 +1186,60 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
                                  durability,
                                  document_state,
                                  preserveTtl);
+}
+cb::engine_errc EWB_Engine::set_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force) {
+    return real_engine->set_with_meta(cookie,
+                                      vbucket,
+                                      key,
+                                      value,
+                                      item_meta,
+                                      delete_source,
+                                      datatype,
+                                      cas,
+                                      mut_info,
+                                      check_conflicts,
+                                      allow_existing,
+                                      generate_by_seqno,
+                                      generate_cas,
+                                      force);
+}
+cb::engine_errc EWB_Engine::delete_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno gen_by_seqno,
+        GenerateCas gen_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force) {
+    return real_engine->delete_with_meta(cookie,
+                                         vbucket,
+                                         key,
+                                         item_meta,
+                                         cas,
+                                         mut_info,
+                                         check_conflicts,
+                                         gen_by_seqno,
+                                         gen_cas,
+                                         delete_source,
+                                         force);
 }
 
 cb::engine_errc EWB_Engine::flush(CookieIface& cookie) {

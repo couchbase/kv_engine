@@ -107,6 +107,10 @@ public:
         throw std::runtime_error("DummyIface::inflateSnappy not implemented()");
     }
 
+    std::chrono::steady_clock::time_point getStartTime() const override {
+        return std::chrono::steady_clock::now();
+    }
+
 protected:
     DummyConnection connection;
 };

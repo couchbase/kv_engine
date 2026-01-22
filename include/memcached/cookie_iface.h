@@ -314,6 +314,9 @@ public:
     virtual std::unique_ptr<folly::IOBuf> inflateSnappy(
             std::string_view input) = 0;
 
+    /// Get the start time for the command associated with this cookie
+    virtual std::chrono::steady_clock::time_point getStartTime() const = 0;
+
 protected:
     std::atomic<size_t> document_bytes_read = 0;
     std::atomic<size_t> document_bytes_written = 0;

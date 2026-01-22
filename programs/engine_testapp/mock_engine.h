@@ -112,6 +112,34 @@ struct MockEngine : public EngineIface, public DcpIface {
             DocumentState document_state,
             bool preserveTtl) override;
 
+    cb::engine_errc set_with_meta(CookieIface& cookie,
+                                  Vbid vbucket,
+                                  DocKeyView key,
+                                  cb::const_byte_buffer value,
+                                  ItemMetaData item_meta,
+                                  std::optional<DeleteSource> delete_source,
+                                  protocol_binary_datatype_t datatype,
+                                  uint64_t& cas,
+                                  mutation_descr_t& mut_info,
+                                  CheckConflicts check_conflicts,
+                                  bool allow_existing,
+                                  GenerateBySeqno generate_by_seqno,
+                                  GenerateCas generate_cas,
+                                  ForceAcceptWithMetaOperation force) override;
+
+    cb::engine_errc delete_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            ItemMetaData item_meta,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            GenerateBySeqno gen_by_seqno,
+            GenerateCas gen_cas,
+            DeleteSource delete_source,
+            ForceAcceptWithMetaOperation force) override;
+
     cb::engine_errc flush(CookieIface& cookie) override;
 
     cb::engine_errc get_stats(CookieIface& cookie,

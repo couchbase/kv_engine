@@ -561,6 +561,77 @@ struct EngineIface {
     }
 
     /**
+     * Process the set_with_meta with the given buffers/values.
+     *
+     * @param cookie the command cookie
+     * @param vbucket VB to mutate
+     * @param key DocKey initialised with key data
+     * @param value buffer for the mutation's value
+     * @param item_meta mutation's cas/revseq/flags/expiration
+     * @param delete_source the Item is deleted (with value) if has_value()
+     * @param datatype datatype of the mutation
+     * @param cas [in,out] CAS for the command (updated with new CAS)
+     * @param mut_info [out] returns the seqno allocated to the mutation and
+     *                       the vbucket uuid
+     * @param check_conflicts set to Yes if conflict resolution must be done
+     * @param allow_existing true if the set can overwrite existing key
+     * @param generate_by_seqno generate a new seqno? (yes/no)
+     * @param generate_cas generate a new CAS? (yes/no)
+     * @param force whether to force the operation or not
+     * @returns state of the operation as an cb::engine_errc
+     */
+    [[nodiscard]] virtual cb::engine_errc set_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData item_meta,
+            std::optional<DeleteSource> delete_source,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            bool allow_existing,
+            GenerateBySeqno generate_by_seqno,
+            GenerateCas generate_cas,
+            ForceAcceptWithMetaOperation force) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Process the del_with_meta with the given buffers/values.
+     *
+     * @param cookie the command cookie
+     * @param vbucket VB to mutate
+     * @param key DocKey initialised with key data
+     * @param item_meta mutation's cas/revseq/flags/expiration
+     * @param cas [in,out] CAS for the command (updated with new CAS)
+     * @param mut_info [out] returns the seqno allocated to the mutation and
+     *                       the vbucket uuid
+     * @param cookie connection's cookie
+     * @param check_conflicts set to Yes if conflict resolution must be done
+     * @param generate_by_seqno generate a new seqno? (yes/no)
+     * @param generate_cas generate a new CAS? (yes/no)
+     * @param delete_source whether it should delete or expire
+     * @param force whether to force the operation or not
+     * @returns state of the operation as an cb::engine_errc
+     */
+    [[nodiscard]] virtual cb::engine_errc delete_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            ItemMetaData item_meta,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            GenerateBySeqno generate_by_seqno,
+            GenerateCas generate_cas,
+            DeleteSource delete_source,
+            ForceAcceptWithMetaOperation force) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
      * Flush the cache.
      *
      * Optional interface; not supported by all engines.

@@ -323,6 +323,93 @@ cb::EngineErrorCasPair MockEngine::store_if(
     return do_blocking_engine_call<uint64_t>(cookie, engine_fn);
 }
 
+cb::engine_errc MockEngine::set_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force) {
+    auto engine_fn = [this,
+                      &cookie,
+                      vbucket,
+                      key,
+                      value,
+                      item_meta,
+                      delete_source,
+                      datatype,
+                      &cas,
+                      &mut_info,
+                      check_conflicts,
+                      allow_existing,
+                      generate_by_seqno,
+                      generate_cas,
+                      force]() {
+        return the_engine->set_with_meta(cookie,
+                                         vbucket,
+                                         key,
+                                         value,
+                                         item_meta,
+                                         delete_source,
+                                         datatype,
+                                         cas,
+                                         mut_info,
+                                         check_conflicts,
+                                         allow_existing,
+                                         generate_by_seqno,
+                                         generate_cas,
+                                         force);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
+cb::engine_errc MockEngine::delete_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno gen_by_seqno,
+        GenerateCas gen_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force) {
+    auto engine_fn = [this,
+                      &cookie,
+                      vbucket,
+                      key,
+                      item_meta,
+                      &cas,
+                      &mut_info,
+                      check_conflicts,
+                      gen_by_seqno,
+                      gen_cas,
+                      delete_source,
+                      force]() {
+        return the_engine->delete_with_meta(cookie,
+                                            vbucket,
+                                            key,
+                                            item_meta,
+                                            cas,
+                                            mut_info,
+                                            check_conflicts,
+                                            gen_by_seqno,
+                                            gen_cas,
+                                            delete_source,
+                                            force);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 cb::engine_errc MockEngine::flush(CookieIface& cookie) {
     auto engine_fn = [this, &cookie]() { return the_engine->flush(cookie); };
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);

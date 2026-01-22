@@ -119,7 +119,7 @@ public:
             std::optional<DeleteSource> deleteSource,
             protocol_binary_datatype_t datatype,
             uint64_t& cas,
-            uint64_t* seqno,
+            mutation_descr_t& mut_info,
             CookieIface& cookie,
             CheckConflicts checkConflicts,
             bool allowExisting,

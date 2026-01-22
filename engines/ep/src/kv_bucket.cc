@@ -1795,7 +1795,8 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       bool allowExisting,
                                       GenerateBySeqno genBySeqno,
                                       GenerateCas genCas,
-                                      EnforceMemCheck enforceMemCheck) {
+                                      EnforceMemCheck enforceMemCheck,
+                                      uint64_t* vbucket_uuid) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
                                 *cookie,
@@ -1852,6 +1853,10 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     }
 
     if (rv == cb::engine_errc::success) {
+        if (vbucket_uuid && vb->failovers) {
+            *vbucket_uuid = vb->failovers->getLatestUUID();
+        }
+
         checkAndMaybeFreeMemory();
     }
     return rv;
@@ -2227,7 +2232,8 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
                                          GenerateCas generateCas,
                                          uint64_t bySeqno,
                                          DeleteSource deleteSource,
-                                         EnforceMemCheck enforceMemCheck) {
+                                         EnforceMemCheck enforceMemCheck,
+                                         uint64_t* vbucket_uuid) {
     Expects(cookie);
     auto lr = operationPrologue(
             vbucket, *cookie, permittedVBStates, IsMutationOp::Yes, __func__);
@@ -2266,19 +2272,23 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
             return cb::engine_errc::unknown_collection;
         }
 
-        return vb->deleteWithMeta(rlh,
-                                  cas,
-                                  seqno,
-                                  cookie,
-                                  engine,
-                                  checkConflicts,
-                                  itemMeta,
-                                  genBySeqno,
-                                  generateCas,
-                                  bySeqno,
-                                  cHandle,
-                                  deleteSource,
-                                  enforceMemCheck);
+        auto ret = vb->deleteWithMeta(rlh,
+                                      cas,
+                                      seqno,
+                                      cookie,
+                                      engine,
+                                      checkConflicts,
+                                      itemMeta,
+                                      genBySeqno,
+                                      generateCas,
+                                      bySeqno,
+                                      cHandle,
+                                      deleteSource,
+                                      enforceMemCheck);
+        if (ret == cb::engine_errc::success && vbucket_uuid && vb->failovers) {
+            *vbucket_uuid = vb->failovers->getLatestUUID();
+        }
+        return ret;
     }
 }
 

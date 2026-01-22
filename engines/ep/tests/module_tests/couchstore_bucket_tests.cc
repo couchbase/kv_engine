@@ -117,7 +117,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
         const auto valBuf = cb::const_byte_buffer{
                 reinterpret_cast<const uint8_t*>(key.data()), key.size()};
         uint64_t opCas = 0;
-        uint64_t seqno = 0;
+        mutation_descr_t mut_info;
         const auto res = engine->public_setWithMeta(
                 vbid,
                 engine->public_makeDocKey(*cookie, key),
@@ -126,7 +126,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 std::nullopt /*isDeleted*/,
                 PROTOCOL_BINARY_RAW_BYTES,
                 opCas,
-                &seqno,
+                mut_info,
                 *cookie,
                 CheckConflicts::Yes,
                 true /*allowExisting*/,
@@ -134,7 +134,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 GenerateCas::No);
         ASSERT_EQ(cb::engine_errc::success, res);
         EXPECT_EQ(cas, opCas); // Note: CAS is not regenerated
-        EXPECT_EQ(expectedSeqno, seqno);
+        EXPECT_EQ(expectedSeqno, mut_info.seqno);
     };
 
     // This-thread issues the first setWithMeta(s:1) and then blocks.

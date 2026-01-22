@@ -561,6 +561,63 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
             cookie, item, cas, operation, predicate, preserveTtl);
 }
 
+cb::engine_errc EventuallyPersistentEngine::set_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force) {
+    mut_info = {};
+    return acquireEngine(this)->setWithMeta(vbucket,
+                                            key,
+                                            value,
+                                            item_meta,
+                                            delete_source,
+                                            datatype,
+                                            cas,
+                                            mut_info,
+                                            cookie,
+                                            check_conflicts,
+                                            allow_existing,
+                                            generate_by_seqno,
+                                            generate_cas,
+                                            force);
+}
+cb::engine_errc EventuallyPersistentEngine::delete_with_meta(
+        CookieIface& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno gen_by_seqno,
+        GenerateCas gen_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force) {
+    mut_info = {};
+    return acquireEngine(this)->deleteWithMeta(vbucket,
+                                               key,
+                                               item_meta,
+                                               cas,
+                                               mut_info,
+                                               cookie,
+                                               check_conflicts,
+                                               gen_by_seqno,
+                                               gen_cas,
+                                               delete_source,
+                                               force);
+}
+
 void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
     acquireEngine(this)->resetStats();
 }
@@ -5912,7 +5969,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     uint32_t expiration = payload->getExpiration();
     uint64_t seqno = payload->getSeqno();
     uint64_t cas = payload->getCas();
-    uint64_t bySeqno = 0;
+    mutation_descr_t mut_info;
     cb::engine_errc ret;
     uint64_t commandCas = request.getCas();
     try {
@@ -5923,7 +5980,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           std::nullopt /*isDeleted*/,
                           uint8_t(request.getDatatype()),
                           commandCas,
-                          &bySeqno,
+                          mut_info,
                           cookie,
                           checkConflicts,
                           allowExisting,
@@ -5935,7 +5992,6 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (ret == cb::engine_errc::would_block) {
-        ++stats.numOpsGetMetaOnSetWithMeta;
         storeEngineSpecific(cookie, startTime);
         return cb::engine_errc::would_block;
     }
@@ -5972,7 +6028,6 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 
     cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
     auditDocumentAccess(cookie, cb::audit::document::Operation::Modify);
-    ++stats.numOpsSetMeta;
     cas = commandCas;
 
     if (opcode == cb::mcbp::ClientOpcode::SetqWithMeta ||
@@ -5982,12 +6037,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (cookie.isMutationExtrasSupported()) {
-        return sendMutationExtras(response,
-                                  request.getVBucket(),
-                                  bySeqno,
-                                  cb::mcbp::Status::Success,
-                                  cas,
-                                  cookie);
+        return sendMutationExtras(response, mut_info, cas, cookie);
     }
     return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
 }
@@ -6000,7 +6050,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         std::optional<DeleteSource> deleteSource,
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
-        uint64_t* seqno,
+        mutation_descr_t& mut_info,
         CookieIface& cookie,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -6014,6 +6064,9 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         !cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         setErrorContext(cookie, "Client did not negotiate Snappy support");
         return cb::engine_errc::invalid_arguments;
+    }
+    if (isDegradedMode()) {
+        return cb::engine_errc::temporary_failure;
     }
 
     std::string_view payload(reinterpret_cast<const char*>(value.data()),
@@ -6105,17 +6158,31 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
     auto ret = kvBucket->setWithMeta(*item,
                                      cas,
-                                     seqno,
+                                     &mut_info.seqno,
                                      &cookie,
                                      PermittedVBStates{vbucket_state_active},
                                      checkConflicts,
                                      allowExisting,
                                      genBySeqno,
-                                     genCas);
+                                     genCas,
+                                     EnforceMemCheck::Yes,
+                                     &mut_info.vbucket_uuid);
 
     if (ret == cb::engine_errc::success) {
+        if (deleteSource.has_value()) {
+            ++stats.numOpsDelMeta;
+        } else {
+            ++stats.numOpsSetMeta;
+            using namespace std::chrono;
+            const auto elapsed = duration_cast<microseconds>(
+                    steady_clock::now() - cookie.getStartTime());
+            stats.setWithMetaHisto.add(elapsed);
+        }
         cas = item->getCas();
     } else {
+        if (ret == cb::engine_errc::would_block) {
+            ++stats.numOpsGetMetaOnSetWithMeta;
+        }
         cas = 0;
     }
     return ret;
@@ -6145,7 +6212,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 
     auto value = adjustValueForExtendedMeta(request.getValue(), extras);
     auto key = makeDocKey(cookie, request.getKey());
-    uint64_t bySeqno = 0;
+    mutation_descr_t mut_info;
 
     const auto* payload =
             reinterpret_cast<const cb::mcbp::request::DelWithMetaPayload*>(
@@ -6206,7 +6273,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                  key,
                                  {metacas, seqno, flags, delete_time},
                                  cas,
-                                 &bySeqno,
+                                 mut_info,
                                  cookie,
                                  checkConflicts,
                                  GenerateBySeqno::Yes,
@@ -6222,7 +6289,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               deleteSource,
                               PROTOCOL_BINARY_DATATYPE_XATTR,
                               cas,
-                              &bySeqno,
+                              mut_info,
                               cookie,
                               checkConflicts,
                               true /*allowExisting*/,
@@ -6237,7 +6304,6 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     if (ret == cb::engine_errc::success) {
         cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
         auditDocumentAccess(cookie, cb::audit::document::Operation::Delete);
-        stats.numOpsDelMeta++;
     } else if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
     } else {
@@ -6249,12 +6315,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (cookie.isMutationExtrasSupported()) {
-        return sendMutationExtras(response,
-                                  request.getVBucket(),
-                                  bySeqno,
-                                  cb::mcbp::Status::Success,
-                                  cas,
-                                  cookie);
+        return sendMutationExtras(response, mut_info, cas, cookie);
     }
 
     return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
@@ -6265,7 +6326,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         DocKeyView key,
         ItemMetaData itemMeta,
         uint64_t& cas,
-        uint64_t* seqno,
+        mutation_descr_t& mut_info,
         CookieIface& cookie,
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
@@ -6275,19 +6336,25 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     if (!validateWithMetaOptions(cookie, force, genCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
     }
-    return kvBucket->deleteWithMeta(key,
-                                    cas,
-                                    seqno,
-                                    vbucket,
-                                    &cookie,
-                                    PermittedVBStates{vbucket_state_active},
-                                    checkConflicts,
-                                    itemMeta,
-                                    genBySeqno,
-                                    genCas,
-                                    0 /*bySeqno*/,
-                                    deleteSource,
-                                    EnforceMemCheck::Yes);
+    const auto ret =
+            kvBucket->deleteWithMeta(key,
+                                     cas,
+                                     &mut_info.seqno,
+                                     vbucket,
+                                     &cookie,
+                                     PermittedVBStates{vbucket_state_active},
+                                     checkConflicts,
+                                     itemMeta,
+                                     genBySeqno,
+                                     genCas,
+                                     0 /*bySeqno*/,
+                                     deleteSource,
+                                     EnforceMemCheck::Yes,
+                                     &mut_info.vbucket_uuid);
+    if (ret == cb::engine_errc::success) {
+        ++stats.numOpsDelMeta;
+    }
+    return ret;
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
@@ -7038,29 +7105,20 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
 
 cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
         const AddResponseFn& response,
-        Vbid vbucket,
-        uint64_t bySeqno,
-        cb::mcbp::Status status,
+        mutation_descr_t mut_info,
         uint64_t cas,
         CookieIface& cookie) {
-    VBucketPtr vb = kvBucket->getVBucket(vbucket);
-    if (!vb) {
-        return sendErrorResponse(
-                response, cb::mcbp::Status::NotMyVbucket, cas, cookie);
-    }
-    const uint64_t uuid = htonll(vb->failovers->getLatestUUID());
-    bySeqno = htonll(bySeqno);
-    std::array<char, 16> meta;
-    memcpy(meta.data(), &uuid, sizeof(uuid));
-    memcpy(meta.data() + sizeof(uuid), &bySeqno, sizeof(bySeqno));
-    return sendResponse(response,
-                        {}, // key
-                        {meta.data(), meta.size()}, // extra
-                        {}, // body
-                        ValueIsJson::No,
-                        status,
-                        cas,
-                        cookie);
+    mut_info.vbucket_uuid = htonll(mut_info.vbucket_uuid);
+    mut_info.seqno = htonll(mut_info.seqno);
+    return sendResponse(
+            response,
+            {}, // key
+            {reinterpret_cast<const char*>(&mut_info), sizeof(mut_info)},
+            {}, // body
+            ValueIsJson::No,
+            cb::mcbp::Status::Success,
+            cas,
+            cookie);
 }
 
 std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(

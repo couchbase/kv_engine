@@ -226,6 +226,7 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
+     * @param vbucket_uuid Where to store the uuid of the vbucket (if not null)
      * @return the result of the store operation
      */
     virtual cb::engine_errc setWithMeta(
@@ -238,7 +239,8 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) = 0;
+            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes,
+            uint64_t* vbucket_uuid = nullptr) = 0;
 
     /**
      * Add a prepare to the store
@@ -333,21 +335,24 @@ public:
      *                     triggers the expiry path.
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
+     * @param vbucket_uuid Where to store the uuid of the vbucket (if not null)
      * @return the result of the delete operation
      */
-    virtual cb::engine_errc deleteWithMeta(const DocKeyView& key,
-                                           uint64_t& cas,
-                                           uint64_t* seqno,
-                                           Vbid vbucket,
-                                           CookieIface* cookie,
-                                           PermittedVBStates permittedVBStates,
-                                           CheckConflicts checkConflicts,
-                                           const ItemMetaData& itemMeta,
-                                           GenerateBySeqno genBySeqno,
-                                           GenerateCas generateCas,
-                                           uint64_t bySeqno,
-                                           DeleteSource deleteSource,
-                                           EnforceMemCheck enforceMemCheck) = 0;
+    virtual cb::engine_errc deleteWithMeta(
+            const DocKeyView& key,
+            uint64_t& cas,
+            uint64_t* seqno,
+            Vbid vbucket,
+            CookieIface* cookie,
+            PermittedVBStates permittedVBStates,
+            CheckConflicts checkConflicts,
+            const ItemMetaData& itemMeta,
+            GenerateBySeqno genBySeqno,
+            GenerateCas generateCas,
+            uint64_t bySeqno,
+            DeleteSource deleteSource,
+            EnforceMemCheck enforceMemCheck,
+            uint64_t* vbucket_uuid = nullptr) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &

@@ -69,6 +69,35 @@ cb::EngineErrorCasPair bucket_store_if(
         DocumentState document_state,
         bool preserveTtl);
 
+[[nodiscard]] cb::engine_errc bucket_set_with_meta(
+        Cookie& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        cb::const_byte_buffer value,
+        ItemMetaData item_meta,
+        std::optional<DeleteSource> delete_source,
+        protocol_binary_datatype_t datatype,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        bool allow_existing,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        ForceAcceptWithMetaOperation force);
+
+[[nodiscard]] cb::engine_errc bucket_delete_with_meta(
+        Cookie& cookie,
+        Vbid vbucket,
+        DocKeyView key,
+        ItemMetaData item_meta,
+        uint64_t& cas,
+        mutation_descr_t& mut_info,
+        CheckConflicts check_conflicts,
+        GenerateBySeqno generate_by_seqno,
+        GenerateCas generate_cas,
+        DeleteSource delete_source,
+        ForceAcceptWithMetaOperation force);
+
 cb::engine_errc bucket_remove(
         Cookie& cookie,
         const DocKeyView& key,
