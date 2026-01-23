@@ -375,8 +375,6 @@ struct DBFileInfo {
         }
         return spaceUsed;
     }
-
-    DBFileInfo& operator+=(const DBFileInfo& other);
 };
 
 struct vbucket_state;
