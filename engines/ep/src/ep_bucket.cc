@@ -1576,6 +1576,7 @@ DBFileInfo EPBucket::getAggregatedFileInfo() {
         totalInfo.spaceUsed += dbInfo.spaceUsed;
         totalInfo.fileSize += dbInfo.fileSize;
         totalInfo.prepareBytes += dbInfo.prepareBytes;
+        totalInfo.numTombstones += dbInfo.numTombstones;
         totalInfo.historyDiskSize += dbInfo.historyDiskSize;
 
         if (dbInfo.historyStartTimestamp > std::chrono::seconds(0)) {
@@ -1600,6 +1601,7 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
     collector.addStat(Key::ep_db_history_file_size, totalInfo.historyDiskSize);
     collector.addStat(Key::ep_db_prepare_size, totalInfo.prepareBytes);
+    collector.addStat(Key::ep_db_tombstones, totalInfo.numTombstones);
     collector.addStat(Key::ep_db_history_start_timestamp,
                       totalInfo.historyStartTimestamp.count());
 

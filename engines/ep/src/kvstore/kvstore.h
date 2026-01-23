@@ -348,6 +348,9 @@ struct DBFileInfo {
     /// be considered part of the "Fragmented" count.
     uint64_t prepareBytes = 0;
 
+    /// Number of tombstones (currently only counted by couchstore)
+    uint64_t numTombstones = 0;
+
     /// Total size of history as reported by magma.
     uint64_t historyDiskSize = 0;
 

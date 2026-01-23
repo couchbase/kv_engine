@@ -3956,6 +3956,7 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
             stats->TotalDiskUsage,
             nonHistoryDataSize,
             0 /*prepareBytes*/,
+            0 /*numTombstones*/,
             stats->HistoryDiskUsage,
             std::chrono::seconds(stats->SeqStats.HistoryStartTimestamp)};
     return vbinfo;

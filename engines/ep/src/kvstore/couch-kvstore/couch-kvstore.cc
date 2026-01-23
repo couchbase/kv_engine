@@ -3750,7 +3750,8 @@ DBFileInfo CouchKVStore::getDbFileInfo(Vbid vbid) {
     const auto info = getDbInfo(vbid);
     return DBFileInfo{info.fileSize,
                       info.spaceUsed,
-                      cachedOnDiskPrepareSize[getCacheSlot(vbid)]};
+                      cachedOnDiskPrepareSize[getCacheSlot(vbid)],
+                      info.deletedCount};
 }
 
 DBFileInfo CouchKVStore::getAggrDbFileInfo() {
@@ -3765,6 +3766,7 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
         kvsFileInfo.fileSize += cachedFileSize[vbid].load();
         kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
         kvsFileInfo.prepareBytes += cachedOnDiskPrepareSize[vbid].load();
+        kvsFileInfo.numTombstones += cachedDeleteCount[vbid].load();
     }
     return kvsFileInfo;
 }
