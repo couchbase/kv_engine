@@ -476,6 +476,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
         } else if (key == "magma_blind_write_optimisation_enabled"sv) {
             setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
+        } else if (key == "magma_max_default_storage_threads"sv) {
+            setMagmaMaxDefaultStorageThreads(value.get<size_t>());
+        } else if (key == "magma_flusher_thread_percentage"sv) {
+            setMagmaFlusherThreadPercentage(value.get<size_t>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1227,6 +1231,27 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"to", other.isMagmaBlindWriteOptimisationEnabled()});
             setMagmaBlindWriteOptimisationEnabled(
                     other.isMagmaBlindWriteOptimisationEnabled());
+        }
+    }
+
+    if (other.has.magma_max_default_storage_threads) {
+        const auto currVal = getMagmaMaxDefaultStorageThreads();
+        const auto newVal = other.getMagmaMaxDefaultStorageThreads();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change magma_max_default_storage_threads",
+                         {"from", currVal},
+                         {"to", currVal});
+            setMagmaMaxDefaultStorageThreads(newVal);
+        }
+    }
+
+    if (other.has.magma_flusher_thread_percentage) {
+        const auto currVal = getMagmaFlusherThreadPercentage();
+        const auto newVal = other.getMagmaFlusherThreadPercentage();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change magma_flusher_thread_percentage",
+                         {"from", currVal},
+                         {"to", currVal});
         }
     }
 }
