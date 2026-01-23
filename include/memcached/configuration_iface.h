@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "define_yes_no_enum.h"
+
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
@@ -56,18 +58,20 @@ enum class ParameterVisibility {
 
 void to_json(nlohmann::json& j, const ParameterVisibility& visibility);
 
+DEFINE_YES_NO_ENUM(RequiresRestart)
+
 /**
  * Encodes the validation information for a parameter.
  */
 struct ParameterInfo {
     ParameterInfo(nlohmann::json value,
-                  bool requiresRestart,
+                  RequiresRestart requiresRestart,
                   ParameterVisibility visibility);
 
     /// The value to set for the parameter.
     nlohmann::json value;
     /// Whether the parameter requires a restart to take effect.
-    bool requiresRestart{false};
+    RequiresRestart requiresRestart{RequiresRestart::No};
     /// The visibility of the parameter.
     ParameterVisibility visibility{ParameterVisibility::Internal};
 };

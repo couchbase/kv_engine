@@ -73,7 +73,7 @@ cb::engine_errc BucketConfigCommandContext::execute() {
                         validation.emplace(
                                 key,
                                 ParameterInfo(val,
-                                              /*requiresRestart*/ false,
+                                              RequiresRestart::No,
                                               ParameterVisibility::Public));
                     } catch (const std::exception& e) {
                         validation.emplace(

@@ -660,7 +660,8 @@ void Configuration::fillDefaults(ParameterValidationMap& map) const {
             map.emplace(
                     key,
                     ParameterInfo(to_json(attr->getValue()),
-                                  !attr->dynamic,
+                                  attr->dynamic ? RequiresRestart::No
+                                                : RequiresRestart::Yes,
                                   getParameterVisibility(attr->publicSince)));
         }
     }
@@ -704,7 +705,8 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
         result.emplace(
                 key,
                 ParameterInfo(to_json(newValue),
-                              !attribute.dynamic,
+                              attribute.dynamic ? RequiresRestart::No
+                                                : RequiresRestart::Yes,
                               getParameterVisibility(attribute.publicSince)));
     }
 

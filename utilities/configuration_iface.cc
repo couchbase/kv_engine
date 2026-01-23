@@ -29,7 +29,7 @@ void to_json(nlohmann::json& json, const ParameterErrorType& type) {
 
 void to_json(nlohmann::json& json, const ParameterInfo& info) {
     json["value"] = info.value;
-    json["requiresRestart"] = info.requiresRestart;
+    json["requiresRestart"] = info.requiresRestart == RequiresRestart::Yes;
     json["visibility"] = info.visibility;
 }
 
@@ -65,7 +65,8 @@ bool hasErrors(const ParameterValidationMap& validation) {
 bool requiresRestart(const ParameterValidationMap& validation) {
     for (const auto& [key, result] : validation) {
         if (std::holds_alternative<ParameterInfo>(result) &&
-            std::get<ParameterInfo>(result).requiresRestart) {
+            std::get<ParameterInfo>(result).requiresRestart ==
+                    RequiresRestart::Yes) {
             return true;
         }
     }
@@ -86,7 +87,7 @@ ParameterError::ParameterError(ParameterErrorType type, std::string message)
 }
 
 ParameterInfo::ParameterInfo(nlohmann::json value,
-                             bool requiresRestart,
+                             RequiresRestart requiresRestart,
                              ParameterVisibility visibility)
     : value(std::move(value)),
       requiresRestart(requiresRestart),
@@ -101,7 +102,7 @@ public:
         for (const auto& [key, value] : parameters) {
             result.emplace(key,
                            ParameterInfo(nlohmann::json(value),
-                                         false,
+                                         RequiresRestart::No,
                                          ParameterVisibility::Public));
         }
         return result;
