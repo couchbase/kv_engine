@@ -21,5 +21,8 @@
   },
   "range_scan_continue": {
     "slow" : "5 s"
+  },
+  "get_file_fragment": {
+    "slow": "30 s"
   }
 }
