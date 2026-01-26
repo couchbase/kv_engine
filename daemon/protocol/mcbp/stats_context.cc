@@ -135,21 +135,33 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
     if (arg.empty()) {
         for (size_t ii = 0; ii < Settings::instance().getNumWorkerThreads();
              ++ii) {
-            append_stats(fmt::format("Thread-{}", ii),
+            append_stats(fmt::format("Thread-{}-scheduler", ii),
                          scheduler_info[ii].to_string(),
+                         cookie);
+            append_stats(fmt::format("Thread-{}-dispatch-socket", ii),
+                         dispatch_socket_histogram[ii].to_string(),
+                         cookie);
+            append_stats(fmt::format("Thread-{}-cookie-notification", ii),
+                         cookie_notification_histogram[ii].to_string(),
                          cookie);
         }
         return cb::engine_errc::success;
     }
 
     if (arg == "aggregate") {
-        static const std::string key = {"Thread-aggregate"};
-        Hdr1sfMicroSecHistogram histogram{};
-        for (const auto& h : scheduler_info) {
-            histogram += h;
-        }
-        // Add the stat
-        append_stats(key, histogram.to_string(), cookie);
+        auto add = [&cookie](std::string_view key,
+                             const std::vector<Hdr1sfMicroSecHistogram>& data) {
+            Hdr1sfMicroSecHistogram histogram{};
+            for (const auto& h : data) {
+                histogram += h;
+            }
+            // Add the stat
+            append_stats(key, histogram.to_string(), cookie);
+        };
+        add("Thread-aggregate-scheduler", scheduler_info);
+        add("Thread-aggregate-dispatch-socket", dispatch_socket_histogram);
+        add("Thread-aggregate-cookie-notification",
+            cookie_notification_histogram);
         return cb::engine_errc::success;
     }
 

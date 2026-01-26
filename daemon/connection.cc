@@ -864,13 +864,15 @@ void Connection::processNotifiedCookie(
         Cookie& cookie,
         cb::engine_errc status,
         std::chrono::steady_clock::time_point scheduled) {
+    using namespace std::chrono;
+    const auto now = steady_clock::now();
+    cookie_notification_histogram[thread.index].add(
+            duration_cast<microseconds>(now - scheduled));
     Expects(cookie.isEwouldblock());
     cookie.setAiostat(status);
     cookie.clearEwouldblock();
     triggerCallback();
-    cookie.getTracer().record(cb::tracing::Code::Notified,
-                              scheduled,
-                              std::chrono::steady_clock::now());
+    cookie.getTracer().record(cb::tracing::Code::Notified, scheduled, now);
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
