@@ -1084,10 +1084,3 @@ std::ostream& operator<<(std::ostream& os,
                          const KVStoreIface::GetCollectionStatsStatus& status) {
     return os << format_as(status);
 }
-
-DBFileInfo& DBFileInfo::operator+=(const DBFileInfo& other) {
-    spaceUsed += other.spaceUsed;
-    fileSize += other.fileSize;
-    prepareBytes += other.prepareBytes;
-    return *this;
-}

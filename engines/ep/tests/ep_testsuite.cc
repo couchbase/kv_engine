@@ -7136,6 +7136,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                          {"ep_db_data_size",
                           "ep_db_file_size",
                           "ep_db_prepare_size",
+                          "ep_db_tombstones",
                           "ep_db_history_file_size",
                           "ep_db_history_start_timestamp"});
         // Using explicit initializer lists due to http://stackoverflow
@@ -7177,6 +7178,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         statsKeys["diskinfo"] = {"ep_db_data_size",
                                  "ep_db_file_size",
                                  "ep_db_prepare_size",
+                                 "ep_db_tombstones",
                                  "ep_db_history_file_size",
                                  "ep_db_history_start_timestamp"};
         statsKeys["diskinfo detail"] = {"vb_0:data_size",

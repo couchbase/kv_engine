@@ -929,6 +929,8 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
     if (!hasMagma()) {
         // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
         EXPECT_LT(0, std::stoi(stats["ep_db_prepare_size"]));
+        // Magma does not track tombstones
+        EXPECT_LT(0, std::stoi(stats["ep_db_tombstones"]));
         // Magma always returns 0 from getNumPersistedDeletes
         auto onDiskDeletes = get_stat(fmt::format(
                 "dcp-vbtakeover {}", vbid.get()))["on_disk_deletes"];
@@ -946,6 +948,8 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
     if (!hasMagma()) {
         // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
         EXPECT_LT(0, std::stoi(newStats["ep_db_prepare_size"]));
+        // Magma does not track tombstones
+        EXPECT_LT(0, std::stoi(stats["ep_db_tombstones"]));
         // Magma always returns 0 from getNumPersistedDeletes
         auto onDiskDeletes = get_stat(fmt::format(
                 "dcp-vbtakeover {}", vbid.get()))["on_disk_deletes"];
