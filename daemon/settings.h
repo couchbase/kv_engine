@@ -1230,6 +1230,28 @@ public:
         notify_changed("magma_blind_write_optimisation_enabled");
     }
 
+    size_t getMagmaMaxDefaultStorageThreads() const {
+        return magma_max_default_storage_threads.load(
+                std::memory_order_acquire);
+    }
+
+    void setMagmaMaxDefaultStorageThreads(size_t value) {
+        magma_max_default_storage_threads.store(value,
+                                                std::memory_order_release);
+        has.magma_max_default_storage_threads = true;
+        notify_changed("magma_max_default_storage_threads");
+    }
+
+    size_t getMagmaFlusherThreadPercentage() const {
+        return magma_flusher_thread_percentage.load(std::memory_order_acquire);
+    }
+
+    void setMagmaFlusherThreadPercentage(size_t value) {
+        magma_flusher_thread_percentage.store(value, std::memory_order_release);
+        has.magma_flusher_thread_percentage = true;
+        notify_changed("magma_flusher_thread_percentage");
+    }
+
     size_t getDefaultThrottleReservedUnits() const {
         return default_throttle_reserved_units.load(std::memory_order_acquire);
     }
@@ -1606,6 +1628,10 @@ protected:
 
     /// Magma's blind write optimisation, on or off. Default is on.
     std::atomic_bool magma_blind_write_optimisation_enabled{true};
+    // The number of total magma threads
+    std::atomic_size_t magma_max_default_storage_threads{20};
+    // Percent of magma flusher threads out of total magma threads
+    std::atomic_size_t magma_flusher_thread_percentage{20};
 
     std::atomic<size_t> default_throttle_reserved_units =
             std::numeric_limits<std::size_t>::max();
@@ -1710,6 +1736,8 @@ public:
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
         bool magma_blind_write_optimisation_enabled = false;
+        bool magma_max_default_storage_threads = false;
+        bool magma_flusher_thread_percentage = false;
         bool default_throttle_reserved_units = false;
         bool default_throttle_hard_limit = false;
         bool read_unit_size = false;

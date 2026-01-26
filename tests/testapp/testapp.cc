@@ -509,6 +509,7 @@ static std::string get_errmaps_dir() {
 // If any of these configs are changed, check if it is supported by ns_server
 nlohmann::json TestappTest::generate_config() {
     nlohmann::json ret = {
+            {"always_collect_trace_info", true},
             {"max_connections", Testapp::MAX_CONNECTIONS},
             {"system_connections", Testapp::MAX_CONNECTIONS / 4},
             {"stdin_listener", false},
@@ -542,7 +543,8 @@ nlohmann::json TestappTest::generate_config() {
               {"cyclesize", 200_MiB}}},
             {"portnumber_file", mcd_env->getPortnumberFile().string()},
             {"prometheus", {{"port", 0}, {"family", "inet"}}},
-    };
+            {"magma_max_default_storage_threads", 2},
+            {"magma_flusher_thread_percentage", 50}};
 
     if (!embedded_memcached_server) {
         ret["parent_identifier"] = getpid();

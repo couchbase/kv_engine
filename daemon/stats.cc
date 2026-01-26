@@ -101,6 +101,13 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(Key::auth_cmds, global_statistics.auth_cmds);
         collector.addStat(Key::auth_errors, global_statistics.auth_errors);
         externalAuthManager->addStats(collector);
+
+        collector.addStat(
+                Key::magma_max_default_storage_threads,
+                Settings::instance().getMagmaMaxDefaultStorageThreads());
+        collector.addStat(
+                Key::magma_flusher_thread_percentage,
+                Settings::instance().getMagmaFlusherThreadPercentage());
     }
 }
 

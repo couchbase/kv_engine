@@ -551,6 +551,45 @@ static void initialize_sasl() {
     }
 }
 
+static auto updateMagmaThreadPool(const std::string&, Settings& s) {
+    return [&s](const std::string&, Settings&) {
+        const auto total = s.getMagmaMaxDefaultStorageThreads();
+        const auto flusherRatio =
+                static_cast<float>(s.getMagmaFlusherThreadPercentage()) / 100;
+        auto flushers = std::ceil(total * flusherRatio);
+        if (flushers <= 0) {
+            LOG_WARNING_CTX(
+                    "updateMagmaThreadPool: setting flushers=1",
+                    {"total", total},
+                    {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                    {"flusherRatio", flusherRatio},
+                    {"flushers", flushers});
+            flushers = 1;
+        }
+        auto compactors = total - flushers;
+        if (compactors <= 0) {
+            LOG_WARNING_CTX(
+                    "updateMagmaThreadPool: setting compactors=1",
+                    {"total", total},
+                    {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                    {"flusherRatio", flusherRatio},
+                    {"flushers", flushers},
+                    {"compactors", compactors});
+            compactors = 1;
+        }
+        LOG_INFO_CTX("updateMagmaThreadPool:",
+                     {"total", total},
+                     {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                     {"flusherRatio", flusherRatio},
+                     {"flushers", flushers},
+                     {"compactors", compactors});
+        magma::Magma::SetNumThreads(magma::Magma::ThreadType::Flusher,
+                                    flushers);
+        magma::Magma::SetNumThreads(magma::Magma::ThreadType::Compactor,
+                                    compactors);
+    };
+};
+
 static void startExecutorPool() {
     auto& settings = Settings::instance();
 
@@ -647,6 +686,11 @@ static void startExecutorPool() {
         GlobalConcurrencySemaphores::instance().download_snapshot.setCapacity(
                 pool->getNumAuxIO() - 2);
     }
+
+    settings.addChangeListener("magma_max_default_storage_threads",
+                               updateMagmaThreadPool("", settings));
+    settings.addChangeListener("magma_flusher_thread_percentage",
+                               updateMagmaThreadPool("", settings));
 }
 
 static void initialize_serverless_config() {
