@@ -28,6 +28,7 @@ class Bucket;
 class Cookie;
 class Connection;
 struct HighResolutionThreadStats;
+struct LowResolutionThreadStats;
 
 /*
  * Functions such as the libevent-related calls that need to do cross-thread

@@ -1143,6 +1143,7 @@ BucketManager::BucketManager() {
         b = std::make_shared<Bucket>(index);
         b->reset();
         b->high_resolution_stats.resize(numthread);
+        b->low_resolution_stats.resize(numthread);
     }
 
     // To make the life easier for us in the code, index 0 in the array is

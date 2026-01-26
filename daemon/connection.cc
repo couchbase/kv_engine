@@ -1585,7 +1585,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     if (cutracing) {
         auto [nru, nwu] = cookie.getDocumentMeteringRWUnits();
         throttled = cb::tracing::Tracer::encodeMicros(
-                cookie.getTotalThrottleTime());
+                cookie.getTotalThrottleTime().count());
         if (!nru && !nwu && !throttled) {
             // no values to report
             cutracing = false;

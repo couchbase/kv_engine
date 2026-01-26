@@ -4579,6 +4579,14 @@
         "stability": "internal"
     },
     {
+        "key": "throttle_duration",
+        "unit": "microseconds",
+        "type": "histogram",
+        "description": "Histogram of throttle wait times for a bucket since reset",
+        "added": "8.1.0",
+        "stability": "internal"
+    },
+    {
         "key": "throttle_count_total",
         "unit": "none",
         "type": "counter",

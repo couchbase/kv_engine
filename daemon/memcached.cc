@@ -184,6 +184,8 @@ void stats_reset(Cookie& cookie) {
     global_statistics.rejected_conns.reset();
     reset_high_resolution_thread_stats(
             cookie.getConnection().getBucket().high_resolution_stats);
+    reset_low_resolution_thread_stats(
+            cookie.getConnection().getBucket().low_resolution_stats);
     bucket_reset_stats(cookie);
 }
 

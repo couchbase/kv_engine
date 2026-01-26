@@ -60,6 +60,9 @@ void Bucket::reset() {
     for (auto& s : high_resolution_stats) {
         s.reset();
     }
+    for (auto& s : low_resolution_stats) {
+        s.reset();
+    }
     type = BucketType::Unknown;
     throttledConnections.resize(Settings::instance().getNumWorkerThreads());
     management_operation_in_progress = false;
@@ -200,6 +203,14 @@ void Bucket::addHighResolutionStats(
 
     collector.addStat(Key::throttle_reserved, throttle_reserved.load());
     collector.addStat(Key::throttle_hard_limit, throttle_hard_limit.load());
+}
+
+void Bucket::addLowResolutionStats(const BucketStatCollector& collector) const {
+    using namespace cb::stats;
+
+    LowResolutionThreadStats aggregateStats;
+    aggregateStats.aggregate(low_resolution_stats);
+    collector.addStat(Key::throttle_duration, aggregateStats.throttle_times);
 }
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
@@ -360,7 +371,12 @@ void Bucket::commandExecuted(const Cookie& cookie) {
                 (wu * cookie.getWriteThottlingFactor());
 
         consumedUnits(throttleUnits, cookie.getResourceAllocationDomain());
-        throttle_wait_time += cookie.getTotalThrottleTime();
+        throttle_wait_time += cookie.getTotalThrottleTime().count();
+        if (cookie.getTotalThrottleTime().count() != 0) {
+            low_resolution_stats[connection.getThread().index]
+                    .throttle_times.add(cookie.getTotalThrottleTime());
+        }
+
         const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
         read_units_used += nr;
         write_units_used += nw;

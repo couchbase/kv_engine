@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <relaxed_atomic.h>
 #include <vector>
 
@@ -149,6 +150,36 @@ HighResolutionThreadStats& get_high_resolution_thread_stats(Connection& c);
 
 void reset_high_resolution_thread_stats(
         std::vector<HighResolutionThreadStats>& thread_stats);
+
+/// Stats collected on a per thread base we want to collect with low
+/// resolution
+struct LowResolutionThreadStats {
+    LowResolutionThreadStats() {
+        reset();
+    }
+
+    void reset() {
+        throttle_times.reset();
+    }
+
+    LowResolutionThreadStats& operator+=(
+            const LowResolutionThreadStats& other) {
+        throttle_times += other.throttle_times;
+        return *this;
+    }
+
+    void aggregate(const std::vector<LowResolutionThreadStats>& thread_stats) {
+        for (const auto& ii : thread_stats) {
+            *this += ii;
+        }
+    }
+
+    /// Throttle response time histograms.
+    Hdr1sfMicroSecHistogram throttle_times;
+};
+
+void reset_low_resolution_thread_stats(
+        std::vector<LowResolutionThreadStats>& thread_stats);
 
 /*
  *  Macros for managing statistics inside memcached

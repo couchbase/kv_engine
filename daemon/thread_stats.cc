@@ -23,3 +23,10 @@ void reset_high_resolution_thread_stats(
         ii.reset();
     }
 }
+
+void reset_low_resolution_thread_stats(
+        std::vector<LowResolutionThreadStats>& thread_stats) {
+    for (auto& ii : thread_stats) {
+        ii.reset();
+    }
+}

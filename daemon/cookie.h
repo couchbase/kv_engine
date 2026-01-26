@@ -98,8 +98,8 @@ public:
     /// Update the throttled-state of the cookie
     void setThrottled(bool val);
 
-    uint64_t getTotalThrottleTime() const {
-        return total_throttle_time.count();
+    std::chrono::duration<int32_t, std::micro> getTotalThrottleTime() const {
+        return total_throttle_time;
     }
 
     /**

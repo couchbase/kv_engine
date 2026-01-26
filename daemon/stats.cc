@@ -313,12 +313,21 @@ cb::engine_errc server_prometheus_stats(
                         {"error", err});
             }
 
-            if (metricGroup == MetricGroup::Low) {
-                // do memcached per-bucket stats
+            switch (metricGroup) {
+            case MetricGroup::Low:
                 bucket.addHighResolutionStats(bucketC);
-            } else {
-                // do memcached timings stats
+                break;
+            case MetricGroup::High:
+                bucket.addLowResolutionStats(bucketC);
                 server_bucket_timing_stats(bucketC, bucket.timings);
+                break;
+            case MetricGroup::All:
+                bucket.addHighResolutionStats(bucketC);
+                bucket.addLowResolutionStats(bucketC);
+                server_bucket_timing_stats(bucketC, bucket.timings);
+                break;
+            case MetricGroup::Metering:
+                break;
             }
 
             // continue checking buckets

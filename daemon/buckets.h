@@ -29,6 +29,7 @@
 #include <mutex>
 
 struct HighResolutionThreadStats;
+struct LowResolutionThreadStats;
 class BucketStatCollector;
 struct DcpIface;
 class Connection;
@@ -149,6 +150,10 @@ public:
     /// thread.
     std::vector<HighResolutionThreadStats> high_resolution_stats;
 
+    /// Statistics vector for the low resolution stats, one per front-end
+    /// thread.
+    std::vector<LowResolutionThreadStats> low_resolution_stats;
+
     /**
      * Command timing data
      */
@@ -215,6 +220,11 @@ public:
     nlohmann::json to_json() const;
 
     void addHighResolutionStats(const BucketStatCollector& collector) const;
+
+    /**
+     * Add all per-bucket high cardinality metrics to a stat collector.
+     */
+    void addLowResolutionStats(const BucketStatCollector& collector) const;
 
     /**
      * Add all per-bucket metering related metrics to a stat collector.
