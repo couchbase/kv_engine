@@ -2120,6 +2120,12 @@
         "description": "The timestamp of the oldest document stored in the history window, oldest of all vbuckets",
         "added": "7.2.0"
     },
+    {
+        "key": "ep_db_tombstones",
+        "unit": "none",
+        "description": "The number of tombstones in db files (currently tracked only in couchstore)",
+        "added": "7.6.10"
+    },
 /* Snapshot stats (FBR) */
     {
         "key": "ep_snapshot_read",
