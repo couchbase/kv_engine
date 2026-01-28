@@ -1611,7 +1611,7 @@ protected:
     std::atomic<bool> prepare_snapshot_always_checksum{false};
 
     /// The default fsync interval for snapshot downloads (in bytes)
-    std::atomic<size_t> snapshot_download_fsync_interval{50_MiB};
+    std::atomic<size_t> snapshot_download_fsync_interval{2_MiB};
 
     /// The default write size for snapshot downloads (in bytes)
     std::atomic<size_t> snapshot_download_write_size{2_MiB};
