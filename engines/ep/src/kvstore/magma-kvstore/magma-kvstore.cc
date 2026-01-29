@@ -4002,6 +4002,18 @@ void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
                       histoStats.FlushTimeHisto,
                       add_stat,
                       c);
+    add_prefixed_stat(prefix,
+                      "keyIndexReadTime",
+                      histoStats.KeyStats.ReadTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "seqIndexReadTime",
+                      histoStats.SeqStats.ReadTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(
+            prefix, "readIOAmp", histoStats.ReadIOAmpHisto, add_stat, c);
     add_prefixed_stat(
             prefix, "getStatsTime", histoStats.GetStatsTimeHisto, add_stat, c);
     add_prefixed_stat(prefix,
