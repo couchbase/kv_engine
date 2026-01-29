@@ -178,16 +178,12 @@ static bool prometheus_auth_callback(const std::string& user,
     }
 }
 
-thread_stats* get_thread_stats(Connection* c) {
-    auto& independent_stats = c->getBucket().stats;
-    return &independent_stats.at(c->getThread().index);
-}
-
 void stats_reset(Cookie& cookie) {
     setStatsResetTime();
     global_statistics.total_conns.reset();
     global_statistics.rejected_conns.reset();
-    threadlocal_stats_reset(cookie.getConnection().getBucket().stats);
+    reset_high_resolution_thread_stats(
+            cookie.getConnection().getBucket().high_resolution_stats);
     bucket_reset_stats(cookie);
 }
 

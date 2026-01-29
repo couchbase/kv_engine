@@ -13,10 +13,8 @@
 #include "item_dissector.h"
 #include <daemon/buckets.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
-#include <folly/io/IOBuf.h>
-#include <xattr/utils.h>
+#include <daemon/thread_stats.h>
 
 GetCommandContext::GetCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),

@@ -13,7 +13,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "subdocument_parser.h"
-#include "subdocument_validators.h"
+#include "thread_stats.h"
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <platform/crc32c.h>
@@ -1163,17 +1163,17 @@ void SubdocExecutionContext::update_statistics() {
     // as 'cmd_get', in addition to specific subdoc counters. (This
     // is mainly so we see subdoc commands in the GUI, which used
     // cmd_set / cmd_get).
-    auto* ts = get_thread_stats(&cookie.getConnection());
+    auto& ts = get_high_resolution_thread_stats(cookie.getConnection());
     if (traits.is_mutator) {
-        ts->cmd_subdoc_mutation++;
-        ts->bytes_subdoc_mutation_total += out_doc_len;
-        ts->bytes_subdoc_mutation_inserted += getOperationValueBytesTotal();
+        ts.cmd_subdoc_mutation++;
+        ts.bytes_subdoc_mutation_total += out_doc_len;
+        ts.bytes_subdoc_mutation_inserted += getOperationValueBytesTotal();
         SLAB_INCR(&cookie.getConnection(), cmd_set);
     } else {
-        ts->cmd_subdoc_lookup++;
+        ts.cmd_subdoc_lookup++;
         if (cb::mcbp::isStatusSuccess(overall_status)) {
-            ts->bytes_subdoc_lookup_total += in_doc.view.size();
-            ts->bytes_subdoc_lookup_extracted += response_val_len;
+            ts.bytes_subdoc_lookup_total += in_doc.view.size();
+            ts.bytes_subdoc_lookup_extracted += response_val_len;
             STATS_HIT(&cookie.getConnection(), get);
         } else {
             STATS_MISS(&cookie.getConnection(), get);

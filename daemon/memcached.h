@@ -27,7 +27,7 @@
 class Bucket;
 class Cookie;
 class Connection;
-struct thread_stats;
+struct HighResolutionThreadStats;
 
 /*
  * Functions such as the libevent-related calls that need to do cross-thread
@@ -38,8 +38,6 @@ struct thread_stats;
 void worker_threads_init();
 
 void threads_shutdown();
-
-void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 /// Safely closes a server socket.
 void close_server_socket(SOCKET sfd);

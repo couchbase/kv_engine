@@ -12,6 +12,7 @@
 #include "cluster_config.h"
 #include "sloppy_gauge.h"
 #include "stat_timings.h"
+#include "thread_stats.h"
 #include "timings.h"
 
 #include <folly/CancellationToken.h>
@@ -27,7 +28,7 @@
 #include <memory>
 #include <mutex>
 
-struct thread_stats;
+struct HighResolutionThreadStats;
 class BucketStatCollector;
 struct DcpIface;
 class Connection;
@@ -144,10 +145,9 @@ public:
     /// and its status is returned for the operation.
     std::atomic<cb::mcbp::Status> data_ingress_status{cb::mcbp::Status::Success};
 
-    /**
-     * Statistics vector, one per front-end thread.
-     */
-    std::vector<thread_stats> stats;
+    /// Statistics vector for the high resolution stats, one per front-end
+    /// thread.
+    std::vector<HighResolutionThreadStats> high_resolution_stats;
 
     /**
      * Command timing data
@@ -214,7 +214,7 @@ public:
     /// Get a JSON representation of the bucket
     nlohmann::json to_json() const;
 
-    void addStats(const BucketStatCollector& collector) const;
+    void addHighResolutionStats(const BucketStatCollector& collector) const;
 
     /**
      * Add all per-bucket metering related metrics to a stat collector.

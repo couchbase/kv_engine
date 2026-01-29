@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -14,10 +13,10 @@
 #include "item_dissector.h"
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <memcached/util.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
 
 using cb::mcbp::request::ArithmeticPayload;
 

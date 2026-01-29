@@ -20,6 +20,7 @@
 #include "memcached.h"
 #include "settings.h"
 #include "stats.h"
+#include "thread_stats.h"
 #include "tracing.h"
 #include <hdrhistogram/hdrhistogram.h>
 #include <json/syntax_validator.h>
@@ -421,12 +422,6 @@ bool FrontEndThread::isXattrBlobValid(std::string_view view) {
 }
 
 /******************************* GLOBAL STATS ******************************/
-
-void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
-    for (auto& ii : thread_stats) {
-        ii.reset();
-    }
-}
 
 void worker_threads_init() {
     const auto nthr = Settings::instance().getNumWorkerThreads();

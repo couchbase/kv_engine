@@ -24,6 +24,7 @@
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
+#include "thread_stats.h"
 #include "tracing.h"
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -777,11 +778,11 @@ void Connection::executeCommandPipeline() {
         // We've used all the iterations we're allowed to do for each
         // time we're scheduled to run (max_reqs_per_event)
         yields++;
-        get_thread_stats(this)->conn_yields++;
+        get_high_resolution_thread_stats(*this).conn_yields++;
     } else if (now > current_timeslice_end) {
         // We've used more time than we're allowed to do for each
         // time we're scheduled to run
-        get_thread_stats(this)->conn_timeslice_yields++;
+        get_high_resolution_thread_stats(*this).conn_timeslice_yields++;
     }
 
     if (tooMuchData(false)) {
@@ -1227,12 +1228,12 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
 
 void Connection::updateSendBytes(size_t nbytes) {
     totalSend += nbytes;
-    get_thread_stats(this)->bytes_written += nbytes;
+    get_high_resolution_thread_stats(*this).bytes_written += nbytes;
 }
 
 void Connection::updateRecvBytes(size_t nbytes) {
     totalRecv += nbytes;
-    get_thread_stats(this)->bytes_read += nbytes;
+    get_high_resolution_thread_stats(*this).bytes_read += nbytes;
 }
 
 Connection::Connection(FrontEndThread& thr)

@@ -16,7 +16,7 @@
 #include "memcached.h"
 #include "resource_allocation_domain.h"
 #include "settings.h"
-#include "stats.h"
+#include "thread_stats.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/opcode.h>
@@ -57,7 +57,7 @@ void Bucket::reset() {
     }
     subjson_operation_times.reset();
     timings.reset();
-    for (auto& s : stats) {
+    for (auto& s : high_resolution_stats) {
         s.reset();
     }
     type = BucketType::Unknown;
@@ -112,29 +112,31 @@ nlohmann::json Bucket::to_json() const {
     return {};
 }
 
-void Bucket::addStats(const BucketStatCollector& collector) const {
-    thread_stats thread_stats;
-    thread_stats.aggregate(stats);
+void Bucket::addHighResolutionStats(
+        const BucketStatCollector& collector) const {
+    HighResolutionThreadStats aggregatedStats;
+    aggregatedStats.aggregate(high_resolution_stats);
 
     using namespace cb::stats;
-    collector.addStat(Key::cmd_get, thread_stats.cmd_get);
-    collector.addStat(Key::cmd_set, thread_stats.cmd_set);
-    collector.addStat(Key::cmd_flush, thread_stats.cmd_flush);
+    collector.addStat(Key::cmd_get, aggregatedStats.cmd_get);
+    collector.addStat(Key::cmd_set, aggregatedStats.cmd_set);
+    collector.addStat(Key::cmd_flush, aggregatedStats.cmd_flush);
 
-    collector.addStat(Key::cmd_subdoc_lookup, thread_stats.cmd_subdoc_lookup);
+    collector.addStat(Key::cmd_subdoc_lookup,
+                      aggregatedStats.cmd_subdoc_lookup);
     collector.addStat(Key::cmd_subdoc_mutation,
-                      thread_stats.cmd_subdoc_mutation);
+                      aggregatedStats.cmd_subdoc_mutation);
     collector.addStat(Key::subdoc_offload_count,
-                      thread_stats.subdoc_offload_count);
+                      aggregatedStats.subdoc_offload_count);
 
     collector.addStat(Key::bytes_subdoc_lookup_total,
-                      thread_stats.bytes_subdoc_lookup_total);
+                      aggregatedStats.bytes_subdoc_lookup_total);
     collector.addStat(Key::bytes_subdoc_lookup_extracted,
-                      thread_stats.bytes_subdoc_lookup_extracted);
+                      aggregatedStats.bytes_subdoc_lookup_extracted);
     collector.addStat(Key::bytes_subdoc_mutation_total,
-                      thread_stats.bytes_subdoc_mutation_total);
+                      aggregatedStats.bytes_subdoc_mutation_total);
     collector.addStat(Key::bytes_subdoc_mutation_inserted,
-                      thread_stats.bytes_subdoc_mutation_inserted);
+                      aggregatedStats.bytes_subdoc_mutation_inserted);
 
     collector.addStat(Key::stat_timings_mem_usage,
                       statTimings.getMemFootPrint());
@@ -146,27 +148,27 @@ void Bucket::addStats(const BucketStatCollector& collector) const {
     collector.addStat(Key::cmd_mutation, mutations);
     collector.addStat(Key::cmd_lookup, lookups);
 
-    collector.addStat(Key::get_hits, thread_stats.get_hits);
-    collector.addStat(Key::get_misses, thread_stats.get_misses);
-    collector.addStat(Key::delete_misses, thread_stats.delete_misses);
-    collector.addStat(Key::delete_hits, thread_stats.delete_hits);
-    collector.addStat(Key::incr_misses, thread_stats.incr_misses);
-    collector.addStat(Key::incr_hits, thread_stats.incr_hits);
-    collector.addStat(Key::decr_misses, thread_stats.decr_misses);
-    collector.addStat(Key::decr_hits, thread_stats.decr_hits);
-    collector.addStat(Key::cas_misses, thread_stats.cas_misses);
-    collector.addStat(Key::cas_hits, thread_stats.cas_hits);
-    collector.addStat(Key::cas_badval, thread_stats.cas_badval);
-    collector.addStat(Key::bytes_read, thread_stats.bytes_read);
-    collector.addStat(Key::bytes_written, thread_stats.bytes_written);
-    collector.addStat(Key::conn_yields, thread_stats.conn_yields);
+    collector.addStat(Key::get_hits, aggregatedStats.get_hits);
+    collector.addStat(Key::get_misses, aggregatedStats.get_misses);
+    collector.addStat(Key::delete_misses, aggregatedStats.delete_misses);
+    collector.addStat(Key::delete_hits, aggregatedStats.delete_hits);
+    collector.addStat(Key::incr_misses, aggregatedStats.incr_misses);
+    collector.addStat(Key::incr_hits, aggregatedStats.incr_hits);
+    collector.addStat(Key::decr_misses, aggregatedStats.decr_misses);
+    collector.addStat(Key::decr_hits, aggregatedStats.decr_hits);
+    collector.addStat(Key::cas_misses, aggregatedStats.cas_misses);
+    collector.addStat(Key::cas_hits, aggregatedStats.cas_hits);
+    collector.addStat(Key::cas_badval, aggregatedStats.cas_badval);
+    collector.addStat(Key::bytes_read, aggregatedStats.bytes_read);
+    collector.addStat(Key::bytes_written, aggregatedStats.bytes_written);
+    collector.addStat(Key::conn_yields, aggregatedStats.conn_yields);
     collector.addStat(Key::conn_timeslice_yields,
-                      thread_stats.conn_timeslice_yields);
+                      aggregatedStats.conn_timeslice_yields);
     collector.addStat(Key::subdoc_update_races,
-                      thread_stats.subdoc_update_races);
+                      aggregatedStats.subdoc_update_races);
 
-    collector.addStat(Key::cmd_lock, thread_stats.cmd_lock);
-    collector.addStat(Key::lock_errors, thread_stats.lock_errors);
+    collector.addStat(Key::cmd_lock, aggregatedStats.cmd_lock);
+    collector.addStat(Key::lock_errors, aggregatedStats.lock_errors);
 
     auto& respCounters = responseCounters;
     // Ignore success responses by starting from begin + 1

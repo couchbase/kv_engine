@@ -13,9 +13,8 @@
 #include "item_dissector.h"
 #include <daemon/buckets.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
-#include <folly/io/IOBuf.h>
+#include <daemon/thread_stats.h>
 #include <xattr/blob.h>
 
 GetExCommandContext::GetExCommandContext(Cookie& cookie)

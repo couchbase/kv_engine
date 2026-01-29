@@ -34,7 +34,7 @@ class SyntaxValidator;
 class Cookie;
 class Connection;
 class ListeningPort;
-struct thread_stats;
+struct HighResolutionThreadStats;
 
 /// For each unique IP address (we differentiate between IPv4 and IPv6)
 /// we maintain a few counters to determine the overall client connection

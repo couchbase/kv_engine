@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -16,10 +15,10 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
-#include <xattr/utils.h>
 
 MutationCommandContext::MutationCommandContext(Cookie& cookie,
                                                const cb::mcbp::Request& req,
@@ -75,7 +74,7 @@ cb::engine_errc MutationCommandContext::step() {
                 SLAB_INCR(&connection, cas_badval);
                 break;
             case cb::engine_errc::no_such_key:
-                get_thread_stats(&connection)->cas_misses++;
+                get_high_resolution_thread_stats(connection).cas_misses++;
                 break;
             default:;
             }

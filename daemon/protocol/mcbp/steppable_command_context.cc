@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -16,11 +15,9 @@
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
-#include <daemon/stats.h>
+#include <daemon/thread_stats.h>
 #include <logger/logger.h>
-#include <hdrhistogram/hdrhistogram.h>
 #include <platform/histogram.h>
-#include <platform/scope_timer.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {

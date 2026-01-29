@@ -10,11 +10,8 @@
 #include "get_locked_context.h"
 #include "engine_wrapper.h"
 #include "item_dissector.h"
-#include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
-#include <daemon/stats.h>
-#include <folly/io/IOBuf.h>
-#include <xattr/utils.h>
+#include <daemon/thread_stats.h>
 
 std::chrono::seconds GetLockedCommandContext::get_exptime(
         const cb::mcbp::Request& request) {

@@ -15,9 +15,8 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/sendbuffer.h>
-#include <folly/io/IOBuf.h>
+#include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
-#include <xattr/utils.h>
 
 uint32_t GatCommandContext::getExptime(Cookie& cookie) {
     auto extras = cookie.getRequest().getExtdata();

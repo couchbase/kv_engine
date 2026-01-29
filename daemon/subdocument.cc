@@ -11,7 +11,6 @@
 #include "subdocument.h"
 
 #include "buckets.h"
-#include "concurrency_semaphores.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
 #include "one_shot_task.h"
@@ -20,6 +19,7 @@
 #include "subdocument_context.h"
 #include "subdocument_parser.h"
 #include "subdocument_traits.h"
+#include "thread_stats.h"
 
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
@@ -387,7 +387,8 @@ bool SubdocCommandContext::do_fetch_item(cb::engine_errc aio_status) {
 
     if (shouldRunOnThreadPool()) {
         state = State::ExecuteSpecInThreadpool;
-        ++get_thread_stats(&cookie.getConnection())->subdoc_offload_count;
+        ++get_high_resolution_thread_stats(cookie.getConnection())
+                  .subdoc_offload_count;
         cookie.setEwouldblock();
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
                 TaskId::Core_SubdocExecuteTask, "Execute SUBDOC", [this]() {
@@ -451,7 +452,8 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
 
     if (aio_status == cb::engine_errc::key_already_exists) {
         if (auto_retry_mode) {
-            get_thread_stats(&cookie.getConnection())->subdoc_update_races++;
+            get_high_resolution_thread_stats(cookie.getConnection())
+                    .subdoc_update_races++;
 
             // Retry the operation. Reset the command context and
             // related state, so start from the beginning again.

@@ -215,7 +215,7 @@ cb::engine_errc server_stats(const StatCollector& collector,
             server_agg_stats(collector);
         }
         auto bucketC = collector.forBucket(bucket.name);
-        bucket.addStats(bucketC);
+        bucket.addHighResolutionStats(bucketC);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
@@ -300,7 +300,7 @@ cb::engine_errc server_prometheus_stats(
 
             if (metricGroup == MetricGroup::Low) {
                 // do memcached per-bucket stats
-                bucket.addStats(bucketC);
+                bucket.addHighResolutionStats(bucketC);
             } else {
                 // do memcached timings stats
                 server_bucket_timing_stats(bucketC, bucket.timings);

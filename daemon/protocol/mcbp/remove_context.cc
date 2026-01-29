@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -12,9 +11,9 @@
 #include "engine_wrapper.h"
 
 #include <daemon/buckets.h>
+#include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
 
 cb::engine_errc RemoveCommandContext::step() {
     auto ret = cb::engine_errc::success;

@@ -17,8 +17,8 @@
 #include "log_macros.h"
 #include "mcaudit.h"
 #include "memcached.h"
-#include "resource_allocation_domain.h"
 #include "settings.h"
+#include "thread_stats.h"
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <platform/base64.h>
@@ -1142,7 +1142,7 @@ BucketManager::BucketManager() {
         auto& b = all_buckets_ptr.at(index);
         b = std::make_shared<Bucket>(index);
         b->reset();
-        b->stats.resize(numthread);
+        b->high_resolution_stats.resize(numthread);
     }
 
     // To make the life easier for us in the code, index 0 in the array is

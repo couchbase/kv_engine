@@ -104,6 +104,8 @@ add_library(memcached_daemon STATIC
             subdocument_traits.h
             subdocument_validators.cc
             subdocument_validators.h
+            thread_stats.cc
+            thread_stats.h
             timing_histogram.cc
             timing_histogram.h
             timing_interval.cc
