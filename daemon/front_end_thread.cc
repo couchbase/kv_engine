@@ -296,11 +296,14 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
         associate_initial_bucket(*c);
         success = true;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING_RAW("Failed to allocate memory for connection");
+        LOG_WARNING("Failed to allocate memory for connection on worker_tid:{}",
+                    index);
     } catch (const std::exception& error) {
-        LOG_WARNING("Failed to create connection: {}", error.what());
+        LOG_WARNING("Failed to create connection on worker_tid:{}: {}",
+                    index,
+                    error.what());
     } catch (...) {
-        LOG_WARNING_RAW("Failed to create connection");
+        LOG_WARNING("Failed to create connection on worker_tid:{}", index);
     }
 
     if (!success) {
