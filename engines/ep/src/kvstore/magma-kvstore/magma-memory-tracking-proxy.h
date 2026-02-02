@@ -297,6 +297,12 @@ public:
     void SetFusionUploadInterval(std::chrono::seconds interval);
     std::chrono::seconds GetFusionUploadInterval() const;
 
+    // Maximum interval after which an upload will be permitted irrespective of
+    // upload thresholds. This is set to the smaller of the
+    // configuration value and 25% of persistent_metadata_purge_age.
+    void SetFusionMaxUploadInterval(std::chrono::seconds interval);
+    std::chrono::seconds GetFusionMaxUploadInterval() const;
+
     magma::Status SetFusionLogStoreURI(const std::string& uri);
     std::string GetFusionLogStoreURI() const;
 

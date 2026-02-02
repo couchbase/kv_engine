@@ -129,6 +129,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "magma_fusion_logstore_uri",
         "magma_fusion_metadatastore_uri",
         "magma_fusion_upload_interval",
+        "magma_fusion_max_upload_interval",
         "magma_fusion_logstore_fragmentation_threshold",
         "magma_fusion_max_log_cleaning_size_ratio",
         "magma_fusion_max_log_size",

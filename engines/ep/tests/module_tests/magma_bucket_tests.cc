@@ -1167,6 +1167,8 @@ public:
                 ";magma_fusion_metadatastore_uri=" + fusionMetadatastoreURI;
         config_string += ";magma_fusion_upload_interval=" +
                          std::to_string(fusionUploadInterval);
+        config_string += ";magma_fusion_max_upload_interval=" +
+                         std::to_string(fusionMaxUploadInterval);
         config_string += ";magma_fusion_logstore_fragmentation_threshold=" +
                          std::to_string(fusionLogstoreFragmentationThreshold);
         config_string += ";magma_fusion_max_log_cleaning_size_ratio=" +
@@ -1231,6 +1233,7 @@ protected:
             uriPrefix + dbPathString + "/metadatastore";
     const std::filesystem::path fusionGuestVolumes = dbPath / "guestVolumes";
     const size_t fusionUploadInterval = 1234;
+    const size_t fusionMaxUploadInterval = 5678;
     const float fusionLogstoreFragmentationThreshold = 0.3f;
     const float fusionMaxLogCleaningSizeRation = 0.2f;
     const size_t fusionMaxLogSize = 5_GiB;
@@ -1251,6 +1254,8 @@ TEST_P(STMagmaFusionTest, Config) {
 
     // The following configuration is propagated directly to magma
     EXPECT_EQ(fusionUploadInterval, kvstore.getFusionUploadInterval().count());
+    EXPECT_EQ(fusionMaxUploadInterval,
+              kvstore.getMagmaFusionMaxUploadInterval().count());
     EXPECT_EQ(fusionLogstoreFragmentationThreshold,
               kvstore.getMagmaFusionLogstoreFragmentationThreshold());
     EXPECT_EQ(fusionMaxLogCleaningSizeRation,
@@ -1404,6 +1409,52 @@ TEST_P(STMagmaFusionTest, MagmaFusionUploadInterval) {
     EXPECT_EQ(std::chrono::seconds(0), config.getFusionUploadInterval())
             << "config not updated";
     EXPECT_EQ(std::chrono::seconds(0), kvstore.getMagmaFusionUploadInterval())
+            << "value not passed down to Magma";
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionMaxUploadInterval) {
+    // Note: maxUploadInterval is set to the smaller of the
+    // configuration value and 25% of persistent_metadata_purge_age
+
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_max_upload_interval", "777777", msg));
+
+    const auto& kvstore =
+            dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const auto& config =
+            dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+
+    const auto calculateExpectedInterval = [](size_t requested,
+                                              size_t purgeAge) {
+        return std::min(requested, static_cast<size_t>(0.25 * purgeAge));
+    };
+
+    const auto metadataPurgeAge = config.getMetadataPurgeAge();
+    auto expectedInterval = std::chrono::seconds(
+            calculateExpectedInterval(777777, metadataPurgeAge));
+    EXPECT_EQ(expectedInterval, config.getFusionMaxUploadInterval())
+            << "config not updated";
+    EXPECT_EQ(expectedInterval, kvstore.getMagmaFusionMaxUploadInterval())
+            << "value not passed down to Magma";
+
+    // Setting a new metadataPurgeAge will reconfigure maxUploadInterval
+    const auto maxUploadInterval = config.getMetadataPurgeAge();
+    expectedInterval = std::chrono::seconds(
+            calculateExpectedInterval(maxUploadInterval, 120));
+    // verify that maxUploadInterval has updated by first checking they are not
+    // equal to the new expected value
+    EXPECT_NE(expectedInterval, config.getFusionMaxUploadInterval());
+    EXPECT_NE(expectedInterval, kvstore.getMagmaFusionMaxUploadInterval());
+
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("persistent_metadata_purge_age", "120", msg));
+    EXPECT_EQ(120, config.getMetadataPurgeAge());
+    EXPECT_EQ(expectedInterval, config.getFusionMaxUploadInterval())
+            << "config not updated";
+    EXPECT_EQ(expectedInterval, kvstore.getMagmaFusionMaxUploadInterval())
             << "value not passed down to Magma";
 }
 

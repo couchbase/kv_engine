@@ -1846,6 +1846,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "magma_fusion_max_upload_interval": {
+            "default": "64800",
+            "descr": "Maximum interval after which an upload will be permitted irrespective of upload thresholds, in seconds. This will be set to the smaller of the current value and 25% of persistent_metadata_purge_age.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "magma_fusion_max_log_cleaning_size_ratio": {
             "default": "0.05",
             "descr": "Minimum log segment size after which logs will be split. The ratio is a percentage of used log data size.",

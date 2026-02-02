@@ -317,6 +317,12 @@ public:
 
     void setFusionUploadInterval(std::chrono::seconds value);
 
+    std::chrono::seconds getFusionMaxUploadInterval() const {
+        return fusionMaxUploadInterval;
+    }
+
+    void setFusionMaxUploadInterval(std::chrono::seconds value);
+
     void setFusionMaxLogCleaningSizeRatio(float ratio);
 
     float getFusionMaxLogCleaningSizeRatio() const {
@@ -618,6 +624,10 @@ private:
     std::string fusionNamespace;
     // The interval between kvstore syncs to fusion
     std::atomic<std::chrono::seconds> fusionUploadInterval;
+    // Maximum interval after which an upload will be permitted irrespective of
+    // upload thresholds, in seconds. This is set to the smaller of the
+    // configuration value and 25% of persistent_metadata_purge_age.
+    std::atomic<std::chrono::seconds> fusionMaxUploadInterval;
     // The threshold at which the fusion log store will perform garbage
     // collection
     std::atomic<float> fusionLogstoreFragmentationThreshold;

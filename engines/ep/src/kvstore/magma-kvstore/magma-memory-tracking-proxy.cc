@@ -779,6 +779,18 @@ std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionUploadInterval() const {
     return magma->GetFusionUploadInterval();
 }
 
+void MagmaMemoryTrackingProxy::SetFusionMaxUploadInterval(
+        std::chrono::seconds interval) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionMaxUploadInterval(interval);
+}
+
+std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionMaxUploadInterval()
+        const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionMaxUploadInterval();
+}
+
 void MagmaMemoryTrackingProxy::SetFusionMaxLogCleaningSizeRatio(float ratio) {
     cb::UseArenaMallocSecondaryDomain sGuard;
     magma->SetFusionLogCleaningSizeRatio(ratio);

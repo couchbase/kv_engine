@@ -713,6 +713,9 @@ public:
 
     std::chrono::seconds getFusionUploadInterval() const;
 
+    void setMagmaFusionMaxUploadInterval(std::chrono::seconds value);
+    std::chrono::seconds getMagmaFusionMaxUploadInterval() const;
+
     cb::engine_errc setFusionLogStoreURI(std::string_view uri);
     std::string getFusionLogStoreURI() const;
 

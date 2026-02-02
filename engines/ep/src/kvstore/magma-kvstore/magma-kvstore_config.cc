@@ -36,6 +36,10 @@ public:
             config.setMagmaFlusherThreadPercentage(value);
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(value);
+            // Reconfigure fusionMaxUploadInterval, as it depends on
+            // metadataPurgeAge
+            config.setFusionMaxUploadInterval(
+                    config.getFusionMaxUploadInterval());
         } else if (key == "magma_seq_tree_data_block_size") {
             config.setMagmaSeqTreeDataBlockSize(value);
         } else if (key == "magma_seq_tree_index_block_size") {
@@ -50,6 +54,8 @@ public:
             config.setContinousBackupInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_upload_interval") {
             config.setFusionUploadInterval(std::chrono::seconds(value));
+        } else if (key == "magma_fusion_max_upload_interval") {
+            config.setFusionMaxUploadInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_max_log_size") {
             config.setFusionMaxLogSize(value);
         } else if (key == "magma_fusion_max_num_log_files") {
@@ -251,6 +257,14 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_fusion_upload_interval",
             std::make_unique<ConfigChangeListener>(*this));
 
+    const auto interval = std::min(
+            config.getMagmaFusionMaxUploadInterval(),
+            static_cast<size_t>(0.25 * config.getPersistentMetadataPurgeAge()));
+    fusionMaxUploadInterval = std::chrono::seconds(interval);
+    config.addValueChangedListener(
+            "magma_fusion_max_upload_interval",
+            std::make_unique<ConfigChangeListener>(*this));
+
     fusionLogstoreFragmentationThreshold =
             config.getMagmaFusionLogstoreFragmentationThreshold();
     config.addValueChangedListener(
@@ -318,6 +332,16 @@ void MagmaKVStoreConfig::setFusionUploadInterval(std::chrono::seconds value) {
     Expects(store);
     fusionUploadInterval.store(value);
     store->setMagmaFusionUploadInterval(value);
+}
+
+void MagmaKVStoreConfig::setFusionMaxUploadInterval(
+        std::chrono::seconds value) {
+    Expects(store);
+    const auto interval = std::min(value,
+                                   std::chrono::seconds(static_cast<size_t>(
+                                           0.25 * getMetadataPurgeAge())));
+    fusionMaxUploadInterval.store(interval);
+    store->setMagmaFusionMaxUploadInterval(interval);
 }
 
 void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {

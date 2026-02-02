@@ -921,6 +921,8 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
     }
 
     magma->SetFusionUploadInterval(configuration.getFusionUploadInterval());
+    magma->SetFusionMaxUploadInterval(
+            configuration.getFusionMaxUploadInterval());
     magma->SetFusionLogstoreFragmentationThreshold(
             configuration.getFusionLogstoreFragmentationThreshold());
     magma->SetFusionMaxLogCleaningSizeRatio(
@@ -4845,6 +4847,14 @@ cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
 
 std::chrono::seconds MagmaKVStore::getFusionUploadInterval() const {
     return magma->GetFusionUploadInterval();
+}
+
+void MagmaKVStore::setMagmaFusionMaxUploadInterval(std::chrono::seconds value) {
+    magma->SetFusionMaxUploadInterval(value);
+}
+
+std::chrono::seconds MagmaKVStore::getMagmaFusionMaxUploadInterval() const {
+    return magma->GetFusionMaxUploadInterval();
 }
 
 cb::engine_errc MagmaKVStore::setFusionLogStoreURI(std::string_view uri) {
