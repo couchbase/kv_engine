@@ -70,6 +70,8 @@ nlohmann::json ClientConnectionDetails::to_json(
  */
 static std::vector<FrontEndThread> threads;
 std::vector<Hdr1sfMicroSecHistogram> scheduler_info;
+std::vector<Hdr1sfMicroSecHistogram> dispatch_socket_histogram;
+std::vector<Hdr1sfMicroSecHistogram> cookie_notification_histogram;
 
 /*
  * Number of worker threads that have finished setting themselves up.
@@ -307,11 +309,14 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
         associate_initial_bucket(*c);
         success = true;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING_RAW("Failed to allocate memory for connection");
+        LOG_WARNING_CTX("Failed to allocate memory for connection",
+                        {"worker_tid", index});
     } catch (const std::exception& error) {
-        LOG_WARNING_CTX("Failed to create connection", {"error", error.what()});
+        LOG_WARNING_CTX("Failed to create connection",
+                        {"error", error.what()},
+                        {"worker_tid", index});
     } catch (...) {
-        LOG_WARNING_RAW("Failed to create connection");
+        LOG_WARNING_CTX("Failed to create connection", {"worker_tid", index});
     }
 
     if (!success) {
@@ -380,8 +385,13 @@ void FrontEndThread::dispatch(SOCKET sfd,
     last_thread = tid;
 
     try {
-        thread.eventBase.runInEventBaseThread(
-                [&thread, sock = sfd, port = std::move(descr)]() {
+        using namespace std::chrono;
+        const auto scheduled = steady_clock::now();
+        thread.eventBase.runInEventBaseThreadAlwaysEnqueue(
+                [&thread, sock = sfd, port = std::move(descr), scheduled]() {
+                    const auto now = steady_clock::now();
+                    dispatch_socket_histogram[thread.index].add(
+                            duration_cast<microseconds>(now - scheduled));
                     thread.do_dispatch(sock, port);
                 });
     } catch (const std::bad_alloc& e) {
@@ -428,6 +438,8 @@ void worker_threads_init() {
     const auto nthr = Settings::instance().getNumWorkerThreads();
 
     scheduler_info.resize(nthr);
+    dispatch_socket_histogram.resize(nthr);
+    cookie_notification_histogram.resize(nthr);
 
     try {
         threads = std::vector<FrontEndThread>(nthr);

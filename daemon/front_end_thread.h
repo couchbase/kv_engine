@@ -269,3 +269,10 @@ protected:
 class Hdr1sfMicroSecHistogram;
 
 extern std::vector<Hdr1sfMicroSecHistogram> scheduler_info;
+
+/// Histogram counting the time from a socket was accepted until
+/// it was dispatched on the correct front end thread
+extern std::vector<Hdr1sfMicroSecHistogram> dispatch_socket_histogram;
+
+/// Histogram counting the time spent for cookie notifications
+extern std::vector<Hdr1sfMicroSecHistogram> cookie_notification_histogram;

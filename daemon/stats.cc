@@ -12,6 +12,7 @@
 
 #include "buckets.h"
 #include "external_auth_manager_thread.h"
+#include "front_end_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -303,6 +304,20 @@ cb::engine_errc server_prometheus_stats(
                 server_prometheus_metering(collector);
             }
         } else {
+            auto add =
+                    [&collector](
+                            auto key,
+                            const std::vector<Hdr1sfMicroSecHistogram>& data) {
+                        Hdr1sfMicroSecHistogram histogram{};
+                        for (const auto& h : data) {
+                            histogram += h;
+                        }
+                        collector.addStat(key, histogram);
+                    };
+            add(cb::stats::Key::dispatch_socket_histogram,
+                dispatch_socket_histogram);
+            add(cb::stats::Key::cookie_notification_histogram,
+                cookie_notification_histogram);
             try {
                 auto instance = sigar::SigarIface::New();
                 instance->iterate_threads([&kvCollector](auto tid,
