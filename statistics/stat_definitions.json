@@ -3018,6 +3018,20 @@
         "added": "7.6.0"
     },
     {
+        "key": "dispatch_socket_histogram",
+        "description": "Histogram containing the time taken to dispatch a newly created socket to its worker thread",
+        "unit": "microseconds",
+        "type": "histogram",
+        "added": "7.6.10"
+    },
+    {
+        "key": "cookie_notification_histogram",
+        "description": "Histogram containing the time taken to schedule a notification for a cookie until it is run",
+        "unit": "microseconds",
+        "type": "histogram",
+        "added": "7.6.10"
+    },
+    {
         "key": "conn_yields",
         "description": "The total number all clients in this bucket yield due to consuming the number of ops allowed for the current timeslice",
         "unit": "none",

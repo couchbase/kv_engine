@@ -644,7 +644,7 @@ TEST_P(StatsTest, TestSchedulerInfo) {
                 ++found;
             },
             "worker_thread_info");
-    EXPECT_GT(4, found);
+    EXPECT_GT(7, found);
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
@@ -655,7 +655,7 @@ TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
                 ++found;
             },
             "worker_thread_info aggregate");
-    EXPECT_EQ(1, found);
+    EXPECT_EQ(3, found);
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
