@@ -4164,6 +4164,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_BufferMemUsed", magmaStats->BufferMemUsed);
     fill("magma_TotalMemUsed", magmaStats->TotalMemUsed);
     fill("magma_TotalBloomFilterMemUsed", magmaStats->TotalBloomFilterMemUsed);
+    fill("magma_NonResidentBloomFilterSize",
+         magmaStats->NonResidentBloomFilterSize);
     fill("magma_BlockCacheHits", magmaStats->BlockCacheHits);
     fill("magma_BlockCacheMisses", magmaStats->BlockCacheMisses);
     fill("magma_NTablesDeleted", magmaStats->NTablesDeleted);

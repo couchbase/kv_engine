@@ -1763,6 +1763,12 @@
         "added": "7.1.0"
     },
     {
+        "key": "ep_magma_nonresident_bloom_filter_size",
+        "unit": "none",
+        "description": "Space taken up by bloom filters not currently in memory",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_magma_total_mem_used",
         "unit": "bytes",
         "description": "Total memory used by bloom filters, write cache, block cache and index blocks This account for all versions of the trees",
