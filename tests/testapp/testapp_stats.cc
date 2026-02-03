@@ -557,12 +557,10 @@ TEST_P(StatsTest, TestBucketDetails) {
     for (const auto& bucket : array) {
         if (cb::serverless::isEnabled()) {
             EXPECT_EQ(18, bucket.size());
-            EXPECT_TRUE(bucket.contains("ru"));
-            EXPECT_TRUE(bucket.contains("wu"));
             EXPECT_TRUE(bucket.contains("num_commands_with_metered_units"));
             EXPECT_TRUE(bucket.contains("num_metered_dcp_messages"));
         } else {
-            EXPECT_EQ(14, bucket.size()) << bucket.dump(2);
+            EXPECT_EQ(16, bucket.size()) << bucket.dump(2);
         }
         EXPECT_TRUE(bucket.contains("index"));
         EXPECT_TRUE(bucket.contains("connections"));
@@ -576,6 +574,8 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_TRUE(bucket.contains("throttle_reserved"));
         EXPECT_TRUE(bucket.contains("throttle_hard_limit"));
         EXPECT_TRUE(bucket.contains("throttle_wait_time"));
+        EXPECT_TRUE(bucket.contains("throttle_ru_total"));
+        EXPECT_TRUE(bucket.contains("throttle_wu_total"));
         EXPECT_TRUE(bucket.contains("num_commands"));
         EXPECT_EQ("Success", bucket["data_ingress_status"]);
     }

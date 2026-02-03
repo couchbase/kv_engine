@@ -50,6 +50,8 @@ TEST(BucketTest, Reset) {
             num_commands_with_metered_units = 1;
             num_metered_dcp_messages = 1;
             num_rejected = 1;
+            read_units_used = 1;
+            write_units_used = 1;
             data_ingress_status = cb::mcbp::Status::Einval;
             pause_cancellation_source = folly::CancellationSource{};
 
@@ -64,6 +66,8 @@ TEST(BucketTest, Reset) {
             EXPECT_EQ(0, num_commands_with_metered_units);
             EXPECT_EQ(0, num_metered_dcp_messages);
             EXPECT_EQ(0, num_rejected);
+            EXPECT_EQ(0, read_units_used);
+            EXPECT_EQ(0, write_units_used);
             EXPECT_EQ(0, throttle_gauge.getValue());
             EXPECT_EQ(cb::mcbp::Status::Success, data_ingress_status);
             EXPECT_FALSE(pause_cancellation_source.canBeCancelled());

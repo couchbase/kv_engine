@@ -142,6 +142,8 @@ TEST_F(ThrottlingTests, OpsAreThrottled) {
         // Check that at least some ops are throttled
         auto stats = getThrottlingStats(conn, bucketName);
         ASSERT_FALSE(stats.empty());
+        ASSERT_EQ(4096, stats["throttle_ru_total"]); // 4096 reads done
+        ASSERT_EQ(1, stats["throttle_wu_total"]); // 1 write done
         ASSERT_LE(3, stats["num_throttled"]);
         ASSERT_NE(0, stats["throttle_wait_time"]);
     };
@@ -182,6 +184,8 @@ TEST_F(ThrottlingTests, OpsAreNotThrottled) {
         }
         auto stats = getThrottlingStats(conn, bucketName);
         ASSERT_FALSE(stats.empty());
+        ASSERT_EQ(4096, stats["throttle_ru_total"]); // 4096 reads done
+        ASSERT_EQ(1, stats["throttle_wu_total"]); // 1 write done
         ASSERT_EQ(0, stats["num_throttled"]);
         ASSERT_EQ(0, stats["throttle_wait_time"]);
     };

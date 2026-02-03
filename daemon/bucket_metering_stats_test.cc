@@ -150,8 +150,6 @@ TEST_F(BucketMeteringStatsTest, MeteringMetricsPrefixed) {
     EXPECT_GT(metricFamilies.size(), 0);
 
     for (const auto& expected : {"op_count_total",
-                                 "meter_ru_total",
-                                 "meter_wu_total",
                                  "meter_cu_total",
                                  "credit_ru_total",
                                  "credit_wu_total",

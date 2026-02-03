@@ -97,10 +97,10 @@ nlohmann::json Bucket::to_json() const {
             json["throttle_hard_limit"] =
                     cb::throttle::limit_to_json(throttle_hard_limit.load());
             json["throttle_wait_time"] = throttle_wait_time.load();
+            json["throttle_ru_total"] = read_units_used.load();
+            json["throttle_wu_total"] = write_units_used.load();
             json["num_commands"] = num_commands.load();
             if (serverless) {
-                json["ru"] = read_units_used.load();
-                json["wu"] = write_units_used.load();
                 json["num_commands_with_metered_units"] =
                         num_commands_with_metered_units.load();
                 json["num_metered_dcp_messages"] =
@@ -203,6 +203,9 @@ void Bucket::addHighResolutionStats(
 
     collector.addStat(Key::throttle_reserved, throttle_reserved.load());
     collector.addStat(Key::throttle_hard_limit, throttle_hard_limit.load());
+
+    collector.addStat(Key::throttle_ru_total, read_units_used);
+    collector.addStat(Key::throttle_wu_total, write_units_used);
 }
 
 void Bucket::addLowResolutionStats(const BucketStatCollector& collector) const {
@@ -237,9 +240,6 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     // more information recorded internally to support this.
     auto forKV = collector.withLabel("for", "kv");
 
-    // metering
-    forKV.addStat(Key::meter_ru_total, read_units_used);
-    forKV.addStat(Key::meter_wu_total, write_units_used);
     // kv does not currently account for actual compute (i.e., CPU) units
     // but other components do. Expose it for consistency and ease of use
     forKV.addStat(Key::meter_cu_total, 0);
@@ -360,28 +360,29 @@ void Bucket::commandExecuted(const Cookie& cookie) {
     auto& settings = Settings::instance();
     const auto [read, write] = cookie.getDocumentRWBytes();
     if (read || write) {
-        auto ru = settings.toReadUnits(read);
-        auto wu = settings.toWriteUnits(write);
+        size_t ru =
+                settings.toReadUnits(read) * cookie.getReadThottlingFactor();
+        size_t wu =
+                settings.toWriteUnits(write) * cookie.getWriteThottlingFactor();
         if (cookie.isDurable()) {
             wu *= 2;
         }
+        const size_t throttleUnits = ru + wu;
+        const auto resourceDomain = cookie.getResourceAllocationDomain();
 
-        const auto throttleUnits =
-                std::size_t(ru * cookie.getReadThottlingFactor()) +
-                (wu * cookie.getWriteThottlingFactor());
+        consumedUnits(throttleUnits, resourceDomain);
+        if (resourceDomain != ResourceAllocationDomain::None) {
+            read_units_used += ru;
+            write_units_used += wu;
+            if (ru || wu) {
+                ++num_commands_with_metered_units;
+            }
+        }
 
-        consumedUnits(throttleUnits, cookie.getResourceAllocationDomain());
         throttle_wait_time += cookie.getTotalThrottleTime().count();
         if (cookie.getTotalThrottleTime().count() != 0) {
             low_resolution_stats[connection.getThread().index]
                     .throttle_times.add(cookie.getTotalThrottleTime());
-        }
-
-        const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
-        read_units_used += nr;
-        write_units_used += nw;
-        if (nr || nw) {
-            ++num_commands_with_metered_units;
         }
     }
 }

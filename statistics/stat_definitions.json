@@ -4513,22 +4513,6 @@
         "stability": "internal"
     },
     {
-        "key": "meter_ru_total",
-        "unit": "none",
-        "type": "counter",
-        "description": "Total Read Units used by a bucket since reset",
-        "added": "7.6.0",
-        "stability": "internal"
-    },
-    {
-        "key": "meter_wu_total",
-        "unit": "none",
-        "type": "counter",
-        "description": "Total Write Units used by a bucket since reset",
-        "added": "7.6.0",
-        "stability": "internal"
-    },
-    {
         "key": "meter_cu_total",
         "unit": "none",
         "type": "counter",
@@ -4613,6 +4597,22 @@
         "unit": "none",
         "type": "gauge",
         "description": "Current hard throttle limit for a bucket (units per second).",
+        "added": "8.1.0",
+        "stability": "internal"
+    },
+        {
+        "key": "throttle_ru_total",
+        "unit": "none",
+        "type": "counter",
+        "description": "Total Read Units used by a bucket since reset",
+        "added": "8.1.0",
+        "stability": "internal"
+    },
+    {
+        "key": "throttle_wu_total",
+        "unit": "none",
+        "type": "counter",
+        "description": "Total Write Units used by a bucket since reset",
         "added": "8.1.0",
         "stability": "internal"
     },
