@@ -115,6 +115,11 @@ add_library(memcached_daemon STATIC
             yielding_task.cc
         )
 
+if (EP_USE_MAGMA)
+    target_compile_definitions(memcached_daemon PRIVATE EP_USE_MAGMA)
+    target_link_libraries(memcached_daemon PUBLIC magma)
+endif()
+
 if (NUMA_FOUND)
     target_include_directories(memcached_daemon
                                SYSTEM PRIVATE ${NUMA_INCLUDE_DIR})

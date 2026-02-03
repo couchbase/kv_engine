@@ -517,8 +517,8 @@ nlohmann::json TestappTest::generate_config() {
                             {"cyclesize", 200 * 1024 * 1024}}},
                           {"portnumber_file", mcd_env->getPortnumberFile()},
                           {"prometheus", {{"port", 0}, {"family", "inet"}}},
-                          {"magma_max_default_storage_threads", 2},
-                          {"magma_flusher_thread_percentage", 50}};
+                          {"magma_max_default_storage_threads", 20},
+                          {"magma_flusher_thread_percentage", 20}};
 
     if (!embedded_memcached_server) {
         ret["parent_identifier"] = (int)getpid();

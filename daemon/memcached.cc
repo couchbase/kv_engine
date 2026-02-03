@@ -675,8 +675,9 @@ static void initialize_sasl() {
 }
 
 #ifdef EP_USE_MAGMA
-static auto updateMagmaThreadPool(const std::string&, Settings& s) {
-    return [&s](const std::string&, Settings&) {
+static std::function<void(const std::string&, Settings&)>
+updateMagmaThreadPool() {
+    return [](const std::string&, Settings& s) {
         const auto total = s.getMagmaMaxDefaultStorageThreads();
         const auto flusherRatio =
                 static_cast<float>(s.getMagmaFlusherThreadPercentage()) / 100;
@@ -807,9 +808,9 @@ static void startExecutorPool() {
             });
 #ifdef EP_USE_MAGMA
     settings.addChangeListener("magma_max_default_storage_threads",
-                               updateMagmaThreadPool("", settings));
+                               updateMagmaThreadPool());
     settings.addChangeListener("magma_flusher_thread_percentage",
-                               updateMagmaThreadPool("", settings));
+                               updateMagmaThreadPool());
 #endif
 }
 
