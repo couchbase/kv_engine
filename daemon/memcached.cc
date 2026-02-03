@@ -373,6 +373,20 @@ static void settings_init() {
                 magma::Magma::SetNumThreads(magma::Magma::FusionMigrator,
                                             s.getFusionNumMigratorThreads());
             });
+    settings.addChangeListener(
+            "fusion_max_pending_upload_bytes",
+            [&settings](const auto&, auto& s) {
+                magma::Magma::SetFusionPendingUploadThresholds(
+                        s.getFusionMaxPendingUploadBytes(),
+                        settings.getFusionMaxPendingUploadBytesLwmRatio());
+            });
+    settings.addChangeListener(
+            "fusion_max_pending_upload_bytes_lwm_ratio",
+            [&settings](const auto&, auto& s) {
+                magma::Magma::SetFusionPendingUploadThresholds(
+                        settings.getFusionMaxPendingUploadBytes(),
+                        s.getFusionMaxPendingUploadBytesLwmRatio());
+            });
 }
 
 /**

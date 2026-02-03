@@ -363,6 +363,28 @@ public:
         notify_changed("fusion_num_migrator_threads");
     }
 
+    size_t getFusionMaxPendingUploadBytes() const {
+        return fusion_max_pending_upload_bytes.load(std::memory_order_acquire);
+    }
+
+    void setFusionMaxPendingUploadBytes(size_t value) {
+        fusion_max_pending_upload_bytes.store(value, std::memory_order_release);
+        has.fusion_max_pending_upload_bytes = true;
+        notify_changed("fusion_max_pending_upload_bytes");
+    }
+
+    double getFusionMaxPendingUploadBytesLwmRatio() const {
+        return fusion_max_pending_upload_bytes_lwm_ratio.load(
+                std::memory_order_acquire);
+    }
+
+    void setFusionMaxPendingUploadBytesLwmRatio(double value) {
+        fusion_max_pending_upload_bytes_lwm_ratio.store(
+                value, std::memory_order_release);
+        has.fusion_max_pending_upload_bytes_lwm_ratio = true;
+        notify_changed("fusion_max_pending_upload_bytes_lwm_ratio");
+    }
+
     size_t getMaxUserConnections() const {
         return getMaxConnections() - getSystemConnections();
     }
@@ -1435,6 +1457,14 @@ protected:
     // The number of Fusion Migrator threads
     std::atomic<size_t> fusion_num_migrator_threads{4};
 
+    // The maximum number of pending upload bytes to be synced across all
+    // volumes
+    std::atomic<size_t> fusion_max_pending_upload_bytes{0};
+
+    // The proportion of max_pending_upload_bytes beyond which syncs for volumes
+    // with the highest pending bytes are only allowed.
+    std::atomic<double> fusion_max_pending_upload_bytes_lwm_ratio{0.6};
+
     /**
      * Note that it is not safe to add new listeners after we've spun up
      * new threads as we don't try to lock the object.
@@ -1704,6 +1734,8 @@ public:
         bool fusion_sync_rate_limit = false;
         bool fusion_num_uploader_threads = false;
         bool fusion_num_migrator_threads = false;
+        bool fusion_max_pending_upload_bytes = false;
+        bool fusion_max_pending_upload_bytes_lwm_ratio = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;

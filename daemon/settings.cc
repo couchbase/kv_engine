@@ -420,6 +420,23 @@ void Settings::reconfigure(const nlohmann::json& json) {
                                 {"value", value.dump()},
                                 {"reason", "Fusion support is not enabled"});
             }
+        } else if (key == "fusion_max_pending_upload_bytes") {
+            if (isFusionSupportEnabled()) {
+                setFusionMaxPendingUploadBytes(value.get<size_t>());
+            } else {
+                LOG_WARNING_CTX("Ignore fusion_max_pending_upload_bytes",
+                                {"value", value.dump()},
+                                {"reason", "Fusion support is not enabled"});
+            }
+        } else if (key == "fusion_max_pending_upload_bytes_lwm_ratio") {
+            if (isFusionSupportEnabled()) {
+                setFusionMaxPendingUploadBytesLwmRatio(value.get<double>());
+            } else {
+                LOG_WARNING_CTX(
+                        "Ignore fusion_max_pending_upload_bytes_lwm_ratio",
+                        {"value", value.dump()},
+                        {"reason", "Fusion support is not enabled"});
+            }
         } else if (key == "phosphor_config"sv) {
             auto config = value.get<std::string>();
             // throw an exception if the config is invalid
@@ -1114,6 +1131,29 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", getFusionNumMigratorThreads()},
                          {"to", other.getFusionNumMigratorThreads()});
             setFusionNumMigratorThreads(other.getFusionNumMigratorThreads());
+        }
+    }
+
+    if (other.has.fusion_max_pending_upload_bytes) {
+        if (other.getFusionMaxPendingUploadBytes() !=
+            getFusionMaxPendingUploadBytes()) {
+            LOG_INFO_CTX("Change fusion max pending upload bytes",
+                         {"from", getFusionMaxPendingUploadBytes()},
+                         {"to", other.getFusionMaxPendingUploadBytes()});
+            setFusionMaxPendingUploadBytes(
+                    other.getFusionMaxPendingUploadBytes());
+        }
+    }
+
+    if (other.has.fusion_max_pending_upload_bytes_lwm_ratio) {
+        if (other.getFusionMaxPendingUploadBytesLwmRatio() !=
+            getFusionMaxPendingUploadBytesLwmRatio()) {
+            LOG_INFO_CTX(
+                    "Change fusion max pending upload bytes LWM ratio",
+                    {"from", getFusionMaxPendingUploadBytesLwmRatio()},
+                    {"to", other.getFusionMaxPendingUploadBytesLwmRatio()});
+            setFusionMaxPendingUploadBytesLwmRatio(
+                    other.getFusionMaxPendingUploadBytesLwmRatio());
         }
     }
 

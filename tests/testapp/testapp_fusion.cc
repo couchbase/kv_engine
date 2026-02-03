@@ -110,10 +110,6 @@ protected:
         return fusionStats(subGroup, std::to_string(vbid.get()));
     }
 
-    std::pair<cb::engine_errc, size_t> getStat(std::string_view key);
-
-    void setMemcachedConfig(std::string_view key, size_t value);
-
     /// Check to see if Fusion is supported in the current bucket.
     /// In order to support Fusion, the bucket must be a Magma bucket and
     /// the support must be enabled in the build configuration.
@@ -132,6 +128,34 @@ protected:
      *         state within 5 seconds.
      */
     void waitForUploaderState(Vbid vbid, std::string_view state);
+
+    template <typename T>
+    cb::engine_errc getStat(std::string_view key, T& out) {
+        cb::engine_errc ec = cb::engine_errc::not_supported;
+
+        connection->stats(
+                [&out, &ec, key](auto& k, auto& v) {
+                    if (k == key) {
+                        if constexpr (std::is_same_v<T, size_t>) {
+                            out = std::stoul(v);
+                        } else if constexpr (std::is_same_v<T, double>) {
+                            out = std::stod(v);
+                        } else {
+                            static_assert(!sizeof(T), "Unsupported type");
+                        }
+                        ec = cb::engine_errc::success;
+                    }
+                },
+                "");
+
+        return ec;
+    }
+
+    template <typename T>
+    void setMemcachedConfig(std::string_view key, T value) {
+        memcached_cfg[key] = value;
+        reconfigure();
+    }
 
 public:
     static constexpr auto logstoreRelativePath = "logstore";
@@ -336,32 +360,14 @@ std::pair<cb::engine_errc, nlohmann::json> FusionTest::fusionStats(
     }
 }
 
-std::pair<cb::engine_errc, size_t> FusionTest::getStat(std::string_view key) {
-    cb::engine_errc ec = cb::engine_errc::not_supported;
-    size_t value;
-    connection->stats(
-            [&value, &ec, key](auto& k, auto& v) {
-                if (k == key) {
-                    value = std::stoul(v);
-                    ec = cb::engine_errc::success;
-                }
-            },
-            ""); // we convert empty to null to get engine stats
-    return {ec, value};
-}
-
-void FusionTest::setMemcachedConfig(std::string_view key, size_t value) {
-    memcached_cfg[key] = value;
-    reconfigure();
-}
-
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          FusionTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
 TEST_P(FusionTest, FusionMigrationRateLimit) {
-    auto [ec, migrationRatelimit] = getStat("fusion_migration_rate_limit");
+    size_t migrationRatelimit;
+    auto ec = getStat("fusion_migration_rate_limit", migrationRatelimit);
     if (!isFusionSupportEnabled()) {
         EXPECT_EQ(ec, cb::engine_errc::not_supported);
         return;
@@ -373,7 +379,7 @@ TEST_P(FusionTest, FusionMigrationRateLimit) {
                "expected";
 
     setMemcachedConfig("fusion_migration_rate_limit", 0);
-    std::tie(ec, migrationRatelimit) = getStat("fusion_migration_rate_limit");
+    ec = getStat("fusion_migration_rate_limit", migrationRatelimit);
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(0, migrationRatelimit)
             << "migration rate limit should be 0 after setting it to 0";
@@ -384,7 +390,8 @@ TEST_P(FusionTest, FusionMigrationRateLimit) {
 }
 
 TEST_P(FusionTest, FusionSyncRateLimit) {
-    auto [ec, syncRatelimit] = getStat("fusion_sync_rate_limit");
+    size_t syncRatelimit;
+    auto ec = getStat("fusion_sync_rate_limit", syncRatelimit);
     if (!isFusionSupportEnabled()) {
         EXPECT_EQ(ec, cb::engine_errc::not_supported);
         return;
@@ -396,7 +403,7 @@ TEST_P(FusionTest, FusionSyncRateLimit) {
                "expected";
 
     setMemcachedConfig("fusion_sync_rate_limit", 0);
-    std::tie(ec, syncRatelimit) = getStat("fusion_sync_rate_limit");
+    ec = getStat("fusion_sync_rate_limit", syncRatelimit);
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(0, syncRatelimit)
             << "sync rate limit in magma should be 0 after setting it to 0";
@@ -1210,7 +1217,8 @@ TEST_P(FusionTest, GetFusionNamespaces) {
 }
 
 TEST_P(FusionTest, FusionNumUploaderThreads) {
-    auto [ec, num] = getStat("fusion_num_uploader_threads");
+    size_t num;
+    auto ec = getStat("fusion_num_uploader_threads", num);
     if (!isFusionSupportEnabled()) {
         EXPECT_EQ(ec, cb::engine_errc::not_supported);
         return;
@@ -1218,13 +1226,14 @@ TEST_P(FusionTest, FusionNumUploaderThreads) {
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(1, num);
     setMemcachedConfig("fusion_num_uploader_threads", 2);
-    std::tie(ec, num) = getStat("fusion_num_uploader_threads");
+    ec = getStat("fusion_num_uploader_threads", num);
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(2, num);
 }
 
 TEST_P(FusionTest, FusionNumMigratorThreads) {
-    auto [ec, num] = getStat("fusion_num_migrator_threads");
+    size_t num;
+    auto ec = getStat("fusion_num_migrator_threads", num);
     if (!isFusionSupportEnabled()) {
         EXPECT_EQ(ec, cb::engine_errc::not_supported);
         return;
@@ -1232,7 +1241,48 @@ TEST_P(FusionTest, FusionNumMigratorThreads) {
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(1, num);
     setMemcachedConfig("fusion_num_migrator_threads", 2);
-    std::tie(ec, num) = getStat("fusion_num_migrator_threads");
+    ec = getStat("fusion_num_migrator_threads", num);
     EXPECT_EQ(ec, cb::engine_errc::success);
     EXPECT_EQ(2, num);
+}
+
+TEST_P(FusionTest, FusionMaxPendingUploadBytes) {
+    size_t num;
+    auto ec = getStat("fusion_max_pending_upload_bytes", num);
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(0, num);
+    setMemcachedConfig("fusion_max_pending_upload_bytes", 1024);
+    ec = getStat("fusion_max_pending_upload_bytes", num);
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(1024, num);
+
+    // reset to default
+    setMemcachedConfig("fusion_max_pending_upload_bytes", 0);
+}
+
+TEST_P(FusionTest, FusionMaxPendingUploadBytesLwmRatio) {
+    double ratio;
+    auto ec = getStat("fusion_max_pending_upload_bytes_lwm_ratio", ratio);
+    if (!isFusionSupportEnabled()) {
+        EXPECT_EQ(ec, cb::engine_errc::not_supported);
+        return;
+    }
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_EQ(0, ratio);
+
+    setMemcachedConfig("fusion_max_pending_upload_bytes", 1024);
+    ec = getStat("fusion_max_pending_upload_bytes_lwm_ratio", ratio);
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    // the stat is computed from magma using an integer division, so it will
+    // not exactly be 0.6
+    EXPECT_DOUBLE_EQ(std::round(ratio * 100.0) / 100.0, 0.60);
+
+    setMemcachedConfig("fusion_max_pending_upload_bytes_lwm_ratio", 0.4);
+    ec = getStat("fusion_max_pending_upload_bytes_lwm_ratio", ratio);
+    EXPECT_EQ(ec, cb::engine_errc::success);
+    EXPECT_DOUBLE_EQ(std::round(ratio * 100.0) / 100.0, 0.40);
 }

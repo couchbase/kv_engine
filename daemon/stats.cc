@@ -81,6 +81,17 @@ static void server_global_stats(const StatCollector& collector) {
             collector.addStat(
                     Key::fusion_num_migrator_threads,
                     magma::Magma::GetNumThreads(magma::Magma::FusionMigrator));
+            const auto [maxPendingUploadBytes, lwmRatio] =
+                    magma::Magma::GetFusionPendingUploadThresholds();
+            collector.addStat(Key::fusion_max_pending_upload_bytes,
+                              maxPendingUploadBytes);
+
+            // The lwm ratio will return 0 if maxPendingUploadBytes is 0,
+            // else the ratio configured
+            collector.addStat(Key::fusion_max_pending_upload_bytes_lwm_ratio,
+                              lwmRatio);
+            collector.addStat(Key::fusion_pending_upload_bytes,
+                              magma::Magma::GetFusionPendingUploadBytes());
         }
 
         auto sdks = SdkConnectionManager::instance().getConnectedSdks();

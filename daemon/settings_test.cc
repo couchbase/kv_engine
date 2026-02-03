@@ -1014,6 +1014,32 @@ TEST(SettingsUpdateTest, FusionNumMigratorThreads) {
     EXPECT_EQ(4, settings.getFusionNumMigratorThreads());
 }
 
+TEST(SettingsUpdateTest, FusionMaxPendingUploadBytes) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionMaxPendingUploadBytes(10_MiB);
+    // Setting to the same value succeeds
+    updated.setFusionMaxPendingUploadBytes(10_MiB);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setFusionMaxPendingUploadBytes(50_MiB);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(50_MiB, settings.getFusionMaxPendingUploadBytes());
+}
+
+TEST(SettingsUpdateTest, FusionMaxPendingUploadBytesLwmRatio) {
+    Settings updated;
+    Settings settings;
+    settings.setFusionMaxPendingUploadBytesLwmRatio(0.7);
+    // Setting to the same value succeeds
+    updated.setFusionMaxPendingUploadBytesLwmRatio(0.7);
+    settings.updateSettings(updated, false);
+    // Setting to a different value succeeds
+    updated.setFusionMaxPendingUploadBytesLwmRatio(0.5);
+    settings.updateSettings(updated, true);
+    EXPECT_EQ(0.5, settings.getFusionMaxPendingUploadBytesLwmRatio());
+}
+
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {
     Settings updated;
     Settings settings;

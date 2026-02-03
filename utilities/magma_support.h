@@ -98,6 +98,15 @@ public:
     static size_t GetNumOpenFiles() {
         return 0;
     }
+    static void SetFusionPendingUploadThresholds(uint64_t maxPendingBytes,
+                                                 double lowWatermarkRatio) {
+    }
+    static std::pair<uint64_t, double> GetFusionPendingUploadThresholds() {
+        return {0, 0};
+    }
+    static uint64_t GetFusionPendingUploadBytes() {
+        return 0;
+    }
 };
 } // namespace magma
 #endif

@@ -2095,6 +2095,24 @@
         "added": "8.0.0"
 
     },
+    {
+        "key": "fusion_max_pending_upload_bytes",
+        "unit": "bytes",
+        "description": "The maximum number of pending upload bytes to be synced across all volumes.",
+        "added": "8.1.0"
+    },
+    {
+        "key": "fusion_max_pending_upload_bytes_lwm_ratio",
+        "unit": "none",
+        "description": "The proportion of max_pending_upload_bytes beyond which syncs for volumes with highest pending bytes are only allowed.",
+        "added": "8.1.0"
+    },
+    {
+        "key": "fusion_pending_upload_bytes",
+        "unit": "bytes",
+        "description": "The total pending upload bytes across all fusion volumes.",
+        "added": "8.1.0"
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",
