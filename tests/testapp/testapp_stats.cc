@@ -872,6 +872,29 @@ TEST_P(StatsTest, ThreadDetails) {
     EXPECT_LT(10, json.size()) << "There should be some threads reported";
 }
 
+TEST_P(StatsTest, MagmaThreadStats) {
+    adminConnection->selectBucket(bucketName);
+    const auto getStat = [](const std::string& key) {
+        size_t value = 0;
+        adminConnection->stats(
+                [key, &value](auto& k, auto& v) {
+                    if (k == key) {
+                        value = std::stoull(v);
+                    }
+                },
+                "");
+        return value;
+    };
+
+    // Check default values
+    EXPECT_EQ(20, getStat("magma_max_default_storage_threads"));
+    EXPECT_EQ(20, getStat("magma_flusher_thread_percentage"));
+
+    memcached_cfg["magma_flusher_thread_percentage"] = 50;
+    reconfigure();
+    EXPECT_EQ(50, getStat("magma_flusher_thread_percentage"));
+}
+
 /// The stats should contain max user and system connections to allow
 /// for alerting by monitoring the current levels with the max
 TEST_P(StatsTest, MB58199) {

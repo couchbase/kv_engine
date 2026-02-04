@@ -711,51 +711,45 @@ static void initialize_sasl() {
     }
 }
 
-#ifdef EP_USE_MAGMA
-static auto updateMagmaThreadPool(const std::string&, Settings& s) {
-    return [&s](const std::string&, Settings&) {
+static std::function<void(const std::string&, Settings&)>
+updateMagmaThreadPool() {
+    return [](const std::string&, Settings& s) {
         const auto total = s.getMagmaMaxDefaultStorageThreads();
         const auto flusherRatio =
                 static_cast<float>(s.getMagmaFlusherThreadPercentage()) / 100;
         auto flushers = std::ceil(total * flusherRatio);
         if (flushers <= 0) {
-            LOG_WARNING(
-                    "updateMagmaThreadPool: total:{} flusherPercent:{} "
-                    "flusherRatio:{} flushers:{}, setting flushers=1",
-                    total,
-                    s.getMagmaFlusherThreadPercentage(),
-                    flusherRatio,
-                    flushers);
+            LOG_WARNING_CTX(
+                    "updateMagmaThreadPool() - setting flushers to 1",
+                    {"total", total},
+                    {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                    {"flusherRatio", flusherRatio},
+                    {"flushers", flushers});
             flushers = 1;
         }
         auto compactors = total - flushers;
         if (compactors <= 0) {
-            LOG_WARNING(
-                    "updateMagmaThreadPool: total:{} flusherPercent:{} "
-                    "flusherRatio:{} flushers:{} compactors:{}, setting "
-                    "compactors=1",
-                    total,
-                    s.getMagmaFlusherThreadPercentage(),
-                    flusherRatio,
-                    flushers,
-                    compactors);
+            LOG_WARNING_CTX(
+                    "updateMagmaThreadPool() - setting compactors to 1",
+                    {"total", total},
+                    {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                    {"flusherRatio", flusherRatio},
+                    {"flushers", flushers},
+                    {"compactors", compactors});
             compactors = 1;
         }
-        LOG_INFO(
-                "updateMagmaThreadPool: total:{} flusherPercent:{} "
-                "flusherRatio:{} flushers:{} compactors:{}",
-                total,
-                s.getMagmaFlusherThreadPercentage(),
-                flusherRatio,
-                flushers,
-                compactors);
+        LOG_INFO_CTX("updateMagmaThreadPool()",
+                     {"total", total},
+                     {"flusherPercent", s.getMagmaFlusherThreadPercentage()},
+                     {"flusherRatio", flusherRatio},
+                     {"flushers", flushers},
+                     {"compactors", compactors});
         magma::Magma::SetNumThreads(magma::Magma::ThreadType::Flusher,
                                     flushers);
         magma::Magma::SetNumThreads(magma::Magma::ThreadType::Compactor,
                                     compactors);
     };
 };
-#endif
 
 static void startExecutorPool() {
     auto& settings = Settings::instance();
@@ -840,12 +834,10 @@ static void startExecutorPool() {
                     return true;
                 });
             });
-#ifdef EP_USE_MAGMA
     settings.addChangeListener("magma_max_default_storage_threads",
-                               updateMagmaThreadPool("", settings));
+                               updateMagmaThreadPool());
     settings.addChangeListener("magma_flusher_thread_percentage",
-                               updateMagmaThreadPool("", settings));
-#endif
+                               updateMagmaThreadPool());
 }
 
 static void initialize_serverless_config() {

@@ -59,6 +59,17 @@ public:
     static size_t GetFusionSyncRateLimit() {
         return 0;
     }
+    enum ThreadType {
+        Flusher,
+        Compactor,
+        FusionUploader,
+        FusionMigrator,
+    };
+    static void SetNumThreads(Magma::ThreadType, size_t) {
+    }
+    static size_t GetNumThreads(ThreadType) {
+        return 0;
+    }
 };
 } // namespace magma
 #endif
