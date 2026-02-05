@@ -1423,6 +1423,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO_CTX("Change magma_flusher_thread_percentage",
                          {"from", currVal},
                          {"to", currVal});
+            setMagmaFlusherThreadPercentage(newVal);
         }
     }
 }
