@@ -349,7 +349,7 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
                 return cb::engine_errc::invalid_arguments;
             }
         } catch (const std::exception&) {
-            cookie.setErrorContext("Failed to parse limit argument");
+            cookie.setErrorContext("Failed to parse shards argument");
             return cb::engine_errc::invalid_arguments;
         }
     }
