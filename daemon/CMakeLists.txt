@@ -118,6 +118,8 @@ add_library(memcached_daemon STATIC
             token_auth_data.h
             top_keys.cc
             top_keys.h
+            top_keys_controller.cc
+            top_keys_controller.h
             tracing.cc
             tracing.h
             yielding_limited_concurrency_task.cc

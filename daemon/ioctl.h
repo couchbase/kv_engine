@@ -32,9 +32,18 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
 
 /**
  * Attempts to set property `key` to the value `value`.
- * If the property could be written, return cb::engine_errc::success.
- * Otherwise returns a status code indicating why the write failed.
+ *
+ * @param cookie represents the command
+ * @param key is the name of the control
+ * @param value is the value to set for the key
+ * @param result is an out parameter to send back to the client
+ * @param datatype is another out parameter describing the value in result
+ *
+ * @return cb::engine_errc::success if the property could be written,
+ *         otherwise a status code indicating why the write failed.
  */
 cb::engine_errc ioctl_set_property(Cookie& cookie,
                                    const std::string& key,
-                                   const std::string& value);
+                                   const std::string& value,
+                                   std::string& result,
+                                   cb::mcbp::Datatype& datatype);

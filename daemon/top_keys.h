@@ -10,10 +10,11 @@
 
 #pragma once
 
-#include "memcached/dockey_view.h"
-
+#include <executor/globaltask.h>
+#include <memcached/dockey_view.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/cb_time.h>
+#include <platform/uuid.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -45,7 +46,7 @@ void to_json(nlohmann::json& json, const Result& result);
 
 class Collector {
 public:
-    virtual ~Collector() = default;
+    virtual ~Collector();
 
     /**
      * Create a Collector instance used to track key access.
@@ -59,13 +60,23 @@ public:
      *                bucket. For space efficiencty we use the bucket *id*
      *                and not the bucket name (as buckets typically don't
      *                come and go all the time)
+     * @param install_cleanup_task If true, the collector will install a task
+     *                             to remove itself after the expiry time
+     *                             has passed. This parameter is set to true
+     *                             in the normal case where the collector is
+     *                             created by the front end thread, but we
+     *                             would like to avoid that when running
+     *                             isolated unit tests testing other
+     *                             functionality of the collector.
+     *
+     * @return a shared pointer to the created Collector instance
      */
     static std::shared_ptr<Collector> create(
             std::size_t num_keys,
             std::size_t shards,
-            cb::time::steady_clock::time_point expiry_time =
-                    cb::time::steady_clock::now() + std::chrono::minutes(1),
-            std::vector<std::size_t> buckets = {});
+            std::chrono::seconds expiry_time = std::chrono::minutes(1),
+            std::vector<std::size_t> buckets = {},
+            bool install_cleanup_task = false);
 
     /// Is this collector expired or not (e.g. should we discard the collected
     /// data). The time is passed in as an argument to avoid having to fetch the
@@ -73,6 +84,12 @@ public:
     /// each front end thread).
     bool is_expired(cb::time::steady_clock::time_point now) {
         return now >= expiry_time;
+    }
+
+    /// Get the uuid of this collector (used by the clients to identify the
+    /// collector when they want to stop it and retrieve the collected data)
+    auto get_uuid() const {
+        return uuid;
     }
 
     /**
@@ -94,8 +111,10 @@ public:
     virtual Result getResults(size_t limit) const = 0;
 
 protected:
-    Collector(cb::time::steady_clock::time_point exp) : expiry_time(exp) {};
+    Collector(std::chrono::seconds exp, bool install_cleanup_task);
     const cb::time::steady_clock::time_point expiry_time;
+    const cb::uuid::uuid_t uuid = cb::uuid::random();
+    ExTask expiry_remover;
 };
 
 } // namespace cb::trace::topkeys

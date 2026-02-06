@@ -21,13 +21,18 @@ public:
      * @param id The task identifier for the task
      * @param name_ The name for the task
      * @param function_ The function to run on the executor
+     * @param expectedRuntime_ The expected runtime of the task
+     * @param initialSleepTime The initial sleep time before the task is first
+     *                         run
      */
     OneShotTask(TaskId id,
                 std::string name_,
                 std::function<void()> function_,
                 std::chrono::microseconds expectedRuntime_ =
-                        std::chrono::milliseconds(100))
-        : GlobalTask(NoBucketTaskable::instance(), id, 0, true),
+                        std::chrono::milliseconds(100),
+                std::chrono::nanoseconds initialSleepTime =
+                        std::chrono::nanoseconds(0))
+        : GlobalTask(NoBucketTaskable::instance(), id, initialSleepTime, true),
           name(std::move(name_)),
           function(std::move(function_)),
           expectedRuntime(std::move(expectedRuntime_)) {

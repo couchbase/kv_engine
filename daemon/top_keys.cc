@@ -11,7 +11,11 @@
 #include "top_keys.h"
 
 #include "bucket_manager.h"
+#include "nobucket_taskable.h"
+#include "one_shot_task.h"
+#include "top_keys_controller.h"
 
+#include <executor/executorpool.h>
 #include <memcached/dockey_view.h>
 #include <memcached/limits.h>
 #include <memcached/storeddockey.h>
@@ -73,12 +77,21 @@ void to_json(nlohmann::json& json, const Result& result) {
     }
 }
 
+Collector::~Collector() {
+    if (expiry_remover) {
+        expiry_remover->cancel();
+    }
+}
+
 class CountingCollector : public Collector {
 public:
     CountingCollector(std::size_t max,
                       std::size_t shards,
-                      cb::time::steady_clock::time_point expiry_time)
-        : Collector(expiry_time), limit(max), shardmaps(shards) {
+                      std::chrono::seconds expiry_time,
+                      bool install_cleanup_task)
+        : Collector(expiry_time, install_cleanup_task),
+          limit(max),
+          shardmaps(shards) {
     }
 
     void access(const size_t bucket,
@@ -211,9 +224,10 @@ class FilteredCountingCollector : public CountingCollector {
 public:
     FilteredCountingCollector(std::size_t max,
                               std::size_t shards,
-                              cb::time::steady_clock::time_point expiry_time,
-                              std::vector<std::size_t> buckets)
-        : CountingCollector(max, shards, expiry_time),
+                              std::chrono::seconds expiry_time,
+                              std::vector<std::size_t> buckets,
+                              bool install_cleanup_task)
+        : CountingCollector(max, shards, expiry_time, install_cleanup_task),
           bucketfilter(std::move(buckets)) {
     }
 
@@ -229,20 +243,45 @@ protected:
     std::vector<std::size_t> bucketfilter;
 };
 
-std::shared_ptr<Collector> Collector::create(
-        std::size_t num_keys,
-        std::size_t shards,
-        cb::time::steady_clock::time_point expiry_time,
-        std::vector<std::size_t> buckets) {
+std::shared_ptr<Collector> Collector::create(std::size_t num_keys,
+                                             std::size_t shards,
+                                             std::chrono::seconds expiry_time,
+                                             std::vector<std::size_t> buckets,
+                                             bool install_cleanup_task) {
     if (num_keys) {
         if (buckets.empty()) {
             return std::make_unique<CountingCollector>(
-                    num_keys, shards, expiry_time);
+                    num_keys, shards, expiry_time, install_cleanup_task);
         }
         return std::make_unique<FilteredCountingCollector>(
-                num_keys, shards, expiry_time, std::move(buckets));
+                num_keys,
+                shards,
+                expiry_time,
+                std::move(buckets),
+                install_cleanup_task);
     }
     return {};
+}
+
+Collector::Collector(std::chrono::seconds exp, bool install_cleanup_task)
+    : expiry_time(cb::time::steady_clock::now() + exp) {
+    if (install_cleanup_task) {
+        // Install the cleanup handler to run 1 second *after* it should
+        // expire as that would allow the front end threads to potentially
+        // disconnect from the trace *before* we remove it (which means
+        // we don't need to inject a task in each front end thread)
+        // and can release the memory immediately in this thread context
+        expiry_remover = std::make_shared<OneShotTask>(
+                TaskId::Core_ExpiredTopKeysRemover,
+                fmt::format("Expired TopKeys remover: {}", ::to_string(uuid)),
+                [collector_uuid = uuid]() {
+                    Controller::instance().onExpiry(collector_uuid);
+                },
+                std::chrono::milliseconds(20),
+                exp + std::chrono::seconds(1));
+
+        ExecutorPool::get()->schedule(expiry_remover);
+    }
 }
 
 } // namespace cb::trace::topkeys

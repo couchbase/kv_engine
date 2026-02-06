@@ -16,6 +16,7 @@
 #include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
+#include <platform/uuid.h>
 
 /// Test fixture for the TopKeys feature. Given that we don't want to
 /// create a large database we'll just test the tracing functionality
@@ -28,7 +29,7 @@ public:
         createUserConnection = true;
     }
 
-    void enableTracing(const std::string_view bucket_filter = {}) {
+    cb::uuid::uuid_t enableTracing(const std::string_view bucket_filter = {}) {
         auto rsp = adminConnection->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::IoctlSet,
                 fmt::format("topkeys.start?limit=10&shards=1{}",
@@ -36,8 +37,20 @@ public:
                                     ? ""
                                     : fmt::format("&bucket_filter={}",
                                                   bucket_filter))});
-        ASSERT_TRUE(rsp.isSuccess())
-                << rsp.getStatus() << " " << rsp.getDataView();
+        if (!rsp.isSuccess()) {
+            throw std::runtime_error(
+                    fmt::format("Failed to start topkeys tracing: {} {}",
+                                rsp.getStatus(),
+                                rsp.getDataView()));
+        }
+        auto json = rsp.getDataJson();
+        if (!json.contains("uuid")) {
+            throw std::runtime_error(
+                    fmt::format("Failed to start topkeys tracing: no uuid in "
+                                "response json: {}",
+                                json.dump(2)));
+        }
+        return cb::uuid::from_string(json["uuid"].get<std::string>());
     }
 };
 
@@ -116,4 +129,43 @@ TEST_P(Topkeys, TraceBucketFilter) {
     for (auto it = keys.begin(); it != keys.end(); ++it) {
         EXPECT_TRUE(it.key().starts_with("key-")) << it.key();
     }
+}
+
+TEST_P(Topkeys, TraceAlreadyRunning) {
+    const auto uuid = enableTracing("bucket");
+
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlSet,
+                                  "topkeys.start?limit=10&shards=1"});
+
+    ASSERT_FALSE(rsp.isSuccess())
+            << rsp.getStatus() << " " << rsp.getDataView();
+    auto json = rsp.getDataJson();
+    ASSERT_TRUE(json.contains("uuid")) << "json: " << json.dump(2);
+    EXPECT_EQ(uuid, cb::uuid::from_string(json["uuid"].get<std::string>()));
+
+    // Try to stop the collector with a wrong uuid
+    rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlGet,
+                                  fmt::format("topkeys.stop?limit={}&uuid={}",
+                                              10,
+                                              to_string(cb::uuid::random()))});
+    ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus())
+            << rsp.getDataView();
+    json = rsp.getDataJson();
+    ASSERT_TRUE(json.contains("uuid")) << "json: " << json.dump(2);
+    EXPECT_EQ(uuid, cb::uuid::from_string(json["uuid"].get<std::string>()));
+
+    // But we should be able to stop with the correct uuid
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlGet,
+            fmt::format("topkeys.stop?limit={}&uuid={}", 10, to_string(uuid))});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+
+    // And if we try to stop when no is running we should get no such key
+    rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlGet,
+                                  fmt::format("topkeys.stop?limit={}", 10)});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
+            << rsp.getDataView();
 }

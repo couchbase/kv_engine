@@ -17,6 +17,7 @@
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "settings.h"
+#include "top_keys_controller.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
 #include <logger/logger.h>
@@ -118,20 +119,6 @@ static cb::engine_errc ioctlGetTopkeysStop(Cookie& cookie,
                                            const StrToStrMap& args,
                                            std::string& value,
                                            cb::mcbp::Datatype& datatype) {
-    std::shared_ptr<cb::trace::topkeys::Collector> collector;
-    FrontEndThread::forEach(
-            [&collector](auto& t) {
-                if (!t.keyTrace) {
-                    return;
-                }
-
-                if (!collector) {
-                    collector = t.keyTrace;
-                }
-                t.keyTrace.reset();
-            },
-            true);
-
     std::size_t limit = 100;
     if (args.contains("limit")) {
         try {
@@ -145,25 +132,39 @@ static cb::engine_errc ioctlGetTopkeysStop(Cookie& cookie,
         }
     }
 
-    if (!collector) {
-        cookie.setErrorContext(
-                "Failed to collect topkeys - tracing not active");
-        LOG_WARNING_CTX("Failed to collect topkeys - tracing not active",
-                        {"conn_id", cookie.getConnection().getId()});
-        return cb::engine_errc::failed;
+    cb::uuid::uuid_t uuid;
+    if (args.contains("uuid")) {
+        try {
+            uuid = cb::uuid::from_string(args.find("uuid")->second);
+        } catch (const std::exception& exception) {
+            LOG_ERROR_CTX("Failed to parse uuid",
+                          {"conn_id", cookie.getConnection().getId()},
+                          {"error", exception.what()});
+            return cb::engine_errc::invalid_arguments;
+        }
     }
 
-    try {
-        nlohmann::json json = collector->getResults(limit);
-        value = json.dump();
-    } catch (const std::exception& exception) {
-        LOG_ERROR_CTX("Failed to get trace data",
-                      {"conn_id", cookie.getConnection().getId()},
-                      {"error", exception.what()});
-        return cb::engine_errc::failed;
+    auto [status, json] =
+            cb::trace::topkeys::Controller::instance().stop(uuid, limit);
+    if (status == cb::engine_errc::success) {
+        try {
+            value = json.dump();
+        } catch (const std::exception& exception) {
+            LOG_ERROR_CTX(
+                    "Failed to get trace data. Trace data will be discarded",
+                    {"conn_id", cookie.getConnection().getId()},
+                    {"error", exception.what()});
+            return cb::engine_errc::failed;
+        }
+        datatype = cb::mcbp::Datatype::JSON;
+        return cb::engine_errc::success;
     }
-    datatype = cb::mcbp::Datatype::JSON;
-    return cb::engine_errc::success;
+
+    if (json.is_object()) {
+        cookie.setErrorJsonExtras(json);
+    }
+    cookie.setErrorContext("Failed to start topkeys collection");
+    return status;
 }
 
 cb::engine_errc ioctl_get_property(Cookie& cookie,
@@ -325,7 +326,9 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
 
 static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
                                             const StrToStrMap& args,
-                                            const std::string&) {
+                                            const std::string&,
+                                            std::string& result,
+                                            cb::mcbp::Datatype& datatype) {
     std::size_t limit = 10000;
     if (args.contains("limit")) {
         try {
@@ -402,27 +405,28 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
         }
     }
 
-    auto expiry_time = cb::time::steady_clock::now() +
-                       std::chrono::seconds(expected_duration);
-
-    auto collector = cb::trace::topkeys::Collector::create(
-            limit, shards, expiry_time, bucket_filter);
-    if (!collector) {
-        cookie.setErrorContext("Failed to create topkeys collector");
-        LOG_WARNING_CTX("Failed to create topkeys collector",
-                        {"conn_id", cookie.getConnection().getId()});
-        return cb::engine_errc::failed;
+    const auto [status, uuid] =
+            cb::trace::topkeys::Controller::instance().create(
+                    limit,
+                    shards,
+                    std::chrono::seconds(expected_duration),
+                    bucket_filter);
+    nlohmann::json json = {{"uuid", to_string(uuid)}};
+    if (status == cb::engine_errc::success) {
+        result = json.dump();
+        datatype = cb::mcbp::Datatype::JSON;
+    } else {
+        cookie.setErrorJsonExtras(json);
+        cookie.setErrorContext("Failed to start topkeys collection");
     }
-
-    FrontEndThread::forEach([&collector](auto& t) { t.keyTrace = collector; },
-                            true);
-
-    return cb::engine_errc::success;
+    return status;
 }
 
 cb::engine_errc ioctl_set_property(Cookie& cookie,
                                    const std::string& key,
-                                   const std::string& value) {
+                                   const std::string& value,
+                                   std::string& result,
+                                   cb::mcbp::Datatype& datatype) {
     std::pair<std::string, StrToStrMap> request;
 
     try {
@@ -430,6 +434,9 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
     } catch (const std::invalid_argument&) {
         return cb::engine_errc::invalid_arguments;
     }
+
+    result.clear();
+    datatype = cb::mcbp::Datatype::Raw;
 
     auto& manager = cb::ioctl::Manager::getInstance();
     auto* id = manager.lookup(request.first);
@@ -471,7 +478,8 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
             }
             return cb::engine_errc::not_supported;
         case cb::ioctl::Id::TopkeysStart:
-            return ioctlSetTopkeysStart(cookie, request.second, value);
+            return ioctlSetTopkeysStart(
+                    cookie, request.second, value, result, datatype);
 
         case cb::ioctl::Id::TraceDumpBegin: // may only be used with Get
         case cb::ioctl::Id::TraceDumpGet: // may only be used with Get

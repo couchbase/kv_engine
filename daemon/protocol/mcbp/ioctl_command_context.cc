@@ -28,7 +28,7 @@ cb::engine_errc IoctlCommandContext::execute() {
     const auto key = std::string{cookie.getRequest().getKeyString()};
     if (req.getClientOpcode() == cb::mcbp::ClientOpcode::IoctlSet) {
         const auto value = std::string{cookie.getRequest().getValueString()};
-        return ioctl_set_property(cookie, key, value);
+        return ioctl_set_property(cookie, key, value, response, datatype);
     }
     return ioctl_get_property(cookie, key, response, datatype);
 }
