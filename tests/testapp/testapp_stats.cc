@@ -556,11 +556,11 @@ TEST_P(StatsTest, TestBucketDetails) {
     // of the actual values
     for (const auto& bucket : array) {
         if (cb::serverless::isEnabled()) {
-            EXPECT_EQ(18, bucket.size());
+            EXPECT_EQ(17, bucket.size());
             EXPECT_TRUE(bucket.contains("num_commands_with_metered_units"));
             EXPECT_TRUE(bucket.contains("num_metered_dcp_messages"));
         } else {
-            EXPECT_EQ(16, bucket.size()) << bucket.dump(2);
+            EXPECT_EQ(15, bucket.size()) << bucket.dump(2);
         }
         EXPECT_TRUE(bucket.contains("index"));
         EXPECT_TRUE(bucket.contains("connections"));
@@ -573,7 +573,6 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_TRUE(bucket.contains("num_throttled"));
         EXPECT_TRUE(bucket.contains("throttle_reserved"));
         EXPECT_TRUE(bucket.contains("throttle_hard_limit"));
-        EXPECT_TRUE(bucket.contains("throttle_wait_time"));
         EXPECT_TRUE(bucket.contains("throttle_ru_total"));
         EXPECT_TRUE(bucket.contains("throttle_wu_total"));
         EXPECT_TRUE(bucket.contains("num_commands"));

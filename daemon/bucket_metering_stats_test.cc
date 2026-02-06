@@ -129,11 +129,6 @@ TEST_F(BucketMeteringStatsTest, CollectInitialMeteringStats) {
                         UnorderedElementsAre(Pair("bucket"sv, bucketName),
                                              Pair("for"sv, "kv"))));
 #endif
-    EXPECT_CALL(collector,
-                addStat(StatDefNameMatcher("throttle_seconds_total"),
-                        Matcher<double>(0.),
-                        UnorderedElementsAre(Pair("bucket"sv, bucketName),
-                                             Pair("for"sv, "kv"))));
 
     bucket->addMeteringMetrics(collector.forBucket(bucketName));
 }
@@ -155,8 +150,7 @@ TEST_F(BucketMeteringStatsTest, MeteringMetricsPrefixed) {
                                  "credit_wu_total",
                                  "credit_cu_total",
                                  "reject_count_total",
-                                 "throttle_count_total",
-                                 "throttle_seconds_total"}) {
+                                 "throttle_count_total"}) {
         EXPECT_TRUE(metricFamilies.count(std::string("kv_") + expected));
     }
 }

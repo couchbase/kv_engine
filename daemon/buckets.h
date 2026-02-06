@@ -383,9 +383,6 @@ protected:
     /// The number of times we've throttled due to reaching the throttle limit
     std::atomic<std::size_t> num_throttled{0};
 
-    /// The total time (in usec) spent in a throttled state
-    std::atomic<uint64_t> throttle_wait_time{0};
-
     /// The total number of commands executed within the bucket.
     std::atomic<uint64_t> num_commands{0};
 

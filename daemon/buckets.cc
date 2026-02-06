@@ -44,7 +44,6 @@ void Bucket::reset() {
     throttle_reserved = std::numeric_limits<std::size_t>::max();
     throttle_hard_limit = std::numeric_limits<std::size_t>::max();
     num_throttled = 0;
-    throttle_wait_time = 0;
     num_commands = 0;
     num_commands_with_metered_units = 0;
     num_metered_dcp_messages = 0;
@@ -96,7 +95,6 @@ nlohmann::json Bucket::to_json() const {
                     cb::throttle::limit_to_json(throttle_reserved.load());
             json["throttle_hard_limit"] =
                     cb::throttle::limit_to_json(throttle_hard_limit.load());
-            json["throttle_wait_time"] = throttle_wait_time.load();
             json["throttle_ru_total"] = read_units_used.load();
             json["throttle_wu_total"] = write_units_used.load();
             json["num_commands"] = num_commands.load();
@@ -195,12 +193,6 @@ void Bucket::addHighResolutionStats(
     collector.addStat(Key::throttle_count_total, num_throttled);
     collector.addStat(Key::file_chunk_read, file_chunk_read_bytes.load());
 
-    using namespace std::chrono;
-    collector.addStat(
-            Key::throttle_seconds_total,
-            duration_cast<duration<double>>(microseconds(throttle_wait_time))
-                    .count());
-
     collector.addStat(Key::throttle_reserved, throttle_reserved.load());
     collector.addStat(Key::throttle_hard_limit, throttle_hard_limit.load());
 
@@ -252,12 +244,6 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     // throttling
     forKV.addStat(Key::reject_count_total, num_rejected);
     forKV.addStat(Key::throttle_count_total, num_throttled);
-
-    using namespace std::chrono;
-    forKV.addStat(
-            Key::throttle_seconds_total,
-            duration_cast<duration<double>>(microseconds(throttle_wait_time))
-                    .count());
 }
 
 cb::engine_errc Bucket::setThrottleLimits(std::size_t reserved,
@@ -379,7 +365,6 @@ void Bucket::commandExecuted(const Cookie& cookie) {
             }
         }
 
-        throttle_wait_time += cookie.getTotalThrottleTime().count();
         if (cookie.getTotalThrottleTime().count() != 0) {
             low_resolution_stats[connection.getThread().index]
                     .throttle_times.add(cookie.getTotalThrottleTime());

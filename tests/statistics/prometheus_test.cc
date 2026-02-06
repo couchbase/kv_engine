@@ -256,35 +256,6 @@ some_gauge 54321
     }
 }
 
-TEST_F(PrometheusStatTest, ThrottleSecondsTotalScaledToSeconds) {
-    // verify that throttle_seconds_total is correctly scaled us -> s
-    using namespace cb::stats;
-
-    StatMap stats;
-    PrometheusStatCollector collector(stats);
-
-    class MockBucket : public Bucket {
-    public:
-        MockBucket(std::size_t idx) : Bucket(idx) {
-        }
-        using Bucket::throttle_wait_time;
-    } b(0);
-
-    using namespace std::chrono;
-    using namespace std::chrono_literals;
-    b.throttle_wait_time = duration_cast<microseconds>(10.5s).count();
-    b.addMeteringMetrics(collector.forBucket("foobar"));
-
-    auto& metricVector = stats.at("throttle_seconds_total").metric;
-
-    using namespace ::testing;
-    ASSERT_THAT(metricVector, SizeIs(1));
-
-    auto exposedValue = metricVector.front().counter.value;
-
-    EXPECT_NEAR(10.5, exposedValue, 0.0001);
-}
-
 TEST_F(PrometheusStatTest, HistogramsHaveCorrectMetricType) {
     // MB-54789: Verify that adding a histogram stat will correctly provide
     // prometheus-cpp with prometheus::MetricType::Histogram

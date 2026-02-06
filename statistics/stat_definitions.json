@@ -4579,14 +4579,6 @@
         "stability": "internal"
     },
     {
-        "key": "throttle_seconds_total",
-        "unit": "none",
-        "type": "counter",
-        "description": "Total time spent throttling requests for a bucket since reset",
-        "added": "7.6.0",
-        "stability": "internal"
-    },
-    {
         "key": "throttle_duration",
         "unit": "microseconds",
         "type": "histogram",

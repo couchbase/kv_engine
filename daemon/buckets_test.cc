@@ -24,9 +24,9 @@ TEST(BucketTest, Reset) {
     // check the main ones we run against.
     static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-            5768;
+            5760;
 #elif defined(__APPLE__)
-            5864;
+            5856;
 #else
             0;
 #endif
@@ -45,7 +45,6 @@ TEST(BucketTest, Reset) {
             throttle_reserved = 1;
             throttle_hard_limit = 1;
             num_throttled = 1;
-            throttle_wait_time = 1;
             num_commands = 1;
             num_commands_with_metered_units = 1;
             num_metered_dcp_messages = 1;
@@ -61,7 +60,6 @@ TEST(BucketTest, Reset) {
             EXPECT_EQ(std::numeric_limits<std::size_t>::max(),
                       throttle_hard_limit);
             EXPECT_EQ(0, num_throttled);
-            EXPECT_EQ(0, throttle_wait_time);
             EXPECT_EQ(0, num_commands);
             EXPECT_EQ(0, num_commands_with_metered_units);
             EXPECT_EQ(0, num_metered_dcp_messages);
