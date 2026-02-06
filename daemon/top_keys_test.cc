@@ -77,7 +77,11 @@ TEST(TopKeyCollector, TestAccessNoFilter) {
 TEST(TopKeyCollector, testFiltered) {
     constexpr std::size_t num_shards = 4;
     constexpr std::size_t num_keys = 10;
-    auto collector = Collector::create(num_keys, num_shards, {{0, 1}});
+    auto collector = Collector::create(
+            num_keys,
+            num_shards,
+            cb::time::steady_clock::now() + std::chrono::minutes(1),
+            {{0, 1}});
     for (int ii = 0; ii < 10; ++ii) {
         collector->access(ii, false, fmt::format("key-{}", ii));
     }
@@ -153,4 +157,14 @@ TEST(TopKeyCollector, TestSingleShard) {
     ASSERT_TRUE(bucket.contains("cid:0x0")) << "json: " << bucket.dump(2);
     auto& keys = bucket["cid:0x0"];
     ASSERT_EQ(100, keys.size()) << "json: " << keys.dump(2);
+}
+
+TEST(TopKeyCollector, testExpiration) {
+    cb::time::steady_clock::use_chrono = false;
+    auto collector = Collector::create(
+            1, 1, cb::time::steady_clock::now() + std::chrono::minutes(1));
+    EXPECT_FALSE(collector->is_expired(cb::time::steady_clock::now()));
+    cb::time::steady_clock::advance(std::chrono::minutes(2));
+    EXPECT_TRUE(collector->is_expired(cb::time::steady_clock::now()));
+    cb::time::steady_clock::use_chrono = true;
 }

@@ -13,6 +13,7 @@
 #include "memcached/dockey_view.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/cb_time.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -51,6 +52,9 @@ public:
      *
      * @param num_keys The maximum number of keys to track in a shard
      * @param shards The number of internal maps to shard the keyspace across
+     * @param expiry_time The time after which the collected data should be
+     *                    considered expired and can be discarded (and the
+     *                    collector can be reset)
      * @param buckets If non-empty only track keys accessed in the specified
      *                bucket. For space efficiencty we use the bucket *id*
      *                and not the bucket name (as buckets typically don't
@@ -59,7 +63,17 @@ public:
     static std::shared_ptr<Collector> create(
             std::size_t num_keys,
             std::size_t shards,
+            cb::time::steady_clock::time_point expiry_time =
+                    cb::time::steady_clock::now() + std::chrono::minutes(1),
             std::vector<std::size_t> buckets = {});
+
+    /// Is this collector expired or not (e.g. should we discard the collected
+    /// data). The time is passed in as an argument to avoid having to fetch the
+    /// clock multiple times when we want to check multiple collectors (e.g. for
+    /// each front end thread).
+    bool is_expired(cb::time::steady_clock::time_point now) {
+        return now >= expiry_time;
+    }
 
     /**
      * Register access for a key in a given bucket
@@ -80,7 +94,8 @@ public:
     virtual Result getResults(size_t limit) const = 0;
 
 protected:
-    Collector() = default;
+    Collector(cb::time::steady_clock::time_point exp) : expiry_time(exp) {};
+    const cb::time::steady_clock::time_point expiry_time;
 };
 
 } // namespace cb::trace::topkeys

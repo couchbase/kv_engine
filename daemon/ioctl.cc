@@ -354,6 +354,23 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
         }
     }
 
+    std::size_t expected_duration = 60;
+    if (args.contains("expected_duration")) {
+        try {
+            std::size_t val =
+                    std::stoul(args.find("expected_duration")->second) * 1.3;
+            expected_duration = std::min(val, expected_duration);
+            if (val == 0) {
+                cookie.setErrorContext("expected_duration cannot be zero");
+                return cb::engine_errc::invalid_arguments;
+            }
+        } catch (const std::exception&) {
+            cookie.setErrorContext(
+                    "Failed to parse expected_duration argument");
+            return cb::engine_errc::invalid_arguments;
+        }
+    }
+
     std::vector<std::size_t> bucket_filter;
     if (args.contains("bucket_filter")) {
         std::unordered_map<std::string, std::size_t> bucketnames;
@@ -385,8 +402,11 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
         }
     }
 
-    auto collector =
-            cb::trace::topkeys::Collector::create(limit, shards, bucket_filter);
+    auto expiry_time = cb::time::steady_clock::now() +
+                       std::chrono::seconds(expected_duration);
+
+    auto collector = cb::trace::topkeys::Collector::create(
+            limit, shards, expiry_time, bucket_filter);
     if (!collector) {
         cookie.setErrorContext("Failed to create topkeys collector");
         LOG_WARNING_CTX("Failed to create topkeys collector",

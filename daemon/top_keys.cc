@@ -75,8 +75,10 @@ void to_json(nlohmann::json& json, const Result& result) {
 
 class CountingCollector : public Collector {
 public:
-    CountingCollector(std::size_t max, std::size_t shards)
-        : limit(max), shardmaps(shards) {
+    CountingCollector(std::size_t max,
+                      std::size_t shards,
+                      cb::time::steady_clock::time_point expiry_time)
+        : Collector(expiry_time), limit(max), shardmaps(shards) {
     }
 
     void access(const size_t bucket,
@@ -209,8 +211,10 @@ class FilteredCountingCollector : public CountingCollector {
 public:
     FilteredCountingCollector(std::size_t max,
                               std::size_t shards,
+                              cb::time::steady_clock::time_point expiry_time,
                               std::vector<std::size_t> buckets)
-        : CountingCollector(max, shards), bucketfilter(std::move(buckets)) {
+        : CountingCollector(max, shards, expiry_time),
+          bucketfilter(std::move(buckets)) {
     }
 
     void access(const size_t bucket,
@@ -225,15 +229,18 @@ protected:
     std::vector<std::size_t> bucketfilter;
 };
 
-std::shared_ptr<Collector> Collector::create(std::size_t num_keys,
-                                             std::size_t shards,
-                                             std::vector<std::size_t> buckets) {
+std::shared_ptr<Collector> Collector::create(
+        std::size_t num_keys,
+        std::size_t shards,
+        cb::time::steady_clock::time_point expiry_time,
+        std::vector<std::size_t> buckets) {
     if (num_keys) {
         if (buckets.empty()) {
-            return std::make_unique<CountingCollector>(num_keys, shards);
+            return std::make_unique<CountingCollector>(
+                    num_keys, shards, expiry_time);
         }
         return std::make_unique<FilteredCountingCollector>(
-                num_keys, shards, std::move(buckets));
+                num_keys, shards, expiry_time, std::move(buckets));
     }
     return {};
 }

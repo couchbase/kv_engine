@@ -191,8 +191,9 @@ int main(const int argc, char** argv) {
         }
 
         const auto start_command = fmt::format(
-                "topkeys.start?limit={}{}{}",
+                "topkeys.start?limit={}&expected_duration={}{}{}",
                 collect_limit,
+                duration.count(),
                 bucket_filter.empty()
                         ? ""
                         : fmt::format("&bucket_filter={}", bucket_filter),

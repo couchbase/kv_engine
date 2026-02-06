@@ -1034,6 +1034,11 @@ bool Connection::executeCommandsCallback() {
     // Make sure any core dumps from this code contain the bucket name.
     cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
+
+    if (thread.keyTrace && thread.keyTrace->is_expired(start)) {
+        thread.keyTrace.reset();
+    }
+
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
 
     processBlockedSendQueue(start);
