@@ -21,6 +21,7 @@
 
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
+#include <event2/event.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <openssl/err.h>
@@ -167,6 +168,13 @@ void LibeventConnection::rw_callback() {
                         std::numeric_limits<std::size_t>::max());
             }
         }
+        // Ensure that the event loop (which folly has started) exits back to
+        // folly after all active events are processed. This ensures that
+        // folly's event loop can process all non-libevent callbacks and ensures
+        // that the folly intra-thread communication notification works. This
+        // libevent function ensures all currently active events are handled
+        // before dropping out of the loop. MB-70548
+        event_base_loopexit(thread.eventBase.getLibeventBase(), nullptr);
     } else {
         thread.destroy_connection(*this);
     }
