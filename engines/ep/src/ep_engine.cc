@@ -36,6 +36,7 @@
 #include "failover-table.h"
 #include "file_ops_tracker.h"
 #include "flusher.h"
+#include "get_random_key_visitor.h"
 #include "getkeys.h"
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
@@ -6863,6 +6864,77 @@ void EventuallyPersistentEngine::scheduleDcpStep(CookieIface& cookie) {
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
         CookieIface& cookie, CollectionID cid) {
+    struct MyGetRandomKeyObserver : GetRandomKeyObserver {
+        void start() override {
+            start_time = std::chrono::steady_clock::now();
+        }
+        void finish() override {
+            stop_time = std::chrono::steady_clock::now();
+        }
+        void found(std::unique_ptr<Item> item_) override {
+            item = std::move(item_);
+        }
+        void error(const cb::engine_errc error,
+                   const uint64_t manifest_uuid) override {
+            status = error;
+            uuid = manifest_uuid;
+        }
+
+        std::chrono::steady_clock::time_point start_time;
+        std::chrono::steady_clock::time_point stop_time;
+        std::unique_ptr<Item> item;
+        cb::engine_errc status{cb::engine_errc::success};
+        uint64_t uuid;
+    };
+
+    auto es =
+            takeEngineSpecific<std::shared_ptr<MyGetRandomKeyObserver>>(cookie);
+    if (es.has_value()) {
+        {
+            NonBucketAllocationGuard guard;
+            cookie.getTracer().record(Code::GetRandomDocument,
+                                      es.value()->start_time,
+                                      es.value()->stop_time);
+        }
+
+        if (es.value()->status != cb::engine_errc::success) {
+            if (es.value()->status == cb::engine_errc::unknown_collection) {
+                setUnknownCollectionErrorContext(cookie, es.value()->uuid);
+            }
+            return cb::makeEngineErrorItemPair(es.value()->status);
+        }
+
+        // Verify that we've still got access to the collection.
+        if (checkCollectionAccess(cookie,
+                                  {},
+                                  cb::rbac::Privilege::SystemCollectionLookup,
+                                  cb::rbac::Privilege::Read,
+                                  cid) != cb::engine_errc::success) {
+            return cb::makeEngineErrorItemPair(cb::engine_errc::no_access);
+        }
+
+        // Must set cookie metering state, do this by checking the Manifest
+        auto [uid, entry] = kvBucket->getCollectionEntry(cid);
+        if (!entry) {
+            setUnknownCollectionErrorContext(cookie, uid);
+            return cb::makeEngineErrorItemPair(
+                    cb::engine_errc::unknown_collection);
+        }
+        cookie.setCurrentCollectionInfo(
+                entry->sid,
+                cid,
+                uid,
+                entry->metered == Collections::Metered::Yes,
+                Collections::isSystemCollection(entry->name, cid));
+
+        if (!es.value()->item) {
+            return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
+        }
+
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, es.value()->item.release(), this);
+    }
+
     if (checkCollectionAccess(cookie,
                               {},
                               cb::rbac::Privilege::SystemCollectionLookup,
@@ -6870,13 +6942,25 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
                               cid) != cb::engine_errc::success) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_access);
     }
-    GetValue gv(kvBucket->getRandomKey(cid, cookie));
-    cb::engine_errc ret = gv.getStatus();
-    if (ret == cb::engine_errc::success) {
-        return cb::makeEngineErrorItemPair(
-                cb::engine_errc::success, gv.item.release(), this);
+
+    auto holder = std::make_shared<MyGetRandomKeyObserver>();
+    storeEngineSpecific(cookie, holder);
+    try {
+        kvBucket->visitAsync(std::make_unique<GetRandomKeyVisitor>(
+                                     *this, cookie, cid, *holder),
+                             "Get Random Key Scanner",
+                             TaskId::GetRandomKeyVisitor,
+                             200ms);
+
+        return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "getRandomDocument: exception while scheduling async "
+                "visitor for collection {}: {}",
+                cid,
+                e.what());
+        return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
-    return cb::makeEngineErrorItemPair(ret);
 }
 
 cb::engine_errc EventuallyPersistentEngine::dcpOpen(

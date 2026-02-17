@@ -476,3 +476,25 @@ TEST_F(CollectionsTests, getId_MB_64026) {
         EXPECT_TRUE(ctx.contains("manifest_uid")) << ctx.dump();
     }
 }
+
+TEST_F(CollectionsTests, GetRandomDocNonDefaultCollection) {
+    using namespace cb::mcbp;
+    auto conn = getConnection();
+
+    // ensure that there is at least one document in the fruit collection.
+    mutate(*conn,
+           DocKey::makeWireEncodedString(CollectionEntry::fruit,
+                                         "GetRandomDocNonDefaultCollection"),
+           MutationType::Set);
+    BinprotGenericCommand command{ClientOpcode::GetRandomKey};
+    request::GetRandomKeyPayload payload(
+            static_cast<uint32_t>(CollectionUid::fruit));
+    command.setExtras(payload.getBuffer());
+    auto rsp = conn->execute(command);
+    ASSERT_EQ(Status::Success, rsp.getResponse().getStatus())
+            << rsp.getDataView();
+    // We can't really check the key as it should be random, but
+    // the collection should be fruit ;)
+    auto key = DocKey{rsp.getKey(), DocKeyEncodesCollectionId::Yes};
+    EXPECT_EQ(CollectionUid::fruit, key.getCollectionID());
+}

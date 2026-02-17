@@ -573,10 +573,6 @@ cb::mcbp::Status KVBucketTest::getAddResponseStatus(cb::mcbp::Status newval) {
 
 cb::mcbp::Status KVBucketTest::addResponseStatus = cb::mcbp::Status::Success;
 
-void KVBucketTest::setRandomFunction(std::function<long()>& randFunction) {
-    store->getRandom = randFunction;
-}
-
 Collections::Manager& KVBucketTest::getCollectionsManager() {
     return *store->collectionsManager.get();
 }
@@ -2029,24 +2025,6 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
 
     EXPECT_NO_THROW(task_executor->runNextTask(
             AUXIO_TASK_IDX, "Item Access Scanner no vbucket assigned"));
-}
-
-// Check that getRandomKey works correctly when given a random value of zero
-TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
-    std::function<long()> returnZero = []() { return 0; };
-    setRandomFunction(returnZero);
-
-    // Try with am empty hash table
-    auto gv = store->getRandomKey(CollectionID::Default, *cookie);
-    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
-
-    Item item = store_item(
-            vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0);
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    // Try with a non-empty hash table
-    gv = store->getRandomKey(CollectionID::Default, *cookie);
-    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 
 // MB-33702: Test that SetVBucket state creates a new failover table entry when

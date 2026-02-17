@@ -86,8 +86,6 @@ public:
                  CookieIface* cookie,
                  get_options_t options) override;
 
-    GetValue getRandomKey(CollectionID cid, CookieIface& cookie) override;
-
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,
                         CookieIface* cookie,
@@ -1401,12 +1399,6 @@ protected:
     const bool crossBucketHtQuotaSharing;
 
     std::atomic<size_t> maxTtl;
-
-    /**
-     * Allows us to override the random function.  This is used for testing
-     * purposes where we want a constant number as opposed to a random one.
-     */
-    std::function<int()> getRandom = std::rand;
 
     /**
      * The Minimum Durability Level enforced by this Bucket:

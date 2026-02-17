@@ -1636,63 +1636,6 @@ GetValue KVBucket::getInternal(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
-    size_t max = vbMap.getSize();
-    const Vbid::id_type start = labs(getRandom()) % max;
-    Vbid::id_type curr = start;
-    std::unique_ptr<Item> itm;
-
-    // Must setup cookie metering state, do this by checking the Manifest
-    auto [uid, entry] = getCollectionEntry(cid);
-    if (!entry) {
-        engine.setUnknownCollectionErrorContext(cookie, uid);
-        return GetValue(nullptr, cb::engine_errc::unknown_collection);
-    } else {
-        cookie.setCurrentCollectionInfo(
-                entry->sid,
-                cid,
-                uid,
-                entry->metered == Collections::Metered::Yes,
-                Collections::isSystemCollection(entry->name, cid));
-    }
-
-    while (itm == nullptr) {
-        VBucketPtr vb = getVBucket(Vbid(curr++));
-        if (vb) {
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-            if (vb->getState() == vbucket_state_active) {
-                auto cHandle = vb->lockCollections();
-                if (!cHandle.exists(cid)) {
-                    // even after successfully checking the manifest, the vb
-                    // may not know the collection (could be dropped after the
-                    // getCollectionEntry check)
-                    engine.setUnknownCollectionErrorContext(
-                            cookie, cHandle.getManifestUid());
-                    return GetValue(nullptr,
-                                    cb::engine_errc::unknown_collection);
-                }
-                if (cHandle.getItemCount(cid) != 0) {
-                    if (auto retItm = vb->ht.getRandomKey(cid, getRandom());
-                        retItm) {
-                        return GetValue(std::move(retItm),
-                                        cb::engine_errc::success);
-                    }
-                }
-            }
-        }
-
-        if (curr == max) {
-            curr = 0;
-        }
-        if (curr == start) {
-            break;
-        }
-        // Search next vbucket
-    }
-
-    return GetValue(nullptr, cb::engine_errc::no_such_key);
-}
-
 cb::engine_errc KVBucket::getMetaData(const DocKey& key,
                                       Vbid vbucket,
                                       CookieIface* cookie,

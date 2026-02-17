@@ -167,15 +167,6 @@ public:
                          get_options_t options) = 0;
 
     /**
-     * Retrieve a value randomly from the store.
-     *
-     * @param cid collection to retrieve from
-     * @param cookie the connection cookie
-     * @return a GetValue representing the value retrieved
-     */
-    virtual GetValue getRandomKey(CollectionID cid, CookieIface& cookie) = 0;
-
-    /**
      * Retrieve a value from a vbucket in replica state.
      *
      * @param key     the key to fetch

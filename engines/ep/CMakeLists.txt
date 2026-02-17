@@ -343,6 +343,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/file_ops_tracker.cc
             src/flusher.cc
             src/getkeys.cc
+            src/get_random_key_visitor.cc
+            src/get_random_key_visitor.h
             src/hash_table.cc
             src/hlc.cc
             src/mfu_only_item_eviction.cc
