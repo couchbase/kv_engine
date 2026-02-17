@@ -1157,6 +1157,12 @@ TEST_P(KVBucketParamTest, AddDeleted) {
         // This is not applicable to ephemeral as tombstones are only
         // ever held in memory; removing a tombstone from memory is
         // semantically the same as purging it entirely.
+        {
+            auto result = vb->ht.findForRead(
+                    key, TrackReference::Yes, WantsDeleted::Yes);
+            ASSERT_TRUE(result.storedValue);
+            EXPECT_NE(0, result.storedValue->getExptime());
+        }
 
         // Flushing a deleted item should remove it from the HashTable
         flushVBucketToDiskIfPersistent(vbid, 1);

@@ -1639,12 +1639,41 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
 // generated.
 TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, 0};
-    oneOpAndCheck(op,
-                  itemMeta,
-                  0, // no-options
-                  withValue,
-                  cb::mcbp::Status::Success,
-                  cb::engine_errc::success);
+    // oneOpAndCheck will fail because it reads the hash-table back and will see
+    // that the 0 delete time changes. This test drives manually via oneOp and
+    // custom get/check
+    std::string key = "mykey";
+    std::string value;
+    if (withValue) {
+        value = createXattrValue("myvalue"); // xattr but stored as raw
+    }
+    oneOp(op,
+          withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                    : PROTOCOL_BINARY_RAW_BYTES,
+          itemMeta,
+          0, // no-options
+          cb::mcbp::Status::Success,
+          key,
+          value,
+          {});
+
+    auto result = store->get({key, DocKeyEncodesCollectionId::No},
+                             vbid,
+                             cookie,
+                             GET_DELETED_VALUE);
+
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
+
+    if (!value.empty()) {
+        EXPECT_EQ(0,
+                  strncmp(value.data(),
+                          result.item->getData(),
+                          result.item->getNBytes()));
+    }
+    EXPECT_EQ(itemMeta.cas, result.item->getCas());
+    EXPECT_EQ(itemMeta.revSeqno, result.item->getRevSeqno());
+    EXPECT_EQ(itemMeta.flags, result.item->getFlags());
+    EXPECT_NE(itemMeta.exptime, result.item->getExptime());
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));

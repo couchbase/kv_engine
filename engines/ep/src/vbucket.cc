@@ -1470,6 +1470,8 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     if (qi->isDeleted() && (ctx.generateDeleteTime == GenerateDeleteTime::Yes ||
                             qi->getExptime() == 0)) {
         qi->setDeleteTime();
+        // MB-70540: Ensure the StoredValue has the new delete/exptime.
+        v.setExptime(qi->getDeleteTime());
     }
 
     if (!mightContainXattrs() &&

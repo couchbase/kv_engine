@@ -4991,7 +4991,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             "Expected 1 del rm op");
 
     checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
+    // Deletes re-use expiry field for deletion - this is not zero
+    checkne(uint32_t{0},
+            last_meta.exptime,
+            "Invalid result for expiration/delete-time");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{2}, last_meta.revSeqno, "Invalid result for seqno");
 
@@ -5021,7 +5024,8 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             "Expected 2 del rm ops");
 
     checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
-    checkeq(expiry, last_meta.exptime, "Invalid result for expiration");
+    checkne(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
+    checkne(expiry, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{4}, last_meta.revSeqno, "Invalid result for seqno");
 
