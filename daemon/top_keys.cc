@@ -226,30 +226,52 @@ public:
                               std::size_t shards,
                               std::chrono::seconds expiry_time,
                               std::vector<std::size_t> buckets,
+                              std::vector<CollectionIDType> collections,
                               bool install_cleanup_task)
         : CountingCollector(max, shards, expiry_time, install_cleanup_task),
-          bucketfilter(std::move(buckets)) {
+          bucket_filter(std::move(buckets)),
+          collection_filter(std::move(collections)) {
     }
 
     void access(const size_t bucket,
                 const bool key_contains_collection,
                 const std::string_view key) override {
-        if (std::ranges::find(bucketfilter, bucket) != bucketfilter.end()) {
-            CountingCollector::access(bucket, key_contains_collection, key);
+        if (std::ranges::binary_search(bucket_filter, bucket)) {
+            if (collection_filter.empty()) {
+                CountingCollector::access(bucket, key_contains_collection, key);
+                return;
+            }
+            if (key_contains_collection) {
+                DocKeyView dk{key, DocKeyEncodesCollectionId::Yes};
+                uint32_t collection_id(dk.getCollectionID());
+                if (std::ranges::binary_search(collection_filter,
+                                               collection_id)) {
+                    CountingCollector::access(bucket, true, key);
+                }
+                return;
+            }
+            if (std::ranges::binary_search(collection_filter,
+                                           CollectionID::Default)) {
+                CountingCollector::access(bucket, false, key);
+            }
         }
     }
 
 protected:
-    std::vector<std::size_t> bucketfilter;
+    const std::vector<std::size_t> bucket_filter;
+    const std::vector<CollectionIDType> collection_filter;
 };
 
-std::shared_ptr<Collector> Collector::create(std::size_t num_keys,
-                                             std::size_t shards,
-                                             std::chrono::seconds expiry_time,
-                                             std::vector<std::size_t> buckets,
-                                             bool install_cleanup_task) {
+std::shared_ptr<Collector> Collector::create(
+        std::size_t num_keys,
+        std::size_t shards,
+        std::chrono::seconds expiry_time,
+        std::vector<std::size_t> buckets,
+        std::vector<CollectionIDType> collections,
+        bool install_cleanup_task) {
     if (num_keys) {
         if (buckets.empty()) {
+            Expects(collections.empty());
             return std::make_unique<CountingCollector>(
                     num_keys, shards, expiry_time, install_cleanup_task);
         }
@@ -258,6 +280,7 @@ std::shared_ptr<Collector> Collector::create(std::size_t num_keys,
                 shards,
                 expiry_time,
                 std::move(buckets),
+                std::move(collections),
                 install_cleanup_task);
     }
     return {};

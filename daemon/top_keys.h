@@ -76,6 +76,7 @@ public:
             std::size_t shards,
             std::chrono::seconds expiry_time = std::chrono::minutes(1),
             std::vector<std::size_t> buckets = {},
+            std::vector<CollectionIDType> collections = {},
             bool install_cleanup_task = false);
 
     /// Is this collector expired or not (e.g. should we discard the collected

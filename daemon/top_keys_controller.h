@@ -48,7 +48,8 @@ public:
             std::size_t num_keys,
             std::size_t shards,
             std::chrono::seconds expiry_time,
-            const std::vector<std::size_t>& buckets = {});
+            const std::vector<std::size_t>& buckets = {},
+            const std::vector<CollectionIDType>& collections = {});
 
     std::pair<cb::engine_errc, nlohmann::json> stop(const cb::uuid::uuid_t& id,
                                                     std::size_t limit = 100);
@@ -68,7 +69,8 @@ protected:
             std::size_t num_keys,
             std::size_t shards,
             std::chrono::seconds expiry_time,
-            const std::vector<std::size_t>& buckets);
+            const std::vector<std::size_t>& buckets,
+            const std::vector<CollectionIDType>& collections);
     std::pair<cb::engine_errc, std::shared_ptr<Collector>> stopLocked(
             std::shared_ptr<Collector>& coll, const cb::uuid::uuid_t& id);
 

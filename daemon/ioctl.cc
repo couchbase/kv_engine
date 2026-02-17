@@ -23,6 +23,7 @@
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <memcached/io_control.h>
+#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/split_string.h>
@@ -115,6 +116,93 @@ cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
     return cb::engine_errc::success;
 }
 
+/**
+ * The topkeys.stop ioctl command is used to stop an ongoing key sampling
+ * collection and retrieve the collected statistics. It accepts the following
+ * query parameters:
+ *
+ * Optional Parameters
+ *
+ * `uuid`
+ *   - Type: UUID string (RFC 4122 format)
+ *   - Default: Empty (uses the currently running session)
+ *   - Description: The UUID of the tracing session to stop. This UUID was
+ *                  returned by the corresponding topkeys.start command
+ *   - Constraints:
+ *      + Must be a valid UUID string if provided
+ *      + Malformed UUID string results in invalid_arguments error
+ *      + If UUID doesn't match the running session, returns KeyEexists error
+ *                with the correct UUID
+ *   - Example: uuid=550e8400-e29b-41d4-a716-446655440000
+ *
+ * `limit`
+ *   - Type: Integer (positive)
+ *   - Default: 100
+ *   - Description: Maximum number of top keys to return per bucket/collection
+ *                  combination. This limits the size of the returned JSON but
+ *                  does not affect the data already collected
+ *   - Constraints:
+ *      + Invalid values (non-numeric) are silently ignored, and the default
+ *                (100) is used instead
+ *      + The limit only affects how many keys are returned from already-
+ *                collected data
+ *   - Example: limit=10
+ *
+ * Response
+ *
+ * On success, returns a JSON object containing the collected key access
+ * statistics:
+ *
+ *     {
+ *       "keys": {
+ *         "bucket-name": {
+ *           "cid:0x0": { "key1": 42, "key2": 15, "key3": 8 },
+ *           "cid:0x9": { "collection-key1": 12, "collection-key2": 5 }
+ *         }
+ *       },
+ *       "num_keys_omitted": 150,
+ *       "shards": 4,
+ *       "topkey": {
+ *         "bucket": "bucket-name",
+ *         "collection": "cid:0x0",
+ *         "count": 42,
+ *         "key": "key1"
+ *       },
+ *       "num_keys_collected": 250
+ *     }
+ *
+ * Response Fields:
+ *   - keys: Hierarchical object with bucket names as top-level keys,
+ *           collection IDs as second-level keys, and key names as third-level
+ *           keys with access counts as values
+ *   - num_keys_omitted: Number of unique keys that exceeded the collection
+ *                       limit during sampling (if non-zero, consider increasing
+ *                       the limit parameter in topkeys.start)
+ *   - shards: Number of shards used for collection (from the topkeys.start
+ *              command)
+ *   - topkey: The single most accessed key with its bucket, collection, and
+ *             access count
+ *   - num_keys_collected: Total number of unique keys sampled during the
+ *                        session
+ *
+ * Error Conditions
+ *   - KeyEnoent: No topkeys collection is currently running
+ *   - KeyEexists: A collection is running but with a different UUID
+ *                 (response includes the correct UUID in error JSON extras)
+ *   - invalid_arguments: UUID parameter is malformed or cannot be parsed
+ *   - failed: Internal error when serializing the response JSON (data is
+ *             discarded)
+ *
+ * @param cookie The cookie representing the client connection and request
+ *               context
+ * @param args The query parameters provided with the ioctl command, parsed
+ *             into a map
+ * @param value The data to send back to the client in the response body
+ *               (output parameter)
+ * @param datatype The datatype of the response (output parameter), typically
+ *                set to JSON if the result is a JSON string
+ * @return Engine status code.
+ */
 static cb::engine_errc ioctlGetTopkeysStop(Cookie& cookie,
                                            const StrToStrMap& args,
                                            std::string& value,
@@ -324,6 +412,81 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
     return cb::engine_errc::invalid_arguments;
 }
 
+/**
+ * The topkeys.start ioctl command is used to start collecting key access
+ * statistics. It accepts the following query parameters:
+ *
+ * Required Parameters
+ *
+ * None - all parameters are optional with sensible defaults.
+ *
+ * Optional Parameters
+ *
+ * `limit`
+ *   - Type: Integer (positive)
+ *   - Default: 10000
+ *   - Description: Maximum number of unique keys to collect during the sampling
+ *                  period
+ *   - Constraints: Cannot be zero
+ *   - Example: limit=10000
+ *
+ * `shards`
+ *   - Type: Integer (positive)
+ *   - Default: numWorkerThreads * 4 (typically 4x the number of worker threads)
+ *   - Description: Number of parallel shards to use for collecting statistics.
+ *                  More shards reduce contention but increase memory usage
+ *   - Constraints: Cannot be zero
+ *   - Example: shards=4
+ *
+ * `expected_duration`
+ *   - Type: Integer (seconds, positive)
+ *   - Default: 60
+ *   - Description: Expected duration of the sampling in seconds. Internally
+ *                  multiplied by 1.3 (adding 30% buffer) and capped at 60
+ *                  seconds minimum. If the collection runs longer than this
+ *                  duration, it will be stopped and the collected data dropped
+ *   - Constraints: Cannot be zero
+ *   -Example: expected_duration=60
+ *
+ * `bucket_filter`
+ *   - Type: Comma-separated list of bucket names
+ *   - Default: Empty (monitor all buckets)
+ *   - Description: Filter to only monitor specific buckets. Bucket names must
+ *                  exist on the server
+ *   - Constraints: Unknown bucket names result in no_such_key error
+ *   - Example: bucket_filter=default,mybucket
+ *
+ * `collection_filter`
+ *   - Type: Comma-separated list of collection IDs (hex or decimal)
+ *   - Default: Empty (monitor all collections in the filtered bucket)
+ *   - Description: Filter to only monitor specific collections within a single
+ *                  bucket
+ *   - Constraints:
+ *      + Requires bucket_filter to be set with exactly one bucket
+ *      + Results in invalid_arguments error if bucket filter has 0 or more
+ *                than 1 bucket
+ *      + Collection IDs must be valid unsigned integers
+ *   - Example: collection_filter=9,10 (filters on collections 0x9 and 0x10)
+ *
+ * Response
+ *
+ * On success, returns a JSON object containing the UUID of the tracing session:
+ *
+ *     { "uuid": "550e8400-e29b-41d4-a716-446655440000" }
+ *
+ * On failure, returns an appropriate error status with optional JSON extras
+ * containing the UUID of an existing session.
+ *
+ * @param cookie The cookie representing the client connection and request
+ *               context
+ * @param args The query parameters provided with the ioctl command, parsed into
+ *             a map
+ * @param result The data to send back to the client in the response body
+ *               (output parameter)
+ * @param datatype The datatype of the response (output parameter), typically
+ *                set to JSON if the result is a JSON string
+ * @return Engine status code.
+ */
 static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
                                             const StrToStrMap& args,
                                             const std::string&,
@@ -403,6 +566,37 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
                             {"error", exception.what()});
             return cb::engine_errc::failed;
         }
+        std::ranges::sort(bucket_filter);
+    }
+
+    std::vector<CollectionIDType> collection_filter;
+    if (args.contains("collection_filter")) {
+        if (bucket_filter.size() != 1) {
+            cookie.setErrorContext(
+                    "The bucket filter must include 1 bucket in order to "
+                    "filter on collections within the bucket");
+            return cb::engine_errc::invalid_arguments;
+        }
+        auto filter = args.find("collection_filter")->second;
+        try {
+            auto parts = cb::string::split(filter, ',');
+            collection_filter.reserve(parts.size());
+            for (const auto& part : parts) {
+                CollectionIDType collection;
+                if (safe_strtoul(part, collection)) {
+                    collection_filter.emplace_back(collection);
+                } else {
+                    cookie.setErrorContext(fmt::format(
+                            "Failed to parse collection id: {}", part));
+                    return cb::engine_errc::invalid_arguments;
+                }
+            }
+        } catch (const std::exception& exception) {
+            LOG_WARNING_CTX("Failed to parse collection filter",
+                            {"error", exception.what()});
+            return cb::engine_errc::failed;
+        }
+        std::ranges::sort(collection_filter);
     }
 
     const auto [status, uuid] =
@@ -410,7 +604,8 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
                     limit,
                     shards,
                     std::chrono::seconds(expected_duration),
-                    bucket_filter);
+                    bucket_filter,
+                    collection_filter);
     nlohmann::json json = {{"uuid", to_string(uuid)}};
     if (status == cb::engine_errc::success) {
         result = json.dump();

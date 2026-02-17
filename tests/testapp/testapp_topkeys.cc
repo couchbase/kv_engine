@@ -12,6 +12,7 @@
 #include "memcached/storeddockey_fwd.h"
 #include "testapp.h"
 #include "testapp_client_test.h"
+#include "utilities/test_manifest.h"
 
 #include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
@@ -168,4 +169,208 @@ TEST_P(Topkeys, TraceAlreadyRunning) {
                                   fmt::format("topkeys.stop?limit={}", 10)});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
             << rsp.getDataView();
+}
+
+TEST_P(Topkeys, TraceCollectionFilter) {
+    // Create collections manifest with fruit and vegetable collections
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::fruit).add(CollectionEntry::vegetable);
+
+    // Set the manifest
+    adminConnection->executeInBucket(bucketName, [&](auto& connection) {
+        auto response = connection.execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                {},
+                manifest.getJson().dump()});
+        if (!response.isSuccess()) {
+            throw std::runtime_error(
+                    fmt::format("Failed to set collections manifest: {} {}",
+                                response.getStatus(),
+                                response.getDataView()));
+        }
+    });
+
+    // Enable collections on the connection
+    userConnection->setFeature(cb::mcbp::Feature::Collections, true);
+
+    // Start tracing with collection_filter for fruit collection only
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            "topkeys.start?limit=10&shards=1&bucket_filter=default"
+            "&collection_filter=9"});
+    if (!rsp.isSuccess()) {
+        throw std::runtime_error(
+                fmt::format("Failed to start topkeys tracing: {} {}",
+                            rsp.getStatus(),
+                            rsp.getDataView()));
+    }
+    auto json = rsp.getDataJson();
+    if (!json.contains("uuid")) {
+        throw std::runtime_error(
+                fmt::format("Failed to start topkeys tracing: no uuid in "
+                            "response json: {}",
+                            json.dump(2)));
+    }
+    cb::uuid::uuid_t uuid =
+            cb::uuid::from_string(json["uuid"].get<std::string>());
+
+    // Access keys in fruit collection
+    for (int ii = 0; ii < 20; ++ii) {
+        std::string key = "fruit-" + std::to_string(ii);
+        StoredDocKey fruitKey(key, CollectionID(CollectionUid::fruit));
+        BinprotGetCommand cmd(std::string{fruitKey});
+        cmd.setVBucket(Vbid(0));
+        rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+
+    // Access keys in vegetable collection (these should not be collected)
+    for (int ii = 0; ii < 20; ++ii) {
+        std::string key = "vegetable-" + std::to_string(ii);
+        StoredDocKey vegetableKey(key, CollectionID(CollectionUid::vegetable));
+        BinprotGetCommand cmd(std::string{vegetableKey});
+        cmd.setVBucket(Vbid(0));
+        rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+
+    // Stop tracing and get results
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlGet,
+            fmt::format("topkeys.stop?limit={}&uuid={}", 10, to_string(uuid))});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+    json = rsp.getDataJson();
+
+    auto& buckets = json["keys"];
+    ASSERT_EQ(1, buckets.size());
+    ASSERT_TRUE(buckets.contains(bucketName));
+    auto& bucket = buckets[bucketName];
+    ASSERT_TRUE(bucket.is_object()) << "json: " << bucket.dump(2);
+
+    // Should only contain the fruit collection (cid:0x9)
+    ASSERT_TRUE(bucket.contains("cid:0x9")) << "json: " << bucket.dump(2);
+    ASSERT_FALSE(bucket.contains("cid:0xa")) << "json: " << bucket.dump(2);
+
+    auto& keys = bucket["cid:0x9"];
+    // We should have 10 keys from the fruit collection
+    EXPECT_EQ(10, keys.size());
+    for (auto it = keys.begin(); it != keys.end(); ++it) {
+        EXPECT_TRUE(it.key().starts_with("fruit-")) << it.key();
+    }
+}
+
+TEST_P(Topkeys, TraceMultipleCollectionFilter) {
+    // Create collections manifest with fruit, vegetable, and dairy collections
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable)
+            .add(CollectionEntry::customer1)
+            .add(CollectionEntry::dairy);
+
+    // Set the manifest
+    adminConnection->executeInBucket(bucketName, [&](auto& connection) {
+        auto response = connection.execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                {},
+                manifest.getJson().dump()});
+        if (!response.isSuccess()) {
+            throw std::runtime_error(
+                    fmt::format("Failed to set collections manifest: {} {}",
+                                response.getStatus(),
+                                response.getDataView()));
+        }
+    });
+
+    // Enable collections on the connection
+    userConnection->setFeature(cb::mcbp::Feature::Collections, true);
+
+    // Start tracing with collection_filter for fruit and vegetable collections,
+    // plus dairy (which is in the filter but we won't access)
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            "topkeys.start?limit=100&shards=1&bucket_filter=default"
+            "&collection_filter=9,10,12"});
+    if (!rsp.isSuccess()) {
+        throw std::runtime_error(
+                fmt::format("Failed to start topkeys tracing: {} {}",
+                            rsp.getStatus(),
+                            rsp.getDataView()));
+    }
+    auto json = rsp.getDataJson();
+    if (!json.contains("uuid")) {
+        throw std::runtime_error(
+                fmt::format("Failed to start topkeys tracing: no uuid in "
+                            "response json: {}",
+                            json.dump(2)));
+    }
+    cb::uuid::uuid_t uuid =
+            cb::uuid::from_string(json["uuid"].get<std::string>());
+
+    // Access keys in fruit collection (should be collected)
+    for (int ii = 0; ii < 20; ++ii) {
+        std::string key = "fruit-" + std::to_string(ii);
+        StoredDocKey fruitKey(key, CollectionID(CollectionUid::fruit));
+        BinprotGetCommand cmd(std::string{fruitKey});
+        cmd.setVBucket(Vbid(0));
+        rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+
+    // Access keys in vegetable collection (should be collected)
+    for (int ii = 0; ii < 20; ++ii) {
+        std::string key = "vegetable-" + std::to_string(ii);
+        StoredDocKey vegetableKey(key, CollectionID(CollectionUid::vegetable));
+        BinprotGetCommand cmd(std::string{vegetableKey});
+        cmd.setVBucket(Vbid(0));
+        rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+
+    // Don't access any keys in dairy collection (it's in filter but not used),
+    // access keys in customer1 collection (should ignored as the filter
+    // doesn't include them)
+    for (int ii = 0; ii < 20; ++ii) {
+        std::string key = "customer1-" + std::to_string(ii);
+        StoredDocKey customer1Key(key, CollectionID(CollectionUid::customer1));
+        BinprotGetCommand cmd(std::string{customer1Key});
+        cmd.setVBucket(Vbid(0));
+        rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+
+    // Stop tracing and get results
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlGet,
+            fmt::format(
+                    "topkeys.stop?limit={}&uuid={}", 100, to_string(uuid))});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+    json = rsp.getDataJson();
+
+    auto& buckets = json["keys"];
+    ASSERT_EQ(1, buckets.size());
+    ASSERT_TRUE(buckets.contains(bucketName));
+    auto& bucket = buckets[bucketName];
+    ASSERT_TRUE(bucket.is_object()) << "json: " << bucket.dump(2);
+
+    // Should contain fruit (cid:0x9) and vegetable (cid:0xa) collections but
+    // not dairy (cid:0xc) because no keys were accessed in dairy and not
+    // customer1 (cid:0xb) because it's not in the filter
+    ASSERT_TRUE(bucket.contains("cid:0x9")) << "json: " << bucket.dump(2);
+    ASSERT_TRUE(bucket.contains("cid:0xa")) << "json: " << bucket.dump(2);
+    ASSERT_FALSE(bucket.contains("cid:0xc")) << "json: " << bucket.dump(2);
+    ASSERT_FALSE(bucket.contains("cid:0xb")) << "json: " << bucket.dump(2);
+
+    // Check fruit collection keys
+    auto& fruitKeys = bucket["cid:0x9"];
+    EXPECT_EQ(20, fruitKeys.size());
+    for (auto it = fruitKeys.begin(); it != fruitKeys.end(); ++it) {
+        EXPECT_TRUE(it.key().starts_with("fruit-")) << it.key();
+    }
+
+    // Check vegetable collection keys
+    auto& vegetableKeys = bucket["cid:0xa"];
+    EXPECT_EQ(20, vegetableKeys.size());
+    for (auto it = vegetableKeys.begin(); it != vegetableKeys.end(); ++it) {
+        EXPECT_TRUE(it.key().starts_with("vegetable-")) << it.key();
+    }
 }

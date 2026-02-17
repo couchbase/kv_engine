@@ -19,10 +19,12 @@ std::pair<cb::engine_errc, cb::uuid::uuid_t> Controller::create(
         std::size_t num_keys,
         std::size_t shards,
         std::chrono::seconds expiry_time,
-        const std::vector<std::size_t>& buckets) {
+        const std::vector<std::size_t>& buckets,
+        const std::vector<CollectionIDType>& collections) {
     Expects(num_keys && "Collector must track at least 1 key");
     return active_collector.withLock([&](auto& coll) {
-        return createLocked(coll, num_keys, shards, expiry_time, buckets);
+        return createLocked(
+                coll, num_keys, shards, expiry_time, buckets, collections);
     });
 }
 
@@ -81,12 +83,14 @@ std::pair<cb::engine_errc, cb::uuid::uuid_t> Controller::createLocked(
         std::size_t num_keys,
         std::size_t shards,
         std::chrono::seconds expiry_time,
-        const std::vector<std::size_t>& buckets) {
+        const std::vector<std::size_t>& buckets,
+        const std::vector<CollectionIDType>& collections) {
     if (coll) {
         return {cb::engine_errc::too_busy, coll->get_uuid()};
     }
 
-    coll = Collector::create(num_keys, shards, expiry_time, buckets, true);
+    coll = Collector::create(
+            num_keys, shards, expiry_time, buckets, collections, true);
     installCollector(coll);
     return {cb::engine_errc::success, coll->get_uuid()};
 }
