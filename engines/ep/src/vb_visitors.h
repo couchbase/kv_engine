@@ -57,6 +57,15 @@ public:
         vBucketFilter = std::move(filter);
     }
 
+    /// Return the visit policy for this visitor, which determines the order in
+    /// which the visitor will visit vbuckets. If the policy is ordered the
+    /// comparator returned by getVBucketComparator() will be used to determine
+    /// the order of the vbuckets. If the policy is random, the vbuckets will be
+    /// visited in a random order
+    virtual VisitPolicy getVisitPolicy() {
+        return VisitPolicy::Ordered;
+    }
+
     /**
      * Get a comparator used to order the vbucket IDs based on visitor-specific
      * criteria, if necessary. This can be used to specify the order the visitor
