@@ -30,6 +30,7 @@ FileDownloader::FileDownloader(
         std::size_t write_size,
         std::size_t checksum_length,
         bool allow_fail_fast,
+        std::optional<std::size_t> error_sink_write_size,
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
                            cb::logger::Json json)> log_callback,
@@ -41,6 +42,7 @@ FileDownloader::FileDownloader(
       write_size(write_size),
       checksum_length(checksum_length),
       allow_fail_fast(allow_fail_fast),
+      error_sink_write_size(error_sink_write_size),
       log_callback(std::move(log_callback)),
       stats_collect_callback(std::move(stats_collect_callback)) {
     // Empty
@@ -185,7 +187,35 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
     if (filename.has_parent_path() && !exists(filename.parent_path())) {
         create_directories(filename.parent_path());
     }
-    return std::make_unique<cb::io::FileSink>(
-            filename, cb::io::FileSink::Mode::Append, fsync_interval);
+
+    if (!error_sink_write_size.has_value()) {
+        return std::make_unique<cb::io::FileSink>(
+                filename, cb::io::FileSink::Mode::Append, fsync_interval);
+    }
+
+    class ErrorSink : public cb::io::FileSink {
+    public:
+        ErrorSink(std::filesystem::path path,
+                  std::size_t fsync_interval,
+                  std::size_t error_sink_write_size)
+            : FileSink(path, Mode::Append, fsync_interval),
+              error_sink_write_size(error_sink_write_size) {
+        }
+
+        void sink(std::string_view data) override {
+            if (getBytesWritten() + data.size() > error_sink_write_size) {
+                throw std::runtime_error(fmt::format(
+                        "Error sink write size of {} bytes exceeded",
+                        error_sink_write_size));
+            }
+            FileSink::sink(data);
+        }
+
+    protected:
+        const std::size_t error_sink_write_size;
+    };
+
+    return std::make_unique<ErrorSink>(
+            filename, fsync_interval, *error_sink_write_size);
 }
 } // namespace cb::snapshot

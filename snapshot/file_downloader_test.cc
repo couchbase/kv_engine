@@ -29,6 +29,7 @@ TEST(FileDownloaderTest, FailFastIfFileTooBig) {
             1024, // write size
             0, // checksum
             true, // fail fast
+            {}, // no error sink
             [](auto level, auto message, auto json) {
                 EXPECT_EQ(level, spdlog::level::warn);
                 EXPECT_EQ(message, "Not enough disk space to download file");

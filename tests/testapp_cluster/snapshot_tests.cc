@@ -15,11 +15,13 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/node.h>
+#include <folly/ScopeGuard.h>
 #include <mcbp/codec/crc_sink.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <snapshot/download_properties.h>
@@ -402,6 +404,79 @@ TEST_P(SnapshotClusterTest, Snapshots) {
     validate_docs_on_destination();
 
     destination_node->delVbucket(Vbid{0});
+}
+
+/// Verify that we don't crash if an exception occurs during writing to the
+/// error sink. This is a regression test for MB-70585.
+TEST_P(SnapshotClusterTest, MB70585) {
+    auto guard = folly::makeGuard(
+            [] { download_properties.error_sink_write_size = {}; });
+
+    cluster->changeConfig([](nlohmann::json& config) {
+        config["file_fragment_max_read_size"] = GetParam();
+        // Run with a small checksum length to help improve test coverage.
+        config["file_fragment_checksum_length"] = 128;
+    });
+
+    populate_docs_on_source();
+    download_properties.error_sink_write_size = 1024;
+    BinprotGenericCommand download(ClientOpcode::DownloadSnapshot,
+                                   {},
+                                   nlohmann::json(download_properties).dump());
+    download.setVBucket(Vbid{0});
+    download.setDatatype(cb::mcbp::Datatype::JSON);
+
+    auto rsp = destination_node->execute(download);
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                 << rsp.getDataView();
+
+    // ns_server don't want a blocking call to download the snapshot so
+    // we need to poll the state until it is done
+    using namespace std::chrono_literals;
+    std::optional<cb::snapshot::Manifest> manifest;
+    std::string error;
+
+    if (!cb::waitForPredicateUntil(
+                []() {
+                    std::string key;
+                    std::string value;
+                    destination_node->stats(
+                            [&key, &value](auto k, auto v) {
+                                key = k;
+                                value = v;
+                            },
+                            "snapshot-status 0");
+                    return key == "vb_0:status" && value == "failed";
+                },
+                std::chrono::seconds{5},
+                std::chrono::milliseconds{10})) {
+        throw std::runtime_error(
+                "Timed out waiting for snapshot-status to reach failed state");
+    }
+
+    {
+        using namespace std::string_view_literals;
+        std::string key;
+        std::string value;
+        destination_node->stats(
+                [&key, &value](auto k, auto v) {
+                    key = k;
+                    value = v;
+                },
+                "snapshot-details 0");
+        nlohmann::json json = nlohmann::json::parse(value);
+        EXPECT_EQ(json["state"], "Failed");
+        const std::string message = json["error"].get<std::string>();
+        EXPECT_TRUE(
+                message.starts_with("Received exception while downloading "
+                                    "snapshot: Failed to download"))
+                << "Unexpected error message: " << message;
+        EXPECT_TRUE(message.ends_with(
+                " after receiving exception. Giving up. Exception: "
+                "\"getFileFragment: Failed to store data: Error sink write "
+                "size of 1024 bytes exceeded\": generic failure"))
+                << "Unexpected error message: " << message;
+    }
 }
 
 TEST_P(SnapshotClusterTest, PrepareSnapshot) {

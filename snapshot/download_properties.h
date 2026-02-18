@@ -79,6 +79,12 @@ struct DownloadProperties {
     /// likely to fail. Default behavior is true
     std::optional<bool> allow_fail_fast;
 
+    /// Optional and only used for testing: The number of bytes to be written
+    /// for a file fragment before an exception is thrown. This is used to
+    /// test the implementation of the file downloader and ensure that the
+    /// server don't crash.
+    std::optional<std::size_t> error_sink_write_size;
+
     /// The properties to use IF SASL should be used (should not be
     /// specified if cert based auth is used)
     std::optional<Sasl> sasl;

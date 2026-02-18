@@ -139,7 +139,8 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                         engine->getSnapshotDownloadWriteSize()),
                 getChecksumLength(),
                 properties.allow_fail_fast.value_or(true),
-                [this](auto level, auto msg, auto json) {
+                properties.error_sink_write_size,
+                [](auto level, auto msg, auto json) {
                     auto& logger = getGlobalBucketLogger();
                     logger->logWithContext(level, msg, json);
                 },
@@ -177,9 +178,6 @@ bool DownloadSnapshotTask::run() {
                 });
         if (std::holds_alternative<Manifest>(rv)) {
             listener->stateChanged(DownloadSnapshotTaskState::Finished);
-        } else {
-            listener->failed(fmt::format("Failed to download snapshot: {}",
-                                         std::get<cb::engine_errc>(rv)));
         }
     } catch (const std::exception& e) {
         listener->failed(fmt::format("Received exception: {}", e.what()));

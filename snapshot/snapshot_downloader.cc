@@ -20,6 +20,7 @@ void download(std::unique_ptr<MemcachedConnection> connection,
               std::size_t write_size,
               std::size_t checksum_length,
               bool allow_fail_fast,
+              std::optional<std::size_t> error_sink_write_size,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback,
@@ -31,14 +32,25 @@ void download(std::unique_ptr<MemcachedConnection> connection,
                               write_size,
                               checksum_length,
                               allow_fail_fast,
+                              error_sink_write_size,
                               log_callback,
                               stats_collect_callback);
 
-    auto download_with_retry = [&downloader](auto& file) -> void {
+    auto download_with_retry = [&downloader,
+                                &log_callback](auto& file) -> void {
         int retry = 5;
-        cb::engine_errc err;
+        auto err = cb::engine_errc::failed;
         while (retry > 0) {
-            err = downloader.download(file);
+            try {
+                err = downloader.download(file);
+            } catch (const std::exception& e) {
+                throw engine_error(
+                        cb::engine_errc::failed,
+                        fmt::format("Failed to download \"{}\" after receiving "
+                                    "exception. Giving up. Exception: \"{}\"",
+                                    file.path.string(),
+                                    e.what()));
+            }
             if (err == cb::engine_errc::success) {
                 return;
             }
@@ -52,7 +64,7 @@ void download(std::unique_ptr<MemcachedConnection> connection,
         }
         throw engine_error(err,
                            fmt::format("Failed to download \"{}\" after 5 "
-                                       "attempts. Giving up.",
+                                       "attempts. Giving up",
                                        file.path.string()));
     };
 

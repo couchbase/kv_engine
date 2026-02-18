@@ -2690,12 +2690,26 @@ public:
     /// The callback to collect stats
     std::function<void(std::size_t)> stats_collect_callback;
 
+    /// If we encounter an exception while writing to the destination sink we
+    /// store the error message here and throw a runtime error with this message
+    /// in getFileFragment after we exit folly's event loop. This is required as
+    /// we can't throw directly from the read callback as it's called from
+    /// within the event loop and we need to wait until we exit the loop.
+    std::string file_io_exception;
+
     /// Store the view to the file
     void storeData(std::string_view view) {
-        // When CRC is enabled, view will be stripped of any checksum bytes and
-        // the file data passed to the sink orginally given to the callback
-        // class
-        destination_sink->sink(view);
+        if (file_io_exception.empty()) {
+            try {
+                // When CRC is enabled, view will be stripped of any checksum
+                // bytes and the file data passed to the sink orginally given to
+                // the callback class
+                destination_sink->sink(view);
+            } catch (const std::exception& e) {
+                file_io_exception = e.what();
+                base.terminateLoopSoon();
+            }
+        }
         bytes_processed += view.size();
         if (bytes_processed == header->getBodylen()) {
             base.terminateLoopSoon();
@@ -2734,6 +2748,18 @@ uint64_t MemcachedConnection::getFileFragment(
     eventBase->loop();
     asyncSocket->setReadCB(nullptr);
     callback.handlePotentialNetworkException();
+    if (!callback.file_io_exception.empty()) {
+        // we've terminated the loop due to a file io exception, we must
+        // close the connection as it's likely in a bad state
+        try {
+            close();
+        } catch (const std::exception&) {
+        }
+
+        throw std::runtime_error(
+                fmt::format("getFileFragment: Failed to store data: {}",
+                            callback.file_io_exception));
+    }
     if (!isStatusSuccess(callback.header->getResponse().getStatus())) {
         callback.buffer.resize(sizeof(cb::mcbp::Header) +
                                callback.header->getBodylen());
