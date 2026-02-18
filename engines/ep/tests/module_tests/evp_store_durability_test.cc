@@ -20,6 +20,7 @@
 #include "durability/durability_monitor.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "get_random_key_visitor.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
@@ -5373,8 +5374,30 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
     ASSERT_EQ(cb::engine_errc::success,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 
-    auto gv = store->getRandomKey(CollectionID::Default, *cookie);
-    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+    struct MyGetRandomKeyObserver : GetRandomKeyObserver {
+        void start() override {
+        }
+        void finish() override {
+        }
+        void found(std::unique_ptr<Item>) override {
+            status = cb::engine_errc::success;
+        }
+        void error(const cb::engine_errc error, const uint64_t) override {
+            status = error;
+        }
+
+        cb::engine_errc status{cb::engine_errc::failed};
+    } observer;
+
+    store->visitAsync(
+            std::make_unique<GetRandomKeyVisitor>(
+                    *engine, *cookie, CollectionID::Default, observer),
+            "Get Random Key Scanner",
+            TaskId::GetRandomKeyVisitor,
+            200ms);
+    task_executor->runNextTask(TaskType::NonIO,
+                               "Get Random Key Scanner no vbucket assigned");
+    EXPECT_EQ(cb::engine_errc::success, observer.status);
 }
 
 // Test cases which run against couchstore

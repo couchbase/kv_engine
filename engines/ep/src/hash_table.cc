@@ -660,14 +660,15 @@ void HashTable::RandomKeyVisitor::setup(size_t size) {
     bucketsVisited = 0;
 }
 
-std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, uint32_t rnd) {
-    return getRandomKey(cid, RandomKeyVisitor{getSize(), rnd});
+std::unique_ptr<Item> HashTable::getRandomKey(
+        CollectionID cid, uint32_t rnd, const std::function<bool()>& stop) {
+    return getRandomKey(cid, RandomKeyVisitor{getSize(), rnd}, stop);
 }
 
-std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
-                                              RandomKeyVisitor visitor) {
-    std::unique_ptr<Item> ret;
-
+std::unique_ptr<Item> HashTable::getRandomKey(
+        CollectionID cid,
+        RandomKeyVisitor visitor,
+        const std::function<bool()>& stop) {
     do {
         auto lh = getLockedBucket(visitor.getNextBucket());
 
@@ -677,10 +678,12 @@ std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
             continue;
         }
 
-        ret = getRandomKey(cid, lh);
-    } while (ret == nullptr && !visitor.visitComplete());
-
-    return ret;
+        auto item = getRandomKey(cid, lh);
+        if (item) {
+            return item;
+        }
+    } while (!visitor.visitComplete() && !stop());
+    return {};
 }
 
 MutationStatus HashTable::set(const Item& val) {

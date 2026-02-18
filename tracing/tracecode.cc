@@ -55,6 +55,8 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "get";
     case Code::GetIf:
         return "get.if";
+    case Code::GetRandomDocument:
+        return "get.random_document";
     case Code::GetStats:
         return "get.stats";
     case Code::SetWithMeta:

@@ -317,6 +317,8 @@ ADD_LIBRARY(ep STATIC
             src/file_ops_tracker.cc
             src/flusher.cc
             src/getkeys.cc
+            src/get_random_key_visitor.cc
+            src/get_random_key_visitor.h
             src/hash_table.cc
             src/hlc.cc
             src/htresizer.cc

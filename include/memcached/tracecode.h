@@ -57,6 +57,9 @@ enum class Code : uint8_t {
     Get,
     /// Time spent in EngineIface::get_if
     GetIf,
+    /// Time spent searching for a random document in the hashtable
+    /// visitor and waiting for the result to be returned.
+    GetRandomDocument,
     /// Time spent in EngineIface::getStats
     GetStats,
     /// Time spent in EngineIface::setWithMeta
