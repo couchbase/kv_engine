@@ -83,6 +83,10 @@ DownloadSnapshotTask::doDownloadManifest() {
         if (!rsp.isSuccess()) {
             EP_LOG_WARN_CTX("Failed to prepare snapshot",
                             {"vb", vbid},
+                            {"remote",
+                             connection->getHostname() + ":" +
+                                     std::to_string(connection->getPort())},
+                            {"error", rsp.getErrorContext()},
                             {"status", rsp.getStatus()});
             listener->failed(fmt::format("Failed to prepare snapshot: {}: {}",
                                          rsp.getStatus(),
@@ -95,6 +99,9 @@ DownloadSnapshotTask::doDownloadManifest() {
                 "Error occurred during PrepareSnapshot: {}", e.what()));
         EP_LOG_WARN_CTX("Error occurred during PrepareSnapshot",
                         {"vb", vbid},
+                        {"remote",
+                         connection->getHostname() + ":" +
+                                 std::to_string(connection->getPort())},
                         {"error", e.what()});
         return cb::engine_errc::failed;
     }
@@ -106,6 +113,9 @@ DownloadSnapshotTask::doDownloadManifest() {
                 fmt::format("Failed to parse snapshot manifest: {}", e.what()));
         EP_LOG_WARN_CTX("Failed to parse snapshot manifest",
                         {"vb", vbid},
+                        {"remote",
+                         connection->getHostname() + ":" +
+                                 std::to_string(connection->getPort())},
                         {"json", json},
                         {"error", e.what()});
     }
