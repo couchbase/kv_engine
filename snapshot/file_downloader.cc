@@ -102,8 +102,7 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
     }
     sink->close();
     const auto file_download_end = std::chrono::steady_clock::now();
-
-    const auto start_checksum = std::chrono::steady_clock::now();
+    const auto start_checksum = file_download_end;
     const auto checksumOk = validateChecksum(local, meta);
     const auto checksum_end = std::chrono::steady_clock::now();
 
