@@ -141,4 +141,9 @@ struct ServerCoreIface {
      * Get the default write size for snapshot downloads (in bytes).
      */
     virtual size_t getSnapshotDownloadWriteSize() const = 0;
+
+    /**
+     * Get the snapshot download throttle rate (in bytes per second).
+     */
+    virtual size_t getSnapshotDownloadThrottleBytes() const = 0;
 };

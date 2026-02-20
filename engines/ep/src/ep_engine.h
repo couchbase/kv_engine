@@ -1244,6 +1244,11 @@ public:
      */
     size_t getSnapshotDownloadWriteSize() const;
 
+    /**
+     * Get the snapshort download throttle rate (in bytes per second).
+     */
+    size_t getSnapshotDownloadThrottleBytes() const;
+
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
         cb::engine_errc status;

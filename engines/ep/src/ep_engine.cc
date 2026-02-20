@@ -7891,3 +7891,7 @@ size_t EventuallyPersistentEngine::getSnapshotDownloadFsyncInterval() const {
 size_t EventuallyPersistentEngine::getSnapshotDownloadWriteSize() const {
     return serverApi->core->getSnapshotDownloadWriteSize();
 }
+
+size_t EventuallyPersistentEngine::getSnapshotDownloadThrottleBytes() const {
+    return serverApi->core->getSnapshotDownloadThrottleBytes();
+}

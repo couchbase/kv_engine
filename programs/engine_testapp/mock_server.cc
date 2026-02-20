@@ -251,6 +251,10 @@ struct MockServerCoreApi : public ServerCoreIface {
     size_t getSnapshotDownloadWriteSize() const override {
         return 2_MiB;
     }
+
+    size_t getSnapshotDownloadThrottleBytes() const override {
+        return 0;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

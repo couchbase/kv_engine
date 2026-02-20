@@ -34,17 +34,19 @@ FileDownloader::FileDownloader(
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
                            cb::logger::Json json)> log_callback,
-        std::function<void(std::size_t)> stats_collect_callback)
+        std::function<void(std::size_t)> stats_collect_callback,
+        std::function<std::size_t()> get_throttle_rate)
     : connection(std::move(connection)),
       directory(std::move(directory)),
       uuid(std::move(uuid)),
       fsync_interval(fsync_interval),
       write_size(write_size),
-      checksum_length(checksum_length),
       allow_fail_fast(allow_fail_fast),
       error_sink_write_size(error_sink_write_size),
+      checksum_length(checksum_length),
       log_callback(std::move(log_callback)),
-      stats_collect_callback(std::move(stats_collect_callback)) {
+      stats_collect_callback(std::move(stats_collect_callback)),
+      get_throttle_rate(std::move(get_throttle_rate)) {
     // Empty
 }
 
@@ -110,14 +112,16 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
                       {"path", meta.path.string()},
                       {"chunk", file_meta},
                       {"chunk_checksum_length", chunk_checksum_length}});
-        offset += connection->getFileFragment(uuid,
-                                              meta.id,
-                                              offset,
-                                              chunk,
-                                              chunk_checksum_length,
-                                              write_size,
-                                              sink.get(),
-                                              stats_collect_callback);
+        offset += connection->getFileFragment(
+                uuid,
+                meta.id,
+                offset,
+                chunk,
+                chunk_checksum_length,
+                write_size,
+                sink.get(),
+                stats_collect_callback,
+                [this](std::size_t bytes) { throttleAcquire(bytes); });
     }
     sink->close();
     const auto file_download_end = std::chrono::steady_clock::now();
@@ -217,5 +221,19 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
 
     return std::make_unique<ErrorSink>(
             filename, fsync_interval, *error_sink_write_size);
+}
+
+void FileDownloader::throttleAcquire(size_t bytes) const {
+    // Cap all downloads, so declare a static throttle object.
+    static cb::TokenBucketRateLimiter<std::chrono::seconds> throttle;
+    // Get the current throttle rate via callback
+    auto rate = get_throttle_rate();
+    if (rate == 0) {
+        return;
+    }
+    // Ensure throttle_rate is at least write_size
+    rate = std::max(rate, write_size);
+    // And throttle to the rate
+    throttle.acquire(bytes, rate);
 }
 } // namespace cb::snapshot

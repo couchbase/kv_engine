@@ -13,6 +13,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include <platform/file_sink.h>
 #include <platform/json_log.h>
+#include <platform/token_bucket_rate_limiter.h>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 
@@ -61,7 +62,11 @@ public:
      * sink when an error occurs. If not set, the error sink will not be used
      * @param log_callback a callback function to add information to the log
      * @param stats_collect_callback a callback function for stat collection
-     * received)
+     * @param get_throttle_rate a callback function for obtaining the throttling
+     * rate (value is bytes and will set bytes per second). 0 disables throttle.
+     * If write_size is configured larger than the returned throttle_rate, then
+     * throttling will cap at write_size. I.e. the actual value used for
+     * throttling is max(throttle_rate, write_size) (when throttle_rate is >0).
      */
     FileDownloader(std::unique_ptr<MemcachedConnection> connection,
                    std::filesystem::path directory,
@@ -74,7 +79,8 @@ public:
                    std::function<void(spdlog::level::level_enum,
                                       std::string_view,
                                       cb::logger::Json json)> log_callback,
-                   std::function<void(std::size_t)> stats_collect_callback);
+                   std::function<void(std::size_t)> stats_collect_callback,
+                   std::function<std::size_t()> get_throttle_rate);
     /**
      * Download the file provided in the meta section
      *
@@ -107,6 +113,17 @@ protected:
     std::unique_ptr<cb::io::FileSink> openFile(
             const std::filesystem::path& filename) const;
 
+    /**
+     * Acquires "bytes" worth of tokens from the static throttle, blocking if
+     * not enough tokens are available.
+     *
+     * If throttling is enabled then downloading will be capped at the
+     * throttle_rate (in bytes per second).
+     *
+     * @param bytes how many bytes are being processed
+     */
+    void throttleAcquire(size_t bytes) const;
+
     /// The connection to the server used to fetch the files from
     std::unique_ptr<MemcachedConnection> connection;
     /// The directory where the files should be written to
@@ -117,9 +134,7 @@ protected:
     const std::size_t fsync_interval;
     /// The number of bytes to write in each chunk
     const std::size_t write_size;
-    /// The number of bytes to checksum as data is read (0 disables
-    /// checksumming)
-    const std::size_t checksum_length;
+
     /// Allow to fail fast if there isn't disk space to download the file. If
     /// false, the downloader will try to download the file and only fail if the
     /// download fails due to lack of disk space. This is not a guarantee that
@@ -131,11 +146,18 @@ protected:
     /// writing a certain amount of data. If not set, the error sink will not be
     /// used
     const std::optional<std::size_t> error_sink_write_size;
+
+    /// The number of bytes to checksum as data is read (0 disables
+    /// checksumming)
+    const std::size_t checksum_length{0};
+
     /// The callback method to log information
     const std::function<void(
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>
             log_callback;
     /// The callback method to log progress
     const std::function<void(std::size_t)> stats_collect_callback;
+    /// The callback to get the throttle rate (bytes per second, 0 disables)
+    const std::function<std::size_t()> get_throttle_rate;
 };
 } // namespace cb::snapshot

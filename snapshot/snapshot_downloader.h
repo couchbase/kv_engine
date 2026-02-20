@@ -34,5 +34,6 @@ void download(std::unique_ptr<MemcachedConnection> connection,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback,
-              const std::function<void(std::size_t)>& stats_collect_callback);
+              const std::function<void(std::size_t)>& stats_collect_callback,
+              const std::function<std::size_t()>& get_throttle_rate);
 } // namespace cb::snapshot

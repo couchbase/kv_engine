@@ -515,6 +515,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setSnapshotDownloadFsyncInterval(value.get<size_t>());
         } else if (key == "snapshot_download_write_size"sv) {
             setSnapshotDownloadWriteSize(value.get<size_t>());
+        } else if (key == "snapshot_download_throttle_bytes"sv) {
+            setSnapshotDownloadThrottleBytes(value.get<size_t>());
         } else if (key == "dcp_consumer_max_marker_version"sv) {
             setDcpConsumerMaxMarkerVersion(std::stod(value.get<std::string>()));
         } else if (key == "dcp_snapshot_marker_hps_enabled"sv) {
@@ -1442,6 +1444,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.snapshot_download_throttle_bytes) {
+        if (other.getSnapshotDownloadThrottleBytes() !=
+            getSnapshotDownloadThrottleBytes()) {
+            LOG_INFO_CTX("Change snapshot_download_throttle_bytes",
+                         {"from", getSnapshotDownloadThrottleBytes()},
+                         {"to", other.getSnapshotDownloadThrottleBytes()});
+            setSnapshotDownloadThrottleBytes(
+                    other.getSnapshotDownloadThrottleBytes());
+        }
+    }
+
     if (other.has.magma_blind_write_optimisation_enabled) {
         if (other.isMagmaBlindWriteOptimisationEnabled() !=
             isMagmaBlindWriteOptimisationEnabled()) {
@@ -1585,4 +1598,10 @@ void Settings::setSubdocMultiMaxPaths(size_t val) {
     subdoc_multi_max_paths.store(val, std::memory_order_release);
     has.subdoc_multi_max_paths = true;
     notify_changed("subdoc_multi_max_paths");
+}
+
+void Settings::setSnapshotDownloadThrottleBytes(size_t bytes) {
+    snapshot_download_throttle_bytes.store(bytes, std::memory_order_release);
+    has.snapshot_download_throttle_bytes = true;
+    notify_changed("snapshot_download_throttle_bytes");
 }

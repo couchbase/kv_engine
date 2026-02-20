@@ -39,7 +39,8 @@ TEST(FileDownloaderTest, FailFastIfFileTooBig) {
             },
             [](auto bytes) {
                 FAIL() << "Should not have called stats callback";
-            });
+            },
+            []() { return std::size_t{0}; });
 
     const auto space_info = std::filesystem::space(tmp);
     // Create a file info with size larger than the available space to trigger

@@ -55,6 +55,10 @@ protected:
         }
     }
 
+    // Perform all steps to copy the snapshot from source to destination, with
+    // the specified throttle rate (in bytes per second).
+    void copy_snapshot(size_t throttleRate);
+
     void populate_docs_on_source() {
         // Create some documents so that we know we can verify something once
         // we're done
@@ -253,11 +257,13 @@ void SnapshotClusterTest::do_snapshot_status(
                       << "s with last observed state: " << value;
 }
 
-TEST_P(SnapshotClusterTest, Snapshots) {
-    cluster->changeConfig([](nlohmann::json& config) {
+void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
+    cluster->changeConfig([throttleRate](nlohmann::json& config) {
         config["file_fragment_max_read_size"] = GetParam();
         // Run with a small checksum length to help improve test coverage.
         config["file_fragment_checksum_length"] = 128;
+
+        config["snapshot_download_throttle_bytes"] = throttleRate;
     });
 
     populate_docs_on_source();
@@ -479,6 +485,14 @@ TEST_P(SnapshotClusterTest, MB70585) {
     }
 }
 
+TEST_P(SnapshotClusterTest, Snapshots) {
+    copy_snapshot(0);
+}
+
+TEST_P(SnapshotClusterTest, SnapshotsWithThrottle) {
+    copy_snapshot(1024 * 1024); // 1 MiB/s
+}
+
 TEST_P(SnapshotClusterTest, PrepareSnapshot) {
     cluster->changeConfig([](nlohmann::json& config) {
         config["file_fragment_max_read_size"] = GetParam();
@@ -529,14 +543,16 @@ TEST_P(SnapshotClusterTest, GetFileFragment) {
         size_t offset = 0;
         while (file.size > 0) {
             auto sink = std::make_unique<GetFileFragmentTestSink>();
-            source_node->getFileFragment(manifest.uuid,
-                                         file.id,
-                                         offset,
-                                         file.size,
-                                         0,
-                                         2_MiB,
-                                         sink.get(),
-                                         [](std::size_t size) {});
+            source_node->getFileFragment(
+                    manifest.uuid,
+                    file.id,
+                    offset,
+                    file.size,
+                    0,
+                    2_MiB,
+                    sink.get(),
+                    [](std::size_t size) {},
+                    [](std::size_t size) {});
             if (GetParam() == 2_GiB) {
                 // When the server is configured with 2GiB max_read_size we will
                 // get the file in one go and can expect bytes written to match
@@ -570,15 +586,16 @@ TEST_P(SnapshotClusterTest, GetFileFragmentWithChecksum) {
         size_t bytes_written = 0;
         size_t expected_bytes_written = file.size;
         while (file.size > 0) {
-            const auto fragment_bytes_written =
-                    source_node->getFileFragment(manifest.uuid,
-                                                 file.id,
-                                                 offset,
-                                                 file.size,
-                                                 15,
-                                                 2_MiB,
-                                                 sink.get(),
-                                                 [](std::size_t size) {});
+            const auto fragment_bytes_written = source_node->getFileFragment(
+                    manifest.uuid,
+                    file.id,
+                    offset,
+                    file.size,
+                    15,
+                    2_MiB,
+                    sink.get(),
+                    [](std::size_t size) {},
+                    [](std::size_t size) {});
 
             bytes_written += fragment_bytes_written;
             file.size -= fragment_bytes_written;

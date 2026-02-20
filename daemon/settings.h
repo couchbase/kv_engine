@@ -1209,6 +1209,32 @@ public:
         notify_changed("snapshot_download_write_size");
     }
 
+    /**
+     * Get the snapshot download throttle bytes.
+     *
+     * @return the throttle bytes in bytes per second (0 means no throttling)
+     */
+    size_t getSnapshotDownloadThrottleBytes() const {
+        return snapshot_download_throttle_bytes.load(std::memory_order_acquire);
+    }
+
+    /**
+     * Set the snapshot download throttle bytes. This cannot be set below the
+     * download write size because a "write-size" write cannot be split.
+     * Note that the write-size is also the maximum network read size, e.g.
+     * downloading effectively do:
+     *
+     *  write(disk, read(network, write_size), write_size).
+     *
+     * But with checksumming (which will discard a few bytes) less than
+     * write_size maybe sent to disk (only a tiny bit less see:
+     * file_fragment_checksum_length)
+     *
+     * @param bytes the new throttle bytes in bytes per second (0 means no
+     * throttling)
+     */
+    void setSnapshotDownloadThrottleBytes(size_t bytes);
+
     double getDcpConsumerMaxMarkerVersion() const {
         return dcp_consumer_max_marker_version.load(std::memory_order_acquire);
     }
@@ -1646,6 +1672,10 @@ protected:
     /// The default write size for snapshot downloads (in bytes)
     std::atomic<size_t> snapshot_download_write_size{2_MiB};
 
+    /// The Fbr download throttle bytes (in bytes per second). 0 means no
+    /// throttling.
+    std::atomic<size_t> snapshot_download_throttle_bytes{0};
+
     /// The length of the checksum to use for the file fragments, this also ends
     /// up controlling the read size at the source.
     /// 20MiB is so far the most tested read size and in terms of CRC (we use
@@ -1764,6 +1794,7 @@ public:
         bool prepare_snapshot_always_checksum = false;
         bool snapshot_download_fsync_interval = false;
         bool snapshot_download_write_size = false;
+        bool snapshot_download_throttle_bytes = false;
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;

@@ -1246,6 +1246,8 @@ public:
      * @param stats_collect_callback the callback function to get the buffer
      * size to return to the io layer (the default allocation size is provided
      * as a parameter to the callback)
+     * @param throttle_callback acquires n tokens which can be used to enforce a
+     * download rate.
      * @return The number of bytes from the file received from the server. Note
      *         that this number may be less than the requested length
      * @throws ConnectionError for unexpected errors from the server
@@ -1259,7 +1261,8 @@ public:
             size_t checksum_length,
             size_t write_size,
             cb::io::Sink* sink,
-            std::function<void(std::size_t)> stats_collect_callback = {});
+            std::function<void(std::size_t)> stats_collect_callback,
+            std::function<void(std::size_t)> throttle_callback);
 
     /**
      * In order to simulate a slow client reading data one may set this

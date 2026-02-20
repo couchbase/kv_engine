@@ -146,6 +146,9 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                 },
                 [this](auto bytes) {
                     engine->getEpStats().snapshotBytesRead += bytes;
+                },
+                [this]() {
+                    return engine->getSnapshotDownloadThrottleBytes();
                 });
     } catch (const engine_error& e) {
         listener->failed(fmt::format(

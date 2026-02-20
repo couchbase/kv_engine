@@ -117,6 +117,10 @@ struct ServerCoreApi : public ServerCoreIface {
     size_t getSnapshotDownloadWriteSize() const override {
         return Settings::instance().getSnapshotDownloadWriteSize();
     }
+
+    size_t getSnapshotDownloadThrottleBytes() const override {
+        return Settings::instance().getSnapshotDownloadThrottleBytes();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

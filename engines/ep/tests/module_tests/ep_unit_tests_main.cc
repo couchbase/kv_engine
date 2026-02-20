@@ -128,6 +128,10 @@ public:
     size_t getSnapshotDownloadWriteSize() const override {
         return 2_MiB;
     }
+
+    size_t getSnapshotDownloadThrottleBytes() const override {
+        return 0;
+    }
 };
 
 int main(int argc, char **argv) {

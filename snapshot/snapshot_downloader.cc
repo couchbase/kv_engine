@@ -24,7 +24,8 @@ void download(std::unique_ptr<MemcachedConnection> connection,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback,
-              const std::function<void(std::size_t)>& stats_collect_callback) {
+              const std::function<void(std::size_t)>& stats_collect_callback,
+              const std::function<std::size_t()>& get_throttle_rate) {
     FileDownloader downloader(std::move(connection),
                               std::move(directory),
                               snapshot.uuid,
@@ -34,7 +35,8 @@ void download(std::unique_ptr<MemcachedConnection> connection,
                               allow_fail_fast,
                               error_sink_write_size,
                               log_callback,
-                              stats_collect_callback);
+                              stats_collect_callback,
+                              get_throttle_rate);
 
     auto download_with_retry = [&downloader,
                                 &log_callback](auto& file) -> void {

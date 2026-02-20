@@ -2577,12 +2577,14 @@ public:
             size_t checksum_length,
             size_t write_size,
             cb::io::Sink* sink,
-            std::function<void(std::size_t)> stats_collect_callback)
+            std::function<void(std::size_t)> stats_collect_callback,
+            std::function<void(std::size_t)> throttle_callback)
         : base(base),
           buffer(write_size),
           destination_sink(sink),
           checksum_length(checksum_length),
-          stats_collect_callback(std::move(stats_collect_callback)) {
+          stats_collect_callback(std::move(stats_collect_callback)),
+          throttle_callback(std::move(throttle_callback)) {
         Expects(sink != nullptr);
     }
 
@@ -2593,6 +2595,7 @@ public:
     }
 
     void readDataAvailable(size_t len) noexcept override {
+        throttle_callback(len);
         offset += len;
         onDataReceived({reinterpret_cast<const char*>(buffer.data()), offset});
     }
@@ -2697,6 +2700,9 @@ public:
     /// within the event loop and we need to wait until we exit the loop.
     std::string file_io_exception;
 
+    /// The callback to throttle
+    std::function<void(std::size_t)> throttle_callback;
+
     /// Store the view to the file
     void storeData(std::string_view view) {
         if (file_io_exception.empty()) {
@@ -2725,7 +2731,8 @@ uint64_t MemcachedConnection::getFileFragment(
         size_t checksum_length,
         size_t write_size,
         cb::io::Sink* sink,
-        std::function<void(std::size_t)> stats_collect_callback) {
+        std::function<void(std::size_t)> stats_collect_callback,
+        std::function<void(std::size_t)> throttle_callback) {
     // This command cannot be used if there is pending data!
     Expects(asyncReadCallback->input_bytes == 0);
 
@@ -2738,12 +2745,12 @@ uint64_t MemcachedConnection::getFileFragment(
     sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFileFragment,
                                       std::string{uuid},
                                       file_meta.dump()});
-    GetFileFragmentAsyncReadCallback callback(
-            *eventBase,
-            checksum_length,
-            write_size,
-            sink,
-            std::move(stats_collect_callback));
+    GetFileFragmentAsyncReadCallback callback(*eventBase,
+                                              checksum_length,
+                                              write_size,
+                                              sink,
+                                              std::move(stats_collect_callback),
+                                              std::move(throttle_callback));
     asyncSocket->setReadCB(&callback);
     eventBase->loop();
     asyncSocket->setReadCB(nullptr);
