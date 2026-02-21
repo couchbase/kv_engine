@@ -1445,6 +1445,59 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.default_throttle_reserved_units) {
+        const auto currVal = getDefaultThrottleReservedUnits();
+        const auto newVal = other.getDefaultThrottleReservedUnits();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change default_throttle_reserved_units",
+                         {"from", currVal},
+                         {"to", newVal});
+            setDefaultThrottleReservedUnits(newVal);
+        }
+    }
+
+    if (other.has.default_throttle_hard_limit) {
+        const auto currVal = getDefaultThrottleHardLimit();
+        const auto newVal = other.getDefaultThrottleHardLimit();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change default_throttle_hard_limit",
+                         {"from", currVal},
+                         {"to", newVal});
+            setDefaultThrottleHardLimit(newVal);
+        }
+    }
+
+    if (other.has.read_unit_size) {
+        const auto currVal = getReadUnitSize();
+        const auto newVal = other.getReadUnitSize();
+        if (newVal != currVal) {
+            LOG_INFO_CTX(
+                    "Change read_unit_size", {"from", currVal}, {"to", newVal});
+            setReadUnitSize(newVal);
+        }
+    }
+
+    if (other.has.write_unit_size) {
+        const auto currVal = getWriteUnitSize();
+        const auto newVal = other.getWriteUnitSize();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change write_unit_size",
+                         {"from", currVal},
+                         {"to", newVal});
+            setWriteUnitSize(newVal);
+        }
+    }
+
+    if (other.has.node_capacity) {
+        const auto currVal = getNodeCapacity();
+        const auto newVal = other.getNodeCapacity();
+        if (newVal != currVal) {
+            LOG_INFO_CTX(
+                    "Change node_capacity", {"from", currVal}, {"to", newVal});
+            setNodeCapacity(newVal);
+        }
+    }
+
     if (other.has.magma_max_default_storage_threads) {
         const auto currVal = getMagmaMaxDefaultStorageThreads();
         const auto newVal = other.getMagmaMaxDefaultStorageThreads();
