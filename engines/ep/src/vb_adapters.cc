@@ -15,6 +15,8 @@
 #include "utilities/debug_variable.h"
 #include "vb_visitors.h"
 
+#include <random>
+
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
                          std::unique_ptr<InterruptableVBucketVisitor> v,
@@ -34,7 +36,14 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
             vbucketsToVisit.emplace_back(vbid);
         }
     }
-    std::ranges::sort(vbucketsToVisit, visitor->getVBucketComparator());
+
+    if (visitor->getVisitPolicy() == VisitPolicy::Random) {
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::ranges::shuffle(vbucketsToVisit, g);
+    } else {
+        std::ranges::sort(vbucketsToVisit, visitor->getVBucketComparator());
+    }
 }
 
 std::string VBCBAdaptor::getDescription() const {

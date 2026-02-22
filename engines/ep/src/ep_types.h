@@ -60,6 +60,8 @@ static inline bool getHistoryFromCanDeduplicate(CanDeduplicate value) {
 std::string to_string(CanDeduplicate);
 std::ostream& operator<<(std::ostream&, const CanDeduplicate&);
 
+enum class VisitPolicy { Ordered, Random };
+
 // Is the compaction callback invoked for the latest revision only, or any
 // revision?
 enum class CompactionCallbacks : char {

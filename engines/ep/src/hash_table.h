@@ -1176,16 +1176,20 @@ public:
     /**
      * Find a resident item
      *
+     * @param cid The collection ID of the item to find
      * @param random The caller to getRandomKey provides a value that is used to
      *        compute the starting bucket as random % size. This value should be
      *        the result of a random generator. There is no limit on this value.
+     * @param stop a method to check if we should stop searching or not
      *
-     * @return an item -- NULL if not fount
+     * @return an item if found, or an empty unique_ptr if no resident item is
+     *         found after searching all buckets or stop() returns true.
      */
-    std::unique_ptr<Item> getRandomKey(CollectionID cid, uint32_t random);
+    std::unique_ptr<Item> getRandomKey(CollectionID cid, uint32_t random,
+            const std::function<bool()>& stop = []() { return false; });
 
     /**
-     * Set an Item into the this hashtable
+     * Set an Item into this hashtable
      *
      * @param val the Item to store
      *
@@ -1889,8 +1893,10 @@ protected:
      * Look for a random key in the HashTable using the visitor to control
      * the start of the search.
      */
-    std::unique_ptr<Item> getRandomKey(CollectionID cid,
-                                       RandomKeyVisitor visitor);
+    std::unique_ptr<Item> getRandomKey(
+            CollectionID cid,
+            RandomKeyVisitor visitor,
+            const std::function<bool()>& stop = []() { return false; });
 
     /**
      * Look for a random key using the given locked bucket

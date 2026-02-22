@@ -121,14 +121,20 @@ void DCPBackfillDiskTest::backfillGetDriver(
         IncludeXattrs incXattr,
         IncludeDeletedUserXattrs incDeletedXattr,
         int expectedGetCalls) {
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // MB-70468: We can't test with vbid(0) as that is a "default value" for
+    // the item constructor and there was a bug where the vbucket ID was not
+    // being correctly set on the item created in CacheCallback::callback() for
+    // backfill items. To work around that, use vbucket 2.
+    Vbid vbid2 = Vbid(2);
+
+    setVBucketStateAndRunPersistTask(vbid2, vbucket_state_active);
     // Create item, checkpoint and flush so item is to be backfilled from disk
-    store_item(vbid, makeStoredDocKey("key"), "value");
-    flushAndRemoveCheckpoints(vbid);
+    store_item(vbid2, makeStoredDocKey("key"), "value");
+    flushAndRemoveCheckpoints(vbid2);
 
     // Set up and define expectations for the hook that is called in the body of
     // CacheCallback::get(), i.e., when an item's value is retrieved from cache
-    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid2);
     testing::StrictMock<testing::MockFunction<void()>> getInternalHook;
     VBucketTestIntrospector::setIsCalledHook(vb,
                                              getInternalHook.AsStdFunction());
@@ -179,6 +185,7 @@ void DCPBackfillDiskTest::backfillGetDriver(
     // Ensure this item has the correct key, and value (if IncludeValue::Yes)
     MutationResponse mutResponse = dynamic_cast<MutationResponse&>(*response);
     SingleThreadedRCPtr item = mutResponse.getItem();
+    EXPECT_EQ(vbid2, item->getVBucketId());
     EXPECT_EQ(item->getKey(), makeStoredDocKey("key"));
 
     if (!(stream->isKeyOnly())) {

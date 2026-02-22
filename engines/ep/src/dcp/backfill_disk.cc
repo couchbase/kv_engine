@@ -93,8 +93,8 @@ void CacheCallback::callback(CacheLookup& lookup) {
                 0, /* how much memory to allocate */
                 PROTOCOL_BINARY_RAW_BYTES, /* binary protocol */
                 0, /* cas */
-                lookup.getBySeqno()); /* seqNo */
-
+                lookup.getBySeqno(), /* seqNo */
+                lookup.getVBucketId());
     } else {
         auto gv = get(*vb, lookup, *stream_);
         // If we could not retrieve the value or the Item seqNo does not match,
