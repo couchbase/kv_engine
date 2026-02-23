@@ -1092,7 +1092,7 @@ bool EPBucket::commit(KVStoreIface& kvstore,
     }
 
     const auto commit_time =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
                     cb::time::steady_clock::now() - commit_start)
                     .count();
     stats.commit_time.store(commit_time);

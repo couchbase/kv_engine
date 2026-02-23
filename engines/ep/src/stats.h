@@ -324,7 +324,7 @@ public:
     Counter beginFailed;
     //! Number of times a commit failed.
     Counter commitFailed;
-    //! Milliseconds spent in the commit phase.
+    //! Microseconds spent in the commit phase.
     std::atomic<uint64_t> commit_time;
     //! Number of times we deleted a vbucket.
     Counter vbucketDeletions;

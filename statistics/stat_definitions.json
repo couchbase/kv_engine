@@ -221,13 +221,13 @@
     {
         "key": "ep_commit_time",
         "unit": "microseconds",
-        "description": "Number of milliseconds of most recent commit",
+        "description": "Number of microseconds of most recent commit",
         "added": "7.0.0"
     },
     {
         "key": "ep_commit_time_total",
         "unit": "microseconds",
-        "description": "Cumulative milliseconds spent committing",
+        "description": "Cumulative microseconds spent committing",
         "added": "7.0.0"
     },
     {
