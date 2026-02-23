@@ -352,6 +352,42 @@ public:
         return host;
     }
 
+    /**
+     * Get the peername of the connection (i.e. the remote address and port)
+     * It is returned as a JSON object used across all component with the
+     * following format:
+     *
+     *    {
+     *        "ip": "<IP_ADDRESS>",
+     *        "port": <port_number>
+     *    }
+     *
+     * @return a JSON object containing the peername information. An empty
+     * object is returned if the peername information cannot be retrieved
+     * (e.g. if the connection is not established yet).
+     */
+    [[nodiscard]] nlohmann::json getPeername() const {
+        return peername;
+    }
+
+    /**
+     * Get the sockname of the connection (i.e. the local address and port)
+     * It is returned as a JSON object used across all component with the
+     * following format:
+     *
+     *    {
+     *        "ip": "<IP_ADDRESS>",
+     *        "port": <port_number>
+     *    }
+     *
+     * @return a JSON object containing the sockname information. An empty
+     * object is returned if the sockname information cannot be retrieved
+     * (e.g. if the connection is not established yet).
+     */
+    [[nodiscard]] nlohmann::json getSockname() const {
+        return sockname;
+    }
+
     /// Set a new timeout value for the read timeouts
     void setReadTimeout(std::chrono::seconds tmo) {
         timeout = tmo;
@@ -1300,6 +1336,8 @@ protected:
     std::string pem_passphrase;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;
+    nlohmann::json sockname;
+    nlohmann::json peername;
     std::shared_ptr<folly::EventBase> eventBase;
     std::chrono::milliseconds timeout;
     std::string tag;

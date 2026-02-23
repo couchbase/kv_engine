@@ -445,7 +445,11 @@ std::string_view BinprotResponse::getExtrasView() const {
 }
 
 nlohmann::json BinprotResponse::getDataJson() const {
-    return nlohmann::json::parse(getDataView());
+    try {
+        return nlohmann::json::parse(getDataView());
+    } catch (const std::exception&) {
+        return getDataView();
+    }
 }
 
 std::string BinprotResponse::getErrorContext() const {

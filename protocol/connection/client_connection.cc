@@ -462,6 +462,8 @@ MemcachedConnection::~MemcachedConnection() {
 }
 
 void MemcachedConnection::close() {
+    peername = {};
+    sockname = {};
     asyncSocket.reset();
     eventBase->loop();
     asyncReadCallback.reset();
@@ -679,6 +681,9 @@ void MemcachedConnection::connect() {
         throw std::system_error(error, std::system_category(), msg);
     }
 
+    sockname = cb::net::getSockNameAsJson(sock);
+    peername = cb::net::getPeerNameAsJson(sock);
+
     if (cb::net::set_socket_noblocking(sock) == -1) {
         throw std::runtime_error("Failed to make socket nonblocking");
     }
@@ -776,6 +781,8 @@ void MemcachedConnection::connect() {
     }
 
     if (!asyncSocket) {
+        sockname = {};
+        peername = {};
         cb::net::closesocket(sock);
         throw std::runtime_error("Failed to create folly async socket");
     }
