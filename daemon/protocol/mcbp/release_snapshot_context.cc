@@ -39,6 +39,17 @@ cb::engine_errc ReleaseSnapshotContext::execute() {
                                                                    uuid);
 
     } catch (const std::exception& e) {
+        if (uuid.empty()) {
+            LOG_WARNING_CTX("Exception occurred while releasing snapshot",
+                            {"conn_id", connection.getId()},
+                            {"vb", vbid},
+                            {"error", e.what()});
+        } else {
+            LOG_WARNING_CTX("Exception occurred while releasing snapshot",
+                            {"conn_id", connection.getId()},
+                            {"uuid", uuid},
+                            {"error", e.what()});
+        }
         response = fmt::format("Failed: {}", e.what());
     }
 
