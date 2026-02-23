@@ -37,6 +37,10 @@ cb::engine_errc PrepareSnapshotContext::execute() {
         }
         return ret;
     } catch (const std::exception& e) {
+        LOG_WARNING_CTX("Exception occurred while preparing snapshot",
+                        {"conn_id", connection.getId()},
+                        {"vb", vb},
+                        {"error", e.what()});
         response = fmt::format("Failed: {}", e.what());
     }
 
