@@ -19,12 +19,14 @@ add_sanitizers(snapshot)
 
 cb_add_test_executable(snapshot_tests
         download_properties_test.cc
+        file_downloader_test.cc
         manifest_test.cc)
 kv_enable_pch(snapshot_tests)
 cb_enable_unity_build(snapshot_tests)
 target_link_libraries(snapshot_tests
         PUBLIC
         snapshot
+        mc_client_connection
         GTest::gtest
         GTest::gtest_main)
 add_sanitizers(snapshot_tests)

@@ -68,6 +68,17 @@ struct DownloadProperties {
     /// default value)
     std::optional<std::size_t> write_size;
 
+    /// Optional: Allow to fail fast if there isn't disk space to download the
+    /// file. If set to true, the downloader will check if there is enough
+    /// disk space before attempting to download the file and fail
+    /// immediately if there isn't enough space. If set to false, the
+    /// downloader will try to download the file and only fail if the
+    /// download fails due to lack of disk space. This is not a
+    /// guarantee that the download will fail if there isn't enough
+    /// disk space, but it can help avoid starting downloads that are
+    /// likely to fail. Default behavior is true
+    std::optional<bool> allow_fail_fast;
+
     /// The properties to use IF SASL should be used (should not be
     /// specified if cert based auth is used)
     std::optional<Sasl> sasl;

@@ -29,6 +29,7 @@ FileDownloader::FileDownloader(
         std::size_t fsync_interval,
         std::size_t write_size,
         std::size_t checksum_length,
+        bool allow_fail_fast,
         std::function<void(spdlog::level::level_enum,
                            std::string_view,
                            cb::logger::Json json)> log_callback,
@@ -39,6 +40,7 @@ FileDownloader::FileDownloader(
       fsync_interval(fsync_interval),
       write_size(write_size),
       checksum_length(checksum_length),
+      allow_fail_fast(allow_fail_fast),
       log_callback(std::move(log_callback)),
       stats_collect_callback(std::move(stats_collect_callback)) {
     // Empty
@@ -72,6 +74,21 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
             }
             // Checksum error.. Remove the file and try again
             remove(local);
+        }
+    }
+
+    if (allow_fail_fast) {
+        std::error_code ec;
+        const auto space_info = std::filesystem::space(local.parent_path(), ec);
+        if (!ec) {
+            if (space_info.available < size) {
+                log_callback(warn,
+                             "Not enough disk space to download file",
+                             {{"path", meta.path.string()},
+                              {"size", size},
+                              {"available_space", space_info.available}});
+                return cb::engine_errc::too_big;
+            }
         }
     }
 

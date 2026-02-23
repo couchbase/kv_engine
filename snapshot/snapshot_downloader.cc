@@ -19,6 +19,7 @@ void download(std::unique_ptr<MemcachedConnection> connection,
               std::size_t fsync_interval,
               std::size_t write_size,
               std::size_t checksum_length,
+              bool allow_fail_fast,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback,
@@ -29,6 +30,7 @@ void download(std::unique_ptr<MemcachedConnection> connection,
                               fsync_interval,
                               write_size,
                               checksum_length,
+                              allow_fail_fast,
                               log_callback,
                               stats_collect_callback);
 
@@ -39,6 +41,12 @@ void download(std::unique_ptr<MemcachedConnection> connection,
             err = downloader.download(file);
             if (err == cb::engine_errc::success) {
                 return;
+            }
+            if (err == cb::engine_errc::too_big) {
+                throw engine_error(err,
+                                   fmt::format("Failed to download \"{}\". Not "
+                                               "enough disk space.",
+                                               file.path.string()));
             }
             --retry;
         }

@@ -39,6 +39,11 @@ of the packet contains a JSON object with the following fields:
                      overrides the server default.
 * `write_size` - The number of bytes to write in each chunk If set
                  overrides the server default.
+* `allow_fail_fast` - If set to true (default), the download will fail
+  immediately if there isn't enough available disk space to download
+  the required file(s). If set to false the download won't try to check
+  the available disk space and will just try to download the file(s) and
+  will fail if the disk space runs out during the download.
 
 Example:
 

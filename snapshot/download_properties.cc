@@ -24,6 +24,9 @@ void to_json(nlohmann::json& json, const DownloadProperties& prop) {
     if (prop.write_size.has_value()) {
         json["write_size"] = *prop.write_size;
     }
+    if (prop.allow_fail_fast.has_value()) {
+        json["allow_fail_fast"] = *prop.allow_fail_fast;
+    }
     if (prop.sasl.has_value()) {
         json["sasl"] = *prop.sasl;
     }
@@ -56,6 +59,9 @@ void from_json(const nlohmann::json& json, DownloadProperties& prop) {
     }
     if (json.contains("write_size")) {
         prop.write_size = json["write_size"];
+    }
+    if (json.contains("allow_fail_fast")) {
+        prop.allow_fail_fast = json["allow_fail_fast"];
     }
     if (json.contains("sasl")) {
         prop.sasl = json["sasl"];

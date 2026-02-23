@@ -61,6 +61,7 @@ public:
                    std::size_t fsync_interval,
                    std::size_t write_size,
                    std::size_t checksum_length,
+                   bool allow_fail_fast,
                    std::function<void(spdlog::level::level_enum,
                                       std::string_view,
                                       cb::logger::Json json)> log_callback,
@@ -109,7 +110,14 @@ protected:
     const std::size_t write_size;
     /// The number of bytes to checksum as data is read (0 disables
     /// checksumming)
-    const std::size_t checksum_length{0};
+    const std::size_t checksum_length;
+    /// Allow to fail fast if there isn't disk space to download the file. If
+    /// false, the downloader will try to download the file and only fail if the
+    /// download fails due to lack of disk space. This is not a guarantee that
+    /// the download will fail if there isn't enough disk space, but it can help
+    /// in some cases to avoid downloading large files when we already know
+    /// there isn't enough disk space.
+    const bool allow_fail_fast;
     /// The callback method to log information
     const std::function<void(
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>

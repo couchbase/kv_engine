@@ -138,6 +138,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
                 properties.write_size.value_or(
                         engine->getSnapshotDownloadWriteSize()),
                 getChecksumLength(),
+                properties.allow_fail_fast.value_or(true),
                 [this](auto level, auto msg, auto json) {
                     auto& logger = getGlobalBucketLogger();
                     logger->logWithContext(level, msg, json);
