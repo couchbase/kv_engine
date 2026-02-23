@@ -61,7 +61,6 @@
 #include <serverless/config.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
-#include <utilities/global_concurrency_semaphores.h>
 #include <utilities/magma_support.h>
 #include <chrono>
 #include <csignal>
@@ -694,11 +693,6 @@ static void startExecutorPool() {
                     return true;
                 });
             });
-
-    if (pool->getNumAuxIO() > 3) {
-        GlobalConcurrencySemaphores::instance().download_snapshot.setCapacity(
-                pool->getNumAuxIO() - 2);
-    }
 
     settings.addChangeListener("magma_max_default_storage_threads",
                                updateMagmaThreadPool());

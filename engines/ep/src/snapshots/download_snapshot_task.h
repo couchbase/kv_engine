@@ -30,7 +30,7 @@ class Cache;
  * DownloadSnapshotTask is used to download a full snapshot from another
  * server.
  */
-class DownloadSnapshotTask : public EpLimitedConcurrencyTask {
+class DownloadSnapshotTask : public EpTask {
 public:
     DownloadSnapshotTask(EventuallyPersistentEngine& ep,
                          Cache& manager,
@@ -58,7 +58,7 @@ protected:
 
     std::unique_ptr<MemcachedConnection> connection;
 
-    bool runInner() override;
+    bool run() override;
     /// The description of the task to return to the framework (as it contains
     /// per-task data we don't want to have to reformat that every time)
     const std::string description;

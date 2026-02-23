@@ -21,7 +21,6 @@
 #include <snapshot/manifest.h>
 #include <snapshot/snapshot_downloader.h>
 #include <snapshots/cache.h>
-#include <utilities/global_concurrency_semaphores.h>
 
 namespace cb::snapshot {
 
@@ -31,11 +30,7 @@ DownloadSnapshotTask::DownloadSnapshotTask(
         std::shared_ptr<DownloadSnapshotTaskListener> listener,
         Vbid vbid,
         const nlohmann::json& manifest)
-    : EpLimitedConcurrencyTask(
-              ep,
-              TaskId::DownloadSnapshotTask,
-              GlobalConcurrencySemaphores::instance().download_snapshot,
-              true),
+    : EpTask(ep, TaskId::DownloadSnapshotTask),
       description(fmt::format("Download vbucket snapshot for {}", vbid)),
       manager(manager),
       listener(std::move(listener)),
@@ -170,7 +165,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
     return cb::engine_errc::success;
 }
 
-bool DownloadSnapshotTask::runInner() {
+bool DownloadSnapshotTask::run() {
     try {
         createConnection();
         auto rv = manager.download(
