@@ -170,8 +170,10 @@ std::chrono::microseconds StatsTaskBucketStats::maxExpectedDuration() const {
     return std::chrono::seconds(1);
 }
 
-StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
-    : StatsTask(TaskId::Core_StatsConnectionTask, cookie), fd(fd) {
+StatsTaskConnectionStats::StatsTaskConnectionStats(TaskId taskId,
+                                                   Cookie& cookie,
+                                                   int64_t fd)
+    : StatsTask(taskId, cookie), fd(fd) {
 }
 
 void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
@@ -206,8 +208,8 @@ std::chrono::microseconds StatsTaskConnectionStats::maxExpectedDuration()
 }
 
 StatsTaskClientConnectionDetails::StatsTaskClientConnectionDetails(
-        Cookie& cookie)
-    : StatsTask(TaskId::Core_StatsConnectionTask, cookie) {
+        TaskId taskId, Cookie& cookie)
+    : StatsTask(taskId, cookie) {
 }
 
 void StatsTaskClientConnectionDetails::getStats(

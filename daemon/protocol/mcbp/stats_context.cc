@@ -105,7 +105,8 @@ static AddStatFn appendStatsFn = external_append_stats;
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_reset_executor(const std::string& arg,
+static cb::engine_errc stat_reset_executor(const StatGroup&,
+                                           const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         stats_reset(cookie);
@@ -132,7 +133,8 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_sched_executor(const std::string& arg,
+static cb::engine_errc stat_sched_executor(const StatGroup&,
+                                           const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         for (size_t ii = 0; ii < Settings::instance().getNumWorkerThreads();
@@ -177,7 +179,8 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_audit_executor(const std::string& arg,
+static cb::engine_errc stat_audit_executor(const StatGroup&,
+                                           const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         CBStatCollector collector(appendStatsFn, cookie);
@@ -194,7 +197,8 @@ static cb::engine_errc stat_audit_executor(const std::string& arg,
  * @param arg - empty (all buckets) or the name of a bucket
  * @param cookie the command context
  */
-static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
+static cb::engine_errc stat_bucket_details_executor(const StatGroup&,
+                                                    const std::string& arg,
                                                     Cookie& cookie) {
     auto json = BucketManager::instance().getBucketInfo(arg);
     if (json.empty()) {
@@ -215,7 +219,8 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_clocks_executor(const std::string& arg,
+static cb::engine_errc stat_clocks_executor(const StatGroup&,
+                                            const std::string& arg,
                                             Cookie& cookie) {
     if (!arg.empty()) {
         return cb::engine_errc::invalid_arguments;
@@ -235,7 +240,8 @@ static cb::engine_errc stat_clocks_executor(const std::string& arg,
  *            object to retrieve information about. If empty dump all.
  * @param cookie the command context
  */
-static cb::engine_errc stat_connections_executor(const std::string& arg,
+static cb::engine_errc stat_connections_executor(const StatGroup& stat_group,
+                                                 const std::string& arg,
                                                  Cookie& cookie) {
     int64_t fd = -1;
     bool me = false;
@@ -284,16 +290,18 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
     }
 
     std::shared_ptr<StatsTask> task =
-            std::make_shared<StatsTaskConnectionStats>(cookie, fd);
+            std::make_shared<StatsTaskConnectionStats>(
+                    stat_group.task_id, cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
 }
 
 static cb::engine_errc stat_client_connection_details_executor(
-        const std::string& arg, Cookie& cookie) {
+        const StatGroup& stat_group, const std::string&, Cookie& cookie) {
     std::shared_ptr<StatsTask> task =
-            std::make_shared<StatsTaskClientConnectionDetails>(cookie);
+            std::make_shared<StatsTaskClientConnectionDetails>(
+                    stat_group.task_id, cookie);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
@@ -338,7 +346,8 @@ static cb::engine_errc stat_histogram_executor(
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_json_validate_executor(const std::string& arg,
+static cb::engine_errc stat_json_validate_executor(const StatGroup&,
+                                                   const std::string& arg,
                                                    Cookie& cookie) {
     return stat_histogram_executor(
             "json_validate"sv, arg, cookie, &Bucket::jsonValidateTimes);
@@ -351,7 +360,8 @@ static cb::engine_errc stat_json_validate_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_snappy_decompress_executor(const std::string& arg,
+static cb::engine_errc stat_snappy_decompress_executor(const StatGroup&,
+                                                       const std::string& arg,
                                                        Cookie& cookie) {
     return stat_histogram_executor("snappy_decompress"sv,
                                    arg,
@@ -366,13 +376,15 @@ static cb::engine_errc stat_snappy_decompress_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static cb::engine_errc stat_subdoc_execute_executor(const std::string& arg,
+static cb::engine_errc stat_subdoc_execute_executor(const StatGroup&,
+                                                    const std::string& arg,
                                                     Cookie& cookie) {
     return stat_histogram_executor(
             "subdoc_execute"sv, arg, cookie, &Bucket::subjson_operation_times);
 }
 
-static cb::engine_errc stat_responses_json_executor(const std::string&,
+static cb::engine_errc stat_responses_json_executor(const StatGroup&,
+                                                    const std::string&,
                                                     Cookie& cookie) {
     try {
         auto& respCounters =
@@ -395,7 +407,8 @@ static cb::engine_errc stat_responses_json_executor(const std::string&,
     }
 }
 
-static cb::engine_errc stat_tracing_executor(const std::string& arg,
+static cb::engine_errc stat_tracing_executor(const StatGroup&,
+                                             const std::string& arg,
                                              Cookie& cookie) {
     class MemcachedCallback : public phosphor::StatsCallback {
     public:
@@ -436,37 +449,36 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
     return cb::engine_errc::invalid_arguments;
 }
 
-static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
+static cb::engine_errc stat_bucket_stats(const StatGroup& stat_group,
+                                         const std::string&,
+                                         Cookie& cookie) {
     auto key = cookie.getRequest().getKeyString();
     auto value = cookie.getRequest().getValueString();
 
-    std::shared_ptr<StatsTask> task =
-            std::make_shared<StatsTaskBucketStats>(TaskId::Core_StatsBucketTask,
-                                                   cookie,
-                                                   std::string(key),
-                                                   std::string(value));
+    std::shared_ptr<StatsTask> task = std::make_shared<StatsTaskBucketStats>(
+            stat_group.task_id, cookie, std::string(key), std::string(value));
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
 }
 
-static cb::engine_errc stat_encryption_key_ids_executor(const std::string&,
-                                                        Cookie& cookie) {
+static cb::engine_errc stat_encryption_key_ids_executor(
+        const StatGroup& stat_group, const std::string&, Cookie& cookie) {
     auto key = cookie.getRequest().getKeyString();
     auto value = cookie.getRequest().getValueString();
     std::shared_ptr<StatsTask> task =
-            std::make_shared<StatsTaskEncryptionKeyIds>(
-                    TaskId::Core_StatsBucketAuxIoTask,
-                    cookie,
-                    std::string(key),
-                    std::string(value));
+            std::make_shared<StatsTaskEncryptionKeyIds>(stat_group.task_id,
+                                                        cookie,
+                                                        std::string(key),
+                                                        std::string(value));
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
 }
 
 // handler for scopes/collections - engine needs the key for processing
-static cb::engine_errc stat_bucket_collections_stats(const std::string&,
+static cb::engine_errc stat_bucket_collections_stats(const StatGroup&,
+                                                     const std::string&,
                                                      Cookie& cookie) {
     return bucket_get_stats(cookie,
                             cookie.getRequest().getKeyString(),
@@ -474,14 +486,16 @@ static cb::engine_errc stat_bucket_collections_stats(const std::string&,
                             appendStatsFn);
 }
 
-static cb::engine_errc stat_allocator_executor(const std::string&,
+static cb::engine_errc stat_allocator_executor(const StatGroup&,
+                                               const std::string&,
                                                Cookie& cookie) {
     auto details = cb::ArenaMalloc::getDetailedStats();
     append_stats("allocator", details, cookie);
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_timings_executor(const std::string&,
+static cb::engine_errc stat_timings_executor(const StatGroup&,
+                                             const std::string&,
                                              Cookie& cookie) {
     auto& bucket = cookie.getConnection().getBucket();
     bucket.statTimings.addStats(
@@ -527,7 +541,8 @@ static void stat_threads_emit_configured_and_actual(
     emitThread("nonio", setting.getNumNonIoThreads(), exPool.getNumNonIO());
 }
 
-static cb::engine_errc stat_threads_executor(const std::string& arg,
+static cb::engine_errc stat_threads_executor(const StatGroup&,
+                                             const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
         // Just report configured and actual thread counts.
@@ -579,7 +594,8 @@ static cb::engine_errc stat_threads_executor(const std::string& arg,
     return cb::engine_errc::invalid_arguments;
 }
 
-static cb::engine_errc stat_tasks_all_executor(const std::string&,
+static cb::engine_errc stat_tasks_all_executor(const StatGroup&,
+                                               const std::string&,
                                                Cookie& cookie) {
     // BucketManager.forEach() isn't perfect, it only gathers stats for
     // Buckets in the Ready state, but it's a pain (and not safe) to touch
@@ -611,7 +627,8 @@ static cb::engine_errc stat_tasks_all_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_external_auth_timings_executor(const std::string&,
+static cb::engine_errc stat_external_auth_timings_executor(const StatGroup&,
+                                                           const std::string&,
                                                            Cookie& cookie) {
     if (externalAuthManager->authenticationResponseTimes.getValueCount() > 0) {
         append_stats(
@@ -628,7 +645,8 @@ static cb::engine_errc stat_external_auth_timings_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_runtimes_executor(const std::string& arg,
+static cb::engine_errc stat_runtimes_executor(const StatGroup&,
+                                              const std::string& arg,
                                               Cookie& cookie) {
     if (arg == "@no bucket@") {
         if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
@@ -655,7 +673,8 @@ static cb::engine_errc stat_runtimes_executor(const std::string& arg,
     return bucket_get_stats(cookie, "runtimes"sv, {}, appendStatsFn);
 }
 
-static cb::engine_errc stat_scheduler_executor(const std::string& arg,
+static cb::engine_errc stat_scheduler_executor(const StatGroup&,
+                                               const std::string& arg,
                                                Cookie& cookie) {
     if (arg == "@no bucket@") {
         if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
@@ -683,7 +702,8 @@ static cb::engine_errc stat_scheduler_executor(const std::string& arg,
     return bucket_get_stats(cookie, "scheduler"sv, {}, appendStatsFn);
 }
 
-static cb::engine_errc stat_fusion_executor(const std::string& arg,
+static cb::engine_errc stat_fusion_executor(const StatGroup&,
+                                            const std::string& arg,
                                             Cookie& cookie) {
     if (isFusionSupportEnabled()) {
         return bucket_get_stats(cookie,
@@ -703,7 +723,9 @@ struct command_stat_handler {
     /**
      * The callback function to handle the stat request
      */
-    cb::engine_errc (*handler)(const std::string& arg, Cookie& cookie);
+    cb::engine_errc (*handler)(const StatGroup& statgroup,
+                               const std::string& arg,
+                               Cookie& cookie);
 };
 
 /**
@@ -865,10 +887,12 @@ cb::engine_errc StatsCommandContext::doStats() {
 
     start = std::chrono::steady_clock::now();
     if (known) {
-        command_exit_code = callback.handler(argument, cookie);
+        command_exit_code = callback.handler(*statgroup, argument, cookie);
     } else {
         command_exit_code = callback.handler(
-                std::string{cookie.getRequest().getKeyString()}, cookie);
+                *statgroup,
+                std::string{cookie.getRequest().getKeyString()},
+                cookie);
     }
 
     // If stats command call returns cb::engine_errc::would_block and the task

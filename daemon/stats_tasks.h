@@ -118,7 +118,7 @@ protected:
 
 class StatsTaskConnectionStats : public StatsTask {
 public:
-    StatsTaskConnectionStats(Cookie& cookie, int64_t fd);
+    StatsTaskConnectionStats(TaskId taskId, Cookie& cookie, int64_t fd);
     std::string getDescription() const override;
     std::chrono::microseconds maxExpectedDuration() const override;
 
@@ -131,7 +131,7 @@ protected:
 /// Task to collect the connection details stats
 class StatsTaskClientConnectionDetails : public StatsTask {
 public:
-    StatsTaskClientConnectionDetails(Cookie& cookie);
+    StatsTaskClientConnectionDetails(TaskId taskId, Cookie& cookie);
     std::string getDescription() const override;
     std::chrono::microseconds maxExpectedDuration() const override;
 

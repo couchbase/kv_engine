@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+enum class TaskId : int;
 enum class StatGroupId {
     All,
     Reset,
@@ -109,6 +110,8 @@ public:
     const bool privileged;
     /// Is this a per-bucket stat
     const bool bucket;
+    /// The task id to use if a task is to be scheduled for this stat.
+    const TaskId task_id;
 };
 
 /// The stats group manager contains knowledge about all stats in the
