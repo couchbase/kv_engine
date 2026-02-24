@@ -4179,6 +4179,7 @@ GetStatsMap MagmaKVStore::getStats(
 
     /* Fusion Stats*/
     fill("fusion_NumSyncs", magmaStats->FusionFSStats.NumSyncs);
+    fill("fusion_NumSyncAttempts", magmaStats->FusionFSStats.NumSyncAttempts);
     fill("fusion_NumBytesSynced", magmaStats->FusionFSStats.NumBytesSynced);
     fill("fusion_NumLogsMigrated", magmaStats->FusionFSStats.NumLogsMigrated);
     fill("fusion_NumBytesMigrated", magmaStats->FusionFSStats.NumBytesMigrated);

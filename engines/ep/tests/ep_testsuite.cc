@@ -7304,6 +7304,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         eng_stats.insert(eng_stats.end(),
                          {"ep_fusion_namespace",
                           "ep_fusion_syncs",
+                          "ep_fusion_sync_attempts",
                           "ep_fusion_bytes_synced",
                           "ep_fusion_logs_migrated",
                           "ep_fusion_bytes_migrated",

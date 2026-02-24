@@ -1865,6 +1865,13 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_fusion_sync_attempts",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of sync attempts to Fusion including both successful and failed attempts.",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_fusion_bytes_synced",
         "unit": "bytes",
         "type": "counter",
