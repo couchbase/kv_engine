@@ -4489,10 +4489,7 @@ cb::engine_errc VBucket::checkDurabilityRequirements(
     if (!isValidDurabilityLevel(reqs.getLevel())) {
         return cb::engine_errc::durability_invalid_level;
     }
-    if (!getActiveDM().isDurabilityPossible()) {
-        return cb::engine_errc::durability_impossible;
-    }
-    return cb::engine_errc::success;
+    return getActiveDM().checkDurabilityPossible();
 }
 
 void VBucket::removeAcksFromADM(const std::string& node) {

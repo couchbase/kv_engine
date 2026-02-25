@@ -366,13 +366,23 @@ int64_t ActiveDurabilityMonitor::getHighestTrackedSeqno() const {
     return 0;
 }
 
-bool ActiveDurabilityMonitor::isDurabilityPossible() const {
+cb::engine_errc ActiveDurabilityMonitor::checkDurabilityPossible() const {
     const auto s = state.rlock();
     // Durability is only possible if we have a first chain for which
     // durability is possible. If we have a second chain, durability must also
     // be possible for that chain.
-    return s->firstChain && s->firstChain->isDurabilityPossible() &&
-           (!s->secondChain || s->secondChain->isDurabilityPossible());
+    if (!s->firstChain) {
+        return cb::engine_errc::temporary_failure;
+    }
+    if (s->firstChain->isDurabilityPossible() &&
+        (!s->secondChain || s->secondChain->isDurabilityPossible())) {
+        return cb::engine_errc::success;
+    }
+    return cb::engine_errc::durability_impossible;
+}
+
+bool ActiveDurabilityMonitor::isDurabilityPossible() const {
+    return checkDurabilityPossible() == cb::engine_errc::success;
 }
 
 void ActiveDurabilityMonitor::addSyncWrite(CookieIface* cookie,
