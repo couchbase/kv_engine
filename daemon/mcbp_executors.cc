@@ -774,12 +774,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
     }
 }
 
-static void dcp_cache_transfer_end_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return dcp_cache_transfer_end(c);
-          }).drive();
-}
-
 static void setup_response_handler(cb::mcbp::ClientOpcode opcode,
                                    HandlerFunction function) {
     response_handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)] =
