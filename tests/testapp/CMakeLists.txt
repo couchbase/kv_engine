@@ -151,7 +151,7 @@ gtest_discover_tests(memcached_testapp
     ONE_CTEST_PER_SUITE
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
-               ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+               ENVIRONMENT "[==[${ALL_SANITIZERS_ENV};JE_MALLOC_CONF=junk:true]==]")
 
 gtest_discover_tests(memcached_testapp
         EXTRA_ARGS -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}
@@ -160,7 +160,7 @@ gtest_discover_tests(memcached_testapp
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300
-        ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+        ENVIRONMENT "[==[${THREAD_SANITIZER_TEST_ENV};JE_MALLOC_CONF=junk:true]==]")
 
 if (TARGET magma)
     gtest_discover_tests(memcached_testapp
@@ -170,5 +170,5 @@ if (TARGET magma)
             ONE_CTEST_PER_SUITE
             DISCOVERY_TIMEOUT 60
             PROPERTIES TIMEOUT 300
-            ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+            ENVIRONMENT "[==[${THREAD_SANITIZER_TEST_ENV};JE_MALLOC_CONF=junk:true"]==])
 endif (TARGET magma)
