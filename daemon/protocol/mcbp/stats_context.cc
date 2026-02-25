@@ -702,14 +702,11 @@ static cb::engine_errc stat_scheduler_executor(const StatGroup&,
     return bucket_get_stats(cookie, "scheduler"sv, {}, appendStatsFn);
 }
 
-static cb::engine_errc stat_fusion_executor(const StatGroup&,
+static cb::engine_errc stat_fusion_executor(const StatGroup& stat_group,
                                             const std::string& arg,
                                             Cookie& cookie) {
     if (isFusionSupportEnabled()) {
-        return bucket_get_stats(cookie,
-                                cookie.getRequest().getKeyString(),
-                                cookie.getRequest().getValueString(),
-                                appendStatsFn);
+        return stat_bucket_stats(stat_group, arg, cookie);
     }
     return cb::engine_errc::not_supported;
 }

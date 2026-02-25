@@ -428,7 +428,7 @@ StatsGroupManager::StatsGroupManager()
                .description = "Get Fusion state",
                .privileged = false,
                .bucket = true,
-               .task_id = TaskId::Core_StatsBucketTask},
+               .task_id = TaskId::Core_StatsBucketAuxIoTask},
               {.id = StatGroupId::SnapshotDetails,
                .key = "snapshot-details",
                .description =
