@@ -100,8 +100,7 @@ TEST_P(ContinousBackupTest, PathConfig) {
     auto& config = engine->getConfiguration();
     std::filesystem::path dbName =
             std::filesystem::canonical(config.getDbname());
-    auto bucketDirName =
-            fmt::format("{}-123", engine->getConfiguration().getCouchBucket());
+    constexpr auto bucketDirName = "123";
 
     {
         config.parseConfiguration("uuid=123;continuous_backup_path=path");

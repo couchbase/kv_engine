@@ -225,8 +225,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     std::filesystem::path dbName = config.getDbname();
 
     continuousBackupPath = std::filesystem::weakly_canonical(
-            dbName / config.getContinuousBackupPath() /
-            fmt::format("{}-{}", config.getCouchBucket(), config.getUuid()));
+            dbName / config.getContinuousBackupPath() / config.getUuid());
 
     magmaCfg.OnBackupCallback = [this](auto vbid, auto& snapshot) {
         Expects(store);
