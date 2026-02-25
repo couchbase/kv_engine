@@ -29,6 +29,7 @@ std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
 void ExternalAuthManagerThread::add(Connection& connection) {
     std::lock_guard<std::mutex> guard(mutex);
 
+    connection.setAuthenticationProvider(true);
     connection.incrementRefcount();
     connections.push_back(&connection);
 }
@@ -38,6 +39,7 @@ void ExternalAuthManagerThread::remove(Connection& connection) {
 
     auto iter = std::find(connections.begin(), connections.end(), &connection);
     if (iter != connections.end()) {
+        connection.setAuthenticationProvider(false);
         pendingRemoveConnection.push_back(&connection);
         connections.erase(iter);
         condition_variable.notify_all();
@@ -165,7 +167,8 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // We'll be using the first connection in the list of connections.
     auto* provider = connections.front();
 
-    while (!incomingRequests.empty()) {
+    while (!incomingRequests.empty() &&
+           requestMap.size() < maxPendingRequests) {
         auto* startSaslTask =
                 dynamic_cast<StartSaslAuthTask*>(incomingRequests.front());
         if (startSaslTask == nullptr) {
