@@ -65,7 +65,7 @@ nlohmann::json Cookie::to_json() const {
     if (cas != 0) {
         ret["cas"] = std::to_string(cas);
     }
-
+    ret["trace"] = getTracer().to_string();
     ret["ewouldblock"] = to_string(ewouldblock);
     ret["aiostat"] = to_string(aiostat);
     ret["throttled"] = throttled.load();
