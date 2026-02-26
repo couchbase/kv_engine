@@ -61,6 +61,7 @@ cb::engine_errc SaslStartCommandContext::initial() {
                             mechanism,
                             challenge);
                     externalAuthManager->enqueueRequest(*task);
+                    externalAuthStartTime = std::chrono::steady_clock::now();
                     return;
                 }
 

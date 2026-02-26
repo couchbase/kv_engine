@@ -131,6 +131,9 @@ cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
         task->updateExternalAuthContext();
         additionalAuditInformation = task->getAdditionalAuditInformation();
         task.reset();
+        cookie.getTracer().record(cb::tracing::Code::SaslExternalAuth,
+                                  externalAuthStartTime,
+                                  std::chrono::steady_clock::now());
     }
 
     const auto ret = doHandleSaslAuthTaskResult(error, payload);

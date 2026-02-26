@@ -13,6 +13,7 @@
 #include "authn_authz_service_task.h"
 #include <cbsasl/server.h>
 #include <mcbp/protocol/status.h>
+#include <memcached/tracecode.h>
 #include <string>
 
 class Connection;

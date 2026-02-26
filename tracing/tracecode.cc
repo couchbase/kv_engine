@@ -83,6 +83,8 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "stream_req.update_map";
     case Code::Sasl:
         return "sasl";
+    case Code::SaslExternalAuth:
+        return "sasl.external_auth";
     case Code::StorageEngineStats:
         return "storage_engine_stats";
     case Code::Notified:

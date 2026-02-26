@@ -87,6 +87,8 @@ enum class Code : uint8_t {
     /// Time spent in running the SASL start/step call on the executor
     /// thread
     Sasl,
+    /// Time spent in running the SASL start/step via ns_server
+    SaslExternalAuth,
     /// Time spent looking up stats from the underlying Storage engine
     StorageEngineStats,
     /// Time spent from being notified until actually executed

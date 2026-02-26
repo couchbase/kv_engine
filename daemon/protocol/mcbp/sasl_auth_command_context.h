@@ -48,6 +48,7 @@ protected:
     std::string payload;
     std::optional<nlohmann::json> tokenMetadata;
     std::optional<nlohmann::json> additionalAuditInformation;
+    std::chrono::steady_clock::time_point externalAuthStartTime;
 
 private:
     cb::engine_errc handleSaslAuthTaskResult();
