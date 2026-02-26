@@ -1399,6 +1399,31 @@ TEST_F(HashTableTest, reallocateStoredValue) {
     EXPECT_FALSE(ht3.reallocateStoredValue(std::forward<StoredValue>(*v2)));
 }
 
+TEST_F(HashTableTest, ReallocateStoredValue_locked) {
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 1,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
+
+    auto key = makeStoredDocKey("key");
+    store(ht, key);
+
+    StoredValue* v = ht.findForWrite(key, WantsDeleted::No).storedValue;
+    ASSERT_TRUE(v);
+    v->lock(100, 0xca5); // lock and set cas=0xca5
+    ASSERT_EQ(0xca5, v->getCasForWrite(100));
+    ASSERT_TRUE(v->isLocked(100));
+    EXPECT_TRUE(ht.reallocateStoredValue(std::forward<StoredValue>(*v)));
+
+    // Find it again, CAS for write must still be 0xca5
+    v = ht.findForWrite(key, WantsDeleted::No).storedValue;
+    ASSERT_TRUE(v->isLocked(100));
+    ASSERT_EQ(0xca5, v->getCasForWrite(100))
+            << "CAS should be preserved after reallocation";
+}
+
 // MB-33944: Test that calling HashTable::insertFromWarmup() doesn't fail
 // of the given key is already resident (for example if a BG load already
 // loaded it).
