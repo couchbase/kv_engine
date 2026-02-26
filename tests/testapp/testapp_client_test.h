@@ -89,19 +89,14 @@ public:
      * Verify that the expected set of access log files exist. If encrypted
      * is set to true; the files should be encrypted and have an .cef suffix.
      * Otherwise they should be unencrypted and have no suffix.
-     * If expect_old is set to true; the files should have a ".old[.cef]"
-     * version as well.
      *
      * @param shards list of all shards - true if they are expected to have
      * access logs. shards.size should be the total number of shards in the
      * bucket. The function will iterate for shards.size and use the true/false
      * value for applying the checks
      * @param encrypted see above
-     * @param expect_old see above
      */
-    void verifyAccessLogFiles(const std::vector<bool>& shards,
-                              bool encrypted,
-                              bool expect_old);
+    void verifyAccessLogFiles(const std::vector<bool>& shards, bool encrypted);
 
     /**
      * Verify that there are no access log files for the bucket

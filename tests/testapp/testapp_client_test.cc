@@ -155,8 +155,7 @@ int TestappClientTest::getNumShards() {
 }
 
 void TestappClientTest::verifyAccessLogFiles(const std::vector<bool>& shards,
-                                             bool encrypted,
-                                             bool expect_old) {
+                                             bool encrypted) {
     std::filesystem::path directory =
             mcd_env->getTestBucket().getDbPath() / bucketName;
     auto test = [](std::filesystem::path path, bool expected) {
@@ -186,15 +185,9 @@ void TestappClientTest::verifyAccessLogFiles(const std::vector<bool>& shards,
             // The encrypted version should exist if the shard says so
             auto status = test(directory / (prefix + ".cef"), shards[ii]);
             EXPECT_TRUE(status.empty()) << status;
-
-            if (expect_old) {
-                status = test(directory / (prefix + ".old.cef"), shards[ii]);
-                EXPECT_TRUE(status.empty()) << status;
-            } else {
-                EXPECT_FALSE(exists(directory / (prefix + ".old.cef")))
-                        << "Did not expect access log file to exist at "
-                        << (directory / (prefix + ".old.cef")).string();
-            }
+            EXPECT_FALSE(exists(directory / (prefix + ".old.cef")))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ".old.cef")).string();
         } else {
             // The encrypted versions should not exist!
             EXPECT_FALSE(exists(directory / (prefix + ".cef")))
@@ -207,15 +200,9 @@ void TestappClientTest::verifyAccessLogFiles(const std::vector<bool>& shards,
             // The unencrypted version should exist
             auto status = test(directory / prefix, shards[ii]);
             EXPECT_TRUE(status.empty()) << status;
-
-            if (expect_old) {
-                status = test(directory / (prefix + ".old"), shards[ii]);
-                EXPECT_TRUE(status.empty()) << status;
-            } else {
-                EXPECT_FALSE(exists(directory / (prefix + ".old")))
-                        << "Did not expect access log file to exist at "
-                        << (directory / (prefix + ".old")).string();
-            }
+            EXPECT_FALSE(exists(directory / (prefix + ".old")))
+                    << "Did not expect access log file to exist at "
+                    << (directory / (prefix + ".old")).string();
         }
     }
 }

@@ -257,6 +257,13 @@ void ItemAccessVisitor::complete() {
                         {"error", strerror(errno)});
         return;
     }
+
+    // MB-69120: Successfully replaced the access log file, there is no
+    //           reason to keep the "old" files around anymore as we've
+    //           got a newer set.
+    removeFile(name + ".old");
+    removeFile(name + ".old.cef");
+
     EP_LOG_INFO_CTX(
             "New access log file created",
             {"name", encryptionKey ? name + ".cef" : name},

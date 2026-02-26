@@ -73,14 +73,14 @@ TEST_P(AccessScannerTest, DatabaseContaingData) {
 
     EXPECT_EQ(skipped, getNumAccessScannerSkips());
 
-    verifyAccessLogFiles(shards_expected, true, false);
+    verifyAccessLogFiles(shards_expected, true);
 
     // Rerun the access scanner. It should not skip anything and rotate
     // the current files to .old.cef and create new files
     rerunAccessScanner(one_alog_run_expected);
     EXPECT_EQ(skipped, getNumAccessScannerSkips());
 
-    verifyAccessLogFiles(shards_expected, true, true);
+    verifyAccessLogFiles(shards_expected, true);
 
     // Delete the documents.. that should make us "resident" again
     // and rerunning the access scanner should delete the access log files

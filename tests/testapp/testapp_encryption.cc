@@ -368,12 +368,12 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
     while (num_runs == waitForSnoozedAccessScanner()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    verifyAccessLogFiles(shards_expected, false, false);
+    verifyAccessLogFiles(shards_expected, false);
 
     // Rerun the access scanner. This time we should get the .old plain
     // files
     rerunAccessScanner(one_alog_run_expected);
-    verifyAccessLogFiles(shards_expected, false, true);
+    verifyAccessLogFiles(shards_expected, false);
 
     // Turn encryption back on and verify that the access log is
     // rewritten encrypted, and the .old files are removed
@@ -397,7 +397,7 @@ TEST_P(EncryptionTest, TestAccessScannerRewrite) {
     while (num_runs == waitForSnoozedAccessScanner()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    verifyAccessLogFiles(shards_expected, true, false);
+    verifyAccessLogFiles(shards_expected, true);
 }
 
 TEST_P(EncryptionTest, BucketReloadWhenMissingKeys) {
