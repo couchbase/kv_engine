@@ -10,31 +10,25 @@
  */
 #include "dcp_system_event_executor.h"
 #include "engine_wrapper.h"
-#include "executors.h"
-#include "utilities.h"
+#include "no_success_response_steppable_context.h"
 
 #include <memcached/protocol_binary.h>
 
 void dcp_system_event_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        using cb::mcbp::request::DcpSystemEventPayload;
-        const auto& request = cookie.getRequest();
-        const auto& payload =
-                request.getCommandSpecifics<DcpSystemEventPayload>();
-
-        ret = dcpSystemEvent(cookie,
-                             request.getOpaque(),
-                             request.getVBucket(),
-                             mcbp::systemevent::id(payload.getEvent()),
-                             payload.getBySeqno(),
-                             mcbp::systemevent::version(payload.getVersion()),
-                             request.getKey(),
-                             request.getValue());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<
+                  NoSuccessResponseCommandContext>(cookie, [](Cookie& c) {
+              using cb::mcbp::request::DcpSystemEventPayload;
+              const auto& request = c.getRequest();
+              const auto& payload =
+                      request.getCommandSpecifics<DcpSystemEventPayload>();
+              return dcpSystemEvent(
+                      c,
+                      request.getOpaque(),
+                      request.getVBucket(),
+                      mcbp::systemevent::id(payload.getEvent()),
+                      payload.getBySeqno(),
+                      mcbp::systemevent::version(payload.getVersion()),
+                      request.getKey(),
+                      request.getValue());
+          }).drive();
 }

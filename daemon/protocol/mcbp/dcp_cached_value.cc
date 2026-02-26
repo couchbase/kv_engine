@@ -18,7 +18,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-static cb::engine_errc dcp_cached_value(Cookie& cookie) {
+cb::engine_errc dcp_cached_value(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
@@ -48,7 +48,7 @@ static cb::engine_errc dcp_cached_value(Cookie& cookie) {
                           extras.getNru());
 }
 
-static cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
+cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();
@@ -64,46 +64,4 @@ static cb::engine_errc dcp_cached_key_meta(Cookie& cookie) {
                             extras.getBySeqno(),
                             extras.getRevSeqno(),
                             extras.getExpiration());
-}
-
-static cb::engine_errc dcp_cache_transfer_end(Cookie& cookie) {
-    const auto& req = cookie.getRequest();
-    return dcpCacheTransferEnd(cookie, req.getOpaque(), req.getVBucket());
-}
-
-void dcp_cached_value_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        ret = dcp_cached_value(cookie);
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
-}
-
-void dcp_cached_key_meta_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        ret = dcp_cached_key_meta(cookie);
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
-}
-
-void dcp_cache_transfer_end_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        ret = dcp_cache_transfer_end(cookie);
-    }
-
-    // only respond on failure.
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
 }

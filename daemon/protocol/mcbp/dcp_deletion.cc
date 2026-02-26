@@ -10,8 +10,8 @@
  */
 #include "dcp_deletion.h"
 #include "engine_wrapper.h"
-#include "executors.h"
-#include "utilities.h"
+#include "no_success_response_steppable_context.h"
+
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
@@ -81,19 +81,13 @@ static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
 }
 
 void dcp_deletion_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        if (connection.isDcpDeleteV2()) {
-            ret = dcp_deletion_v2_executor(cookie);
-        } else {
-            ret = dcp_deletion_v1_executor(cookie);
-        }
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      if (c.getConnection().isDcpDeleteV2()) {
+                          return dcp_deletion_v2_executor(c);
+                      }
+                      return dcp_deletion_v1_executor(c);
+                  })
+            .drive();
 }

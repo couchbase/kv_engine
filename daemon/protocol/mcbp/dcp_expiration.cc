@@ -10,32 +10,30 @@
  */
 #include "dcp_expiration.h"
 #include "engine_wrapper.h"
-#include "executors.h"
-#include "utilities.h"
+#include "no_success_response_steppable_context.h"
+
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 
+static cb::engine_errc dcp_expiration(Cookie& cookie) {
+    const auto& connection = cookie.getConnection();
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpExpirationPayload;
+    const auto& extras = req.getCommandSpecifics<DcpExpirationPayload>();
+    return dcpExpiration(cookie,
+                         req.getOpaque(),
+                         connection.makeDocKey(req.getKey()),
+                         req.getValue(),
+                         uint8_t(req.getDatatype()),
+                         req.getCas(),
+                         req.getVBucket(),
+                         extras.getBySeqno(),
+                         extras.getRevSeqno(),
+                         extras.getDeleteTime());
+}
+
 void dcp_expiration_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    auto& connection = cookie.getConnection();
-    if (ret == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        using cb::mcbp::request::DcpExpirationPayload;
-        const auto& extras = req.getCommandSpecifics<DcpExpirationPayload>();
-        ret = dcpExpiration(cookie,
-                            req.getOpaque(),
-                            connection.makeDocKey(req.getKey()),
-                            req.getValue(),
-                            uint8_t(req.getDatatype()),
-                            req.getCas(),
-                            req.getVBucket(),
-                            extras.getBySeqno(),
-                            extras.getRevSeqno(),
-                            extras.getDeleteTime());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return dcp_expiration(c); })
+            .drive();
 }

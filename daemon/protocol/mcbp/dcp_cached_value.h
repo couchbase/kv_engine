@@ -12,16 +12,11 @@
 #include "../../memcached.h"
 
 /**
- * Executor for the DCP_CACHED_VALUE message.
+ * Handler for the DCP_CACHED_VALUE message.
  */
-void dcp_cached_value_executor(Cookie& cookie);
+cb::engine_errc dcp_cached_value(Cookie& cookie);
 
 /**
- * Executor for the DCP_CACHED_KEY_META message.
+ * Handler for the DCP_CACHED_KEY_META message.
  */
-void dcp_cached_key_meta_executor(Cookie& cookie);
-
-/**
- * Executor for the DCP_CACHE_TRANSFER_END message.
- */
-void dcp_cache_transfer_end_executor(Cookie& cookie);
+cb::engine_errc dcp_cached_key_meta(Cookie& cookie);

@@ -44,6 +44,7 @@
 #include "protocol/mcbp/ioctl_command_context.h"
 #include "protocol/mcbp/mount_fusion_vbucket_command_context.h"
 #include "protocol/mcbp/mutation_context.h"
+#include "protocol/mcbp/no_success_response_steppable_context.h"
 #include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/prepare_snapshot_context.h"
 #include "protocol/mcbp/prune_encryption_keys_context.h"
@@ -772,6 +773,29 @@ static void process_bin_dcp_response(Cookie& cookie) {
         }
         c.shutdown();
     }
+}
+
+static void dcp_cached_value_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return dcp_cached_value(c); })
+            .drive();
+}
+
+static void dcp_cached_key_meta_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return dcp_cached_key_meta(c); })
+            .drive();
+}
+
+static void dcp_cache_transfer_end_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      const auto& req = c.getRequest();
+                      return dcpCacheTransferEnd(
+                              c, req.getOpaque(), req.getVBucket());
+                  })
+            .drive();
 }
 
 static void setup_response_handler(cb::mcbp::ClientOpcode opcode,

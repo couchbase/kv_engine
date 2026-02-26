@@ -11,8 +11,7 @@
 
 #include "dcp_mutation.h"
 #include "engine_wrapper.h"
-#include "executors.h"
-#include "utilities.h"
+#include "no_success_response_steppable_context.h"
 
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
@@ -51,13 +50,7 @@ static cb::engine_errc do_dcp_mutation(Cookie& cookie) {
 }
 
 void dcp_mutation_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        ret = do_dcp_mutation(cookie);
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_mutation(c); })
+            .drive();
 }
