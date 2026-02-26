@@ -49,10 +49,6 @@ protected:
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;
 
-    /// The max value we would like to use for the watermark (typically
-    /// 2x the socket send buffer size
-    std::size_t max_send_watermark_size;
-
     /// Get a formatted string of all OpenSSL Errors
     std::string getOpenSSLErrors();
     /// Format all the OpenSSL Errors in the provided vector

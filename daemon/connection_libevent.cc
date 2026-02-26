@@ -72,16 +72,6 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
 
     bufferevent_enable(bev.get(), EV_READ);
     bufferevent_setwatermark(bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
-
-    try {
-        max_send_watermark_size =
-                2 * cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_SNDBUF);
-    } catch (const std::exception&) {
-        auto& settings = Settings::instance();
-        max_send_watermark_size = std::min(
-                static_cast<std::size_t>(settings.getMaxSoSndbufSize()),
-                settings.getMaxSendQueueSize());
-    }
 }
 
 LibeventConnection::~LibeventConnection() {
@@ -154,25 +144,7 @@ void LibeventConnection::rw_callback() {
                           "LibeventConnection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
-    // reset the write watermark
-    bufferevent_setwatermark(
-            bev.get(), EV_WRITE, 0, std::numeric_limits<std::size_t>::max());
     if (executeCommandsCallback()) {
-        // Increase the write watermark to provide a callback once we've
-        // transferred at least 64k to getting notified *too* often.
-        const auto length = getSendQueueSize();
-        if (length) {
-            constexpr size_t chunk = 64_KiB;
-            if (length > chunk) {
-                const auto watermark =
-                        std::min(length - chunk, max_send_watermark_size);
-                bufferevent_setwatermark(
-                        bev.get(),
-                        EV_WRITE,
-                        watermark,
-                        std::numeric_limits<std::size_t>::max());
-            }
-        }
         // Ensure that the event loop (which folly has started) exits back to
         // folly after all active events are processed. This ensures that
         // folly's event loop can process all non-libevent callbacks and ensures
