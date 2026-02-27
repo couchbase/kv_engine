@@ -63,6 +63,10 @@ def human_duration_to_sec(h):
             ts = ts + timedelta(seconds=float(value))
         elif unit == "ms":
             ts = ts + timedelta(milliseconds=float(value))
+        elif unit == "us":
+            ts = ts + timedelta(microseconds=float(value))
+        elif unit == "ns":
+            ts = ts + timedelta(microseconds=float(value) / 1000)
         else:
             raise ValueError("Unhandled unit '{}'".format(unit))
 
@@ -243,20 +247,20 @@ def parse_slow_op(trace):
 
     # The cid object with IPv4, potentially with port number partially /
     # entirely omitted, and potentially without closing JSON object '}'.
-    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d*)}?\/(\w+)"',
+    trace = re.sub(r'"\{"ip":"([\d\.]+)","port":(\d*)}?\/(\w+)"',
                    '"\\1:\\2/\\3"', trace)
     # The cid object with IPv6.
     # This can be quite corrupted:
     # - potentially with only part of IPv6 address
     # - potentially with only part of / none of port
     # - potentially without closing JSON object '}'
-    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)"?,?"?p?o?r?t?"?:?(\d*)}?\/(\w+)"',
+    trace = re.sub(r'"\{"ip":"([0-9a-fA-F\.:]+)"?,?"?p?o?r?t?"?:?(\d*)}?\/(\w+)"',
                    '"[\\1]:\\2/\\3"', trace)
     # Peer object with IPv4
-    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d+)}"',
+    trace = re.sub(r'"\{"ip":"([\d\.]+)","port":(\d+)}"',
                    '"\\1:\\2"', trace)
     # Peer object with IPv6
-    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)","port":(\d+)}"',
+    trace = re.sub(r'"\{"ip":"([0-9a-fA-F\.:]+)","port":(\d+)}"',
                    '"[\\1]:\\2"', trace)
 
     return json.loads(trace)
@@ -280,8 +284,8 @@ def main():
                 node = m.group(1)
         # Match ISO 8601 formatted log timestamps. Example:
         # 2022-07-20T01:58:01.316016+03:00
-        time_regex = "(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
-        m = re.search(time_regex + " WARNING (\d+): Slow operation. (.*)", line)
+        time_regex = r"(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
+        m = re.search(time_regex + r" WARNING (\d+): Slow operation. (.*)", line) 
         if m:
             parse_slow_operation(node,m)
             continue
@@ -289,7 +293,7 @@ def main():
         # Check for "Slow runtime" messages from tasks, e.g.
         #   2022-11-21T18:06:56.188574-05:00 WARNING (No Engine) Slow runtime for 'Compact DB file 421' on thread WriterPool3: 32 s
         m = re.search(
-            time_regex + " WARNING \(([^)]+)\) Slow runtime for '(.+)' on thread (.+): (.+)",
+            time_regex + r" WARNING \(([^)]+)\) Slow runtime for '(.+)' on thread (.+): (.+)",
             line)
         if m:
             if system_clock_steady_clock_delta:
@@ -300,7 +304,7 @@ def main():
         # Check for "Slow scheduling" messages from tasks, e.g.
         #   2023-09-18T15:50:39.002619+00:00 WARNING (No Engine) Slow scheduling for NON_IO task 'Paging out items.' on thread NonIoPool1. Schedule overhead: 15 s
         m = re.search(
-            time_regex + " WARNING \(([^)]+)\) Slow scheduling for [\w_]+ task '(.+)' on thread (.+). Schedule overhead: (.+)",
+            time_regex + r" WARNING \(([^)]+)\) Slow scheduling for [\w_]+ task '(.+)' on thread (.+). Schedule overhead: (.+)",
             line)
         if m:
             if system_clock_steady_clock_delta:
@@ -453,6 +457,18 @@ class TestHumanDurationToSec(unittest.TestCase):
     def test_minutes_seconds_millis(self):
         self.assertEqual(human_duration_to_sec("2m:5s:120ms"), 125.12);
         self.assertEqual(human_duration_to_sec("2m5s120ms"), 125.12);
+
+    def test_microseconds(self):
+        self.assertEqual(human_duration_to_sec("12us"), 0.000012);
+        self.assertEqual(human_duration_to_sec("12 us"), 0.000012);
+
+    def test_nanoseconds(self):
+        self.assertEqual(human_duration_to_sec("1000ns"), 0.000001);
+        self.assertEqual(human_duration_to_sec("1000 ns"), 0.000001);
+
+    def test_seconds_micros(self):
+        self.assertEqual(human_duration_to_sec("1s500us"), 1.0005);
+        self.assertEqual(human_duration_to_sec("1s:500us"), 1.0005);
 
 
 if __name__ == '__main__':
