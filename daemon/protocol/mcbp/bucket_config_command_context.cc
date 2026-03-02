@@ -16,7 +16,23 @@
 #include "mcbp/engine_wrapper.h"
 #include "memcached/bucket_type.h"
 #include "memcached/configuration_iface.h"
+#include <daemon/buckets.h>
+#include <daemon/connection.h>
+#include <fmt/format.h>
 #include <memcached/config_parser.h>
+#include <optional>
+
+static std::optional<std::size_t> get_parameter_value(
+        const ParameterMap& params, const std::string& key) {
+    if (const auto it = params.find(key); it != params.end()) {
+        try {
+            return cb::config::value_as_size_t(it->second);
+        } catch (const std::exception&) {
+            // Invalid value reported later
+        }
+    }
+    return {};
+}
 
 BucketConfigCommandContext::BucketConfigCommandContext(Cookie& cookie)
     : BackgroundThreadCommandContext(
@@ -62,28 +78,60 @@ cb::engine_errc BucketConfigCommandContext::execute() {
             Expects(configuration);
             validation = configuration->validateParameters(parameters);
 
+            // Get new values for validation if available, otherwise use current
+            // values from the bucket.
+            auto& bucket = cookie.getConnection().getBucket();
+            const auto curr_throttle_reserved =
+                    get_parameter_value(extracted_params, "throttle_reserved")
+                            .value_or(bucket.getThrottleReservedLimit());
+            const auto curr_throttle_hard_limit =
+                    get_parameter_value(extracted_params, "throttle_hard_limit")
+                            .value_or(bucket.getThrottleHardLimit());
+
             // These are manually added as ep-engine doesn't require knowledge
             // of these parameters. They are not added to the configuration
             // interface to prevent auto-gen methods for ep-engine.
             for (const auto& [key, val] : extracted_params) {
-                if (key == "throttle_reserved" ||
-                    key == "throttle_hard_limit") {
-                    try {
-                        cb::config::value_as_size_t(val);
+                try {
+                    if (key == "throttle_reserved") {
+                        auto res = cb::config::value_as_size_t(val);
+                        if (res > curr_throttle_hard_limit) {
+                            throw std::invalid_argument(fmt::format(
+                                    "throttle_reserved cannot be greater than "
+                                    "current throttle_hard_limit of {}",
+                                    curr_throttle_hard_limit));
+                        }
+
                         validation.emplace(
                                 key,
                                 ParameterInfo(val,
                                               RequiresRestart::No,
                                               ParameterVisibility::Public));
-                    } catch (const std::exception& e) {
-                        validation.emplace(
-                                key, ParameterError::invalidValue(e.what()));
                     }
+
+                    if (key == "throttle_hard_limit") {
+                        auto res = cb::config::value_as_size_t(val);
+                        if (res < curr_throttle_reserved) {
+                            throw std::invalid_argument(fmt::format(
+                                    "throttle_hard_limit cannot be less than "
+                                    "current throttle_reserved of {}",
+                                    curr_throttle_reserved));
+                        }
+
+                        validation.emplace(
+                                key,
+                                ParameterInfo(val,
+                                              RequiresRestart::No,
+                                              ParameterVisibility::Public));
+                    }
+                } catch (const std::exception& e) {
+                    validation.emplace(key,
+                                       ParameterError::invalidValue(e.what()));
                 }
             }
         } catch (const std::exception& e) {
-            response = "Failed to validate bucket configuration: " +
-                       std::string(e.what());
+            response = fmt::format(
+                    "Failed to validate bucket configuration: {}", e.what());
             return cb::engine_errc::invalid_arguments;
         }
         break;
