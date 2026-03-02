@@ -535,6 +535,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setWriteUnitSize(value.get<size_t>());
         } else if (key == "node_capacity"sv) {
             setNodeCapacity(value.get<size_t>());
+        } else if (key == "throttle_enabled"sv) {
+            setThrottleEnabled(value.get<bool>());
         } else if (key == "magma_max_default_storage_threads"sv) {
             setMagmaMaxDefaultStorageThreads(value.get<size_t>());
         } else if (key == "magma_flusher_thread_percentage"sv) {
@@ -1516,6 +1518,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO_CTX(
                     "Change node_capacity", {"from", currVal}, {"to", newVal});
             setNodeCapacity(newVal);
+        }
+    }
+
+    if (other.has.throttle_enabled) {
+        if (other.isThrottleEnabled() != isThrottleEnabled()) {
+            LOG_INFO_CTX("Change throttle_enabled",
+                         {"from", isThrottleEnabled()},
+                         {"to", other.isThrottleEnabled()});
+            setThrottleEnabled(other.isThrottleEnabled());
         }
     }
 

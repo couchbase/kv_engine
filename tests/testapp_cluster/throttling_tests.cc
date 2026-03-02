@@ -66,6 +66,10 @@ public:
             // Set throttle limits to 1000 units
             bucket->setThrottleLimits(1000, 1000);
         }
+
+        cluster->changeConfig([](nlohmann::json& config) {
+            config["throttle_enabled"] = true;
+        });
     }
 
     void TearDown() override {
@@ -115,10 +119,8 @@ public:
         const auto info = conn.mutate(doc, Vbid{0}, type);
         EXPECT_NE(0, info.cas);
     }
-};
 
-TEST_F(ThrottlingTests, OpsAreThrottled) {
-    auto opsAreThrottled = [this](const std::string& bucketName) {
+    void opsAreThrottled(const std::string& bucketName) {
         auto conn = getConnection(bucketName);
 
         auto key = DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
@@ -147,26 +149,9 @@ TEST_F(ThrottlingTests, OpsAreThrottled) {
         ASSERT_LE(3, stats["num_throttled"]);
     };
 
-    std::vector<std::thread> threads;
-    for (int i = 0; i < 5; ++i) {
-        threads.emplace_back(
-                [opsAreThrottled, name = "bucket" + std::to_string(i)]() {
-                    // Set very low throttle limits to ensure that ops are
-                    // throttled
-                    auto bucket = cluster->getBucket(name);
-                    bucket->setThrottleLimits(1000, 1000);
-
-                    opsAreThrottled(name);
-                });
-    }
-
-    for (auto& thread : threads) {
-        thread.join();
-    }
-}
-
-TEST_F(ThrottlingTests, OpsAreNotThrottled) {
-    auto opsAreNotThrottled = [this](const std::string& bucketName) {
+    void opsAreNotThrottled(const std::string& bucketName,
+                            int ru_consumed,
+                            int wu_consumed) {
         auto conn = getConnection(bucketName);
 
         auto key = DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
@@ -183,25 +168,72 @@ TEST_F(ThrottlingTests, OpsAreNotThrottled) {
         }
         auto stats = getThrottlingStats(conn, bucketName);
         ASSERT_FALSE(stats.empty());
-        ASSERT_EQ(4096, stats["throttle_ru_total"]); // 4096 reads done
-        ASSERT_EQ(1, stats["throttle_wu_total"]); // 1 write done
+        ASSERT_EQ(ru_consumed, stats["throttle_ru_total"]); // 4096 reads done
+        ASSERT_EQ(wu_consumed, stats["throttle_wu_total"]); // 1 write done
         ASSERT_EQ(0, stats["num_throttled"]);
     };
+};
 
+TEST_F(ThrottlingTests, OpsAreThrottled) {
     std::vector<std::thread> threads;
     for (int i = 0; i < 5; ++i) {
-        threads.emplace_back(
-                [opsAreNotThrottled, name = "bucket" + std::to_string(i)]() {
-                    // Set high throttle limits to ensure that ops are not
-                    // throttled
-                    auto bucket = cluster->getBucket(name);
-                    bucket->setThrottleLimits(5000, 5000);
+        threads.emplace_back([this, name = "bucket" + std::to_string(i)]() {
+            // Set very low throttle limits to ensure that ops are
+            // throttled
+            auto bucket = cluster->getBucket(name);
+            bucket->setThrottleLimits(1000, 1000);
 
-                    opsAreNotThrottled(name);
-                });
+            opsAreThrottled(name);
+        });
     }
 
     for (auto& thread : threads) {
         thread.join();
     }
+}
+
+TEST_F(ThrottlingTests, OpsAreNotThrottled) {
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 5; ++i) {
+        threads.emplace_back([this, name = "bucket" + std::to_string(i)]() {
+            // Set high throttle limits to ensure that ops are not
+            // throttled
+            auto bucket = cluster->getBucket(name);
+            bucket->setThrottleLimits(5000, 5000);
+
+            opsAreNotThrottled(name, 4096, 1);
+        });
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
+}
+
+TEST_F(ThrottlingTests, ThrottleDisabled) {
+    // Disable throttling at the server level. Even with low per-bucket
+    // throttle limits, operations should not be throttled when
+    // throttle_enabled is false.
+    cluster->changeConfig(
+            [](nlohmann::json& config) { config["throttle_enabled"] = false; });
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 5; ++i) {
+        threads.emplace_back([this, name = "bucket" + std::to_string(i)]() {
+            // Set very low throttle limits
+            // throttle_enabled is false, ops should not be throttled
+            auto bucket = cluster->getBucket(name);
+            bucket->setThrottleLimits(1000, 1000);
+
+            opsAreNotThrottled(name, 0, 0);
+        });
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // Restore throttle_enabled so subsequent tests are not affected
+    cluster->changeConfig(
+            [](nlohmann::json& config) { config["throttle_enabled"] = true; });
 }

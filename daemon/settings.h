@@ -1350,6 +1350,16 @@ public:
         notify_changed("node_capacity");
     }
 
+    bool isThrottleEnabled() const {
+        return throttle_enabled.load(std::memory_order_acquire);
+    }
+
+    void setThrottleEnabled(bool val) {
+        throttle_enabled.store(val, std::memory_order_release);
+        has.throttle_enabled = true;
+        notify_changed("throttle_enabled");
+    }
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 
@@ -1700,6 +1710,7 @@ protected:
     std::atomic<size_t> read_unit_size = 4096;
     std::atomic<size_t> write_unit_size = 1024;
     std::atomic<size_t> node_capacity = std::numeric_limits<std::size_t>::max();
+    std::atomic_bool throttle_enabled{false};
 
     void notify_changed(const std::string& key);
 
@@ -1806,5 +1817,6 @@ public:
         bool read_unit_size = false;
         bool write_unit_size = false;
         bool node_capacity = false;
+        bool throttle_enabled = false;
     } has;
 };

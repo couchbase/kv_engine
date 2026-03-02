@@ -411,7 +411,8 @@ void Bucket::deleteThrottledCommands() {
 
 std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottle(
         const Connection& connection, std::size_t units) {
-    if (throttle_reserved == std::numeric_limits<std::size_t>::max() ||
+    if (!Settings::instance().isThrottleEnabled() ||
+        throttle_reserved == std::numeric_limits<std::size_t>::max() ||
         connection.isUnthrottled()) {
         return {false, ResourceAllocationDomain::None};
     }
