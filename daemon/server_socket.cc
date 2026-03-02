@@ -23,6 +23,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/timeutils.h>
 #include <platform/uuid.h>
 #include <exception>
 #include <memory>
@@ -77,11 +78,9 @@ public:
         ++failure_count;
         if (failure_count == 1) {
             first_failure = now;
-            // make sure we log immediately
-            next_log = now - std::chrono::seconds(1);
         }
 
-        if (next_log < now) {
+        if (failure_count == 1 || next_log < now) {
             LOG_WARNING_CTX(
                     "Shutting down client as we're running out of connections",
                     {"system", is_system},
@@ -405,7 +404,6 @@ void LibeventServerSocketImpl::acceptNewClient() {
     } else {
         user_system_accept_handler.onAcceptSuccess(current, limit);
     }
-
     FrontEndThread::dispatch(client, interface);
 }
 
