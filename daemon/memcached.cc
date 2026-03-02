@@ -377,14 +377,18 @@ static void settings_init() {
             [&settings](const auto&, auto& s) {
                 magma::Magma::SetFusionPendingUploadThresholds(
                         s.getFusionMaxPendingUploadBytes(),
-                        settings.getFusionMaxPendingUploadBytesLwmRatio());
+                        static_cast<double>(
+                                s.getFusionMaxPendingUploadBytesLwmPercentage()) /
+                                100);
             });
     settings.addChangeListener(
-            "fusion_max_pending_upload_bytes_lwm_ratio",
+            "fusion_max_pending_upload_bytes_lwm_percentage",
             [&settings](const auto&, auto& s) {
                 magma::Magma::SetFusionPendingUploadThresholds(
                         settings.getFusionMaxPendingUploadBytes(),
-                        s.getFusionMaxPendingUploadBytesLwmRatio());
+                        static_cast<double>(
+                                s.getFusionMaxPendingUploadBytesLwmPercentage()) /
+                                100);
             });
 }
 

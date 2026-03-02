@@ -13,6 +13,7 @@
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <utilities/magma_support.h>
 #include <variant>
 
 class SettingsTest : public ::testing::Test {
@@ -1027,17 +1028,31 @@ TEST(SettingsUpdateTest, FusionMaxPendingUploadBytes) {
     EXPECT_EQ(50_MiB, settings.getFusionMaxPendingUploadBytes());
 }
 
-TEST(SettingsUpdateTest, FusionMaxPendingUploadBytesLwmRatio) {
+TEST(SettingsUpdateTest, FusionMaxPendingUploadBytesLwmPercentage) {
     Settings updated;
     Settings settings;
-    settings.setFusionMaxPendingUploadBytesLwmRatio(0.7);
+    settings.setFusionMaxPendingUploadBytesLwmPercentage(70);
     // Setting to the same value succeeds
-    updated.setFusionMaxPendingUploadBytesLwmRatio(0.7);
+    updated.setFusionMaxPendingUploadBytesLwmPercentage(70);
     settings.updateSettings(updated, false);
     // Setting to a different value succeeds
-    updated.setFusionMaxPendingUploadBytesLwmRatio(0.5);
+    updated.setFusionMaxPendingUploadBytesLwmPercentage(50);
     settings.updateSettings(updated, true);
-    EXPECT_EQ(0.5, settings.getFusionMaxPendingUploadBytesLwmRatio());
+    EXPECT_EQ(50, settings.getFusionMaxPendingUploadBytesLwmPercentage());
+}
+
+TEST(SettingsUpdateTest, InvalidFusionMaxPendingUploadBytesLwmPercentage) {
+    if (!isFusionSupportEnabled()) {
+        GTEST_SKIP();
+    }
+    Settings settings;
+    auto test = [&settings](size_t newVal) {
+        nlohmann::json config{
+                {"fusion_max_pending_upload_bytes_lwm_percentage", newVal}};
+        settings.reconfigure(config);
+    };
+    EXPECT_THROW(test(0), std::invalid_argument);
+    EXPECT_THROW(test(101), std::invalid_argument);
 }
 
 TEST(SettingsUpdateTest, DefaultReqIsDynamic) {

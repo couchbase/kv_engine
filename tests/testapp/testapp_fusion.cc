@@ -1272,6 +1272,8 @@ TEST_P(FusionTest, FusionMaxPendingUploadBytesLwmRatio) {
         return;
     }
     EXPECT_EQ(ec, cb::engine_errc::success);
+    // The lwm ratio will return 0 if maxPendingUploadBytes is 0,
+    // else the ratio configured
     EXPECT_EQ(0, ratio);
 
     setMemcachedConfig("fusion_max_pending_upload_bytes", 1024);
@@ -1279,10 +1281,10 @@ TEST_P(FusionTest, FusionMaxPendingUploadBytesLwmRatio) {
     EXPECT_EQ(ec, cb::engine_errc::success);
     // the stat is computed from magma using an integer division, so it will
     // not exactly be 0.6
-    EXPECT_DOUBLE_EQ(std::round(ratio * 100.0) / 100.0, 0.60);
+    EXPECT_DOUBLE_EQ(0.60, std::round(ratio * 100.0) / 100.0);
 
-    setMemcachedConfig("fusion_max_pending_upload_bytes_lwm_ratio", 0.4);
+    setMemcachedConfig("fusion_max_pending_upload_bytes_lwm_percentage", 40);
     ec = getStat("fusion_max_pending_upload_bytes_lwm_ratio", ratio);
     EXPECT_EQ(ec, cb::engine_errc::success);
-    EXPECT_DOUBLE_EQ(std::round(ratio * 100.0) / 100.0, 0.40);
+    EXPECT_DOUBLE_EQ(0.40, std::round(ratio * 100.0) / 100.0);
 }

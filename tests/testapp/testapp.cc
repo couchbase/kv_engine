@@ -561,7 +561,7 @@ nlohmann::json TestappTest::generate_config() {
         ret["fusion_num_uploader_threads"] = 1;
         ret["fusion_num_migrator_threads"] = 1;
         ret["fusion_max_pending_upload_bytes"] = 0;
-        ret["fusion_max_pending_upload_bytes_lwm_ratio"] = 0.6;
+        ret["fusion_max_pending_upload_bytes_lwm_percentage"] = 60;
     }
 
     return ret;

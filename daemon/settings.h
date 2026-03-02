@@ -373,16 +373,16 @@ public:
         notify_changed("fusion_max_pending_upload_bytes");
     }
 
-    double getFusionMaxPendingUploadBytesLwmRatio() const {
-        return fusion_max_pending_upload_bytes_lwm_ratio.load(
+    size_t getFusionMaxPendingUploadBytesLwmPercentage() const {
+        return fusion_max_pending_upload_bytes_lwm_percentage.load(
                 std::memory_order_acquire);
     }
 
-    void setFusionMaxPendingUploadBytesLwmRatio(double value) {
-        fusion_max_pending_upload_bytes_lwm_ratio.store(
+    void setFusionMaxPendingUploadBytesLwmPercentage(size_t value) {
+        fusion_max_pending_upload_bytes_lwm_percentage.store(
                 value, std::memory_order_release);
-        has.fusion_max_pending_upload_bytes_lwm_ratio = true;
-        notify_changed("fusion_max_pending_upload_bytes_lwm_ratio");
+        has.fusion_max_pending_upload_bytes_lwm_percentage = true;
+        notify_changed("fusion_max_pending_upload_bytes_lwm_percentage");
     }
 
     size_t getMaxUserConnections() const {
@@ -1463,7 +1463,7 @@ protected:
 
     // The proportion of max_pending_upload_bytes beyond which syncs for volumes
     // with the highest pending bytes are only allowed.
-    std::atomic<double> fusion_max_pending_upload_bytes_lwm_ratio{0.6};
+    std::atomic<size_t> fusion_max_pending_upload_bytes_lwm_percentage{60};
 
     /**
      * Note that it is not safe to add new listeners after we've spun up
@@ -1735,7 +1735,7 @@ public:
         bool fusion_num_uploader_threads = false;
         bool fusion_num_migrator_threads = false;
         bool fusion_max_pending_upload_bytes = false;
-        bool fusion_max_pending_upload_bytes_lwm_ratio = false;
+        bool fusion_max_pending_upload_bytes_lwm_percentage = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;

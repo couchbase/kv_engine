@@ -428,12 +428,18 @@ void Settings::reconfigure(const nlohmann::json& json) {
                                 {"value", value.dump()},
                                 {"reason", "Fusion support is not enabled"});
             }
-        } else if (key == "fusion_max_pending_upload_bytes_lwm_ratio") {
+        } else if (key == "fusion_max_pending_upload_bytes_lwm_percentage") {
             if (isFusionSupportEnabled()) {
-                setFusionMaxPendingUploadBytesLwmRatio(value.get<double>());
+                const auto val = value.get<size_t>();
+                if (val <= 0 || val > 100) {
+                    throw std::invalid_argument(
+                            "\"fusion_max_pending_upload_bytes_lwm_percentage\""
+                            " must be a valid non-zero percentage");
+                }
+                setFusionMaxPendingUploadBytesLwmPercentage(val);
             } else {
                 LOG_WARNING_CTX(
-                        "Ignore fusion_max_pending_upload_bytes_lwm_ratio",
+                        "Ignore fusion_max_pending_upload_bytes_lwm_percentage",
                         {"value", value.dump()},
                         {"reason", "Fusion support is not enabled"});
             }
@@ -1145,15 +1151,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.fusion_max_pending_upload_bytes_lwm_ratio) {
-        if (other.getFusionMaxPendingUploadBytesLwmRatio() !=
-            getFusionMaxPendingUploadBytesLwmRatio()) {
+    if (other.has.fusion_max_pending_upload_bytes_lwm_percentage) {
+        if (other.getFusionMaxPendingUploadBytesLwmPercentage() !=
+            getFusionMaxPendingUploadBytesLwmPercentage()) {
             LOG_INFO_CTX(
-                    "Change fusion max pending upload bytes LWM ratio",
-                    {"from", getFusionMaxPendingUploadBytesLwmRatio()},
-                    {"to", other.getFusionMaxPendingUploadBytesLwmRatio()});
-            setFusionMaxPendingUploadBytesLwmRatio(
-                    other.getFusionMaxPendingUploadBytesLwmRatio());
+                    "Change fusion max pending upload bytes LWM percentage",
+                    {"from", getFusionMaxPendingUploadBytesLwmPercentage()},
+                    {"to",
+                     other.getFusionMaxPendingUploadBytesLwmPercentage()});
+            setFusionMaxPendingUploadBytesLwmPercentage(
+                    other.getFusionMaxPendingUploadBytesLwmPercentage());
         }
     }
 
