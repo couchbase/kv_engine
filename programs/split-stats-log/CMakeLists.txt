@@ -1,0 +1,3 @@
+cb_add_test_executable(split_stats_log split_stats_log.cc)
+target_link_libraries(split_stats_log PRIVATE nlohmann_json::nlohmann_json)
+
