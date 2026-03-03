@@ -107,9 +107,8 @@ void PagingVisitor::update(bool expireAllItems) {
     }
 
     // Process expirations
-    ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
-                cb::executor::CoarseSteadyClock>
-            timer(getTraceable(), "pager.expire");
+    ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>> timer(
+            getTraceable(), "pager.expire");
 
     const auto threshold = processExpiredItemsOnly
                                    ? expiryVisitorItemsOnlyDuration
@@ -398,8 +397,7 @@ void ItemPagingVisitor::visitBucket(VBucket& vb) {
 
     currentBucket = &vb;
     {
-        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
-                    cb::executor::CoarseSteadyClock>
+        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>>
                 timer(getTraceable(), "pager.ht_visit");
         hashTablePosition = vb.ht.pauseResumeVisit(*this, hashTablePosition);
     }
@@ -414,10 +412,6 @@ void ItemPagingVisitor::visitBucket(VBucket& vb) {
 bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
                                    StoredValue* v,
                                    bool isDropped) {
-    ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
-                cb::executor::CoarseSteadyClock>
-            timer(getTraceable(), "pager.evict");
-
     auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
