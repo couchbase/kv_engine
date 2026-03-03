@@ -969,7 +969,8 @@ static int time_purge_hook(Db& d,
                            CompactionContext& ctx) {
     if (info == nullptr) {
         // Compaction finished
-        return couchstore_set_purge_seq(&d, ctx.getRollbackPurgeSeqno());
+        couchstore_set_purge_seq(&d, ctx.getRollbackPurgeSeqno());
+        return 0;
     }
 
     if (ctx.isShuttingDown()) {
@@ -1974,7 +1975,6 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     err = cb::couchstore::replay(
             source,
             destination,
-            std::numeric_limits<uint64_t>::max(),
             end.headerPosition,
             [this, &prepareStats, &collectionStats](
                     Db&,
