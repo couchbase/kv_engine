@@ -788,6 +788,14 @@ TEST_F(SettingsTest, ExternalAuthService) {
     }
 }
 
+TEST_F(SettingsTest, MB70768) {
+    nlohmann::json obj;
+    obj["active_external_users_push_interval"] = 600;
+    Settings settings(obj);
+    EXPECT_EQ(std::chrono::seconds(600),
+              settings.getActiveExternalUsersPushInterval());
+}
+
 TEST_F(SettingsTest, ScramshaFallbackSalt) {
     nonStringValuesShouldFail("scramsha_fallback_salt");
     nlohmann::json obj;

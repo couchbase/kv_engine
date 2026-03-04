@@ -128,6 +128,7 @@ template <typename T>
 static std::chrono::microseconds getTimeFromJson(const nlohmann::json& value,
                                                  const std::string_view key) {
     switch (value.type()) {
+    case nlohmann::json::value_t::number_integer:
     case nlohmann::json::value_t::number_unsigned:
         return T(value.get<int>());
     case nlohmann::json::value_t::string:
@@ -379,7 +380,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setExternalAuthServiceScramSupport(value.get<bool>());
         } else if (key == "active_external_users_push_interval"sv) {
             setActiveExternalUsersPushInterval(
-                    getTimeFromJson<std::chrono::microseconds>(value, key));
+                    getTimeFromJson<std::chrono::seconds>(value, key));
         } else if (key == "external_auth_slow_duration"sv) {
             setExternalAuthSlowDuration(
                     getTimeFromJson<std::chrono::seconds>(value, key));
