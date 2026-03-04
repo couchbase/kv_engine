@@ -11,6 +11,7 @@
 #include "dcp/response.h"
 
 #include <engines/ep/src/bucket_logger.h>
+#include <nlohmann/json.hpp>
 #include <statistics/cbstat_collector.h>
 #include <memory>
 #include <utility>
@@ -137,3 +138,61 @@ bool Stream::shouldLog(spdlog::level::level_enum severity) const {
     // shared_ptr just to check the log level.
     return getGlobalBucketLogger()->should_log(severity);
 }
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+void Stream::validateNumeric(const nlohmann::json& json,
+                             const std::string& fieldName) {
+    if (!json.contains(fieldName)) {
+        // already reported as error if it was a mandatory field
+        return;
+    }
+    try {
+        (void)std::stoull(json[fieldName].get<std::string>());
+    } catch (const std::exception&) {
+        EP_LOG_CRITICAL_CTX(
+                "Invalid numeric value", {"field", fieldName}, {"entry", json});
+    }
+}
+
+void Stream::validateBoolean(const nlohmann::json& json,
+                             const std::string& fieldName) {
+    if (!json.contains(fieldName)) {
+        // already reported as error if it was a mandatory field
+        return;
+    }
+    const auto value = json[fieldName].get<std::string>();
+    if (value != "true" && value != "false") {
+        EP_LOG_CRITICAL_CTX(
+                "Invalid boolean value", {"field", fieldName}, {"entry", json});
+    }
+}
+
+void Stream::validateStreamStats(const nlohmann::json& json) const {
+    const std::vector<std::string> streamFields = {"flags",
+                                                   "opaque",
+                                                   "start_seqno",
+                                                   "vb_uuid",
+                                                   "snap_start_seqno",
+                                                   "snap_end_seqno",
+                                                   "state",
+                                                   "items_ready",
+                                                   "readyQ_items"};
+    for (const auto& mandatory : streamFields) {
+        if (!json.contains(mandatory)) {
+            EP_LOG_CRITICAL_CTX("Missing mandatory field",
+                                {"field", mandatory},
+                                {"entry", json});
+        }
+    }
+
+    validateNumeric(json, "flags");
+    validateNumeric(json, "opaque");
+    validateNumeric(json, "start_seqno");
+    validateNumeric(json, "vb_uuid");
+    validateNumeric(json, "snap_start_seqno");
+    validateNumeric(json, "snap_end_seqno");
+    validateBoolean(json, "items_ready");
+    validateNumeric(json, "readyQ_items");
+    validateNumeric(json, "unacked_bytes");
+}
+#endif

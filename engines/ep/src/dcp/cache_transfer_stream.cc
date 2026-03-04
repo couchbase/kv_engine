@@ -781,3 +781,24 @@ std::string to_string(CacheTransferStream::Status status) {
     }
     folly::assume_unreachable();
 }
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+void CacheTransferStream::validateStreamStats(
+        const nlohmann::json& json) const {
+    Stream::validateStreamStats(json);
+
+    std::vector<std::string> cacheTransferFields = {
+            "tid", "include_value", "total_bytes_queued", "last_sent_seqno"};
+    for (const auto& field : cacheTransferFields) {
+        if (!json.contains(field)) {
+            EP_LOG_CRITICAL_CTX("Missing mandatory field",
+                                {"field", field},
+                                {"entry", json});
+        }
+    }
+    validateNumeric(json, "tid");
+    validateNumeric(json, "total_bytes_queued");
+    validateNumeric(json, "last_sent_seqno");
+    validateNumeric(json, "available_bytes");
+}
+#endif

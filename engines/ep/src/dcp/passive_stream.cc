@@ -1596,3 +1596,66 @@ cb::mcbp::DcpAddStreamFlag PassiveStream::setupForNewStreamRequest(
 
     return flags;
 }
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+void PassiveStream::validateStreamStats(const nlohmann::json& json) const {
+    Stream::validateStreamStats(json);
+
+    std::vector<std::string> passiveStreamFields = {"unacked_bytes",
+                                                    "last_received_seqno",
+                                                    "cur_snapshot_type",
+                                                    "cur_snapshot_prepare",
+                                                    "request_value",
+                                                    "ready_queue_memory"};
+
+    bool passiveStream = json.contains("cur_snapshot_start") ||
+                         json.contains("cur_snapshot_end");
+    if (passiveStream) {
+        // If either of the snapshot fields are present, then we expect both to
+        // be present
+        passiveStreamFields.emplace_back("cur_snapshot_start");
+        passiveStreamFields.emplace_back("cur_snapshot_end");
+    }
+    for (const auto& field : passiveStreamFields) {
+        if (!json.contains(field)) {
+            EP_LOG_CRITICAL_CTX("Missing mandatory field",
+                                {"field", field},
+                                {"entry", json});
+        }
+    }
+
+    validateNumeric(json, "unacked_bytes");
+    validateNumeric(json, "last_received_seqno");
+    validateNumeric(json, "ready_queue_memory");
+    const auto type = json["cur_snapshot_type"].get<std::string>();
+    if (type != "none" && type != "disk" && type != "memory") {
+        EP_LOG_CRITICAL_CTX("Invalid value for field [cur_snapshot_type]",
+                            {"type", type},
+                            {"entry", json});
+    }
+
+    if (json.contains("cur_snapshot_start")) {
+        validateNumeric(json, "cur_snapshot_start");
+    }
+    if (json.contains("cur_snapshot_end")) {
+        validateNumeric(json, "cur_snapshot_end");
+    }
+
+    auto requestValue = json.value("request_value", std::string{});
+    if (!requestValue.empty()) {
+        try {
+            auto value = nlohmann::json::parse(requestValue);
+            if (!value.is_object()) {
+                EP_LOG_CRITICAL_CTX("Invalid JSON object in request_value",
+                                    {"value", requestValue},
+                                    {"entry", json});
+            }
+        } catch (const std::exception& e) {
+            EP_LOG_CRITICAL_CTX("Invalid JSON in request_value",
+                                {"value", requestValue},
+                                {"error", e.what()},
+                                {"entry", json});
+        }
+    }
+}
+#endif

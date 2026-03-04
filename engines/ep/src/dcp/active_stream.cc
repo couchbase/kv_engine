@@ -3138,3 +3138,48 @@ void ActiveStream::logWithContext(spdlog::level::level_enum severity,
         }
     }
 }
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+void ActiveStream::validateStreamStats(const nlohmann::json& json) const {
+    Stream::validateStreamStats(json);
+
+    std::vector<std::string> activeStreamFields = {"end_seqno",
+                                                   "backfill_disk_items",
+                                                   "backfill_mem_items",
+                                                   "backfill_sent",
+                                                   "memory_phase",
+                                                   "last_sent_seqno_advance",
+                                                   "last_sent_snap_end_seqno",
+                                                   "last_sent_seqno",
+                                                   "last_read_seqno",
+                                                   "backfill_buffer_bytes",
+                                                   "backfill_buffer_items",
+                                                   "cursor_registered",
+                                                   "change_streams_enabled",
+                                                   "filter_type",
+                                                   "ready_queue_memory"};
+
+    for (const auto& field : activeStreamFields) {
+        if (!json.contains(field)) {
+            EP_LOG_CRITICAL_CTX("Missing mandatory field",
+                                {"field", field},
+                                {"entry", json});
+        }
+    }
+
+    validateNumeric(json, "end_seqno");
+    validateNumeric(json, "backfill_disk_items");
+    validateNumeric(json, "backfill_mem_items");
+    validateNumeric(json, "backfill_sent");
+    validateNumeric(json, "memory_phase");
+    validateNumeric(json, "last_sent_seqno_advance");
+    validateNumeric(json, "last_sent_snap_end_seqno");
+    validateNumeric(json, "last_read_seqno");
+    validateNumeric(json, "backfill_buffer_bytes");
+    validateNumeric(json, "backfill_buffer_items");
+    validateBoolean(json, "cursor_registered");
+    validateBoolean(json, "change_streams_enabled");
+    validateNumeric(json, "last_sent_seqno");
+    validateNumeric(json, "ready_queue_memory");
+}
+#endif

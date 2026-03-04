@@ -17,6 +17,7 @@
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/json_log.h>
 #include <spdlog/common.h>
 
@@ -91,6 +92,17 @@ public:
 
     virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
 
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /**
+     * MB-70706:
+     * Validate that stream stats JSON contains all mandatory fields with
+     * correct types and log if any are missing/invalid.
+     *
+     * @param json The JSON object containing the stream stats
+     */
+    virtual void validateStreamStats(const nlohmann::json& json) const;
+#endif
+
     virtual void setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
     const std::string& getName() const {
@@ -154,6 +166,17 @@ public:
     }
 
 protected:
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /// Validate that a field contains a valid numeric string value
+    static void validateNumeric(const nlohmann::json& json,
+                                const std::string& fieldName);
+
+    /// Validate that a field contains a valid boolean string value ("true" or
+    /// "false")
+    static void validateBoolean(const nlohmann::json& json,
+                                const std::string& fieldName);
+#endif
+
     /* To be called after getting streamMutex lock */
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
 

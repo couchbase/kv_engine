@@ -77,6 +77,10 @@ public:
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) override;
 
+#ifdef CB_DEVELOPMENT_ASSERTS
+    void validateStreamStats(const nlohmann::json& json) const override;
+#endif
+
     enum class Status {
         /// maybeQueueItem() has queued an item. Caller should continue
         /// visiting.
