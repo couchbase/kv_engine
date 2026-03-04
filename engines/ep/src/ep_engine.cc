@@ -7047,36 +7047,68 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     auto connhandler = getSharedPtrConnHandler(cookie);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
-    std::vector<char> payload;
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
-
-    /* Reserve a buffer that's big enough to hold all of them (we might
-     * not use all of them. Each entry in the array occupies 10 bytes
-     * (two bytes vbucket id followed by 8 bytes sequence number)
-     */
+    std::vector<char> payload;
     try {
-        payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
+        // Build the response payload. Each entry in the array occupies 10 bytes
+        // (two bytes vbucket id followed by 8 bytes sequence number)
+        payload.reserve(vbuckets.size() *
+                        (sizeof(uint16_t) + sizeof(uint64_t)));
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
 
-    for (auto id : vbuckets) {
-        VBucketPtr vb = getVBucket(id);
+    auto callback = [&payload](Vbid vbid, uint64_t seqno) {
+        auto vbidNetwork = vbid.hton();
+        auto offset = payload.size();
+        payload.resize(offset + sizeof(vbidNetwork) + sizeof(seqno));
+        memcpy(payload.data() + offset, &vbidNetwork, sizeof(vbidNetwork));
+
+        uint64_t seqnoNetwork = htonll(seqno);
+        memcpy(payload.data() + offset + sizeof(vbidNetwork),
+               &seqnoNetwork,
+               sizeof(seqnoNetwork));
+    };
+
+    collectVBucketSequenceNumbers(reqState,
+                                  std::move(reqCollection),
+                                  callback,
+                                  supportsSyncWrites,
+                                  collectionsEnabled);
+
+    return sendResponse(response,
+                        {}, /* key */
+                        {}, /* ext field */
+                        {payload.data(), payload.size()}, /* value */
+                        ValueIsJson::No,
+                        cb::mcbp::Status::Success,
+                        0,
+                        cookie);
+}
+
+void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
+        PermittedVBStates reqState,
+        std::optional<CollectionID> cid,
+        const std::function<void(Vbid, uint64_t)>& callback,
+        bool supportsSyncWrites,
+        bool collectionsEnabled) {
+    auto vbuckets = kvBucket->getVBuckets().getBuckets();
+    for (auto vbid : vbuckets) {
+        VBucketPtr vb = getVBucket(vbid);
         if (vb) {
             if (!reqState.test(vb->getState())) {
                 continue;
             }
 
-            Vbid vbid = id.hton();
             uint64_t highSeqno{0};
 
-            if (reqCollection) {
+            if (cid) {
                 // The collection may not exist in any given vBucket.
                 // Check this instead of throwing and catching an
                 // exception.
                 auto handle = vb->lockCollections();
-                if (handle.exists(reqCollection.value())) {
-                    if (reqCollection.value() == CollectionID::Default &&
+                if (handle.exists(cid.value())) {
+                    if (cid.value() == CollectionID::Default &&
                         !collectionsEnabled) {
                         highSeqno =
                                 supportsSyncWrites
@@ -7086,13 +7118,11 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         // supports collections thus supports SeqAdvanced. KV
                         // returns the high-seqno which may or may not be
                         // visible
-                        highSeqno = handle.getHighSeqno(*reqCollection);
+                        highSeqno = handle.getHighSeqno(*cid);
                     }
                 } else {
                     // If the collection doesn't exist in this
-                    // vBucket, return nothing for this vBucket by
-                    // not adding anything to the payload during this
-                    // iteration.
+                    // vBucket, return nothing for this vBucket.
                     continue;
                 }
             } else {
@@ -7109,24 +7139,10 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                                               ->getVisibleSnapshotEndSeqno();
                 }
             }
-            auto offset = payload.size();
-            payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
-            memcpy(payload.data() + offset, &vbid, sizeof(vbid));
-            highSeqno = htonll(highSeqno);
-            memcpy(payload.data() + offset + sizeof(vbid),
-                   &highSeqno,
-                   sizeof(highSeqno));
+
+            callback(vbid, highSeqno);
         }
     }
-
-    return sendResponse(response,
-                        {}, /* key */
-                        {}, /* ext field */
-                        {payload.data(), payload.size()}, /* value */
-                        ValueIsJson::No,
-                        cb::mcbp::Status::Success,
-                        0,
-                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(

@@ -137,6 +137,7 @@ public:
 
     void public_setActiveEncryptionKeys(nlohmann::json keys);
 
+    using EventuallyPersistentEngine::collectVBucketSequenceNumbers;
     using EventuallyPersistentEngine::doCollectionStats;
     using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doContinuousBackupStats;
