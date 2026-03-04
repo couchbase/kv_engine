@@ -87,6 +87,7 @@ TEST_F(CollectVBucketSeqnosTest, bucket_seqnos) {
     engine->collectVBucketSequenceNumbers(
             aliveVBStates,
             {},
+            {},
             [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
                 vbSeqnosInfo.emplace_back(vbid, seqno);
             },
@@ -138,6 +139,7 @@ TEST_F(CollectVBucketSeqnosTest, active_vbucket_seqnos) {
     engine->collectVBucketSequenceNumbers(
             vbucket_state_active,
             {},
+            {},
             [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
                 vbSeqnosInfo.emplace_back(vbid, seqno);
             },
@@ -180,6 +182,7 @@ TEST_F(CollectVBucketSeqnosTest, collection_filtering) {
     engine->collectVBucketSequenceNumbers(
             aliveVBStates,
             CollectionEntry::fruit,
+            {},
             [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
                 vbSeqnosInfo.emplace_back(vbid, seqno);
             },
@@ -228,6 +231,7 @@ TEST_F(CollectVBucketSeqnosTest, sync_writes) {
 
     engine->collectVBucketSequenceNumbers(
             aliveVBStates,
+            {},
             {},
             [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
                 vbSeqnosInfo.emplace_back(vbid, seqno);
@@ -278,6 +282,7 @@ TEST_F(CollectVBucketSeqnosTest, sync_writes) {
     engine->collectVBucketSequenceNumbers(
             aliveVBStates,
             {},
+            {},
             [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
                 vbSeqnosInfo.emplace_back(vbid, seqno);
             },
@@ -292,4 +297,92 @@ TEST_F(CollectVBucketSeqnosTest, sync_writes) {
                        });
     ASSERT_NE(it0, vbSeqnosInfo.end());
     EXPECT_EQ(it0->second, vbid0HS + 1);
+}
+
+TEST_F(CollectVBucketSeqnosTest, scope_filtering) {
+    // Create a test vbucket
+    auto kvbucket = engine->getKVBucket();
+    auto vb = kvbucket->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Test collecting sequence numbers with default collection filter
+    auto vbuckets = kvbucket->getVBuckets().getBuckets();
+    std::vector<std::pair<Vbid, uint64_t>> vbSeqnosInfo;
+
+    engine->collectVBucketSequenceNumbers(
+            aliveVBStates,
+            {},
+            ScopeEntry::shop1,
+            [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
+                vbSeqnosInfo.emplace_back(vbid, seqno);
+            },
+            true,
+            true);
+
+    EXPECT_FALSE(vbSeqnosInfo.empty());
+    // 3 vbuckets in map, but replica has no collections, so returns nothing.
+    EXPECT_EQ(2, vbSeqnosInfo.size());
+
+    auto it = std::find_if(vbSeqnosInfo.begin(),
+                           vbSeqnosInfo.end(),
+                           [this](const std::pair<Vbid, uint64_t> info) {
+                               return info.first == vbid0;
+                           });
+    ASSERT_NE(it, vbSeqnosInfo.end());
+    EXPECT_EQ(it->second, vbid0HS - 1);
+
+    it = std::find_if(vbSeqnosInfo.begin(),
+                      vbSeqnosInfo.end(),
+                      [this](const std::pair<Vbid, uint64_t> info) {
+                          return info.first == vbid2;
+                      });
+    ASSERT_NE(it, vbSeqnosInfo.end());
+    EXPECT_EQ(it->second,
+              engine->getVBucket(vbid2)
+                      ->getManifest()
+                      .lock(CollectionEntry::fruit)
+                      .getHighSeqno());
+
+    vbSeqnosInfo.clear();
+    engine->collectVBucketSequenceNumbers(
+            aliveVBStates,
+            {},
+            ScopeID::Default,
+            [&vbSeqnosInfo](Vbid vbid, uint64_t seqno) {
+                vbSeqnosInfo.emplace_back(vbid, seqno);
+            },
+            true,
+            true);
+
+    EXPECT_FALSE(vbSeqnosInfo.empty());
+    // 3 vbuckets in map, and default collection exists everywhere by default...
+    EXPECT_EQ(3, vbSeqnosInfo.size());
+
+    it = std::find_if(vbSeqnosInfo.begin(),
+                      vbSeqnosInfo.end(),
+                      [this](const std::pair<Vbid, uint64_t> info) {
+                          return info.first == vbid0;
+                      });
+    ASSERT_NE(it, vbSeqnosInfo.end());
+    EXPECT_EQ(it->second, vbid0HS);
+
+    it = std::find_if(vbSeqnosInfo.begin(),
+                      vbSeqnosInfo.end(),
+                      [this](const std::pair<Vbid, uint64_t> info) {
+                          return info.first == vbid2;
+                      });
+    ASSERT_NE(it, vbSeqnosInfo.end());
+    EXPECT_EQ(it->second,
+              engine->getVBucket(vbid2)
+                      ->getManifest()
+                      .lock(CollectionID::Default)
+                      .getHighSeqno());
+
+    it = std::find_if(vbSeqnosInfo.begin(),
+                      vbSeqnosInfo.end(),
+                      [this](const std::pair<Vbid, uint64_t> info) {
+                          return info.first == vbid1;
+                      });
+    ASSERT_NE(it, vbSeqnosInfo.end());
+    EXPECT_EQ(it->second, 0);
 }

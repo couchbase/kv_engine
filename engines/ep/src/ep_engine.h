@@ -1779,6 +1779,7 @@ protected:
      *
      * @param reqState The requested vbucket states to include
      * @param cid Optional collection ID to filter on
+     * @param sid Optional scope ID to filter on
      * @param callback Function to call for each vbucket with its vbid and
      * sequence number
      * @param supportsSyncWrites Whether sync writes are supported
@@ -1787,6 +1788,7 @@ protected:
     void collectVBucketSequenceNumbers(
             PermittedVBStates reqState,
             std::optional<CollectionID> cid,
+            std::optional<ScopeID> sid,
             const std::function<void(Vbid, uint64_t)>& callback,
             bool supportsSyncWrites,
             bool collectionsEnabled);

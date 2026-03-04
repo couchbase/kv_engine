@@ -7072,6 +7072,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 
     collectVBucketSequenceNumbers(reqState,
                                   std::move(reqCollection),
+                                  std::nullopt,
                                   callback,
                                   supportsSyncWrites,
                                   collectionsEnabled);
@@ -7089,9 +7090,15 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
         PermittedVBStates reqState,
         std::optional<CollectionID> cid,
+        std::optional<ScopeID> sid,
         const std::function<void(Vbid, uint64_t)>& callback,
         bool supportsSyncWrites,
         bool collectionsEnabled) {
+    if (cid && sid) {
+        throw std::invalid_argument(
+                "collectVBucketSequenceNumbers: cannot specify both "
+                "collection ID and scope ID");
+    }
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
     for (auto vbid : vbuckets) {
         VBucketPtr vb = getVBucket(vbid);
@@ -7101,12 +7108,12 @@ void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
             }
 
             uint64_t highSeqno{0};
+            auto handle = vb->lockCollections();
 
             if (cid) {
                 // The collection may not exist in any given vBucket.
                 // Check this instead of throwing and catching an
                 // exception.
-                auto handle = vb->lockCollections();
                 if (handle.exists(cid.value())) {
                     if (cid.value() == CollectionID::Default &&
                         !collectionsEnabled) {
@@ -7124,6 +7131,19 @@ void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
                     // If the collection doesn't exist in this
                     // vBucket, return nothing for this vBucket.
                     continue;
+                }
+            } else if (sid) {
+                // Get all collections in the scope and find the highest seqno
+                auto collectionsInScope = handle.getCollectionsForScope(*sid);
+                if (!collectionsInScope) {
+                    // Scope doesn't exist in this vBucket
+                    continue;
+                }
+
+                for (const auto& collectionId : collectionsInScope.value()) {
+                    uint64_t collectionSeqno =
+                            handle.getHighSeqno(collectionId);
+                    highSeqno = std::max(highSeqno, collectionSeqno);
                 }
             } else {
                 if (vb->getState() == vbucket_state_active) {
