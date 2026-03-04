@@ -235,5 +235,12 @@ MockCookie* create_mock_cookie(EngineIface* engine = nullptr);
 
 void destroy_mock_cookie(CookieIface* cookie);
 
+struct MockCookieDeleter {
+    void operator()(CookieIface* cookie) const {
+        destroy_mock_cookie(cookie);
+    }
+};
+using MockCookieUniquePtr = std::unique_ptr<MockCookie, MockCookieDeleter>;
+
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie);
 MockCookie& asMockCookie(CookieIface& cookie);

@@ -1469,7 +1469,7 @@ TEST_P(STMagmaFusionTest, MetadataAuthToken) {
 }
 
 TEST_P(STMagmaFusionTest, MountVbucket) {
-    auto* cookie2 = create_mock_cookie(engine.get());
+    MockCookieUniquePtr cookie2{create_mock_cookie(engine.get())};
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
         auto ret =
@@ -1491,7 +1491,6 @@ TEST_P(STMagmaFusionTest, MountVbucket) {
         EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
         runNextTask(auxIoQ, "Mounting VBucket vb:0");
     }
-    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
@@ -1506,7 +1505,7 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
     std::filesystem::remove_all(dbPath / "magma.1");
     reinitialise(buildNewWarmupConfig(config_string), false);
 
-    auto* cookie2 = create_mock_cookie(engine.get());
+    MockCookieUniquePtr cookie2{create_mock_cookie(engine.get())};
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
         auto ret =
@@ -1562,7 +1561,6 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
         }
         runBGFetcherTask();
     }
-    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(STMagmaFusionTest, LoadVBucket) {
@@ -1589,7 +1587,7 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     std::filesystem::remove_all(dbPath / "magma.1");
     reinitialise(buildNewWarmupConfig(config_string), false);
 
-    auto* cookie2 = create_mock_cookie(engine.get());
+    MockCookieUniquePtr cookie2{create_mock_cookie(engine.get())};
     auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
         auto ret =
@@ -1612,8 +1610,11 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
             EXPECT_EQ(cb::engine_errc::success, ret);
             break;
         }
-        auto retDup = store->setVBucketState(
-                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie2);
+        auto retDup = store->setVBucketState(vbid,
+                                             vbucket_state_replica,
+                                             &meta,
+                                             TransferVB::No,
+                                             cookie2.get());
         EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
         runNextTask(auxIoQ, "Loading VBucket vb:0");
     }
@@ -1642,7 +1643,6 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
         }
         runBGFetcherTask();
     }
-    destroy_mock_cookie(cookie2);
 }
 
 TEST_P(STMagmaFusionTest, ToggleUploader) {
