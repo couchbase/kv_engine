@@ -99,6 +99,12 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
     setCommitted(other.getCommitted());
     setAge(0);
     setCas(other.getCas());
+
+    // Preserve locked_cas (MB-70699)
+    if (other.getCasEncoding() == CasEncoding::SeparateDouble) {
+        setLockedCas(other.getCasPair().lockedCAS);
+    }
+
     // Placement-new the key which lives in memory directly after this
     // object.
     StoredDocKey sKey(other.getKey());
