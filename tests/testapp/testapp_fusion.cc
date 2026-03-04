@@ -593,7 +593,8 @@ TEST_P(FusionTest, Stat_IsMounted) {
 
     // mount vbucket
     const auto resp = mountVbucket(Vbid(1), nlohmann::json::array());
-    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus()
+                                  << " message:" << resp.getDataView();
 
     json = fusionStats("is_mounted", Vbid(1)).second;
     ASSERT_EQ(cb::engine_errc::success, ec);
@@ -900,7 +901,8 @@ TEST_P(FusionTest, ReleaseStorageSnapshot_Nonexistent) {
                                              bucketUuid,
                                              metadatastoreUri,
                                              metadatastoreAuthToken);
-    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus()
+                                  << " message:" << resp.getDataView();
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
@@ -940,7 +942,8 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
                                                metadatastoreUri,
                                                metadatastoreAuthToken,
                                                validTill);
-    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus()
+                                  << " message:" << resp.getDataView();
     const auto& json = resp.getDataJson();
     ASSERT_FALSE(json.empty());
     ASSERT_TRUE(json.is_array());
@@ -981,7 +984,8 @@ TEST_P(FusionTest, MountFusionVbucket) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
         return;
     }
-    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus()
+                                  << " message:" << resp.getDataView();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.contains("deks")) << res.dump();
@@ -994,7 +998,8 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
         return;
     }
-    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus()
+                                  << " message:" << resp.getDataView();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
     ASSERT_TRUE(res.contains("deks")) << res.dump();
