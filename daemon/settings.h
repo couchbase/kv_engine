@@ -279,6 +279,27 @@ public:
     }
 
     /**
+     * Get the connection trace size. The maximum number of trace entries
+     * to keep per connection.
+     *
+     * @return the connection trace size
+     */
+    std::size_t getConnectionTraceSize() const {
+        return connection_trace_size;
+    }
+
+    /**
+     * Set the connection trace size
+     *
+     * @param value the maximum number of trace entries to keep per connection
+     */
+    void setConnectionTraceSize(std::size_t value) {
+        Settings::connection_trace_size = value;
+        has.connection_trace_size = true;
+        notify_changed("connection_trace_size");
+    }
+
+    /**
      * Get the root directory of the couchbase installation
      *
      * This allows the process to locate files in <code>etc/security</code> and
@@ -1389,6 +1410,15 @@ protected:
     /// The number of seconds a client may be idle before it is disconnected
     cb::RelaxedAtomic<size_t> connection_idle_time{0};
 
+    /// The maximum number of trace entries to keep per connection
+    cb::RelaxedAtomic<std::size_t> connection_trace_size{
+#ifdef CB_DEVELOPMENT_ASSERTS
+            30
+#else
+            0
+#endif
+    };
+
     /// If a client reaches or exceeds this amount of queued data then
     /// execution of new commands for that client is paused until the data is
     /// transferred to the kernels send buffer. The motivation for the limit
@@ -1737,6 +1767,7 @@ public:
         bool enable_deprecated_bucket_autoselect = false;
         bool verbose = false;
         bool connection_idle_time = false;
+        bool connection_trace_size = false;
         bool datatype_json = false;
         bool datatype_snappy = false;
         bool root = false;

@@ -216,6 +216,14 @@ nlohmann::json Connection::to_json() const {
     if (!terminationReason.empty()) {
         ret["termination_reason"] = terminationReason;
     }
+
+    nlohmann::json array = nlohmann::json::array();
+    executionLog.iterate(
+            [&array](const TraceRecord& tr) { array.emplace_back(tr); });
+    if (!array.empty()) {
+        ret["execution_log"] = array;
+    }
+
     return ret;
 }
 
@@ -929,6 +937,18 @@ void Connection::processNotifiedCookie(
 }
 
 void Connection::commandExecuted(Cookie& cookie) {
+    if (executionLog.capacity()) {
+        using namespace cb::mcbp;
+        const auto& header = cookie.getHeader();
+        TraceRecord tr;
+        tr.timestamp = std::chrono::steady_clock::now();
+        tr.opcode.raw = header.getOpcode();
+        tr.magic = static_cast<Magic>(header.getMagic());
+        if (is_request(tr.magic) && !is_server_magic(tr.magic)) {
+            tr.trace = cookie.getTracer().to_string();
+        }
+        executionLog.push(std::move(tr));
+    }
     getBucket().commandExecuted(cookie);
 }
 
@@ -1252,7 +1272,8 @@ Connection::Connection(FrontEndThread& thr)
               "dummy", "127.0.0.1", 11210, AF_INET, false, false)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
-      socketDescriptor(INVALID_SOCKET) {
+      socketDescriptor(INVALID_SOCKET),
+      executionLog(0) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId("unknown:0");
@@ -1307,7 +1328,8 @@ Connection::Connection(SOCKET sfd,
       listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
-      socketDescriptor(sfd) {
+      socketDescriptor(sfd),
+      executionLog(Settings::instance().getConnectionTraceSize()) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor));
@@ -2751,4 +2773,25 @@ cb::rbac::PrivilegeContext Connection::createContext(
 
 void to_json(nlohmann::json& json, const Connection& connection) {
     json = connection.to_json();
+}
+
+void to_json(nlohmann::json& json, const Connection::TraceRecord& tr) {
+    json = nlohmann::json::object();
+    if (cb::mcbp::is_server_magic(tr.magic)) {
+        json["opcode"] = tr.opcode.server;
+    } else {
+        json["opcode"] = tr.opcode.client;
+    }
+
+    json["age"] =
+            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - tr.timestamp));
+    if (!tr.trace.empty()) {
+        json["trace"] = tr.trace;
+    }
+    if (cb::mcbp::is_request(tr.magic)) {
+        json["type"] = "request";
+    } else {
+        json["type"] = "response";
+    }
 }

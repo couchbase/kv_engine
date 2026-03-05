@@ -555,6 +555,20 @@ TEST_F(SettingsTest, ConnectionIdleTime) {
     }
 }
 
+TEST_F(SettingsTest, ConnectionTraceSize) {
+    nonNumericValuesShouldFail("connection_trace_size");
+
+    nlohmann::json obj;
+    obj["connection_trace_size"] = std::size_t{128};
+    try {
+        Settings settings(obj);
+        EXPECT_EQ(128, settings.getConnectionTraceSize());
+        EXPECT_TRUE(settings.has.connection_trace_size);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, DatatypeJson) {
     nonBooleanValuesShouldFail("datatype_json");
 

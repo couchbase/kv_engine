@@ -213,6 +213,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setVerbose(value.get<int>());
         } else if (key == "connection_idle_time"sv) {
             setConnectionIdleTime(value.get<unsigned int>());
+        } else if (key == "connection_trace_size"sv) {
+            setConnectionTraceSize(value.get<std::size_t>());
         } else if (key == "datatype_json"sv) {
             setDatatypeJsonEnabled(value.get<bool>());
         } else if (key == "datatype_snappy"sv) {
@@ -795,6 +797,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", connection_idle_time.load()},
                          {"to", other.connection_idle_time.load()});
             setConnectionIdleTime(other.connection_idle_time);
+        }
+    }
+    if (other.has.connection_trace_size) {
+        if (other.connection_trace_size != connection_trace_size) {
+            LOG_INFO_CTX("Change connection trace size",
+                         {"from", connection_trace_size.load()},
+                         {"to", other.connection_trace_size.load()});
+            setConnectionTraceSize(other.connection_trace_size);
         }
     }
     if (other.has.max_packet_size) {

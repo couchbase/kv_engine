@@ -720,6 +720,12 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
     EXPECT_NE(0, stats.front()["SNDBUF"]);
     EXPECT_NE(0, stats.front()["RCVBUF"]);
 #endif
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    EXPECT_TRUE(stats.front().contains("execution_log"))
+            << "Missing trace field in connections stat"
+            << stats.front().dump(2);
+#endif
 }
 
 TEST_P(StatsTest, TestUnprivilegedConnectionsWithSpecificFd) {

@@ -25,6 +25,7 @@
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
+#include <platform/ringbuffer.h>
 #include <platform/socket.h>
 
 #include <array>
@@ -64,6 +65,24 @@ enum class ClustermapChangeNotification : uint8_t { None, Brief, Full };
  */
 class Connection : public ConnectionIface, public DcpMessageProducersIface {
 public:
+    /// A structure representing a single entry in the connection's trace log
+    struct TraceRecord {
+        enum class Type : uint8_t { Request, Response };
+        /// The time when the event was recorded
+        std::chrono::steady_clock::time_point timestamp;
+        /// If available (only for command requests) the recorded trace span
+        /// from executing the command
+        std::string trace;
+        /// The commands magic
+        cb::mcbp::Magic magic;
+        /// The opcode of the command (for requests) or response (for responses)
+        union {
+            cb::mcbp::ClientOpcode client;
+            cb::mcbp::ServerOpcode server;
+            uint8_t raw;
+        } opcode;
+    };
+
     /// A class representing the states the connection may be in
     enum class State : int8_t {
         /// The client is running and may accept new commands
@@ -1205,6 +1224,8 @@ protected:
      */
     std::atomic<ConnectionPriority> priority{ConnectionPriority::Medium};
 
+    /// The list of trace records for this connection (if tracing is enabled)
+    cb::RingBuffer<TraceRecord> executionLog;
 
     /**
      * Is XERROR supported for this connection or not (or should we just
@@ -1405,3 +1426,4 @@ protected:
 };
 
 void to_json(nlohmann::json& json, const Connection& connection);
+void to_json(nlohmann::json& json, const Connection::TraceRecord& tr);
