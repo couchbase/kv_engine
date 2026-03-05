@@ -128,7 +128,7 @@ void Bucket::shutdownReplication() {
 
 std::unique_ptr<MemcachedConnection> Bucket::getConnection(
         Vbid vbucket, vbucket_state_t state, size_t replica_number) {
-    if (vbucket.get() > vbucketmap.size()) {
+    if (vbucket.get() >= vbucketmap.size()) {
         throw std::invalid_argument("Bucket::getConnection: Invalid vbucket");
     }
 
