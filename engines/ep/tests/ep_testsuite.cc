@@ -7010,6 +7010,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_data_compression_algo",
               "ep_oom_errors",
               "ep_overhead",
+              "ep_pageable_mem",
               "ep_pager_sleep_time_ms",
               "ep_paging_visitor_pause_check_count",
               "ep_pending_compactions",
