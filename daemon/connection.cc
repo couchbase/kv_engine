@@ -669,6 +669,9 @@ inline void Connection::handleRejectCommand(Cookie& cookie,
 void Connection::executeCommandPipeline() {
     const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     const auto tooMuchData = [this, maxSendQueueSize]() {
+        if (isAuthenticationProvider()) {
+            return false;
+        }
         return getSendQueueSize() >= maxSendQueueSize;
     };
 
