@@ -209,9 +209,6 @@ public:
             std::optional<ScopeID> sid = std::nullopt,
             std::optional<CollectionID> cid = std::nullopt) const;
 
-    /// @return string of the status
-    std::string to_string() const;
-
     /// @return Status::Ok, required for FunctionChain
     static PrivilegeAccess getSuccessValue() {
         return PrivilegeAccess{Status::Ok};
@@ -226,6 +223,14 @@ const PrivilegeAccess PrivilegeAccessOk{PrivilegeAccess::Status::Ok};
 const PrivilegeAccess PrivilegeAccessFail{PrivilegeAccess::Status::Fail};
 const PrivilegeAccess PrivilegeAccessFailNoPrivileges{
         PrivilegeAccess::Status::FailNoPrivileges};
+
+/// Get the textual representation of a PrivilegeAccess::Status
+std::string_view format_as(const PrivilegeAccess::Status& status);
+
+/// Override the stream operator for PrivilegeAccess::Status to allow
+/// GTest to print it properly
+std::ostream& operator<<(std::ostream& os,
+                         const PrivilegeAccess::Status& status);
 
 /// is this a privilege related to a bucket or not
 bool is_bucket_privilege(Privilege);

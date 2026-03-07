@@ -86,20 +86,6 @@ cb::engine_errc PrivilegeAccess::getEngineErrorCode(
     Expects(false && "Unknown PrivilegeAccess status");
 }
 
-std::string PrivilegeAccess::to_string() const {
-    switch (status) {
-    case Status::Ok:
-        return "Ok";
-    case Status::Fail:
-        return "Fail";
-    case Status::FailNoPrivileges:
-        return "FailNoPrivileges";
-    }
-    throw std::invalid_argument(
-            "PrivilegeAccess::to_string(): Unknown status: " +
-            std::to_string(int(status)));
-}
-
 /// is this a privilege related to a bucket or not
 bool is_bucket_privilege(Privilege priv) {
     switch (priv) {
@@ -206,6 +192,25 @@ bool is_legal_privilege(Privilege privilege) {
     }
 
     return false;
+}
+
+std::string_view format_as(const PrivilegeAccess::Status& status) {
+    using namespace std::string_view_literals;
+    switch (status) {
+    case PrivilegeAccess::Status::Ok:
+        return "Ok"sv;
+    case PrivilegeAccess::Status::Fail:
+        return "Fail"sv;
+    case PrivilegeAccess::Status::FailNoPrivileges:
+        return "FailNoPrivileges"sv;
+    }
+    Expects(false && "Unknown PrivilegeAccess::Status");
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const PrivilegeAccess::Status& status) {
+    os << format_as(status);
+    return os;
 }
 
 } // namespace cb::rbac
