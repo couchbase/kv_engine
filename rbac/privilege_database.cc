@@ -10,23 +10,19 @@
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
-#include <folly/portability/Stdlib.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/logtags.h>
 #include <atomic>
 #include <fstream>
-#include <iostream>
 #include <memory>
-#include <sstream>
-#include <streambuf>
 #include <string>
 
 std::size_t std::hash<cb::rbac::UserIdent>::operator()(
         cb::rbac::UserIdent const& user) const noexcept {
     std::size_t h1 = std::hash<std::string>{}(user.name);
-    std::size_t h2 = std::hash<uint8_t>{}(uint8_t(user.domain));
+    std::size_t h2 = std::hash<uint8_t>{}(static_cast<uint8_t>(user.domain));
     return h1 ^ (h2 << 1);
 }
 
@@ -94,7 +90,7 @@ static std::vector<std::string> privilegeMask2Vector(
 /**
  * Parse a JSON array containing a set of privileges.
  *
- * @param priv The JSON array to parse
+ * @param privs The JSON array to parse
  * @param buckets Set to true if this is for the bucket list (which
  *                will mask out some of the privileges you can't
  *                specify for a bucket)
@@ -108,12 +104,12 @@ static PrivilegeMask parsePrivileges(const nlohmann::json& privs,
         if (str == "all") {
             ret.set();
         } else {
-            ret[int(to_privilege(str))] = true;
+            ret[static_cast<int>(to_privilege(str))] = true;
         }
     }
 
     for (std::size_t ii = 0; ii < ret.size(); ++ii) {
-        if (buckets == !is_bucket_privilege(Privilege(ii))) {
+        if (buckets == !is_bucket_privilege(static_cast<Privilege>(ii))) {
             ret[ii] = false;
         }
     }
@@ -163,8 +159,9 @@ void to_json(nlohmann::json& json, const Collection& collection) {
 }
 
 PrivilegeAccess Collection::check(Privilege privilege) const {
-    return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccessOk
-                                                  : PrivilegeAccessFail;
+    return privilegeMask.test(static_cast<size_t>(privilege))
+                   ? PrivilegeAccessOk
+                   : PrivilegeAccessFail;
 }
 
 Scope::Scope(const nlohmann::json& json) {
@@ -209,7 +206,7 @@ void to_json(nlohmann::json& json, const Scope& scope) {
 PrivilegeAccess Scope::check(Privilege privilege,
                              std::optional<uint32_t> collection,
                              bool parentHasCollectionPrivileges) const {
-    if (privilegeMask.test(uint8_t(privilege))) {
+    if (privilegeMask.test(static_cast<size_t>(privilege))) {
         return PrivilegeAccessOk;
     }
 
@@ -233,7 +230,7 @@ PrivilegeAccess Scope::check(Privilege privilege,
 
 PrivilegeAccess Scope::checkForPrivilegeAtLeastInOneCollection(
         Privilege privilege) const {
-    if (privilegeMask.test(uint8_t(privilege))) {
+    if (privilegeMask.test(static_cast<size_t>(privilege))) {
         return PrivilegeAccessOk;
     }
 
@@ -275,7 +272,8 @@ Bucket::Bucket(const nlohmann::json& json) {
     for (std::size_t ii = 0;
          ii < privilegeMask.size() && !collectionPrivilegeExists;
          ++ii) {
-        if (is_collection_privilege(Privilege(ii)) && privilegeMask.test(ii)) {
+        if (is_collection_privilege(static_cast<Privilege>(ii)) &&
+            privilegeMask.test(ii)) {
             collectionPrivilegeExists = true;
         }
     }
@@ -324,7 +322,7 @@ PrivilegeAccess Bucket::check(Privilege privilege,
 
 PrivilegeAccess Bucket::checkForPrivilegeAtLeastInOneCollection(
         Privilege privilege) const {
-    if (privilegeMask.test(uint8_t(privilege))) {
+    if (privilegeMask.test(static_cast<size_t>(privilege))) {
         return PrivilegeAccessOk;
     }
 
@@ -492,7 +490,7 @@ void PrivilegeContext::dropPrivilege(Privilege privilege) {
     // Given that we're using a shared_ptr to the buckets we can't modify
     // the privilege mask for the buckets/scopes/collections.
     // Keep them around in a separate mask and check it later on.
-    const auto idx = size_t(privilege);
+    const auto idx = static_cast<size_t>(privilege);
     droppedPrivileges.set(idx);
 }
 
@@ -508,7 +506,7 @@ bool PrivilegeContext::isStale() const {
 PrivilegeAccess PrivilegeContext::check(Privilege privilege,
                                         std::optional<ScopeID> sid,
                                         std::optional<CollectionID> cid) const {
-    const auto idx = size_t(privilege);
+    const auto idx = static_cast<size_t>(privilege);
 #ifndef NDEBUG
     if (idx >= mask.size()) {
         throw std::invalid_argument("Invalid privilege passed for the check)");
@@ -541,7 +539,7 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege,
 
 PrivilegeAccess PrivilegeContext::checkForPrivilegeAtLeastInOneCollection(
         Privilege privilege) const {
-    const auto idx = size_t(privilege);
+    const auto idx = static_cast<size_t>(privilege);
 #ifndef NDEBUG
     if (idx >= mask.size()) {
         throw std::invalid_argument("Invalid privilege passed for the check)");
@@ -596,7 +594,7 @@ void PrivilegeContext::setBucketPrivileges() {
 
 void PrivilegeContext::setBucketPrivilegeBits(bool value) {
     for (std::size_t ii = 0; ii < mask.size(); ++ii) {
-        if (is_bucket_privilege(Privilege(ii))) {
+        if (is_bucket_privilege(static_cast<Privilege>(ii))) {
             mask[ii] = value;
         }
     }

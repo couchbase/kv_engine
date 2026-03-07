@@ -11,7 +11,6 @@
 #include <gsl/gsl-lite.hpp>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json.hpp>
-#include <platform/string_hex.h>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -121,7 +120,7 @@ bool is_bucket_privilege(Privilege priv) {
 
     throw std::invalid_argument(
             "is_bucket_privilege() invalid privilege provided: " +
-            std::to_string(int(priv)));
+            std::to_string(static_cast<int>(priv)));
 }
 
 bool is_collection_privilege(Privilege priv) {
@@ -158,7 +157,7 @@ bool is_collection_privilege(Privilege priv) {
 
     throw std::invalid_argument(
             "is_collection_privilege() invalid privilege provided: " +
-            std::to_string(int(priv)));
+            std::to_string(static_cast<int>(priv)));
 }
 
 bool is_legal_privilege(Privilege privilege) {
