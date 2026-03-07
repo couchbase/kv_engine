@@ -266,3 +266,133 @@ TEST(ConfigValueAsFloat, WithTrailingCharacters) {
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
 }
+
+TEST(ConfigValueAsFloat, Integer) {
+    EXPECT_EQ(42.0f, value_as_float("42"));
+}
+
+TEST(ConfigValueAsFloat, Negative) {
+    EXPECT_EQ(-12.32f, value_as_float("-12.32"));
+}
+
+// =====================================================================
+// next_field: escaped backslash
+// =====================================================================
+
+TEST(ConfigNextField, escaped_backslash) {
+    // R"(foo\\bar)" is literally foo\\bar (two backslashes).
+    // The parser collapses each \\ into a single \, yielding foo\bar.
+    auto input = R"(foo\\bar)"sv;
+    EXPECT_EQ("foo\\bar", internal::next_field(input, '='));
+    EXPECT_TRUE(input.empty());
+}
+
+// =====================================================================
+// tokenize: null callback, key-only input
+// =====================================================================
+
+TEST(ConfigTokenize, NullCallbackThrows) {
+    EXPECT_THROW(tokenize("key=value", nullptr), std::invalid_argument);
+}
+
+TEST(ConfigTokenize, KeyWithoutEquals) {
+    // A string with no '=' causes next_field to consume everything as the key
+    // and return an empty string as the value.
+    bool called = false;
+    tokenize("justkey"sv, [&called](auto k, auto v) {
+        EXPECT_EQ("justkey"sv, k);
+        EXPECT_EQ("", v);
+        called = true;
+    });
+    EXPECT_TRUE(called) << "Callback not called";
+}
+
+// =====================================================================
+// value_as_size_t: zero, uppercase multipliers
+// =====================================================================
+
+TEST(ConfigValueAsSizeT, Zero) {
+    EXPECT_EQ(0UL, value_as_size_t("0"));
+}
+
+TEST(ConfigValueAsSizeT, WithUppercaseSizeSpecifiers) {
+    EXPECT_EQ(1234_KiB, value_as_size_t("1234K"));
+    EXPECT_EQ(1234_MiB, value_as_size_t("1234M"));
+    EXPECT_EQ(1234_GiB, value_as_size_t("1234G"));
+    EXPECT_EQ(1234_TiB, value_as_size_t("1234T"));
+}
+
+// =====================================================================
+// value_as_ssize_t: plain integers, uppercase multipliers, error path
+// =====================================================================
+
+TEST(ConfigValueAsSSizeT, PlainPositiveInteger) {
+    EXPECT_EQ(1234, value_as_ssize_t("1234"));
+}
+
+TEST(ConfigValueAsSSizeT, PlainNegativeInteger) {
+    EXPECT_EQ(-1234, value_as_ssize_t("-1234"));
+}
+
+TEST(ConfigValueAsSSizeT, WithUppercaseSizeSpecifiers) {
+    EXPECT_EQ(static_cast<ssize_t>(1234_KiB), value_as_ssize_t("1234K"));
+    EXPECT_EQ(static_cast<ssize_t>(1234_MiB), value_as_ssize_t("1234M"));
+    EXPECT_EQ(static_cast<ssize_t>(1234_GiB), value_as_ssize_t("1234G"));
+    EXPECT_EQ(static_cast<ssize_t>(1234_TiB), value_as_ssize_t("1234T"));
+}
+
+TEST(ConfigValueAsSSizeT, WithTrailingCharacters) {
+    bool detected = false;
+    try {
+        value_as_ssize_t("1234h");
+    } catch (const std::runtime_error& e) {
+        EXPECT_STREQ(R"(Value "1234h" must be an integer)", e.what());
+        detected = true;
+    }
+    EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
+}
+
+// =====================================================================
+// filter: full coverage (entire function was previously untested)
+// =====================================================================
+
+TEST(ConfigFilter, NullCallbackThrows) {
+    EXPECT_THROW(filter("key=value", nullptr), std::invalid_argument);
+}
+
+TEST(ConfigFilter, EmptyInput) {
+    EXPECT_EQ("", filter("", [](auto, auto) { return true; }));
+}
+
+TEST(ConfigFilter, KeepAll) {
+    EXPECT_EQ("k1=v1;k2=v2",
+              filter("k1=v1;k2=v2", [](auto, auto) { return true; }));
+}
+
+TEST(ConfigFilter, DropAll) {
+    EXPECT_EQ("", filter("k1=v1;k2=v2", [](auto, auto) { return false; }));
+}
+
+TEST(ConfigFilter, KeepSome) {
+    auto result = filter("k1=v1;k2=v2;k3=v3",
+                         [](auto k, auto) { return k != "k2"sv; });
+    EXPECT_EQ("k1=v1;k3=v3", result);
+}
+
+TEST(ConfigFilter, SingleEntryKept_NoTrailingSemicolon) {
+    // Result must not have a trailing semicolon when only one entry is kept.
+    EXPECT_EQ("k1=v1", filter("k1=v1", [](auto, auto) { return true; }));
+}
+
+TEST(ConfigFilter, CallbackReceivesCorrectKeyAndValue) {
+    std::vector<std::pair<std::string, std::string>> received;
+    filter("k1=v1;k2=v2", [&received](auto k, auto v) {
+        received.emplace_back(k, v);
+        return true;
+    });
+    ASSERT_EQ(2, received.size());
+    EXPECT_EQ("k1", received[0].first);
+    EXPECT_EQ("v1", received[0].second);
+    EXPECT_EQ("k2", received[1].first);
+    EXPECT_EQ("v2", received[1].second);
+}
