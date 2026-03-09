@@ -79,12 +79,6 @@
       "startid": 57344,
       "file": "kv_engine/auditd/etc/edge_server_descriptor.json",
       "configurations": ["EE"]
-    },
-    {
-      "name": "cbcontbk",
-      "startid": 61440,
-      "file": "backup/etc/audit_descriptor.json",
-      "configurations": ["EE"]
     }
   ]
 }
