@@ -6849,6 +6849,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_fusion_logstore_fragmentation_threshold",
               "ep_oom_errors",
               "ep_overhead",
+              "ep_pageable_mem",
               "ep_pager_sleep_time_ms",
               "ep_paging_visitor_pause_check_count",
               "ep_expiry_visitor_items_only_duration_ms",
