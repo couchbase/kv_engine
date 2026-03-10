@@ -15,6 +15,7 @@
 #include <cluster_framework/cluster.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/test_manifest.h>
 #include <string>
 
 class RbacTest : public cb::test::ClusterTest {
@@ -150,12 +151,15 @@ void RbacSeqnosTests::configureUsers(const nlohmann::json& userConfig) {
     config["buckets"]["default"]["privileges"].push_back("Read");
     provider.upsertUser({"userCan1", "pass", config});
 
-    // userCan2 have scope wide read on Scope 0
+    // userCan2 have scope wide read on Scope 0. From MB-70820 we implemented
+    // a best match strategy, which means that if we're including a collection
+    // it will "remove" any privileges from the Scope if its not listed in
+    // the collections privileges
     config = userConfig;
     config["buckets"]["default"] = nlohmann::json::parse(R"({
   "scopes": {
     "0": {
-      "collections": {"0": { "privileges": ["SimpleStats"] }},
+      "collections": {"0": { "privileges": ["SimpleStats", "Read"] }},
       "privileges": ["Read"]
     }
    }

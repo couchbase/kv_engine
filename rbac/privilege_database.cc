@@ -137,16 +137,6 @@ Collection::Collection(const nlohmann::json& json) {
     auto iter = json.find("privileges");
     if (iter != json.end()) {
         privilegeMask = parsePrivileges(*iter, true);
-    } else {
-        throw std::invalid_argument(
-                "rbac::Collection(json) \"collections\" with no \"privileges\" "
-                "key is invalid");
-    }
-
-    if (privilegeMask.none()) {
-        throw std::invalid_argument(
-                "rbac::Collection(json) \"collections\" with empty "
-                "\"privileges\" is invalid");
     }
 }
 
@@ -181,13 +171,6 @@ Scope::Scope(const nlohmann::json& json) {
             collections.emplace(cid, Collection(it.value()));
         }
     }
-
-    // scopes can only have no/empty privileges if there are collections
-    if (collections.empty() && privilegeMask.none()) {
-        throw std::invalid_argument(
-                "rbac::Scope(json) \"scopes\" with no \"privileges\" and no "
-                "\"collections\" is invalid");
-    }
 }
 
 nlohmann::json Scope::to_json() const {
@@ -203,29 +186,33 @@ void to_json(nlohmann::json& json, const Scope& scope) {
     json = scope.to_json();
 }
 
-PrivilegeAccess Scope::check(Privilege privilege,
-                             std::optional<uint32_t> collection,
-                             bool parentHasCollectionPrivileges) const {
-    if (privilegeMask.test(static_cast<size_t>(privilege))) {
-        return PrivilegeAccessOk;
-    }
+[[nodiscard]] PrivilegeAccess Scope::check(
+        Privilege privilege,
+        std::optional<uint32_t> collection,
+        bool parentHasCollectionPrivileges) const {
+    if (collection) {
+        // Check in the scope if it has the named collection.
+        const auto iter = getCollections().find(*collection);
+        if (iter != getCollections().end()) {
+            // we have a perfect match for bucket, scope and collection. Use it!
+            return iter->second.check(privilege);
+        }
 
-    // No collection-ID, cannot go deeper - so fail
-    if (!collection) {
-        return PrivilegeAccessFail;
-    }
-
-    const auto iter = collections.find(*collection);
-    if (iter == collections.end()) {
         // Collection is not found, but to determine the failure, check if any
         // collection privileges exist in the search
-        return privilegeMask.any() || parentHasCollectionPrivileges
-                       ? PrivilegeAccessFail
-                       : PrivilegeAccessFailNoPrivileges;
+        if (privilegeMask.test(static_cast<size_t>(privilege))) {
+            return PrivilegeAccessOk;
+        }
+
+        if (privilegeMask.any() || parentHasCollectionPrivileges) {
+            return PrivilegeAccessFail;
+        }
+        return PrivilegeAccessFailNoPrivileges;
     }
 
-    // delegate the check to the collections
-    return iter->second.check(privilege);
+    return privilegeMask.test(static_cast<size_t>(privilege))
+                   ? PrivilegeAccessOk
+                   : PrivilegeAccessFail;
 }
 
 PrivilegeAccess Scope::checkForPrivilegeAtLeastInOneCollection(
@@ -245,10 +232,10 @@ PrivilegeAccess Scope::checkForPrivilegeAtLeastInOneCollection(
 
 Bucket::Bucket(const nlohmann::json& json) {
     if (json.is_array()) {
-        // This is the old file format and everything should be
-        // a list of privileges
+        // This is the simpler format where no scope entries exists and
+        // everything should be a list of privileges
         privilegeMask = parsePrivileges(json, true);
-    } else {
+    } else if (json.is_object()) {
         auto iter = json.find("privileges");
         if (iter != json.end()) {
             privilegeMask = parsePrivileges(*iter, true);
@@ -266,6 +253,9 @@ Bucket::Bucket(const nlohmann::json& json) {
                 scopes.emplace(sid, Scope(it.value()));
             }
         }
+    } else {
+        throw std::runtime_error(
+                "Bucket::Bucket(): Entry should be array or object");
     }
 
     // Count how many privileges at the bucket are applicable to collections
@@ -295,29 +285,33 @@ void to_json(nlohmann::json& json, const Bucket& bucket) {
 PrivilegeAccess Bucket::check(Privilege privilege,
                               std::optional<uint32_t> scope,
                               std::optional<uint32_t> collection) const {
-    if (privilegeMask.test(uint8_t(privilege))) {
+#ifndef NDEBUG
+    Expects(is_bucket_privilege(privilege) &&
+            "bucket can only check bucket privileges");
+    if (collection) {
+        Expects(scope && "scope must be present if collection is present");
+    }
+#endif
+    if (!scope || !is_collection_privilege(privilege)) {
+        if (privilegeMask.test(static_cast<size_t>(privilege))) {
+            return PrivilegeAccessOk;
+        }
+        return PrivilegeAccessFail;
+    }
+
+    // Check the bucket if it has the named scope.
+    const auto iter = scopes.find(*scope);
+    if (iter != scopes.end()) {
+        return iter->second.check(
+                privilege, collection, collectionPrivilegeExists);
+    }
+
+    // The scope isn't listed, check with the bucket's privileges
+    if (privilegeMask.test(static_cast<size_t>(privilege))) {
         return PrivilegeAccessOk;
     }
-
-    PrivilegeAccess status(PrivilegeAccess::Status::Fail);
-    // We don't have any scope to search the next level or it's not a privilege
-    // that would be permissible at a lower level
-    if (scope && is_collection_privilege(privilege)) {
-        const auto iter = scopes.find(*scope);
-        if (iter != scopes.end()) {
-            // Delegate the check to the scopes
-            status = iter->second.check(
-                    privilege, collection, collectionPrivilegeExists);
-        } else {
-            // They don't have that scope at all, but do they have any
-            // collection privileges which will determine  the error code.
-            status = collectionPrivilegeExists
-                             ? PrivilegeAccessFail
-                             : PrivilegeAccessFailNoPrivileges;
-        }
-    }
-
-    return status;
+    return collectionPrivilegeExists ? PrivilegeAccessFail
+                                     : PrivilegeAccessFailNoPrivileges;
 }
 
 PrivilegeAccess Bucket::checkForPrivilegeAtLeastInOneCollection(

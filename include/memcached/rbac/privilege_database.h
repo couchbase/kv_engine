@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -112,20 +111,34 @@ public:
     [[nodiscard]] nlohmann::json to_json() const;
 
     /**
-     * Check if the privilege is set for the scope by using the following
-     * algorithm:
+     * Check if the privilege is set for the scope or collection using
+     * depth-first search and best-match strategy:
      *
-     *  1  If the scope is configured with collections the check is delegated
-     *     to the collection (and no access if the collection isn't found)
-     *  2  If no collections are defined for the scope, use the scopes
-     *     privilege mask.
+     *  1  If a collection ID is provided and the scope contains the named
+     *     collection, perform the check against the collection's privileges
+     *     and return the result.
+     *  2  If a collection ID is provided but the scope does not contain the
+     *     named collection:
+     *     a. Check if the scope's own privilege mask has the privilege;
+     *        return PrivilegeAccess::Ok if found.
+     *     b. If not found, check if any collection privileges exist at the
+     *        scope level OR if the parent bucket has any collection privileges:
+     *        - Return PrivilegeAccess::Fail if privileges exist.
+     *        - Return PrivilegeAccess::FailNoPrivileges if no privileges exist.
+     *  3  If no collection ID is provided, check the scope's own privilege mask
+     *     directly.
      *
      * @param privilege The privilege to check for
-     * @param collection The requested collection id
-     * @param parentHasCollectionPrivileges True/false if the parent of this
-     *        object (the Bucket) has >0 collection privileges.
+     * @param collection The optional collection id to check against
+     * @param parentHasCollectionPrivileges Indicates if the parent bucket has
+     *                                    any collection privileges (affects the
+     *                                    distinction between Fail and
+     *                                    FailNoPrivileges when collection is
+     *                                    not found)
      * @return PrivilegeAccess::Ok if the privilege is held
-     *         PrivilegeAccess::Fail otherwise
+     *         PrivilegeAccess::Fail if the privilege is denied
+     *         PrivilegeAccess::FailNoPrivileges if no collection privileges are
+     *         defined at any level
      */
     [[nodiscard]] PrivilegeAccess check(
             Privilege privilege,
@@ -139,6 +152,12 @@ public:
 
     /// Check if this object is identical to another object
     [[nodiscard]] bool operator==(const Scope&) const = default;
+
+    /// Get the collections contained in this scope
+    [[nodiscard]] const std::unordered_map<uint32_t, Collection>&
+    getCollections() const {
+        return collections;
+    }
 
 protected:
     /// The privilege mask describing the access to this scope IFF no
@@ -165,13 +184,19 @@ public:
     [[nodiscard]] nlohmann::json to_json() const;
 
     /**
-     * Check if the privilege is set for the bucket by using the following
-     * algorithm:
+     * Check if the privilege is set for the bucket using the following
+     * algorithm (only applies when a scope is provided and the privilege
+     * is a collection privilege; otherwise the bucket privilege mask is
+     * checked directly):
      *
-     *  1  If the bucket is configured with scopes the check is delegated
-     *     to the scope (and no access if the scope isn't found)
-     *  2  If no scopes are defined for the bucket, use the buckets
-     *     privilege mask.
+     *  1  If the bucket has the named scope and the scope has the named
+     *     collection, perform the check against the collection's privileges
+     *     and return the result.
+     *  2  If the bucket has the named scope but the scope does not contain
+     *     the named collection, check the scope's privileges and return
+     *     the result.
+     *  3  If the bucket does not have the named scope, check the bucket's
+     *     privileges and return the result.
      *
      * @param privilege The privilege to check for
      * @param scope The requested scope id

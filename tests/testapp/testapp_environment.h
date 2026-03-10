@@ -317,6 +317,7 @@ protected:
             {"larry", "larrypassword"},
             {"legacy", "new"},
             {"jones", "jonespassword"},
+            {"sara", "sarapassword"},
             {"Luke", "Skywalker"},
             {"Jane", "Pandoras Box"},
             {"UserWithoutProfile", "password"}};

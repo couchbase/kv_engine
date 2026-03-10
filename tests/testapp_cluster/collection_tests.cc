@@ -242,7 +242,8 @@ TEST_F(CollectionsTests, TestBasicRbac) {
         FAIL() << "Should not be able to fetch in vegetable collection";
     } catch (const ConnectionError& error) {
         // No privileges so we would get unknown collection error
-        ASSERT_TRUE(error.isUnknownCollection()) << error.getReason();
+        ASSERT_TRUE(error.isUnknownCollection())
+                << "Returned status: " << error.getReason();
         EXPECT_EQ(
                 cluster->collections.getUidString(),
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());

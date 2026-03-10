@@ -28,9 +28,10 @@ order:
 
 0) "dropped privileges", if set return no access
 1) "global" privilege mask
-2) bucket privilege mask (for all bucket privileges)
-3) scope privilege mask (for all collection aware privileges)
-4) collection privilege mask
+
+If the requested privilege is one belonging to a bucket operation the following
+additional checks are performed with a "best match" strategy (the most specific
+match is used) (bucket.scope.collection).
 
 Some operations may be executed with and without privileges (and the
 privileged version may perform more). In these cases the implementation

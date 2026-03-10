@@ -380,7 +380,8 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown1) {
                                0,
                                R"({"collections":["9"]})"_json);
     } catch (const ConnectionError& e) {
-        EXPECT_TRUE(e.isUnknownCollection());
+        EXPECT_TRUE(e.isUnknownCollection())
+                << "Returned status: " << e.getReason();
     }
 }
 
@@ -397,7 +398,8 @@ TEST_F(CollectionsRbacCollection, CollectionAccessCollectionUnknown2) {
                                0,
                                R"({"collections":["0", "9", "a"]})"_json);
     } catch (const ConnectionError& e) {
-        EXPECT_TRUE(e.isUnknownCollection());
+        EXPECT_TRUE(e.isUnknownCollection())
+                << "Returned status: " << e.getReason();
     }
 }
 

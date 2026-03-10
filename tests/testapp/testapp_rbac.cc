@@ -15,6 +15,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <memcached/dockey_view.h>
 #include <algorithm>
 
 class RbacTest : public TestappClientTest {};
@@ -462,4 +463,179 @@ TEST_P(RbacRoleTest, DontAutoselectBucketNoAccess) {
                "should be in no-bucket";
 
     adminConnection->deleteBucket("jones");
+}
+
+/**
+ * Test class for scope-level RBAC privilege checks.
+ *
+ * "sara" has Read at scope level (default scope 0x0) but no bucket-level
+ * privileges. This exercises the depth-first privilege lookup: when a user
+ * has a privilege only at the scope level, the check must descend into the
+ * scope map before falling back to the bucket mask.
+ *
+ * "smith" has Read at the bucket level via the array format (no scopes
+ * defined), which exercises the scopes.empty() fast-path added to
+ * Bucket::check — when no scopes are configured, the bucket privilege mask
+ * is used as a wildcard for all scopes and collections.
+ */
+class RbacScopePrivilegeTest : public TestappClientTest {
+public:
+    void SetUp() override {
+        TestappClientTest::SetUp();
+        mcd_env->getTestBucket().createBucket(
+                "rbac_test", {}, *adminConnection);
+
+        // Store a test document via the admin connection so users can attempt
+        // to read it. Use a plain (non-collection-aware) key; for the default
+        // collection the server treats it identically to a collection-aware key
+        // with CollectionID::Default (0x0).
+        Document doc;
+        doc.info.cas = cb::mcbp::cas::Wildcard;
+        doc.info.datatype = cb::mcbp::Datatype::JSON;
+        doc.info.id = name;
+        doc.value = R"({"key":"value"})";
+        adminConnection->selectBucket("rbac_test");
+        adminConnection->mutate(doc, Vbid{0}, MutationType::Set);
+
+        sara_holder = getConnection().clone();
+        prepare_collection_connection(*sara_holder, "sara");
+        smith_holder = getConnection().clone();
+        prepare_collection_connection(*smith_holder, "smith");
+    }
+
+    void TearDown() override {
+        sara_holder.reset();
+        smith_holder.reset();
+        adminConnection->deleteBucket("rbac_test");
+        TestappClientTest::TearDown();
+    }
+
+    MemcachedConnection& getSaraConnection() {
+        return *sara_holder;
+    }
+
+    MemcachedConnection& getSmithConnection() {
+        return *smith_holder;
+    }
+
+protected:
+    static void prepare_collection_connection(MemcachedConnection& c,
+                                              const std::string& username) {
+        c.authenticate(username);
+        c.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                       cb::mcbp::Feature::XATTR,
+                       cb::mcbp::Feature::XERROR,
+                       cb::mcbp::Feature::SELECT_BUCKET,
+                       cb::mcbp::Feature::SNAPPY,
+                       cb::mcbp::Feature::JSON,
+                       cb::mcbp::Feature::Collections});
+        c.selectBucket("rbac_test");
+    }
+
+    // The collection-aware wire key for the test document in the default
+    // collection (CollectionID::Default = 0x0, ScopeID::Default = 0x0).
+    // On a collections-enabled connection the server expects the LEB128-encoded
+    // collection ID prepended to the logical key.
+    const std::string name{"rbac_scope_priv_doc"};
+    const std::string collectionKey{
+            DocKeyView::makeWireEncodedString(CollectionID::Default, name)};
+
+    std::unique_ptr<MemcachedConnection> sara_holder;
+    std::unique_ptr<MemcachedConnection> smith_holder;
+};
+
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         RbacScopePrivilegeTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
+
+/**
+ * A user that has Read privilege at the scope level (not the bucket level)
+ * should be able to read a document from the default collection.
+ *
+ * This validates the depth-first privilege lookup: Bucket::check descends into
+ * the scope map first and finds the Read privilege in scope 0x0 before the
+ * bucket-level mask is consulted.
+ */
+TEST_P(RbacScopePrivilegeTest, ScopeLevelRead_CanReadFromDefaultCollection) {
+    auto& sara = getSaraConnection();
+    // Access the document using a collection-aware key so that the server
+    // routes the privilege check through the scope map.
+    auto item = sara.get(collectionKey, Vbid{0});
+    // On a collections-enabled connection the server echoes back the key with
+    // the LEB128 collection-ID prefix, so compare against the wire-format key.
+    EXPECT_EQ(collectionKey, item.info.id);
+}
+
+/**
+ * A user with scope-level Read only must not be able to mutate documents.
+ */
+TEST_P(RbacScopePrivilegeTest, ScopeLevelRead_CannotWrite) {
+    auto& sara = getSaraConnection();
+    Document doc;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
+    doc.info.id = collectionKey;
+    doc.value = R"({"new":"value"})";
+    try {
+        sara.mutate(doc, Vbid{0}, MutationType::Set);
+        FAIL() << "sara should not be able to write: she has no Upsert/Insert";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
+/**
+ * Scope-level collection privileges must not implicitly grant bucket-level-only
+ * privileges such as SimpleStats. The check for SimpleStats uses
+ * scope=nullopt, so Bucket::check falls through to the bucket privilege mask,
+ * which is empty for sara.
+ */
+TEST_P(RbacScopePrivilegeTest, ScopeLevelRead_CannotAccessBucketStats) {
+    auto& sara = getSaraConnection();
+    try {
+        sara.stats("");
+        FAIL() << "sara should not be able to access stats without SimpleStats";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
+/**
+ * A user whose bucket is configured in the legacy array format (no scopes map)
+ * exercises the scopes.empty() fast-path in Bucket::check. When no scopes are
+ * defined, the bucket privilege mask is applied as a wildcard for every
+ * scope/collection — smith (Read + SimpleStats) must be able to read from the
+ * default collection on a collection-aware connection.
+ */
+TEST_P(RbacScopePrivilegeTest,
+       BucketArrayFormat_EmptyScopesMap_CoversDefaultCollection) {
+    auto& smith = getSmithConnection();
+    // Use the collection-aware key to ensure the privilege check goes through
+    // the new scopes.empty() early-return path in Bucket::check.
+    auto item = smith.get(collectionKey, Vbid{0});
+    // On a collections-enabled connection the server echoes back the key with
+    // the LEB128 collection-ID prefix, so compare against the wire-format key.
+    EXPECT_EQ(collectionKey, item.info.id);
+}
+
+/**
+ * Verify that the scopes.empty() fast-path correctly denies a privilege that
+ * the user does not hold even when the scopes map is empty. smith has Read but
+ * not Insert, so a write to the default collection must be rejected.
+ */
+TEST_P(RbacScopePrivilegeTest,
+       BucketArrayFormat_EmptyScopesMap_DeniesAbsentPrivilege) {
+    auto& smith = getSmithConnection();
+    Document doc;
+    doc.info.cas = cb::mcbp::cas::Wildcard;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
+    doc.info.id = collectionKey;
+    doc.value = R"({"new":"value"})";
+    try {
+        smith.mutate(doc, Vbid{0}, MutationType::Set);
+        FAIL() << "smith should not be able to write: he has no Upsert/Insert";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
 }

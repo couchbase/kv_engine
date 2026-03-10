@@ -173,5 +173,21 @@
       "all"
     ],
     "domain": "local"
+  },
+  "sara": {
+    "buckets": {
+      "rbac_test": {
+        "privileges": [],
+        "scopes": {
+          "0x0": {
+            "privileges": [
+              "Read"
+            ]
+          }
+        }
+      }
+    },
+    "privileges": [],
+    "domain": "local"
   }
 }
