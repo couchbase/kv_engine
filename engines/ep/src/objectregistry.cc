@@ -64,6 +64,23 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
         coreLocalStats->storedValOverhead += size - sv->getObjectSize();
         coreLocalStats->numStoredVal++;
         coreLocalStats->totalStoredValSize += size;
+        if (cb::mcbp::datatype::is_snappy(sv->getDatatype())) {
+            coreLocalStats->totalCompressedValueSize += sv->valuelen();
+            coreLocalStats->totalDecompressedValueSize +=
+                    sv->uncompressedValuelen();
+        }
+    }
+}
+
+void ObjectRegistry::onUpdateStoredValue(const StoredValue* sv) {
+    EventuallyPersistentEngine* engine = th;
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+        if (cb::mcbp::datatype::is_snappy(sv->getDatatype())) {
+            coreLocalStats->totalCompressedValueSize += sv->valuelen();
+            coreLocalStats->totalDecompressedValueSize +=
+                    sv->uncompressedValuelen();
+        }
     }
 }
 

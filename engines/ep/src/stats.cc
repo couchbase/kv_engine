@@ -130,6 +130,22 @@ size_t EPStats::getStoredValOverhead() const {
     return std::max(int64_t(0), result);
 }
 
+size_t EPStats::getTotalCompressedValueSize() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->totalCompressedValueSize;
+    }
+    return std::max(int64_t(0), result);
+}
+
+size_t EPStats::getTotalDecompressedValueSize() const {
+    int64_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->totalDecompressedValueSize;
+    }
+    return std::max(int64_t(0), result);
+}
+
 size_t EPStats::getMemOverhead() const {
     int64_t result = 0;
     for (const auto& core : coreLocal) {
@@ -342,6 +358,8 @@ void EPStats::reset() {
 
     for (auto& core : coreLocal) {
         core->totalEnqueued = 0;
+        core->totalCompressedValueSize = 0;
+        core->totalDecompressedValueSize = 0;
     }
 }
 

@@ -27,6 +27,7 @@ public:
 
     static void onCreateStoredValue(const StoredValue* sv);
     static void onDeleteStoredValue(const StoredValue* sv);
+    static void onUpdateStoredValue(const StoredValue* sv);
 
     static EventuallyPersistentEngine* getCurrentEngine();
 

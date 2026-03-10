@@ -160,6 +160,7 @@ void StoredValue::setValue(const Item& itm) {
         return;
     }
     this->setValueImpl(itm);
+    ObjectRegistry::onUpdateStoredValue(this);
 }
 
 void StoredValue::ejectValue() {

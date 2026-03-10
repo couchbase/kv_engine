@@ -3306,6 +3306,10 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_storedval_size_allocated_total, storedvalSize.getAdded());
         collector.addStat(Key::ep_storedval_size_freed_total, storedvalSize.getRemoved());
     }
+    collector.addStat(Key::ep_total_compressed_value_size,
+                      stats.getTotalCompressedValueSize());
+    collector.addStat(Key::ep_total_decompressed_value_size,
+                      stats.getTotalDecompressedValueSize());
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
     collector.addStat(Key::ep_storedval_overhead, stats.getStoredValOverhead());
 #else

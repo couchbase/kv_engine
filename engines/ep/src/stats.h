@@ -103,6 +103,11 @@ public:
 
     //! Cumulative number of items added to the queue.
     Counter totalEnqueued;
+
+    //! Total compressed/decompressed sizes for all compressed documents
+    //  observed in the HashTable
+    Counter totalCompressedValueSize;
+    Counter totalDecompressedValueSize;
 };
 
 /**
@@ -186,6 +191,12 @@ public:
 
     /// @returns overhead of StoredValue objects.
     size_t getStoredValOverhead() const;
+
+    /// @returns size of every compressed document's value observed
+    size_t getTotalCompressedValueSize() const;
+
+    /// @returns size of every compressed document's decompressed value observed
+    size_t getTotalDecompressedValueSize() const;
 
     /// @returns amount of memory used to track items and what-not.
     size_t getMemOverhead() const;

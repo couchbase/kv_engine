@@ -118,6 +118,80 @@ TEST_F(ObjectRegistryTest, BlobStats) {
     EXPECT_EQ(baselineOverhead, engine->getEpStats().getBlobOverhead());
 }
 
+TEST_F(ObjectRegistryTest, CompressionValueStatsTest) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+    const auto baselineTotalCompressedValueSize =
+            engine->getEpStats().getTotalCompressedValueSize();
+    const auto baselineTotalDecompressedValueSize =
+            engine->getEpStats().getTotalDecompressedValueSize();
+
+    const auto value = std::string(500, 'a');
+    auto item = make_item(Vbid(0), makeStoredDocKey("key"), value);
+    item.compressValue(true);
+    const auto sv = StoredValueFactory()(item, nullptr);
+
+    EXPECT_EQ(baselineTotalCompressedValueSize + sv->valuelen(),
+              engine->getEpStats().getTotalCompressedValueSize());
+    EXPECT_EQ(baselineTotalDecompressedValueSize + sv->uncompressedValuelen(),
+              engine->getEpStats().getTotalDecompressedValueSize());
+}
+
+TEST_F(ObjectRegistryTest, UncompressedValueDoesNotUpdateCompressionStats) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+    const auto baselineTotalCompressedValueSize =
+            engine->getEpStats().getTotalCompressedValueSize();
+    const auto baselineTotalDecompressedValueSize =
+            engine->getEpStats().getTotalDecompressedValueSize();
+
+    const auto value = std::string(500, 'a');
+    auto item = make_item(Vbid(0), makeStoredDocKey("key"), value);
+    const auto sv = StoredValueFactory()(item, nullptr);
+
+    EXPECT_EQ(baselineTotalCompressedValueSize,
+              engine->getEpStats().getTotalCompressedValueSize());
+    EXPECT_EQ(baselineTotalDecompressedValueSize,
+              engine->getEpStats().getTotalDecompressedValueSize());
+}
+
+TEST_F(ObjectRegistryTest, UpdatingStoredValueUpdatesCompressionStats) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+    auto totalCompressedValueSize =
+            engine->getEpStats().getTotalCompressedValueSize();
+    auto totalDecompressedValueSize =
+            engine->getEpStats().getTotalDecompressedValueSize();
+
+    auto value = std::string(500, 'a');
+    auto item = make_item(Vbid(0), makeStoredDocKey("key"), value);
+    item.compressValue(true);
+    auto sv = StoredValueFactory()(item, nullptr);
+
+    totalCompressedValueSize += sv->valuelen();
+    totalDecompressedValueSize += sv->uncompressedValuelen();
+    EXPECT_EQ(totalCompressedValueSize,
+              engine->getEpStats().getTotalCompressedValueSize());
+    EXPECT_EQ(totalDecompressedValueSize,
+              engine->getEpStats().getTotalDecompressedValueSize());
+
+    // Now update the StoredValue with a new value
+    value = std::string(1000, 'b');
+    auto item2 = make_item(Vbid(0), makeStoredDocKey("key"), value);
+    item2.compressValue(true);
+    sv->setValue(item2);
+
+    totalCompressedValueSize += sv->valuelen();
+    totalDecompressedValueSize += sv->uncompressedValuelen();
+    EXPECT_EQ(totalCompressedValueSize,
+              engine->getEpStats().getTotalCompressedValueSize());
+    EXPECT_EQ(totalDecompressedValueSize,
+              engine->getEpStats().getTotalDecompressedValueSize());
+}
+
 /**
  * Test fixture for ObjectRegistry + BucketLogger tests.
  *

@@ -512,6 +512,18 @@
         "added": "7.6.0"
     },
     {
+        "key": "ep_total_compressed_value_size",
+        "unit": "bytes",
+        "description": "The total size of document values that are compressed, including documents that are later expired or deleted.",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_total_decompressed_value_size",
+        "unit": "bytes",
+        "description": "The total decompressed size of document values that are compressed, including documents that are later expired or deleted.",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_overhead",
         "unit": "bytes",
         "prometheus": {

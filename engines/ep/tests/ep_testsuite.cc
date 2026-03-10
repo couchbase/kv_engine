@@ -6844,6 +6844,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_storedval_size",
               "ep_storedval_size_allocated_total",
               "ep_storedval_size_freed_total",
+              "ep_total_compressed_value_size",
+              "ep_total_decompressed_value_size",
               "ep_sync_writes_max_allowed_replicas",
               "ep_time_synchronization",
               "ep_tmp_oom_errors",

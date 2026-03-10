@@ -251,3 +251,82 @@ TEST_P(CompressionTest, GetLockedReturnsCompressedData) {
     EXPECT_EQ(value, locked.value);
     userConnection->unlock(name, Vbid{0}, locked.info.cas);
 }
+
+TEST_P(CompressionTest, CompressedValueStatsIgnoreUncompressedDocs) {
+    // Store one compressed and one uncompressed document on the server and
+    // verify that ep_total_compressed_value_size and
+    // ep_total_decompressed_value_size variables only reflect the sizes of the
+    // compressed document
+    mcd_env->getTestBucket().setCompressionMode(
+            *adminConnection, bucketName, "passive");
+    auto stats = userConnection->stats("");
+    const auto initialCompressedSize =
+            stats["ep_total_compressed_value_size"].get<int64_t>();
+    const auto initialDecompressedSize =
+            stats["ep_total_decompressed_value_size"].get<int64_t>();
+
+    // Store compressed document
+    Document doc;
+    doc.info.id = name;
+    doc.value.resize(4_KiB, 'a');
+    doc.compress();
+    userConnection->mutate(doc, Vbid{0}, MutationType::Set);
+
+    // Store an uncompressed document
+    Document doc2;
+    doc2.info.id = name + "_uncompressed";
+    doc2.value.resize(4_KiB, 'a');
+    userConnection->mutate(doc2, Vbid(0), MutationType::Set);
+
+    stats = userConnection->stats("");
+    EXPECT_EQ(initialCompressedSize + doc.value.size(),
+              stats["ep_total_compressed_value_size"].get<int64_t>());
+    // convert doc to decompressed size to calculate total decompressed size
+    doc.uncompress();
+    EXPECT_EQ(initialDecompressedSize + doc.value.size(),
+              stats["ep_total_decompressed_value_size"].get<int64_t>());
+
+    // Restore original compression mode
+    mcd_env->getTestBucket().setCompressionMode(
+            *adminConnection, bucketName, "active");
+}
+
+TEST_P(CompressionTest, MutationUpdatesCompressionStats) {
+    mcd_env->getTestBucket().setCompressionMode(
+            *adminConnection, bucketName, "passive");
+    auto stats = userConnection->stats("");
+    const auto initialCompressedSize =
+            stats["ep_total_compressed_value_size"].get<int64_t>();
+    const auto initialDecompressedSize =
+            stats["ep_total_decompressed_value_size"].get<int64_t>();
+
+    // Store compressed document
+    Document doc;
+    doc.info.id = name;
+    doc.value.resize(4_KiB, 'a');
+    doc.compress();
+    userConnection->mutate(doc, Vbid{0}, MutationType::Set);
+
+    // update the document with a new value
+    Document doc2;
+    doc2.info.id = name; // same document id to perform update
+    doc2.value.resize(2_KiB, 'a');
+    doc2.compress();
+    userConnection->mutate(doc2, Vbid(0), MutationType::Set);
+
+    stats = userConnection->stats("");
+    const auto totalCompressedSize = doc.value.size() + doc2.value.size();
+    EXPECT_EQ(initialCompressedSize + totalCompressedSize,
+              stats["ep_total_compressed_value_size"].get<int64_t>());
+
+    doc.uncompress();
+    doc2.uncompress();
+    const auto totalDecompressedValueSize =
+            doc.value.size() + doc2.value.size();
+    EXPECT_EQ(initialDecompressedSize + totalDecompressedValueSize,
+              stats["ep_total_decompressed_value_size"].get<int64_t>());
+
+    // Restore original compression mode
+    mcd_env->getTestBucket().setCompressionMode(
+            *adminConnection, bucketName, "active");
+}
