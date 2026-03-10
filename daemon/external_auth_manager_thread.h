@@ -308,6 +308,10 @@ protected:
     std::atomic<uint64_t> rbacCacheEpoch{{}};
 
     std::atomic_bool loggingEnabled{false};
+
+    // Cap the number of pending requests to set a cap on max data sent to
+    // ns_server
+    static constexpr size_t maxPendingRequests = 100;
 };
 
 extern std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;

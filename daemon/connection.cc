@@ -685,8 +685,9 @@ inline void Connection::handleRejectCommand(Cookie& cookie,
 void Connection::executeCommandPipeline() {
     const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     const auto tooMuchData = [this, maxSendQueueSize](bool allowDcpResponse) {
-        if (allowDcpResponse && isDCP() && isPacketAvailable() &&
-            getPacket().isResponse()) {
+        if (isAuthenticationProvider() ||
+            (allowDcpResponse && isDCP() && isPacketAvailable() &&
+             getPacket().isResponse())) {
             ++numEvents;
             return false;
         }
