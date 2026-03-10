@@ -573,8 +573,8 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_TRUE(bucket.contains("num_throttled"));
         EXPECT_TRUE(bucket.contains("throttle_reserved"));
         EXPECT_TRUE(bucket.contains("throttle_hard_limit"));
-        EXPECT_TRUE(bucket.contains("throttle_ru_total"));
-        EXPECT_TRUE(bucket.contains("throttle_wu_total"));
+        EXPECT_TRUE(bucket.contains("ru_total"));
+        EXPECT_TRUE(bucket.contains("wu_total"));
         EXPECT_TRUE(bucket.contains("num_commands"));
         EXPECT_EQ("Success", bucket["data_ingress_status"]);
     }

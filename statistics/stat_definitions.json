@@ -4636,7 +4636,7 @@
         "stability": "internal"
     },
         {
-        "key": "throttle_ru_total",
+        "key": "ru_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units used by a bucket since reset",
@@ -4644,7 +4644,7 @@
         "stability": "internal"
     },
     {
-        "key": "throttle_wu_total",
+        "key": "wu_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units used by a bucket since reset",

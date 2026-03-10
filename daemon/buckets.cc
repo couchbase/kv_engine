@@ -95,8 +95,8 @@ nlohmann::json Bucket::to_json() const {
                     cb::throttle::limit_to_json(throttle_reserved.load());
             json["throttle_hard_limit"] =
                     cb::throttle::limit_to_json(throttle_hard_limit.load());
-            json["throttle_ru_total"] = read_units_used.load();
-            json["throttle_wu_total"] = write_units_used.load();
+            json["ru_total"] = read_units_used.load();
+            json["wu_total"] = write_units_used.load();
             json["num_commands"] = num_commands.load();
             if (serverless) {
                 json["num_commands_with_metered_units"] =
@@ -196,8 +196,8 @@ void Bucket::addHighResolutionStats(
     collector.addStat(Key::throttle_reserved, throttle_reserved.load());
     collector.addStat(Key::throttle_hard_limit, throttle_hard_limit.load());
 
-    collector.addStat(Key::throttle_ru_total, read_units_used);
-    collector.addStat(Key::throttle_wu_total, write_units_used);
+    collector.addStat(Key::ru_total, read_units_used);
+    collector.addStat(Key::wu_total, write_units_used);
 }
 
 void Bucket::addLowResolutionStats(const BucketStatCollector& collector) const {
@@ -357,12 +357,10 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         const auto resourceDomain = cookie.getResourceAllocationDomain();
 
         consumedUnits(throttleUnits, resourceDomain);
-        if (resourceDomain != ResourceAllocationDomain::None) {
-            read_units_used += ru;
-            write_units_used += wu;
-            if (ru || wu) {
-                ++num_commands_with_metered_units;
-            }
+        read_units_used += ru;
+        write_units_used += wu;
+        if (ru || wu) {
+            ++num_commands_with_metered_units;
         }
 
         if (cookie.getTotalThrottleTime().count() != 0) {
