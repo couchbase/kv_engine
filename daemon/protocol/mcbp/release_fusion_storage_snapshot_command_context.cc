@@ -47,6 +47,7 @@ cb::engine_errc ReleaseFusionStorageSnapshotCommandContext::execute() {
                                                        vbucketList,
                                                        snapshotUuid);
     if (!status.IsOK()) {
+        response = fmt::format("Failed with error: {}", status.String());
         LOG_WARNING_CTX("ReleaseFusionStorageSnapshot: ",
                         {"status", status.String()},
                         {"vbucket_list", request["vbucket_list"]},

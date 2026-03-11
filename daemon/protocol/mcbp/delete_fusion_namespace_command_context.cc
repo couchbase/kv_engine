@@ -44,6 +44,7 @@ cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
                      {"duration", stop - start});
         return cb::engine_errc::success;
     }
+    response = fmt::format("Failed with error: {}", status.String());
     LOG_WARNING_CTX("DeleteFusionNamespace",
                     {"logstore_uri", logstore},
                     {"metadatastore_uri", metadatastore},

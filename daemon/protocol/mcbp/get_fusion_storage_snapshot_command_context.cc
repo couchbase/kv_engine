@@ -50,6 +50,7 @@ cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
                                                    snapshotUuid,
                                                    validTill);
     if (!status.IsOK()) {
+        response = fmt::format("Failed with error: {}", status.String());
         LOG_WARNING_CTX("GetFusionStorageSnapshot: ",
                         {"status", status.String()},
                         {"vbucket_list", request["vbucket_list"]},
