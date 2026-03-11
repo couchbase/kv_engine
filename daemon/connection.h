@@ -246,6 +246,14 @@ public:
         duplex_support = enable;
     }
 
+    bool isAuthenticationProvider() const {
+        return authentication_provider;
+    }
+
+    void setAuthenticationProvider(bool enable) {
+        authentication_provider = enable;
+    }
+
     ClustermapChangeNotification getClustermapChangeNotification() const {
         return cccp;
     }
@@ -1221,6 +1229,11 @@ protected:
      * commands)
      */
     bool duplex_support{false};
+
+    /**
+     * True if the connection is an authentication provider
+     */
+    bool authentication_provider{false};
 
     std::atomic<ClustermapChangeNotification> cccp{
             ClustermapChangeNotification::None};
