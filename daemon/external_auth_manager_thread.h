@@ -194,6 +194,8 @@ protected:
 
     /// A list of available connections to use as authentication providers
     std::vector<Connection*> connections;
+    /// A counter used to round-robin between the available connections
+    size_t next_connection = 0;
 
     /**
      * All of the various tasks enqueue their SASL request in this queue

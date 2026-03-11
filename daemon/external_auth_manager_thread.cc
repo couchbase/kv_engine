@@ -144,29 +144,28 @@ void ExternalAuthManagerThread::shutdown() {
 }
 
 void ExternalAuthManagerThread::pushActiveUsers() {
-    if (connections.empty()) {
-        return;
+    for (auto* provider : connections) {
+        std::string payload = activeUsers.to_json().dump();
+        provider->getThread().eventBase.runInEventBaseThread(
+                [provider, p = std::move(payload)]() {
+                    TRACE_LOCKGUARD_TIMED(provider->getThread().mutex,
+                                          "mutex",
+                                          "pushActiveUsers",
+                                          SlowMutexThreshold);
+                    std::string buffer;
+                    buffer.resize(sizeof(cb::mcbp::Request) + p.size());
+                    cb::mcbp::RequestBuilder builder(buffer);
+                    builder.setMagic(cb::mcbp::Magic::ServerRequest);
+                    builder.setDatatype(provider->getEnabledDatatypes(
+                            cb::mcbp::Datatype::JSON));
+                    builder.setOpcode(
+                            cb::mcbp::ServerOpcode::ActiveExternalUsers);
+                    builder.setValue(p);
+                    // Inject our packet into the stream!
+                    provider->copyToOutputStream(
+                            builder.getFrame()->getFrame());
+                });
     }
-
-    std::string payload = activeUsers.to_json().dump();
-    auto* provider = connections.front();
-    provider->getThread().eventBase.runInEventBaseThread(
-            [provider, p = std::move(payload)]() {
-                TRACE_LOCKGUARD_TIMED(provider->getThread().mutex,
-                                      "mutex",
-                                      "pushActiveUsers",
-                                      SlowMutexThreshold);
-                std::string buffer;
-                buffer.resize(sizeof(cb::mcbp::Request) + p.size());
-                cb::mcbp::RequestBuilder builder(buffer);
-                builder.setMagic(cb::mcbp::Magic::ServerRequest);
-                builder.setDatatype(provider->getEnabledDatatypes(
-                        cb::mcbp::Datatype::JSON));
-                builder.setOpcode(cb::mcbp::ServerOpcode::ActiveExternalUsers);
-                builder.setValue(p);
-                // Inject our packet into the stream!
-                provider->copyToOutputStream(builder.getFrame()->getFrame());
-            });
 }
 
 void ExternalAuthManagerThread::processRequestQueue() {
@@ -185,11 +184,9 @@ void ExternalAuthManagerThread::processRequestQueue() {
         return;
     }
 
-    // We'll be using the first connection in the list of connections.
-    auto* provider = connections.front();
-
     while (!incomingRequests.empty() &&
            requestMap.size() < maxPendingRequests) {
+        auto* provider = connections.at(next_connection++ % connections.size());
         auto currentRequest = incomingRequests.front();
         currentRequest->recordStartTime();
 
