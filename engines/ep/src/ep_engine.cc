@@ -3247,6 +3247,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_checkpoint_computed_max_size,
                       checkpointConfig->getCheckpointMaxSize());
 
+    collector.addStat(Key::ep_pageable_mem,
+                      kvBucket->getPageableMemCurrent());
 
     collector.addStat(Key::ep_persist_vbstate_total,
                       epstats.totalPersistVBState);
