@@ -520,6 +520,19 @@ size_t LibeventConnection::getSendQueueSize() const {
     return getSendQueueSizeImpl();
 }
 
+nlohmann::json LibeventConnection::getIoLayerDetails() const {
+    const auto enabled = bufferevent_get_enabled(bev.get());
+    nlohmann::json result = {
+            {"input_len",
+             evbuffer_get_length(bufferevent_get_input(bev.get()))},
+            {"output_len",
+             evbuffer_get_length(bufferevent_get_output(bev.get()))},
+            {"EV_READ", (enabled & EV_READ) == EV_READ ? true : false},
+            {"EV_WRITE", (enabled & EV_WRITE) == EV_WRITE ? true : false}};
+
+    return result;
+}
+
 size_t LibeventConnection::getSendQueueSizeImpl() const {
     return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }

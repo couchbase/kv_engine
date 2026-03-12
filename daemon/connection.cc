@@ -88,7 +88,10 @@ nlohmann::json Connection::to_json() const {
     ret["peername"] = peername;
     ret["sockname"] = sockname;
 
-    ret["connection"] = cb::to_hex(uint64_t(this));
+    auto details = getIoLayerDetails();
+    if (details.is_object()) {
+        ret["io_layer"] = details;
+    }
 
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";

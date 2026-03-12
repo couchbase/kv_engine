@@ -1027,6 +1027,10 @@ protected:
      */
     virtual const cb::mcbp::Header& getPacket() const = 0;
 
+    virtual nlohmann::json getIoLayerDetails() const {
+        return {};
+    }
+
     /// Move to the next packet in the pipe
     virtual void nextPacket() = 0;
 

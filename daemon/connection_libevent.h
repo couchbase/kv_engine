@@ -39,6 +39,8 @@ protected:
     LibeventConnection(FrontEndThread& thr) : Connection(thr) {
     }
 
+    nlohmann::json getIoLayerDetails() const override;
+
     /// Non-virtual method as it is called from the destructor and
     /// that emits "warnings" in the IDE (as you shouldn't be calling
     /// virtual methods from the destructor)
