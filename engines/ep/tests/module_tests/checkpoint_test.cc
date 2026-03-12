@@ -1001,7 +1001,8 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    Collections::ManifestUid{} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */,
+                    std::nullopt /* cacheTransfer */));
 
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
@@ -1119,7 +1120,8 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    Collections::ManifestUid{} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */,
+                    std::nullopt /* cacheTransfer */));
 
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
@@ -1954,7 +1956,8 @@ void SingleThreadedCheckpointTest::
                                         0,
                                         0,
                                         0,
-                                        Collections::ManifestUid{}));
+                                        Collections::ManifestUid{},
+                                        std::nullopt /* cacheTransfer */));
     // Receive marker for disk checkpoint
     SnapshotMarker snapshotMarker(0,
                                   vbid,

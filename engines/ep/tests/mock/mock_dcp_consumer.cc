@@ -32,7 +32,8 @@ std::shared_ptr<PassiveStream> MockDcpConsumer::makePassiveStream(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t vb_high_seqno,
-        const Collections::ManifestUid vb_manifest_uid) {
+        const Collections::ManifestUid vb_manifest_uid,
+        std::optional<size_t> cacheTransfer) {
     return std::make_shared<MockPassiveStream>(e,
                                                consumer,
                                                name,
@@ -44,7 +45,8 @@ std::shared_ptr<PassiveStream> MockDcpConsumer::makePassiveStream(
                                                snap_start_seqno,
                                                snap_end_seqno,
                                                vb_high_seqno,
-                                               vb_manifest_uid);
+                                               vb_manifest_uid,
+                                               cacheTransfer);
 }
 
 std::optional<uint32_t> MockDcpConsumer::getStreamOpaque(uint32_t opaque) {

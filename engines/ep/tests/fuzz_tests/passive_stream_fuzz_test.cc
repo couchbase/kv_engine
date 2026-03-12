@@ -159,7 +159,8 @@ void PassiveStreamFuzzTest::receiveSnapshot(
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    Collections::ManifestUid{} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */,
+                    std::nullopt /* cacheTransfer */));
     stream->acceptStream(cb::mcbp::Status::Success, 0);
     stream->processMarker(const_cast<SnapshotMarker*>(&marker));
 

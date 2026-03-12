@@ -57,7 +57,8 @@ public:
                   uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno,
                   uint64_t vb_high_seqno,
-                  const Collections::ManifestUid vb_manifest_uid);
+                  const Collections::ManifestUid vb_manifest_uid,
+                  std::optional<size_t> cacheTransfer);
 
     ~PassiveStream() override;
 
@@ -494,6 +495,11 @@ protected:
 
     // Flag indicating if the CacheTransfer has logged out of memory.
     bool hasLoggedCacheTransferOutOfMemory{false};
+
+    // Memory available for cache transfer, calculated when the stream request
+    // is made and stored for use in setupForNewStreamRequest.
+    // When populated, CacheTransfer should be added to stream request flags.
+    const std::optional<size_t> cacheTransfer;
 
     nlohmann::json stream_req_value;
 

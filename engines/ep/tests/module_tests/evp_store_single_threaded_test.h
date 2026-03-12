@@ -592,6 +592,10 @@ public:
         return couchstoreBucket() * itemEvictionPolicy();
     }
 
+    static config::Config couchstoreFEOnly() {
+        return couchstoreBucket() * fullEvictionPolicy();
+    }
+
 #ifdef EP_USE_MAGMA
     static config::Config magmaConfigValues() {
         return magmaBucket() * itemEvictionPolicy() *

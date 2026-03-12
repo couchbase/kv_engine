@@ -143,6 +143,8 @@ public:
      * @param snap_end_seqno The snapshot end sequence number
      * @param vb_high_seqno The last received sequence number
      * @param vb_manifest_uid The newest collections manifest uid
+     * @param cacheTransfer This parameter will enable cache transfer when
+     * defined. The value is the memory value to set in the request.
      *
      * @return a SingleThreadedRCPtr to the newly created PassiveStream.
      */
@@ -158,7 +160,8 @@ public:
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             uint64_t vb_high_seqno,
-            const Collections::ManifestUid vb_manifest_uid);
+            const Collections::ManifestUid vb_manifest_uid,
+            std::optional<size_t> cacheTransfer);
 
     cb::engine_errc addStream(uint32_t opaque,
                               Vbid vbucket,
@@ -570,6 +573,21 @@ protected:
     cb::engine_errc doAddStream(uint32_t opaque,
                                 Vbid vbucket,
                                 cb::mcbp::DcpAddStreamFlag flags);
+
+    /**
+     * Helper function to evaluate if CacheTransfer should be enabled for the
+     * given vbucket based on negotiated settings and current memory
+     * availability.
+     *
+     * @param vb vbucket to check for cache transfer eligibility
+     * @param flags the flags provided in the add stream request which can force
+     * enable cache transfer (unit tests require this)
+     * @return std::optional<size_t> containing calculated memory available for
+     *         cache transfer if enabled, or nullopt if CacheTransfer is not
+     *         possible.
+     */
+    std::optional<size_t> configureCacheTransfer(
+            const VBucket& vb, cb::mcbp::DcpAddStreamFlag flags);
 
     /**
      * The container of DCP control negotiations. BlockingDcpControlNegotiation

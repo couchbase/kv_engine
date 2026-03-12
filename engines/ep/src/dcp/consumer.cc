@@ -22,6 +22,7 @@
 #include "ep_time.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "memcached/protocol_binary.h"
 #include "objectregistry.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
@@ -255,7 +256,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t vb_high_seqno,
-        const Collections::ManifestUid vb_manifest_uid) {
+        const Collections::ManifestUid vb_manifest_uid,
+        std::optional<size_t> cacheTransfer) {
     return std::make_shared<PassiveStream>(&e,
                                            consumer,
                                            name,
@@ -267,7 +269,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
                                            snap_start_seqno,
                                            snap_end_seqno,
                                            vb_high_seqno,
-                                           vb_manifest_uid);
+                                           vb_manifest_uid,
+                                           cacheTransfer);
 }
 
 cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
@@ -300,6 +303,37 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     pendingAddStreams.lock()->emplace_back(opaque, vbucket, flags);
 
     return cb::engine_errc::success;
+}
+
+std::optional<size_t> DcpConsumer::configureCacheTransfer(
+        const VBucket& vb, cb::mcbp::DcpAddStreamFlag flags) {
+    // CacheTransfer is either requested by flags (only unit tests do that) or
+    // we enable it based on the vbucket's eligibility (which is determined by
+    // the producer's support for CacheTransfer and the vbucket state).
+    if (!((cacheTransfer && vb.shouldUseDcpCacheTransfer()) ||
+          cb::mcbp::isFlagSet(flags,
+                              cb::mcbp::DcpAddStreamFlag::CacheTransfer))) {
+        // Not viable for this vbucket
+        return std::nullopt;
+    }
+
+    const auto hwm = engine_.getEpStats().mem_high_wat.load();
+    const auto memUsed = engine_.getEpStats().getEstimatedTotalMemoryUsed();
+    const auto& bucket = engine_.getKVBucket();
+
+    if (memUsed >= hwm || vb.isNextState(vbucket_state_replica)) {
+        // Memory pressure or VBucket will become replica.
+        // Value eviction must do a key copy and sets memory available to 0,
+        // while full eviction will disable cache transfer.
+        return bucket->isValueEviction() ? std::optional<size_t>(0)
+                                         : std::nullopt;
+    }
+
+    const auto freeMem = hwm - memUsed;
+    const auto active = bucket->getNumOfVBucketsInState(vbucket_state_active);
+    // freeMem is the amount of memory available per vbucket. Only consider
+    // active + 1 share as isNextState(replica) case is handled earlier.
+    return freeMem / (active + 1);
 }
 
 cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
@@ -360,14 +394,18 @@ cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
-    if (cacheTransfer && vb->shouldUseDcpCacheTransfer()) {
-        flags |= cb::mcbp::DcpAddStreamFlag::CacheTransfer;
-    }
+    const auto cacheTransfer = configureCacheTransfer(*vb, flags);
+
     // Cache transfer is currently a one-shot and should be done once for a
     // replica vbucket, we don't currently want transfers to trigger later
     // down the line if VBs change state many times. Unconditionally disable
     // for all future add-stream requests against this vbucket.
     vb->disableCacheTransfer();
+
+    if (!cacheTransfer.has_value()) {
+        // No cache-transfer, advertise that rebalance can continue
+        vb->setSnapshotRebalanceCanContinue();
+    }
 
     stream = makePassiveStream(engine_,
                                shared_from_base<DcpConsumer>(),
@@ -380,14 +418,8 @@ cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
                                snap_start_seqno,
                                snap_end_seqno,
                                high_seqno,
-                               vb_manifest_uid);
-
-    // This stream never did a cache transfer we can flag any snapshot type
-    // rebalance can continue
-    if (!isFlagSet(stream->getFlags(),
-                   cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
-        vb->setSnapshotRebalanceCanContinue();
-    }
+                               vb_manifest_uid,
+                               cacheTransfer);
 
     registerStream(stream);
     readyStreamsVBQueue.lock()->push_back(vbucket);

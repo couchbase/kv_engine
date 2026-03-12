@@ -89,7 +89,8 @@ public:
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
             uint64_t vb_high_seqno,
-            const Collections::ManifestUid vb_manifest_uid) override;
+            const Collections::ManifestUid vb_manifest_uid,
+            std::optional<size_t> cacheTransfer) override;
 
     const BlockingDcpControlNegotiation& public_getCurrentControlNegotiation()
             const {

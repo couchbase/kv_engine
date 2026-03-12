@@ -3242,6 +3242,8 @@ public:
     StoredDocKey prepareForUseSnapshot(Vbid id, nlohmann::json topology = {});
 };
 
+class EPBucketTestCouchstoreFE : public EPBucketTestCouchstore {};
+
 // Relates to MB-43242 where we need to be sure we can trigger compaction
 // with arbitrary settings. This test is only functional with couchstore
 TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
@@ -3465,7 +3467,8 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
                     0 /* vb_high_seqno */,
-                    Collections::ManifestUid{} /* vb_manifest_uid */));
+                    Collections::ManifestUid{} /* vb_manifest_uid */,
+                    0 /* cacheTransfer */));
     auto streamReqJson = passiveStream->public_setupForNewStreamRequest(*vb);
     EXPECT_EQ(streamReqJson["cts"]["all_keys"], true);
     EXPECT_EQ(streamReqJson["cts"]["free_memory"], 0); // 0 is no values
@@ -3542,6 +3545,49 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotWithPrepare) {
         }
         runBGFetcherTask();
     }
+}
+
+// Test that the vbucket canSnapshotRebalanceContinue flag is forced to true
+// when above hwm.
+TEST_P(EPBucketTestCouchstoreFE, MB_70916) {
+    auto docKey = prepareForUseSnapshot(vbid);
+
+    const nlohmann::json meta{{"use_snapshot", "fbr"}};
+    for (;;) {
+        const auto ret = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                    "Loading VBucket vb:0");
+    }
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(vbucket_state_replica, vb->getState());
+    EXPECT_EQ(1, vb->getHighSeqno());
+    EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
+    EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
+    EXPECT_FALSE(vb->canSnapshotRebalanceContinue());
+
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Force high-water mark to be less than mem_used. The addStream code will
+    // then see that a CacheTransfer is not possible and flip
+    // canSnapshotRebalanceContinue to true
+    engine->getEpStats().setHighWaterMark(0);
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      /*opaque*/ 0,
+                      vbid,
+                      cb::mcbp::DcpAddStreamFlag::CacheTransfer));
+
+    // Before the fix, this flag remained false.
+    EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
@@ -3793,6 +3839,11 @@ INSTANTIATE_TEST_SUITE_P(EPBucketTest,
 INSTANTIATE_TEST_SUITE_P(EPBucketTestCouchstore,
                          EPBucketTestCouchstore,
                          STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(EPBucketTestCouchstoreFE,
+                         EPBucketTestCouchstoreFE,
+                         STParameterizedBucketTest::couchstoreFEOnly(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 #ifdef EP_USE_MAGMA

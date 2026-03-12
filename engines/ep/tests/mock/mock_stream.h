@@ -299,7 +299,8 @@ public:
                       uint64_t snap_start_seqno,
                       uint64_t snap_end_seqno,
                       uint64_t vb_high_seqno,
-                      const Collections::ManifestUid vb_manifest_uid)
+                      const Collections::ManifestUid vb_manifest_uid,
+                      std::optional<size_t> cacheTransfer)
         : PassiveStream(&e,
                         consumer,
                         name,
@@ -311,7 +312,8 @@ public:
                         snap_start_seqno,
                         snap_end_seqno,
                         vb_high_seqno,
-                        vb_manifest_uid) {
+                        vb_manifest_uid,
+                        cacheTransfer) {
     }
 
     void transitionStateToDead() {
