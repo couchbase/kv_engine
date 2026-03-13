@@ -837,9 +837,7 @@ public:
         saslServerContext.reset();
     }
 
-    void setType(Type value) {
-        type = value;
-    }
+    void setType(Type value);
 
     Type getType() const {
         return type;
