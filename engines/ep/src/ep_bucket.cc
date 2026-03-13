@@ -3174,14 +3174,10 @@ void EPBucket::setupWarmupConfig(std::string_view behavior) {
 }
 
 bool EPBucket::shouldPrepareSnapshotGenerateChecksums() const {
-#ifdef CB_DEVELOPMENT_ASSERTS
-    bool generateCheckums = true;
-#else
     bool generateCheckums = false;
-#endif
 
-    if (getenv("EP_SNAPSHOT_CHECKSUM_DISABLED")) {
-        generateCheckums = false;
+    if (getenv("EP_SNAPSHOT_CHECKSUM_ENABLED")) {
+        generateCheckums = true;
     }
 
     return generateCheckums || engine.shouldPrepareSnapshotAlwaysChecksum();
