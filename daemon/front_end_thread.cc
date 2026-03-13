@@ -27,6 +27,7 @@
 #include <memcached/tracer.h>
 #include <phosphor/phosphor.h>
 #include <platform/histogram.h>
+#include <platform/roundrobin.h>
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/thread.h>
@@ -380,11 +381,8 @@ int FrontEndThread::signal_idle_clients(bool dumpConnection) {
 
 void FrontEndThread::dispatch(SOCKET sfd,
                               std::shared_ptr<ListeningPort> descr) {
-    // Which thread we assigned a connection to most recently.
-    static std::atomic<size_t> last_thread = 0;
-    size_t tid = (last_thread + 1) % Settings::instance().getNumWorkerThreads();
-    auto& thread = threads[tid];
-    last_thread = tid;
+    static cb::RoundRobin<decltype(threads)> rr(threads);
+    auto& thread = rr.next();
 
     try {
         using namespace std::chrono;

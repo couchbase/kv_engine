@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "platform/roundrobin.h"
 #include "timings.h"
 
 #include <mcbp/protocol/response.h>
@@ -38,7 +39,8 @@ class AuthnAuthzServiceTask;
  */
 class ExternalAuthManagerThread : public Couchbase::Thread {
 public:
-    ExternalAuthManagerThread() : Couchbase::Thread("mcd:ext_auth") {
+    ExternalAuthManagerThread()
+        : Thread("mcd:ext_auth"), authprovider(connections) {
     }
     ExternalAuthManagerThread(const ExternalAuthManagerThread&) = delete;
 
@@ -194,8 +196,9 @@ protected:
 
     /// A list of available connections to use as authentication providers
     std::vector<Connection*> connections;
-    /// A counter used to round-robin between the available connections
-    size_t next_connection = 0;
+    /// The RoundRobin dispatcher used to iterate over the auth providers
+    /// to use
+    cb::RoundRobin<decltype(connections)> authprovider;
 
     /**
      * All of the various tasks enqueue their SASL request in this queue

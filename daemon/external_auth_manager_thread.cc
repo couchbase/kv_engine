@@ -169,7 +169,7 @@ void ExternalAuthManagerThread::pushActiveUsers() {
 }
 
 void ExternalAuthManagerThread::processRequestQueue() {
-    if (connections.empty()) {
+    if (authprovider.empty()) {
         // we don't have a provider, we need to cancel the request!
         while (!incomingRequests.empty()) {
             const std::string msg =
@@ -186,7 +186,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
 
     while (!incomingRequests.empty() &&
            requestMap.size() < maxPendingRequests) {
-        auto* provider = connections.at(next_connection++ % connections.size());
+        auto* provider = authprovider.next();
         auto currentRequest = incomingRequests.front();
         currentRequest->recordStartTime();
 
