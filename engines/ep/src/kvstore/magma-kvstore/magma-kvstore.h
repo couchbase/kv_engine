@@ -600,6 +600,8 @@ public:
 
     void setMagmaKeyTreeIndexBlockSize(size_t value);
 
+    void setMagmaCompressionConfig(const magma::CompressionConfig& cfg);
+
     void setMagmaEnableIndexBlockAutoTuning(bool enable);
 
     void setMagmaEnableDataBlockAutoTuning(bool enable);

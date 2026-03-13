@@ -11,10 +11,12 @@
 
 #include "magma-kvstore_config.h"
 
+#include "bucket_logger.h"
 #include "configuration.h"
 #include "ep_engine.h"
 #include "error_handler.h"
 #include "file_ops_tracker.h"
+#include "libmagma/compression.h"
 #include "magma-kvstore.h"
 #include "magma-kvstore_fs.h"
 
@@ -81,6 +83,12 @@ public:
             config.setFusionLogstoreURI(value);
         } else if (key == "magma_fusion_metadatastore_uri") {
             config.setFusionMetadatastoreURI(value);
+        } else if (key == "magma_index_compression_algo") {
+            config.setMagmaIndexCompressionAlgo(value);
+        } else if (key == "magma_data_compression_algo") {
+            config.setMagmaDataCompressionAlgo(value);
+        } else if (key == "magma_compacteddata_compression_algo") {
+            config.setMagmaCompactedDataCompressionAlgo(value);
         }
     }
 
@@ -151,13 +159,47 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxSyncWaitDurationMs());
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
-    magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgoString();
-    magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgoString();
-    magmaEnableIndexBlockAutotuning =
-            config.isMagmaEnableIndexBlockAutotuning();
-    magmaEnableDataBlockAutotuning = config.isMagmaEnableDataBlockAutotuning();
+
+    auto indexAlgo = config.getMagmaIndexCompressionAlgo();
+    if (auto [status, type] = magma::CompressionType::Create(indexAlgo);
+        status) {
+        *magmaIndexCompressionAlgo.lock() = std::move(indexAlgo);
+    } else {
+        getLogger().warnWithContext("Failed to create index compression type",
+                                    {{"param", "magma_index_compression_algo"},
+                                     {"value", indexAlgo},
+                                     {"error", status.Message()}});
+    }
+
+    auto dataAlgo = config.getMagmaDataCompressionAlgo();
+    if (auto [status, type] = magma::CompressionType::Create(dataAlgo);
+        status) {
+        *magmaDataCompressionAlgo.lock() = std::move(dataAlgo);
+    } else {
+        getLogger().warnWithContext("Failed to create data compression type",
+                                    {{"param", "magma_data_compression_algo"},
+                                     {"value", dataAlgo},
+                                     {"error", status.Message()}});
+    }
+
+    auto compactedAlgo = config.getMagmaCompacteddataCompressionAlgo();
+    if (auto [status, type] = magma::CompressionType::Create(compactedAlgo);
+        status) {
+        *magmaCompactedDataCompressionAlgo.lock() = std::move(compactedAlgo);
+    } else {
+        getLogger().warnWithContext(
+                "Failed to create compacted data compression type",
+                {{"param", "magma_compacteddata_compression_algo"},
+                 {"value", compactedAlgo},
+                 {"error", status.Message()}});
+    }
+
     perDocumentCompressionEnabled =
             config.isMagmaPerDocumentCompressionEnabled();
+    magmaEnableIndexBlockAutotuning.store(
+            config.isMagmaEnableIndexBlockAutotuning());
+    magmaEnableDataBlockAutotuning.store(
+            config.isMagmaEnableDataBlockAutotuning());
     magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
     magmaMinValueBlockSizeThreshold =
             config.getMagmaMinValueBlockSizeThreshold();
@@ -214,6 +256,15 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     config.addValueChangedListener(
             "magma_per_document_compression_enabled",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_index_compression_algo",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_data_compression_algo",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_compacteddata_compression_algo",
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_enable_index_block_autotuning",
@@ -423,6 +474,35 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     store->setMagmaKeyTreeIndexBlockSize(value);
 }
 
+void MagmaKVStoreConfig::setMagmaIndexCompressionAlgo(std::string value) {
+    if (auto [status, type] = magma::CompressionType::Create(value); !status) {
+        throw std::runtime_error(fmt::format(
+                "Invalid value '{}' for magma_index_compression_algo", value));
+    }
+    *magmaIndexCompressionAlgo.lock() = std::move(value);
+    updateCompressionConfig();
+}
+
+void MagmaKVStoreConfig::setMagmaDataCompressionAlgo(std::string value) {
+    if (auto [status, type] = magma::CompressionType::Create(value); !status) {
+        throw std::runtime_error(fmt::format(
+                "Invalid value '{}' for magma_data_compression_algo", value));
+    }
+    *magmaDataCompressionAlgo.lock() = std::move(value);
+    updateCompressionConfig();
+}
+
+void MagmaKVStoreConfig::setMagmaCompactedDataCompressionAlgo(
+        std::string value) {
+    if (auto [status, type] = magma::CompressionType::Create(value); !status) {
+        throw std::runtime_error(fmt::format(
+                "Invalid value '{}' for magma_compacteddata_compression_algo",
+                value));
+    }
+    *magmaCompactedDataCompressionAlgo.lock() = std::move(value);
+    updateCompressionConfig();
+}
+
 void MagmaKVStoreConfig::setMagmaEnableIndexBlockAutotuning(bool value) {
     magmaEnableIndexBlockAutotuning.store(value);
     Expects(store);
@@ -433,6 +513,25 @@ void MagmaKVStoreConfig::setMagmaEnableDataBlockAutotuning(bool value) {
     magmaEnableDataBlockAutotuning.store(value);
     Expects(store);
     store->setMagmaEnableDataBlockAutoTuning(value);
+}
+
+void MagmaKVStoreConfig::updateCompressionConfig() {
+    Expects(store);
+
+    auto [indexStatus, index] =
+            magma::CompressionType::Create(*magmaIndexCompressionAlgo.lock());
+    auto [dataStatus, data] =
+            magma::CompressionType::Create(*magmaDataCompressionAlgo.lock());
+    auto [compactedStatus, compacted] = magma::CompressionType::Create(
+            *magmaCompactedDataCompressionAlgo.lock());
+
+    Expects(indexStatus);
+    Expects(dataStatus);
+    Expects(compactedStatus);
+
+    magma::CompressionConfig newConfig{index, data, compacted};
+
+    store->setMagmaCompressionConfig(newConfig);
 }
 
 void MagmaKVStoreConfig::setContinousBackupInterval(

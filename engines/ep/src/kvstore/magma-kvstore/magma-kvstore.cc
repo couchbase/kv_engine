@@ -744,10 +744,19 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
             configuration.getMagmaBloomFilterAccuracyForBottomLevel();
     configuration.magmaCfg.MemoryQuotaLowWaterMarkRatio =
             configuration.getMagmaMemoryQuotaLowWaterMarkRatio();
-    configuration.magmaCfg.CompressionAlgo =
-            configuration.getMagmaIndexCompressionAlgoString();
-    configuration.magmaCfg.DataCompressionAlgo =
-            configuration.getMagmaDataCompressionAlgoString();
+
+    auto [indexStatus, index] = magma::CompressionType::Create(
+            configuration.getMagmaIndexCompressionAlgoString());
+    auto [dataStatus, data] = magma::CompressionType::Create(
+            configuration.getMagmaDataCompressionAlgoString());
+    auto [compactedStatus, compacted] = magma::CompressionType::Create(
+            configuration.getMagmaCompactedDataCompressionAlgoString());
+    Expects(indexStatus);
+    Expects(dataStatus);
+    Expects(compactedStatus);
+    configuration.magmaCfg.Compression =
+            magma::CompressionConfig{index, data, compacted};
+
     configuration.magmaCfg.EnableDataBlockAutoTuning =
             configuration.isMagmaEnableDataBlockAutotuning();
     configuration.magmaCfg.EnableIndexBlockAutoTuning =
@@ -4441,6 +4450,11 @@ void MagmaKVStore::setMagmaKeyTreeDataBlockSize(size_t value) {
 
 void MagmaKVStore::setMagmaKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
+}
+
+void MagmaKVStore::setMagmaCompressionConfig(
+        const magma::CompressionConfig& config) {
+    magma->SetCompressionConfig(config);
 }
 
 void MagmaKVStore::setMagmaEnableIndexBlockAutoTuning(bool enable) {

@@ -258,6 +258,10 @@ public:
     void SetSeqTreeIndexBlockSize(size_t value);
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
+
+    void SetCompressionConfig(const magma::CompressionConfig& config);
+    magma::CompressionConfig GetCompressionConfig() const;
+
     void EnableDataBlockAutoTuning(bool enable);
     bool IsDataBlockAutoTuningEnabled() const;
     void EnableIndexBlockAutoTuning(bool enable);

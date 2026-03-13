@@ -648,6 +648,18 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
 }
 
+void MagmaMemoryTrackingProxy::SetCompressionConfig(
+        const magma::CompressionConfig& config) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetCompressionConfig(config);
+}
+
+magma::CompressionConfig MagmaMemoryTrackingProxy::GetCompressionConfig()
+        const {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetCompressionConfig();
+}
+
 void MagmaMemoryTrackingProxy::EnableDataBlockAutoTuning(bool enable) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->EnableDataBlockAutoTuning(enable);

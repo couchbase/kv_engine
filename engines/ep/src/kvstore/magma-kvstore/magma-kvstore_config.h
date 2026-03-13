@@ -21,6 +21,7 @@
 #include <platform/byte_literals.h>
 #include <chrono>
 #include <filesystem>
+#include <mutex>
 
 using namespace std::chrono_literals;
 
@@ -211,11 +212,15 @@ public:
     }
 
     std::string getMagmaIndexCompressionAlgoString() const {
-        return magmaIndexCompressionAlgo;
+        return *magmaIndexCompressionAlgo.lock();
     }
 
     std::string getMagmaDataCompressionAlgoString() const {
-        return magmaDataCompressionAlgo;
+        return *magmaDataCompressionAlgo.lock();
+    }
+
+    std::string getMagmaCompactedDataCompressionAlgoString() const {
+        return *magmaCompactedDataCompressionAlgo.lock();
     }
 
     bool isMagmaEnableIndexBlockAutotuning() const {
@@ -229,6 +234,12 @@ public:
     void setMagmaMemQuotaRatio(float value);
 
     void setMagmaEnableBlockCache(bool enable);
+
+    void setMagmaIndexCompressionAlgo(std::string value);
+
+    void setMagmaDataCompressionAlgo(std::string value);
+
+    void setMagmaCompactedDataCompressionAlgo(std::string value);
 
     void setMagmaEnableIndexBlockAutotuning(bool value);
 
@@ -562,17 +573,28 @@ private:
      * contain documents ie. blocks that do not reside in the bottom level of
      * the sequence index
      */
-    std::string magmaIndexCompressionAlgo;
+    folly::Synchronized<std::string, std::mutex> magmaIndexCompressionAlgo{
+            "lz4"};
+
     /**
      * Compression algorithm used by Magma to compress data blocks where
      * documents are stored.
      */
-    std::string magmaDataCompressionAlgo;
+    folly::Synchronized<std::string, std::mutex> magmaDataCompressionAlgo{
+            "lz4"};
+
+    /**
+     * Compression algorithm used by Magma to compress data blocks after
+     * compaction (cold data).
+     */
+    folly::Synchronized<std::string, std::mutex>
+            magmaCompactedDataCompressionAlgo{"lz4"};
 
     /**
      * Enables Magma index block size auto-tuning based on compression ratio.
      */
     std::atomic<bool> magmaEnableIndexBlockAutotuning{false};
+
     /**
      * Enables Magma data block size auto-tuning based on compression ratio.
      */
@@ -659,4 +681,6 @@ private:
     std::atomic<size_t> fusionMaxLogSize;
     // Base cap for maximum number of log files
     std::atomic<size_t> fusionMaxNumLogFiles;
+
+    void updateCompressionConfig();
 };

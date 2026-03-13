@@ -299,6 +299,13 @@ Available params for "set":
     history_retention_bytes      - Max bytes of history a bucket should aim to retain on disk.
     magma_enable_index_block_autotuning - Enable auto-tuning of index block size based on compression ratio.
     magma_enable_data_block_autotuning - Enable auto-tuning of data block size based on compression ratio.
+    magma_index_compression_algo - Compression algorithm for Magma index blocks. Format: 'algo' or
+                                   'algo:level' (e.g., 'zstd:9'). Supported: snappy, lz4, none, zstd.
+    magma_data_compression_algo - Compression algorithm for Magma data blocks. Format: 'algo' or
+                                  'algo:level' (e.g., 'zstd:9'). Supported: snappy, lz4, none, zstd.
+    magma_compacteddata_compression_algo - Compression algorithm for Magma compacted (cold) data blocks.
+                                           Format: 'algo' or 'algo:level' (e.g., 'zstd:9').
+                                           Supported: snappy, lz4, none, zstd.
     magma_fusion_logstore_uri - URI of the Fusion LogStore
     magma_fusion_metadatastore_uri - URI of the Fusion MetadataStore
     magma_fusion_upload_interval - The interval between kvstore syncs to fusion, in seconds.

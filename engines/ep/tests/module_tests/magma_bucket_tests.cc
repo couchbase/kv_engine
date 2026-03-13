@@ -586,6 +586,69 @@ TEST_P(STParamMagmaBucketTest, MagmaBlockAutoTuningStartupConfig) {
     EXPECT_TRUE(config.isMagmaEnableDataBlockAutotuning());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoDynamicUpdate) {
+    std::string msg;
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_index_compression_algo", "snappy", msg));
+    EXPECT_EQ(config.getMagmaIndexCompressionAlgoString(), "snappy");
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_data_compression_algo", "zstd:5", msg));
+    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd:5");
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_compacteddata_compression_algo", "zstd:9", msg));
+    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd:9");
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoStartupConfig) {
+    TearDown();
+    config_string += ";magma_index_compression_algo=snappy";
+    config_string += ";magma_data_compression_algo=zstd:5";
+    config_string += ";magma_compacteddata_compression_algo=zstd:9";
+    STParameterizedBucketTest::SetUp();
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    EXPECT_EQ(config.getMagmaIndexCompressionAlgoString(), "snappy");
+    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd:5");
+    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd:9");
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoInvalidRejected) {
+    std::string msg;
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    const auto origIndex = config.getMagmaIndexCompressionAlgoString();
+    const auto origData = config.getMagmaDataCompressionAlgoString();
+    const auto origCompacted =
+            config.getMagmaCompactedDataCompressionAlgoString();
+
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "magma_index_compression_algo", "invalid", msg));
+    EXPECT_EQ(config.getMagmaIndexCompressionAlgoString(), origIndex);
+
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "magma_data_compression_algo", "snappy:2", msg));
+    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), origData);
+
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "magma_compacteddata_compression_algo", "zstd:99", msg));
+    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(),
+              origCompacted);
+}
+
 /*
  * Test for MB-47566 to ensure that compaction running at the same time as a
  * vbucket being rolled back doesn't cause us to throw an underflow exception

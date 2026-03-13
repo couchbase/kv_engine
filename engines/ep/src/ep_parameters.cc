@@ -145,6 +145,9 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "magma_key_tree_data_block_size",
         "magma_key_tree_index_block_size",
         "magma_per_document_compression_enabled",
+        "magma_index_compression_algo",
+        "magma_data_compression_algo",
+        "magma_compacteddata_compression_algo",
         "magma_enable_index_block_autotuning",
         "magma_enable_data_block_autotuning",
 };

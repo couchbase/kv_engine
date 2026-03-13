@@ -1791,29 +1791,33 @@
             "type": "float"
         },
         "magma_index_compression_algo": {
-            "default": "LZ4",
-            "descr": "Compression algorithm used by Magma which is used to compress blocks that don't contain documents ie. all index related blocks",
-            "dynamic": false,
+            "default": "lz4",
+            "descr": "Compression algorithm used by Magma which is used to compress blocks that don't contain documents ie. all index related blocks. Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level 1-22)",
+            "dynamic": true,
             "type": "std::string",
-            "validator": {
-                "enum": [
-                    "LZ4",
-                    "Snappy",
-                    "Zstd"
-                ]
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
             }
         },
         "magma_data_compression_algo": {
-            "default": "LZ4",
-            "descr": "Compression algorithm used by Magma to compress data blocks where documents are stored.",
-            "dynamic": false,
+            "default": "lz4",
+            "descr": "Compression algorithm used by Magma to compress data blocks where documents are stored. Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level1-22)",
+            "dynamic": true,
             "type": "std::string",
-            "validator": {
-                "enum": [
-                    "LZ4",
-                    "Snappy",
-                    "Zstd"
-                ]
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_compacteddata_compression_algo": {
+            "default": "lz4",
+            "descr": "Compression algorithm used by Magma to compress data blocks after compaction (cold data). Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level 1-22)",
+            "dynamic": true,
+            "type": "std::string",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
             }
         },
         "magma_enable_index_block_autotuning": {

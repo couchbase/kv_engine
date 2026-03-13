@@ -6419,8 +6419,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_enable_memory_optimized_writes",
               "ep_magma_bloom_filter_accuracy",
               "ep_magma_bloom_filter_accuracy_for_bottom_level",
-              "ep_magma_index_compression_algo",
-              "ep_magma_data_compression_algo",
               "ep_magma_fusion_logstore_uri",
               "ep_magma_fusion_metadatastore_uri",
               "ep_magma_fusion_upload_interval",
@@ -6787,8 +6785,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_enable_memory_optimized_writes",
               "ep_magma_bloom_filter_accuracy",
               "ep_magma_bloom_filter_accuracy_for_bottom_level",
-              "ep_magma_index_compression_algo",
-              "ep_magma_data_compression_algo",
               "ep_magma_fusion_logstore_uri",
               "ep_magma_fusion_metadatastore_uri",
               "ep_magma_fusion_upload_interval",
@@ -7182,7 +7178,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_key_tree_data_block_size",
                           "ep_magma_key_tree_index_block_size",
                           "ep_magma_enable_data_block_autotuning",
-                          "ep_magma_enable_index_block_autotuning"});
+                          "ep_magma_enable_index_block_autotuning",
+                          "ep_magma_data_compression_algo",
+                          "ep_magma_index_compression_algo",
+                          "ep_magma_compacteddata_compression_algo"});
         }
 
         // Add expected bespoke magma stats into the "all" group
