@@ -648,6 +648,26 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
 }
 
+void MagmaMemoryTrackingProxy::EnableDataBlockAutoTuning(bool enable) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->EnableDataBlockAutoTuning(enable);
+}
+
+bool MagmaMemoryTrackingProxy::IsDataBlockAutoTuningEnabled() const {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->IsDataBlockAutoTuningEnabled();
+}
+
+void MagmaMemoryTrackingProxy::EnableIndexBlockAutoTuning(bool enable) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->EnableIndexBlockAutoTuning(enable);
+}
+
+bool MagmaMemoryTrackingProxy::IsIndexBlockAutoTuningEnabled() const {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->IsIndexBlockAutoTuningEnabled();
+}
+
 void MagmaMemoryTrackingProxy::SetBackupInterval(
         std::chrono::minutes interval) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

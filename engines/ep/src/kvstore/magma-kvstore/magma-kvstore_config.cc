@@ -91,6 +91,10 @@ public:
             config.setMagmaEnableBlockCache(b);
         } else if (key == "magma_per_document_compression_enabled") {
             config.setPerDocumentCompressionEnabled(b);
+        } else if (key == "magma_enable_index_block_autotuning") {
+            config.setMagmaEnableIndexBlockAutotuning(b);
+        } else if (key == "magma_enable_data_block_autotuning") {
+            config.setMagmaEnableDataBlockAutotuning(b);
         } else if (key == "continuous_backup_enabled") {
             config.setContinousBackupEnabled(b);
         }
@@ -149,6 +153,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxTransactionCount();
     magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgoString();
     magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgoString();
+    magmaEnableIndexBlockAutotuning =
+            config.isMagmaEnableIndexBlockAutotuning();
+    magmaEnableDataBlockAutotuning = config.isMagmaEnableDataBlockAutotuning();
     perDocumentCompressionEnabled =
             config.isMagmaPerDocumentCompressionEnabled();
     magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
@@ -207,6 +214,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     config.addValueChangedListener(
             "magma_per_document_compression_enabled",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_enable_index_block_autotuning",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_enable_data_block_autotuning",
             std::make_unique<ConfigChangeListener>(*this));
 
     continuousBackupEnabled = config.isContinuousBackupEnabled();
@@ -408,6 +421,18 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     Expects(store);
     magmaKeyTreeIndexBlockSize.store(value);
     store->setMagmaKeyTreeIndexBlockSize(value);
+}
+
+void MagmaKVStoreConfig::setMagmaEnableIndexBlockAutotuning(bool value) {
+    magmaEnableIndexBlockAutotuning.store(value);
+    Expects(store);
+    store->setMagmaEnableIndexBlockAutoTuning(value);
+}
+
+void MagmaKVStoreConfig::setMagmaEnableDataBlockAutotuning(bool value) {
+    magmaEnableDataBlockAutotuning.store(value);
+    Expects(store);
+    store->setMagmaEnableDataBlockAutoTuning(value);
 }
 
 void MagmaKVStoreConfig::setContinousBackupInterval(

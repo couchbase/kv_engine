@@ -218,9 +218,21 @@ public:
         return magmaDataCompressionAlgo;
     }
 
+    bool isMagmaEnableIndexBlockAutotuning() const {
+        return magmaEnableIndexBlockAutotuning;
+    }
+
+    bool isMagmaEnableDataBlockAutotuning() const {
+        return magmaEnableDataBlockAutotuning;
+    }
+
     void setMagmaMemQuotaRatio(float value);
 
     void setMagmaEnableBlockCache(bool enable);
+
+    void setMagmaEnableIndexBlockAutotuning(bool value);
+
+    void setMagmaEnableDataBlockAutotuning(bool value);
 
     void setMakeDirectoryFn(magma::DirectoryConstructor fn);
 
@@ -556,6 +568,15 @@ private:
      * documents are stored.
      */
     std::string magmaDataCompressionAlgo;
+
+    /**
+     * Enables Magma index block size auto-tuning based on compression ratio.
+     */
+    std::atomic<bool> magmaEnableIndexBlockAutotuning{false};
+    /**
+     * Enables Magma data block size auto-tuning based on compression ratio.
+     */
+    std::atomic<bool> magmaEnableDataBlockAutotuning{false};
 
     /**
      * Group Commit allows transactions in magma to be grouped

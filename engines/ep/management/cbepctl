@@ -297,6 +297,8 @@ Available params for "set":
     seqno_persistence_timeout    - Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed
     history_retention_seconds    - Seconds of history a bucket should aim to retain on disk.
     history_retention_bytes      - Max bytes of history a bucket should aim to retain on disk.
+    magma_enable_index_block_autotuning - Enable auto-tuning of index block size based on compression ratio.
+    magma_enable_data_block_autotuning - Enable auto-tuning of data block size based on compression ratio.
     magma_fusion_logstore_uri - URI of the Fusion LogStore
     magma_fusion_metadatastore_uri - URI of the Fusion MetadataStore
     magma_fusion_upload_interval - The interval between kvstore syncs to fusion, in seconds.

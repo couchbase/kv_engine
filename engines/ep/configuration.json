@@ -1816,6 +1816,26 @@
                 ]
             }
         },
+        "magma_enable_index_block_autotuning": {
+            "default": "false",
+            "descr": "Enable auto-tuning of index block size based on compression ratio.",
+            "dynamic": true,
+            "type": "bool",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_enable_data_block_autotuning": {
+            "default": "false",
+            "descr": "Enable auto-tuning of data block size based on compression ratio.",
+            "dynamic": true,
+            "type": "bool",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "magma_fusion_logstore_uri": {
             "default": "",
             "descr": "URI of the Fusion LogStore.",

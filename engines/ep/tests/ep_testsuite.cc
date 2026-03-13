@@ -7180,7 +7180,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_min_value_block_size_threshold",
                           "ep_magma_seq_tree_index_block_size",
                           "ep_magma_key_tree_data_block_size",
-                          "ep_magma_key_tree_index_block_size"});
+                          "ep_magma_key_tree_index_block_size",
+                          "ep_magma_enable_data_block_autotuning",
+                          "ep_magma_enable_index_block_autotuning"});
         }
 
         // Add expected bespoke magma stats into the "all" group

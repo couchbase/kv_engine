@@ -548,6 +548,44 @@ TEST_P(STParamMagmaBucketTest, MagmaKeyTreeIndexBlocksSize) {
     ASSERT_EQ(7777, config.getMagmaKeyTreeIndexBlockSize());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaBlockAutoTuningDynamicUpdate) {
+    std::string msg;
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_enable_index_block_autotuning", "true", msg));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_enable_data_block_autotuning", "true", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    EXPECT_TRUE(config.isMagmaEnableIndexBlockAutotuning());
+    EXPECT_TRUE(config.isMagmaEnableDataBlockAutotuning());
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_enable_index_block_autotuning", "false", msg));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_enable_data_block_autotuning", "false", msg));
+
+    EXPECT_FALSE(config.isMagmaEnableIndexBlockAutotuning());
+    EXPECT_FALSE(config.isMagmaEnableDataBlockAutotuning());
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaBlockAutoTuningStartupConfig) {
+    TearDown();
+    config_string += ";magma_enable_index_block_autotuning=true";
+    config_string += ";magma_enable_data_block_autotuning=true";
+    STParameterizedBucketTest::SetUp();
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    EXPECT_TRUE(config.isMagmaEnableIndexBlockAutotuning());
+    EXPECT_TRUE(config.isMagmaEnableDataBlockAutotuning());
+}
+
 /*
  * Test for MB-47566 to ensure that compaction running at the same time as a
  * vbucket being rolled back doesn't cause us to throw an underflow exception

@@ -600,6 +600,10 @@ public:
 
     void setMagmaKeyTreeIndexBlockSize(size_t value);
 
+    void setMagmaEnableIndexBlockAutoTuning(bool enable);
+
+    void setMagmaEnableDataBlockAutoTuning(bool enable);
+
     void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
 
     /**

@@ -258,6 +258,10 @@ public:
     void SetSeqTreeIndexBlockSize(size_t value);
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
+    void EnableDataBlockAutoTuning(bool enable);
+    bool IsDataBlockAutoTuningEnabled() const;
+    void EnableIndexBlockAutoTuning(bool enable);
+    bool IsIndexBlockAutoTuningEnabled() const;
 
     void SetBackupInterval(std::chrono::minutes interval);
     magma::Status StartBackup(const magma::Magma::KVStoreID kvID,
