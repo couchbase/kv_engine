@@ -88,11 +88,6 @@ nlohmann::json Connection::to_json() const {
     ret["peername"] = peername;
     ret["sockname"] = sockname;
 
-    auto details = getIoLayerDetails();
-    if (details.is_object()) {
-        ret["io_layer"] = details;
-    }
-
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";
     ret["bucket_index"] = getBucketIndex();
@@ -236,24 +231,17 @@ nlohmann::json Connection::to_json_tcp() const {
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
 
-    ret["sendqueue"]["actual"] = getSendQueueSize();
     ret["sendqueue"]["size"] = sendQueueInfo.size;
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();
     ret["sendqueue"]["term"] = sendQueueInfo.term;
 
     ret["blocked_send_queue_duration"] =
             cb::time2text(blockedOnFullSendQueueDuration);
-    ret["socket_options"] = cb::net::getSocketOptions(socketDescriptor);
 
-#ifdef __linux__
-    int value;
-    if (ioctl(socketDescriptor, SIOCINQ, &value) == 0) {
-        ret["SIOCINQ"] = value;
+    auto details = getIoLayerDetails();
+    if (details.is_object()) {
+        ret["io_layer"] = std::move(details);
     }
-    if (ioctl(socketDescriptor, SIOCOUTQ, &value) == 0) {
-        ret["SIOCOUTQ"] = value;
-    }
-#endif
 
     return ret;
 }

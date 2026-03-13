@@ -24,9 +24,16 @@
 #include <event2/event.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
+#include <mcbp/protocol/request.h>
+#include <mcbp/protocol/response.h>
 #include <openssl/err.h>
 #include <phosphor/phosphor.h>
 #include <platform/string_hex.h>
+
+#ifdef __linux__
+#include <linux/sockios.h>
+#include <sys/ioctl.h>
+#endif
 
 /// Don't allow unauthenticated clients send large packets to
 /// consume memory on the server (for instance send everything except
@@ -516,19 +523,110 @@ void LibeventConnection::enableReadEvent() {
     }
 }
 
+nlohmann::json LibeventConnection::getInputQueueInfo() const {
+    nlohmann::json result;
+    nlohmann::json requests = nlohmann::json::object();
+    nlohmann::json responses = nlohmann::json::object();
+
+    try {
+        auto* event = bev.get();
+        auto* input = bufferevent_get_input(event);
+        auto size = evbuffer_get_length(input);
+        if (size == 0) {
+            return {};
+        }
+        auto* ptr = reinterpret_cast<const char*>(evbuffer_pullup(input, size));
+        if (!ptr) {
+            return {};
+        }
+        std::string_view blob{ptr, size};
+
+        auto is_packet_available = [](std::string_view data) {
+            const auto* header =
+                    reinterpret_cast<const cb::mcbp::Header*>(data.data());
+
+            if (data.size() < sizeof(cb::mcbp::Header) || !header->isValid()) {
+                return false;
+            }
+
+            const auto framesize = sizeof(*header) + header->getBodylen();
+            return (data.size() >= framesize);
+        };
+
+        while (is_packet_available(blob)) {
+            const auto* header =
+                    reinterpret_cast<const cb::mcbp::Header*>(blob.data());
+            if (header->isRequest()) {
+                const auto* req =
+                        reinterpret_cast<const cb::mcbp::Request*>(header);
+                std::string key;
+                if (cb::mcbp::is_server_magic(req->getMagic())) {
+                    key = format_as(req->getServerOpcode());
+                } else {
+                    key = format_as(req->getClientOpcode());
+                }
+                std::size_t current = requests.value(key, 0);
+                requests[key] = current + 1;
+            } else {
+                const auto* res =
+                        reinterpret_cast<const cb::mcbp::Response*>(header);
+                std::string key;
+                if (cb::mcbp::is_server_magic(res->getMagic())) {
+                    key = format_as(res->getServerOpcode());
+                } else {
+                    key = format_as(res->getClientOpcode());
+                }
+                std::size_t current = responses.value(key, 0);
+                responses[key] = current + 1;
+            }
+
+            blob.remove_prefix(sizeof(cb::mcbp::Header) + header->getBodylen());
+        }
+
+    } catch (const std::exception& e) {
+        result["error"] = e.what();
+    }
+    if (!requests.empty()) {
+        result["requests"] = std::move(requests);
+    }
+    if (!responses.empty()) {
+        result["responses"] = std::move(responses);
+    }
+    return result;
+}
+
 size_t LibeventConnection::getSendQueueSize() const {
     return getSendQueueSizeImpl();
 }
 
 nlohmann::json LibeventConnection::getIoLayerDetails() const {
     const auto enabled = bufferevent_get_enabled(bev.get());
+    const auto input_len =
+            evbuffer_get_length(bufferevent_get_input(bev.get()));
     nlohmann::json result = {
-            {"input_len",
-             evbuffer_get_length(bufferevent_get_input(bev.get()))},
+            {"input_len", input_len},
             {"output_len",
              evbuffer_get_length(bufferevent_get_output(bev.get()))},
             {"EV_READ", (enabled & EV_READ) == EV_READ ? true : false},
-            {"EV_WRITE", (enabled & EV_WRITE) == EV_WRITE ? true : false}};
+            {"EV_WRITE", (enabled & EV_WRITE) == EV_WRITE ? true : false},
+            {"socket_options", cb::net::getSocketOptions(socketDescriptor)}};
+
+#ifdef __linux__
+    int value;
+    if (ioctl(socketDescriptor, SIOCINQ, &value) == 0) {
+        result["SIOCINQ"] = value;
+    }
+    if (ioctl(socketDescriptor, SIOCOUTQ, &value) == 0) {
+        result["SIOCOUTQ"] = value;
+    }
+#endif
+
+    if (input_len > 0) {
+        auto details = getInputQueueInfo();
+        if (details.is_object() && !details.empty()) {
+            result["input_content"] = std::move(details);
+        }
+    }
 
     return result;
 }

@@ -253,18 +253,21 @@ TEST_P(DcpTest, MB60706) {
     } while (std::chrono::steady_clock::now() < timeout);
     ASSERT_TRUE(found) << "Did not locate unclean shutdown";
 #ifdef __linux__
-    EXPECT_TRUE(json.contains("SIOCINQ"));
-    EXPECT_TRUE(json.contains("SIOCOUTQ"));
+    EXPECT_TRUE(json["io_layer"].contains("SIOCINQ"));
+    EXPECT_TRUE(json["io_layer"].contains("SIOCOUTQ"));
 #endif
+    EXPECT_TRUE(json["io_layer"].contains("input_len"));
+    EXPECT_TRUE(json["io_layer"].contains("output_len"));
+    EXPECT_TRUE(json["io_layer"].contains("EV_READ"));
+    EXPECT_TRUE(json["io_layer"].contains("EV_WRITE"));
+    ASSERT_TRUE(json["io_layer"].contains("socket_options"));
+    ASSERT_TRUE(json["io_layer"]["socket_options"].is_object());
     EXPECT_TRUE(json.contains("sendqueue"));
     ASSERT_TRUE(json["sendqueue"].is_object());
     const auto& sendq = json["sendqueue"];
-    EXPECT_TRUE(sendq.contains("actual"));
     EXPECT_TRUE(sendq.contains("last"));
     EXPECT_TRUE(sendq.contains("size"));
     EXPECT_TRUE(sendq.contains("term"));
     EXPECT_TRUE(sendq["term"].get<bool>());
-    EXPECT_TRUE(json.contains("socket_options"));
     EXPECT_TRUE(json.contains("blocked_send_queue_duration"));
-    ASSERT_TRUE(json["socket_options"].is_object());
 }

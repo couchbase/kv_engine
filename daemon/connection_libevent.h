@@ -36,6 +36,8 @@ public:
     void enableReadEvent() override;
 
 protected:
+    nlohmann::json getInputQueueInfo() const;
+
     LibeventConnection(FrontEndThread& thr) : Connection(thr) {
     }
 
