@@ -144,6 +144,10 @@ public:
      */
     size_t getUnackedBytes() const;
 
+    std::optional<size_t> getCacheTransferFreeMemory() const {
+        return cacheTransfer;
+    }
+
 protected:
     bool transitionState(StreamState newState);
 

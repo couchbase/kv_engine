@@ -330,10 +330,10 @@ std::optional<size_t> DcpConsumer::configureCacheTransfer(
     }
 
     const auto freeMem = hwm - memUsed;
-    const auto active = bucket->getNumOfVBucketsInState(vbucket_state_active);
     // freeMem is the amount of memory available per vbucket. Only consider
     // active + 1 share as isNextState(replica) case is handled earlier.
-    return freeMem / (active + 1);
+    return engine_.getKVBucket()->calculateCacheTransferMemory(freeMem,
+                                                               getCookie());
 }
 
 cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,

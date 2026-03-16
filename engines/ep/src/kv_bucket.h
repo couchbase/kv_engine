@@ -22,6 +22,7 @@
 #include "vbucket_types.h"
 #include "vbucketmap.h"
 #include <executor/task_type.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/storeddockey.h>
 #include <platform/cb_time.h>
 #include <utilities/testing_hook.h>
@@ -184,6 +185,22 @@ public:
      * @return  the number of vbuckets in the requested state
      */
     uint16_t getNumOfVBucketsInState(vbucket_state_t state) const;
+
+    /**
+     * Calculate the amount of memory available per vbucket for a cache
+     * transfer. Uses future vbucket counts from cluster configuration when
+     * available, falling back to using current active VB count.
+     *
+     * A value is cached in KVBucket and recalculated only when the cluster
+     * configuration map changes to try ensure all callers use the same value
+     * during a rebalance.
+     *
+     * @param freeMem The total free memory available
+     * @param cookie Cookie to get future vbucket counts from (required)
+     * @return The memory available per vbucket (freeMem / (activeCount + 1))
+     */
+    size_t calculateCacheTransferMemory(size_t freeMem,
+                                        const CookieIface* cookie);
 
     /**
      * Returns a vector containing the vbuckets from the vbMap that are in
@@ -1249,6 +1266,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    std::optional<size_t> getCacheTransferFreeMemory() const {
+        return cacheTransferMemoryInfo.lock()->cacheTransferFreeMemory;
+    }
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1449,6 +1470,33 @@ protected:
      */
     virtual void deleteVbucketImpl(LockedVBucketPtr& lockedVB) {
     }
+
+    /**
+     * Calculate the amount of memory available per vbucket for cache transfer.
+     * Uses future vbucket counts from cluster configuration when available,
+     * falling back to current runtime counts.
+     *
+     * The value is cached in the KVBucket and recalculated when the cluster
+     * configuration map changes.
+     *
+     * @param freeMem The total free memory available
+     * @param cookie Cookie to get future vbucket counts from (required)
+     * @return The memory available per vbucket (freeMem / (activeCount + 1))
+     */
+    size_t calculateCacheTransferMemoryFromCookie(size_t freeMem,
+                                                  const CookieIface& cookie);
+
+    /**
+     * Fallback calculation for memory per vbucket using current runtime state.
+     * This is a static helper method that can be used when cluster
+     * configuration data is unavailable.
+     *
+     * @param activeCount The current runtime active vbucket count
+     * @param freeMem The total free memory available
+     * @return The memory available per vbucket (freeMem / (activeCount + 1))
+     */
+    static size_t calculateCacheTransferMemoryFallback(size_t activeCount,
+                                                       size_t freeMem);
 
     friend class VBucketLoader;
     friend class Warmup;
@@ -1676,6 +1724,39 @@ protected:
      * Whether continuous backup is enabled.
      */
     std::atomic<bool> continuousBackupEnabled{false};
+
+    struct CacheTransferMemoryInfo {
+        /**
+         * return/calculate the memory available per vbucket for cache transfer.
+         * On first call the cookie is queried and the optionals are updated.
+         * @param freeMem current available free memory for the bucket.
+         * @param cookie to query for future vbucket counts if needed.
+         * @return 0 if no value was calculated, otherwise the memory available
+         * per vbucket for cache transfer.
+         */
+        size_t calculateCacheTransferMemoryFromCookie(
+                size_t freeMem, const CookieIface& cookie);
+
+        /**
+         * The future vbucket info from the cluster configuration. We keep a
+         * hold of this and only change it when the cluster configuration is
+         * detected to have changed. This is optional so the first call will
+         * initialise from the cookie.
+         */
+        std::optional<FutureVBucketInfo> futureVBucketInfo;
+
+        /**
+         * The amount of free memory to use for a single cache transfer. This is
+         * optional for the case when we cannot calculate a memory value. All
+         * cache transfers that this bucket requests should be using the same
+         * value and this only changes if the cluster configuration changes (and
+         * ff-map changes)
+         */
+        std::optional<size_t> cacheTransferFreeMemory;
+    };
+
+    folly::Synchronized<CacheTransferMemoryInfo, std::mutex>
+            cacheTransferMemoryInfo;
 
     friend class KVBucketTest;
 };

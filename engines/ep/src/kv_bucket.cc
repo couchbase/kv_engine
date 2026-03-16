@@ -2961,6 +2961,70 @@ uint16_t KVBucket::getNumOfVBucketsInState(vbucket_state_t state) const {
     return vbMap.getVBStateCount(state);
 }
 
+size_t KVBucket::calculateCacheTransferMemoryFallback(size_t activeCount,
+                                                      size_t freeMem) {
+    // Divide by current activeCount + 1 to get per-vbucket allocation.
+    // +1 to account for the new vbucket that is being added.
+    return freeMem / (activeCount + 1);
+}
+
+size_t KVBucket::calculateCacheTransferMemory(size_t freeMem,
+                                              const CookieIface* cookie) {
+    size_t rv{0};
+    if (cookie) {
+        rv = calculateCacheTransferMemoryFromCookie(freeMem, *cookie);
+    }
+
+    if (!rv) {
+        // Fallback which uses current active vbucket count (which could be far
+        // smaller than the final count after rebalance).
+        rv = calculateCacheTransferMemoryFallback(
+                getNumOfVBucketsInState(vbucket_state_active), freeMem);
+    }
+    return rv;
+}
+
+size_t KVBucket::calculateCacheTransferMemoryFromCookie(
+        size_t freeMem, const CookieIface& cookie) {
+    return cacheTransferMemoryInfo.lock()
+            ->calculateCacheTransferMemoryFromCookie(freeMem, cookie);
+}
+
+size_t
+KVBucket::CacheTransferMemoryInfo::calculateCacheTransferMemoryFromCookie(
+        size_t freeMem, const CookieIface& cookie) {
+    // When a cookie provided ask for the future (fast-forward map) vbucket
+    // counts. Pass the current cached futureVBucketInfo because the
+    // function will check if the map has changed to avoid the work of
+    // parsing the map everytime. If the map is unchanged, the input is returned
+    auto futureVbInfo = cookie.getFutureVbucketCounts(futureVBucketInfo);
+
+    // If the signature has changed, then we shall store it and reset the
+    // cacheTransferFreeMemory so it can be recalculated.
+    // Note that the cluster map could change (epoch/rev) but the map didn't
+    // change, so the signature compare is needed to avoid unnecessary
+    // recalculation.
+    if (futureVbInfo.value_or(FutureVBucketInfo{}).signature !=
+        futureVBucketInfo.value_or(FutureVBucketInfo{}).signature) {
+        futureVBucketInfo = futureVbInfo;
+        cacheTransferFreeMemory = std::nullopt;
+    }
+
+    if (cacheTransferFreeMemory.has_value()) {
+        return cacheTransferFreeMemory.value();
+    }
+
+    if (futureVBucketInfo && futureVBucketInfo->active) {
+        // Use the future active vbucket count from cluster config. And never
+        // return 0 in this case (1 + ...)
+        cacheTransferFreeMemory = 1 + freeMem / futureVBucketInfo->active;
+        return cacheTransferFreeMemory.value();
+    }
+
+    // Caller will fallback to using current active vbucket count.
+    return 0;
+}
+
 size_t KVBucket::getMemFootPrint() {
     size_t mem = 0;
     for (auto& i : vbMap.shards) {

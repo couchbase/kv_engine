@@ -12,12 +12,16 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "item.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
 #include "tests/mock/mock_dcp.h"
+#include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 #include <utilities/test_manifest.h>
+
+using namespace cb::mcbp;
 
 #include <unordered_set>
 
@@ -815,6 +819,73 @@ TEST_P(DcpCacheTransferTest, all_keys_memory_pressure) {
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
+// Test that consumer->addStream with CacheTransfer flag correctly uses
+// MockCookie::setFutureVbucketCounts to calculate cache transfer memory
+TEST_P(DcpCacheTransferTest, consumer_addStream_with_future_counts) {
+    // Set up a replica vbucket as consumers only work with replica vbuckets
+    const auto replicaVB1 = Vbid(1);
+    setVBucketStateAndRunPersistTask(replicaVB1, vbucket_state_replica);
+    const auto replicaVB2 = Vbid(2);
+    setVBucketStateAndRunPersistTask(replicaVB2, vbucket_state_replica);
+
+    cookie_to_mock_cookie(cookie)->setFutureVbucketCounts(
+            FutureVBucketInfo{0, 0, 256, 0, 1});
+
+    // Create a consumer
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "test_producer->test_consumer");
+
+    EXPECT_FALSE(
+            engine->getKVBucket()->getCacheTransferFreeMemory().has_value());
+
+    // Add stream with CacheTransfer flag - this enables cache transfer
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  replicaVB1,
+                                  cb::mcbp::DcpAddStreamFlag::CacheTransfer));
+
+    // Save the memory value (don't expect it to be a specific value).
+    const auto ctsMemory = engine->getKVBucket()->getCacheTransferFreeMemory();
+    EXPECT_TRUE(ctsMemory.has_value());
+
+    // Get the passive stream that was created
+    auto stream = consumer->getVbucketStream(replicaVB1);
+    ASSERT_TRUE(stream) << "Stream should be created for replica vbucket";
+    const auto streamCtsMemory = stream->getCacheTransferFreeMemory();
+    EXPECT_EQ(ctsMemory, streamCtsMemory)
+            << "Stream's cache transfer memory should match bucket's value";
+
+    // Create a second stream, it should have the same value as the first stream
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  replicaVB2,
+                                  cb::mcbp::DcpAddStreamFlag::CacheTransfer));
+
+    auto stream2 = consumer->getVbucketStream(replicaVB1);
+    ASSERT_TRUE(stream2) << "Stream should be created for replica vbucket";
+    const auto stream2CtsMemory = stream2->getCacheTransferFreeMemory();
+    EXPECT_EQ(ctsMemory, stream2CtsMemory)
+            << "Stream's cache transfer memory should match bucket's value";
+
+    // Now set future vbucket counts with a different active count.
+    cookie_to_mock_cookie(cookie)->setFutureVbucketCounts(
+            FutureVBucketInfo{0, 0, 1, 0, 2});
+
+    const auto replicaVB3 = Vbid(3);
+    setVBucketStateAndRunPersistTask(replicaVB3, vbucket_state_replica);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0,
+                                  replicaVB3,
+                                  cb::mcbp::DcpAddStreamFlag::CacheTransfer));
+
+    const auto ctsMemory2 = engine->getKVBucket()->getCacheTransferFreeMemory();
+    EXPECT_TRUE(ctsMemory2.has_value());
+    EXPECT_NE(ctsMemory, ctsMemory2)
+            << "Changing future vbucket counts should change cache transfer "
+               "memory";
 }
 
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as
