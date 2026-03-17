@@ -19,6 +19,9 @@
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <folly/Synchronized.h>
+#include <mcbp/protocol/header.h>
+#include <mcbp/protocol/request.h>
+#include <mcbp/protocol/response.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/connection_iface.h>
 #include <memcached/dcp.h>
@@ -976,6 +979,53 @@ public:
         return tokenAuthDataById.erase(id) > 0;
     }
 
+    void record_request_sent(cb::mcbp::ClientOpcode opcode,
+                             std::size_t count = 1) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (type == Type::Normal) {
+            return;
+        }
+        frames_sent_counts.request[static_cast<uint8_t>(opcode)] += count;
+#endif
+    }
+
+    void record_frame_sent(const cb::mcbp::Header& header) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (type == Type::Normal) {
+            return;
+        }
+        if (header.isRequest()) {
+            const auto& req = header.getRequest();
+            if (cb::mcbp::is_client_magic(req.getMagic())) {
+                ++frames_sent_counts.request[header.getOpcode()];
+            }
+        } else if (header.isResponse()) {
+            const auto& res = header.getResponse();
+            if (cb::mcbp::is_client_magic(res.getMagic())) {
+                ++frames_sent_counts.response[header.getOpcode()];
+            }
+        } else {
+            Expects(false && "Unknown magic value in header");
+        }
+#endif
+    }
+
+    void record_frame_received(const cb::mcbp::Header& header) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (header.isRequest()) {
+            const auto& req = header.getRequest();
+            if (cb::mcbp::is_client_magic(req.getMagic())) {
+                ++frames_recv_counts.request[header.getOpcode()];
+            }
+        } else {
+            const auto& res = header.getResponse();
+            if (cb::mcbp::is_client_magic(res.getMagic())) {
+                ++frames_recv_counts.response[header.getOpcode()];
+            }
+        }
+#endif
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
@@ -1190,6 +1240,16 @@ protected:
     size_t totalRecv = 0;
     /// Total number of bytes sent to the network
     size_t totalSend = 0;
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    struct OpcodeCounts {
+        std::unordered_map<uint8_t, std::size_t> request;
+        std::unordered_map<uint8_t, std::size_t> response;
+    };
+
+    OpcodeCounts frames_sent_counts{};
+    OpcodeCounts frames_recv_counts{};
+#endif
 
     /// The maximum requests we can process in a worker thread timeslice
     int max_reqs_per_event;
