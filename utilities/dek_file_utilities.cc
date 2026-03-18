@@ -10,6 +10,8 @@
 
 #include "dek_file_utilities.h"
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
+
 #include <charconv>
 #include <chrono>
 #include <thread>
@@ -57,9 +59,29 @@ std::optional<std::filesystem::path> locateNewestKeyFile(
 std::filesystem::path copyKeyFile(std::string_view id,
                                   const std::filesystem::path& src,
                                   const std::filesystem::path& dest) {
-    static constexpr size_t MaxRetries = 20;
+    if (!exists(src)) {
+        throw std::runtime_error(
+                fmt::format("cb::dek::util::copyKeyFile: source directory '{}' "
+                            "does not exist",
+                            src.string()));
+    }
+
+    if (!exists(dest)) {
+        std::error_code ec;
+        create_directories(dest, ec);
+        if (ec) {
+            throw std::runtime_error(fmt::format(
+                    "cb::dek::util::copyKeyFile: failed to create destination "
+                    "directory '{}': {}",
+                    dest.string(),
+                    ec.message()));
+        }
+    }
+
+    static constexpr int MaxRetries = 20;
     int retries = MaxRetries;
 
+    nlohmann::json errors = nlohmann::json::array();
     do {
         if (retries != MaxRetries) {
             std::this_thread::sleep_for(std::chrono::milliseconds{100});
@@ -67,18 +89,31 @@ std::filesystem::path copyKeyFile(std::string_view id,
         try {
             const auto source = locateNewestKeyFile(id, src);
             if (source.has_value()) {
-                std::filesystem::path target = dest / source->filename();
-                std::error_code ec;
-                if (copy_file(*source, target, ec)) {
-                    return target;
+                auto target = dest / source->filename();
+                try {
+                    if (copy_file(*source, target)) {
+                        return target;
+                    }
+                } catch (const std::exception& exception) {
+                    errors.emplace_back(fmt::format("copy_file '{}': {}",
+                                                    source->string(),
+                                                    exception.what()));
                 }
+
+                std::error_code ec;
                 remove_all(target, ec);
+            } else {
+                errors.emplace_back("no key file found");
             }
-        } catch (const std::exception&) {
+        } catch (const std::exception& exception) {
+            errors.emplace_back(exception.what());
         }
     } while (--retries > 0);
     throw std::runtime_error(
-            "cb::dek::util::copyKeyFile: failed to copy key file");
+            fmt::format("cb::dek::util::copyKeyFile: failed to copy key file "
+                        "'{}' errors: {}",
+                        id,
+                        errors.dump()));
 }
 
 } // namespace cb::dek::util

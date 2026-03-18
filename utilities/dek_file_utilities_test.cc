@@ -102,3 +102,30 @@ TEST_F(DekFileUtilTest, copyKeyFileNoSuchFile) {
     EXPECT_THROW(cb::dek::util::copyKeyFile("foo", root, target),
                  std::runtime_error);
 }
+
+TEST_F(DekFileUtilTest, copyKeyFileNoSuchDirectory) {
+    std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
+    std::filesystem::path nonexistentDir =
+            "/tmp/this_directory_does_not_exist_12345";
+    ASSERT_FALSE(exists(nonexistentDir));
+    EXPECT_THROW(cb::dek::util::copyKeyFile("foo", nonexistentDir, target),
+                 std::runtime_error);
+}
+
+TEST_F(DekFileUtilTest, copyKeyFileCreateDestinationDirectory) {
+    touch(root / "foo.key.1");
+    touch(root / "foo.key.2");
+    touch(root / "foo.key.3");
+
+    auto base = std::filesystem::path{cb::io::mkdtemp(
+                        "DekFileUtilTestCreateDest")} /
+                "subdir1" / "subdir2";
+    // Directory doesn't exist initially
+    ASSERT_FALSE(exists(base));
+
+    auto path = cb::dek::util::copyKeyFile("foo", root, base);
+
+    EXPECT_EQ((base / "foo.key.3").string(), path.string());
+    EXPECT_TRUE(exists(path));
+    EXPECT_TRUE(exists(base));
+}

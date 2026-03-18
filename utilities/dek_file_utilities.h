@@ -44,6 +44,8 @@ std::optional<std::filesystem::path> locateNewestKeyFile(
  * Copy the newest encryption key file for the given identifier located in
  * the source directory over to the destination directory.
  *
+ * The destination directory will be created if it doesn't exist.
+ *
  * @param id The key identifier to copy
  * @param src The directory containing the source key files
  * @param dest The directory containing the destination key files
