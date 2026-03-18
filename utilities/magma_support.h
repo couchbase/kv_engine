@@ -107,6 +107,16 @@ public:
     static uint64_t GetFusionPendingUploadBytes() {
         return 0;
     }
+    static void SetCompactionRateLimit(size_t bytesPerSecond) {
+    }
+    static size_t GetCompactionRateLimit() {
+        return 0;
+    }
+    static void SetDataOnlyCompactionRateLimitEnabled(bool enabled) {
+    }
+    static bool IsDataOnlyCompactionRateLimitEnabled() {
+        return false;
+    }
 };
 } // namespace magma
 #endif

@@ -390,6 +390,17 @@ static void settings_init() {
                                 s.getFusionMaxPendingUploadBytesLwmPercentage()) /
                                 100);
             });
+    settings.addChangeListener("magma_compaction_rate_limit",
+                               [](const auto&, auto& s) {
+                                   magma::Magma::SetCompactionRateLimit(
+                                           s.getMagmaCompactionRateLimit());
+                               });
+    settings.addChangeListener(
+            "magma_enable_compaction_dataonly_ratelimiting",
+            [](const auto&, auto& s) {
+                magma::Magma::SetDataOnlyCompactionRateLimitEnabled(
+                        s.getMagmaEnableCompactionDataonlyRateLimiting());
+            });
 }
 
 /**

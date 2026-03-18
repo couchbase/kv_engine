@@ -1021,6 +1021,39 @@ TEST_P(StatsTest, MB58199) {
     EXPECT_EQ(max_user, stats["max_user_connections"]);
 }
 
+TEST_P(StatsTest, MagmaCompactionRateLimit) {
+    // default value is 0
+    adminConnection->selectBucket(bucketName);
+    auto stats = adminConnection->stats("");
+    EXPECT_EQ(0, stats["magma_compaction_rate_limit"].get<size_t>());
+
+    memcached_cfg["magma_compaction_rate_limit"] = 1024;
+    reconfigure();
+    stats = adminConnection->stats("");
+    EXPECT_EQ(1024, stats["magma_compaction_rate_limit"].get<size_t>());
+
+    // restore to default
+    memcached_cfg["magma_compaction_rate_limit"] = 0;
+    reconfigure();
+}
+
+TEST_P(StatsTest, MagmaEnableCompactionDataonlyRatelimiting) {
+    // default value is false
+    auto stats = adminConnection->stats("");
+    EXPECT_FALSE(
+            stats["magma_enable_compaction_dataonly_ratelimiting"].get<bool>());
+
+    memcached_cfg["magma_enable_compaction_dataonly_ratelimiting"] = true;
+    reconfigure();
+    stats = adminConnection->stats("");
+    EXPECT_TRUE(
+            stats["magma_enable_compaction_dataonly_ratelimiting"].get<bool>());
+
+    // restore to default
+    memcached_cfg["magma_enable_compaction_dataonly_ratelimiting"] = false;
+    reconfigure();
+}
+
 // TEst fixture which doesn't use the validator
 // This makes it easier to call things like connections which don't work with
 // the validator

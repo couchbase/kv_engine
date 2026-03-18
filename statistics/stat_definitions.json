@@ -1281,6 +1281,18 @@
         "added": "7.6.10"
     },
     {
+        "key": "magma_compaction_rate_limit",
+        "unit": "bytes",
+        "description": "The I/O bandwidth in bytes per second that compactions across all shards in a node can consume",
+        "added": "8.1.0"
+    },
+    {
+        "key": "magma_enable_compaction_dataonly_ratelimiting",
+        "unit": "none",
+        "description": "Limits rate-limiting to fragmentation-reduction compactions only. If disabled, all compactions are throttled",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_magma_sets",
         "unit": "none",
         "description": "Number of set operations (DocUpsert)",

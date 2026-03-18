@@ -543,6 +543,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMagmaMaxDefaultStorageThreads(value.get<size_t>());
         } else if (key == "magma_flusher_thread_percentage"sv) {
             setMagmaFlusherThreadPercentage(value.get<size_t>());
+        } else if (key == "magma_compaction_rate_limit") {
+            setMagmaCompactionRateLimit(value.get<size_t>());
+        } else if (key == "magma_enable_compaction_dataonly_ratelimiting") {
+            setMagmaEnableCompactionDataonlyRatelimiting(value.get<bool>());
         } else {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
@@ -1559,6 +1563,29 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"from", currVal},
                          {"to", currVal});
             setMagmaFlusherThreadPercentage(newVal);
+        }
+    }
+
+    if (other.has.magma_compaction_rate_limit) {
+        const auto currVal = getMagmaCompactionRateLimit();
+        const auto newVal = other.getMagmaCompactionRateLimit();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change magma_compaction_rate_limit",
+                         {"from", currVal},
+                         {"to", currVal});
+            setMagmaCompactionRateLimit(newVal);
+        }
+    }
+
+    if (other.has.magma_enable_compaction_dataonly_ratelimiting) {
+        const auto currVal = getMagmaEnableCompactionDataonlyRateLimiting();
+        const auto newVal =
+                other.getMagmaEnableCompactionDataonlyRateLimiting();
+        if (newVal != currVal) {
+            LOG_INFO_CTX("Change magma_enable_compaction_dataonly_ratelimiting",
+                         {"from", currVal},
+                         {"to", currVal});
+            setMagmaEnableCompactionDataonlyRatelimiting(newVal);
         }
     }
 }

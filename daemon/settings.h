@@ -1321,6 +1321,28 @@ public:
         notify_changed("magma_flusher_thread_percentage");
     }
 
+    size_t getMagmaCompactionRateLimit() const {
+        return magma_compaction_rate_limit.load(std::memory_order_acquire);
+    }
+
+    void setMagmaCompactionRateLimit(size_t value) {
+        magma_compaction_rate_limit.store(value, std::memory_order_release);
+        has.magma_compaction_rate_limit = true;
+        notify_changed("magma_compaction_rate_limit");
+    }
+
+    bool getMagmaEnableCompactionDataonlyRateLimiting() const {
+        return magma_enable_compaction_dataonly_ratelimiting.load(
+                std::memory_order_acquire);
+    }
+
+    void setMagmaEnableCompactionDataonlyRatelimiting(bool value) {
+        magma_enable_compaction_dataonly_ratelimiting.store(
+                value, std::memory_order_release);
+        has.magma_enable_compaction_dataonly_ratelimiting = true;
+        notify_changed("magma_enable_compaction_dataonly_ratelimiting");
+    }
+
     size_t getDefaultThrottleReservedUnits() const {
         return default_throttle_reserved_units.load(std::memory_order_acquire);
     }
@@ -1732,6 +1754,14 @@ protected:
     std::atomic_size_t magma_max_default_storage_threads{20};
     // Percent of magma flusher threads out of total magma threads
     std::atomic_size_t magma_flusher_thread_percentage{20};
+    // Controls the I/O Bandwidth, in bytes per second that compactions
+    // across all shards in a node, can consume.
+    // Set to 0 to disable compaction rate limiting.
+    // Any non-zero value enables limiting and defines the rate threshold.
+    std::atomic_size_t magma_compaction_rate_limit{0};
+    // Controls changing the Compaction Rate Limiter to Data-Only mode
+    // (i.e. Rate Limit compaction I/O Only for SeqIndex Data-Level Compactions)
+    std::atomic_bool magma_enable_compaction_dataonly_ratelimiting{false};
 
     std::atomic<size_t> default_throttle_reserved_units =
             std::numeric_limits<std::size_t>::max();
@@ -1843,6 +1873,8 @@ public:
         bool magma_blind_write_optimisation_enabled = false;
         bool magma_max_default_storage_threads = false;
         bool magma_flusher_thread_percentage = false;
+        bool magma_compaction_rate_limit = false;
+        bool magma_enable_compaction_dataonly_ratelimiting = false;
         bool default_throttle_reserved_units = false;
         bool default_throttle_hard_limit = false;
         bool read_unit_size = false;

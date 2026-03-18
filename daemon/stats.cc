@@ -119,6 +119,12 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(
                 Key::magma_flusher_thread_percentage,
                 Settings::instance().getMagmaFlusherThreadPercentage());
+        collector.addStat(Key::magma_compaction_rate_limit,
+                          Settings::instance().getMagmaCompactionRateLimit());
+        collector.addStat(
+                Key::magma_enable_compaction_dataonly_ratelimiting,
+                Settings::instance()
+                        .getMagmaEnableCompactionDataonlyRateLimiting());
     }
 }
 
