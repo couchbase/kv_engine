@@ -7665,8 +7665,18 @@ cb::engine_errc EventuallyPersistentEngine::prepare_snapshot(
                 NonBucketAllocationGuard guard;
                 callback(json);
             };
-    return acquireEngine(this)->getKVBucket()->prepareSnapshot(
-            cookie, vbid, non_alloc);
+
+    auto engine = acquireEngine(this);
+    try {
+        return engine->getKVBucket()->prepareSnapshot(cookie, vbid, non_alloc);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("Failed to prepare snapshot",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"vb", vbid},
+                        {"error", e.what()});
+        engine->setErrorContext(cookie, e.what());
+        return cb::engine_errc::failed;
+    }
 }
 
 cb::engine_errc EventuallyPersistentEngine::download_snapshot(
