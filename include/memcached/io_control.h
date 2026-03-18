@@ -36,6 +36,7 @@ enum class Id {
     ExternalAuthLogging,
     TopkeysStart,
     TopkeysStop,
+    ConnectionRcvBufSize,
     enum_max
 };
 

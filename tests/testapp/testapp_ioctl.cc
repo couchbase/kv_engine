@@ -90,3 +90,90 @@ TEST_P(IoctlTest, IOCTL_ServerlessMaxConnectionsPerBucket) {
                                   "1000"});
     ASSERT_FALSE(rsp.isSuccess());
 }
+
+/// Helper: return the socket file descriptor of the current admin connection
+/// by running "connections self" and extracting the "socket" field.
+static size_t getAdminConnectionSocket(MemcachedConnection& conn) {
+    auto stats = conn.stats("connections self");
+    EXPECT_EQ(1, stats.size());
+    return stats.front()["socket"].get<size_t>();
+}
+
+// -----------------------------------------------------------------------
+// connection.rcvbufsize – GET
+// -----------------------------------------------------------------------
+
+TEST_P(IoctlTest, IOCTL_GetConnectionRcvBufSize_Success) {
+    const auto socketId = getAdminConnectionSocket(*adminConnection);
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlGet,
+            fmt::format("connection.rcvbufsize?id={}", socketId)});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+
+    // The returned value must be a positive integer (receive buffer size).
+    const auto value = std::string(rsp.getDataView());
+    EXPECT_FALSE(value.empty());
+    const auto bufSize = std::stoul(value);
+    EXPECT_GT(bufSize, 0u);
+}
+
+TEST_P(IoctlTest, IOCTL_GetConnectionRcvBufSize_MissingId) {
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlGet, "connection.rcvbufsize"});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
+TEST_P(IoctlTest, IOCTL_GetConnectionRcvBufSize_InvalidId) {
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlGet,
+                                  "connection.rcvbufsize?id=not-a-number"});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
+// -----------------------------------------------------------------------
+// connection.rcvbufsize – SET
+// -----------------------------------------------------------------------
+
+TEST_P(IoctlTest, IOCTL_SetConnectionRcvBufSize_Success) {
+    const auto socketId = getAdminConnectionSocket(*adminConnection);
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            fmt::format("connection.rcvbufsize?id={}&size=65536", socketId)});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+
+    // The returned value is the SO_RCVBUF reported by the OS after the set.
+    const auto value = std::string(rsp.getDataView());
+    EXPECT_FALSE(value.empty());
+    const auto bufSize = std::stoul(value);
+    EXPECT_GT(bufSize, 0u);
+}
+
+TEST_P(IoctlTest, IOCTL_SetConnectionRcvBufSize_MissingId) {
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet, "connection.rcvbufsize"});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
+TEST_P(IoctlTest, IOCTL_SetConnectionRcvBufSize_MissingSize) {
+    const auto socketId = getAdminConnectionSocket(*adminConnection);
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            fmt::format("connection.rcvbufsize?id={}", socketId)});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
+TEST_P(IoctlTest, IOCTL_SetConnectionRcvBufSize_InvalidId) {
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlSet,
+                                  "connection.rcvbufsize?id=not-a-number"});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
+TEST_P(IoctlTest, IOCTL_SetConnectionRcvBufSize_InvalidSize) {
+    const auto socketId = getAdminConnectionSocket(*adminConnection);
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            fmt::format("connection.rcvbufsize?id={}&size=not-a-number",
+                        socketId)});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}

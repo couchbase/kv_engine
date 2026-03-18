@@ -16,6 +16,7 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
+#include "memcached.h"
 #include "settings.h"
 #include "top_keys_controller.h"
 #include "tracing.h"
@@ -27,6 +28,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/split_string.h>
+#include <platform/strerror.h>
 #include <serverless/config.h>
 #include <algorithm>
 
@@ -255,6 +257,55 @@ static cb::engine_errc ioctlGetTopkeysStop(Cookie& cookie,
     return status;
 }
 
+/**
+ * Retrieves the receive buffer size (SO_RCVBUF) of a connection's socket.
+ *
+ * Looks up a connection by its socket file descriptor ID (provided via the
+ * "id" key in @p args), then queries the OS for the current SO_RCVBUF socket
+ * option value. On success, the buffer size is written as a decimal string
+ * into @p value.
+ *
+ * @param cookie   The request cookie used to set error context on failure.
+ * @param args     Key-value map that must contain "id", the socket file
+ *                 descriptor of the target connection (as a numeric string).
+ * @param value    Output parameter populated with the receive buffer size as
+ *                 a decimal string on success.
+ * @param datatype Set to cb::mcbp::Datatype::JSON on success.
+ * @return cb::engine_errc::success on success.
+ *         cb::engine_errc::invalid_arguments if "id" is missing or cannot be
+ *         parsed as a valid socket descriptor.
+ *         cb::engine_errc::failed if the SO_RCVBUF socket option cannot be
+ *         retrieved.
+ */
+static cb::engine_errc ioctlGetConnectionRcvBufSize(
+        Cookie& cookie,
+        const StrToStrMap& args,
+        std::string& value,
+        cb::mcbp::Datatype& datatype) {
+    if (!args.contains("id")) {
+        cookie.setErrorContext("id must be set");
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    SOCKET id;
+    try {
+        id = gsl::narrow_cast<SOCKET>(std::stoul(args.find("id")->second));
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Failed to parse id as a value");
+        return cb::engine_errc::invalid_arguments;
+    }
+    try {
+        auto bufsiz = cb::net::getSocketOption<int>(id, SOL_SOCKET, SO_RCVBUF);
+        value = std::to_string(bufsiz);
+        datatype = cb::mcbp::Datatype::JSON;
+    } catch (const std::exception& exception) {
+        cookie.setErrorContext(fmt::format("Failed to get socket option: {}",
+                                           exception.what()));
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc ioctl_get_property(Cookie& cookie,
                                    const std::string& key,
                                    std::string& value,
@@ -299,6 +350,10 @@ cb::engine_errc ioctl_get_property(Cookie& cookie,
 
         case cb::ioctl::Id::TopkeysStop:
             return ioctlGetTopkeysStop(cookie, request.second, value, datatype);
+
+        case cb::ioctl::Id::ConnectionRcvBufSize:
+            return ioctlGetConnectionRcvBufSize(
+                    cookie, request.second, value, datatype);
 
         case cb::ioctl::Id::JemallocProfActive: // may only be used with Set
         case cb::ioctl::Id::JemallocProfDump: // may only be used with Set
@@ -617,6 +672,77 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
     return status;
 }
 
+/**
+ * Sets the receive buffer size (SO_RCVBUF) of a connection's socket to a
+ * caller-specified value.
+ *
+ * Looks up a connection by its socket file descriptor ID (provided via the
+ * "id" key in @p args) and sets SO_RCVBUF to the value supplied via the
+ * "size" key in @p args. On success, the actual buffer size reported by the
+ * OS after the call is written as a decimal string into @p result.
+ *
+ * @param cookie   The request cookie used to set error context on failure.
+ * @param args     Key-value map that must contain:
+ *                   "id"   – socket file descriptor of the target connection
+ *                            (as a numeric string).
+ *                   "size" – desired SO_RCVBUF value (as a numeric string).
+ * @param result   Output parameter populated with the SO_RCVBUF value
+ *                 reported by the OS after the set, as a decimal string.
+ * @param datatype Set to cb::mcbp::Datatype::Raw on success.
+ * @return cb::engine_errc::success on success.
+ *         cb::engine_errc::invalid_arguments if "id" or "size" is missing,
+ *         cannot be parsed, or the setsockopt call fails.
+ */
+static cb::engine_errc ioctlSetConnectionRcvBufSize(
+        Cookie& cookie,
+        const StrToStrMap& args,
+        const std::string&,
+        std::string& result,
+        cb::mcbp::Datatype& datatype) {
+    if (!args.contains("id")) {
+        cookie.setErrorContext("id must be provided");
+        return cb::engine_errc::invalid_arguments;
+    }
+    if (!args.contains("size")) {
+        cookie.setErrorContext("size must be provided");
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    SOCKET id;
+    try {
+        id = gsl::narrow_cast<SOCKET>(std::stoul(args.find("id")->second));
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Failed to parse id");
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    int size;
+    try {
+        size = gsl::narrow_cast<int>(std::stoul(args.find("size")->second));
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Failed to parse size");
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    if (!cb::net::setSocketOption(id, SOL_SOCKET, SO_RCVBUF, size)) {
+        cookie.setErrorContext("Failed to set socket receive buffer size");
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    try {
+        const auto actual =
+                cb::net::getSocketOption<int>(id, SOL_SOCKET, SO_RCVBUF);
+        result = std::to_string(actual);
+    } catch (const std::exception& e) {
+        cookie.setErrorContext(
+                fmt::format("Failed to get socket buffer size: {}", e.what()));
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    datatype = cb::mcbp::Datatype::JSON;
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc ioctl_set_property(Cookie& cookie,
                                    const std::string& key,
                                    const std::string& value,
@@ -674,6 +800,10 @@ cb::engine_errc ioctl_set_property(Cookie& cookie,
             return cb::engine_errc::not_supported;
         case cb::ioctl::Id::TopkeysStart:
             return ioctlSetTopkeysStart(
+                    cookie, request.second, value, result, datatype);
+
+        case cb::ioctl::Id::ConnectionRcvBufSize:
+            return ioctlSetConnectionRcvBufSize(
                     cookie, request.second, value, result, datatype);
 
         case cb::ioctl::Id::TraceDumpBegin: // may only be used with Get

@@ -89,6 +89,10 @@ Manager::Manager()
                "topkeys.stop",
                "Stop topkeys tracing and fetch the result",
                Mode::RDONLY},
+              {Id::ConnectionRcvBufSize,
+               "connection.rcvbufsize",
+               "Get/Set the receive buffer size for the provided connection",
+               Mode::RW},
       }) {
 }
 
