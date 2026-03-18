@@ -130,6 +130,8 @@ All commit messages must:
   - What changed
   - Why it changed
   - Risk or compatibility impact
+- Don't add a 'Co-authored-by' tag for automated agents. The author information
+  is already captured in the commit metadata.
 
 Example:
 
