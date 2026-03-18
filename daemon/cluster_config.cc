@@ -35,7 +35,7 @@ void ClusterConfiguration::reset() {
 
 void ClusterConfiguration::setConfiguration(
         std::shared_ptr<Configuration> configuration) {
-    *config.lock() = std::move(configuration);
+    config = std::move(configuration);
 }
 
 std::shared_ptr<ClusterConfiguration::Configuration>

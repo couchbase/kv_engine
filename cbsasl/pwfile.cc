@@ -39,7 +39,7 @@ public:
 
 protected:
     PasswordDatabaseManager() {
-        *db.wlock() = std::make_unique<cb::sasl::pwdb::PasswordDatabase>();
+        db = std::make_unique<cb::sasl::pwdb::PasswordDatabase>();
     }
 
     folly::Synchronized<std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>> db;

@@ -554,7 +554,7 @@ void initialize_audit() {
     if (!audit) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
-    *getAuditHandle().wlock() = std::move(audit);
+    getAuditHandle() = std::move(audit);
 }
 
 void shutdown_audit() {

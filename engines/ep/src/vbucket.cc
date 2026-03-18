@@ -817,9 +817,9 @@ void VBucket::setupSyncReplication(VBucketStateLockRef vbStateLock,
                     "topology: " +
                     error);
         }
-        *replicationTopology.wlock() = topology->dump();
+        replicationTopology = topology->dump();
     } else {
-        *replicationTopology.wlock() = nlohmann::json().dump();
+        replicationTopology = nlohmann::json().dump();
     }
 
     // Then, initialize the DM and propagate the new topology if necessary

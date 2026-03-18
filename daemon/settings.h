@@ -980,7 +980,7 @@ public:
     }
 
     void setPrometheusConfig(std::pair<in_port_t, sa_family_t> config) {
-        *prometheus_config.wlock() = std::move(config);
+        prometheus_config = std::move(config);
         has.prometheus_config = true;
         notify_changed("prometheus_config");
     }
@@ -1006,7 +1006,7 @@ public:
     }
 
     void setPhosphorConfig(std::string value) {
-        *phosphor_config.wlock() = std::move(value);
+        phosphor_config = std::move(value);
         has.phosphor_config = true;
         notify_changed("phosphor_config");
     }

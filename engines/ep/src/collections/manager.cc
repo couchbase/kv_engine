@@ -300,7 +300,7 @@ void Collections::Manager::setInitialCollectionManifest(
             "Collections::Manager::setInitialCollectionManifest: starting at "
             "uid:{:#x}",
             manifest.getUid());
-    *currentManifest.wlock() = std::move(manifest);
+    currentManifest = std::move(manifest);
 }
 
 /**

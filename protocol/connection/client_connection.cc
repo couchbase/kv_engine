@@ -54,7 +54,7 @@ folly::Synchronized<std::function<std::string(const std::string&)>, std::mutex>
         MemcachedConnection::lookupPasswordCallback;
 void MemcachedConnection::setLookupUserPasswordFunction(
         std::function<std::string(const std::string&)> func) {
-    *lookupPasswordCallback.lock() = std::move(func);
+    lookupPasswordCallback = std::move(func);
 }
 
 nlohmann::json MemcachedConnection::ifconfig(std::string_view command,

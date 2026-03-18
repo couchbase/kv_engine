@@ -163,7 +163,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     auto indexAlgo = config.getMagmaIndexCompressionAlgo();
     if (auto [status, type] = magma::CompressionType::Create(indexAlgo);
         status) {
-        *magmaIndexCompressionAlgo.lock() = std::move(indexAlgo);
+        magmaIndexCompressionAlgo = std::move(indexAlgo);
     } else {
         getLogger().warnWithContext("Failed to create index compression type",
                                     {{"param", "magma_index_compression_algo"},
@@ -174,7 +174,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     auto dataAlgo = config.getMagmaDataCompressionAlgo();
     if (auto [status, type] = magma::CompressionType::Create(dataAlgo);
         status) {
-        *magmaDataCompressionAlgo.lock() = std::move(dataAlgo);
+        magmaDataCompressionAlgo = std::move(dataAlgo);
     } else {
         getLogger().warnWithContext("Failed to create data compression type",
                                     {{"param", "magma_data_compression_algo"},
@@ -185,7 +185,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     auto compactedAlgo = config.getMagmaCompacteddataCompressionAlgo();
     if (auto [status, type] = magma::CompressionType::Create(compactedAlgo);
         status) {
-        *magmaCompactedDataCompressionAlgo.lock() = std::move(compactedAlgo);
+        magmaCompactedDataCompressionAlgo = std::move(compactedAlgo);
     } else {
         getLogger().warnWithContext(
                 "Failed to create compacted data compression type",
@@ -381,13 +381,13 @@ void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {
 
 void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {
     Expects(store);
-    *fusionLogstoreURI.wlock() = uri;
+    fusionLogstoreURI = std::string{uri};
     store->setFusionLogStoreURI(uri);
 }
 
 void MagmaKVStoreConfig::setFusionMetadatastoreURI(std::string_view uri) {
     Expects(store);
-    *fusionMetadatastoreURI.wlock() = uri;
+    fusionMetadatastoreURI = std::string{uri};
     store->setFusionMetadataStoreURI(uri);
 }
 
@@ -479,7 +479,7 @@ void MagmaKVStoreConfig::setMagmaIndexCompressionAlgo(std::string value) {
         throw std::runtime_error(fmt::format(
                 "Invalid value '{}' for magma_index_compression_algo", value));
     }
-    *magmaIndexCompressionAlgo.lock() = std::move(value);
+    magmaIndexCompressionAlgo = std::move(value);
     updateCompressionConfig();
 }
 
@@ -488,7 +488,7 @@ void MagmaKVStoreConfig::setMagmaDataCompressionAlgo(std::string value) {
         throw std::runtime_error(fmt::format(
                 "Invalid value '{}' for magma_data_compression_algo", value));
     }
-    *magmaDataCompressionAlgo.lock() = std::move(value);
+    magmaDataCompressionAlgo = std::move(value);
     updateCompressionConfig();
 }
 
@@ -499,7 +499,7 @@ void MagmaKVStoreConfig::setMagmaCompactedDataCompressionAlgo(
                 "Invalid value '{}' for magma_compacteddata_compression_algo",
                 value));
     }
-    *magmaCompactedDataCompressionAlgo.lock() = std::move(value);
+    magmaCompactedDataCompressionAlgo = std::move(value);
     updateCompressionConfig();
 }
 
