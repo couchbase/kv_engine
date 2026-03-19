@@ -2297,6 +2297,17 @@
             "default": "true",
             "dynamic": true,
             "type": "bool"
+        },
+        "monitor_task_interval": {
+            "default": "1",
+            "descr": "Schedule interval (in seconds) for the MonitorTask.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         }
     }
 }

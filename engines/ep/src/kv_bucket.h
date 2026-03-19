@@ -39,6 +39,7 @@ class DurabilityCompletionTask;
 class EPStats;
 class ExpiredItemPager;
 class InitialMFUTask;
+class MonitorTask;
 class NotifiableTask;
 class SeqnoPersistenceNotifyTask;
 class VBucketCountVisitor;
@@ -1769,6 +1770,8 @@ protected:
 
     folly::Synchronized<CacheTransferMemoryInfo, std::mutex>
             cacheTransferMemoryInfo;
+
+    std::shared_ptr<MonitorTask> monitorTask;
 
     friend class KVBucketTest;
 };

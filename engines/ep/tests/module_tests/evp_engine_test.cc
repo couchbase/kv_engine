@@ -726,3 +726,34 @@ TEST_F(EventuallyPersistentEngineTest, MB48925_ScheduleTaskAfterUnregistered) {
     // local variables etc go out of scope.
     shutdownEngine();
 }
+
+class MonitorTaskTest : public EPEngineParamTest {};
+
+TEST_P(MonitorTaskTest, TaskScheduled) {
+    std::unordered_map<std::string, std::string> payload;
+    const auto addStatFunc = [&payload](std::string_view key,
+                                        std::string_view value,
+                                        CookieIface&) {
+        payload.emplace(key, value);
+    };
+    engine->getStats(*cookie, "tasks", {}, addStatFunc, {});
+
+    const auto bucketEntry = "ep_tasks:tasks:" + engine->getName();
+    const auto tasks = nlohmann::json::parse(payload.at(bucketEntry));
+
+    bool found = false;
+    for (const auto& element : tasks) {
+        if (element["name"] == "MonitorTask") {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         MonitorTaskTest,
+                         EPEngineParamTest::allConfigValues(),
+                         [](const ::testing::TestParamInfo<std::string>& i) {
+                             return i.param;
+                         });

@@ -349,6 +349,8 @@ ADD_LIBRARY(ep STATIC
             src/linked_list.cc
             src/locked_vbucket_ptr.cc
             src/memory_tracker.cc
+            src/monitor_task.cc
+            src/monitor_task.h
             src/mfu_only_item_eviction.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc

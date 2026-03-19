@@ -666,6 +666,9 @@ public:
     // Used by stats logging infrastructure.
     std::unique_ptr<std::ostream> timingLog;
 
+    /// RSS of this bucket
+    std::atomic<size_t> residentBytes = 0;
+
 protected:
     /**
      * If a quota change is in progress, returns the desired quota, else returns
