@@ -150,6 +150,11 @@ or amended.
 
 Agents must not fabricate or modify the Change-Id.
 
+When amending an existing commit (e.g. to update the commit message or add
+further changes), preserve the `Change-Id` line exactly as it appears in the
+original commit message. Dropping or replacing the `Change-Id` on an amended
+commit would create a new Gerrit review instead of updating the existing one.
+
 ---
 
 ## 🧪 Testing Requirements
