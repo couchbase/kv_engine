@@ -40,6 +40,7 @@
 #include "item_pager.h"
 #include "kvshard.h"
 #include "kvstore/kvstore.h"
+#include "monitor_task.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "rollback_result.h"
 #include "seqno_persistence_notify_task.h"
@@ -536,6 +537,10 @@ bool KVBucket::initialize() {
 
     bucketQuotaChangeTask = std::make_shared<BucketQuotaChangeTask>(engine);
     ExecutorPool::get()->schedule(bucketQuotaChangeTask);
+
+    monitorTask = std::make_shared<MonitorTask>(
+            engine, std::chrono::seconds(config.getMonitorTaskInterval()));
+    ExecutorPool::get()->schedule(monitorTask);
 
     return true;
 }
