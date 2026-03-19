@@ -38,6 +38,7 @@ class DurabilityCompletionTask;
 class EPStats;
 class ExpiredItemPager;
 class InitialMFUTask;
+class MonitorTask;
 class NotifiableTask;
 class SeqnoPersistenceNotifyTask;
 class VBucketCountVisitor;
@@ -1676,6 +1677,8 @@ protected:
      * Whether continuous backup is enabled.
      */
     std::atomic<bool> continuousBackupEnabled{false};
+
+    std::shared_ptr<MonitorTask> monitorTask;
 
     friend class KVBucketTest;
 };
