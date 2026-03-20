@@ -749,14 +749,15 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     nlohmann::json json;
-    const auto [status, stats] = magma->GetKVStoreStats(kvID);
+    auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
         json["sync_session_completed_bytes"] =
                 stats.FusionFSStats.SyncSessionTotalBytes;
         json["sync_session_total_bytes"] =
                 stats.FusionFSStats.SyncSessionCompletedBytes;
     }
-    return {status, json};
+    return copyToPrimaryDomain(
+            std::make_tuple(std::move(status), std::move(json)));
 }
 
 std::tuple<magma::Status, nlohmann::json>
@@ -764,12 +765,13 @@ MagmaMemoryTrackingProxy::GetFusionMigrationStats(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     nlohmann::json json;
-    const auto [status, stats] = magma->GetKVStoreStats(kvID);
+    auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
         json["completed_bytes"] = stats.FusionFSStats.MigrationCompletedBytes;
         json["total_bytes"] = stats.FusionFSStats.MigrationTotalBytes;
     }
-    return {status, json};
+    return copyToPrimaryDomain(
+            std::make_tuple(std::move(status), std::move(json)));
 }
 
 std::tuple<magma::Status, bool> MagmaMemoryTrackingProxy::IsKVStoreMounted(
