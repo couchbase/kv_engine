@@ -41,16 +41,28 @@ All changes must be submitted via:
 ### Standard Flow
 
 1. Sync with latest target branch (typically `master`)
-2. Create a local topic branch
+2. Create a local topic branch (if `repo` is available):
+
+       `repo start name-of-topic-branch`
+
 3. Make atomic, focused commits
 4. Always create suitable unit tests
 5. Run local build and tests
-6. Push to Gerrit (substitute master for correct branch when working on named
+6. Sync with upstream and rebase the change. If `repo` is available:
+
+       repo sync .
+       repo rebase .
+
+7. Push to Gerrit (substitute master for correct branch when working on named
    branches):
 
        git push gerrit HEAD:refs/for/master
 
-7. CI validation runs automatically on jenkins servers that are monitoring for
+   Alternatively, if the `repo` tool is available:
+
+       repo upload --cbr .
+
+8. CI validation runs automatically on jenkins servers that are monitoring for
    new code pushed to gerrit. 8. Review feedback is asynchronous
 
 ---
