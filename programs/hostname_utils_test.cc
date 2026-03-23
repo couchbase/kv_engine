@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -18,8 +17,34 @@ class HostnameUtilsTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
         cb::net::initialize();
+
+        auto* serv = getservbyname("echo", "tcp");
+        if (serv) {
+            known_service_name = serv->s_name;
+            known_service_port = serv->s_port;
+#ifndef WIN32
+        } else {
+            // iterate through available services to find one we can use for
+            // testing port resolution by name
+            setservent(1);
+            while ((serv = getservent())) {
+                if (strcmp(serv->s_proto, "tcp") == 0) {
+                    known_service_name = serv->s_name;
+                    known_service_port = serv->s_port;
+                    break;
+                }
+            }
+            endservent();
+#endif
+        }
     }
+
+    static std::string known_service_name;
+    static int known_service_port;
 };
+
+std::string HostnameUtilsTest::known_service_name;
+int HostnameUtilsTest::known_service_port = -1;
 
 TEST_F(HostnameUtilsTest, PlainPortByNumber) {
     const auto [host, in_port, family] =
@@ -30,10 +55,13 @@ TEST_F(HostnameUtilsTest, PlainPortByNumber) {
 }
 
 TEST_F(HostnameUtilsTest, PlainPortByName) {
+    if (known_service_name.empty()) {
+        GTEST_SKIP() << "port by name service not available on this node";
+    }
     const auto [host, in_port, family] =
-            cb::inet::parse_hostname("localhost", "echo");
+            cb::inet::parse_hostname("localhost", known_service_name);
     EXPECT_EQ("localhost", host);
-    EXPECT_EQ(7, ntohs(in_port));
+    EXPECT_EQ(known_service_port, in_port);
     EXPECT_EQ(AF_UNSPEC, family);
 }
 
@@ -51,10 +79,13 @@ TEST_F(HostnameUtilsTest, IPv4PortByNumberInHost) {
 }
 
 TEST_F(HostnameUtilsTest, IPv4PortByNameInHost) {
+    if (known_service_name.empty()) {
+        GTEST_SKIP() << "port by name service not available on this node";
+    }
     const auto [host, in_port, family] =
-            cb::inet::parse_hostname("localhost:echo", "6666");
+            cb::inet::parse_hostname("localhost:" + known_service_name, "6666");
     EXPECT_EQ("localhost", host);
-    EXPECT_EQ(7, ntohs(in_port));
+    EXPECT_EQ(known_service_port, in_port);
     EXPECT_EQ(AF_INET, family);
 }
 
@@ -68,10 +99,13 @@ TEST_F(HostnameUtilsTest, IPv6PortByNumberInHost) {
 }
 
 TEST_F(HostnameUtilsTest, IPv6PortByNameInHost) {
+    if (known_service_name.empty()) {
+        GTEST_SKIP() << "port by name service not available on this node";
+    }
     const auto [host, in_port, family] =
-            cb::inet::parse_hostname("[::1]:echo", "6666");
+            cb::inet::parse_hostname("[::1]:" + known_service_name, "6666");
     EXPECT_EQ("::1", host);
-    EXPECT_EQ(7, ntohs(in_port));
+    EXPECT_EQ(known_service_port, in_port);
     EXPECT_EQ(AF_INET6, family);
 }
 
