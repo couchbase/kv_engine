@@ -66,6 +66,8 @@ public:
 
     virtual bool isFullEviction() const = 0;
 
+    bool isMagma() const;
+
     /**
      * Make sure that xattr is enabled / disabled in the named bucket
      *

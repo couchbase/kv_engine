@@ -63,6 +63,10 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
     conn.createBucket(name, cfg, BucketType::EWouldBlock);
 }
 
+bool TestBucketImpl::isMagma() const {
+    return extraConfig.find("backend=magma") != std::string::npos;
+}
+
 // Both memcached and ep-engine buckets support set_param for xattr on/off
 void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      const std::string& bucketName,
