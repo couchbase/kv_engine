@@ -25,7 +25,7 @@ Areas of interest in the repository:
 
 ## Building
 
-KV-Engine has a number of external dependancies, as such it should be
+KV-Engine has a number of external dependencies, as such it should be
 built via the Couchbase
 [top-level Makefile](https://github.com/couchbase/tlm).
 
