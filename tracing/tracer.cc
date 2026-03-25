@@ -8,11 +8,18 @@
  *   the file licenses/APL2.txt.
  */
 #include <memcached/tracer.h>
+#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>
 #include <sstream>
 
 namespace cb::tracing {
+
+void to_json(nlohmann::json& json, const Span& span) {
+    json = {{"code", span.code},
+            {"start", span.start.time_since_epoch().count()},
+            {"duration", span.duration.count()}};
+}
 
 void Tracer::record(Code code, Clock::time_point start, Clock::time_point end) {
     auto duration = std::chrono::duration_cast<Span::Duration>(end - start);
@@ -68,7 +75,7 @@ std::string Tracer::to_string() const {
         std::ostringstream os;
         auto size = spans.size();
         for (const auto& span : spans) {
-            os << ::to_string(span.code) << "="
+            os << format_as(span.code) << "="
                << span.start.time_since_epoch().count() << ":";
             if (span.duration == std::chrono::microseconds::max()) {
                 os << "--";

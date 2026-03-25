@@ -1067,7 +1067,7 @@ void Connection::commandExecuted(Cookie& cookie) {
         tr.opcode.raw = header.getOpcode();
         tr.magic = static_cast<Magic>(header.getMagic());
         if (is_request(tr.magic) && !is_server_magic(tr.magic)) {
-            tr.trace = cookie.getTracer().to_string();
+            tr.trace = cookie.getTracer().takeSpans();
         }
         executionLog.push(std::move(tr));
     }

@@ -75,7 +75,7 @@ public:
         std::chrono::steady_clock::time_point timestamp;
         /// If available (only for command requests) the recorded trace span
         /// from executing the command
-        std::string trace;
+        std::vector<cb::tracing::Span> trace;
         /// The commands magic
         cb::mcbp::Magic magic;
         /// The opcode of the command (for requests) or response (for responses)

@@ -10,9 +10,9 @@
  */
 #pragma once
 
-#include <memcached/tracecode.h>
-
 #include <folly/Synchronized.h>
+#include <memcached/tracecode.h>
+#include <nlohmann/json_fwd.hpp>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -36,6 +36,8 @@ public:
     Duration duration;
     Code code;
 };
+
+void to_json(nlohmann::json& json, const Span& span);
 
 /**
  * A TraceRecorer can record the event timing information.
@@ -81,6 +83,13 @@ public:
 
     /// Get a string representation of all of the spans
     std::string to_string() const;
+
+    /// Take the collected spans
+    std::vector<Span> takeSpans() {
+        std::vector<Span> spans;
+        vecSpans.swap(spans);
+        return spans;
+    }
 
 protected:
     folly::Synchronized<std::vector<Span>, std::mutex> vecSpans;

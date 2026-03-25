@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
 
@@ -105,6 +106,6 @@ enum class Code : uint8_t {
     PrepareSnapshotCleanupOnFailure,
 };
 
+std::string format_as(Code code);
+void to_json(nlohmann::json& json, const Code& code);
 } // namespace cb::tracing
-
-std::string to_string(cb::tracing::Code tracecode);

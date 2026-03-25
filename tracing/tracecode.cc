@@ -9,9 +9,10 @@
  */
 
 #include <memcached/tracecode.h>
+#include <nlohmann/json.hpp>
 
-std::string to_string(const cb::tracing::Code tracecode) {
-    using cb::tracing::Code;
+namespace cb::tracing {
+std::string format_as(const Code tracecode) {
     switch (tracecode) {
     case Code::Request:
         return "request";
@@ -102,3 +103,9 @@ std::string to_string(const cb::tracing::Code tracecode) {
     }
     return "unknown tracecode";
 }
+
+void to_json(nlohmann::json& json, const Code& code) {
+    json = format_as(code);
+}
+
+} // namespace cb::tracing
