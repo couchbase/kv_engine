@@ -1009,6 +1009,25 @@ protected:
     void updateBlockedSendQueue();
 
     /**
+     * Maximize TCP socket buffer to the maximum allowed by the system
+     * (up to our configured max).
+     *
+     * @param option The socket option (SO_SNDBUF or SO_RCVBUF)
+     * @param hint Previously determined buffer size hint (0 means not yet
+     *             determined)
+     * @return The buffer size that was set, or an empty optional if failed
+     */
+    std::optional<int> maximize_tcp_buffer(int option, int hint);
+
+    /// Sets the socket's send buffer size to the maximum allowed by the system
+    /// (up to our configured max).
+    void maximize_tcp_sndbuf();
+
+    /// Sets the socket's receive buffer size to the maximum allowed by the
+    /// system (up to our configured max).
+    void maximize_tcp_rcvbuf();
+
+    /**
      * The "list" of commands currently being processed. We ALWAYS keep the
      * the first entry in the list (and try to reuse that) due to how DCP
      * works. The engine keeps a reference to the DCP consumer based on
@@ -1290,4 +1309,9 @@ protected:
      */
     void logExecutionException(const std::string_view where,
                                const std::exception& e);
+
+    /// Static hint for maximize_tcp_buffer to use for SO_SNDBUF optimization
+    static cb::RelaxedAtomic<int> sndbuf_hint;
+    /// Static hint for maximize_tcp_buffer to use for SO_RCVBUF optimization
+    static cb::RelaxedAtomic<int> rcvbuf_hint;
 };
