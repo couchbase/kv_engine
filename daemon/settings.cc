@@ -233,6 +233,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMaxSendQueueSize(value.get<size_t>() * 1024 * 1024);
         } else if (key == "max_so_sndbuf_size"sv) {
             setMaxSoSndbufSize(value.get<uint32_t>());
+        } else if (key == "max_so_rcvbuf_size"sv) {
+            setMaxSoRcvbufSize(value.get<uint32_t>());
         } else if (key == "max_connections"sv) {
             setMaxConnections(value.get<size_t>());
         } else if (key == "system_connections"sv) {
@@ -701,6 +703,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      max_so_sndbuf_size,
                      other.max_so_sndbuf_size);
             setMaxSoSndbufSize(other.max_so_sndbuf_size);
+        }
+    }
+
+    if (other.has.max_so_rcvbuf_size) {
+        if (other.max_so_rcvbuf_size != max_so_rcvbuf_size) {
+            LOG_INFO("Change max SO_RCVBUF from {} to {}",
+                     max_so_rcvbuf_size,
+                     other.max_so_rcvbuf_size);
+            setMaxSoRcvbufSize(other.max_so_rcvbuf_size);
         }
     }
 

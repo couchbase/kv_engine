@@ -57,6 +57,10 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
+// Define static hints for socket buffer optimization
+cb::RelaxedAtomic<int> Connection::sndbuf_hint{0};
+cb::RelaxedAtomic<int> Connection::rcvbuf_hint{0};
+
 void Connection::shutdown() {
     state = State::closing;
 }
@@ -865,9 +869,84 @@ void Connection::updateBlockedSendQueue() {
 
 void Connection::setType(Type value) {
     type = value;
-    if (type == Type::Consumer && isNodeSupervisor()) {
-        setPriority(ConnectionPriority::High);
-        max_reqs_per_event *= 1.25;
+
+    if (isNodeSupervisor() && type != Type::Normal) {
+        // Force a large receive buffer on system (ns_server) connections.
+        // Setting SO_RCVBUF also explicitly disables TCP auto-tuning for that
+        // socket, giving us more predictable throughput. This was motivated
+        // by a Fusion issue where DCP producers stalled: beam.smp on the
+        // receiving node was blocked sending to its local memcached
+        // process, the DCP producer's TCP send buffer was full, yet
+        // memcached did not report a large receive queue — only small
+        // chunks of data were transferred at a time. Manually forcing a
+        // larger receive buffer via mcctl restored normal data flow. We
+        // restrict this to node supervisor's DCP streams to avoid the memory
+        // overhead on the potentially thousands of regular client connections.
+        maximize_tcp_rcvbuf();
+
+        if (type == Type::Consumer) {
+            setPriority(ConnectionPriority::High);
+            max_reqs_per_event *= 1.25;
+        }
+    }
+}
+
+std::optional<int> Connection::maximize_tcp_buffer(int option, int hint) {
+    if (hint != 0) {
+        int value = hint;
+        if (cb::net::setSocketOption(
+                    socketDescriptor, SOL_SOCKET, option, value)) {
+            return {};
+        }
+        // fall back to binary search for a bigger buffer
+    }
+
+    int last_good = 0;
+    int old_size;
+    try {
+        old_size = cb::net::getSocketOption<int>(
+                socketDescriptor, SOL_SOCKET, option);
+    } catch (const std::exception& e) {
+        LOG_WARNING("{} Failed to get socket {} buffer: {}",
+                    socketDescriptor,
+                    option == SO_SNDBUF ? "send" : "receive",
+                    e.what());
+        return {};
+    }
+
+    /// Binary-search for the real maximum (up to our allowed max)
+    int min = old_size;
+    int max = option == SO_SNDBUF ? Settings::instance().getMaxSoSndbufSize()
+                                  : Settings::instance().getMaxSoRcvbufSize();
+
+    while (min <= max) {
+        int avg = ((unsigned int)(min + max)) / 2;
+        if (cb::net::setSocketOption(
+                    socketDescriptor, SOL_SOCKET, option, avg)) {
+            last_good = avg;
+            min = avg + 1;
+        } else {
+            max = avg - 1;
+        }
+    }
+
+    if (hint == 0) {
+        hint = last_good;
+    }
+    return hint;
+}
+
+void Connection::maximize_tcp_sndbuf() {
+    auto ret = maximize_tcp_buffer(SO_SNDBUF, sndbuf_hint);
+    if (ret.has_value()) {
+        sndbuf_hint = ret.value();
+    }
+}
+
+void Connection::maximize_tcp_rcvbuf() {
+    auto ret = maximize_tcp_buffer(SO_RCVBUF, rcvbuf_hint);
+    if (ret.has_value()) {
+        rcvbuf_hint = ret.value();
     }
 }
 
@@ -1042,56 +1121,9 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
-/*
- * Sets a socket's send buffer size to the maximum allowed by the system.
- */
-static void maximize_sndbuf(const SOCKET sfd) {
-    static cb::RelaxedAtomic<int> hint{0};
-
-    if (hint != 0) {
-        int value = hint;
-        if (cb::net::setsockopt(
-                    sfd, SOL_SOCKET, SO_SNDBUF, &value, sizeof(value)) == -1) {
-            LOG_WARNING("{} Failed to set socket send buffer to {}: {}",
-                        sfd,
-                        value,
-                        cb_strerror(cb::net::get_socket_error()));
-        }
-
-        return;
-    }
-
-    int last_good = 0;
-    int old_size;
-
-    try {
-        old_size = cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_SNDBUF);
-    } catch (const std::exception& e) {
-        LOG_WARNING("{} - Failed to get socket send buffer: {}", sfd, e.what());
-        return;
-    }
-
-    /* Binary-search for the real maximum. */
-    int min = old_size;
-    int max = Settings::instance().getMaxSoSndbufSize();
-
-    while (min <= max) {
-        int avg = ((unsigned int)(min + max)) / 2;
-        if (cb::net::setSocketOption(sfd, SOL_SOCKET, SO_SNDBUF, avg)) {
-            last_good = avg;
-            min = avg + 1;
-        } else {
-            max = avg - 1;
-        }
-    }
-
-    LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
-    hint = last_good;
-}
-
 void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
     user = std::move(ui);
-    maximize_sndbuf(socketDescriptor);
+    maximize_tcp_sndbuf();
 
 #ifdef __linux__
     if (!listening_port->system) {
