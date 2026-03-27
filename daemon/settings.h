@@ -572,6 +572,18 @@ public:
         notify_changed("max_so_sndbuf_size");
     }
 
+    /// get the max size to try to set SO_RCVBUF to
+    uint32_t getMaxSoRcvbufSize() const {
+        return max_so_rcvbuf_size.load(std::memory_order_acquire);
+    }
+
+    /// Set the new maximum size for SO_RCVBUF
+    void setMaxSoRcvbufSize(uint32_t max) {
+        max_so_rcvbuf_size.store(max, std::memory_order_release);
+        has.max_so_rcvbuf_size = true;
+        notify_changed("max_so_rcvbuf_size");
+    }
+
     void reconfigureClientCertAuth(
             std::unique_ptr<cb::x509::ClientCertConfig> config) {
         client_cert_mapper.reconfigure(std::move(config));
@@ -1469,6 +1481,19 @@ protected:
 #endif
     };
 
+    /// The maximum size we want to try to set SO_RCVBUF to. For windows
+    /// the default is 1MB as there is no operating system tunable which
+    /// limits this value. On MacOS and Linux one would need to make OS
+    /// level tuning to change this; so we'll just keep on using the
+    /// insane large number and use the operating systems max value.
+    std::atomic<uint32_t> max_so_rcvbuf_size{
+#ifdef WIN32
+            1_MiB
+#else
+            256_MiB
+#endif
+    };
+
     /// ssl client authentication
     cb::x509::ClientCertMapper client_cert_mapper;
 
@@ -1805,6 +1830,7 @@ public:
         bool max_packet_size = false;
         bool max_send_queue_size = false;
         bool max_so_sndbuf_size = false;
+        bool max_so_rcvbuf_size = false;
         bool client_cert_auth = false;
         bool sasl_mechanisms = false;
         bool ssl_sasl_mechanisms = false;
