@@ -695,8 +695,28 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                           {"limit", memoryUsage.limit});
     }
 
+    if (!transferItem(sv, includeVal)) {
+        return Status::Stop;
+    }
+
+    // Backoff off if over HWM
+    if (memoryUsage.isMemoryPressured()) {
+        OBJ_LOG_DEBUG_CTX(
+                *this,
+                "CacheTransferStream OOM:",
+                {{"mem_used", memoryUsage.used}, {"limit", memoryUsage.limit}});
+        return Status::OOM;
+    }
+
+    return Status::QueuedItem;
+}
+
+bool CacheTransferStream::transferItem(const StoredValue& sv,
+                                       IncludeValue includeVal) {
     OBJ_LOG_DEBUG_CTX(
-            *this, "CacheTransferStream queuing", {"sv", nlohmann::json{sv}});
+            *this,
+            "CacheTransferStream::transferItem",
+            {"sv", nlohmann::json{sv}, "include_value", to_string(includeVal)});
 
     // Generate a MutationResponse. It carries all the required information to
     // transfer the cache. Later we will tweak this so that a DcpMutation isn't
@@ -722,7 +742,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     {
         std::lock_guard<std::mutex> lh(streamMutex);
         if (state != State::Active) {
-            return Status::Stop;
+            return false;
         }
         totalBytesQueued += response->getMessageSize();
         if (availableBytes) {
@@ -733,17 +753,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         }
         pushToReadyQ(std::move(response));
     }
-
-    // Backoff off if over HWM
-    if (memoryUsage.isMemoryPressured()) {
-        OBJ_LOG_DEBUG_CTX(
-                *this,
-                "CacheTransferStream OOM:",
-                {{"mem_used", memoryUsage.used}, {"limit", memoryUsage.limit}});
-        return Status::OOM;
-    }
-
-    return Status::QueuedItem;
+    return true;
 }
 
 void CacheTransferStream::logWithContext(spdlog::level::level_enum level,
