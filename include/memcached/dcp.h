@@ -9,9 +9,11 @@
  */
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dcp_stream_id.h>
+#include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
@@ -37,6 +39,20 @@ namespace mcbp::systemevent {
 enum class id : uint32_t;
 enum class version : uint8_t;
 } // namespace mcbp::systemevent
+
+namespace cb {
+struct ItemWithCacheHint {
+    cb::unique_item_ptr item;
+    uint8_t cacheHint{0}; // e.g. nru/mfu
+
+    bool operator==(const ItemWithCacheHint& other) const {
+        return cacheHint == other.cacheHint && *item == *other.item;
+    }
+    bool operator!=(const ItemWithCacheHint& other) const {
+        return !(*this == other);
+    }
+};
+} // namespace cb
 
 class DcpConnHandlerIface {
 public:
@@ -414,6 +430,24 @@ struct DcpMessageProducersIface {
             uint64_t by_seqno,
             uint64_t rev_seqno,
             cb::mcbp::DcpStreamId sid) = 0;
+
+    /**
+     * Handler to transmit a DcpCacheTransfer message.
+     *
+     * @param opaque this is the opaque requested by the consumer
+     *               in the Stream Request message
+     * @param items span of items with their associated cache tags to send
+     * @param vbucket the vbucket id the message belong to
+     * @param sid The stream-ID the CachedValues apply to (can be 0 for none)
+     *
+     * @return cb::engine_errc::success upon success
+     */
+    [[nodiscard]] virtual cb::engine_errc cache_transfer_tx(
+            uint32_t opaque,
+            gsl::span<cb::ItemWithCacheHint> items,
+            Vbid vbucket,
+            cb::mcbp::DcpStreamId sid) = 0;
+
     /**
      * Send a CacheTransferEnd message (for a CacheTransferStream)
      *

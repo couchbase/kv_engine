@@ -172,6 +172,11 @@ public:
                                     uint64_t rev_seqno,
                                     cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc cache_transfer_tx(uint32_t opaque,
+                                      gsl::span<cb::ItemWithCacheHint> items,
+                                      Vbid vbucket,
+                                      cb::mcbp::DcpStreamId sid) override;
+
     cb::engine_errc cache_transfer_end_tx(uint32_t opaque,
                                           Vbid vbucket,
                                           cb::mcbp::DcpStreamId sid) override;

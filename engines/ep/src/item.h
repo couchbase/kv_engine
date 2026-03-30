@@ -575,6 +575,10 @@ public:
         return op == queue_op::set_vbucket_state;
     }
 
+    bool operator==(const ItemIface& other) const override {
+        return *this == static_cast<const Item&>(other);
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

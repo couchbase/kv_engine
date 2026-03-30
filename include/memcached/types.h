@@ -127,6 +127,12 @@ public:
 
     /// Return a Read-Write "view" of the Items raw value
     virtual cb::char_buffer getValueBuffer() = 0;
+
+    /// Equality comparison - delegates to the underlying Item comparison
+    virtual bool operator==(const ItemIface& other) const = 0;
+    bool operator!=(const ItemIface& other) const {
+        return !(*this == other);
+    }
 };
 
 std::ostream& operator<<(std::ostream& os, const ItemIface& item);

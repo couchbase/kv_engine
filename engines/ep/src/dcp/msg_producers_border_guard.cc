@@ -280,6 +280,15 @@ cb::engine_errc DcpMsgProducersBorderGuard::cached_key_meta(
             opaque, std::move(itm), vbucket, by_seqno, rev_seqno, sid);
 }
 
+cb::engine_errc DcpMsgProducersBorderGuard::cache_transfer_tx(
+        uint32_t opaque,
+        gsl::span<cb::ItemWithCacheHint> items,
+        Vbid vbucket,
+        cb::mcbp::DcpStreamId sid) {
+    NonBucketAllocationGuard guard;
+    return guarded.cache_transfer_tx(opaque, items, vbucket, sid);
+}
+
 cb::engine_errc DcpMsgProducersBorderGuard::cache_transfer_end_tx(
         uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;

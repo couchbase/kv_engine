@@ -219,6 +219,14 @@ public:
                  cb::mcbp::DcpStreamId sid));
 
     MOCK_METHOD(cb::engine_errc,
+                cache_transfer_tx,
+                (uint32_t opaque,
+                 gsl::span<cb::ItemWithCacheHint> items,
+                 Vbid vbucket,
+                 cb::mcbp::DcpStreamId sid),
+                (override));
+
+    MOCK_METHOD(cb::engine_errc,
                 cache_transfer_end_tx,
                 (uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid),
                 (override));

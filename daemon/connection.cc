@@ -2590,6 +2590,15 @@ cb::engine_errc Connection::cached_key_meta(uint32_t opaque,
                                      sid);
 }
 
+cb::engine_errc Connection::cache_transfer_tx(
+        uint32_t opaque,
+        gsl::span<cb::ItemWithCacheHint> items,
+        Vbid vbucket,
+        cb::mcbp::DcpStreamId sid) {
+    // Coming soon.
+    return cb::engine_errc::not_supported;
+}
+
 cb::engine_errc Connection::cache_transfer_end_tx(uint32_t opaque,
                                                   Vbid vbucket,
                                                   cb::mcbp::DcpStreamId sid) {

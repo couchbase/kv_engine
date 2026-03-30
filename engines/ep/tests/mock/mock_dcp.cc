@@ -563,6 +563,15 @@ cb::engine_errc MockDcpMessageProducers::cached_key_meta(
     return status;
 }
 
+cb::engine_errc MockDcpMessageProducers::cache_transfer_tx(
+        uint32_t opaque,
+        gsl::span<cb::ItemWithCacheHint> items,
+        Vbid vbucket,
+        cb::mcbp::DcpStreamId sid) {
+    clear_dcp_data();
+    return cb::engine_errc::not_supported;
+}
+
 cb::engine_errc MockDcpMessageProducers::cache_transfer_end_tx(
         uint32_t opaque, Vbid vbucket, cb::mcbp::DcpStreamId sid) {
     last_opaque = opaque;
