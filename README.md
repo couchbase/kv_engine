@@ -66,6 +66,10 @@ built via the Couchbase
 * [Error Handling Best Practices](docs/ErrorHandling.md)
 * [File ownership in bucket data directory](docs/BucketDataDirectory.md)
 
+### Debugging on Windows
+
+* [Hints on how to debug a minidump file with WinDbg](docs/WinDbgHints.md)
+
 ## Tools
 
 * [Analyze jemalloc memory statistics](scripts/jemalloc/README.md)
