@@ -231,17 +231,6 @@ nlohmann::json Connection::to_json() const {
         }
     }
 
-    {
-        nlohmann::json rcvbuf_changes = nlohmann::json::array();
-        socket_rcvbuf_size_history.iterate(
-                [&rcvbuf_changes](const SocketReceiveBufferSizeTrace& tr) {
-                    rcvbuf_changes.emplace_back(tr);
-                });
-        if (!rcvbuf_changes.empty()) {
-            ret["socket_rcvbuf_size_history"] = rcvbuf_changes;
-        }
-    }
-
 #ifdef CB_DEVELOPMENT_ASSERTS
     if (type != Type::Normal) {
         auto counters_to_json = [](const auto& map) {
@@ -1176,10 +1165,6 @@ bool Connection::executeCommandsCallback() {
 
     // Make sure any core dumps from this code contain the bucket name.
     cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
-
-    // Check if the socket recvbuffer size changed since the last time
-    check_socket_recvbuf_size();
-
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
 
     if (thread.keyTrace && thread.keyTrace->is_expired(start)) {
@@ -1350,8 +1335,7 @@ Connection::Connection(FrontEndThread& thr)
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(INVALID_SOCKET),
-      executionLog(0),
-      socket_rcvbuf_size_history(0) {
+      executionLog(0) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId("unknown:0");
@@ -1397,32 +1381,6 @@ void Connection::upsertTokenAuthDataById(
             std::move(user_), std::move(entry), begin, end);
 }
 
-void Connection::check_socket_recvbuf_size() {
-    if (!listening_port->system) {
-        return;
-    }
-
-    try {
-        int current = cb::net::getSocketOption<int>(
-                socketDescriptor, SOL_SOCKET, SO_RCVBUF);
-        if (current != current_socket_rcvbuf_size) {
-            SocketReceiveBufferSizeTrace entry;
-            entry.timestamp = std::chrono::steady_clock::now();
-            entry.value = current;
-            socket_rcvbuf_size_history.push(std::move(entry));
-            LOG_WARNING_CTX("SO_RCVBUF size changed",
-                            {"conn_id", socketDescriptor},
-                            {"old_size", current_socket_rcvbuf_size},
-                            {"new_size", current});
-            current_socket_rcvbuf_size = current;
-        }
-    } catch (const std::exception& e) {
-        LOG_WARNING_CTX("Failed to get SO_RCVBUF",
-                        {"conn_id", socketDescriptor},
-                        {"error", e.what()});
-    }
-}
-
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr)
@@ -1433,24 +1391,12 @@ Connection::Connection(SOCKET sfd,
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(sfd),
-      executionLog(Settings::instance().getConnectionTraceSize()),
-      socket_rcvbuf_size_history(10) {
+      executionLog(Settings::instance().getConnectionTraceSize()) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor));
     global_statistics.conn_structs++;
     thread.onConnectionCreate(*this);
-
-    if (listening_port->system) {
-        try {
-            current_socket_rcvbuf_size =
-                    cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_RCVBUF);
-        } catch (const std::exception& e) {
-            LOG_WARNING_CTX("Failed to get SO_RCVBUF",
-                            {"conn_id", sfd},
-                            {"error", e.what()});
-        }
-    }
 }
 
 bool Connection::maybeInitiateShutdown(const std::string_view reason,
@@ -2920,13 +2866,4 @@ void to_json(nlohmann::json& json, const Connection::TraceRecord& tr) {
     } else {
         json["type"] = "response";
     }
-}
-
-void to_json(nlohmann::json& json,
-             const Connection::SocketReceiveBufferSizeTrace& entry) {
-    json = nlohmann::json::object();
-    json["age"] =
-            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now() - entry.timestamp));
-    json["value"] = entry.value;
 }

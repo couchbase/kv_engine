@@ -86,11 +86,6 @@ public:
         } opcode;
     };
 
-    struct SocketReceiveBufferSizeTrace {
-        std::chrono::steady_clock::time_point timestamp;
-        int value;
-    };
-
     /// A class representing the states the connection may be in
     enum class State : int8_t {
         /// The client is running and may accept new commands
@@ -1313,11 +1308,6 @@ protected:
     /// The list of trace records for this connection (if tracing is enabled)
     cb::RingBuffer<TraceRecord> executionLog;
 
-    int current_socket_rcvbuf_size = 0;
-    cb::RingBuffer<SocketReceiveBufferSizeTrace> socket_rcvbuf_size_history;
-
-    void check_socket_recvbuf_size();
-
     /**
      * Is XERROR supported for this connection or not (or should we just
      * silently disconnect the client)
@@ -1523,5 +1513,3 @@ protected:
 
 void to_json(nlohmann::json& json, const Connection& connection);
 void to_json(nlohmann::json& json, const Connection::TraceRecord& tr);
-void to_json(nlohmann::json& json,
-             const Connection::SocketReceiveBufferSizeTrace& entry);
