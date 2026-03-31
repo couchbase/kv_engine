@@ -333,6 +333,19 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "unsigned integer or \"default\"!! Value:'{}'",
                         value.dump()));
             }
+        } else if (key == "num_quicknonio_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumQuickNonIoThreads(value.get<int>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumQuickNonIoThreads(static_cast<int>(
+                        ThreadPoolConfig::QuickNonIoThreadCount::Default));
+            } else {
+                throw std::invalid_argument(fmt::format(
+                        "Value to set number of QuickNonIO threads must be an "
+                        "unsigned integer or \"default\"! Value:'{}'",
+                        value.dump()));
+            }
         } else if (key == "num_slowio_threads"sv) {
             if (value.is_number_unsigned()) {
                 setNumSlowIoThreads(value.get<int>());
@@ -1224,6 +1237,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      {"from", getNumNonIoThreads()},
                      {"to", other.getNumNonIoThreads()});
         setNumNonIoThreads(other.getNumNonIoThreads());
+    }
+
+    if (other.has.num_quicknonio_threads &&
+        other.getNumQuickNonIoThreads() != getNumQuickNonIoThreads()) {
+        LOG_INFO_CTX("Change number of QuickNonIO threads",
+                     {"from", getNumQuickNonIoThreads()},
+                     {"to", other.getNumQuickNonIoThreads()});
+        setNumQuickNonIoThreads(other.getNumQuickNonIoThreads());
     }
 
     if (other.has.num_slowio_threads &&

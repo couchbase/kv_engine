@@ -623,7 +623,9 @@ static void startExecutorPool() {
             ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
             ThreadPoolConfig::AuxIoThreadCount(settings.getNumAuxIoThreads()),
             ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()),
-            ThreadPoolConfig::SlowIoThreadCount::Default,
+            ThreadPoolConfig::QuickNonIoThreadCount(
+                    settings.getNumQuickNonIoThreads()),
+            ThreadPoolConfig::SlowIoThreadCount(settings.getNumSlowIoThreads()),
             ThreadPoolConfig::IOThreadsPerCore(
                     settings.getNumIOThreadsPerCore()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
@@ -636,6 +638,7 @@ static void startExecutorPool() {
                  {"writers", pool->getNumWriters()},
                  {"auxIO", pool->getNumAuxIO()},
                  {"nonIO", pool->getNumNonIO()},
+                 {"quickNonIO", pool->getNumQuickNonIO()},
                  {"slowIO", pool->getNumSlowIO()});
 
     // MB-47484 Set up the settings callback for the executor pool now that
@@ -679,6 +682,13 @@ static void startExecutorPool() {
                 auto val = ThreadPoolConfig::NonIoThreadCount(
                         s.getNumNonIoThreads());
                 ExecutorPool::get()->setNumNonIO(val);
+            });
+    settings.addChangeListener(
+            "num_quicknonio_threads",
+            [](const std::string&, Settings& s) -> void {
+                auto val = ThreadPoolConfig::QuickNonIoThreadCount(
+                        s.getNumQuickNonIoThreads());
+                ExecutorPool::get()->setNumQuickNonIO(val);
             });
     settings.addChangeListener(
             "num_slowio_threads", [](const std::string&, Settings& s) -> void {

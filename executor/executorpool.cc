@@ -28,6 +28,7 @@ void ExecutorPool::create(Backend backend,
                           ThreadPoolConfig::ThreadCount maxWriters,
                           ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                           ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                          ThreadPoolConfig::QuickNonIoThreadCount maxQuickNonIO,
                           ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                           ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore) {
     if (getInstance()) {
@@ -41,6 +42,7 @@ void ExecutorPool::create(Backend backend,
                                                             maxWriters,
                                                             maxAuxIO,
                                                             maxNonIO,
+                                                            maxQuickNonIO,
                                                             maxSlowIO,
                                                             ioThreadsPerCore);
         return;
@@ -50,6 +52,7 @@ void ExecutorPool::create(Backend backend,
                                                           maxWriters,
                                                           maxAuxIO,
                                                           maxNonIO,
+                                                          maxQuickNonIO,
                                                           maxSlowIO,
                                                           ioThreadsPerCore);
         return;
@@ -212,6 +215,18 @@ size_t ExecutorPool::calcNumNonIO(
     }
 }
 
+size_t ExecutorPool::calcNumQuickNonIO(
+        ThreadPoolConfig::QuickNonIoThreadCount threadCount) const {
+    if (threadCount != ThreadPoolConfig::QuickNonIoThreadCount::Default) {
+        // Pick user's value if specified
+        return static_cast<size_t>(threadCount);
+    }
+    // 1. compute: 10% of total threads
+    size_t count = maxGlobalThreads / 10;
+    // 2. adjust computed value to be within range
+    return std::clamp(count, size_t{1}, size_t{4});
+}
+
 size_t ExecutorPool::calcNumSlowIO(
         ThreadPoolConfig::SlowIoThreadCount threadCount) const {
     switch (threadCount) {
@@ -254,6 +269,7 @@ int ExecutorPool::getThreadPriority(TaskType taskType) {
         return 19;
     case TaskType::Reader:
     case TaskType::NonIO:
+    case TaskType::QuickNonIO:
         return 0;
     case TaskType::None:
     case TaskType::Count:

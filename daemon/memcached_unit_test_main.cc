@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
                          ThreadPoolConfig::ThreadCount::Balanced,
                          ThreadPoolConfig::AuxIoThreadCount::Default,
                          ThreadPoolConfig::NonIoThreadCount::Default,
+                         ThreadPoolConfig::QuickNonIoThreadCount::Default,
                          ThreadPoolConfig::SlowIoThreadCount::Default,
                          ThreadPoolConfig::IOThreadsPerCore::Default);
 

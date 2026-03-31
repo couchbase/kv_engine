@@ -50,6 +50,8 @@ public:
                                ThreadPoolConfig::AuxIoThreadCount::Default,
                        ThreadPoolConfig::NonIoThreadCount maxNonIO =
                                ThreadPoolConfig::NonIoThreadCount::Default,
+                       ThreadPoolConfig::QuickNonIoThreadCount maxQuickNonIO =
+                               ThreadPoolConfig::QuickNonIoThreadCount::Default,
                        ThreadPoolConfig::SlowIoThreadCount maxSlowIO =
                                ThreadPoolConfig::SlowIoThreadCount::Default,
                        ThreadPoolConfig::IOThreadsPerCore =
@@ -96,6 +98,9 @@ public:
     /// @returns the number of Slow-IO threads.
     virtual size_t getNumSlowIO() const = 0;
 
+    /// @returns the number of Quick Non-IO threads.
+    virtual size_t getNumQuickNonIO() const = 0;
+
     /**
      * Set the number of Reader IO threads using the ThreadCount as input to
      * calcNumReaders
@@ -116,6 +121,10 @@ public:
 
     /// Set the number of Slow-IO threads to the specified number.
     virtual void setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) = 0;
+
+    /// Set the number of Quick Non-IO threads to the specified number.
+    virtual void setNumQuickNonIO(
+            ThreadPoolConfig::QuickNonIoThreadCount v) = 0;
 
     /// @returns the number of AuxIO threads created per core (for
     /// auto-configured thread pool sizes).
@@ -299,6 +308,11 @@ protected:
      * Calculate the number of Non-IO threads to use for the given thread limit.
      */
     size_t calcNumNonIO(ThreadPoolConfig::NonIoThreadCount threadCount) const;
+
+    /// Calculate the number of Quick Non-IO threads to use for the given thread
+    /// limit.
+    size_t calcNumQuickNonIO(
+            ThreadPoolConfig::QuickNonIoThreadCount threadCount) const;
 
     /// Calculate the number of Auxiliary IO threads to use for the given thread
     /// limit.

@@ -31,6 +31,7 @@ public:
                      ThreadPoolConfig::ThreadCount maxWriters,
                      ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                      ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                     ThreadPoolConfig::QuickNonIoThreadCount maxQuickNonIO,
                      ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                      ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
         : CB3ExecutorPool(maxThreads,
@@ -38,6 +39,7 @@ public:
                           maxWriters,
                           maxAuxIO,
                           maxNonIO,
+                          maxQuickNonIO,
                           maxSlowIO,
                           ioThreadsPerCore) {
     }
@@ -59,7 +61,8 @@ protected:
                   int numWriters = 2,
                   int numAuxIO = 2,
                   int numNonIO = 2,
-                  ThreadPoolConfig::SlowIoThreadCount maxSlowIO =
+                  int numQuickNonIO = 2,
+                  ThreadPoolConfig::SlowIoThreadCount numSlowIO =
                           static_cast<ThreadPoolConfig::SlowIoThreadCount>(2),
                   ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore =
                           static_cast<ThreadPoolConfig::IOThreadsPerCore>(1));
@@ -143,8 +146,24 @@ protected:
 };
 
 struct ThreadCountsParams {
+    ThreadCountsParams(ThreadPoolConfig::ThreadCount readerWriterConfig,
+                       size_t maxThreads,
+                       size_t reader,
+                       size_t writer,
+                       size_t auxIO,
+                       size_t nonIO,
+                       size_t quickNonIO)
+        : readerWriterConfig(readerWriterConfig),
+          maxThreads(maxThreads),
+          reader(reader),
+          writer(writer),
+          auxIO(auxIO),
+          nonIO(nonIO),
+          quickNonIO(quickNonIO) {
+    }
+
     // Input params:
-    ThreadPoolConfig::ThreadCount in_reader_writer;
+    ThreadPoolConfig::ThreadCount readerWriterConfig;
     size_t maxThreads;
 
     // Expected outputs:
@@ -152,6 +171,7 @@ struct ThreadCountsParams {
     size_t writer;
     size_t auxIO;
     size_t nonIO;
+    size_t quickNonIO;
 };
 
 ::std::ostream& operator<<(::std::ostream& os,

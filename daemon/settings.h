@@ -971,6 +971,16 @@ public:
         notify_changed("num_nonio_threads");
     }
 
+    int getNumQuickNonIoThreads() const {
+        return num_quicknonio_threads.load(std::memory_order_acquire);
+    }
+
+    void setNumQuickNonIoThreads(int val) {
+        num_quicknonio_threads.store(val, std::memory_order_release);
+        has.num_quicknonio_threads = true;
+        notify_changed("num_quicknonio_threads");
+    }
+
     int getNumSlowIoThreads() const {
         return num_slowio_threads.load(std::memory_order_acquire);
     }
@@ -1617,6 +1627,8 @@ protected:
             static_cast<int>(ThreadPoolConfig::AuxIoThreadCount::Default)};
     std::atomic<int> num_nonio_threads{
             static_cast<int>(ThreadPoolConfig::NonIoThreadCount::Default)};
+    std::atomic<int> num_quicknonio_threads{
+            static_cast<int>(ThreadPoolConfig::QuickNonIoThreadCount::Default)};
     std::atomic<int> num_slowio_threads{
             static_cast<int>(ThreadPoolConfig::SlowIoThreadCount::Default)};
 
@@ -1861,6 +1873,7 @@ public:
         bool num_writer_threads = false;
         bool num_auxio_threads = false;
         bool num_nonio_threads = false;
+        bool num_quicknonio_threads = false;
         bool num_slowio_threads = false;
         bool num_io_threads_per_core = false;
         bool num_storage_threads = false;

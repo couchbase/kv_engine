@@ -101,6 +101,7 @@ public:
                     ThreadPoolConfig::ThreadCount maxWriters,
                     ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                     ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                    ThreadPoolConfig::QuickNonIoThreadCount maxQuickNonIO,
                     ThreadPoolConfig::SlowIoThreadCount maxSlowIO,
                     ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore);
 
@@ -185,6 +186,8 @@ public:
 
     size_t getNumNonIO() const override;
 
+    size_t getNumQuickNonIO() const override;
+
     size_t getNumSlowIO() const override;
 
     std::string_view getName() const override {
@@ -213,6 +216,10 @@ public:
 
     void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) override {
         adjustWorkers(TaskType::NonIO, calcNumNonIO(v));
+    }
+
+    void setNumQuickNonIO(ThreadPoolConfig::QuickNonIoThreadCount v) override {
+        adjustWorkers(TaskType::QuickNonIO, calcNumQuickNonIO(v));
     }
 
     void setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) override {

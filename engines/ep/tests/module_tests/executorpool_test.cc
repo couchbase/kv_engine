@@ -52,9 +52,10 @@ ExTask makeTask(Taskable& taskable,
 
 ::std::ostream& operator<<(::std::ostream& os,
                            const ThreadCountsParams& expected) {
-    return os << expected.in_reader_writer << "_CPU" << expected.maxThreads
-              << "_W" << expected.writer << "_R" << expected.reader << "_A"
-              << expected.auxIO << "_N" << expected.nonIO;
+    return os << expected.readerWriterConfig << "_CPU" << expected.maxThreads
+              << "_R" << expected.reader << "_W" << expected.writer << "_A"
+              << expected.auxIO << "_N" << expected.nonIO << "_QN"
+              << expected.quickNonIO;
 }
 
 template <typename T>
@@ -64,15 +65,18 @@ void ExecutorPoolTest<T>::makePool(
         int numWriters,
         int numAuxIO,
         int numNonIO,
+        int numQuickNonIO,
         ThreadPoolConfig::SlowIoThreadCount numSlowIO,
         ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore) {
-    pool = std::make_unique<T>(maxThreads,
-                               ThreadPoolConfig::ThreadCount(numReaders),
-                               ThreadPoolConfig::ThreadCount(numWriters),
-                               ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
-                               ThreadPoolConfig::NonIoThreadCount(numNonIO),
-                               numSlowIO,
-                               ioThreadsPerCore);
+    pool = std::make_unique<T>(
+            maxThreads,
+            ThreadPoolConfig::ThreadCount(numReaders),
+            ThreadPoolConfig::ThreadCount(numWriters),
+            ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
+            ThreadPoolConfig::NonIoThreadCount(numNonIO),
+            ThreadPoolConfig::QuickNonIoThreadCount(numQuickNonIO),
+            numSlowIO,
+            ioThreadsPerCore);
 }
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
@@ -90,25 +94,26 @@ TYPED_TEST(ExecutorPoolTest, register_taskable_test) {
 
     // Only CB3ExecutorPool starts / stops threads on first / last
     // taskable.
+    // 12 = 2 Reader + 2 Writer + 2 AuxIO + 2 NonIO + 2 QuickNonIO + 2 SlowIO
     const auto expectedInitialWorkers =
-            (typeid(TypeParam) == typeid(TestExecutorPool)) ? 0 : 10;
+            (typeid(TypeParam) == typeid(TestExecutorPool)) ? 0 : 12;
 
     ASSERT_EQ(expectedInitialWorkers, this->pool->getNumWorkersStat());
     ASSERT_EQ(0, this->pool->getNumTaskables());
 
     this->pool->registerTaskable(taskable);
 
-    ASSERT_EQ(10, this->pool->getNumWorkersStat());
+    ASSERT_EQ(12, this->pool->getNumWorkersStat());
     ASSERT_EQ(1, this->pool->getNumTaskables());
 
     this->pool->registerTaskable(taskable2);
 
-    ASSERT_EQ(10, this->pool->getNumWorkersStat());
+    ASSERT_EQ(12, this->pool->getNumWorkersStat());
     ASSERT_EQ(2, this->pool->getNumTaskables());
 
     this->pool->unregisterTaskable(taskable2, false);
 
-    ASSERT_EQ(10, this->pool->getNumWorkersStat());
+    ASSERT_EQ(12, this->pool->getNumWorkersStat());
     ASSERT_EQ(1, this->pool->getNumTaskables());
 
     this->pool->unregisterTaskable(taskable, false);
@@ -766,7 +771,7 @@ TYPED_TEST(ExecutorPoolTest, ScheduleCancelx2) {
     // are not immediately run - see below.
     // (Note: makePool assumes '0' means "auto-configure" for thread counts,
     // hence must make explicit call to setNonIO(0) after construction.)
-    this->makePool(1, 1, 1, 1);
+    this->makePool(1, 1, 1, 1, 1);
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
@@ -866,10 +871,11 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
     const size_t numWriters = 1;
     const size_t numAuxIO = 1;
     const size_t numNonIO = 1;
+    const size_t numQuickNonIO = 1;
     const size_t numSlowIO = 1;
 
-    const size_t originalWorkers =
-            numReaders + numWriters + numAuxIO + numNonIO + numSlowIO;
+    const size_t originalWorkers = numReaders + numWriters + numAuxIO +
+                                   numNonIO + numQuickNonIO + numSlowIO;
 
     // This will allow us to check that numWriters + 1 writer tasks can run
     // concurrently after setNumWriters has been called.
@@ -880,6 +886,7 @@ TYPED_TEST(ExecutorPoolTest, increase_workers) {
                    numWriters,
                    numAuxIO,
                    numNonIO,
+                   numQuickNonIO,
                    static_cast<ThreadPoolConfig::SlowIoThreadCount>(numSlowIO));
 
     NiceMock<MockTaskable> taskable;
@@ -1050,6 +1057,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStats) {
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", _));
     EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_QuickNonIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_QuickNonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_SlowIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_SlowIO:OutQsize", "0", _));
@@ -1113,6 +1124,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", _));
     EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_QuickNonIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_QuickNonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_SlowIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:LowPrioQ_SlowIO:OutQsize", "0", _));
@@ -1134,6 +1149,10 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:HiPrioQ_NonIO:OutQsize", "0", _));
     EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_QuickNonIO:InQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:HiPrioQ_QuickNonIO:OutQsize", "0", _));
+    EXPECT_CALL(mockAddStat,
                 callback("ep_workload:HiPrioQ_SlowIO:InQsize", "0", _));
     EXPECT_CALL(mockAddStat,
                 callback("ep_workload:HiPrioQ_SlowIO:OutQsize", "0", _));
@@ -1153,8 +1172,13 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
         GTEST_SKIP();
     }
 
-    this->makePool(
-            1, 1, 1, 1, 1, static_cast<ThreadPoolConfig::SlowIoThreadCount>(1));
+    this->makePool(1,
+                   1,
+                   1,
+                   1,
+                   1,
+                   1,
+                   static_cast<ThreadPoolConfig::SlowIoThreadCount>(1));
     // Create two buckets so they have different names.
     NiceMock<MockTaskable> bucket0("bucket0");
     NiceMock<MockTaskable> bucket1("bucket1");
@@ -1195,6 +1219,10 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:state", "running", _));
     EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:task", "Lambda Task", _));
 
+    EXPECT_CALL(mockAddStat, callback("QuickNonIO_worker_0:state", _, _));
+    EXPECT_CALL(mockAddStat, callback("QuickNonIO_worker_0:task", _, _));
+    EXPECT_CALL(mockAddStat, callback("QuickNonIO_worker_0:cur_time", _, _));
+
     EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:state", _, _));
     EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:task", _, _));
     EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:cur_time", _, _));
@@ -1210,6 +1238,8 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
     EXPECT_CALL(mockAddStat, callback("Writer_worker_0:runtime", _, _))
             .Times(AtMost(1));
     EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:runtime", _, _))
+            .Times(AtMost(1));
+    EXPECT_CALL(mockAddStat, callback("QuickNonIO_worker_0:runtime", _, _))
             .Times(AtMost(1));
     EXPECT_CALL(mockAddStat, callback("SlowIO_worker_0:runtime", _, _))
             .Times(AtMost(1));
@@ -1227,7 +1257,7 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
 
 // Test that task stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskStats) {
-    this->makePool(1, 1, 1, 1, 1);
+    this->makePool(1, 1, 1, 1, 1, 1);
     // Create two buckets so they have different names.
     NiceMock<MockTaskable> bucket0("bucket0");
     NiceMock<MockTaskable> bucket1("bucket1");
@@ -1646,10 +1676,11 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     NiceMock<MockTaskable> taskable;
 
     TestExecutorPool pool(expected.maxThreads, // MaxThreads
-                          expected.in_reader_writer,
-                          expected.in_reader_writer,
+                          expected.readerWriterConfig,
+                          expected.readerWriterConfig,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
                           ThreadPoolConfig::NonIoThreadCount::Default,
+                          ThreadPoolConfig::QuickNonIoThreadCount::Default,
                           ThreadPoolConfig::SlowIoThreadCount::Default,
                           ThreadPoolConfig::IOThreadsPerCore::Default);
 
@@ -1662,6 +1693,8 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     EXPECT_EQ(expected.auxIO, pool.getNumAuxIO())
             << "When maxThreads=" << expected.maxThreads;
     EXPECT_EQ(expected.nonIO, pool.getNumNonIO())
+            << "When maxThreads=" << expected.maxThreads;
+    EXPECT_EQ(expected.quickNonIO, pool.getNumQuickNonIO())
             << "When maxThreads=" << expected.maxThreads;
 
     pool.unregisterTaskable(taskable, false);
@@ -1678,32 +1711,51 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setNumReadersExactly) {
 }
 
 std::vector<ThreadCountsParams> threadCountValues = {
-        {ThreadPoolConfig::ThreadCount::Balanced, 1, 4, 4, 2, 2},
-        {ThreadPoolConfig::ThreadCount::Balanced, 2, 4, 4, 4, 2},
-        {ThreadPoolConfig::ThreadCount::Balanced, 4, 4, 4, 8, 2},
-        {ThreadPoolConfig::ThreadCount::Balanced, 8, 8, 4, 16, 2},
-        {ThreadPoolConfig::ThreadCount::Balanced, 10, 10, 4, 20, 3},
-        {ThreadPoolConfig::ThreadCount::Balanced, 14, 14, 4, 28, 4},
-        {ThreadPoolConfig::ThreadCount::Balanced, 20, 16, 4, 40, 6},
-        {ThreadPoolConfig::ThreadCount::Balanced, 24, 16, 4, 48, 7},
-        {ThreadPoolConfig::ThreadCount::Balanced, 32, 16, 4, 64, 8},
-        {ThreadPoolConfig::ThreadCount::Balanced, 48, 16, 4, 96, 8},
-        {ThreadPoolConfig::ThreadCount::Balanced, 64, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::Balanced, 128, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::Balanced, 256, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 2, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 4, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 8, 8, 8, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 8, 16, 16, 16, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 10, 20, 20, 20, 3},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 14, 28, 28, 28, 4},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 20, 40, 40, 40, 6},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 24, 48, 48, 48, 7},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 32, 64, 64, 64, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 48, 96, 96, 96, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 64, 128, 128, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 128, 128, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 256, 128, 128, 128, 8}};
+        {ThreadPoolConfig::ThreadCount::Balanced, 1, 4, 4, 2, 2, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 2, 4, 4, 4, 2, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 4, 4, 4, 8, 2, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 8, 8, 4, 16, 2, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 10, 10, 4, 20, 3, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 14, 14, 4, 28, 4, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 16, 16, 4, 32, 4, 1},
+        {ThreadPoolConfig::ThreadCount::Balanced, 20, 16, 4, 40, 6, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 24, 16, 4, 48, 7, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 32, 16, 4, 64, 8, 3},
+        {ThreadPoolConfig::ThreadCount::Balanced, 48, 16, 4, 96, 8, 4},
+        {ThreadPoolConfig::ThreadCount::Balanced, 64, 16, 4, 128, 8, 4},
+        {ThreadPoolConfig::ThreadCount::Balanced, 128, 16, 4, 128, 8, 4},
+        {ThreadPoolConfig::ThreadCount::Balanced, 256, 16, 4, 128, 8, 4},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 2, 2, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 4, 2, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 8, 8, 8, 2, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 8, 16, 16, 16, 2, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 10, 20, 20, 20, 3, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 14, 28, 28, 28, 4, 1},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 20, 40, 40, 40, 6, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 24, 48, 48, 48, 7, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 32, 64, 64, 64, 8, 3},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 48, 96, 96, 96, 8, 4},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized,
+         64,
+         128,
+         128,
+         128,
+         8,
+         4},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized,
+         128,
+         128,
+         128,
+         128,
+         8,
+         4},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized,
+         256,
+         128,
+         128,
+         128,
+         8,
+         4}};
 
 INSTANTIATE_TEST_SUITE_P(ThreadCountTest,
                          ExecutorPoolTestWithParam,

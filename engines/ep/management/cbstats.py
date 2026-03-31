@@ -216,6 +216,7 @@ def tasks_stats_formatter_one_bucket(tasks, cur_time, sort_by=None,
                    "Writer": 0,
                    "AuxIO": 0,
                    "NonIO": 0,
+                   "QNonIO": 0,
                    "SlowIO": 0}
 
     running_tasks = total_tasks.copy()
@@ -250,12 +251,12 @@ def tasks_stats_formatter_one_bucket(tasks, cur_time, sort_by=None,
     total_tasks["Total"] = len(tasks)
 
     headers = (
-        "Tasks     Writer Reader AuxIO  NonIO  SlowIO Total      \n"
+        "Tasks     Writer Reader AuxIO  NonIO QNonIO SlowIO  Total      \n"
         "Running   {Writer:<6} {Reader:<6} "
-        "{AuxIO:<6} {NonIO:<6} {SlowIO:<6} {Total:<6}\n"
+        "{AuxIO:<6} {NonIO:<6} {QNonIO:<6} {SlowIO:<6} {Total:<6}\n"
         .format(**running_tasks) +
         "All       {Writer:<6} {Reader:<6} "
-        "{AuxIO:<6} {NonIO:<6} {SlowIO:<6} {Total:<6}\n"
+        "{AuxIO:<6} {NonIO:<6} {QNonIO:<6} {SlowIO:<6} {Total:<6}\n"
         .format(**total_tasks)
     )
 
