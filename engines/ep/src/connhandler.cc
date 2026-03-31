@@ -25,7 +25,6 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_time.h>
 #include <platform/timeutils.h>
-#include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
 std::string to_string(ConnHandler::PausedReason r) {
@@ -474,15 +473,10 @@ void ConnHandler::doStreamStatsJson(
     nlohmann::json json;
     for (const auto& stream : streams) {
         auto add_stream_stat = [&json](auto k, auto v, auto& c) {
-            cb::jsonSetStringView(json, k, v);
+            json[k] = v;
         };
-        // Make sure we don't have stale values from the previous stream. Reset
-        // the (string) values instead of the object iteself, to save on
-        // allocating/freeing strings.
-        cb::jsonResetValues(json);
+        json.clear();
         stream->addStats(add_stream_stat, c);
-        // Drop anything that wasn't set by addStats().
-        cb::jsonRemoveEmptyStrings(json);
 
         auto key = fmt::format(
                 "{}:stream_{}", stream->getName(), stream->getVBucket().get());

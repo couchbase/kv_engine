@@ -11,42 +11,9 @@
 
 #include "json_utilities.h"
 
-#include <algorithm>
 #include <optional>
 
 namespace cb {
-
-void jsonSetStringView(nlohmann::json& obj,
-                       std::string_view key,
-                       std::string_view value) {
-    auto& target = obj[key];
-    if (target.is_string()) {
-        // We already has a std::string. Assign the string_view to it directly.
-        // This may allow us to re-use the std::string buffer and avoids
-        // wrapping the value in a nlohmann::json for operator=().
-        target.template get_ref<std::string&>() = value;
-    } else {
-        target = value;
-    }
-}
-
-void jsonResetValues(nlohmann::json& obj) {
-    for (auto& j : obj) {
-        j.clear();
-    }
-}
-
-void jsonRemoveEmptyStrings(nlohmann::json& obj) {
-    obj.erase(std::ranges::remove_if(
-                      obj,
-                      [](auto& v) {
-                          auto* s = v.template get_ptr<std::string*>();
-                          return s && s->empty();
-                      })
-                      .begin(),
-              obj.end());
-}
-
 std::optional<nlohmann::json> getOptionalJsonObject(
         const nlohmann::json& object, const std::string& key) {
     try {
