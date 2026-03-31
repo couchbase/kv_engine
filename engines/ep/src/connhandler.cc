@@ -16,9 +16,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
-#include <dcp/active_stream.h>
-#include <dcp/cache_transfer_stream.h>
-#include <dcp/passive_stream.h>
 #include <fmt/format.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
@@ -521,14 +518,6 @@ void ConnHandler::doStreamStatsJson(
 
         auto key = fmt::format(
                 "{}:stream_{}", stream->getName(), stream->getVBucket().get());
-#ifdef CB_DEVELOPMENT_ASSERTS
-        // MB-70706 - Stream stats may be garbled. Until we know why, validate
-        // the JSON we are about to send to ensure it contains all the mandatory
-        // fields and that they are of the correct type. If not, log a critical
-        // error with the content of the JSON which should help us identify the
-        // root cause.
-        stream->validateStreamStats(nlohmann::json::parse(json.dump()));
-#endif
         add_stat(key, json.dump(), c);
     }
 }
