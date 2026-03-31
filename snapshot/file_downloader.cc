@@ -194,7 +194,10 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
 
     if (!error_sink_write_size.has_value()) {
         return std::make_unique<cb::io::FileSink>(
-                filename, cb::io::FileSink::Mode::Append, fsync_interval);
+                filename,
+                cb::io::FileSink::Mode::Append,
+                fsync_interval,
+                cb::io::IoHint::DontNeed);
     }
 
     class ErrorSink : public cb::io::FileSink {
@@ -202,7 +205,10 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
         ErrorSink(std::filesystem::path path,
                   std::size_t fsync_interval,
                   std::size_t error_sink_write_size)
-            : FileSink(path, Mode::Append, fsync_interval),
+            : FileSink(path,
+                       Mode::Append,
+                       fsync_interval,
+                       cb::io::IoHint::DontNeed),
               error_sink_write_size(error_sink_write_size) {
         }
 
