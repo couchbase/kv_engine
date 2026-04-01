@@ -120,6 +120,7 @@
 #pragma once
 
 #include "dcp/backfill.h"
+#include "rate_limited_logger.h"
 #include <memcached/engine_common.h>
 #include <memcached/types.h>
 #include <list>
@@ -392,4 +393,5 @@ protected:
     KVStoreScanTracker& scanTracker;
     ExTask managerTask;
     ScheduleOrder scheduleOrder{ScheduleOrder::RoundRobin};
+    RateLimitedLogger rateLimitedLogger;
 };

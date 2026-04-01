@@ -16,6 +16,9 @@
 #include "bucket_logger_test.h"
 
 #include "bucket_logger.h"
+#include "platform/cb_time.h"
+#include "platform/split_string.h"
+#include "rate_limited_logger.h"
 #include "thread_gate.h"
 
 #include <programs/engine_testapp/mock_server.h>
@@ -348,4 +351,53 @@ TEST_F(BucketLoggerTest, PrefixLogger) {
                     files.front(),
                     "INFO my message {\"prefix\":\"test\",\"key\":\"value\"}"))
             << getLogContents();
+}
+
+TEST_F(BucketLoggerTest, TestLogger) {
+    cb::time::StaticClockGuard clockGuard;
+    RateLimitedLogger rate_limited_logger("Log message",
+                                          {{"context", "foo"}},
+                                          "success",
+                                          "failure",
+                                          std::chrono::minutes{1},
+                                          spdlog::level::warn);
+    for (int ii = 0; ii < 100; ++ii) {
+        rate_limited_logger.failure();
+        rate_limited_logger.success();
+    }
+    cb::time::steady_clock::advance(std::chrono::seconds{65});
+    // Calling success should cause the log to be flushed
+    rate_limited_logger.success();
+    // And generating a new failure should cause a new log entry to be
+    // written
+    rate_limited_logger.failure();
+    rate_limited_logger.maybeFlushOutput();
+
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    const auto content = cb::io::loadFile(files.front());
+    const auto lines = cb::string::split(content, '\n');
+
+    EXPECT_EQ(
+            2,
+            std::ranges::count_if(
+                    lines,
+                    [](const std::string_view& line) {
+                        return line.find(
+                                       R"(WARNING Log message {"context":"foo"})") !=
+                               std::string::npos;
+                    }))
+            << "Not found in " << content;
+
+    EXPECT_EQ(
+            1,
+            std::ranges::count_if(
+                    lines,
+                    [](const std::string_view& line) {
+                        return line.find(
+                                       R"(WARNING Log message {"context":"foo","failure":100,"success":101})") !=
+                               std::string::npos;
+                    }))
+            << "Not found in " << content;
 }

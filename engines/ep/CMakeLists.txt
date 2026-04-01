@@ -371,6 +371,8 @@ ADD_LIBRARY(ep STATIC
             src/range_scans/range_scan_create_task.cc
             src/range_scans/range_scan_owner.cc
             src/range_scans/range_scan_types.cc
+            src/rate_limited_logger.cc
+            src/rate_limited_logger.h
             src/rollback_result.cc
             src/seqlist.cc
             src/seqno_persistence_notify_task.cc

@@ -109,7 +109,15 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
     : name(std::move(name)),
       kvBucket(kvBucket),
       scanTracker(scanTracker),
-      managerTask(nullptr) {
+      managerTask(nullptr),
+      rateLimitedLogger(
+              "BackfillManager::backfill snoozing as memory usage is too "
+              "high",
+              {{"name", this->name}},
+              "progress",
+              "snoozed",
+              std::chrono::minutes{1},
+              spdlog::level::warn) {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
     scanBuffer.maxBytes = config.getDcpScanByteLimit();
@@ -286,18 +294,16 @@ backfill_status_t BackfillManager::backfill() {
     // stop the background task and finish.
     if (emptyQueues(lh)) {
         managerTask.reset();
+        rateLimitedLogger.maybeFlushOutput();
         return backfill_finished;
     }
 
     if (kvBucket.isMemUsageAboveBackfillThreshold()) {
-        lh.unlock();
-        EP_LOG_WARN_CTX(
-                "BackfillManager::backfill snoozing as memory usage is too "
-                "high",
-                {{"name", name}});
+        rateLimitedLogger.failure();
         return backfill_snooze;
     }
 
+    rateLimitedLogger.success();
     movePendingToInitializing(lh);
     moveSnoozingToActiveQueue();
 
