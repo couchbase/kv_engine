@@ -231,34 +231,6 @@ nlohmann::json Connection::to_json() const {
         }
     }
 
-#ifdef CB_DEVELOPMENT_ASSERTS
-    if (type != Type::Normal) {
-        auto counters_to_json = [](const auto& map) {
-            nlohmann::json arr;
-            for (const auto& [opcode, count] : map) {
-                if (count) {
-                    arr.push_back(
-                            {{"opcode",
-                              static_cast<cb::mcbp::ClientOpcode>(opcode)},
-                             {"count", count}});
-                }
-            }
-            return arr;
-        };
-
-        nlohmann::json received = {
-                {"request", counters_to_json(frames_recv_counts.request)},
-                {"response", counters_to_json(frames_recv_counts.response)}};
-
-        ret["frames"] = {
-                {"received", std::move(received)},
-                {"sent",
-                 {{"request", counters_to_json(frames_sent_counts.request)},
-                  {"response",
-                   counters_to_json(frames_sent_counts.response)}}}};
-    }
-#endif
-
     return ret;
 }
 
@@ -1754,7 +1726,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
     }
     ++getBucket().responseCounters[uint16_t(status)];
-    record_frame_sent(reinterpret_cast<cb::mcbp::Header&>(response));
+
     return {wbuf.data(), wbuf.size()};
 }
 
@@ -1809,9 +1781,6 @@ bool Connection::sendResponse(Cookie& cookie,
 
 cb::engine_errc Connection::add_packet_to_send_pipe(
         cb::const_byte_buffer packet) {
-    record_frame_sent(
-            *reinterpret_cast<const cb::mcbp::Header*>(packet.data()));
-
     try {
         copyToOutputStream(packet);
     } catch (const std::bad_alloc&) {
@@ -2036,8 +2005,6 @@ cb::engine_errc Connection::mutation_or_cache_message(
     req.setCas(it->getCas());
     req.setDatatype(it->getDataType());
 
-    record_request_sent(opcode);
-
     if (sid) {
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
     }
@@ -2148,8 +2115,6 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
     req.setCas(it->getCas());
     req.setDatatype(it->getDataType());
 
-    record_request_sent(cb::mcbp::ClientOpcode::DcpDeletion);
-
     auto* ptr = blob.data() + sizeof(Request);
     if (sid) {
         auto buf = frameInfo.getBuf();
@@ -2224,7 +2189,6 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     auto buffer = extras.getBuffer();
     std::ranges::copy(buffer, ptr);
     size += buffer.size();
-    record_request_sent(cb::mcbp::ClientOpcode::DcpDeletion);
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
@@ -2286,7 +2250,6 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     auto buffer = extras.getBuffer();
     std::ranges::copy(buffer, ptr);
     size += buffer.size();
-    record_request_sent(cb::mcbp::ClientOpcode::DcpExpiration);
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
@@ -2425,7 +2388,6 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
     req.setDatatype(it->getDataType());
-    record_request_sent(cb::mcbp::ClientOpcode::DcpPrepare);
 
     try {
         if (buffer.size() > SendBuffer::MinimumDataSize) {

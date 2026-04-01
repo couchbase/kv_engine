@@ -82,12 +82,6 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
 }
 
 LibeventConnection::~LibeventConnection() {
-#ifdef CB_DEVELOPMENT_ASSERTS
-    if (type != Type::Normal) {
-        LOG_INFO_CTX("Shutting down DCP", {"details", to_json()});
-    }
-#endif
-
     if (isConnectedToSystemPort()) {
         LOG_INFO_CTX("Delete connection connected to system port",
                      {"conn_id", getId()},

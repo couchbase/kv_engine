@@ -81,9 +81,6 @@ private:
         std::unique_ptr<cb::json::SyntaxValidator> validator;
         cb::engine_errc command_error{cb::engine_errc::success};
         std::deque<std::unique_ptr<folly::IOBuf>> stats_buf;
-        /// Counter for the number of stat packets we inject in the stats buf
-        /// to update the sent package statistics
-        std::size_t num_stats = 0;
     };
 
     folly::Synchronized<TaskData, std::mutex> taskData;

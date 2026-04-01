@@ -52,7 +52,6 @@ std::size_t StatsTask::TaskData::append(std::string_view k,
     iob.append(k.size());
     std::ranges::copy(v, iob.writableTail());
     iob.append(v.size());
-    ++num_stats;
     return total;
 }
 
@@ -80,10 +79,6 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
             notifyCookieOnSend = false;
             return;
         }
-
-        cookie.getConnection().record_request_sent(cb::mcbp::ClientOpcode::Stat,
-                                                   data.num_stats);
-        data.num_stats = 0;
 
         while (!stats_buf.empty()) {
             auto& iob = stats_buf.front();

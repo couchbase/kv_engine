@@ -600,7 +600,6 @@ cb::mcbp::Status Cookie::validateClientRequest(
 cb::mcbp::Status Cookie::validate() {
     using namespace cb::mcbp;
     const auto& header = getHeader();
-    connection.record_frame_received(header);
     if (header.isRequest()) [[likely]] {
         const auto& request = header.getRequest();
         if (is_server_magic(request.getMagic())) [[unlikely]] {
