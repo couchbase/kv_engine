@@ -512,6 +512,7 @@ nlohmann::json TestappTest::generate_config() {
             {"max_connections", Testapp::MAX_CONNECTIONS},
             {"system_connections", Testapp::MAX_CONNECTIONS / 4},
             {"stdin_listener", false},
+            {"connection_trace_size", 30},
             {"datatype_json", true},
             {"datatype_snappy", true},
             {"xattr_enabled", true},

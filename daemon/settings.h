@@ -1445,13 +1445,7 @@ protected:
     cb::RelaxedAtomic<size_t> connection_idle_time{0};
 
     /// The maximum number of trace entries to keep per connection
-    cb::RelaxedAtomic<std::size_t> connection_trace_size{
-#ifdef CB_DEVELOPMENT_ASSERTS
-            30
-#else
-            0
-#endif
-    };
+    cb::RelaxedAtomic<std::size_t> connection_trace_size{0};
 
     /// If a client reaches or exceeds this amount of queued data then
     /// execution of new commands for that client is paused until the data is
