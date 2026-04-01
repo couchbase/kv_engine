@@ -101,6 +101,8 @@ public:
     void destroy(bool force) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
+    void set_num_storage_threads(
+            ThreadPoolConfig::StorageThreadCount num) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKeyView& key,
                                      size_t nbytes,
@@ -1005,6 +1007,11 @@ void EWB_Engine::destroy(bool force) {
 cb::engine_errc EWB_Engine::set_traffic_control_mode(CookieIface& cookie,
                                                      TrafficControlMode mode) {
     return real_engine->set_traffic_control_mode(cookie, mode);
+}
+
+void EWB_Engine::set_num_storage_threads(
+        ThreadPoolConfig::StorageThreadCount num) {
+    real_engine->set_num_storage_threads(num);
 }
 
 cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,

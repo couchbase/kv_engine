@@ -580,7 +580,10 @@ static void initialize_sasl() {
 static std::function<void(const std::string&, Settings&)>
 updateMagmaThreadPool() {
     return [](const std::string&, Settings& s) {
-        const auto total = s.getMagmaMaxDefaultStorageThreads();
+        size_t total = s.getNumStorageThreads();
+        if (total == 0) {
+            total = s.getMagmaMaxDefaultStorageThreads();
+        }
         const auto flusherRatio =
                 static_cast<float>(s.getMagmaFlusherThreadPercentage()) / 100;
         auto flushers = std::ceil(total * flusherRatio);

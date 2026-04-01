@@ -1293,6 +1293,18 @@
         "added": "8.1.0"
     },
     {
+        "key": "magma_num_flusher_threads",
+        "unit": "none",
+        "description": "The number of magma flusher threads.",
+        "added": "8.1.0"
+    },
+    {
+        "key": "magma_num_compactor_threads",
+        "unit": "none",
+        "description": "The number of magma compactor threads.",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_magma_sets",
         "unit": "none",
         "description": "Number of set operations (DocUpsert)",

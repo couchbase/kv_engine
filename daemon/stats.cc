@@ -125,6 +125,14 @@ static void server_global_stats(const StatCollector& collector) {
                 Key::magma_enable_compaction_dataonly_ratelimiting,
                 Settings::instance()
                         .getMagmaEnableCompactionDataonlyRateLimiting());
+        if (isMagmaSupportEnabled()) {
+            collector.addStat(
+                    Key::magma_num_flusher_threads,
+                    magma::Magma::GetNumThreads(magma::Magma::Flusher));
+            collector.addStat(
+                    Key::magma_num_compactor_threads,
+                    magma::Magma::GetNumThreads(magma::Magma::Compactor));
+        }
     }
 }
 

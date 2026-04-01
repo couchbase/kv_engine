@@ -1007,6 +1007,36 @@ TEST_P(StatsTest, MagmaThreadStats) {
     EXPECT_EQ(50, getStat("magma_flusher_thread_percentage"));
 }
 
+// MB-71081
+TEST_P(StatsTest, MagmaThreadCalcRespectesOverrides) {
+    if (!mcd_env->getTestBucket().isMagma()) {
+        GTEST_SKIP();
+    }
+
+    // restore to default values
+    memcached_cfg["magma_flusher_thread_percentage"] = 20;
+    memcached_cfg["magma_max_default_storage_threads"] = 50;
+
+    // configure to a value other than the default value of 0
+    memcached_cfg["num_storage_threads"] = 10;
+    reconfigure();
+
+    auto stats = adminConnection->stats("");
+    EXPECT_EQ(2, stats["magma_num_flusher_threads"].get<size_t>());
+    EXPECT_EQ(8, stats["magma_num_compactor_threads"].get<size_t>());
+
+    // Now update magma_flusher_thread_percentage to 50 or this could also be
+    // magma_max_default_storage_threads. This is because the changeListener for
+    // both of these hits our buggy code in updateMagmaThreadPool() wihtin
+    // memcached.cc.
+    memcached_cfg["magma_flusher_thread_percentage"] = 50;
+    reconfigure();
+
+    stats = adminConnection->stats("");
+    EXPECT_EQ(5, stats["magma_num_flusher_threads"].get<size_t>());
+    EXPECT_EQ(5, stats["magma_num_compactor_threads"].get<size_t>());
+}
+
 /// The stats should contain max user and system connections to allow
 /// for alerting by monitoring the current levels with the max
 TEST_P(StatsTest, MB58199) {
