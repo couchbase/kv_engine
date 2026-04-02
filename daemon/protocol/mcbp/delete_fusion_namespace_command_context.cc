@@ -13,6 +13,7 @@
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
 #include <logger/logger.h>
+#include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 
 DeleteFusionNamespaceCommandContext::DeleteFusionNamespaceCommandContext(
@@ -28,27 +29,27 @@ DeleteFusionNamespaceCommandContext::DeleteFusionNamespaceCommandContext(
 cb::engine_errc DeleteFusionNamespaceCommandContext::execute() {
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
-    const auto logstore = request["logstore_uri"];
-    const auto metadatastore = request["metadatastore_uri"];
-    const auto token = request["metadatastore_auth_token"];
-    const auto ns = request["namespace"];
+    const auto logstore = request[fusion_json_key_logstore_uri];
+    const auto metadatastore = request[fusion_json_key_metadatastore_uri];
+    const auto token = request[fusion_json_key_metadatastore_auth_token];
+    const auto ns = request[fusion_json_key_namespace];
     const auto start = std::chrono::steady_clock::now();
     const auto status = magma::Magma::DeleteFusionNamespace(
             logstore, metadatastore, token, ns);
     const auto stop = std::chrono::steady_clock::now();
     if (status.IsOK()) {
         LOG_INFO_CTX("DeleteFusionNamespace",
-                     {"logstore_uri", logstore},
-                     {"metadatastore_uri", metadatastore},
-                     {"namespace", ns},
+                     {fusion_json_key_logstore_uri, logstore},
+                     {fusion_json_key_metadatastore_uri, metadatastore},
+                     {fusion_json_key_namespace, ns},
                      {"duration", stop - start});
         return cb::engine_errc::success;
     }
     response = fmt::format("Failed with error: {}", status.String());
     LOG_WARNING_CTX("DeleteFusionNamespace",
-                    {"logstore_uri", logstore},
-                    {"metadatastore_uri", metadatastore},
-                    {"namespace", ns},
+                    {fusion_json_key_logstore_uri, logstore},
+                    {fusion_json_key_metadatastore_uri, metadatastore},
+                    {fusion_json_key_namespace, ns},
                     {"error", status.String()},
                     {"duration", stop - start});
     return cb::engine_errc::failed;

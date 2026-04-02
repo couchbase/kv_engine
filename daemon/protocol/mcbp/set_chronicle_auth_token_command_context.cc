@@ -14,6 +14,7 @@
 #include <daemon/connection.h>
 #include <logger/logger.h>
 #include <memcached/engine.h>
+#include <utilities/fusion_utilities.h>
 
 SetChronicleAuthTokenCommandContext::SetChronicleAuthTokenCommandContext(
         Cookie& cookie)
@@ -29,7 +30,7 @@ cb::engine_errc SetChronicleAuthTokenCommandContext::execute() {
     try {
         const auto& req = cookie.getRequest();
         const auto request = nlohmann::json::parse(req.getValueString());
-        const std::string token = request["token"];
+        const std::string token = request[fusion_json_key_token];
         auto& engine = cookie.getConnection().getBucketEngine();
         return engine.setChronicleAuthToken(token);
     } catch (const std::exception& e) {

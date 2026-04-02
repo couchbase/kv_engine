@@ -2813,62 +2813,62 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("snapshot_uuid")) {
+    if (!json.contains(fusion_json_key_snapshot_uuid)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing snapshot_uuid");
         return Status::Einval;
     }
-    if (!json["snapshot_uuid"].is_string()) {
+    if (!json[fusion_json_key_snapshot_uuid].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: snapshot_uuid not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("bucket_uuid")) {
+    if (!json.contains(fusion_json_key_bucket_uuid)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing bucket_uuid");
         return Status::Einval;
     }
-    if (!json["bucket_uuid"].is_string()) {
+    if (!json[fusion_json_key_bucket_uuid].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: bucket_uuid not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_uri")) {
+    if (!json.contains(fusion_json_key_metadatastore_uri)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing "
                 "metadatastore_uri");
         return Status::Einval;
     }
-    if (!json["metadatastore_uri"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_uri].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: metadatastore_uri not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_auth_token")) {
+    if (!json.contains(fusion_json_key_metadatastore_auth_token)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing "
                 "metadatastore_auth_token");
         return Status::Einval;
     }
-    if (!json["metadatastore_auth_token"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_auth_token].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: "
                 "metadatastore_auth_token not string");
         return Status::Einval;
     }
 
-    if (!json.contains("vbucket_list")) {
+    if (!json.contains(fusion_json_key_vbucket_list)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing vbucket_list");
         return Status::Einval;
     }
-    const auto& vbList = json["vbucket_list"];
+    const auto& vbList = json[fusion_json_key_vbucket_list];
     if (!vbList.is_array()) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: vbucket_list must be "
@@ -2898,12 +2898,12 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
         }
     }
 
-    if (!json.contains("valid_till")) {
+    if (!json.contains(fusion_json_key_valid_till)) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: Missing valid_till");
         return Status::Einval;
     }
-    const auto validTill = json["valid_till"];
+    const auto validTill = json[fusion_json_key_valid_till];
     if (!validTill.is_number_integer() || validTill.get<int64_t>() < 0) {
         cookie.setErrorContext(
                 "get_fusion_storage_snapshot_validator: valid_till not "
@@ -2940,65 +2940,65 @@ static Status release_fusion_storage_snapshot_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("snapshot_uuid")) {
+    if (!json.contains(fusion_json_key_snapshot_uuid)) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
                 "snapshot_uuid");
         return Status::Einval;
     }
-    if (!json["snapshot_uuid"].is_string()) {
+    if (!json[fusion_json_key_snapshot_uuid].is_string()) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: snapshot_uuid not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("bucket_uuid")) {
+    if (!json.contains(fusion_json_key_bucket_uuid)) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
                 "bucket_uuid");
         return Status::Einval;
     }
-    if (!json["bucket_uuid"].is_string()) {
+    if (!json[fusion_json_key_bucket_uuid].is_string()) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: bucket_uuid not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_uri")) {
+    if (!json.contains(fusion_json_key_metadatastore_uri)) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
                 "metadatastore_uri");
         return Status::Einval;
     }
-    if (!json["metadatastore_uri"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_uri].is_string()) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: metadatastore_uri "
                 "not string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_auth_token")) {
+    if (!json.contains(fusion_json_key_metadatastore_auth_token)) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
                 "metadatastore_auth_token");
         return Status::Einval;
     }
-    if (!json["metadatastore_auth_token"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_auth_token].is_string()) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: "
                 "metadatastore_auth_token not string");
         return Status::Einval;
     }
 
-    if (!json.contains("vbucket_list")) {
+    if (!json.contains(fusion_json_key_vbucket_list)) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: Missing "
                 "vbucket_list");
         return Status::Einval;
     }
-    const auto& vbList = json["vbucket_list"];
+    const auto& vbList = json[fusion_json_key_vbucket_list];
     if (!vbList.is_array()) {
         cookie.setErrorContext(
                 "release_fusion_storage_snapshot_validator: vbucket_list must "
@@ -3067,15 +3067,15 @@ static Status mount_vbucket_validator(Cookie& cookie) {
             cookie.setErrorContext("Local source not supported");
             return cb::mcbp::Status::NotSupported;
         case VBucketSnapshotSource::FusionGuestVolumes:
-            allowedFields.emplace("mountPaths");
+            allowedFields.emplace(fusion_json_key_mount_paths);
             break;
         case VBucketSnapshotSource::FusionLogStore:
-            allowedFields.emplace("snapshotUUID");
+            allowedFields.emplace(fusion_json_key_snapshot_uuid_camel);
             break;
         }
         allowedFields.emplace("source");
     } else {
-        allowedFields.emplace("mountPaths");
+        allowedFields.emplace(fusion_json_key_mount_paths);
     }
 
     for (const auto& item : json.items()) {
@@ -3086,27 +3086,27 @@ static Status mount_vbucket_validator(Cookie& cookie) {
     }
 
     if (source == VBucketSnapshotSource::FusionGuestVolumes) {
-        if (!json.contains("mountPaths")) {
+        if (!json.contains(fusion_json_key_mount_paths)) {
             cookie.setErrorContext("Missing mountPaths");
             return Status::Einval;
         }
-        if (!json["mountPaths"].is_array()) {
+        if (!json[fusion_json_key_mount_paths].is_array()) {
             cookie.setErrorContext("mountPaths not an array");
             return Status::Einval;
         }
         try {
-            std::vector<std::string> paths = json["mountPaths"];
+            std::vector<std::string> paths = json[fusion_json_key_mount_paths];
         } catch (const std::exception& ex) {
             cookie.setErrorContext(
                     fmt::format("Invalid json '{}' {}", value, ex.what()));
             return Status::Einval;
         }
     } else if (source == VBucketSnapshotSource::FusionLogStore) {
-        if (!json.contains("snapshotUUID")) {
+        if (!json.contains(fusion_json_key_snapshot_uuid_camel)) {
             cookie.setErrorContext("Missing snapshotUUID");
             return Status::Einval;
         }
-        if (!json["snapshotUUID"].is_string()) {
+        if (!json[fusion_json_key_snapshot_uuid_camel].is_string()) {
             cookie.setErrorContext("snapshotUUID not a string");
             return Status::Einval;
         }
@@ -3190,18 +3190,18 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("term")) {
+    if (!json.contains(fusion_json_key_term)) {
         cookie.setErrorContext("start_fusion_uploader_validator: Missing term");
         return Status::Einval;
     }
 
-    if (!json["term"].is_string()) {
+    if (!json[fusion_json_key_term].is_string()) {
         cookie.setErrorContext(
                 "start_fusion_uploader_validator: term not string");
         return Status::Einval;
     }
 
-    const std::string term = json["term"];
+    const std::string term = json[fusion_json_key_term];
     uint64_t term_value = 0;
     if (!safe_strtoull(term, term_value)) {
         cookie.setErrorContext(
@@ -3246,12 +3246,12 @@ static Status set_chronicle_auth_token_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("token")) {
+    if (!json.contains(fusion_json_key_token)) {
         cookie.setErrorContext(
                 "set_chronicle_auth_token_validator: Missing token");
         return Status::Einval;
     }
-    if (!json["token"].is_string()) {
+    if (!json[fusion_json_key_token].is_string()) {
         cookie.setErrorContext(
                 "set_chronicle_auth_token_validator: token not string");
         return Status::Einval;
@@ -3285,55 +3285,56 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("logstore_uri")) {
+    if (!json.contains(fusion_json_key_logstore_uri)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: Missing logstore_uri");
         return Status::Einval;
     }
-    if (!json["logstore_uri"].is_string()) {
+    if (!json[fusion_json_key_logstore_uri].is_string()) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: logstore_uri not string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_uri")) {
+    if (!json.contains(fusion_json_key_metadatastore_uri)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: Missing "
                 "metadatastore_uri");
         return Status::Einval;
     }
-    if (!json["metadatastore_uri"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_uri].is_string()) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: metadatastore_uri not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_auth_token")) {
+    if (!json.contains(fusion_json_key_metadatastore_auth_token)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: Missing "
                 "metadatastore_auth_token");
         return Status::Einval;
     }
-    if (!json["metadatastore_auth_token"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_auth_token].is_string()) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: metadatastore_auth_token "
                 "not string");
         return Status::Einval;
     }
 
-    if (!json.contains("namespace")) {
+    if (!json.contains(fusion_json_key_namespace)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: Missing namespace");
         return Status::Einval;
     }
-    if (!json["namespace"].is_string()) {
+    if (!json[fusion_json_key_namespace].is_string()) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: namespace not string");
         return Status::Einval;
     }
 
-    const std::string_view ns = json["namespace"].get<std::string_view>();
+    const std::string_view ns =
+            json[fusion_json_key_namespace].get<std::string_view>();
     if (!isValidFusionNamespace(ns)) {
         cookie.setErrorContext(
                 "delete_fusion_namespace_validator: namespace must be in "
@@ -3368,26 +3369,26 @@ Status get_fusion_namespaces_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_uri")) {
+    if (!json.contains(fusion_json_key_metadatastore_uri)) {
         cookie.setErrorContext(
                 "get_fusion_namespaces_validator: Missing "
                 "metadatastore_uri");
         return Status::Einval;
     }
-    if (!json["metadatastore_uri"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_uri].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_namespaces_validator: metadatastore_uri not "
                 "string");
         return Status::Einval;
     }
 
-    if (!json.contains("metadatastore_auth_token")) {
+    if (!json.contains(fusion_json_key_metadatastore_auth_token)) {
         cookie.setErrorContext(
                 "get_fusion_namespaces_validator: Missing "
                 "metadatastore_auth_token");
         return Status::Einval;
     }
-    if (!json["metadatastore_auth_token"].is_string()) {
+    if (!json[fusion_json_key_metadatastore_auth_token].is_string()) {
         cookie.setErrorContext(
                 "get_fusion_namespaces_validator: metadatastore_auth_token "
                 "not string");

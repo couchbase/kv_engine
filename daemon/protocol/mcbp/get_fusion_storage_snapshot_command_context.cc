@@ -29,16 +29,16 @@ GetFusionStorageSnapshotCommandContext::GetFusionStorageSnapshotCommandContext(
 cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
-    const std::string snapshotUuid = request["snapshot_uuid"];
-    const auto bucketUuid = request["bucket_uuid"];
+    const std::string snapshotUuid = request[fusion_json_key_snapshot_uuid];
+    const auto bucketUuid = request[fusion_json_key_bucket_uuid];
     const auto fusionNamespace = generateFusionNamespace(bucketUuid);
-    const std::time_t validity = request["valid_till"];
+    const std::time_t validity = request[fusion_json_key_valid_till];
     const auto validTill = std::chrono::system_clock::from_time_t(validity);
-    const auto metadatastoreUri = request["metadatastore_uri"];
-    const auto authToken = request["metadatastore_auth_token"];
+    const auto metadatastoreUri = request[fusion_json_key_metadatastore_uri];
+    const auto authToken = request[fusion_json_key_metadatastore_auth_token];
     std::vector<magma::Magma::KVStoreID> vbucketList;
-    vbucketList.reserve(request["vbucket_list"].size());
-    for (const auto& id : request["vbucket_list"]) {
+    vbucketList.reserve(request[fusion_json_key_vbucket_list].size());
+    for (const auto& id : request[fusion_json_key_vbucket_list]) {
         vbucketList.emplace_back(id.get<magma::Magma::KVStoreID>());
     }
 
@@ -53,12 +53,13 @@ cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
         response = fmt::format("Failed with error: {}", status.String());
         LOG_WARNING_CTX("GetFusionStorageSnapshot: ",
                         {"status", status.String()},
-                        {"vbucket_list", request["vbucket_list"]},
+                        {fusion_json_key_vbucket_list,
+                         request[fusion_json_key_vbucket_list]},
                         {"fusion_namespace", fusionNamespace},
-                        {"metadatastore_uri", metadatastoreUri},
-                        {"snapshot_uuid", snapshotUuid},
-                        {"bucket_uuid", bucketUuid},
-                        {"valid_till", validity});
+                        {fusion_json_key_metadatastore_uri, metadatastoreUri},
+                        {fusion_json_key_snapshot_uuid, snapshotUuid},
+                        {fusion_json_key_bucket_uuid, bucketUuid},
+                        {fusion_json_key_valid_till, validity});
         return cb::engine_errc::failed;
     }
     response = json.dump();

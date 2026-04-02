@@ -11,6 +11,7 @@
 #include "mount_fusion_vbucket_command_context.h"
 
 #include <daemon/connection.h>
+#include <utilities/fusion_utilities.h>
 
 MountFusionVbucketCommandContext::MountFusionVbucketCommandContext(
         Cookie& cookie)
@@ -22,9 +23,10 @@ MountFusionVbucketCommandContext::MountFusionVbucketCommandContext(
         source = json.at("source");
     }
     if (source == VBucketSnapshotSource::FusionGuestVolumes) {
-        paths = json.at("mountPaths");
+        paths = json.at(fusion_json_key_mount_paths);
     } else if (source == VBucketSnapshotSource::FusionLogStore) {
-        paths.push_back(json.at("snapshotUUID").get<std::string>());
+        paths.push_back(json.at(fusion_json_key_snapshot_uuid_camel)
+                                .get<std::string>());
     }
 }
 

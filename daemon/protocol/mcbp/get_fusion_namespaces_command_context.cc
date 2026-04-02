@@ -29,8 +29,8 @@ GetFusionNamespacesCommandContext::GetFusionNamespacesCommandContext(
 cb::engine_errc GetFusionNamespacesCommandContext::execute() {
     const auto& req = cookie.getRequest();
     const auto request = nlohmann::json::parse(req.getValueString());
-    const auto metadatastore = request["metadatastore_uri"];
-    const auto token = request["metadatastore_auth_token"];
+    const auto metadatastore = request[fusion_json_key_metadatastore_uri];
+    const auto token = request[fusion_json_key_metadatastore_auth_token];
     const auto [status, json] =
             magma::Magma::GetFusionNamespaces(metadatastore,
                                               token,
@@ -42,7 +42,7 @@ cb::engine_errc GetFusionNamespacesCommandContext::execute() {
         return cb::engine_errc::success;
     }
     LOG_WARNING_CTX("GetFusionNamespaces",
-                    {"metadatastore_uri", metadatastore},
+                    {fusion_json_key_metadatastore_uri, metadatastore},
                     {"error", status.String()});
     cookie.setErrorContext(
             fmt::format("Failed with error: {}", status.String()));
