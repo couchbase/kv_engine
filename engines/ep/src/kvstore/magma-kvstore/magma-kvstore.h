@@ -606,15 +606,6 @@ public:
 
     void setMagmaEnableDataBlockAutoTuning(bool enable);
 
-    void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
-
-    /**
-     * Set the number of magma flushers and compactors based on configuration
-     * settings of number of backend threads, number of writer threads, and
-     * percentage of flusher threads.
-     */
-    void calculateAndSetMagmaThreads();
-
     /**
      * Returns the expiry time of alive documents or the time at which
      * tombstones should be purged. Used by magma to track expiry/purge times

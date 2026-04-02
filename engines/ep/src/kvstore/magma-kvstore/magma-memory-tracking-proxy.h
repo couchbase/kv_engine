@@ -229,7 +229,6 @@ public:
     void SetFragmentationRatio(double fragRatio);
     void EnableBlockCache(bool enable);
     void SetMemoryQuota(const size_t quota);
-    void SetNumThreads(magma::Magma::ThreadType threadType, size_t nThreads);
     void SetHistoryRetentionSize(size_t historyBytes);
     void SetHistoryRetentionTime(std::chrono::seconds historySeconds);
 

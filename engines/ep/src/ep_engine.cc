@@ -7444,14 +7444,6 @@ void EventuallyPersistentEngine::configureRangeScanMaxDuration(
     }
 }
 
-void EventuallyPersistentEngine::set_num_storage_threads(
-        ThreadPoolConfig::StorageThreadCount num) {
-    auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
-    if (epBucket) {
-        epBucket->getOneRWUnderlying()->setStorageThreads(num);
-    }
-}
-
 void EventuallyPersistentEngine::disconnect(CookieIface& cookie) {
     acquireEngine(this)->handleDisconnect(cookie);
 }

@@ -1601,12 +1601,6 @@
             "descr": "The WAL buffer is used to stage items to the write ahead log along with control information like begin and end transaction. This parameter refers to the initial WAL buffer size. The WAL buffer will adjust its size up to a maximum of 4MB or down to a minimum of 64KB depending on the transaction batch size with consideration for other magma components which consume memory such as the block cache, bloom filters, write cache and meta data overhead.",
             "type": "size_t"
         },
-        "magma_flusher_thread_percentage": {
-            "default": "20",
-            "dynamic": true,
-            "descr": "Percentage of storage threads that are flusher threads (i.e. with a value of 20 we will allocate 4 (1/5th) of the storage threads to flushers and the remaining 16 (4/5ths) threads will be compactors).",
-            "type": "size_t"
-        },
         "magma_enable_group_commit": {
             "default": "false",
             "descr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
@@ -1623,12 +1617,6 @@
             "default": "20",
             "descr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are magma_group_commit_max_transaction_count including the current transaction waiting, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start.",
             "dynamic": false,
-            "type": "size_t"
-        },
-        "magma_max_default_storage_threads": {
-            "default": "20",
-            "dynamic": false,
-            "descr": "If the number of storage threads = 0, then we set the number of storage threads to this value and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
             "type": "size_t"
         },
         "magma_sync_every_batch": {

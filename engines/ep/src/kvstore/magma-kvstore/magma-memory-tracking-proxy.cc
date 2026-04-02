@@ -511,12 +511,6 @@ void MagmaMemoryTrackingProxy::SetMemoryQuota(const size_t quota) {
     magma->SetMemoryQuota(quota);
 }
 
-void MagmaMemoryTrackingProxy::SetNumThreads(
-        magma::Magma::ThreadType threadType, size_t nThreads) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    magma->SetNumThreads(threadType, nThreads);
-}
-
 void MagmaMemoryTrackingProxy::SetHistoryRetentionSize(size_t historyBytes) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetHistoryRetentionSize(historyBytes);

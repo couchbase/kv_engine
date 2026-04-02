@@ -34,8 +34,6 @@ public:
     void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "magma_fragmentation_percentage") {
             config.setMagmaFragmentationPercentage(value);
-        } else if (key == "magma_flusher_thread_percentage") {
-            config.setMagmaFlusherThreadPercentage(value);
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(value);
             // Reconfigure fusionMaxUploadInterval, as it depends on
@@ -142,11 +140,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::chrono::seconds(config.getMagmaExpiryPurgerInterval());
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
     magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
-    magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
     magmaMaxRecoveryBytes = config.getMagmaMaxRecoveryBytes();
     magmaMaxLevel0TTL =
             std::chrono::seconds(1s * config.getMagmaMaxLevel0Ttl());
-    magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
     metadataPurgeAge = config.getPersistentMetadataPurgeAge();
     magmaBloomFilterAccuracy = config.getMagmaBloomFilterAccuracy();
     magmaBloomFilterAccuracyForBottomLevel =
@@ -217,9 +213,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_fragmentation_percentage",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "magma_flusher_thread_percentage",
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "persistent_metadata_purge_age",
@@ -411,19 +404,6 @@ void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
     Expects(store);
     magmaFragmentationPercentage.store(value);
     store->setMagmaFragmentationPercentage(value);
-}
-
-void MagmaKVStoreConfig::setStorageThreads(
-        ThreadPoolConfig::StorageThreadCount value) {
-    Expects(store);
-    storageThreads.store(value);
-    store->calculateAndSetMagmaThreads();
-}
-
-void MagmaKVStoreConfig::setMagmaFlusherThreadPercentage(size_t value) {
-    Expects(store);
-    magmaFlusherPercentage.store(value);
-    store->calculateAndSetMagmaThreads();
 }
 
 void MagmaKVStoreConfig::setBucketQuota(size_t value) {

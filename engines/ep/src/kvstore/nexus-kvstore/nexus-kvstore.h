@@ -137,7 +137,6 @@ public:
                         Vbid vbid,
                         uint64_t seq,
                         ValueFilter filter) const override;
-    void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
     const KVStoreStats& getKVStoreStat() const override;

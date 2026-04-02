@@ -287,6 +287,9 @@ static std::string configure_numa_policy() {
 }
 #endif  // HAVE_LIBNUMA
 
+static std::function<void(const std::string&, Settings&)>
+updateMagmaThreadPool();
+
 static void settings_init() {
     auto& settings = Settings::instance();
 
@@ -334,17 +337,7 @@ static void settings_init() {
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
-    settings.addChangeListener(
-            "num_storage_threads", [](const std::string&, Settings& s) -> void {
-                auto val = ThreadPoolConfig::StorageThreadCount(
-                        s.getNumStorageThreads());
-                BucketManager::instance().forEach([val](Bucket& b) -> bool {
-                    if (b.type != BucketType::ClusterConfigOnly) {
-                        b.getEngine().set_num_storage_threads(val);
-                    }
-                    return true;
-                });
-            });
+    settings.addChangeListener("num_storage_threads", updateMagmaThreadPool());
 
     settings.addChangeListener(
             "max_concurrent_authentications", [](const auto&, auto& s) {

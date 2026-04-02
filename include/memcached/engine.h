@@ -235,11 +235,6 @@ struct EngineIface {
     virtual void notify_num_auxio_threads_changed() {
     }
 
-    /// Set the number of storage threads
-    virtual void set_num_storage_threads(
-            ThreadPoolConfig::StorageThreadCount num) {
-    }
-
     /**
      * Request the engine to cancel all of the ongoing requests which
      * may have cookies in an ewouldblock state.

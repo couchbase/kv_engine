@@ -929,13 +929,6 @@ public:
         makeCompactionContextCallback = cb;
     }
 
-    /**
-     * Set the number of storage threads based on configuration settings
-     */
-    void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override {
-        // ignored by default
-    }
-
     void setPreFlushHook(std::function<void()> hook) override {
         preFlushHook = hook;
     }

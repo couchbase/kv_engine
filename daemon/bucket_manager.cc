@@ -433,14 +433,7 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                         {"duration", stop - start});
     }
 
-    // We don't pass the storage threads down in the config like we do for
-    // readers and writers because that evolved over time to be duplicated
-    // in both configs. Instead, we just inform the engine of the number
-    // of threads.
     auto& engine = bucket.getEngine();
-    engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
-            Settings::instance().getNumStorageThreads()));
-
     bucket.max_document_size = engine.getMaxItemSize();
     bucket.supportedFeatures = engine.getFeatures();
 

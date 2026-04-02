@@ -212,10 +212,6 @@ public:
                  uint64_t seq,
                  ValueFilter filter),
                 (const, override));
-    MOCK_METHOD(void,
-                setStorageThreads,
-                (ThreadPoolConfig::StorageThreadCount num),
-                (override));
     MOCK_METHOD(std::unique_ptr<KVStoreRevision>,
                 prepareToDeleteImpl,
                 (Vbid vbid),

@@ -791,12 +791,6 @@ public:
                                 ValueFilter filter) const = 0;
 
     /**
-     * Set the number of storage threads based on configuration settings
-     */
-    virtual void setStorageThreads(
-            ThreadPoolConfig::StorageThreadCount num) = 0;
-
-    /**
      * End a transaction by resetting the appropriate state. Public so that we
      * can call this from ~TransactionContext().
      *

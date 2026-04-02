@@ -3162,11 +3162,6 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
     return primaryGetValue;
 }
 
-void NexusKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
-    primary->setStorageThreads(num);
-    secondary->setStorageThreads(num);
-}
-
 std::unique_ptr<TransactionContext> NexusKVStore::begin(
         Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) {
     auto ctx = std::make_unique<NexusKVStoreTransactionContext>(*this, vbid);

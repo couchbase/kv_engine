@@ -156,8 +156,6 @@ public:
     void initiate_shutdown() override;
     void notify_num_writer_threads_changed() override;
     void notify_num_auxio_threads_changed() override;
-    void set_num_storage_threads(
-            ThreadPoolConfig::StorageThreadCount num) override;
     void cancel_all_operations_in_ewb_state() override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKeyView& key,

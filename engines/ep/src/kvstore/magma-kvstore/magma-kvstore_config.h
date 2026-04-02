@@ -122,21 +122,6 @@ public:
     }
     void setMagmaFragmentationPercentage(size_t value);
 
-    void setStorageThreads(ThreadPoolConfig::StorageThreadCount value);
-
-    ThreadPoolConfig::StorageThreadCount getStorageThreads() const {
-        return storageThreads.load();
-    }
-
-    size_t getMagmaFlusherPercentage() const {
-        return magmaFlusherPercentage.load();
-    }
-    void setMagmaFlusherThreadPercentage(size_t value);
-
-    size_t getMagmaMaxDefaultStorageThreads() const {
-        return magmaMaxDefaultStorageThreads;
-    }
-
     size_t getMagmaSeqTreeDataBlockSize() const {
         return magmaSeqTreeDataBlockSize.load();
     }
@@ -484,20 +469,6 @@ private:
     // compaction. Atomic as this can be changed dynamically.
     std::atomic<size_t> magmaFragmentationPercentage;
 
-    // Percentage of storage threads which magma will use a flushers. The
-    // remaining threads will be compactors. Atomic as this can be changed
-    // dynamically.
-    std::atomic<size_t> magmaFlusherPercentage;
-
-    /**
-     * Number of threads the storage backend is allowed to run. The "default"
-     * value of 0 infers the number of storage threads from the number of writer
-     * threads. This value exists in the memcached config, not the bucket
-     * config, so we have to default the value here for unit tests.
-     */
-    std::atomic<ThreadPoolConfig::StorageThreadCount> storageThreads{
-            ThreadPoolConfig::StorageThreadCount::Default};
-
     /**
      * Data block size for SeqIndex SSTable.
      */
@@ -522,14 +493,6 @@ private:
      * Index block size for KeyIndex SSTable.
      */
     std::atomic<size_t> magmaKeyTreeIndexBlockSize{4096};
-
-    /**
-     * If the number of storage threads = 0, then we set the number
-     * of storage threads based on the number of writer threads up to a
-     * maximum of 20 threads and use magma_flusher_thread_percentage to
-     * determine the ratio of flusher and compactor threads.
-     */
-    size_t magmaMaxDefaultStorageThreads{20};
 
     /**
      * Cached copy of the persistent_metadata_purge_age. Used in

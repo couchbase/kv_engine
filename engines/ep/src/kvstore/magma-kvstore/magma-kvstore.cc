@@ -855,7 +855,6 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
     setMaxDataSize(configuration.getBucketQuota());
     setMagmaFragmentationPercentage(
             configuration.getMagmaFragmentationPercentage());
-    calculateAndSetMagmaThreads();
 
     // MB-55533: These must be set before calling Open
     setHistoryRetentionSeconds(configuration.getHistoryRetentionTime());
@@ -4463,53 +4462,6 @@ void MagmaKVStore::setMagmaEnableIndexBlockAutoTuning(bool enable) {
 
 void MagmaKVStore::setMagmaEnableDataBlockAutoTuning(bool enable) {
     magma->EnableDataBlockAutoTuning(enable);
-}
-
-void MagmaKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
-    configuration.setStorageThreads(num);
-    calculateAndSetMagmaThreads();
-}
-
-void MagmaKVStore::calculateAndSetMagmaThreads() {
-    auto backendThreads = configuration.getStorageThreads();
-    auto rawBackendThreads =
-            static_cast<size_t>(configuration.getStorageThreads());
-    if (backendThreads == ThreadPoolConfig::StorageThreadCount::Default) {
-        rawBackendThreads = configuration.getMagmaMaxDefaultStorageThreads();
-    }
-
-    auto flusherRatio =
-            static_cast<float>(configuration.getMagmaFlusherPercentage()) / 100;
-    auto flushers = std::ceil(rawBackendThreads * flusherRatio);
-    auto compactors = rawBackendThreads - flushers;
-
-    if (flushers <= 0) {
-        logger->warn(
-                "MagmaKVStore::calculateAndSetMagmaThreads "
-                "flushers <= 0. "
-                "StorageThreads:{} "
-                "WriterThreads:{} "
-                "Setting flushers=1",
-                rawBackendThreads,
-                ExecutorPool::get()->getNumWriters());
-        flushers = 1;
-    }
-
-    if (compactors <= 0) {
-        logger->warn(
-                "MagmaKVStore::calculateAndSetMagmaThreads "
-                "compactors <= 0. "
-                "StorageThreads:{} "
-                "WriterThreads:{} "
-                "Setting compactors=1",
-                rawBackendThreads,
-                ExecutorPool::get()->getNumWriters());
-        compactors = 1;
-    }
-
-    // magma will log the number of threads it uses
-    magma->SetNumThreads(Magma::ThreadType::Flusher, flushers);
-    magma->SetNumThreads(Magma::ThreadType::Compactor, compactors);
 }
 
 uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
