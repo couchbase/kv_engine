@@ -889,6 +889,14 @@ void Connection::updateBlockedSendQueue(
     }
 }
 
+void Connection::setType(Type value) {
+    type = value;
+    if (type == Type::Consumer && isNodeSupervisor()) {
+        setPriority(ConnectionPriority::High);
+        max_reqs_per_event *= 1.25;
+    }
+}
+
 void Connection::processNotifiedCookie(
         Cookie& cookie,
         cb::engine_errc status,
