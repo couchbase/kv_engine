@@ -170,5 +170,5 @@ if (TARGET magma)
             ONE_CTEST_PER_SUITE
             DISCOVERY_TIMEOUT 60
             PROPERTIES TIMEOUT 300
-            ENVIRONMENT "[==[${THREAD_SANITIZER_TEST_ENV};JE_MALLOC_CONF=junk:true"]==])
+            ENVIRONMENT "[==[${THREAD_SANITIZER_TEST_ENV};JE_MALLOC_CONF=junk:true]==]")
 endif (TARGET magma)
