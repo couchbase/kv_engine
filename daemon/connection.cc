@@ -961,7 +961,7 @@ std::optional<int> Connection::maximize_tcp_buffer(int option, int hint) {
         old_size = cb::net::getSocketOption<int>(
                 socketDescriptor, SOL_SOCKET, option);
     } catch (const std::exception& e) {
-        LOG_WARNING_CTX("Failed to get socket send buffer",
+        LOG_WARNING_CTX("Failed to get socket buffer",
                         {"conn_id", socketDescriptor},
                         {"direction", option == SO_SNDBUF ? "send" : "receive"},
                         {"error", e.what()});
@@ -1211,7 +1211,6 @@ bool Connection::executeCommandsCallback() {
 void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
     auto reauthentication = isAuthenticated();
     user = std::move(ui);
-
     if (!reauthentication) {
         maximize_tcp_sndbuf();
 
