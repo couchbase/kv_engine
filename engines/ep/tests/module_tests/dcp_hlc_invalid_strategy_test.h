@@ -61,7 +61,7 @@ protected:
                 {} /*maxVisibleSeqno*/,
                 std::nullopt,
                 {} /*SID*/);
-        passiveStream->processMarker(&snapshotMarker);
+        passiveStream->processMarker(snapshotMarker);
 
         MutationResponse mutation(item,
                                   0 /* opaque */,
@@ -73,6 +73,6 @@ protected:
         // KVBucket->setWithMeta/delteWithMeta/prepare code paths are hit
         // depending on the type of Item passed in: Commited/Deleted/Pending
         // Items respectively.
-        return passiveStream->processMutation(&mutation);
+        return passiveStream->processMutation(mutation);
     }
 };

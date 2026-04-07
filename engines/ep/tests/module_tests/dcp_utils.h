@@ -13,7 +13,6 @@
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 
@@ -21,6 +20,7 @@ class CollectionID;
 class MockDcpConsumer;
 class MockDcpMessageProducers;
 class MockPassiveStream;
+class MutationResponse;
 class Vbid;
 
 /*
@@ -46,7 +46,7 @@ void processMutations(MockPassiveStream& stream,
                       const int64_t seqnoStart,
                       const int64_t seqnoEnd);
 
-std::unique_ptr<MutationResponse> makeMutationResponse(
+MutationResponse makeMutationResponse(
         uint64_t seqno,
         Vbid vbid,
         const std::string& value,
@@ -56,9 +56,9 @@ std::unique_ptr<MutationResponse> makeMutationResponse(
         std::optional<DeleteSource> deletion = {},
         uint64_t revSeqno = 1);
 
-std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
-                                                       uint64_t seqno,
-                                                       Vbid vbid,
-                                                       const std::string& value,
-                                                       const std::string& key,
-                                                       CollectionID cid);
+MutationResponse makeMutationResponse(uint64_t opaque,
+                                      uint64_t seqno,
+                                      Vbid vbid,
+                                      const std::string& value,
+                                      const std::string& key,
+                                      CollectionID cid);

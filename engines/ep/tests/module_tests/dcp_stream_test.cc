@@ -2703,7 +2703,7 @@ void SingleThreadedPassiveStreamTest::
             std::nullopt,
             {} /*streamId*/);
 
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     auto vb = engine->getVBucket(vbid);
     ASSERT_TRUE(vb->isReceivingInitialDiskSnapshot());
@@ -2769,19 +2769,18 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                               {} /*maxVisibleSeqno*/,
                               std::nullopt,
                               streamId);
-        stream->processMarker(&marker);
+        stream->processMarker(marker);
 
         auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
         item->setBySeqno(snapStart);
 
-        EXPECT_EQ(cb::engine_errc::success,
-                  stream->messageReceived(std::make_unique<MutationResponse>(
-                          std::move(item),
-                          opaque,
-                          IncludeDeleteTime::No,
-                          DocKeyEncodesCollectionId::No,
-                          EnableExpiryOutput::Yes,
-                          streamId)));
+        MutationResponse msg(std::move(item),
+                             opaque,
+                             IncludeDeleteTime::No,
+                             DocKeyEncodesCollectionId::No,
+                             EnableExpiryOutput::Yes,
+                             streamId);
+        EXPECT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
 
         EXPECT_EQ(expectedNumCheckpoint, ckptMgr.getNumCheckpoints());
         EXPECT_EQ(expectedOpenCkptType, ckptMgr.getOpenCheckpointType());
@@ -3273,7 +3272,7 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
                           {} /*streamId*/);
 
     try {
-        stream->processMarker(&marker);
+        stream->processMarker(marker);
     } catch (const std::logic_error& e) {
         const auto substring = "PassiveStream::processMarker: snapEnd:" +
                                std::to_string(snapEnd) + " < visibleSnapEnd:" +
@@ -3317,7 +3316,7 @@ void SingleThreadedPassiveStreamTest::purgeSeqnoReplicated(bool flushTwice) {
                           10, /*MVS*/
                           5, /* purge */
                           cb::mcbp::DcpStreamId{});
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     // Write seqno 4.
     mutation(1, makeStoredDocKey("keyA"), vbid, 4);
@@ -3364,7 +3363,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                           10, /*MVS*/
                           0, /* purge */
                           cb::mcbp::DcpStreamId{});
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
     // We could imagine that key1@seq1 is deleted at seq2
     deletion(1, makeStoredDocKey("key1"), vbid, 2);
     deletion(1, makeStoredDocKey("key2"), vbid, 9);
@@ -3392,7 +3391,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            11, /*MVS*/
                            2, /* purge */
                            cb::mcbp::DcpStreamId{});
-    stream->processMarker(&marker2);
+    stream->processMarker(marker2);
     mutation(1, makeStoredDocKey("key4"), vbid, 11);
     flushVBucketToDiskIfPersistent(vbid, 1);
     // local purge is still 9.
@@ -3413,7 +3412,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            13, /*MVS*/
                            10, /* purge */
                            cb::mcbp::DcpStreamId{});
-    stream->processMarker(&marker3);
+    stream->processMarker(marker3);
     mutation(1, makeStoredDocKey("key4"), vbid, 13);
     flushVBucketToDiskIfPersistent(vbid, 1);
     // local purge is still 9.
@@ -3432,7 +3431,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            20, /*MVS*/
                            14, /* purge */
                            cb::mcbp::DcpStreamId{});
-    stream->processMarker(&marker4);
+    stream->processMarker(marker4);
     mutation(1, makeStoredDocKey("key4"), vbid, 20);
     flushVBucketToDiskIfPersistent(vbid, 1);
     // local purge is now 14
@@ -7836,13 +7835,13 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             std::nullopt,
             {} /*streamId*/);
 
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
     auto vb = engine->getVBucket(vbid);
     ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
     for (uint64_t seqno = 1; seqno <= 2; seqno++) {
-        auto ret = stream->messageReceived(
-                makeMutationResponse(seqno, vbid, value, 0));
+        auto msg = makeMutationResponse(seqno, vbid, value, 0);
+        auto ret = stream->messageReceived(msg);
         ASSERT_EQ(cb::engine_errc::success, ret);
     }
 
@@ -7861,11 +7860,14 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     // we've already received items before i.e. vb->getHighSeqno() > 0. Hence
     // expect upserts for items in this snapshot.
     stream->reconnectStream(*vb, 0, 2);
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
-    auto ret = stream->messageReceived(makeMutationResponse(3, vbid, value, 0));
-    ASSERT_EQ(cb::engine_errc::success, ret);
+    {
+        auto msg = makeMutationResponse(3, vbid, value, 0);
+        auto ret = stream->messageReceived(msg);
+        ASSERT_EQ(cb::engine_errc::success, ret);
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(vb->getNumItems(), 3);
@@ -7890,12 +7892,12 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             std::nullopt,
             {} /*streamId*/);
 
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
     ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
     for (uint64_t seqno = 4; seqno <= 6; seqno++) {
-        const auto rv = stream->messageReceived(
-                makeMutationResponse(seqno, vbid, value, 0));
+        auto msg = makeMutationResponse(seqno, vbid, value, 0);
+        const auto rv = stream->messageReceived(msg);
         ASSERT_EQ(cb::engine_errc::success, rv);
     }
 
@@ -7930,13 +7932,13 @@ TEST_P(STPassiveStreamMagmaTest, DisableBlindWriteOptimisation) {
             {}, /*purgeSeqno*/
             {} /*streamId*/);
 
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
     auto vb = engine->getVBucket(vbid);
     ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointInitialDisk());
 
     for (uint64_t seqno = 1; seqno <= 2; seqno++) {
-        auto ret = stream->messageReceived(
-                makeMutationResponse(seqno, vbid, value, 0));
+        auto msg = makeMutationResponse(seqno, vbid, value, 0);
+        auto ret = stream->messageReceived(msg);
         ASSERT_EQ(cb::engine_errc::success, ret);
     }
 
@@ -7985,37 +7987,41 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     // PRE:1
     const std::string value("value");
     using namespace cb::durability;
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationResponse(
-                      1 /*seqno*/,
-                      vbid,
-                      value,
-                      opaque,
-                      {},
-                      Requirements(Level::Majority, Timeout::Infinity()))));
+    {
+        auto msg = makeMutationResponse(
+                1 /*seqno*/,
+                vbid,
+                value,
+                opaque,
+                {},
+                Requirements(Level::Majority, Timeout::Infinity()));
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // M:2 - Logic Commit for PRE:1
     // Note: implicit revSeqno=1
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(2 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(2 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // D:3
-    ASSERT_EQ(
-            cb::engine_errc::success,
-            stream->messageReceived(makeMutationResponse(3 /*seqno*/,
-                                                         vbid,
-                                                         value,
-                                                         opaque,
-                                                         {},
-                                                         {} /*DurReqs*/,
-                                                         DeleteSource::Explicit,
-                                                         2 /*revSeqno*/)));
+    {
+        auto msg = makeMutationResponse(3 /*seqno*/,
+                                        vbid,
+                                        value,
+                                        opaque,
+                                        {},
+                                        {} /*DurReqs*/,
+                                        DeleteSource::Explicit,
+                                        2 /*revSeqno*/);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     auto& kvStore = *store->getRWUnderlying(vbid);
     auto& vbs = *kvStore.getCachedVBucketState(vbid);
@@ -8111,16 +8117,18 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
     // M:1
     const std::string value("value");
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(1 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(1 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
     // M:2
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(2 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(2 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
     // Note: snap is partial, seqno:3 not received yet
 
     auto& vb = *store->getVBucket(vbid);
@@ -8149,9 +8157,10 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // everything behaves as expected when the full snapshot is persisted.
 
     // M:3 (snap-end mutation)
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(3 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(3 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1), epBucket.flushVBucket(vbid));
 
@@ -8262,19 +8271,21 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const std::string value("value");
 
     // M:3 - Logic Commit for PRE:1
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(3 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(3 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // M:4 - Logic Commit for PRE:2
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(4 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(4 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -8331,35 +8342,40 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const std::string value("value");
 
     // M:3 - Logic Commit for PRE:1
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(3 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(3 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // M:4 - Logic Commit for PRE:2
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(4 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(4 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // PRE:5
     using namespace cb::durability;
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(makeMutationResponse(
-                      5 /*seqno*/,
-                      vbid,
-                      value,
-                      opaque,
-                      {},
-                      Requirements(Level::Majority, Timeout::Infinity()))));
+    {
+        auto msg = makeMutationResponse(
+                5 /*seqno*/,
+                vbid,
+                value,
+                opaque,
+                {},
+                Requirements(Level::Majority, Timeout::Infinity()));
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     // M:6
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(6 /*seqno*/, vbid, value, opaque)));
+    {
+        auto msg = makeMutationResponse(6 /*seqno*/, vbid, value, opaque);
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 4);
 
@@ -9048,7 +9064,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
                                   {}, /*maxVisibleSeqno*/
                                   std::nullopt,
                                   {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
     ASSERT_EQ(2, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointType::Disk, manager.getOpenCheckpointType());
@@ -9061,10 +9077,9 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
     for (size_t seqno = initialHighSeqno + 1;
          seqno <= initialHighSeqno + numItems;
          ++seqno) {
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                stream->messageReceived(makeMutationResponse(
-                        opaque, seqno, vbid, value, key, collection.getId())));
+        auto msg = makeMutationResponse(
+                opaque, seqno, vbid, value, key, collection.getId());
+        EXPECT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
     }
 
     EXPECT_EQ(initialHighSeqno + numItems, vb.getHighSeqno());
@@ -9100,14 +9115,9 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
     for (size_t seqno = initialHighSeqno + 1;
          seqno <= initialHighSeqno + numItems;
          ++seqno) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  stream->messageReceived(
-                          makeMutationResponse(1 /*opaque*/,
-                                               seqno,
-                                               vbid,
-                                               value,
-                                               key,
-                                               collection.getId())));
+        auto msg = makeMutationResponse(
+                1 /*opaque*/, seqno, vbid, value, key, collection.getId());
+        EXPECT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
     }
 
     // Important: In this scenario historical mutations are queued into the
@@ -9149,15 +9159,16 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
             {}, /*maxVisibleSeqno*/
             std::nullopt,
             {} /*streamId*/);
-    stream->processMarker(&snapshotMarker);
-    ASSERT_EQ(cb::engine_errc::success,
-              stream->messageReceived(
-                      makeMutationResponse(opaque,
-                                           1 /*seqno*/,
-                                           vbid,
-                                           "some-value",
-                                           "some-key",
-                                           CollectionEntry::defaultC.getId())));
+    stream->processMarker(snapshotMarker);
+    {
+        auto msg = makeMutationResponse(opaque,
+                                        1 /*seqno*/,
+                                        vbid,
+                                        "some-value",
+                                        "some-key",
+                                        CollectionEntry::defaultC.getId());
+        ASSERT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(2, manager.getNumOpenChkItems());
     ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
@@ -9174,14 +9185,11 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
 
     // Historical items received within the same snapshot
     const auto collection = CollectionEntry::historical;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            stream->messageReceived(makeMutationResponse(opaque,
-                                                         3 /*seqno*/,
-                                                         vbid,
-                                                         "value",
-                                                         "key",
-                                                         collection.getId())));
+    {
+        auto msg = makeMutationResponse(
+                opaque, 3 /*seqno*/, vbid, "value", "key", collection.getId());
+        EXPECT_EQ(cb::engine_errc::success, stream->messageReceived(msg));
+    }
 
     EXPECT_EQ(3, vb.getHighSeqno());
     EXPECT_EQ(3, manager.getNumOpenChkItems());
@@ -9382,7 +9390,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
                                   {},
                                   std::nullopt,
                                   {});
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const std::string key = "key";
     const auto value = hasValue ? std::string(1_MiB, 'v') : std::string();
@@ -9418,7 +9426,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 
     auto message =
             makeMutationResponse(1, vbid, value, opaque, key, reqs, deletion);
-    const auto res = stream->messageReceived(std::move(message));
+    const auto res = stream->messageReceived(message);
 
     EXPECT_EQ(cb::engine_errc::temporary_failure, res);
     EXPECT_EQ(vb.getHighSeqno(), 1);
@@ -9537,7 +9545,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
                                   {},
                                   std::nullopt,
                                   {});
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const std::string key = "key";
     const auto value = std::string(1_MiB, 'v');
@@ -9610,7 +9618,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
                                   {},
                                   {},
                                   {});
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const std::string key = "key";
     const auto value = std::string(1_MiB, 'v');
@@ -9698,8 +9706,8 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
                                   {},
                                   {},
                                   {});
-    stream->processMarker(&snapshotMarker);
-    stream1->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
+    stream1->processMarker(snapshotMarker);
 
     ASSERT_EQ(0, stream->getUnackedBytes());
     ASSERT_EQ(0, stream1->getUnackedBytes());
@@ -9786,7 +9794,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_64246) {
                                   {},
                                   {},
                                   {});
-    stream->processMarker(&snapshotMarker);
+    stream->processMarker(snapshotMarker);
 
     const auto value = std::string("value");
     for (size_t seqno = snapStart; seqno <= snapEnd; ++seqno) {

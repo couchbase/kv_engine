@@ -561,7 +561,7 @@ public:
         return item_;
     }
 
-    Vbid getVBucket() {
+    Vbid getVBucket() const {
         return item_->getVBucketId();
     }
 
@@ -572,7 +572,7 @@ public:
         return OptionalSeqno{item_->getBySeqno()};
     }
 
-    uint64_t getRevSeqno() {
+    uint64_t getRevSeqno() const {
         return item_->getRevSeqno();
     }
 

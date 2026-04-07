@@ -320,19 +320,19 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    cb::engine_errc messageReceived(std::unique_ptr<DcpResponse> dcpResponse);
+    cb::engine_errc messageReceived(const DcpResponse& dcpResponse);
 
-    void processMarker(SnapshotMarker* marker) override {
+    void processMarker(const SnapshotMarker& marker) override {
         PassiveStream::processMarker(marker);
     }
 
-    cb::engine_errc processMutation(MutationResponse* mutation) {
-        return PassiveStream::processMessageInner(*mutation,
+    cb::engine_errc processMutation(const MutationResponse& mutation) {
+        return PassiveStream::processMessageInner(mutation,
                                                   EnforceMemCheck::Yes);
     }
 
     ProcessMessageResult public_processMessage(
-            gsl::not_null<DcpResponse*> resp, EnforceMemCheck enforceMemCheck) {
+            DcpResponse& resp, EnforceMemCheck enforceMemCheck) {
         return PassiveStream::processMessage(resp, enforceMemCheck);
     }
 

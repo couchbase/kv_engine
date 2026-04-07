@@ -1451,7 +1451,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     auto prepare = makePendingItem(key, value);
 
@@ -1492,7 +1492,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     {
         std::shared_lock rlh(vb->getStateLock());
@@ -1543,7 +1543,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamID*/);
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
 
     {
         std::shared_lock rlh(vb->getStateLock());
@@ -1586,7 +1586,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamID*/);
-    stream->processMarker(&marker);
+    stream->processMarker(marker);
     {
         std::shared_lock rlh(vb->getStateLock());
         ItemMetaData meta;

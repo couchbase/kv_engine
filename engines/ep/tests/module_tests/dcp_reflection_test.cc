@@ -517,8 +517,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMessage() {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferMessage(
@@ -527,8 +526,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMessage(
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     EXPECT_EQ(expectedEvent, msg->getEvent()) << *msg;
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferMutation(
@@ -569,8 +567,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
     }
 
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
@@ -583,8 +580,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
     auto* mutation = static_cast<MutationResponse*>(msg.get());
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
@@ -596,8 +592,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
     auto* prepare = static_cast<MutationResponse*>(msg.get());
     EXPECT_EQ(expectedKey, prepare->getItem()->getKey());
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferCachedValue() {
@@ -605,8 +600,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferCachedValue() {
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferCachedKeyMeta() {
@@ -614,8 +608,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferCachedKeyMeta() {
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::CachedKeyMeta, msg->getEvent());
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
@@ -642,8 +635,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         EXPECT_EQ(expectedHighCompletedSeqno.value(),
                   marker->getHighCompletedSeqno());
     }
-    EXPECT_EQ(cb::engine_errc::success,
-              streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferResponseMessage() {
@@ -792,7 +784,7 @@ void DCPLoopbackStreamTest::takeoverTest(
         auto msg = route0_1.getNextProducerMsg(*producerStream);
         if (msg) {
             EXPECT_EQ(cb::engine_errc::success,
-                      consumerStream->messageReceived(std::move(msg)));
+                      consumerStream->messageReceived(*msg));
             route0_1.transferResponseMessage();
         } else {
             // Note: At some point in this loop we end-up in a state where the
@@ -2959,7 +2951,7 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
     ASSERT_TRUE(msg);
     auto opaque = msg->getOpaque();
     ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
-    EXPECT_EQ(status, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(status, streams.second->messageReceived(*msg));
     if (fullEviction()) {
         // Another Producer::step loop is required for removing vbid from
         // vbReady

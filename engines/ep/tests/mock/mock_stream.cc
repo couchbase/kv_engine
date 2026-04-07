@@ -146,15 +146,15 @@ std::unique_ptr<DcpResponse> MockActiveStream::public_inMemoryPhase(
 }
 
 cb::engine_errc MockPassiveStream::messageReceived(
-        std::unique_ptr<DcpResponse> dcpResponse) {
+        const DcpResponse& dcpResponse) {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
         throw std::logic_error(
                 "MockPassiveStream::messageReceived cannot proceed without the "
                 "DcpConsumer");
     }
-    UpdateFlowControl ufc(*consumer, dcpResponse->getMessageSize());
-    return PassiveStream::messageReceived(std::move(dcpResponse), ufc);
+    UpdateFlowControl ufc(*consumer, dcpResponse.getMessageSize());
+    return PassiveStream::messageReceived(dcpResponse, ufc);
 }
 
 std::unique_ptr<DcpResponse> MockPassiveStream::public_popFromReadyQ() {

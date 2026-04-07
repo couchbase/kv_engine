@@ -162,7 +162,7 @@ void PassiveStreamFuzzTest::receiveSnapshot(
                     Collections::ManifestUid{} /* vb_manifest_uid */,
                     std::nullopt /* cacheTransfer */));
     stream->acceptStream(cb::mcbp::Status::Success, 0);
-    stream->processMarker(const_cast<SnapshotMarker*>(&marker));
+    stream->processMarker(marker);
 
     // Do not send mutations beyond the snapshot end seqno.
     const auto maxMutations =
@@ -183,7 +183,7 @@ void PassiveStreamFuzzTest::receiveSnapshot(
         auto& mutation = *mutations[i];
         mutation.getItem()->setBySeqno(marker.getStartSeqno() + i);
         auto result =
-                stream->public_processMessage(&mutation, EnforceMemCheck::No);
+                stream->public_processMessage(mutation, EnforceMemCheck::No);
         EXPECT_EQ(result.getError(), cb::engine_errc::success)
                 << "at seqno " << mutation.getItem()->getBySeqno();
         lastMutation = &mutation;

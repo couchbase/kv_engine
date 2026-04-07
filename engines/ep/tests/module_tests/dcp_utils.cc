@@ -83,11 +83,11 @@ void processMutations(MockPassiveStream& stream,
         //             vbHighSeqno = 0
         //     2) calls PassiveStream::handleSnapshotEnd (which must close the
         //         open checkpoint if the current mutation is the snapshot-end)
-        ASSERT_EQ(cb::engine_errc::success, stream.processMutation(&mutation));
+        ASSERT_EQ(cb::engine_errc::success, stream.processMutation(mutation));
     }
 }
 
-std::unique_ptr<MutationResponse> makeMutationResponse(
+MutationResponse makeMutationResponse(
         uint64_t seqno,
         Vbid vbid,
         const std::string& value,
@@ -113,20 +113,20 @@ std::unique_ptr<MutationResponse> makeMutationResponse(
     if (deletion) {
         qi->setDeleted(*deletion);
     }
-    return std::make_unique<MutationResponse>(std::move(qi),
-                                              opaque,
-                                              IncludeDeleteTime::No,
-                                              DocKeyEncodesCollectionId::No,
-                                              EnableExpiryOutput::Yes,
-                                              cb::mcbp::DcpStreamId{});
+    return {std::move(qi),
+            gsl::narrow_cast<uint32_t>(opaque),
+            IncludeDeleteTime::No,
+            DocKeyEncodesCollectionId::No,
+            EnableExpiryOutput::Yes,
+            cb::mcbp::DcpStreamId{}};
 }
 
-std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
-                                                       uint64_t seqno,
-                                                       Vbid vbid,
-                                                       const std::string& value,
-                                                       const std::string& key,
-                                                       CollectionID cid) {
+MutationResponse makeMutationResponse(uint64_t opaque,
+                                      uint64_t seqno,
+                                      Vbid vbid,
+                                      const std::string& value,
+                                      const std::string& key,
+                                      CollectionID cid) {
     queued_item qi(new Item(makeStoredDocKey(key, cid),
                             0,
                             0,
@@ -137,10 +137,10 @@ std::unique_ptr<MutationResponse> makeMutationResponse(uint64_t opaque,
                             seqno,
                             vbid,
                             1));
-    return std::make_unique<MutationResponse>(std::move(qi),
-                                              opaque,
-                                              IncludeDeleteTime::No,
-                                              DocKeyEncodesCollectionId::No,
-                                              EnableExpiryOutput::No,
-                                              cb::mcbp::DcpStreamId{});
+    return {std::move(qi),
+            gsl::narrow_cast<uint32_t>(opaque),
+            IncludeDeleteTime::No,
+            DocKeyEncodesCollectionId::No,
+            EnableExpiryOutput::No,
+            cb::mcbp::DcpStreamId{}};
 }

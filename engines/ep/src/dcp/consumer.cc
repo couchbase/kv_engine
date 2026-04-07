@@ -511,10 +511,8 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
                      {"vb", vbucket},
                      {"status", cb::mcbp::to_string(status)});
 
-    auto msg = std::make_unique<StreamEndResponse>(
-            opaque, status, vbucket, cb::mcbp::DcpStreamId{});
-    auto res = lookupStreamAndDispatchMessage(
-            ufc, vbucket, opaque, std::move(msg));
+    StreamEndResponse msg(opaque, status, vbucket, cb::mcbp::DcpStreamId{});
+    auto res = lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 
     if (res == cb::engine_errc::success) {
         // Stream End message successfully passed to stream. Can now remove
@@ -532,13 +530,13 @@ cb::engine_errc DcpConsumer::processMutationOrPrepare(Vbid vbucket,
                                                       size_t msgBytes) {
     UpdateFlowControl ufc(*this, msgBytes);
 
-    auto msg = std::make_unique<MutationResponse>(std::move(item),
-                                                  opaque,
-                                                  IncludeDeleteTime::Yes,
-                                                  key.getEncoding(),
-                                                  EnableExpiryOutput::Yes,
-                                                  cb::mcbp::DcpStreamId{});
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    MutationResponse msg(std::move(item),
+                         opaque,
+                         IncludeDeleteTime::Yes,
+                         key.getEncoding(),
+                         EnableExpiryOutput::Yes,
+                         cb::mcbp::DcpStreamId{});
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
@@ -714,21 +712,15 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
         }
     }
 
-    cb::engine_errc err;
-    try {
-        err = stream->messageReceived(
-                std::make_unique<MutationResponse>(item,
-                                                   opaque,
-                                                   includeDeleteTime,
-                                                   key.getEncoding(),
-                                                   EnableExpiryOutput::Yes,
-                                                   cb::mcbp::DcpStreamId{}),
-                ufc);
-    } catch (const std::bad_alloc&) {
-        err = cb::engine_errc::no_memory;
-    }
+    MutationResponse response(item,
+                              opaque,
+                              includeDeleteTime,
+                              key.getEncoding(),
+                              EnableExpiryOutput::Yes,
+                              cb::mcbp::DcpStreamId{});
+    auto err = stream->messageReceived(response, ufc);
 
-    // The item was buffered and will be processed later
+    // The item was processed, but replication is requested to pause
     if (err == cb::engine_errc::temporary_failure) {
         notifyVbucketReady(vbucket);
     }
@@ -830,17 +822,17 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         std::optional<uint64_t> max_visible_seqno,
         std::optional<uint64_t> purge_seqno) {
     lastMessageTime = ep_uptime_now();
-    auto msg = std::make_unique<SnapshotMarker>(opaque,
-                                                vbucket,
-                                                start_seqno,
-                                                end_seqno,
-                                                flags,
-                                                high_completed_seqno,
-                                                high_prepared_seqno,
-                                                max_visible_seqno,
-                                                purge_seqno,
-                                                cb::mcbp::DcpStreamId{});
-    UpdateFlowControl ufc(*this, msg->getMessageSize());
+    SnapshotMarker msg(opaque,
+                       vbucket,
+                       start_seqno,
+                       end_seqno,
+                       flags,
+                       high_completed_seqno,
+                       high_prepared_seqno,
+                       max_visible_seqno,
+                       purge_seqno,
+                       cb::mcbp::DcpStreamId{});
+    UpdateFlowControl ufc(*this, msg.getMessageSize());
 
     if (start_seqno > end_seqno) {
         OBJ_LOG_WARN_CTX(
@@ -851,7 +843,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         return cb::engine_errc::invalid_arguments;
     }
 
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::noop(uint32_t opaque) {
@@ -872,8 +864,8 @@ cb::engine_errc DcpConsumer::setVBucketState(uint32_t opaque,
     lastMessageTime = ep_uptime_now();
     UpdateFlowControl ufc(*this, SetVBucketStateFlowControlSize);
 
-    auto msg = std::make_unique<SetVBucketState>(opaque, vbucket, state);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    SetVBucketState msg(opaque, vbucket, state);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::step(bool throttled,
@@ -1585,9 +1577,9 @@ cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
             *this,
             SystemEventMessage::baseMsgBytes + key.size() + eventData.size());
 
-    auto msg = std::make_unique<SystemEventConsumerMessage>(
+    SystemEventConsumerMessage msg(
             opaque, event, bySeqno, vbucket, version, key, eventData);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
@@ -1666,7 +1658,7 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
         UpdateFlowControl& ufc,
         Vbid vbucket,
         uint32_t opaque,
-        std::unique_ptr<DcpResponse> msg) {
+        const DcpResponse& msg) {
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
@@ -1682,7 +1674,7 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
     // Pass the message to the associated stream.
     cb::engine_errc err;
     try {
-        err = stream->messageReceived(std::move(msg), ufc);
+        err = stream->messageReceived(msg, ufc);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
@@ -1716,9 +1708,9 @@ cb::engine_errc DcpConsumer::commit(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto msg = std::make_unique<CommitSyncWriteConsumer>(
+    CommitSyncWriteConsumer msg(
             opaque, vbucket, prepare_seqno, commit_seqno, key);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::abort(uint32_t opaque,
@@ -1735,9 +1727,8 @@ cb::engine_errc DcpConsumer::abort(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto msg = std::make_unique<AbortSyncWriteConsumer>(
-            opaque, vbucket, key, prepareSeqno, abortSeqno);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    AbortSyncWriteConsumer msg(opaque, vbucket, key, prepareSeqno, abortSeqno);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 void DcpConsumer::setDisconnect() {
@@ -1839,15 +1830,14 @@ cb::engine_errc DcpConsumer::cached_value(uint32_t opaque,
     const auto msgBytes =
             MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
     UpdateFlowControl ufc(*this, msgBytes);
-    auto msg =
-            std::make_unique<MutationResponse>(std::move(item),
-                                               opaque,
-                                               IncludeDeleteTime::No,
-                                               key.getEncoding(),
-                                               EnableExpiryOutput::Yes,
-                                               cb::mcbp::DcpStreamId{},
-                                               DcpResponse::Event::CachedValue);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    MutationResponse msg(std::move(item),
+                         opaque,
+                         IncludeDeleteTime::No,
+                         key.getEncoding(),
+                         EnableExpiryOutput::Yes,
+                         cb::mcbp::DcpStreamId{},
+                         DcpResponse::Event::CachedValue);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
@@ -1875,21 +1865,20 @@ cb::engine_errc DcpConsumer::cached_key_meta(uint32_t opaque,
 
     const auto msgBytes = MutationResponse::mutationBaseMsgBytes + key.size();
     UpdateFlowControl ufc(*this, msgBytes);
-    auto msg = std::make_unique<MutationResponse>(
-            std::move(item),
-            opaque,
-            IncludeDeleteTime::No,
-            key.getEncoding(),
-            EnableExpiryOutput::Yes,
-            cb::mcbp::DcpStreamId{},
-            DcpResponse::Event::CachedKeyMeta);
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    MutationResponse msg(std::move(item),
+                         opaque,
+                         IncludeDeleteTime::No,
+                         key.getEncoding(),
+                         EnableExpiryOutput::Yes,
+                         cb::mcbp::DcpStreamId{},
+                         DcpResponse::Event::CachedKeyMeta);
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }
 
 cb::engine_errc DcpConsumer::cache_transfer_end_rx(uint32_t opaque,
                                                    Vbid vbucket) {
     lastMessageTime = ep_uptime_now();
-    auto msg = std::make_unique<CacheTransferEndConsumer>(opaque, vbucket);
-    UpdateFlowControl ufc(*this, msg->getMessageSize());
-    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
+    CacheTransferEndConsumer msg(opaque, vbucket);
+    UpdateFlowControl ufc(*this, msg.getMessageSize());
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }

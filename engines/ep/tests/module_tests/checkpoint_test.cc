@@ -1030,7 +1030,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {});
-    passiveStream->processMarker(&snapshotMarker);
+    passiveStream->processMarker(snapshotMarker);
 
     // We must have 1 open checkpoint with id=2
     EXPECT_EQ(ckptList.size(), 1);
@@ -1066,7 +1066,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    {} /*maxVisibleSeqno*/,
                                    {}, // timestamp
                                    {} /*SID*/);
-    passiveStream->processMarker(&snapshotMarker2);
+    passiveStream->processMarker(snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
     EXPECT_EQ(ckptList.back()->getId(), 3);
@@ -1164,7 +1164,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       {} /*maxVisibleSeqno*/,
                                       {}, // timestamp
                                       {} /*SID*/);
-        passiveStream->processMarker(&snapshotMarker);
+        passiveStream->processMarker(snapshotMarker);
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
         snapshotStart = diskSnapshotEnd + 1;
 
@@ -1185,7 +1185,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
                                   {} /*SID*/);
-    passiveStream->processMarker(&snapshotMarker);
+    passiveStream->processMarker(snapshotMarker);
 
     // 2) the consumer receives the mutations until (snapshotEnd -1)
     processMutations(*passiveStream, snapshotStart, snapshotEnd - 1);
@@ -1979,7 +1979,7 @@ void SingleThreadedCheckpointTest::
                                   {},
                                   std::nullopt,
                                   {});
-    passiveStream->processMarker(&snapshotMarker);
+    passiveStream->processMarker(snapshotMarker);
     // Receive mutations
     processMutations(*passiveStream, 1 /*start*/, 2 /*end*/);
     flushVBucket(vbid);

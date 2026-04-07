@@ -106,9 +106,10 @@ public:
      * @param ackSize the value to use when DCP acking - this may differ from
      *        DcpResponse::getMessageSize if for example an Item value was
      *        decompressed
-     * @returns the error code from processing the message.
+     * @returns the error code from processing the message - temporary_failure
+     * though has a special meaning, replication has been requested to pause.
      */
-    cb::engine_errc messageReceived(std::unique_ptr<DcpResponse> response,
+    cb::engine_errc messageReceived(const DcpResponse& response,
                                     UpdateFlowControl& ackSize);
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) override;
@@ -156,7 +157,7 @@ protected:
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
      */
-    cb::engine_errc processMessageInner(MutationResponse& message,
+    cb::engine_errc processMessageInner(const MutationResponse& message,
                                         EnforceMemCheck enforceMemCheck);
 
     /// Process an incoming commit of a SyncWrite.
@@ -264,9 +265,9 @@ protected:
     cb::engine_errc processDropScope(VBucket& vb,
                                      const SystemEventConsumerMessage& event);
 
-    virtual void processMarker(SnapshotMarker* marker);
+    virtual void processMarker(const SnapshotMarker& marker);
 
-    void processSetVBucketState(SetVBucketState* state);
+    void processSetVBucketState(const SetVBucketState& state);
 
     /**
      * Process a cache transfer message (from a DcpCacheTransfer
@@ -277,7 +278,7 @@ protected:
      * @return cb::engine_errc::success if the item was inserted into the cache
      * otherwise a status code for why not (e.g. nmvb for vbucket state changed)
      */
-    cb::engine_errc processCacheTransfer(MutationResponse& resp);
+    cb::engine_errc processCacheTransfer(const MutationResponse& resp);
 
     /**
      * Process a cache transfer end message (from a DcpCacheTransfer stream).
@@ -286,7 +287,8 @@ protected:
      * @return cb::engine_errc::success if the message was processed
      * successfully
      */
-    cb::engine_errc processCacheTransferEnd(CacheTransferEndConsumer& resp);
+    cb::engine_errc processCacheTransferEnd(
+            const CacheTransferEndConsumer& resp);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised
@@ -370,7 +372,7 @@ protected:
      *  processing
      * @return ProcessMessageResult, see struct for details
      */
-    ProcessMessageResult processMessage(gsl::not_null<DcpResponse*> resp,
+    ProcessMessageResult processMessage(const DcpResponse& resp,
                                         EnforceMemCheck enforceMemCheck);
 
     /**
@@ -379,7 +381,7 @@ protected:
      * @param resp The DcpResponse to be processed
      * @return ProcessMessageResult, see struct for details
      */
-    ProcessMessageResult forceMessage(DcpResponse& resp);
+    ProcessMessageResult forceMessage(const DcpResponse& resp);
 
     /**
      * Log when the CacheTransfer has signalled out of memory condition (and log

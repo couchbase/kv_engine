@@ -544,11 +544,10 @@ protected:
      * Helper method to lookup the correct stream for the given
      * vbid / opaque pair, and then dispatch the message to that stream.
      */
-    cb::engine_errc lookupStreamAndDispatchMessage(
-            UpdateFlowControl& ufc,
-            Vbid vbucket,
-            uint32_t opaque,
-            std::unique_ptr<DcpResponse> msg);
+    cb::engine_errc lookupStreamAndDispatchMessage(UpdateFlowControl& ufc,
+                                                   Vbid vbucket,
+                                                   uint32_t opaque,
+                                                   const DcpResponse& msg);
 
     /**
      * Helper function to return the STREAM_NOT_FOUND if v7 status codes are

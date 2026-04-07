@@ -291,12 +291,8 @@ void PassiveStream::reconnectStream(const VBucket& vb,
     notifyStreamReady();
 }
 
-cb::engine_errc PassiveStream::messageReceived(
-        std::unique_ptr<DcpResponse> dcpResponse, UpdateFlowControl& ufc) {
-    if (!dcpResponse) {
-        return cb::engine_errc::invalid_arguments;
-    }
-
+cb::engine_errc PassiveStream::messageReceived(const DcpResponse& dcpResponse,
+                                               UpdateFlowControl& ufc) {
     if (!isActive()) {
         // If the Stream isn't active, *but* the object is still receiving
         // messages from the DcpConsumer that means the stream is still
@@ -305,28 +301,28 @@ cb::engine_errc PassiveStream::messageReceived(
         // the map).
         return cb::engine_errc::success;
     }
-    auto seqno = dcpResponse->getBySeqno();
+    auto seqno = dcpResponse.getBySeqno();
     if (seqno) {
         // Check for seqno ordering except when there is a CachedValue which is
         // not in seqno order.
         if (uint64_t(*seqno) <= last_seqno.load() &&
-            (dcpResponse->getEvent() != DcpResponse::Event::CachedValue &&
-             dcpResponse->getEvent() != DcpResponse::Event::CachedKeyMeta)) {
+            (dcpResponse.getEvent() != DcpResponse::Event::CachedValue &&
+             dcpResponse.getEvent() != DcpResponse::Event::CachedKeyMeta)) {
             OBJ_LOG_WARN_CTX(
                     *this,
                     "Erroneous (out of sequence) message received, with "
                     "its seqno is not greater than last received "
                     "seqno; Dropping mutation",
-                    {"response", dcpResponse->to_string()},
+                    {"response", dcpResponse.to_string()},
                     {"opaque", opaque_},
                     {"seqno", *seqno},
                     {"last_seqno", last_seqno.load()});
             return cb::engine_errc::out_of_range;
         }
-    } else if (dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
-        auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
-        uint64_t snapStart = s->getStartSeqno();
-        uint64_t snapEnd = s->getEndSeqno();
+    } else if (dcpResponse.getEvent() == DcpResponse::Event::SnapshotMarker) {
+        const auto& s = static_cast<const SnapshotMarker&>(dcpResponse);
+        uint64_t snapStart = s.getStartSeqno();
+        uint64_t snapEnd = s.getEndSeqno();
         if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
             OBJ_LOG_WARN_CTX(
                     *this,
@@ -349,15 +345,15 @@ cb::engine_errc PassiveStream::messageReceived(
                 "complete replication");
         return cb::engine_errc::disconnect;
     case KVBucket::ReplicationThrottleStatus::Process: {
-        return forceMessage(*dcpResponse).getError();
+        return forceMessage(dcpResponse).getError();
     }
     case KVBucket::ReplicationThrottleStatus::Pause: {
-        forceMessage(*dcpResponse);
+        forceMessage(dcpResponse);
 
         // Don't ack the bytes
         unackedBytes += ufc.release();
 
-        if (isCacheTransferAndFullEviction(*dcpResponse)) {
+        if (isCacheTransferAndFullEviction(dcpResponse)) {
             maybeLogCacheTransferOutOfMemory();
             return cb::engine_errc::no_memory;
         }
@@ -409,7 +405,7 @@ ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
-        MutationResponse& message, EnforceMemCheck enforceMemCheck) {
+        const MutationResponse& message, EnforceMemCheck enforceMemCheck) {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
         return cb::engine_errc::disconnect;
@@ -890,14 +886,15 @@ cb::engine_errc PassiveStream::processDropScope(
 
 // Helper function to avoid a Monotonic violation (same end-seqno) for the
 // !HISTORY->HISTORY snapshot
-static bool mustAssignEndSeqno(SnapshotMarker* marker, uint64_t endSeqno) {
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Memory)) {
+static bool mustAssignEndSeqno(const SnapshotMarker& marker,
+                               uint64_t endSeqno) {
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Memory)) {
         // Always assign and catch monotonic violations
         return true;
     }
 
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::History) &&
-        marker->getEndSeqno() == endSeqno) {
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::History) &&
+        marker.getEndSeqno() == endSeqno) {
         // HISTORY disk snapshot marker can follow !HISTORY disk and they have
         // the same end-seqno. Skip the assignment and avoid the monotonic
         // exception
@@ -908,7 +905,7 @@ static bool mustAssignEndSeqno(SnapshotMarker* marker, uint64_t endSeqno) {
     return true;
 }
 
-void PassiveStream::processMarker(SnapshotMarker* marker) {
+void PassiveStream::processMarker(const SnapshotMarker& marker) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
@@ -922,26 +919,26 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
     // cur_snapshot_start is initialised to 0 so only set it for numbers > 0,
     // as the first snapshot maybe have a snap_start_seqno of 0.
-    if (marker->getStartSeqno() > 0) {
-        cur_snapshot_start.store(marker->getStartSeqno());
+    if (marker.getStartSeqno() > 0) {
+        cur_snapshot_start.store(marker.getStartSeqno());
     }
 
     if (mustAssignEndSeqno(marker, cur_snapshot_end)) {
-        cur_snapshot_end.store(marker->getEndSeqno());
+        cur_snapshot_end.store(marker.getEndSeqno());
     }
     const auto prevSnapType = cur_snapshot_type.load();
     cur_snapshot_type.store(
-            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)
+            isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)
                     ? Snapshot::Disk
                     : Snapshot::Memory);
 
     auto checkpointType =
-            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)
+            isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)
                     ? CheckpointType::Disk
                     : CheckpointType::Memory;
 
     const auto historical =
-            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::History)
+            isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::History)
                     ? CheckpointHistorical::Yes
                     : CheckpointHistorical::No;
 
@@ -959,23 +956,23 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     // SyncWrites to have completed yet). If SyncReplication is
     // supported then use the value from the marker.
     cur_snapshot_hcs =
-            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+            isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk) &&
                             !supportsSyncReplication
                     ? 0
-                    : marker->getHighCompletedSeqno();
+                    : marker.getHighCompletedSeqno();
 
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk) &&
         supportsSyncReplication) {
-        const auto hps = marker->getHighPreparedSeqno();
-        if (hps > marker->getEndSeqno()) {
+        const auto hps = marker.getHighPreparedSeqno();
+        if (hps > marker.getEndSeqno()) {
             const auto msg = fmt::format(
                     "PassiveStream::processMarker: stream:{} {}, flags:{}, "
                     "snapStart:{}, snapEnd:{}, HPS:{} - HPS is out of range",
                     name_,
                     vb_,
-                    marker->getFlags(),
-                    marker->getStartSeqno(),
-                    marker->getEndSeqno(),
+                    marker.getFlags(),
+                    marker.getStartSeqno(),
+                    marker.getEndSeqno(),
                     to_string_or_none(hps));
             throw std::logic_error(msg);
         }
@@ -997,27 +994,27 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         //      replica warms up from disk a non-zero value, which cause a
         //      monotonic violation on the replica, eventually when the active
         //      sent snapshot marker is processed.
-        cur_snapshot_hps = hps < marker->getStartSeqno() ? std::nullopt : hps;
+        cur_snapshot_hps = hps < marker.getStartSeqno() ? std::nullopt : hps;
     } else {
         cur_snapshot_hps = std::nullopt;
     }
 
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk) &&
         !cur_snapshot_hcs) {
         const auto msg = fmt::format(
                 "PassiveStream::processMarker: stream:{} {}, flags:{}, "
                 "snapStart:{}, snapEnd:{}, HCS:{} - missing HCS",
                 name_,
                 vb_,
-                marker->getFlags(),
-                marker->getStartSeqno(),
-                marker->getEndSeqno(),
+                marker.getFlags(),
+                marker.getStartSeqno(),
+                marker.getEndSeqno(),
                 to_string_or_none(cur_snapshot_hcs));
         throw std::logic_error(msg);
     }
 
     uint64_t purgeSeqno = 0;
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)) {
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         // A replica could receive a duplicate DCP prepare during a disk
         // snapshot if it had previously received an uncompleted prepare.
         // We can receive a disk snapshot when we either:
@@ -1031,19 +1028,19 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         vb->setDuplicatePrepareWindow();
 
         // Only set the purgeSeqno if the snapshot is a disk snapshot
-        purgeSeqno = marker->getPurgeSeqno().value_or(0);
+        purgeSeqno = marker.getPurgeSeqno().value_or(0);
 
         // Purge can be below the snapshot range, but never ahead.
-        if (purgeSeqno > marker->getEndSeqno()) {
+        if (purgeSeqno > marker.getEndSeqno()) {
             const auto msg = fmt::format(
                     "PassiveStream::processMarker: stream:{} {}, flags:{}, "
                     "snapStart:{}, snapEnd:{}, HCS:{}, purgeSeqno:{} - "
                     "invalid purgeSeqno",
                     name_,
                     vb_,
-                    marker->getFlags(),
-                    marker->getStartSeqno(),
-                    marker->getEndSeqno(),
+                    marker.getFlags(),
+                    marker.getStartSeqno(),
+                    marker.getEndSeqno(),
                     to_string_or_none(cur_snapshot_hcs),
                     purgeSeqno);
             throw std::logic_error(msg);
@@ -1053,7 +1050,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     // We could be connected to a non sync-repl, so if the max-visible is
     // not transmitted (optional is false), set visible to snap-end
     const auto visibleSeq =
-            marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
+            marker.getMaxVisibleSeqno().value_or(marker.getEndSeqno());
 
     if (cur_snapshot_end < visibleSeq) {
         const auto msg = fmt::format(
@@ -1086,7 +1083,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                purgeSeqno);
     } else {
         // Case: receiving any type of snapshot (Disk/Memory).
-        if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Checkpoint)) {
+        if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Checkpoint)) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    cur_snapshot_hcs,
@@ -1122,14 +1119,14 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         }
     }
 
-    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Acknowledge)) {
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Acknowledge)) {
         cur_snapshot_ack = true;
     }
 }
 
-void PassiveStream::processSetVBucketState(SetVBucketState* state) {
+void PassiveStream::processSetVBucketState(const SetVBucketState& state) {
     engine->getKVBucket()->setVBucketState(
-            vb_, state->getState(), {}, TransferVB::Yes);
+            vb_, state.getState(), {}, TransferVB::Yes);
     {
         std::lock_guard<std::mutex> lh(streamMutex);
         pushToReadyQ(std::make_unique<SetVBucketStateResponse>(
@@ -1357,33 +1354,32 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
 }
 
 PassiveStream::ProcessMessageResult PassiveStream::processMessage(
-        gsl::not_null<DcpResponse*> response, EnforceMemCheck enforceMemCheck) {
+        const DcpResponse& resp, EnforceMemCheck enforceMemCheck) {
     auto vb = engine->getVBucket(vb_);
     if (!vb) {
         return {*this, cb::engine_errc::not_my_vbucket, {}};
     }
 
     cb::engine_errc ret = cb::engine_errc::success;
-    auto* resp = response.get();
-    switch (resp->getEvent()) {
+    switch (resp.getEvent()) {
     case DcpResponse::Event::Mutation:
     case DcpResponse::Event::Deletion:
     case DcpResponse::Event::Expiration:
     case DcpResponse::Event::Prepare:
-        ret = processMessageInner(dynamic_cast<MutationResponse&>(*resp),
+        ret = processMessageInner(static_cast<const MutationResponse&>(resp),
                                   enforceMemCheck);
         break;
     case DcpResponse::Event::Commit:
-        ret = processCommit(dynamic_cast<CommitSyncWriteConsumer&>(*resp));
+        ret = processCommit(static_cast<const CommitSyncWriteConsumer&>(resp));
         break;
     case DcpResponse::Event::Abort:
-        ret = processAbort(dynamic_cast<AbortSyncWriteConsumer&>(*resp));
+        ret = processAbort(static_cast<const AbortSyncWriteConsumer&>(resp));
         break;
     case DcpResponse::Event::SnapshotMarker:
-        processMarker(dynamic_cast<SnapshotMarker*>(resp));
+        processMarker(static_cast<const SnapshotMarker&>(resp));
         break;
     case DcpResponse::Event::SetVbucket:
-        processSetVBucketState(dynamic_cast<SetVBucketState*>(resp));
+        processSetVBucketState(static_cast<const SetVBucketState&>(resp));
         break;
     case DcpResponse::Event::StreamEnd: {
         streamDeadHook();
@@ -1391,15 +1387,15 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         transitionState(StreamState::Dead);
     } break;
     case DcpResponse::Event::SystemEvent:
-        ret = processSystemEvent(dynamic_cast<SystemEventMessage&>(*resp));
+        ret = processSystemEvent(static_cast<const SystemEventMessage&>(resp));
         break;
     case DcpResponse::Event::CachedValue:
     case DcpResponse::Event::CachedKeyMeta:
-        ret = processCacheTransfer(dynamic_cast<MutationResponse&>(*resp));
+        ret = processCacheTransfer(static_cast<const MutationResponse&>(resp));
         break;
     case DcpResponse::Event::CacheTransferEnd:
         ret = processCacheTransferEnd(
-                dynamic_cast<CacheTransferEndConsumer&>(*resp));
+                static_cast<const CacheTransferEndConsumer&>(resp));
         break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
@@ -1411,13 +1407,13 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         // the DcpConsumer class
         throw std::invalid_argument(
                 "PassiveStream::processMessage: invalid event " +
-                std::string(resp->to_string()));
+                std::string(resp.to_string()));
     }
 
-    const auto seqno = resp->getBySeqno();
+    const auto seqno = resp.getBySeqno();
 
-    const auto* mutation = dynamic_cast<MutationResponse*>(resp);
-    if (mutation) {
+    if (resp.isMutationResponse()) {
+        const auto& mutation = static_cast<const MutationResponse&>(resp);
         Expects(seqno);
         if (ret != cb::engine_errc::success) {
             // ENOMEM logging is handled by maybeLogMemoryState
@@ -1428,20 +1424,20 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
                         "to process MutationConsumerMessage",
                         {"vb_", vb_},
                         {"ret", cb::to_string(ret)},
-                        {"resp", resp->to_string()},
+                        {"resp", resp.to_string()},
                         {"*seqno", *seqno},
                         {"collection_id",
-                         mutation->getItem()->getKey().getCollectionID()});
+                         mutation.getItem()->getKey().getCollectionID()});
             }
         }
-        maybeLogMemoryState(ret, *mutation);
+        maybeLogMemoryState(ret, mutation);
     } else {
         if (ret != cb::engine_errc::success) {
             OBJ_LOG_WARN_CTX(*this,
                              "PassiveStream::processMessage: Got error while "
                              "trying to process with seqno",
                              {"error", cb::to_string(ret)},
-                             {"response", resp->to_string()},
+                             {"response", resp.to_string()},
                              {"seqno", seqno});
         }
     }
@@ -1460,8 +1456,8 @@ size_t PassiveStream::getUnackedBytes() const {
 }
 
 PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
-        DcpResponse& resp) {
-    auto ret = processMessage(&resp, EnforceMemCheck::No);
+        const DcpResponse& resp) {
+    auto ret = processMessage(resp, EnforceMemCheck::No);
 
     const auto err = ret.getError();
     Expects(err != cb::engine_errc::temporary_failure);
@@ -1482,7 +1478,8 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
     return ret;
 }
 
-cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
+cb::engine_errc PassiveStream::processCacheTransfer(
+        const MutationResponse& resp) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
@@ -1533,7 +1530,7 @@ cb::engine_errc PassiveStream::processCacheTransfer(MutationResponse& resp) {
 }
 
 cb::engine_errc PassiveStream::processCacheTransferEnd(
-        CacheTransferEndConsumer& resp) {
+        const CacheTransferEndConsumer& resp) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
