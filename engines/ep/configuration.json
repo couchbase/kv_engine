@@ -1787,6 +1787,36 @@
             "requires": {
                 "bucket_type": "persistent",
                 "backend": "magma"
+            },
+            "validator": {
+                "enum": [
+                    "snappy",
+                    "lz4",
+                    "none",
+                    "zstd",
+                    "zstd_1",
+                    "zstd_2",
+                    "zstd_3",
+                    "zstd_4",
+                    "zstd_5",
+                    "zstd_6",
+                    "zstd_7",
+                    "zstd_8",
+                    "zstd_9",
+                    "zstd_10",
+                    "zstd_11",
+                    "zstd_12",
+                    "zstd_13",
+                    "zstd_14",
+                    "zstd_15",
+                    "zstd_16",
+                    "zstd_17",
+                    "zstd_18",
+                    "zstd_19",
+                    "zstd_20",
+                    "zstd_21",
+                    "zstd_22"
+                ]
             }
         },
         "magma_data_compression_algo": {
@@ -1798,6 +1828,36 @@
             "requires": {
                 "bucket_type": "persistent",
                 "backend": "magma"
+            },
+            "validator": {
+                "enum": [
+                    "snappy",
+                    "lz4",
+                    "none",
+                    "zstd",
+                    "zstd_1",
+                    "zstd_2",
+                    "zstd_3",
+                    "zstd_4",
+                    "zstd_5",
+                    "zstd_6",
+                    "zstd_7",
+                    "zstd_8",
+                    "zstd_9",
+                    "zstd_10",
+                    "zstd_11",
+                    "zstd_12",
+                    "zstd_13",
+                    "zstd_14",
+                    "zstd_15",
+                    "zstd_16",
+                    "zstd_17",
+                    "zstd_18",
+                    "zstd_19",
+                    "zstd_20",
+                    "zstd_21",
+                    "zstd_22"
+                ]
             }
         },
         "magma_compacteddata_compression_algo": {
@@ -1809,6 +1869,36 @@
             "requires": {
                 "bucket_type": "persistent",
                 "backend": "magma"
+            },
+            "validator": {
+                "enum": [
+                    "snappy",
+                    "lz4",
+                    "none",
+                    "zstd",
+                    "zstd_1",
+                    "zstd_2",
+                    "zstd_3",
+                    "zstd_4",
+                    "zstd_5",
+                    "zstd_6",
+                    "zstd_7",
+                    "zstd_8",
+                    "zstd_9",
+                    "zstd_10",
+                    "zstd_11",
+                    "zstd_12",
+                    "zstd_13",
+                    "zstd_14",
+                    "zstd_15",
+                    "zstd_16",
+                    "zstd_17",
+                    "zstd_18",
+                    "zstd_19",
+                    "zstd_20",
+                    "zstd_21",
+                    "zstd_22"
+                ]
             }
         },
         "magma_enable_index_block_autotuning": {

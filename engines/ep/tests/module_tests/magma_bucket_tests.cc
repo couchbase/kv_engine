@@ -599,27 +599,27 @@ TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoDynamicUpdate) {
 
     ASSERT_EQ(cb::engine_errc::success,
               engine->setFlushParam(
-                      "magma_data_compression_algo", "zstd:5", msg));
-    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd:5");
+                      "magma_data_compression_algo", "zstd_5", msg));
+    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd_5");
 
     ASSERT_EQ(cb::engine_errc::success,
               engine->setFlushParam(
-                      "magma_compacteddata_compression_algo", "zstd:9", msg));
-    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd:9");
+                      "magma_compacteddata_compression_algo", "zstd_9", msg));
+    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd_9");
 }
 
 TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoStartupConfig) {
     TearDown();
     config_string += ";magma_index_compression_algo=snappy";
-    config_string += ";magma_data_compression_algo=zstd:5";
-    config_string += ";magma_compacteddata_compression_algo=zstd:9";
+    config_string += ";magma_data_compression_algo=zstd_5";
+    config_string += ";magma_compacteddata_compression_algo=zstd_9";
     STParameterizedBucketTest::SetUp();
 
     auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
             store->getRWUnderlying(vbid)->getConfig());
     EXPECT_EQ(config.getMagmaIndexCompressionAlgoString(), "snappy");
-    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd:5");
-    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd:9");
+    EXPECT_EQ(config.getMagmaDataCompressionAlgoString(), "zstd_5");
+    EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(), "zstd_9");
 }
 
 TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoInvalidRejected) {
@@ -644,7 +644,7 @@ TEST_P(STParamMagmaBucketTest, MagmaCompressionAlgoInvalidRejected) {
 
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
               engine->setFlushParam(
-                      "magma_compacteddata_compression_algo", "zstd:99", msg));
+                      "magma_compacteddata_compression_algo", "zstd_99", msg));
     EXPECT_EQ(config.getMagmaCompactedDataCompressionAlgoString(),
               origCompacted);
 }

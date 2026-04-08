@@ -156,38 +156,37 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
 
-    auto indexAlgo = config.getMagmaIndexCompressionAlgo();
+    auto indexAlgo = config.getMagmaIndexCompressionAlgoString();
     if (auto [status, type] = magma::CompressionType::Create(indexAlgo);
         status) {
         magmaIndexCompressionAlgo = std::move(indexAlgo);
     } else {
-        getLogger().warnWithContext("Failed to create index compression type",
-                                    {{"param", "magma_index_compression_algo"},
-                                     {"value", indexAlgo},
-                                     {"error", status.Message()}});
+        EP_LOG_WARN_CTX("Failed to create index compression type",
+                        {"param", "magma_index_compression_algo"},
+                        {"value", indexAlgo},
+                        {"error", status.Message()});
     }
 
-    auto dataAlgo = config.getMagmaDataCompressionAlgo();
+    auto dataAlgo = config.getMagmaDataCompressionAlgoString();
     if (auto [status, type] = magma::CompressionType::Create(dataAlgo);
         status) {
         magmaDataCompressionAlgo = std::move(dataAlgo);
     } else {
-        getLogger().warnWithContext("Failed to create data compression type",
-                                    {{"param", "magma_data_compression_algo"},
-                                     {"value", dataAlgo},
-                                     {"error", status.Message()}});
+        EP_LOG_WARN_CTX("Failed to create data compression type",
+                        {"param", "magma_data_compression_algo"},
+                        {"value", dataAlgo},
+                        {"error", status.Message()});
     }
 
-    auto compactedAlgo = config.getMagmaCompacteddataCompressionAlgo();
+    auto compactedAlgo = config.getMagmaCompacteddataCompressionAlgoString();
     if (auto [status, type] = magma::CompressionType::Create(compactedAlgo);
         status) {
         magmaCompactedDataCompressionAlgo = std::move(compactedAlgo);
     } else {
-        getLogger().warnWithContext(
-                "Failed to create compacted data compression type",
-                {{"param", "magma_compacteddata_compression_algo"},
-                 {"value", compactedAlgo},
-                 {"error", status.Message()}});
+        EP_LOG_WARN_CTX("Failed to create compacted data compression type",
+                        {"param", "magma_compacteddata_compression_algo"},
+                        {"value", compactedAlgo},
+                        {"error", status.Message()});
     }
 
     perDocumentCompressionEnabled =
