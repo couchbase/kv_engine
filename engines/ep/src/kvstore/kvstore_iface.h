@@ -435,6 +435,7 @@ public:
         NotFound,
         JsonInvalid,
         CorruptSnapshot,
+        InvalidKvStore,
         Error,
     };
 
@@ -950,6 +951,9 @@ public:
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);
+inline std::string format_as(KVStoreIface::ReadVBStateStatus status) {
+    return to_string(status);
+}
 
 std::ostream& operator<<(std::ostream&,
                          const KVStoreIface::GetCollectionStatsStatus&);

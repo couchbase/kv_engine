@@ -1107,6 +1107,8 @@ std::string to_string(KVStoreIface::ReadVBStateStatus status) {
         return "JsonInvalid";
     case KVStoreIface::ReadVBStateStatus::CorruptSnapshot:
         return "CorruptSnapshot";
+    case KVStoreIface::ReadVBStateStatus::InvalidKvStore:
+        return "InvalidKvStore";
     case KVStoreIface::ReadVBStateStatus::Error:
         return "Error";
     }

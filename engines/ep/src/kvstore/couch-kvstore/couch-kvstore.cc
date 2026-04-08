@@ -602,6 +602,7 @@ void CouchKVStore::initialize(
                     getDBFileName(dbname, vbid, db.getFileRev()));
             continue;
         case ReadVBStateStatus::JsonInvalid:
+        case ReadVBStateStatus::InvalidKvStore:
         case ReadVBStateStatus::Error:
             const auto msg = "CouchKVStore::initialize: readVBState error:" +
                              to_string(readRes) + ", file_name:" +

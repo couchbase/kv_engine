@@ -36,6 +36,7 @@
 #include <folly/ScopeGuard.h>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/compress.h>
@@ -2730,9 +2731,15 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
                 "returned status {}",
                 vbid,
                 magmaStatus);
-        auto status = magmaStatus.ErrorCode() == Status::OkDocNotFound
-                              ? ReadVBStateStatus::NotFound
-                              : ReadVBStateStatus::Error;
+
+        ReadVBStateStatus status;
+        if (magmaStatus.ErrorCode() == Status::OkDocNotFound) {
+            status = ReadVBStateStatus::NotFound;
+        } else if (magmaStatus.ErrorCode() == Status::InvalidKVStore) {
+            status = ReadVBStateStatus::InvalidKvStore;
+        } else {
+            status = ReadVBStateStatus::Error;
+        }
         return {status, {}};
     }
 
@@ -3148,13 +3155,43 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
 
-    auto diskState = readVBStateFromDisk(vbid);
+    ReadVBStateResult diskState;
+    // This is a workaround for MB-71272 which is caused by MB-64876
+    // (we don't create the magma kvstore as part of set vbucket, but
+    // instead as part of the first flush of data to disk).
+    // Compaction is caused by ns_server (or by a collection drop generated
+    // internally so we *should* be in the process of getting the files
+    // created. Let's retry for 5 seconds before finally give up and
+    // report the compaction as failed. We have a number of unit tests which
+    // try to run compaction without doing any mutations first which means the
+    // kvstore isn't created and the vbstate isn't on disk which causes these
+    // tests to fail. To avoid that, we set the timeout to 0 in unit test mode
+    // which means we will just try once to read the vbstate and if it's not
+    // there we will fail immediately. In non-unit test mode, we wait up to 5
+    // seconds for the vbstate to appear on disk before failing. This should
+    // give enough time for the kvstore to be created and the vbstate to be
+    // written to disk in the case where compaction is triggered before any
+    // mutations have been flushed to disk.
+    const auto gracePeriod = std::chrono::seconds{isUnitTestMode() ? 0 : 5};
+    const auto timeout = std::chrono::steady_clock::now() + gracePeriod;
+    do {
+        diskState = readVBStateFromDisk(vbid);
+        if (diskState.status != ReadVBStateStatus::InvalidKvStore) {
+            break;
+        }
+
+        if (std::chrono::steady_clock::now() + gracePeriod < timeout) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        } else {
+            break;
+        }
+    } while (true);
+
     if (diskState.status != ReadVBStateStatus::Success) {
-        logger->warn(
+        logger->warnWithContext(
                 "MagmaKVStore::compactDBInternal: trying to run "
-                "compaction on {} but can't read vbstate. Status:{}",
-                vbid,
-                to_string(diskState.status));
+                "compaction, but can't read vbstate.",
+                {{"vb", vbid}, {"status", diskState.status}});
         return CompactDBStatus::Failed;
     }
     ctx->highCompletedSeqno = diskState.state.persistedCompletedSeqno;
