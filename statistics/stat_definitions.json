@@ -2141,19 +2141,19 @@
     {
         "key": "fusion_max_pending_upload_bytes",
         "unit": "bytes",
-        "description": "The maximum number of pending upload bytes to be synced across all volumes.",
+        "description": "Configuration value for the maximum amount of pending upload bytes across all volumes.",
         "added": "8.1.0"
     },
     {
         "key": "fusion_max_pending_upload_bytes_lwm_ratio",
         "unit": "none",
-        "description": "The proportion of max_pending_upload_bytes beyond which syncs for volumes with highest pending bytes are only allowed.",
+        "description": "Configuration value for the proportion of max_pending_upload_bytes beyond which syncs for volumes with highest pending bytes are only allowed.",
         "added": "8.1.0"
     },
     {
-        "key": "fusion_pending_upload_bytes",
+        "key": "fusion_deferred_upload_bytes",
         "unit": "bytes",
-        "description": "The total pending upload bytes across all fusion volumes.",
+        "description": "The amount of data Fusion knows is pending sync but has decided to defer in order to reduce the number of uploads to FusionLogStore",
         "added": "8.1.0"
     },
     /* EPBucket::getFileStats */

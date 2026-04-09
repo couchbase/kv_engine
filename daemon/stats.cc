@@ -89,8 +89,8 @@ static void server_global_stats(const StatCollector& collector) {
             // else the ratio configured
             collector.addStat(Key::fusion_max_pending_upload_bytes_lwm_ratio,
                               lwmRatio);
-            collector.addStat(Key::fusion_pending_upload_bytes,
-                              magma::Magma::GetFusionPendingUploadBytes());
+            collector.addStat(Key::fusion_deferred_upload_bytes,
+                              magma::Magma::GetFusionDeferredUploadBytes());
         }
 
         auto sdks = SdkConnectionManager::instance().getConnectedSdks();

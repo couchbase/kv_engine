@@ -115,7 +115,7 @@ public:
     static std::pair<uint64_t, double> GetFusionPendingUploadThresholds() {
         return {0, 0};
     }
-    static uint64_t GetFusionPendingUploadBytes() {
+    static uint64_t GetFusionDeferredUploadBytes() {
         return 0;
     }
     static void SetCompactionRateLimit(size_t bytesPerSecond) {
