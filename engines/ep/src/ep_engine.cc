@@ -3130,7 +3130,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     using namespace cb::stats;
 
     // getStats from Magma
-    constexpr std::array<std::string_view, 31> statNames = {
+    constexpr std::array<std::string_view, 32> statNames = {
             {"fusion_NumSyncs",
              "fusion_NumSyncAttempts",
              "fusion_NumSyncFailures",
@@ -3147,6 +3147,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
              "fusion_LogStoreGarbageSize",
              "fusion_LogStoreSummarySectionSize",
              "fusion_LogStorePendingDeleteSize",
+             "fusion_PendingUploadBytes",
              "fusion_NumLogsCleaned",
              "fusion_NumLogCleanBytesRead",
              "fusion_NumLogCleanReads",
@@ -3203,6 +3204,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
             "fusion_ExtentMergerBytesRead");
     addStat(Key::ep_fusion_log_store_pending_delete_size,
             "fusion_LogStorePendingDeleteSize");
+    addStat(Key::ep_fusion_pending_upload_bytes, "fusion_PendingUploadBytes");
     addStat(Key::ep_fusion_log_store_reads, "fusion_NumLogStoreReads");
     addStat(Key::ep_fusion_log_store_remote_gets,
             "fusion_NumLogStoreRemoteGets");

@@ -7333,6 +7333,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_fusion_extent_merger_reads",
                           "ep_fusion_extent_merger_bytes_read",
                           "ep_fusion_log_clean_reads",
+                          "ep_fusion_pending_upload_bytes",
                           "ep_fusion_log_store_remote_puts",
                           "ep_fusion_log_store_reads",
                           "ep_fusion_log_store_remote_gets",
