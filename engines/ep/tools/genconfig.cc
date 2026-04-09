@@ -691,31 +691,6 @@ static void generate(const nlohmann::json& params, const std::string& key) {
         defaultValStr = defaultVal.get<std::string>();
     }
 
-    if (type != "std::string") {
-        if (defaultValStr == "max" || defaultValStr == "min") {
-            defaultValStr = fmt::format(
-                    "std::numeric_limits<{}>::{}()", type, defaultValStr);
-        }
-        if (defaultValServerless.has_value() &&
-            (*defaultValServerless == "max" ||
-             *defaultValServerless == "min")) {
-            defaultValServerless = fmt::format("std::numeric_limits<{}>::{}()",
-                                               type,
-                                               *defaultValServerless);
-        }
-        if (defaultValTSAN.has_value() &&
-            (*defaultValTSAN == "max" || *defaultValTSAN == "min")) {
-            defaultValTSAN = fmt::format(
-                    "std::numeric_limits<{}>::{}()", type, *defaultValTSAN);
-        }
-        if (defaultValDevAssert.has_value() &&
-            (*defaultValDevAssert == "max" || *defaultValDevAssert == "min")) {
-            defaultValDevAssert = fmt::format("std::numeric_limits<{}>::{}()",
-                                              type,
-                                              *defaultValDevAssert);
-        }
-    }
-
     auto [validator, validatorCode] = getValidatorAndCode(key, json);
     auto requirements = getRequirements(key, json, params);
 
