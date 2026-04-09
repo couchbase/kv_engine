@@ -1324,7 +1324,8 @@ void MagmaKVStore::getMulti(Vbid vbid,
         auto& key = it.first;
         getOps.Add(Magma::GetOperation(
                 {reinterpret_cast<const char*>(key.data()), key.size()},
-                &it.second));
+                &it.second,
+                it.second.getValueFilter() != ValueFilter::KEYS_ONLY));
     }
 
     auto cb = [this, &vbid, &createItemCb](Status status,
@@ -1598,17 +1599,25 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                     ValueFilter filter,
                                     CreateItemCB createItemCb) const {
     auto key = makeDiskDocKey(keySlice);
-    const auto meta = magmakv::getDocMeta(metaSlice);
-
-    const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
-            meta.isDeleted(), meta.getDatatype());
+    auto meta = magmakv::getDocMeta(metaSlice);
+    // MB-51373: empty document cannot have xattr
+    if (meta.getValueSize() == 0 &&
+        meta.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        logger->warnWithContext(
+                "MagmaKVStore::makeGetValue "
+                "resetting empty document datatype to raw",
+                {{"vb", vb},
+                 {"key", cb::UserDataView(keySlice.Data(), keySlice.Len())},
+                 {"datatype", meta.getDatatype()}});
+        meta.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    }
 
     const bool includeValue = filter != ValueFilter::KEYS_ONLY ||
                               key.getDocKey().isInSystemEventCollection();
 
     size_t nbytes = 0;
     // Only create the body for the value filter and when a valueSlice is given
-    if ((includeValue || forceValueFetch) && valueSlice.Data()) {
+    if (includeValue && valueSlice.Data()) {
         nbytes = valueSlice.Len();
     }
 
@@ -1627,15 +1636,12 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
     }
 
     // Blob creation is deferred to avoid exceeding quota.
-    if ((includeValue || forceValueFetch) && valueSlice.Data()) {
+    if (includeValue && valueSlice.Data()) {
         item->replaceValue(TaggedPtr<Blob>(
                 Blob::New(valueSlice.Data(), meta.getValueSize()),
                 TaggedPtrBase::NoTagValue));
     }
 
-    if (filter != ValueFilter::KEYS_ONLY) {
-        checkAndFixKVStoreCreatedItem(*item);
-    }
     if (filter == ValueFilter::VALUES_DECOMPRESSED) {
         // Decompressed values requested, but the value is compressed.
         // Attempt to decompress the value.
@@ -1667,12 +1673,6 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
     } else if (magmakv::isAbort(keySlice, meta)) {
         item->setAbortSyncWrite();
         item->setPrepareSeqno(meta.getPrepareSeqno());
-    }
-
-    if (item->getValue()) {
-        // function shared with KEY_ONLY creation paths, so only sanitize when
-        // a body was created
-        checkAndFixKVStoreCreatedItem(*item);
     }
 
     return GetValue(std::move(item), status);

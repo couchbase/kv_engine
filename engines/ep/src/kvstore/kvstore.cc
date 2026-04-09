@@ -719,34 +719,6 @@ bool KVStore::isDocumentPotentiallyCorruptedByMB52793(
     return deleted && cb::mcbp::datatype::is_xattr(datatype);
 }
 
-// MB-51373: Fix the datatype of invalid documents. Currently checks for
-// datatype ! raw but no value, this invalid document has been seen in
-// production deployments and reading them can lead to a restart
-bool KVStore::checkAndFixKVStoreCreatedItem(Item& item) {
-#if CB_DEVELOPMENT_ASSERTS
-    if (item.isDeleted() &&
-        item.getDataType() == PROTOCOL_BINARY_DATATYPE_XATTR) {
-        // If we encounter a potential invalid doc (MB-51373) - Delete with
-        // datatype XATTR, we should have its value to be able to verify it
-        // is correct, or otherwise sanitise it.
-        Expects(item.getValue());
-    }
-#endif
-    if (item.isDeleted() && item.getValue() && item.getNBytes() == 0 &&
-        item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
-        std::stringstream ss;
-        ss << item;
-        EP_LOG_WARN(
-                "KVStore::checkAndFixKVStoreCreatedItem: {} correcting invalid "
-                "datatype {}",
-                item.getVBucketId(),
-                cb::UserDataView(ss.str()).getSanitizedValue());
-        item.setDataType(PROTOCOL_BINARY_RAW_BYTES);
-        return true;
-    }
-    return false;
-}
-
 static std::string calculateSha512sum(const std::filesystem::path& path,
                                       std::size_t size) {
     try {

@@ -155,6 +155,15 @@ static GetValue makeItemFromDocInfo(Vbid vbid,
     if (fetchedCompressed && (value.value_or(sized_buf{}).size > 0)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
+    // MB-51373: empty document cannot have xattr
+    if (value && value->size == 0 && datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        EP_LOG_WARN_CTX(
+                "makeItemFromDocInfo resetting empty document datatype to raw",
+                {"vb", vbid},
+                {"key", cb::UserDataView(docinfo.id.buf, docinfo.id.size)},
+                {"datatype", datatype});
+        datatype = PROTOCOL_BINARY_RAW_BYTES;
+    }
 
     size_t nbytes = 0;
     if (value) {
@@ -181,14 +190,11 @@ static GetValue makeItemFromDocInfo(Vbid vbid,
     if (value) {
         item->replaceValue(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
                                            TaggedPtrBase::NoTagValue));
-        KVStore::checkAndFixKVStoreCreatedItem(*item);
     }
 
     if (docinfo.deleted) {
         item->setDeleted(metadata.getDeleteSource());
     }
-
-    KVStore::checkAndFixKVStoreCreatedItem(*item);
 
     if (metadata.getVersionInitialisedFrom() == MetaData::Version::V3) {
         // Metadata is from a SyncWrite - update the Item appropriately.
@@ -2818,11 +2824,27 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         return errCode;
     }
 
+    // MB-51373: empty document cannot have xattr
+    if (value.size == 0 &&
+        metadata->getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
+        logger.warnWithContext(
+                "CouchKVStore::fetchDoc "
+                "resetting empty document datatype to raw",
+                {{"vb", vbId},
+                 {"key", cb::UserDataView(docinfo->id.buf, docinfo->id.size)},
+                 {"datatype", metadata->getDataType()}});
+        metadata->setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    }
+
     try {
+        std::optional<sized_buf> optValue;
+        if (filter != ValueFilter::KEYS_ONLY) {
+            optValue = value;
+        }
         auto gv = makeItemFromDocInfo(vbId,
                                       *docinfo,
                                       *metadata,
-                                      value,
+                                      optValue,
                                       fetchCompressed,
                                       std::move(createItemCb));
         docValue = std::move(gv);
