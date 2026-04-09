@@ -212,8 +212,7 @@ public:
                DomainAwareUniquePtr<std::string>>
     GetBySeqno(magma::Magma::Snapshot& snapshot,
                const magma::Magma::SeqNo seqno);
-    DomainAwareUniquePtr<magma::Magma::MagmaStats> GetStats(
-            std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
+    DomainAwareUniquePtr<magma::Magma::MagmaStats> GetStats();
     void GetFileStats(magma::MagmaFileStats& fileStats);
     void GetHistogramStats(magma::MagmaHistogramStats& histogramStats);
 

@@ -418,14 +418,14 @@ magma::Status MagmaMemoryTrackingProxy::GetRange(
 }
 
 DomainAwareUniquePtr<magma::Magma::MagmaStats>
-MagmaMemoryTrackingProxy::GetStats(std::chrono::milliseconds cacheDuration) {
+MagmaMemoryTrackingProxy::GetStats() {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     // MagmaStats internally has at least one std::vector which needs to
     // be destroyed in the correct domain. Manager the MagmaStats object so it
     // destructs against the second domain.
     DomainAwareUniquePtr<magma::Magma::MagmaStats> stats(
             new magma::Magma::MagmaStats{});
-    magma->GetStats(*stats, cacheDuration);
+    magma->GetStats(*stats);
     return stats;
 }
 
