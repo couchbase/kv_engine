@@ -104,7 +104,8 @@ public:
         Frame frame;
         auto stepDcp = [&frame, this]() {
             conn->recvFrame(frame);
-            EXPECT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic());
+            EXPECT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic())
+                    << frame;
             return frame.getRequest();
         };
 
