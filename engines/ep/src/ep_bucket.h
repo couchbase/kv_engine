@@ -486,6 +486,22 @@ protected:
      */
     void updateCompactionConcurrency();
 
+    bool canPageItems(size_t limit) override {
+        return true;
+    }
+
+    bool shouldContinuePaging(size_t bytes) override {
+        return true;
+    }
+
+    bool shouldContinuePaging() const override {
+        return true;
+    }
+
+    void addStats(const BucketStatCollector& collector) override {
+        // noop
+    }
+
     /**
      * Return disk usage information, summed across all shards.
      * @return total file info

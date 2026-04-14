@@ -285,16 +285,19 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
      * add it to the histogram we want to use the original value.
      */
     auto storedValueFreqCounter = v.getFreqCounterValue();
-
+    // eviction might mutate the state of the stored value, get the
+    // item size before that happens.
+    const size_t itemSize = v.size();
     auto age = casToAge(v.getCas());
 
     bool eligibleForPaging = false;
+    bool evicted = false;
 
     if (evictionStrategy->shouldTryEvict(
                 storedValueFreqCounter, age, vbState)) {
         // try to evict, may fail if sv is not eligible due to being
         // pending/non-resident/dirty.
-        eligibleForPaging = doEviction(lh, &v, false /*isDropped*/);
+        evicted = eligibleForPaging = doEviction(lh, &v, false /*isDropped*/);
     } else {
         // just check eligibility without trying to evict
         eligibleForPaging = currentBucket->isEligibleForEviction(lh, v);
@@ -317,6 +320,12 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
     if (eligibleForPaging) {
         evictionStrategy->eligibleItemSeen(
                 storedValueFreqCounter, age, vbState);
+    }
+
+    // The item was evicted - don't continue paging if we have freed enough
+    // memory.
+    if (evicted && !store.shouldContinuePaging(itemSize)) {
+        return false;
     }
 
     return shouldContinueHashTableVisit(lh);
@@ -416,7 +425,14 @@ bool ItemPagingVisitor::shouldStopPaging() const {
 
     // stop eviction whenever pageable memory usage is below the pageable low
     // watermark
-    return current <= lower;
+    if (current <= lower) {
+        return true;
+    }
+
+    // For ephemeral buckets, we also want to stop eviction if the pager has
+    // already deleted the maximum number of bytes it is allowed to delete, even
+    // if the memory usage is above the low watermark.
+    return !store.shouldContinuePaging();
 }
 
 uint64_t ItemPagingVisitor::casToAge(uint64_t cas) const {

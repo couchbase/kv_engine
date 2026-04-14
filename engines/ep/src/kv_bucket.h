@@ -589,6 +589,18 @@ public:
      */
     virtual size_t getPageableMemLowWatermark() const = 0;
 
+    virtual bool canPageItems(size_t limit) = 0;
+
+    /**
+     * Called from PagingVisitor to declare how many bytes have been "paged out"
+     * and determine if paging should continue.
+     * @param bytes The number of bytes that have been "paged out".
+     * @return true if paging should continue, false if paging should pause.
+     */
+    virtual bool shouldContinuePaging(size_t bytes) = 0;
+    virtual bool shouldContinuePaging() const = 0;
+    virtual void addStats(const BucketStatCollector& collector) = 0;
+
     /**
      * Check the status of memory used and maybe begin to free memory if
      * required.

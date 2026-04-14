@@ -20,6 +20,7 @@
 #include "checkpoint_utils.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
+#include "ephemeral_bucket.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "item_pager.h"
@@ -2181,6 +2182,104 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_60046) {
     }
     // We certainly should see deletes.
     ASSERT_NE(0, deleteCount);
+}
+
+TEST_P(STEphemeralAutoDeleteItemPagerTest, ItemPager_NoThrottle_WithoutCursor) {
+    // This config change ensures that the first pager run will page enough
+    // values to hit the pause condition
+    engine->getConfiguration().setItemEvictionAgePercentage(0);
+    // Lots of small items
+    auto& stats = engine->getEpStats();
+    auto& vb = *store->getVBucket(vbid);
+    populateVbsUntil(
+            {vbid},
+            [&stats, &vb]() {
+                // No need to accumulate in checkpoints... clear everytime so
+                // memory is majority HT usage (and linked-list)
+                vb.checkpointManager->clear();
+                return stats.getPreciseTotalMemoryUsed() >
+                       stats.mem_high_wat.load();
+            },
+            "",
+            0);
+    // Schedule the item pager task...
+    store->attemptToFreeMemory();
+    auto numItems = vb.getNumItems();
+    // Run the item pager task...
+    runHighMemoryPager();
+
+    // Items has been reduced...
+    EXPECT_LT(vb.getNumItems(), numItems);
+}
+
+TEST_P(STEphemeralAutoDeleteItemPagerTest, ItemPager_Throttle_WithCursor) {
+    // This config change ensures that the first pager run will page enough
+    // values to hit the pause condition
+    engine->getConfiguration().setItemEvictionAgePercentage(0);
+
+    auto& stats = engine->getEpStats();
+    auto& vb = *store->getVBucket(vbid);
+    auto& ephBucket = static_cast<EphemeralBucket&>(*store);
+    populateVbsUntil(
+            {vbid},
+            [&stats, &vb]() {
+                // No need to accumulate in checkpoints... clear everytime so
+                // memory is majority HT usage (and linked-list)
+                vb.checkpointManager->clear();
+                return stats.getPreciseTotalMemoryUsed() >
+                       stats.mem_high_wat.load();
+            },
+            "",
+            0);
+    store->attemptToFreeMemory();
+    auto numItems = vb.getNumItems();
+    runHighMemoryPager();
+
+    // Now register a cursor, later the pager cannot run until this cursor has
+    // seen the pagedSeqno
+    auto cursor = vb.checkpointManager->registerCursorBySeqno(
+            "test", 0, CheckpointCursor::Droppable::No);
+
+    // Items has been reduced...
+    EXPECT_LT(vb.getNumItems(), numItems);
+
+    // Paging should now reject to start again.
+    auto throttled = ephBucket.getPagingThrottled();
+    // Run the ItemPager task, but not via runHighMemoryPager as that expects
+    // the PagingVisitor to be scheduled
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+    runNextTask(lpNonioQ, "Paging out items.");
+    // Nothing was scheduled
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    // throttled paging
+    EXPECT_EQ(throttled + 1, ephBucket.getPagingThrottled());
+
+    auto memUsed = stats.getPreciseTotalMemoryUsed();
+    purgeTombstonesBefore(~0);
+    std::vector<queued_item> items;
+
+    // Once the cursor has moved past the pagedSeqno, the pager should be able
+    // to run again and schedule paging visitor tasks.
+    vb.checkpointManager->getNextItemsForDcp(*cursor.getCursor().lock(), items);
+    EXPECT_NE(0, items.size()) << *vb.checkpointManager;
+
+    EXPECT_LT(stats.getPreciseTotalMemoryUsed(), memUsed);
+    ASSERT_NE(0, vb.getPurgeSeqno());
+
+    // Note that the pager would have snoozed on the earlier run, but would be
+    // woken by any new mutations triggering high-memory etc... so in this test
+    // we have to kick it again, this time it will run and schedule/run
+    // PagingVisitor tasks.
+    store->attemptToFreeMemory();
+    throttled = ephBucket.getPagingThrottled();
+    numItems = vb.getNumItems();
+    runHighMemoryPager();
+    // No throttling, paging must of ran
+    EXPECT_EQ(throttled, ephBucket.getPagingThrottled());
+    EXPECT_LT(vb.getNumItems(), numItems);
 }
 
 /**

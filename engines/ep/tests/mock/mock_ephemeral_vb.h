@@ -83,6 +83,14 @@ public:
             const Collections::VB::CachingReadHandle& cHandle,
             const VBNotifyCtx& notifyCtx);
 
+    void public_setPagedSeqno(uint64_t seqno) {
+        setPagedSeqno(seqno);
+    }
+
+    uint64_t public_getPagedSeqno() const {
+        return getPagedSeqno();
+    }
+
 private:
     /* non owning ptr to the linkedlist in the ephemeral vbucket obj */
     MockBasicLinkedList* mockLL;

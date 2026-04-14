@@ -4203,5 +4203,18 @@
         "type": "counter",
         "description": "The number of bgfetches which are triggered by compaction",
         "added": "7.1.5"
+    },
+    {
+        "key": "pager_deleted",
+        "unit": "bytes",
+        "description": "Number of bytes deleted by pager",
+        "added": "7.6.11"
+    },
+    {
+        "key": "pager_throttled",
+        "unit": "none",
+        "type": "counter",
+        "description": "Total number of times pager has been throttled",
+        "added": "7.6.11"
     }
 ]

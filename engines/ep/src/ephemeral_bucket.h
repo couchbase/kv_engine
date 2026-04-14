@@ -187,6 +187,21 @@ public:
         // No flusher - no-op
     }
 
+    bool canPageItems(size_t limit) override;
+    bool shouldContinuePaging(size_t bytes) override;
+    bool shouldContinuePaging() const override;
+    void addStats(const BucketStatCollector& collector) override;
+
+    uint64_t getPagingThrottled() const {
+        return pagerThrottled.load();
+    }
+    size_t getPagedBytes() const {
+        return bytesPagerDeleted.load();
+    }
+    size_t getMaxPagingBytes() const {
+        return maxBytesDeleteableByPager.load();
+    }
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
@@ -205,4 +220,13 @@ protected:
 
     /// Task responsible for purging in-memory tombstones.
     ExTask tombstonePurgerTask;
+
+    /// tracks how many bytes the pager has deleted, this resets to 0 when the
+    /// pager can run (unthrottled)
+    cb::RelaxedAtomic<size_t> bytesPagerDeleted{0};
+    /// tracks the maximum number of bytes that can be deleted by the pager
+    /// this resets to 0 when the pager can run (unthrottled)
+    cb::RelaxedAtomic<size_t> maxBytesDeleteableByPager{0};
+    /// counts how many times the pager has been throttled
+    cb::RelaxedAtomic<uint64_t> pagerThrottled{0};
 };

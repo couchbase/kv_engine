@@ -302,7 +302,26 @@ public:
      */
     void createFailoverEntry(uint64_t seqno) override;
 
+    /**
+     * Check if the pager can resume (note all active vbuckets need to say yes
+     * for paging to resume)
+     * @return true if the pager can resume, false otherwise.
+     */
+    bool canPagingResume() const;
+
 protected:
+    /**
+     * The last seqno that was paged out. If all cursors have seen this seqno,
+     * the pager can continue to delete more items.
+     */
+    void setPagedSeqno(uint64_t seqno);
+
+    /**
+     * Get the paged seqno to use in checking if the pager can continue.
+     * @return the paged seqno for use in checks done by canPagingResume
+     */
+    uint64_t getPagedSeqno() const;
+
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
 
@@ -470,6 +489,12 @@ private:
      *  (removed from seqList and deleted).
      */
     EPStats::Counter seqListPurgeCount;
+
+    /**
+     * Sequence number up to which items have been paged out. This is used by
+     * the pager to determine if it can continue paging out items.
+     */
+    std::atomic<uint64_t> pagedSeqno{0};
 };
 
 using EphemeralVBucketPtr = std::shared_ptr<EphemeralVBucket>;

@@ -25,6 +25,7 @@
 #include "test_helpers.h"
 
 #include "../mock/mock_checkpoint_manager.h"
+#include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
@@ -1110,4 +1111,192 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
 
     ASSERT_EQ(3, vb.getPurgeSeqno());
     ASSERT_TRUE(purgeHookRan);
+}
+
+class SingleThreadedEphemeralAutoDeleteThrottleTest
+    : public SingleThreadedKVBucketTest {
+protected:
+    void populateTillHighWatermark() {
+        // Populate the vbucket with items till high
+        // watermark is reached
+        auto bucketQuota = engine->getEpStats().getMaxDataSize();
+        auto& stats = engine->getEpStats();
+        engine->getConfiguration().setItemEvictionAgePercentage(0);
+
+        // change watermarks to low numbers ...
+        stats.setHighWaterMark(bucketQuota * 0.15);
+        stats.setLowWaterMark(bucketQuota * 0.1);
+
+        auto pageableMemCurrent = store->getPageableMemCurrent();
+        auto pageableMemHighWatermark = store->getPageableMemHighWatermark();
+
+        auto vb = store->getVBucket(vbid);
+        auto vbid = vb->getId();
+
+        store->enableItemPager();
+
+        int numItems = 0;
+        std::string value = std::string(1024 * 20, 'v');
+        while (pageableMemCurrent < pageableMemHighWatermark) {
+            const std::string key("key" + std::to_string(numItems));
+            auto item = make_item(vbid, makeStoredDocKey(key), value);
+            auto& ht = store->getVBucket(vbid)->ht;
+            auto mfu = item.getFreqCounterValue().value_or(0);
+            for (int i = 0; i < numItems % 256; ++i) {
+                // probabilistically update the MFU
+                mfu = ht.generateFreqValue(mfu);
+            }
+            item.setFreqCounterValue(mfu);
+
+            uint64_t cas;
+            EXPECT_EQ(cb::engine_errc::success,
+                      engine->storeInner(
+                              *cookie, item, cas, StoreSemantics::Set, false));
+            pageableMemCurrent = store->getPageableMemCurrent();
+            numItems++;
+        }
+    }
+
+    void SetUp() override {
+        // Disable the tombstone purger to avoid it being scheduled
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string +=
+                "bucket_type=ephemeral;ephemeral_metadata_purge_interval=0";
+        SingleThreadedKVBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
+
+        // set checkpoint max size to large value to avoid checkpoint creation
+        // during the test
+        engine->getConfiguration().setCheckpointMaxSize(1024 * 1024 * 1024);
+
+        // Cancel all tasks in the NONIO queue that were scheduled during
+        // initialization so we start with an empty future queue and can control
+        // when tasks run
+        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+        task_executor->cancelAll();
+        // Cancel all tasks and drain the queue
+        while (lpNonioQ.getFutureQueueSize() > 0 ||
+               lpNonioQ.getReadyQueueSize() > 0) {
+            try {
+                runNextTask(lpNonioQ);
+            } catch (const std::logic_error&) {
+                // If there are no ready tasks, break
+                break;
+            }
+        }
+
+        EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+        EXPECT_EQ(0, lpNonioQ.getFutureQueueSize());
+    }
+};
+
+TEST_F(SingleThreadedEphemeralAutoDeleteThrottleTest, AutoDeleteThrottling) {
+    populateTillHighWatermark();
+    auto vb = store->getVBucket(vbid);
+
+    auto numItemsBefore = vb->getNumItems();
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& ephBucket = static_cast<EphemeralBucket&>(*store);
+
+    // create a new producer and stream ...
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    createDcpStream(*producer);
+
+    ASSERT_EQ(1, vb->checkpointManager->getNumCursors());
+    MockDcpMessageProducers producers;
+
+    notifyAndStepToCheckpoint(*producer, producers);
+
+    // The item pager task is scheduled when the high watermark is reached
+    // in storeInner(), don't need to wake-it up again.
+    // Run the item pager task
+    runNextTask(lpNonioQ, "Paging out items.");
+
+    // The item pager task schedules a visitor task to visit the items in the
+    // vbucket and see which item are eligible for eviction. Run the visitor
+    // task until completion
+    runNextTask(lpNonioQ);
+    runNextTask(lpNonioQ);
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_LT(vb->getNumItems(), numItemsBefore);
+
+    // trying running the item pager task again
+    store->attemptToFreeMemory();
+    runNextTask(lpNonioQ, "Paging out items.");
+    // We should have been throttled now & therefore the
+    // ready queue should be empty - i.e no visitor tasks are scheduled.
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_LE(1, ephBucket.getPagingThrottled());
+}
+
+TEST_F(SingleThreadedEphemeralAutoDeleteThrottleTest,
+       AutoDeleteThrottledUntilDcpCursorAdvances) {
+    populateTillHighWatermark();
+    auto vb = store->getVBucket(vbid);
+    auto numItemsBefore = vb->getNumItems();
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    // create a new producer and stream ...
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+
+    createDcpStream(*producer);
+
+    ASSERT_EQ(1, vb->checkpointManager->getNumCursors());
+    MockDcpMessageProducers producers;
+
+    notifyAndStepToCheckpoint(*producer, producers);
+
+    auto& ephBucket = static_cast<EphemeralBucket&>(*store);
+    auto throttledBefore = ephBucket.getPagingThrottled();
+
+    // Run the item pager task, scheduled when the high watermark was breached.
+    // The pager will delete items and set pagedSeqno. Since the DCP cursor
+    // hasn't consumed the deletions yet, canPagingResume() will return false
+    // and throttling will kick in during this run.
+    runNextTask(lpNonioQ, "Paging out items.");
+    // The pager schedules a visitor task
+    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    // The visitor runs and may reschedule the pager
+    runNextTask(lpNonioQ, "Paging out items.");
+
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_LT(vb->getNumItems(), numItemsBefore);
+
+    // Throttling should have kicked in because the DCP cursor hasn't
+    // consumed the deletions (pagedSeqno) yet
+    ASSERT_GT(ephBucket.getPagingThrottled(), throttledBefore);
+    auto throttledAfterFirstRun = ephBucket.getPagingThrottled();
+
+    // Try to run the pager again - it should be throttled
+    store->attemptToFreeMemory();
+    runNextTask(lpNonioQ, "Paging out items.");
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    // Throttling count should have increased
+    auto throttledAfterSecondRun = ephBucket.getPagingThrottled();
+    ASSERT_GT(throttledAfterSecondRun, throttledAfterFirstRun);
+
+    // Now consume items through DCP producer to advance the cursor
+    // past the pagedSeqno
+    int stepCount = numItemsBefore;
+    while (stepCount > 0) {
+        EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+        stepCount--;
+    }
+
+    // The producer has consumed all the items, no item pager
+    // task should be scheduled since throttling should still be in effect
+    // until the cursor sees the pagedSeqno
+    store->attemptToFreeMemory();
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_EQ(ephBucket.getPagingThrottled(), throttledAfterSecondRun);
 }

@@ -177,6 +177,19 @@ bool StrictQuotaItemPager::shouldStopPaging(
            stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat;
 }
 
+bool StrictQuotaItemPager::canPageItems(
+        const ItemPager::PageableMemInfo& memInfo) const {
+    auto* kvBucket = engine->getKVBucket();
+    size_t limit = 0;
+    if (stats.mem_high_wat > memInfo.lower) {
+        limit = stats.mem_high_wat - memInfo.lower;
+    }
+    if (memInfo.current > memInfo.lower) {
+        limit = std::min(limit, memInfo.current - memInfo.lower);
+    }
+    return kvBucket->canPageItems(limit);
+}
+
 bool ItemPager::shouldPage(const ItemPager::PageableMemInfo& memInfo) const {
     return memInfo.current > memInfo.upper;
 }
@@ -205,6 +218,19 @@ bool ItemPager::runPager(bool manuallyNotified) {
     // scenario. wasNotified would be false if we were woken by the
     // periodic scheduler.
     if (manuallyNotified || doEvict || shouldPage(memInfo)) {
+        // canPageItems for ephemeral buckets will check that the pager has
+        // not already created the maximum amount of deletions without
+        // sufficiently draining out of the system. EP buckets don't throttle.
+        // We require that for ephemeral the pager is limited to deleting either
+        // 1) the difference from current to lower
+        // 2) the difference from hwm to lower
+        // Whichever is the smaller value. E.g. if current is now in between
+        // hwm/lwm, only try and delete that amount so we reduce the chance of
+        // overshooting the lwm.
+        if (!canPageItems(memInfo)) {
+            return true;
+        }
+
         if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
