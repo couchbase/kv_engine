@@ -1525,21 +1525,22 @@ void KVBucket::appendDatatypeStats(const DatatypeStatVisitor& active,
                                    const BucketStatCollector& collector) {
     using namespace cb::stats;
 
-    for (uint8_t ii = 0; ii < active.getNumDatatypes(); ++ii) {
-        auto datatypeStr = cb::mcbp::datatype::to_string(ii);
-        auto labelled = collector.withLabels(
-                {{"datatype", datatypeStr}, {"vbucket_state", "active"}});
+    const auto addStats = [&collector](const DatatypeStatVisitor& visitor,
+                                       std::string_view state) {
+        for (uint8_t ii = 0; ii < visitor.getNumDatatypes(); ++ii) {
+            if (!cb::mcbp::datatype::is_valid(ii)) {
+                continue;
+            }
+            auto datatypeStr = cb::mcbp::datatype::to_string(ii);
+            auto labelled = collector.withLabels(
+                    {{"datatype", datatypeStr}, {"vbucket_state", state}});
 
-        labelled.addStat(Key::datatype_count, active.getDatatypeCount(ii));
-    }
+            labelled.addStat(Key::datatype_count, visitor.getDatatypeCount(ii));
+        }
+    };
 
-    for (uint8_t ii = 0; ii < replica.getNumDatatypes(); ++ii) {
-        auto datatypeStr = cb::mcbp::datatype::to_string(ii);
-        auto labelled = collector.withLabels(
-                {{"datatype", datatypeStr}, {"vbucket_state", "replica"}});
-
-        labelled.addStat(Key::datatype_count, replica.getDatatypeCount(ii));
-    }
+    addStats(active, "active");
+    addStats(replica, "replica");
 }
 
 void KVBucket::completeBGFetchMulti(

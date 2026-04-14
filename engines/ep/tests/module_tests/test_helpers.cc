@@ -484,7 +484,7 @@ std::vector<protocol_binary_datatype_t> datatypeValues(
     std::vector<protocol_binary_datatype_t> results;
     for (protocol_binary_datatype_t i = 0; i < cb::mcbp::datatype::highest;
          i++) {
-        if ((i & datatype) == i) {
+        if ((i & datatype) == i && cb::mcbp::datatype::is_valid(i)) {
             results.push_back(i);
         }
     }
@@ -557,6 +557,7 @@ StoredValue::UniquePtr createWithFactory(AbstractStoredValueFactory& factory,
     }
 
     auto sv = factory(item, {});
+    sv->setDatatype(t);
 
     if (s != State::Document) {
         // Temp items have no value.
