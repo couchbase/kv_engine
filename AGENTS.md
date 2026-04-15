@@ -78,6 +78,9 @@ Guidelines:
   safety and clarity
 - Structured bindings, `std::optional`, `std::variant`, `constexpr`, and other
   modern features are acceptable
+- Don't use C-style arrays, use `std::array` or `std::vector` instead
+- Don't use single character variable names
+- Always use braces for control structures, even if they are optional
 - Match the surrounding style within the modified module. This is particularly
   important as the style of ep-engine differs vastly from the style of daemon
   code.
