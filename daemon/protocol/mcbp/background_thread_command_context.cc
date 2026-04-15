@@ -22,16 +22,23 @@ BackgroundThreadCommandContext::BackgroundThreadCommandContext(
         cb::AwaitableSemaphore& semaphore,
         std::chrono::microseconds expectedRuntime)
     : SteppableCommandContext(cookie),
-      task(std::make_shared<OneShotLimitedConcurrencyTask>(
-              id,
-              std::move(name),
-              [this]() { execute_task_and_notify(); },
-              semaphore,
-              expectedRuntime)) {
+      taskId(id),
+      taskName(std::move(name)),
+      taskSemaphore(semaphore),
+      taskRuntime(expectedRuntime) {
     // Reallocate the cookie to ensure that the request buffer is preserved
     // until the task is scheduled (so there won't be any dangling pointers
     // if one tries to query the request object from the task).
     cookie.preserveRequest();
+}
+
+ExTask BackgroundThreadCommandContext::makeTask() {
+    return std::make_shared<OneShotLimitedConcurrencyTask>(
+            taskId,
+            taskName,
+            [this]() { execute_task_and_notify(); },
+            taskSemaphore,
+            taskRuntime);
 }
 
 cb::engine_errc BackgroundThreadCommandContext::done() {
@@ -47,38 +54,43 @@ cb::engine_errc BackgroundThreadCommandContext::done() {
 }
 
 cb::engine_errc BackgroundThreadCommandContext::step() {
-    switch (state) {
-    case State::ScheduleTask:
-        try {
-            ExecutorPool::get()->schedule(task);
+    while (true) {
+        switch (state) {
+        case State::ScheduleTask:
+            try {
+                task = makeTask();
+                ExecutorPool::get()->schedule(task);
+                state = State::WaitForCompletion;
+                return cb::engine_errc::would_block;
+            } catch (const std::bad_alloc&) {
+                return cb::engine_errc::no_memory;
+            }
+
+        case State::WaitForCompletion:
+            std::atomic_thread_fence(std::memory_order_acquire);
+            // The engine may legitimately return would_block from
+            // execute(). When the cookie is notified, reschedule the
+            // task so execute() runs again.
+            if (status == cb::engine_errc::would_block) {
+                state = State::ScheduleTask;
+                continue;
+            }
             state = State::Done;
-            return cb::engine_errc::would_block;
-        } catch (const std::bad_alloc&) {
-            return cb::engine_errc::no_memory;
+            continue;
+
+        case State::Done:
+            return done();
         }
 
-    case State::Done:
-        std::atomic_thread_fence(std::memory_order_acquire);
-        return done();
+        throw std::logic_error(
+                "BackgroundThreadCommandContext::step: Invalid state " +
+                std::to_string(static_cast<int>(state)));
     }
-
-    throw std::logic_error(
-            "BackgroundThreadCommandContext::step: Invalid state " +
-            std::to_string(static_cast<int>(state)));
 }
 
 void BackgroundThreadCommandContext::execute_task_and_notify() {
     try {
         status = execute();
-        if (status == cb::engine_errc::would_block) {
-            FATAL_ERROR_CTX(
-                    EXIT_FAILURE,
-                    "BackgroundThreadCommandContext::execute_task_and_notify: "
-                    "execute() returned would_block",
-                    {"conn_id", cookie.getConnectionId()},
-                    {"description", cookie.getConnection().getDescription()},
-                    {"cookie", cookie.to_json()});
-        }
     } catch (const std::exception& e) {
         LOG_ERROR_CTX("Exception occurred in BackgroundThreadCommandContext",
                       {"conn_id", cookie.getConnectionId()},
@@ -88,5 +100,11 @@ void BackgroundThreadCommandContext::execute_task_and_notify() {
         status = cb::engine_errc::disconnect;
     }
     std::atomic_thread_fence(std::memory_order_release);
+    if (status == cb::engine_errc::would_block) {
+        // The engine has retained the cookie and will notifyIoComplete
+        // when the operation is ready to proceed. The next step()
+        // (driven by that notification) reschedules the task.
+        return;
+    }
     cookie.notifyIoComplete(cb::engine_errc::success);
 }

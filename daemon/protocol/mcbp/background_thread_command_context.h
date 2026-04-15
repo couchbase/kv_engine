@@ -22,6 +22,12 @@ using ExTask = std::shared_ptr<GlobalTask>;
  * The BackgroundThreadCommandContext is a state machine used by the memcached
  * core to implement operations which require a background thread to perform
  * the operation.
+ *
+ * If execute() returns cb::engine_errc::would_block, the engine is expected
+ * to have retained the cookie and to call notifyIoComplete on it once the
+ * operation can proceed; the state machine then re-creates and re-schedules
+ * the task so execute() runs again. Re-scheduling repeats until execute()
+ * returns a status other than would_block.
  */
 class BackgroundThreadCommandContext : public SteppableCommandContext {
 public:
@@ -49,6 +55,11 @@ protected:
      * implementation of "done" sends this status code back to the client.
      * If one wants to add more information to the response, one should
      * override the done method.
+     *
+     * If execute() returns cb::engine_errc::would_block, the engine must
+     * have retained the cookie and will notifyIoComplete it when the
+     * operation is ready to proceed; the state machine will then run
+     * execute() again.
      */
     virtual cb::engine_errc execute() = 0;
 
@@ -76,19 +87,39 @@ private:
 
     /// This is the method being executed on the background thread and
     /// its purpose is to execute the overridden "execute" method and
-    /// finally notify the cookie to ensure that the connection object
-    /// gets rescheduled.
+    /// notify the cookie so the connection object gets rescheduled.
+    /// If execute() returned would_block the cookie is not notified
+    /// here: the engine has retained the cookie and will notify it
+    /// itself when ready.
     void execute_task_and_notify();
+
+    /// Construct a fresh task object that runs execute_task_and_notify().
+    /// Called for the initial schedule and again on each reschedule
+    /// (the underlying OneShotLimitedConcurrencyTask becomes dead after
+    /// running once).
+    ExTask makeTask();
 
     /// The different states in the state machinery
     enum class State {
-        /// Schedule the task for execution and await for it to complete
+        /// Build and schedule the task; transitions to WaitForCompletion.
         ScheduleTask,
-        /// The task is done and we should return the result to the client
+        /// The task has notified us. If status is would_block transition
+        /// back to ScheduleTask to re-run execute(); otherwise transition
+        /// to Done to send the reply.
+        WaitForCompletion,
+        /// Send the result to the client.
         Done
     };
 
-    /// The task object to run on the background thread
+    /// Parameters retained so a fresh task object can be constructed on
+    /// each (re-)schedule.
+    const TaskId taskId;
+    const std::string taskName;
+    cb::AwaitableSemaphore& taskSemaphore;
+    const std::chrono::microseconds taskRuntime;
+
+    /// The task object to run on the background thread. Re-created on
+    /// each schedule.
     ExTask task;
 
     /// The current state of the state machinery

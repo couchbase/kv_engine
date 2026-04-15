@@ -130,6 +130,7 @@ TASK(Core_SubdocExecuteTask, TaskType::NonIO, 10)
 TASK(InitialMFUTask, TaskType::NonIO, 20)
 TASK(CacheTransferTask, TaskType::NonIO, 20)
 TASK(Core_BucketConfigValidationTask, TaskType::NonIO, 20)
+TASK(Core_SetCollectionManifestTask, TaskType::NonIO, 20)
 
 // Quick Non-IO tasks
 TASK(SeqnoPersistenceNotifyTask, TaskType::QuickNonIO, 1)

@@ -13,8 +13,10 @@
 #include "utilities/test_manifest.h"
 
 #include <boost/stacktrace/detail/frame_decl.hpp>
+#include <folly/ScopeGuard.h>
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
+#include <protocol/mcbp/ewb_encode.h>
 
 using namespace std::string_view_literals;
 using namespace cb::mcbp;
@@ -2187,4 +2189,132 @@ TEST_P(CollectionsTest, ClientOpcode_ScopeDetailsStats_check_visibility) {
 
     EXPECT_NE(stats.find(systemKey), stats.end()) << stats.dump(2);
     EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+}
+
+// Return ewould_block for the first attempt to set the manifest, then succeed
+// on the retry. Verify that the task is rescheduled and executed by checking
+// the runtimes stats.
+TEST_P(CollectionsTest, SetManifestRescheduleOnWouldBlock) {
+    // The manifest mutation below adds (and persists) the dairy collection,
+    // and the manifest API is monotonic - it cannot be rolled back via
+    // SetManifest. Drop and recreate the bucket on exit so subsequent tests
+    // start from a clean manifest.
+    auto cleanup = folly::makeGuard([] {
+        user.reset();
+        admin.reset();
+        DeleteTestBucket();
+        mcd_env->getTestBucket().setUpBucket(bucketName, {}, *adminConnection);
+    });
+
+    CollectionsManifest localManifest = collections;
+    localManifest.add(CollectionEntry::dairy);
+
+    adminConnection->executeInBucket(
+            bucketName, [&](MemcachedConnection& conn) {
+                auto sequence =
+                        ewb::encodeSequence({cb::engine_errc::would_block,
+                                             cb::engine_errc::success,
+                                             cb::engine_errc::success});
+                conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                                /*err_code*/ {},
+                                                /*value*/ {},
+                                                sequence);
+                auto response = conn.execute(BinprotGenericCommand{
+                        ClientOpcode::CollectionsSetManifest,
+                        {},
+                        localManifest.getJson().dump()});
+                conn.disableEwouldBlockEngine();
+                EXPECT_TRUE(response.isSuccess())
+                        << "SetManifest failed after would_block reschedule: "
+                        << response.getStatus();
+            });
+
+    adminConnection->unselectBucket();
+    auto stats = adminConnection->stats("runtimes @no bucket@");
+    bool foundTask = false;
+    for (const auto& [key, value] : stats.items()) {
+        if (key.find("Core_SetCollectionManifestTask") != std::string::npos) {
+            foundTask = true;
+            EXPECT_FALSE(value.empty())
+                    << "Task runtime histogram should not be empty";
+            break;
+        }
+    }
+    EXPECT_TRUE(foundTask)
+            << "Core_SetCollectionManifestTask should appear in runtimes stats "
+               "after a rescheduled execution. Stats: "
+            << stats.dump(2);
+}
+
+TEST_P(CollectionsTest, SetManifestAndCheckAsyncRun) {
+    // The manifest mutation below adds (and persists) the dairy collection,
+    // and the manifest API is monotonic - it cannot be rolled back via
+    // SetManifest. Drop and recreate the bucket on exit so subsequent tests
+    // start from a clean manifest.
+    auto cleanup = folly::makeGuard([] {
+        user.reset();
+        admin.reset();
+        DeleteTestBucket();
+        mcd_env->getTestBucket().setUpBucket(bucketName, {}, *adminConnection);
+    });
+
+    // Create a local copy of collections manifest and add dairy collection
+    CollectionsManifest localManifest = collections;
+    localManifest.add(CollectionEntry::dairy);
+
+    adminConnection->executeInBucket(
+            bucketName, [&](MemcachedConnection& conn) {
+                auto response = conn.execute(BinprotGenericCommand{
+                        ClientOpcode::CollectionsSetManifest,
+                        {},
+                        localManifest.getJson().dump()});
+                EXPECT_TRUE(response.isSuccess())
+                        << "SetManifest failed: " << response.getStatus();
+            });
+
+    // Verify manifest was applied by getting it back
+    adminConnection->executeInBucket(
+            bucketName, [&](MemcachedConnection& conn) {
+                auto response = conn.execute(BinprotGenericCommand{
+                        ClientOpcode::CollectionsGetManifest});
+                EXPECT_TRUE(response.isSuccess());
+                if (!response.isSuccess()) {
+                    return;
+                }
+                auto manifest = nlohmann::json::parse(response.getDataView());
+                // Check that dairy collection exists in the manifest
+                bool foundDairy = false;
+                for (const auto& scope : manifest["scopes"]) {
+                    for (const auto& coll : scope["collections"]) {
+                        if (coll["name"] == "dairy") {
+                            foundDairy = true;
+                            break;
+                        }
+                    }
+                }
+                EXPECT_TRUE(foundDairy)
+                        << "dairy collection not found in manifest: "
+                        << manifest.dump(2);
+            });
+
+    // Check the runtimes stats to verify the task was scheduled and executed.
+    // The Core_SetCollectionManifestTask should have runtime stats recorded.
+    adminConnection->unselectBucket();
+    auto stats = adminConnection->stats("runtimes @no bucket@");
+
+    // The task should appear in runtimes stats after execution
+    bool foundTask = false;
+    for (const auto& [key, value] : stats.items()) {
+        if (key.find("Core_SetCollectionManifestTask") != std::string::npos) {
+            foundTask = true;
+            // The value should be a histogram with at least one sample
+            EXPECT_FALSE(value.empty())
+                    << "Task runtime histogram should not be empty";
+            break;
+        }
+    }
+    EXPECT_TRUE(foundTask)
+            << "Core_SetCollectionManifestTask should appear in runtimes stats "
+               "after execution. Stats: "
+            << stats.dump(2);
 }

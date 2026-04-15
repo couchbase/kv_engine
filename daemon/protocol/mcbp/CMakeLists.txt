@@ -118,6 +118,8 @@ add_library(memcached_daemon_mcbp OBJECT
         set_chronicle_auth_token_command_context.h
         set_cluster_config_command_context.cc
         set_cluster_config_command_context.h
+        set_collection_manifest_command_context.cc
+        set_collection_manifest_command_context.h
         set_param_command_context.cc
         set_param_command_context.h
         set_vbucket_command_context.cc

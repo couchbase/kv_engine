@@ -61,6 +61,7 @@
 #include "protocol/mcbp/set_active_encryption_keys_context.h"
 #include "protocol/mcbp/set_chronicle_auth_token_command_context.h"
 #include "protocol/mcbp/set_cluster_config_command_context.h"
+#include "protocol/mcbp/set_collection_manifest_command_context.h"
 #include "protocol/mcbp/set_param_command_context.h"
 #include "protocol/mcbp/set_vbucket_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
@@ -228,12 +229,7 @@ static void isasl_refresh_executor(Cookie& cookie) {
 }
 
 static void collections_set_manifest_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return c.getConnection()
-                      .getBucketEngine()
-                      .set_collection_manifest(c,
-                                               c.getRequest().getValueString());
-          }).drive();
+    cookie.obtainContext<SetCollectionManifestCommandContext>(cookie).drive();
 }
 
 static void verbosity_executor(Cookie& cookie) {

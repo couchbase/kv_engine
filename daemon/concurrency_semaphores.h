@@ -59,6 +59,9 @@ public:
     /// validation. The task has no inherent concurrency limitation, so the
     /// semaphore has a large number of tokens
     cb::AwaitableSemaphore bucket_config_validation{100};
+    /// set_collections_manifest is used to serialize collection manifest
+    /// updates
+    cb::AwaitableSemaphore set_collections_manifest{1};
 
 protected:
     ConcurrencySemaphores();
