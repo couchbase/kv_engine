@@ -4171,8 +4171,6 @@ TEST_P(DurabilityPassiveStreamTest, MajorityPrepareAbortedAtAbort) {
 
 TEST_P(DurabilityPassiveStreamTest,
        MajorityAndPersistOnMasterPrepareAbortedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
@@ -4182,8 +4180,6 @@ TEST_P(DurabilityPassiveStreamTest,
 }
 
 TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareAbortedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
@@ -4193,8 +4189,6 @@ TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareAbortedAtAbort) {
 
 TEST_P(DurabilityPassiveStreamTest,
        PersistToMajorityPrepareAbortedAndFlushedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
@@ -4211,8 +4205,6 @@ TEST_P(DurabilityPassiveStreamTest, MajorityPrepareCommittedAtAbort) {
 
 TEST_P(DurabilityPassiveStreamTest,
        MajorityAndPersistOnMasterPrepareCommittedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
@@ -4222,8 +4214,6 @@ TEST_P(DurabilityPassiveStreamTest,
 }
 
 TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareCommittedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
@@ -4233,8 +4223,6 @@ TEST_P(DurabilityPassiveStreamTest, PersistToMajorityPrepareCommittedAtAbort) {
 
 TEST_P(DurabilityPassiveStreamTest,
        PersistToMajorityPrepareCommittedAndFlushedAtAbort) {
-    // @todo: Skip the test until MB-36772 is done (Replica should reject
-    //  PersistTo prepare)
     if (ephemeral()) {
         return;
     }
