@@ -158,16 +158,3 @@ TEST_P(BucketConfigTest, ValidateThrottleReservedGreaterThanHardLimit) {
               "throttle_hard_limit cannot be less than current "
               "throttle_reserved of 2001");
 }
-
-TEST_P(BucketConfigTest, ValidateThrottleHardLimitLessThanCurrentReserved) {
-    using namespace std::string_view_literals;
-
-    // Fail as previous throttle_reserved is > the new throttle_hard_limit
-    auto testConfig = "bucket_type=persistent;throttle_hard_limit=2500";
-    auto response = adminConnection->validateBucketConfig(
-            testConfig, BucketType::Couchbase);
-    EXPECT_EQ(response["throttle_hard_limit"]["error"], "invalid_arguments");
-    EXPECT_EQ(response["throttle_hard_limit"]["message"],
-              "throttle_hard_limit cannot be less than current "
-              "throttle_reserved of 18446744073709551615");
-}

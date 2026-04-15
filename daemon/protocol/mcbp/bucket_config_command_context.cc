@@ -106,7 +106,7 @@ cb::engine_errc BucketConfigCommandContext::execute() {
                                 key,
                                 ParameterInfo(val,
                                               RequiresRestart::No,
-                                              ParameterVisibility::Public));
+                                              ParameterVisibility::Internal));
                     }
 
                     if (key == "throttle_hard_limit") {
@@ -122,7 +122,7 @@ cb::engine_errc BucketConfigCommandContext::execute() {
                                 key,
                                 ParameterInfo(val,
                                               RequiresRestart::No,
-                                              ParameterVisibility::Public));
+                                              ParameterVisibility::Internal));
                     }
                 } catch (const std::exception& e) {
                     validation.emplace(key,

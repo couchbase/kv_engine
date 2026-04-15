@@ -41,7 +41,7 @@ void Bucket::reset() {
     read_units_used = 0;
     write_units_used = 0;
     throttle_gauge.reset();
-    throttle_reserved = std::numeric_limits<std::size_t>::max();
+    throttle_reserved = 0;
     throttle_hard_limit = std::numeric_limits<std::size_t>::max();
     num_throttled = 0;
     num_commands = 0;

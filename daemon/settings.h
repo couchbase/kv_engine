@@ -1782,8 +1782,7 @@ protected:
     // (i.e. Rate Limit compaction I/O Only for SeqIndex Data-Level Compactions)
     std::atomic_bool magma_enable_compaction_dataonly_ratelimiting{false};
 
-    std::atomic<size_t> default_throttle_reserved_units =
-            std::numeric_limits<std::size_t>::max();
+    std::atomic<size_t> default_throttle_reserved_units = 0;
     std::atomic<size_t> default_throttle_hard_limit =
             std::numeric_limits<std::size_t>::max();
     std::atomic<size_t> read_unit_size = 4096;

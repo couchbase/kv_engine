@@ -55,8 +55,7 @@ TEST(BucketTest, Reset) {
             pause_cancellation_source = folly::CancellationSource{};
 
             reset();
-            EXPECT_EQ(std::numeric_limits<std::size_t>::max(),
-                      throttle_reserved);
+            EXPECT_EQ(0, throttle_reserved);
             EXPECT_EQ(std::numeric_limits<std::size_t>::max(),
                       throttle_hard_limit);
             EXPECT_EQ(0, num_throttled);
