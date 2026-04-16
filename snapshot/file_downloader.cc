@@ -133,7 +133,8 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
         log_callback(
                 warn,
                 "Fetch file complete invalid checksum",
-                {{"path", meta.path.string()},
+                {{"uuid", uuid},
+                 {"path", meta.path.string()},
                  {"duration", checksum_end - download_start},
                  {"file_download_duration",
                   file_download_end - file_download_start},
@@ -149,7 +150,8 @@ cb::engine_errc FileDownloader::download(const FileInfo& meta) const {
 
     log_callback(info,
                  "Fetch file complete",
-                 {{"path", meta.path.string()},
+                 {{"uuid", uuid},
+                  {"path", meta.path.string()},
                   {"duration", checksum_end - download_start},
                   {"file_download_duration",
                    file_download_end - file_download_start},
