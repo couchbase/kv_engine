@@ -2773,7 +2773,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 74> statNames = {
+    constexpr std::array<std::string_view, 80> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2850,7 +2850,16 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NTableFiles",
              "magma_NSyncs",
              "magma_DataBlocksSize",
-             "magma_DataBlocksCompressSize"}};
+             "magma_DataBlocksCompressSize",
+
+             // backup stats
+             "magma_contbk_NBackups",
+             "magma_contbk_NFailedBackups",
+             "magma_contbk_NBackupHardlinks",
+             "magma_contbk_NWriteIOs",
+             "magma_contbk_NBytesWritten",
+             "magma_contbk_NTableBytesBackedUp",
+    }};
 
     auto kvStoreStats = kvBucket->getKVStoreStats(statNames);
 
@@ -3074,6 +3083,18 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
                 Key::ep_magma_data_blocks_space_reduction_estimate_pct,
                 spaceReductionEstimatePct);
     }
+
+    // Continuous Backup
+    addStat(Key::ep_magma_contbk_num_backups, "magma_contbk_NBackups");
+    addStat(Key::ep_magma_contbk_num_failed_backups,
+            "magma_contbk_NFailedBackups");
+    addStat(Key::ep_magma_contbk_num_backup_hardlinks,
+            "magma_contbk_NBackupHardlinks");
+    addStat(Key::ep_magma_contbk_num_write_ios, "magma_contbk_NWriteIOs");
+    addStat(Key::ep_magma_contbk_num_bytes_written,
+            "magma_contbk_NBytesWritten");
+    addStat(Key::ep_magma_contbk_num_table_bytes_backedup,
+            "magma_contbk_NTableBytesBackedUp");
 }
 
 void EventuallyPersistentEngine::doEngineStatsFusion(

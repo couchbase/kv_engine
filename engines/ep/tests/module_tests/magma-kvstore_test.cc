@@ -256,7 +256,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 62> statNames = {{
+    constexpr std::array<std::string_view, 68> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -318,6 +318,12 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_HistogramMemUsed",
             "magma_DataBlocksSize",
             "magma_DataBlocksCompressSize",
+            "magma_contbk_NBackups",
+            "magma_contbk_NFailedBackups",
+            "magma_contbk_NBackupHardlinks",
+            "magma_contbk_NWriteIOs",
+            "magma_contbk_NBytesWritten",
+            "magma_contbk_NTableBytesBackedUp",
             "foo",
     }};
     auto stats = kvstore->getStats(statNames);

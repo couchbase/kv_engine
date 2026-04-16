@@ -4292,6 +4292,16 @@ GetStatsMap MagmaKVStore::getStats(
     fill("fusion_NumFileExtents", magmaStats->FusionFSStats.NumFileExtents);
     fill("fusion_NumFiles", magmaStats->FusionFSStats.NumFiles);
     fill("fusion_TotalFileSize", magmaStats->FusionFSStats.TotalFileSize);
+
+    /* Continuous Backup Stats */
+    fill("magma_contbk_NBackups", magmaStats->BackupStats.NBackups);
+    fill("magma_contbk_NFailedBackups", magmaStats->BackupStats.NFailedBackups);
+    fill("magma_contbk_NBackupHardlinks",
+         magmaStats->BackupStats.NBackupHardlinks);
+    fill("magma_contbk_NWriteIOs", magmaStats->BackupStats.NWriteIOs);
+    fill("magma_contbk_NBytesWritten", magmaStats->BackupStats.NBytesWritten);
+    fill("magma_contbk_NTableBytesBackedUp",
+         magmaStats->BackupStats.NTableBytesBackedup);
     return stats;
 }
 

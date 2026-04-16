@@ -7262,7 +7262,13 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_keyindex_write_bytes_filecount_compact",
                           "ep_magma_seqindex_write_bytes_filecount_compact",
                           "ep_magma_write_cache_mem_used",
-                          "ep_magma_writer_compactions"});
+                          "ep_magma_writer_compactions",
+                          "ep_magma_contbk_num_backups",
+                          "ep_magma_contbk_num_failed_backups",
+                          "ep_magma_contbk_num_backup_hardlinks",
+                          "ep_magma_contbk_num_write_ios",
+                          "ep_magma_contbk_num_bytes_written",
+                          "ep_magma_contbk_num_table_bytes_backedup"});
 
         // remove from all stats those which magma doesn't generate
         for (const auto& statName : {"ep_io_bg_fetch_read_count",

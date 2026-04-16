@@ -2156,6 +2156,48 @@
         "description": "The amount of data Fusion knows is pending sync but has decided to defer in order to reduce the number of uploads to FusionLogStore",
         "added": "8.1.0"
     },
+    /* Magma Continous Backup Stats */
+    {
+        "key": "ep_magma_contbk_num_backups",
+        "unit": "count",
+        "type": "counter",
+        "description": "Number of Backups that have occurred",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_contbk_num_failed_backups",
+        "unit": "count",
+        "type": "counter",
+        "description": "Number of Backups that have failed",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_contbk_num_backup_hardlinks",
+        "unit": "count",
+        "type": "counter",
+        "description": "Number of file hardlinks that have occurred as a part of backup",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_contbk_num_write_ios",
+        "unit": "count",
+        "type": "counter",
+        "description": "Number of Write IOs that have occurred as a part of backup",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_contbk_num_bytes_written",
+        "unit": "bytes",
+        "description": "Number of bytes written as a part of the backup",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_contbk_num_table_bytes_backedup",
+        "unit": "bytes",
+        "description": "Number of Table Bytes that have been backed up",
+        "added": "8.1.0"
+    },
+
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",
