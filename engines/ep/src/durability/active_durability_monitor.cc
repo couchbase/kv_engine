@@ -379,7 +379,11 @@ void ActiveDurabilityMonitor::addSyncWrite(CookieIface* cookie,
         throwException<std::logic_error>(__func__, "Impossible");
     }
 
-    state.wlock()->addSyncWrite(cookie, std::move(item));
+    state.wlock()->addSyncWrite(cookie, std::move(item), *resolvedQueue);
+
+    // An ack for the new write may have arrived before it was added to
+    // trackedWrites. If so, check if it is satisfied now.
+    checkForResolvedSyncWrites();
 }
 
 cb::engine_errc ActiveDurabilityMonitor::seqnoAckReceived(
@@ -1572,7 +1576,8 @@ void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
 }
 
 void ActiveDurabilityMonitor::State::addSyncWrite(CookieIface* cookie,
-                                                  queued_item item) {
+                                                  queued_item item,
+                                                  ResolvedQueue& toCommit) {
     Expects(firstChain.get());
     const auto seqno = item->getBySeqno();
     const auto wasEmpty = trackedWrites.empty();
@@ -1591,6 +1596,33 @@ void ActiveDurabilityMonitor::State::addSyncWrite(CookieIface* cookie,
 
     lastTrackedSeqno = seqno;
     totalAccepted++;
+
+    // MB-70999: It is possible for a replica's seqno ack to arrive (via DCP)
+    // before this prepare is added to trackedWrites. This race exists because
+    // the mutation is added to CheckpointManager which the DCPProducer reads
+    // from before it can be added to trackedWrites. When processSeqnoAck ran
+    // for this seqno, trackedWrites did not yet contain the write, so the
+    // write's ackCount was never incremented.
+    //
+    // Fix: after inserting, check each non-active node in both chains. If
+    // lastAckSeqno >= seqno the ack arrived early; replay processSeqnoAck
+    // so the ackCount is updated and the write is committed if satisfied.
+    auto reapplyMissedAcksForChain = [this, seqno, &toCommit](
+                                             const ReplicationChain& chain) {
+        for (const auto& entry : chain.positions) {
+            if (entry.first != chain.active &&
+                entry.second.lastAckSeqno >= seqno) {
+                // Replica acked up to our seqno
+                processSeqnoAck(
+                        entry.first, entry.second.lastAckSeqno, toCommit);
+            }
+        }
+    };
+
+    reapplyMissedAcksForChain(*firstChain);
+    if (secondChain) {
+        reapplyMissedAcksForChain(*secondChain);
+    }
 }
 
 void ActiveDurabilityMonitor::State::removeExpired(

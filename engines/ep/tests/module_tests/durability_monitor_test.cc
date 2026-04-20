@@ -1015,6 +1015,24 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
     EXPECT_EQ(makeStoredDocKey("key2"), items[1]->getKey());
 }
 
+// MB-70999: Race condition where a replica's seqno ack for
+// a prepare arrives before mutation is added to trackedWrites.
+TEST_P(ActiveDurabilityMonitorTest, SeqnoAckArrivesBeforeTrackedWrites) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+
+    // Ack received first
+    adm.seqnoAckReceived(replica1, 50);
+
+    // Add seqno 51 to trackedWrites. With the fix, addSyncWrite
+    // detects that replica1.lastAckSeqno (50) >= 50
+    DurabilityMonitorTest::addSyncWrites({50});
+
+    // Drain resolved writes. Seqno 50 should be commited.
+    vb->processResolvedSyncWrites();
+    assertNumTrackedAndHPSAndHCS(0, 50, 50);
+}
+
 TEST_P(ActiveDurabilityMonitorTest,
        CommitTopologyWithSyncWriteInCompletedQueue) {
     auto& adm = getActiveDM();
