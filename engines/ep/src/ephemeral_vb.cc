@@ -31,6 +31,7 @@
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
 #include <memcached/range_scan_optional_configuration.h>
+#include <platform/atomic.h>
 #include <variant>
 
 EphemeralVBucket::EphemeralVBucket(
@@ -133,6 +134,7 @@ bool EphemeralVBucket::pageOut(VBucketStateLockRef,
     switch (status) {
     case DeletionStatus::Success:
         ht.updateMaxDeletedRevSeqno(v->getRevSeqno());
+        setPagedSeqno(v->getBySeqno());
         notifyNewSeqno(notifyCtx);
         doCollectionsStats(readHandle, cid, notifyCtx);
         autoDeleteCount++;
@@ -233,6 +235,8 @@ void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                 seqList->getStaleValueBytes(),
                 add_stat,
                 c);
+
+        addStat("paged_seqno", pagedSeqno.load(), add_stat, c);
     }
 }
 
@@ -1195,4 +1199,16 @@ failover_entry_t EphemeralVBucket::processFailover() {
 
 void EphemeralVBucket::createFailoverEntry(uint64_t seqno) {
     failovers->createEntry(seqno);
+}
+
+bool EphemeralVBucket::canPagingResume() const {
+    return checkpointManager->haveAllCursorsSeenSeqno(pagedSeqno.load());
+}
+
+void EphemeralVBucket::setPagedSeqno(uint64_t seqno) {
+    atomic_setIfBigger(pagedSeqno, seqno);
+}
+
+uint64_t EphemeralVBucket::getPagedSeqno() const {
+    return pagedSeqno.load();
 }
