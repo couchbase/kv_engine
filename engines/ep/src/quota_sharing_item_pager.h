@@ -68,6 +68,8 @@ public:
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
             std::size_t bytesToEvict) const override;
 
+    bool canPageItems(const PageableMemInfo& memInfo) const override;
+
 private:
     /**
      * Calculates the number of evictable bytes from buckets in the specified
