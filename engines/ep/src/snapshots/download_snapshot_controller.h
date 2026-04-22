@@ -14,6 +14,7 @@
 #include <folly/Synchronized.h>
 #include <memcached/vbucket.h>
 #include <unordered_map>
+#include <variant>
 
 class StatCollector;
 class VBucketFilter;
