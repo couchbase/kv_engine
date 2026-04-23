@@ -3167,22 +3167,41 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     // kvstore isn't created and the vbstate isn't on disk which causes these
     // tests to fail. To avoid that, we set the timeout to 0 in unit test mode
     // which means we will just try once to read the vbstate and if it's not
-    // there we will fail immediately. In non-unit test mode, we wait up to 5
+    // there we will fail immediately. In non-unit test mode, we wait up to 30
     // seconds for the vbstate to appear on disk before failing. This should
     // give enough time for the kvstore to be created and the vbstate to be
     // written to disk in the case where compaction is triggered before any
     // mutations have been flushed to disk.
-    const auto gracePeriod = std::chrono::seconds{isUnitTestMode() ? 0 : 5};
-    const auto timeout = std::chrono::steady_clock::now() + gracePeriod;
+    const auto gracePeriod = std::chrono::seconds{isUnitTestMode() ? 0 : 30};
+    const auto started = std::chrono::steady_clock::now();
+    const auto timeout = started + gracePeriod;
+    int retries = 0;
     do {
         diskState = readVBStateFromDisk(vbid);
         if (diskState.status != ReadVBStateStatus::InvalidKvStore) {
+            if (retries > 0) {
+                logger->infoWithContext(
+                        "MagmaKVStore::compactDBInternal: Completed after "
+                        "waiting for vbucket creation through flush:",
+                        {{"vb", vbid},
+                         {"retries", retries},
+                         {"waittime",
+                          cb::time2text(std::chrono::steady_clock::now() -
+                                        started)}});
+            }
             break;
         }
 
-        if (std::chrono::steady_clock::now() + gracePeriod < timeout) {
+        if (std::chrono::steady_clock::now() < timeout) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         } else {
+            logger->warnWithContext(
+                    "MagmaKVStore::compactDBInternal: Timeout waiting for "
+                    "the kvstore to be created",
+                    {{"vb", vbid},
+                     {"waittime",
+                      cb::time2text(std::chrono::steady_clock::now() -
+                                    started)}});
             break;
         }
     } while (true);
