@@ -4714,5 +4714,18 @@
         "description": "Total number of bytes read from the bucket using GetFileFragment",
         "added": "8.1.0",
         "stability": "internal"
+    },
+    {
+        "key": "pager_deleted",
+        "unit": "bytes",
+        "description": "Number of bytes deleted by pager",
+        "added": "7.6.11"
+    },
+    {
+        "key": "pager_throttled",
+        "unit": "none",
+        "type": "counter",
+        "description": "Total number of times pager has been throttled",
+        "added": "7.6.11"
     }
 ]

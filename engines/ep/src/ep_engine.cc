@@ -3435,6 +3435,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
 
     kvBucket->getImplementationStats(collector);
+    kvBucket->addStats(collector);
 
     // Timing of all KVStore related stats
     const auto start = cb::time::steady_clock::now();
