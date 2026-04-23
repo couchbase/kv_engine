@@ -1048,11 +1048,17 @@ void Connection::logExecutionException(const std::string_view where,
                                        const std::exception& e) {
     setTerminationReason(std::string("Received exception: ") + e.what());
     shutdown();
-    if (!isAuthenticated() && isInvalidPacketHeaderMessage(e.what())) {
+    const auto isInvalidPacket = isInvalidPacketHeaderMessage(e.what());
+
+    if (!isAuthenticated() && isInvalidPacket) {
         // Mute logging for unauthenticated connections sending garbled data
         // to the port.. This may very well be port scanners or similar.
         return;
     }
+
+    const auto severity = isInvalidPacket ? spdlog::level::level_enum::warn
+                                          : spdlog::level::level_enum::err;
+
     try {
         auto array = nlohmann::json::array();
         for (const auto& c : cookies) {
@@ -1062,20 +1068,22 @@ void Connection::logExecutionException(const std::string_view where,
         }
         if (const auto* backtrace = cb::getBacktrace(e)) {
             auto callstack = createBacktraceJson(*backtrace);
-            LOG_ERROR_CTX("Exception occurred. Closing connection",
-                          {"conn_id", getId()},
-                          {"details", where},
-                          {"description", getDescription()},
-                          {"error", e.what()},
-                          {"cookies", std::move(array)},
-                          {"backtrace", std::move(callstack)});
+            CB_LOG_ENTRY_CTX(severity,
+                             "Exception occurred. Closing connection",
+                             {"conn_id", getId()},
+                             {"details", where},
+                             {"description", getDescription()},
+                             {"error", e.what()},
+                             {"cookies", std::move(array)},
+                             {"backtrace", std::move(callstack)});
         } else {
-            LOG_ERROR_CTX("Exception occurred. Closing connection",
-                          {"conn_id", getId()},
-                          {"details", where},
-                          {"description", getDescription()},
-                          {"error", e.what()},
-                          {"cookies", std::move(array)});
+            CB_LOG_ENTRY_CTX(severity,
+                             "Exception occurred. Closing connection",
+                             {"conn_id", getId()},
+                             {"details", where},
+                             {"description", getDescription()},
+                             {"error", e.what()},
+                             {"cookies", std::move(array)});
         }
     } catch (const std::exception& exception2) {
         try {
@@ -1083,15 +1091,15 @@ void Connection::logExecutionException(const std::string_view where,
             if (const auto* backtrace = cb::getBacktrace(e)) {
                 callstack = createBacktraceJson(*backtrace);
             }
-            LOG_ERROR_CTX(
-                    "Second exception occurred. Closing "
-                    "connection",
-                    {"conn_id", getId()},
-                    {"details", where},
-                    {"description", getDescription()},
-                    {"error", e.what()},
-                    {"secondary_error", exception2.what()},
-                    {"backtrace", std::move(callstack)});
+            CB_LOG_ENTRY_CTX(severity,
+                             "Second exception occurred. Closing "
+                             "connection",
+                             {"conn_id", getId()},
+                             {"details", where},
+                             {"description", getDescription()},
+                             {"error", e.what()},
+                             {"secondary_error", exception2.what()},
+                             {"backtrace", std::move(callstack)});
         } catch (const std::bad_alloc&) {
             // Logging failed.
         }
