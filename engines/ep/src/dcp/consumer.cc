@@ -712,7 +712,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
         }
     }
 
-    MutationResponse response(item,
+    MutationResponse response(std::move(item),
                               opaque,
                               includeDeleteTime,
                               key.getEncoding(),
