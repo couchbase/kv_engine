@@ -34,6 +34,10 @@
 #include <utilities/string_utilities.h>
 #include <string_view>
 
+#ifdef EP_USE_MAGMA
+#include <libmagma/magma.h>
+#endif
+
 // add global stats
 static void server_global_stats(const StatCollector& collector) {
     rel_time_t now = mc_time_get_current_time();
@@ -99,6 +103,10 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(
                 Key::magma_flusher_thread_percentage,
                 Settings::instance().getMagmaFlusherThreadPercentage());
+        collector.addStat(Key::magma_num_flusher_threads,
+                          magma::Magma::GetNumThreads(magma::Magma::Flusher));
+        collector.addStat(Key::magma_num_compactor_threads,
+                          magma::Magma::GetNumThreads(magma::Magma::Compactor));
     }
 }
 
