@@ -2,6 +2,7 @@ add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/codec/frameinfo.h
             ${Memcached_SOURCE_DIR}/include/mcbp/mcbp.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/datatype.h
+            ${Memcached_SOURCE_DIR}/include/mcbp/protocol/dcp_cache_transfer_buffer.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/feature.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/framebuilder.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/magic.h
@@ -55,6 +56,7 @@ target_link_libraries(mcbp_info PRIVATE Folly::headers mcbp platform)
 add_sanitizers(mcbp_info)
 
 cb_add_test_executable(mcbp_unit_tests
+               dcp_cache_transfer_buffer_test.cc
                feature_test.cc
                formatters_test.cc
                framebuilder_test.cc

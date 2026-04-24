@@ -1447,6 +1447,100 @@ protected:
 };
 static_assert(sizeof(DcpAbortPayload) == 16, "Unexpected struct size");
 
+class DcpCacheTransferPayload {
+public:
+    DcpCacheTransferPayload() = default;
+    DcpCacheTransferPayload(uint16_t key_len,
+                            uint32_t value_len,
+                            uint64_t cas,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t flags,
+                            uint32_t expiration,
+                            uint8_t datatype,
+                            uint8_t cacheHint)
+        : cas(htonll(cas)),
+          by_seqno(htonll(by_seqno)),
+          rev_seqno(htonll(rev_seqno)),
+          value_len(htonl(value_len)),
+          flags(flags),
+          expiration(htonl(expiration)),
+          key_len(htons(key_len)),
+          datatype(datatype),
+          cacheHint(cacheHint) {
+    }
+    uint64_t getCas() const {
+        return ntohll(cas);
+    }
+    void setCas(uint64_t cas) {
+        DcpCacheTransferPayload::cas = htonll(cas);
+    }
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpCacheTransferPayload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpCacheTransferPayload::rev_seqno = htonll(rev_seqno);
+    }
+    uint32_t getFlags() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        DcpCacheTransferPayload::flags = flags;
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        DcpCacheTransferPayload::expiration = htonl(expiration);
+    }
+    uint8_t getCacheHint() const {
+        return cacheHint;
+    }
+    void setCacheHint(uint8_t cacheHint) {
+        DcpCacheTransferPayload::cacheHint = cacheHint;
+    }
+    uint8_t getDatatype() const {
+        return datatype;
+    }
+    void setDatatype(uint8_t datatype) {
+        DcpCacheTransferPayload::datatype = datatype;
+    }
+    uint16_t getKeyLen() const {
+        return ntohs(key_len);
+    }
+    void setKeyLen(uint16_t len) {
+        key_len = htons(len);
+    }
+    uint32_t getValueLen() const {
+        return ntohl(value_len);
+    }
+    void setValueLen(uint32_t len) {
+        value_len = htonl(len);
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t cas{0};
+    uint64_t by_seqno{0};
+    uint64_t rev_seqno{0};
+    uint32_t value_len{0};
+    uint32_t flags{0};
+    uint32_t expiration{0};
+    uint16_t key_len{0};
+    uint8_t datatype{0};
+    uint8_t cacheHint{0};
+};
+static_assert(sizeof(DcpCacheTransferPayload) == 40, "Unexpected struct size");
+
 class SetParamPayload {
 public:
     enum class Type : uint32_t {
