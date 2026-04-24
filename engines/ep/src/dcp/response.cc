@@ -57,6 +57,8 @@ const char* DcpResponse::to_string() const {
         return "CacheTransferEnd";
     case Event::CacheTransferToActiveStream:
         return "CacheTransferToActiveStream";
+    case Event::CacheTransferRx:
+        return "CacheTransferRx";
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
@@ -373,6 +375,13 @@ bool CacheTransferToActiveStreamResponse::isEqual(
 bool CacheTransferEndConsumer::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const CacheTransferEndConsumer&>(rsp);
     return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
+}
+
+bool CacheTransferRxConsumer::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const CacheTransferRxConsumer&>(rsp);
+    return vbucket == other.vbucket &&
+           items.getData() == other.items.getData() &&
+           DcpResponse::isEqual(rsp);
 }
 
 bool DcpCacheTransfer::isEqual(const DcpResponse& rsp) const {

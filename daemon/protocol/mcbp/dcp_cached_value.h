@@ -20,3 +20,9 @@ cb::engine_errc dcp_cached_value(Cookie& cookie);
  * Handler for the DCP_CACHED_KEY_META message.
  */
 cb::engine_errc dcp_cached_key_meta(Cookie& cookie);
+
+/**
+ * Handler for the DCP_CACHE_TRANSFER message.
+ * This message contains a batch of items with key and value.
+ */
+cb::engine_errc dcp_cache_transfer(Cookie& cookie);

@@ -13,6 +13,7 @@
 #include <daemon/front_end_thread.h>
 #include <event2/event.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/limits.h>
@@ -1062,6 +1063,59 @@ TEST_P(DcpControlValidatorTest, InvalidBody) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class DcpCacheTransferValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    DcpCacheTransferValidatorTest() : ValidatorTest(GetParam()) {
+    }
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        // DcpCacheTransfer requires: extlen=0, keylen=0, value >= minSize()
+        // minSize() = sizeof(DcpCacheTransferPayload) + 2 = 39 + 2 = 41
+        request.setExtlen(0);
+        request.setKeylen(0);
+        request.setBodylen(cb::mcbp::DcpCacheTransferBuffer::minSize());
+    }
+
+protected:
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpCacheTransfer,
+                                       &request);
+    }
+};
+
+TEST_P(DcpCacheTransferValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+}
+
+TEST_P(DcpCacheTransferValidatorTest, ValueTooSmall) {
+    request.setBodylen(cb::mcbp::DcpCacheTransferBuffer::minSize() - 1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpCacheTransferValidatorTest, InvalidExtlen) {
+    request.setExtlen(1);
+    request.setBodylen(cb::mcbp::DcpCacheTransferBuffer::minSize() + 1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpCacheTransferValidatorTest, InvalidKeylen) {
+    request.setKeylen(4);
+    request.setBodylen(cb::mcbp::DcpCacheTransferBuffer::minSize() + 4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpCacheTransferValidatorTest, InvalidDatatype) {
+    request.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpCacheTransferValidatorTest, InvalidCas) {
+    request.setCas(12345);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 /**
  * Test class for DcpDeletion validation - the bool parameter toggles
  * collections on/off (as that subtly changes the encoding of a deletion)
@@ -1216,6 +1270,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DcpControlValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DcpCacheTransferValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(

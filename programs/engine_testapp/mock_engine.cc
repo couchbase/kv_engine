@@ -911,6 +911,18 @@ cb::engine_errc MockEngine::cache_transfer_end(CookieIface& cookie,
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
 
+cb::engine_errc MockEngine::cache_transfer_rx(
+        CookieIface& cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpCacheTransferBuffer items) {
+    auto engine_fn = [this, &cookie, opaque, vbucket, items]() {
+        return the_engine_dcp->cache_transfer_rx(
+                cookie, opaque, vbucket, items);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 void MockEngine::disconnect(CookieIface& cookie) {
     the_engine->disconnect(cookie);
 }

@@ -259,6 +259,11 @@ public:
     cb::engine_errc cache_transfer_end_rx(uint32_t opaque,
                                           Vbid vbucket) override;
 
+    cb::engine_errc cache_transfer_rx(
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpCacheTransferBuffer items) override;
+
     cb::engine_errc step(bool throttled,
                          DcpMessageProducersIface& producers) override;
 

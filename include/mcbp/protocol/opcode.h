@@ -154,6 +154,7 @@ enum class ClientOpcode : uint8_t {
     DcpCachedValue = 0x66,
     DcpCachedKeyMeta = 0x67,
     DcpCacheTransferEnd = 0x68,
+    DcpCacheTransfer = 0x69,
     /* End DCP */
 
     /// Fusion

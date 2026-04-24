@@ -389,6 +389,13 @@ public:
                                        Vbid) override {
         return cb::engine_errc::no_bucket;
     }
+    cb::engine_errc cache_transfer_rx(
+            CookieIface& cookie,
+            uint32_t,
+            Vbid,
+            cb::mcbp::DcpCacheTransferBuffer) override {
+        return cb::engine_errc::no_bucket;
+    }
 
     cb::engine::FeatureSet getFeatures() override {
         cb::engine::FeatureSet ret;

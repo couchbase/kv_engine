@@ -500,6 +500,8 @@ public:
               {"DCP_CACHED_KEY_META"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpCacheTransferEnd,
               {"DCP_CACHE_TRANSFER_END"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpCacheTransfer,
+              {"DCP_CACHE_TRANSFER"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpOsoSnapshot,
               {"DCP_OSO_SNAPSHOT"sv, {Attribute::Supported}});
         setup(ClientOpcode::StopPersistence,

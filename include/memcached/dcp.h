@@ -10,6 +10,7 @@
 #pragma once
 
 #include <gsl/gsl-lite.hpp>
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dcp_stream_id.h>
@@ -926,4 +927,22 @@ struct DcpIface {
      */
     [[nodiscard]] virtual cb::engine_errc cache_transfer_end(
             CookieIface& cookie, uint32_t opaque, Vbid vbucket) = 0;
+
+    /**
+     * Callback to the engine that a cache transfer message was received.
+     * The buffer contains an array of DcpCacheTransferPayload structures,
+     * each followed by the key and optional value data. The engine should
+     * iterate over this buffer to process each item.
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param vbucket The vbucket identifier for the items
+     * @param items The buffer containing serialized items to iterate
+     * @return Standard engine error code.
+     */
+    [[nodiscard]] virtual cb::engine_errc cache_transfer_rx(
+            CookieIface& cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpCacheTransferBuffer items) = 0;
 };

@@ -542,6 +542,12 @@ public:
                                        uint32_t opaque,
                                        Vbid vbucket) override;
 
+    cb::engine_errc cache_transfer_rx(
+            CookieIface& cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpCacheTransferBuffer items) override;
+
     // End DcpIface ///////////////////////////////////////////////////////////
 
     /**

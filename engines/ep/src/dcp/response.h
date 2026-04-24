@@ -16,6 +16,7 @@
 #include "item.h"
 #include "systemevent_factory.h"
 
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp.h>
 #include <memcached/dcp_stream_id.h>
@@ -46,6 +47,8 @@ public:
         // The following will replace CachedValue/CachedKeyMeta
         CacheTransfer,
         CacheTransferEnd,
+        // Consumer-side cache transfer (batched items from producer)
+        CacheTransferRx,
         CacheTransferToActiveStream
     };
 
@@ -125,6 +128,7 @@ public:
         case Event::CacheTransfer:
         case Event::CacheTransferEnd:
         case Event::CacheTransferToActiveStream:
+        case Event::CacheTransferRx:
             return false;
         }
         throw std::invalid_argument(
@@ -1505,4 +1509,39 @@ protected:
 
 private:
     Vbid vbucket;
+};
+
+/**
+ * CacheTransferRxConsumer is used by DcpConsumer for processing incoming
+ * batched cache transfer messages. This wraps a DcpCacheTransferBuffer which
+ * provides iteration over the serialized items received from the producer.
+ */
+class CacheTransferRxConsumer : public DcpResponse {
+public:
+    CacheTransferRxConsumer(uint32_t opaque,
+                            Vbid vbucket,
+                            cb::mcbp::DcpCacheTransferBuffer items)
+        : DcpResponse(Event::CacheTransferRx,
+                      opaque,
+                      cb::mcbp::DcpStreamId{/* no sid for replication*/},
+                      static_cast<uint32_t>(sizeof(cb::mcbp::Request) +
+                                            items.size())),
+          vbucket(vbucket),
+          items(items) {
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
+    }
+
+    const cb::mcbp::DcpCacheTransferBuffer& getItems() const {
+        return items;
+    }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
+private:
+    Vbid vbucket;
+    cb::mcbp::DcpCacheTransferBuffer items;
 };

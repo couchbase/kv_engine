@@ -1308,6 +1308,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::OSOSnapshot:
         case DcpResponse::Event::CacheTransferEnd:
         case DcpResponse::Event::CacheTransferToActiveStream:
+        case DcpResponse::Event::CacheTransferRx:
             break;
         }
 

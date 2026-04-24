@@ -475,6 +475,11 @@ public:
     cb::engine_errc cache_transfer_end(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket) override;
+    cb::engine_errc cache_transfer_rx(
+            CookieIface& cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpCacheTransferBuffer items) override;
 
 protected:
     GET_SERVER_API gsa;
@@ -1976,6 +1981,17 @@ cb::engine_errc EWB_Engine::cache_transfer_end(CookieIface& cookie,
         return cb::engine_errc::not_supported;
     }
     return real_engine_dcp->cache_transfer_end(cookie, opaque, vbucket);
+}
+
+cb::engine_errc EWB_Engine::cache_transfer_rx(
+        CookieIface& cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpCacheTransferBuffer items) {
+    if (!real_engine_dcp) {
+        return cb::engine_errc::not_supported;
+    }
+    return real_engine_dcp->cache_transfer_rx(cookie, opaque, vbucket, items);
 }
 
 unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa) {

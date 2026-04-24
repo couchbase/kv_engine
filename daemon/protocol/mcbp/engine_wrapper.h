@@ -429,6 +429,20 @@ cb::engine_errc dcpCacheTransferEnd(Cookie& cookie,
                                     Vbid vbucket);
 
 /**
+ * Calls the underlying engine DCP cache_transfer_rx
+ *
+ * @param cookie The cookie representing the connection
+ * @param opaque The opaque field in the received message
+ * @param vbid The vbucket id
+ * @param items The buffer containing serialized items to iterate
+ * @return cb::engine_errc
+ */
+cb::engine_errc dcpCacheTransfer(Cookie& cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 cb::mcbp::DcpCacheTransferBuffer items);
+
+/**
  * Calls the underlying engine DCP noop
  *
  * @param cookie The cookie representing the connection

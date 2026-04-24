@@ -24,6 +24,7 @@
 #include <cbcrypto/key_store.h>
 #include <dek/manager.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
@@ -917,6 +918,32 @@ static Status dcp_cached_key_meta_validator(Cookie& cookie) {
             cookie.getRequest().getCommandSpecifics<DcpMutationPayload>();
     if (payload.getBySeqno() == 0) {
         cookie.setErrorContext("Invalid seqno(0) for DCP Cached Key Meta");
+        return Status::Einval;
+    }
+
+    return verify_common_dcp_restrictions(cookie);
+}
+
+static Status dcp_cache_transfer_validator(Cookie& cookie) {
+    // No extras, no key in header - everything is in the value/body
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    if (cookie.getRequest().getValue().size() <
+        cb::mcbp::DcpCacheTransferBuffer::minSize()) {
+        cookie.setErrorContext(
+                fmt::format("Value length {} is too short for DCP Cache "
+                            "Transfer minimum {}",
+                            cookie.getRequest().getValue().size(),
+                            cb::mcbp::DcpCacheTransferBuffer::minSize()));
         return Status::Einval;
     }
 
@@ -3443,6 +3470,7 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::DcpAbort, dcp_abort_validator);
     setup(ClientOpcode::DcpCachedValue, dcp_mutation_validator);
     setup(ClientOpcode::DcpCachedKeyMeta, dcp_cached_key_meta_validator);
+    setup(ClientOpcode::DcpCacheTransfer, dcp_cache_transfer_validator);
     setup(ClientOpcode::DcpCacheTransferEnd, dcp_cache_transfer_end_validator);
     setup(ClientOpcode::IsaslRefresh, configuration_refresh_validator);
     setup(ClientOpcode::Verbosity, verbosity_validator);

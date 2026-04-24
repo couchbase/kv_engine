@@ -282,6 +282,12 @@ public:
     virtual cb::engine_errc cache_transfer_end_rx(uint32_t opaque,
                                                   Vbid vbucket);
 
+    /// Receive a cache transfer message containing batched items.
+    virtual cb::engine_errc cache_transfer_rx(
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpCacheTransferBuffer items);
+
     const char* logHeader() const;
 
     /**
