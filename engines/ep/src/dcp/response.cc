@@ -51,6 +51,8 @@ const char* DcpResponse::to_string() const {
         return "CachedValue";
     case Event::CachedKeyMeta:
         return "CachedKeyMeta";
+    case Event::CacheTransfer:
+        return "CacheTransfer";
     case Event::CacheTransferEnd:
         return "CacheTransferEnd";
     case Event::CacheTransferToActiveStream:
@@ -373,6 +375,14 @@ bool CacheTransferEndConsumer::isEqual(const DcpResponse& rsp) const {
     return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
 }
 
+bool DcpCacheTransfer::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const DcpCacheTransfer&>(rsp);
+    if (vbucket != other.vbucket || items != other.items) {
+        return false;
+    }
+    return DcpResponse::isEqual(rsp);
+}
+
 SystemEventFlatBuffers::SystemEventFlatBuffers(uint32_t opaque,
                                                std::string_view key,
                                                const queued_item& item,
@@ -380,4 +390,22 @@ SystemEventFlatBuffers::SystemEventFlatBuffers(uint32_t opaque,
     : SystemEventProducerMessage(opaque, item, sid), key(key) {
     // MB-54967: Decompress the value so the FlatBuffers content can be used.
     item->decompressValue();
+}
+
+uint32_t DcpCacheTransfer::calculateFlowControlSize(
+        const std::vector<cb::ItemWithCacheHint>& items,
+        cb::mcbp::DcpStreamId sid) {
+    // header
+    uint32_t size = sizeof(cb::mcbp::Request);
+    // + optional framing extras
+    if (sid) {
+        size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    }
+    // + each item payload/key/value (value can be 0)
+    for (const auto& entry : items) {
+        size += sizeof(cb::mcbp::request::DcpCacheTransferPayload);
+        size += entry.item->getDocKey().size() +
+                entry.item->getValueView().size();
+    }
+    return size;
 }

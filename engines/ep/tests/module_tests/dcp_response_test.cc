@@ -10,11 +10,33 @@
  */
 
 #include "dcp/response.h"
+#include "item.h"
+#include "kv_bucket_test.h"
 #include "test_helpers.h"
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey_view.h>
+
+/**
+ * Fixture for DcpResponse tests that need a live engine to own items — e.g.
+ * DcpCacheTransfer whose cb::unique_item_ptr uses cb::ItemDeleter{engine}
+ * during destruction.
+ */
+class DcpResponseEngineTest : public KVBucketTest {
+protected:
+    /// Allocate a new Item wrapped in a cb::unique_item_ptr whose deleter
+    /// dispatches back to the fixture's engine on destruction.
+    cb::unique_item_ptr makeItem(const std::string& key,
+                                 const std::string& value) {
+        auto* item = new Item(makeStoredDocKey(key),
+                              0 /*flags*/,
+                              0 /*exptime*/,
+                              value.data(),
+                              value.size());
+        return cb::unique_item_ptr{item, cb::ItemDeleter{engine.get()}};
+    }
+};
 
 TEST(DcpResponseTest, DcpCommit_getMessageSize) {
     std::string key("key"); // tests will see 'key\0'
@@ -162,6 +184,72 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
 
     EXPECT_EQ(smV2_0_size, smV2_0_high_completed_seqno.getMessageSize());
     EXPECT_EQ(smV2_0_size, smV2_0_max_visible_seqno.getMessageSize());
+}
+
+TEST_F(DcpResponseEngineTest, DcpCacheTransfer_getMessageSize) {
+    // Empty-items, no streamId: just the Request header.
+    {
+        DcpCacheTransfer dct(1 /*opaque*/, {} /*items*/, Vbid(2), {} /*sid*/);
+        EXPECT_EQ(sizeof(cb::mcbp::Request), dct.getMessageSize());
+        EXPECT_EQ(dct.getMessageSize(), dct.getApproximateSize());
+        EXPECT_EQ(Vbid(2), dct.getVBucket());
+        EXPECT_EQ(1u, dct.getOpaque());
+        EXPECT_EQ(DcpResponse::Event::CacheTransfer, dct.getEvent());
+    }
+
+    // Empty-items, with streamId: header + framing extras for the sid.
+    {
+        DcpCacheTransfer dct(
+                1 /*opaque*/, {} /*items*/, Vbid(2), cb::mcbp::DcpStreamId(7));
+        EXPECT_EQ(sizeof(cb::mcbp::Request) +
+                          sizeof(cb::mcbp::DcpStreamIdFrameInfo),
+                  dct.getMessageSize());
+    }
+
+    // Two items, no streamId.
+    {
+        const std::string key1 = "key1";
+        const std::string value1 = "value1";
+        const std::string key2 = "longerKey2";
+        const std::string value2; // empty value allowed
+
+        std::vector<cb::ItemWithCacheHint> items;
+        items.push_back({makeItem(key1, value1), 0 /*cacheHint*/});
+        items.push_back({makeItem(key2, value2), 0 /*cacheHint*/});
+
+        DcpCacheTransfer dct(
+                1 /*opaque*/, std::move(items), Vbid(2), {} /*sid*/);
+
+        const auto expected =
+                sizeof(cb::mcbp::Request) +
+                (2 * sizeof(cb::mcbp::request::DcpCacheTransferPayload)) +
+                makeStoredDocKey(key1).size() + value1.size() +
+                makeStoredDocKey(key2).size() + value2.size();
+        EXPECT_EQ(expected, dct.getMessageSize());
+        EXPECT_EQ(dct.getMessageSize(), dct.getApproximateSize());
+        EXPECT_EQ(2u, dct.getItems().size());
+    }
+
+    // One item, with streamId: header + framing extras + per-item payload.
+    {
+        const std::string key = "k1";
+        const std::string value = "v1";
+
+        std::vector<cb::ItemWithCacheHint> items;
+        items.push_back({makeItem(key, value), 0 /*cacheHint*/});
+
+        DcpCacheTransfer dct(1 /*opaque*/,
+                             std::move(items),
+                             Vbid(2),
+                             cb::mcbp::DcpStreamId(7));
+
+        const auto expected =
+                sizeof(cb::mcbp::Request) +
+                sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
+                makeStoredDocKey(key).size() + value.size();
+        EXPECT_EQ(expected, dct.getMessageSize());
+    }
 }
 
 TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {

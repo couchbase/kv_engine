@@ -31,6 +31,7 @@
 #include "kv_bucket.h"
 #include "learning_age_and_mfu_based_eviction.h"
 #include "objectregistry.h"
+#include "response.h"
 #include "snappy-c.h"
 #include "trace_helpers.h"
 #include "vbucket.h"
@@ -1251,6 +1252,14 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                             mutationResponse->getStreamId());
             break;
         }
+        case DcpResponse::Event::CacheTransfer: {
+            auto& ct = static_cast<DcpCacheTransfer&>(*resp);
+            ret = producers.cache_transfer_tx(ct.getOpaque(),
+                                              ct.getItems(),
+                                              ct.getVBucket(),
+                                              ct.getStreamId());
+            break;
+        }
         case DcpResponse::Event::CacheTransferToActiveStream: {
             auto& s = static_cast<CacheTransferToActiveStreamResponse&>(*resp);
             // First send the CacheTransferEnd message to the producer.
@@ -1287,6 +1296,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::SeqnoAdvanced:
         case DcpResponse::Event::CachedValue:
         case DcpResponse::Event::CachedKeyMeta:
+        case DcpResponse::Event::CacheTransfer:
             itemsSent++;
             break;
         case DcpResponse::Event::AddStream:

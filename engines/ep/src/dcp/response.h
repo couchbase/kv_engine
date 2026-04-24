@@ -17,6 +17,7 @@
 #include "systemevent_factory.h"
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
+#include <memcached/dcp.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
@@ -42,6 +43,8 @@ public:
         SeqnoAdvanced,
         CachedValue,
         CachedKeyMeta,
+        // The following will replace CachedValue/CachedKeyMeta
+        CacheTransfer,
         CacheTransferEnd,
         CacheTransferToActiveStream
     };
@@ -119,6 +122,7 @@ public:
         case Event::SeqnoAdvanced:
         case Event::CachedValue:
         case Event::CachedKeyMeta:
+        case Event::CacheTransfer:
         case Event::CacheTransferEnd:
         case Event::CacheTransferToActiveStream:
             return false;
@@ -414,6 +418,71 @@ protected:
 
 private:
     Vbid vbucket;
+};
+
+/**
+ * DcpCacheTransfer is used to batch multiple items for cache transfer.
+ * It holds a vector of cb::ItemWithCacheHint objects which can be pushed
+ * down the DcpProducers cache_transfer_tx API.
+ */
+class DcpCacheTransfer : public DcpResponse {
+public:
+    /**
+     * Construct a DcpCacheTransfer response
+     *
+     * @param opaque DCP opaque value
+     * @param items Vector of items to transfer
+     * @param vbucket The vbucket id
+     * @param sid The stream-ID
+     */
+    DcpCacheTransfer(uint32_t opaque,
+                     std::vector<cb::ItemWithCacheHint> items,
+                     Vbid vbucket,
+                     cb::mcbp::DcpStreamId sid)
+        : DcpResponse(Event::CacheTransfer,
+                      opaque,
+                      sid,
+                      calculateFlowControlSize(items, sid)),
+          items(std::move(items)),
+          vbucket(vbucket) {
+    }
+
+    /**
+     * @return non const reference - the internal item can be moved to
+     * alternative ownership
+     */
+    std::vector<cb::ItemWithCacheHint>& getItems() {
+        return items;
+    }
+
+    Vbid getVBucket() const {
+        return vbucket;
+    }
+
+    /**
+     * Calculate the flow control size for this cache transfer message.
+     *
+     * For each item: DcpCacheTransferPayload + key size + value size (if
+     * CacheTransferValue event type)
+     *
+     * @param items The items to transfer
+     * @param sid The stream-ID
+     * @return The total flow control size
+     */
+    static uint32_t calculateFlowControlSize(
+            const std::vector<cb::ItemWithCacheHint>& items,
+            cb::mcbp::DcpStreamId sid);
+
+    size_t getApproximateSize() const override {
+        return getMessageSize();
+    }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
+private:
+    std::vector<cb::ItemWithCacheHint> items;
+    const Vbid vbucket;
 };
 
 class SetVBucketState : public DcpResponse {
