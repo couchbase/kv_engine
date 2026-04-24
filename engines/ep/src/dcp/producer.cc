@@ -1230,28 +1230,6 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                            resp->getStreamId());
             break;
         }
-        case DcpResponse::Event::CachedValue: {
-            Expects(itmCpy);
-            ret = producers.cached_value(
-                    mutationResponse->getOpaque(),
-                    toUniqueItemPtr(std::move(itmCpy)),
-                    mutationResponse->getVBucket(),
-                    *mutationResponse->getBySeqno(),
-                    mutationResponse->getRevSeqno(),
-                    encodeItemHotness(*mutationResponse->getItem()),
-                    mutationResponse->getStreamId());
-            break;
-        }
-        case DcpResponse::Event::CachedKeyMeta: {
-            Expects(itmCpy);
-            ret = producers.cached_key_meta(mutationResponse->getOpaque(),
-                                            toUniqueItemPtr(std::move(itmCpy)),
-                                            mutationResponse->getVBucket(),
-                                            *mutationResponse->getBySeqno(),
-                                            mutationResponse->getRevSeqno(),
-                                            mutationResponse->getStreamId());
-            break;
-        }
         case DcpResponse::Event::CacheTransfer: {
             auto& ct = static_cast<DcpCacheTransfer&>(*resp);
             ret = producers.cache_transfer_tx(ct.getOpaque(),
@@ -1294,8 +1272,6 @@ cb::engine_errc DcpProducer::step(bool throttled,
         case DcpResponse::Event::Prepare:
         case DcpResponse::Event::SystemEvent:
         case DcpResponse::Event::SeqnoAdvanced:
-        case DcpResponse::Event::CachedValue:
-        case DcpResponse::Event::CachedKeyMeta:
         case DcpResponse::Event::CacheTransfer:
             itemsSent++;
             break;
@@ -1790,7 +1766,6 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpPrepare:
     case cb::mcbp::ClientOpcode::DcpCommit:
     case cb::mcbp::ClientOpcode::DcpAbort:
-    case cb::mcbp::ClientOpcode::DcpCachedKeyMeta:
     case cb::mcbp::ClientOpcode::DcpCacheTransferEnd:
         if (responseStatus == cb::mcbp::Status::Success) {
             return true;
@@ -2395,8 +2370,6 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
     case DcpResponse::Event::SystemEvent:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
-    case DcpResponse::Event::CachedValue:
-    case DcpResponse::Event::CachedKeyMeta:
     case DcpResponse::Event::CacheTransfer:
     case DcpResponse::Event::CacheTransferEnd:
     case DcpResponse::Event::CacheTransferToActiveStream:

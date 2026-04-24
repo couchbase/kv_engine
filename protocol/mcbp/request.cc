@@ -418,8 +418,6 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::GetFusionNamespaces:
         case ClientOpcode::CreateFusionNamespace:
         case ClientOpcode::SetChronicleAuthToken:
-        case ClientOpcode::DcpCachedValue:
-        case ClientOpcode::DcpCachedKeyMeta:
         case ClientOpcode::DcpCacheTransferEnd:
         case ClientOpcode::DcpCacheTransfer:
             // The command don't take (or we don't support decoding) extras

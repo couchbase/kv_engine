@@ -807,21 +807,6 @@ public:
                                    uint64_t seqno,
                                    cb::mcbp::DcpStreamId sid) override;
 
-    cb::engine_errc cached_value(uint32_t opaque,
-                                 cb::unique_item_ptr itm,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint8_t nru,
-                                 cb::mcbp::DcpStreamId sid) override;
-
-    cb::engine_errc cached_key_meta(uint32_t opaque,
-                                    cb::unique_item_ptr itm,
-                                    Vbid vbucket,
-                                    uint64_t by_seqno,
-                                    uint64_t rev_seqno,
-                                    cb::mcbp::DcpStreamId sid) override;
-
     cb::engine_errc cache_transfer_tx(uint32_t opaque,
                                       gsl::span<cb::ItemWithCacheHint> items,
                                       Vbid vbucket,
@@ -1112,18 +1097,6 @@ protected:
     // Reset blocked send queue if it's no longer full.
     void updateBlockedSendQueue(
             const std::chrono::steady_clock::time_point& now);
-
-    // Handler to generate a DcpMutation, DcpCachedValue or DcpCachedKeyMeta
-    // message
-    cb::engine_errc mutation_or_cache_message(cb::mcbp::ClientOpcode opcode,
-                                              uint32_t opaque,
-                                              cb::unique_item_ptr it,
-                                              Vbid vbucket,
-                                              uint64_t by_seqno,
-                                              uint64_t rev_seqno,
-                                              uint32_t lock_time,
-                                              uint8_t nru,
-                                              cb::mcbp::DcpStreamId sid);
 
     /**
      * Maximize TCP socket buffer to the maximum allowed by the system

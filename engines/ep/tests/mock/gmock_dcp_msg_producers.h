@@ -200,25 +200,6 @@ public:
                 (override));
 
     MOCK_METHOD(cb::engine_errc,
-                cached_value,
-                (uint32_t opaque,
-                 Item* itm,
-                 Vbid vbucket,
-                 uint64_t by_seqno,
-                 uint64_t rev_seqno,
-                 uint8_t nru,
-                 cb::mcbp::DcpStreamId sid));
-
-    MOCK_METHOD(cb::engine_errc,
-                cached_key_meta,
-                (uint32_t opaque,
-                 Item* itm,
-                 Vbid vbucket,
-                 uint64_t by_seqno,
-                 uint64_t rev_seqno,
-                 cb::mcbp::DcpStreamId sid));
-
-    MOCK_METHOD(cb::engine_errc,
                 cache_transfer_tx,
                 (uint32_t opaque,
                  gsl::span<cb::ItemWithCacheHint> items,
@@ -317,35 +298,5 @@ public:
                        nru,
                        document_state,
                        level);
-    }
-
-    cb::engine_errc cached_value(uint32_t opaque,
-                                 cb::unique_item_ptr itm,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint8_t nru,
-                                 cb::mcbp::DcpStreamId sid) override {
-        return cached_value(opaque,
-                            reinterpret_cast<Item*>(itm.get()),
-                            vbucket,
-                            by_seqno,
-                            rev_seqno,
-                            nru,
-                            sid);
-    }
-
-    cb::engine_errc cached_key_meta(uint32_t opaque,
-                                    cb::unique_item_ptr itm,
-                                    Vbid vbucket,
-                                    uint64_t by_seqno,
-                                    uint64_t rev_seqno,
-                                    cb::mcbp::DcpStreamId sid) override {
-        return cached_key_meta(opaque,
-                               reinterpret_cast<Item*>(itm.get()),
-                               vbucket,
-                               by_seqno,
-                               rev_seqno,
-                               sid);
     }
 };

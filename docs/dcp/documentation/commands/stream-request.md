@@ -305,8 +305,8 @@ For example:
 * vb-uuid = X (assumed to match active)
 
 Creates a cache-transfer that will visit the hash-table of vbucket 1 and send
-all _live_ documents that have a seqno <= 100. These documents are sent using a
-DcpCachedValue message and there is no ordering or "snapshot" semantics. Once
+all _live_ documents that have a seqno <= 100. These documents are sent using
+DcpCacheTransfer messages and there is no ordering or "snapshot" semantics. Once
 the hash-table has been fully visited and all eligible documents transmitted,
 the DCP stream will then send documents > seqno 100 conforming to "regular
 DCP", that is DcpSnapshot containing sequences of DcpMutation, Expiration, Deletion,

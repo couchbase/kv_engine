@@ -207,8 +207,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::DcpCommit, require<Privilege::DcpConsumer>);
     setup(ClientOpcode::DcpAbort, require<Privilege::DcpConsumer>);
     setup(ClientOpcode::DcpSeqnoAdvanced, require<Privilege::DcpConsumer>);
-    setup(ClientOpcode::DcpCachedValue, require<Privilege::DcpConsumer>);
-    setup(ClientOpcode::DcpCachedKeyMeta, require<Privilege::DcpConsumer>);
     setup(ClientOpcode::DcpCacheTransfer, require<Privilege::DcpConsumer>);
     setup(ClientOpcode::DcpCacheTransferEnd, require<Privilege::DcpConsumer>);
     setup(ClientOpcode::StopPersistence, require<Privilege::Administrator>);

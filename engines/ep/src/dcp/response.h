@@ -42,9 +42,6 @@ public:
         SeqnoAcknowledgement,
         OSOSnapshot,
         SeqnoAdvanced,
-        CachedValue,
-        CachedKeyMeta,
-        // The following will replace CachedValue/CachedKeyMeta
         CacheTransfer,
         CacheTransferEnd,
         // Consumer-side cache transfer (batched items from producer)
@@ -123,8 +120,6 @@ public:
         case Event::SeqnoAcknowledgement:
         case Event::OSOSnapshot:
         case Event::SeqnoAdvanced:
-        case Event::CachedValue:
-        case Event::CachedKeyMeta:
         case Event::CacheTransfer:
         case Event::CacheTransferEnd:
         case Event::CacheTransferToActiveStream:
@@ -466,8 +461,7 @@ public:
     /**
      * Calculate the flow control size for this cache transfer message.
      *
-     * For each item: DcpCacheTransferPayload + key size + value size (if
-     * CacheTransferValue event type)
+     * For each item: DcpCacheTransferPayload + key size + value size.
      *
      * @param items The items to transfer
      * @param sid The stream-ID
@@ -605,17 +599,15 @@ public:
      * @param enableExpiryOutput Whether the response should utilise expiry
      *        opcode output (if item is deleted and deletion source is TTL)
      * @param sid The stream-ID
-     * @param eventType Optional Event. If not defined the Item defines the
-     * Event (see eventFromItem) else this defines the Event.
+
      */
     MutationResponse(queued_item item,
                      uint32_t opaque,
                      IncludeDeleteTime includeDeleteTime,
                      DocKeyEncodesCollectionId includeCollectionID,
                      EnableExpiryOutput enableExpiryOut,
-                     cb::mcbp::DcpStreamId sid,
-                     std::optional<Event> eventType = std::nullopt)
-        : DcpResponse(eventType ? *eventType : eventFromItem(*item),
+                     cb::mcbp::DcpStreamId sid)
+        : DcpResponse(eventFromItem(*item),
                       opaque,
                       sid,
                       calculateFlowControlSize(*item,

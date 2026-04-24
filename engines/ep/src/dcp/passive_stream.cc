@@ -305,11 +305,8 @@ cb::engine_errc PassiveStream::messageReceived(const DcpResponse& dcpResponse,
     }
     auto seqno = dcpResponse.getBySeqno();
     if (seqno) {
-        // Check for seqno ordering except when there is a CachedValue which is
-        // not in seqno order.
-        if (uint64_t(*seqno) <= last_seqno.load() &&
-            (dcpResponse.getEvent() != DcpResponse::Event::CachedValue &&
-             dcpResponse.getEvent() != DcpResponse::Event::CachedKeyMeta)) {
+        // Check for seqno ordering.
+        if (uint64_t(*seqno) <= last_seqno.load()) {
             OBJ_LOG_WARN_CTX(
                     *this,
                     "Erroneous (out of sequence) message received, with "
@@ -516,8 +513,6 @@ cb::engine_errc PassiveStream::processMessageInner(
     case DcpResponse::Event::SeqnoAcknowledgement:
     case DcpResponse::Event::OSOSnapshot:
     case DcpResponse::Event::SeqnoAdvanced:
-    case DcpResponse::Event::CachedValue:
-    case DcpResponse::Event::CachedKeyMeta:
     case DcpResponse::Event::CacheTransfer:
     case DcpResponse::Event::CacheTransferEnd:
     case DcpResponse::Event::CacheTransferToActiveStream:
@@ -1393,10 +1388,6 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::SystemEvent:
         ret = processSystemEvent(static_cast<const SystemEventMessage&>(resp));
         break;
-    case DcpResponse::Event::CachedValue:
-    case DcpResponse::Event::CachedKeyMeta:
-        ret = processCacheTransfer(static_cast<const MutationResponse&>(resp));
-        break;
     case DcpResponse::Event::CacheTransferRx: {
         ret = processCacheTransfer(
                 static_cast<const CacheTransferRxConsumer&>(resp).getItems());
@@ -1475,68 +1466,10 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
 
     const auto seqno = resp.getBySeqno();
     if (err == cb::engine_errc::success && seqno) {
-        // Cache Transfer is not in seqno order, so we need to reset the
-        // last_seqno to the seqno of the message..
-        if (resp.getEvent() == DcpResponse::Event::CachedValue ||
-            resp.getEvent() == DcpResponse::Event::CachedKeyMeta) {
-            last_seqno.reset(*seqno);
-        } else {
-            last_seqno.store(*seqno);
-        }
+        last_seqno.store(*seqno);
     }
 
     return ret;
-}
-
-cb::engine_errc PassiveStream::processCacheTransfer(
-        const MutationResponse& resp) {
-    VBucketPtr vb = engine->getVBucket(vb_);
-
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    std::shared_lock rlh(vb->getStateLock());
-
-    if (!permittedVBStates.test(vb->getState())) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    // Upsert the item with no memory check.
-    // DCP should only be progressing forwards with messages when memory is
-    // available (see the normal mutation path for equivalent where
-    // EnforceMemCheck is No)
-    const auto status = vb->upsertToHashTable(
-            *resp.getItem(),
-            false,
-            resp.getEvent() == DcpResponse::Event::CachedKeyMeta,
-            false);
-
-    switch (status) {
-    case MutationStatus::InvalidCas:
-        // CacheTransfer hit a clash... cancel and switch to regular streaming.
-        return cb::engine_errc::cancelled;
-    case MutationStatus::NotFound:
-        // This is a success case, so we can increment the cache transfer bytes
-        // read.
-        engine->getEpStats().cacheTransferBytesRead += resp.getItem()->size();
-        break;
-    case MutationStatus::NoMem:
-    case MutationStatus::WasClean:
-    case MutationStatus::WasDirty:
-    case MutationStatus::IsLocked:
-    case MutationStatus::NeedBgFetch:
-    case MutationStatus::IsPendingSyncWrite:
-        OBJ_LOG_WARN_CTX(
-                *this,
-                "PassiveStream::processCachedValue: invalid MutationStatus "
-                "returned by Vbucket::upsertToHashTable",
-                {"vb", vb_},
-                {"status", ::to_string(status)});
-        return cb::engine_errc::disconnect;
-    }
-
-    return cb::engine_errc::success;
 }
 
 cb::engine_errc PassiveStream::processCacheTransfer(

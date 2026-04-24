@@ -2747,34 +2747,6 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
     EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
 }
 
-TEST(MutationResponseTest, Construct) {
-    auto item = makeCommittedItem(makeStoredDocKey("key"), "value", Vbid{0});
-    auto response =
-            std::make_unique<MutationResponse>(item,
-                                               1 /*opaque*/,
-                                               IncludeDeleteTime::No,
-                                               DocKeyEncodesCollectionId::Yes,
-                                               EnableExpiryOutput::No,
-                                               cb::mcbp::DcpStreamId{100});
-    EXPECT_EQ(DcpResponse::Event::Mutation, response->getEvent());
-    EXPECT_EQ(1, response->getOpaque());
-    EXPECT_EQ(cb::mcbp::DcpStreamId{100}, response->getStreamId());
-    EXPECT_EQ(67, response->getMessageSize());
-
-    response =
-            std::make_unique<MutationResponse>(item,
-                                               1 /*opaque*/,
-                                               IncludeDeleteTime::No,
-                                               DocKeyEncodesCollectionId::Yes,
-                                               EnableExpiryOutput::No,
-                                               cb::mcbp::DcpStreamId{100},
-                                               DcpResponse::Event::CachedValue);
-    EXPECT_EQ(DcpResponse::Event::CachedValue, response->getEvent());
-    EXPECT_EQ(1, response->getOpaque());
-    EXPECT_EQ(67, response->getMessageSize());
-    EXPECT_EQ(cb::mcbp::DcpStreamId{100}, response->getStreamId());
-}
-
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&

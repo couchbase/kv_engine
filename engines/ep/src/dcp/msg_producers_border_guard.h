@@ -154,21 +154,6 @@ public:
                                    uint64_t seqno,
                                    cb::mcbp::DcpStreamId sid) override;
 
-    cb::engine_errc cached_value(uint32_t opaque,
-                                 cb::unique_item_ptr,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint8_t nru,
-                                 cb::mcbp::DcpStreamId sid) override;
-
-    cb::engine_errc cached_key_meta(uint32_t opaque,
-                                    cb::unique_item_ptr,
-                                    Vbid vbucket,
-                                    uint64_t by_seqno,
-                                    uint64_t rev_seqno,
-                                    cb::mcbp::DcpStreamId sid) override;
-
     cb::engine_errc cache_transfer_tx(uint32_t opaque,
                                       gsl::span<cb::ItemWithCacheHint> items,
                                       Vbid vbucket,

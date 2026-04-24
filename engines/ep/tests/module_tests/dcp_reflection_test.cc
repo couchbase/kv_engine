@@ -151,7 +151,7 @@ public:
         void transferPrepare(const StoredDocKey& expectedKey,
                              uint64_t expectedSeqno);
 
-        void transferCachedValue();
+        void transferCacheBatch();
 
         void transferCache(
                 DcpResponse& response,
@@ -623,7 +623,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
     EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
 }
 
-void DCPLoopbackTestHelper::DcpRoute::transferCachedValue() {
+void DCPLoopbackTestHelper::DcpRoute::transferCacheBatch() {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
@@ -2968,7 +2968,7 @@ TEST_P(DCPCacheTransfer, CacheTransfer) {
     }
 
     // Everything batched into one payload.
-    route0_1.transferCachedValue();
+    route0_1.transferCacheBatch();
 
     // Now the replica as the values as resident, but not dirty (nothing to
     // flush)
@@ -3004,7 +3004,7 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
         EXPECT_FALSE(replicaVB->ht.findForRead(key).storedValue);
     }
     // 1 value, then OOM.
-    route0_1.transferCachedValue();
+    route0_1.transferCacheBatch();
 
     auto status = cb::engine_errc::no_memory;
     if (!fullEviction()) {
@@ -3084,7 +3084,7 @@ TEST_P(DCPCacheTransferVE, CacheTransferVE_ZeroResident) {
     }
 
     // CTS will have queued all key/meta in 1 CacheTransfer messages, no value
-    route0_1.transferCachedValue();
+    route0_1.transferCacheBatch();
 
     // Find the keys but not dirty and not resident.
     for (const auto& key : keys) {

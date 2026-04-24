@@ -450,28 +450,6 @@ public:
                           const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
-    cb::engine_errc cached_value(CookieIface& cookie,
-                                 uint32_t opaque,
-                                 const DocKeyView& key,
-                                 cb::const_byte_buffer value,
-                                 uint8_t datatype,
-                                 uint64_t cas,
-                                 Vbid vbucket,
-                                 uint32_t flags,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t expiration,
-                                 uint8_t nru) override;
-    cb::engine_errc cached_key_meta(CookieIface& cookie,
-                                    uint32_t opaque,
-                                    const DocKeyView& key,
-                                    uint8_t datatype,
-                                    uint64_t cas,
-                                    Vbid vbucket,
-                                    uint32_t flags,
-                                    uint64_t by_seqno,
-                                    uint64_t rev_seqno,
-                                    uint32_t expiration) override;
     cb::engine_errc cache_transfer_end(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket) override;
@@ -1918,60 +1896,6 @@ cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
     }
     return real_engine_dcp->abort(
             cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
-}
-
-cb::engine_errc EWB_Engine::cached_value(CookieIface& cookie,
-                                         uint32_t opaque,
-                                         const DocKeyView& key,
-                                         cb::const_byte_buffer value,
-                                         uint8_t datatype,
-                                         uint64_t cas,
-                                         Vbid vbucket,
-                                         uint32_t flags,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t expiration,
-                                         uint8_t nru) {
-    if (!real_engine_dcp) {
-        return cb::engine_errc::not_supported;
-    }
-    return real_engine_dcp->cached_value(cookie,
-                                         opaque,
-                                         key,
-                                         value,
-                                         datatype,
-                                         cas,
-                                         vbucket,
-                                         flags,
-                                         by_seqno,
-                                         rev_seqno,
-                                         expiration,
-                                         nru);
-}
-
-cb::engine_errc EWB_Engine::cached_key_meta(CookieIface& cookie,
-                                            uint32_t opaque,
-                                            const DocKeyView& key,
-                                            uint8_t datatype,
-                                            uint64_t cas,
-                                            Vbid vbucket,
-                                            uint32_t flags,
-                                            uint64_t by_seqno,
-                                            uint64_t rev_seqno,
-                                            uint32_t expiration) {
-    if (!real_engine_dcp) {
-        return cb::engine_errc::not_supported;
-    }
-    return real_engine_dcp->cached_key_meta(cookie,
-                                            opaque,
-                                            key,
-                                            datatype,
-                                            cas,
-                                            vbucket,
-                                            flags,
-                                            by_seqno,
-                                            rev_seqno,
-                                            expiration);
 }
 
 cb::engine_errc EWB_Engine::cache_transfer_end(CookieIface& cookie,

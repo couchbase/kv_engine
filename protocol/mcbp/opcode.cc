@@ -494,10 +494,6 @@ public:
         setup(ClientOpcode::DcpAbort, {"DCP_ABORT"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpSeqnoAdvanced,
               {"DCP_SEQNO_ADVANCED"sv, {Attribute::Supported}});
-        setup(ClientOpcode::DcpCachedValue,
-              {"DCP_CACHED_VALUE"sv, {Attribute::Supported}});
-        setup(ClientOpcode::DcpCachedKeyMeta,
-              {"DCP_CACHED_KEY_META"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpCacheTransferEnd,
               {"DCP_CACHE_TRANSFER_END"sv, {Attribute::Supported}});
         setup(ClientOpcode::DcpCacheTransfer,

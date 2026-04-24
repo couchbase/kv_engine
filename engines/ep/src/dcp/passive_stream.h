@@ -397,15 +397,15 @@ protected:
     ProcessMessageResult forceMessage(const DcpResponse& resp);
 
     /**
+     * Check if the event is a CacheTransfer and the eviction policy is Full.
+     */
+    bool isCacheTransferAndFullEviction(const DcpResponse& resp) const;
+
+    /**
      * Log when the CacheTransfer has signalled out of memory condition (and log
      * only once)
      */
     void maybeLogCacheTransferOutOfMemory();
-
-    /**
-     * Check if the event is a CachedValue and the eviction policy is Full.
-     */
-    bool isCacheTransferAndFullEviction(const DcpResponse& resp) const;
 
     /**
      * Add any cache transfer request configuration to the given json object.

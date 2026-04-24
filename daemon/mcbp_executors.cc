@@ -24,7 +24,6 @@
 #include "protocol/mcbp/bucket_config_command_context.h"
 #include "protocol/mcbp/bucket_management_command_context.h"
 #include "protocol/mcbp/create_fusion_namespace_command_context.h"
-#include "protocol/mcbp/dcp_cached_value.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
@@ -785,18 +784,6 @@ static void process_bin_dcp_response(Cookie& cookie) {
     }
 }
 
-static void dcp_cached_value_executor(Cookie& cookie) {
-    cookie.obtainContext<NoSuccessResponseCommandContext>(
-                  cookie, [](Cookie& c) { return dcp_cached_value(c); })
-            .drive();
-}
-
-static void dcp_cached_key_meta_executor(Cookie& cookie) {
-    cookie.obtainContext<NoSuccessResponseCommandContext>(
-                  cookie, [](Cookie& c) { return dcp_cached_key_meta(c); })
-            .drive();
-}
-
 static void dcp_cache_transfer_executor(Cookie& cookie) {
     cookie.obtainContext<NoSuccessResponseCommandContext>(
                   cookie,
@@ -882,10 +869,6 @@ void initialize_mbcp_lookup_map() {
                            process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
                            process_bin_dcp_response);
-    setup_response_handler(cb::mcbp::ClientOpcode::DcpCachedValue,
-                           process_bin_dcp_response);
-    setup_response_handler(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
-                           process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpCacheTransfer,
                            process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpCacheTransferEnd,
@@ -929,10 +912,6 @@ void initialize_mbcp_lookup_map() {
                   dcp_seqno_acknowledged_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCommit, dcp_commit_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_executor);
-    setup_handler(cb::mcbp::ClientOpcode::DcpCachedValue,
-                  dcp_cached_value_executor);
-    setup_handler(cb::mcbp::ClientOpcode::DcpCachedKeyMeta,
-                  dcp_cached_key_meta_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCacheTransfer,
                   dcp_cache_transfer_executor);
     setup_handler(cb::mcbp::ClientOpcode::DcpCacheTransferEnd,

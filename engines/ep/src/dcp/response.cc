@@ -47,10 +47,6 @@ const char* DcpResponse::to_string() const {
         return "OSO snapshot";
     case Event::SeqnoAdvanced:
         return "Seqno Advanced";
-    case Event::CachedValue:
-        return "CachedValue";
-    case Event::CachedKeyMeta:
-        return "CachedKeyMeta";
     case Event::CacheTransfer:
         return "CacheTransfer";
     case Event::CacheTransferEnd:

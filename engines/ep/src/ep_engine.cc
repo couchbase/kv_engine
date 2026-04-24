@@ -1432,58 +1432,6 @@ cb::engine_errc EventuallyPersistentEngine::abort(CookieIface& cookie,
     return conn->abort(opaque, vbucket, key, preparedSeqno, abortSeqno);
 }
 
-cb::engine_errc EventuallyPersistentEngine::cached_value(
-        CookieIface& cookie,
-        uint32_t opaque,
-        const DocKeyView& key,
-        cb::const_byte_buffer value,
-        uint8_t datatype,
-        uint64_t cas,
-        Vbid vbucket,
-        uint32_t flags,
-        uint64_t bySeqno,
-        uint64_t revSeqno,
-        uint32_t expiration,
-        uint8_t nru) {
-    auto engine = acquireEngine(this);
-    auto conn = engine->getConnHandler(cookie);
-    return conn->cached_value(opaque,
-                              key,
-                              value,
-                              datatype,
-                              cas,
-                              vbucket,
-                              flags,
-                              bySeqno,
-                              revSeqno,
-                              expiration,
-                              nru);
-}
-
-cb::engine_errc EventuallyPersistentEngine::cached_key_meta(
-        CookieIface& cookie,
-        uint32_t opaque,
-        const DocKeyView& key,
-        uint8_t datatype,
-        uint64_t cas,
-        Vbid vbucket,
-        uint32_t flags,
-        uint64_t bySeqno,
-        uint64_t revSeqno,
-        uint32_t expiration) {
-    auto engine = acquireEngine(this);
-    auto conn = engine->getConnHandler(cookie);
-    return conn->cached_key_meta(opaque,
-                                 key,
-                                 datatype,
-                                 cas,
-                                 vbucket,
-                                 flags,
-                                 bySeqno,
-                                 revSeqno,
-                                 expiration);
-}
-
 std::unique_ptr<ConfigurationIface> create_ep_bucket_configuration() {
 #ifdef CB_DEVELOPMENT_ASSERTS
     return std::make_unique<Configuration>(cb::serverless::isEnabled(), true);

@@ -276,7 +276,6 @@ protected:
         case cb::mcbp::ClientOpcode::DcpCommit:
         case cb::mcbp::ClientOpcode::DcpAbort:
         case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
-        case cb::mcbp::ClientOpcode::DcpCachedValue:
             dcpmsg = true;
             break;
 
