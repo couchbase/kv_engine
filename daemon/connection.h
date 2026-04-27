@@ -547,6 +547,10 @@ public:
      */
     virtual bool isPacketAvailable() const = 0;
 
+    /// Check to see if we have one packet available that we may start
+    /// executing (either in the cookies array or in the input stream)
+    bool isPacketReadyForExecutionAvailable() const;
+
     /**
      * Get all of the available bytes (up to 1k) in the input stream in
      * a continuous byte buffer.
@@ -876,6 +880,14 @@ public:
         dedupe_nmvb_maps = val;
     }
 
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /// Set if the client should be treated as if it has zero timeslice (for
+    /// testing purposes)
+    void setZeroTimeslize(bool value) {
+        zero_timeslice = value;
+    }
+#endif
+
     /// Do the client honor the Snappy flag on all kind of response
     /// payloads
     bool supportsSnappyEverywhere() const {
@@ -1121,6 +1133,12 @@ protected:
     /// number of references to the object (set to 1 during creation as the
     /// creator has a reference)
     uint8_t refcount{1};
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /// Used for unit tests to create a time slice of 0 seconds to test the
+    /// behavior if the OS preemts us while trying to execute cookies
+    std::atomic_bool zero_timeslice{false};
+#endif
 
     // Duration representing the total time the connection has spent blocked due
     // to a full send queue.

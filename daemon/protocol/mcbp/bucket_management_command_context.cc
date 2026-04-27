@@ -83,6 +83,9 @@ cb::engine_errc BucketManagementCommandContext::create() {
                             error.what());
                     status = cb::engine_errc::failed;
                 }
+#ifdef CB_DEVELOPMENT_ASSERTS
+                client->getConnection().setZeroTimeslize(true);
+#endif
                 client->notifyIoComplete(status);
             },
             ConcurrencySemaphores::instance().bucket_management,
