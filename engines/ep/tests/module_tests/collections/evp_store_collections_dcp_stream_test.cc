@@ -178,9 +178,9 @@ TEST_P(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // The abort will have scheduled a task to process the checkpoint.
-    auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
-    runNextTask(nonIOQueue,
-                "Process checkpoint(s) for DCP producer test_producer");
+    task_executor->runNextTask(
+            TaskType::QuickNonIO,
+            "Process checkpoint(s) for DCP producer test_producer");
 
     // And we get a snapshot - seqno advance replaces the abort.
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,

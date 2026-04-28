@@ -38,6 +38,8 @@
 #include "test_helpers.h"
 #include "vbucket_utils.h"
 
+using namespace std::string_view_literals;
+
 // Indexes for the engines we will use in the tests, a single array allows test
 // code to locate the engine for the Node
 using Node = int;
@@ -56,6 +58,12 @@ static TaskQueue* getLpNonIoQ() {
     auto* task_executor =
             reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
     return task_executor->getLpTaskQ(TaskType::NonIO);
+}
+
+static TaskQueue* getLpQuickNonIoQ() {
+    auto* task_executor =
+            reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
+    return task_executor->getLpTaskQ(TaskType::QuickNonIO);
 }
 
 /**
@@ -458,25 +466,41 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
     std::unique_ptr<DcpResponse> producerMsg(stream.next(*producer));
     if (!producerMsg) {
         // Run the next ready task to populate the streams' items. This could
-        // either be a NonIO task (ActiveStreamCheckpointProcessorTask) or
-        // AuxIO task (
-
-        // Note that the actual count of ready tasks isn't just the reaadyQueue
+        // either be a QuickNonIO task (ActiveStreamCheckpointProcessorTask) or
+        // AuxIO task.
+        // Note that the actual count of ready tasks isn't just the readyQueue
         // - tasks in the futureQ whose waketime is less than or equal to now
         // can also be run.
-        const auto auxIoQueueSize = getLpAuxQ()->getReadyQueueSize() +
-                                    getLpAuxQ()->getFutureQueueSize();
-        const auto nonIoQueueSize = getLpNonIoQ()->getReadyQueueSize() +
-                                    getLpNonIoQ()->getFutureQueueSize();
-        if (auxIoQueueSize > 0) {
-            CheckedExecutor executor(ExecutorPool::get(), *getLpAuxQ());
-            executor.runCurrentTask();
-            executor.completeCurrentTask();
-        } else if (nonIoQueueSize > 0) {
-            CheckedExecutor executor(ExecutorPool::get(), *getLpNonIoQ());
-            executor.runCurrentTask();
-            executor.completeCurrentTask();
-        } else {
+        bool executed = false;
+        for (auto* queue : {getLpAuxQ(), getLpNonIoQ(), getLpQuickNonIoQ()}) {
+            if (queue->getReadyQueueSize() > 0) {
+                CheckedExecutor executor(ExecutorPool::get(), *queue);
+                executor.runCurrentTask();
+                executor.completeCurrentTask();
+                executed = true;
+                break;
+            }
+        }
+        if (!executed) {
+            for (auto* queue :
+                 {getLpAuxQ(), getLpNonIoQ(), getLpQuickNonIoQ()}) {
+                if (queue->getFutureQueueSize() > 0) {
+                    try {
+                        CheckedExecutor executor(ExecutorPool::get(), *queue);
+                        executor.runCurrentTask();
+                        executor.completeCurrentTask();
+                        executed = true;
+                        break;
+                    } catch (const std::logic_error& ex) {
+                        if (ex.what() !=
+                            "CheckedExecutor failed fetchNextTask"sv) {
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+        if (!executed) {
             ADD_FAILURE() << "Expected to have at least one task in AuxIO / "
                              "NonIO ready/future queues after null "
                              "producerMsg, but both are zero";

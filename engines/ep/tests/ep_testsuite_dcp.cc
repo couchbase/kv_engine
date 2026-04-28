@@ -63,6 +63,20 @@ static auto pauseNonIoPool() {
 }
 
 /**
+ * Disables all QuickNonIo thread pool threads while the returned guard is in
+ * scope.
+ */
+static auto pauseQuickNonIoPool() {
+    auto originalThreadCount = ExecutorPool::get()->getNumQuickNonIO();
+    ExecutorPool::get()->setNumQuickNonIO(
+            ThreadPoolConfig::QuickNonIoThreadCount(0));
+    return folly::makeGuard([originalThreadCount]() {
+        ExecutorPool::get()->setNumQuickNonIO(
+                ThreadPoolConfig::QuickNonIoThreadCount(originalThreadCount));
+    });
+}
+
+/**
  * Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
  * introduces a blocking step, so we have to simulate the Producer response for
  * letting dcp_step() proceed.
@@ -764,10 +778,11 @@ cb::engine_errc TestDcpConsumer::openStreams() {
         /* Initiate stream request */
         uint64_t rollback = 0;
 
-        // While this is in scope, disable the NonIO pool.
+        // While these are in scope, disable the NonIO and QuickNonIO pool.
         // We verify some stats for the newly created stream below, and we don't
         // want to race with the stream disappearing (set to dead or destroyed).
-        auto pauseStreamGuard = pauseNonIoPool();
+        auto pauseNonIoGuard = pauseNonIoPool();
+        auto pauseQuickNonIoGuard = pauseQuickNonIoPool();
 
         cb::engine_errc rv = dcp->stream_req(*cookie,
                                              ctx.flags,

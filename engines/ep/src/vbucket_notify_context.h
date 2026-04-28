@@ -77,11 +77,10 @@ private:
      *    be notified and have to step (taking time away from other ops).
      *
      * 3) When there are no items in an ActiveStream's ready queue the front end
-     *    worker stepping will schedule the
-     *    ActiveStreamCheckpointProcessorTask. This will run on an NonIO thread
-     *    and enqueue nothing into the ActiveStream's ready queue if the only
-     *    item is a prepare. This will slow down other SyncWrites if NonIO
-     *    threads are a bottleneck.
+     *    worker stepping will schedule the ActiveStreamCheckpointProcessorTask.
+     *    This will run on a QuickNonIO thread and enqueue nothing into the
+     *    ActiveStream's ready queue if the only item is a prepare. This will
+     *    slow down other SyncWrites if QuickNonIO threads are a bottleneck.
      *
      * 4) The ActiveStreamCheckpointProcessorTask would then notify the front
      *    end worker once more which would step (taking time away from other

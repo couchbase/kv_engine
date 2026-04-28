@@ -551,8 +551,9 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     producer->cancelCheckpointCreatorTask();
     /* Checkpoint processor task finishes up and releases its producer
        reference */
-    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    runNextTask(lpNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
+    task_executor->runNextTask(
+            TaskType::QuickNonIO,
+            "Process checkpoint(s) for DCP producer " + testName);
 
     engine->getDcpConnMap().shutdownAllConnections();
     mock_stream.reset();

@@ -1479,6 +1479,12 @@ class CacheCallbackTest : public StreamTest {
 protected:
     void SetUp() override {
         StreamTest::SetUp();
+
+        ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount(0));
+        ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount(0));
+        ExecutorPool::get()->setNumQuickNonIO(
+                ThreadPoolConfig::QuickNonIoThreadCount(0));
+
         store_item(vbid, key, "value");
 
         removeCheckpoint();
@@ -1488,6 +1494,13 @@ protected:
     }
 
     void TearDown() override {
+        ExecutorPool::get()->setNumAuxIO(
+                ThreadPoolConfig::AuxIoThreadCount::Default);
+        ExecutorPool::get()->setNumNonIO(
+                ThreadPoolConfig::NonIoThreadCount::Default);
+        ExecutorPool::get()->setNumQuickNonIO(
+                ThreadPoolConfig::QuickNonIoThreadCount::Default);
+
         producer->closeAllStreams();
         StreamTest::TearDown();
     }
@@ -3999,10 +4012,9 @@ TEST_P(SingleThreadedActiveStreamTest,
     // readyQ.
     GMockDcpMsgProducers producers;
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
-    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
-    runNextTask(nonIO,
-                "Process checkpoint(s) for DCP producer "
-                "test_producer->test_consumer");
+    task_executor->runNextTask(TaskType::QuickNonIO,
+                               "Process checkpoint(s) for DCP producer "
+                               "test_producer->test_consumer");
 
     // Setup Mock Producer expectations - we should see two snapshot
     // markers with one mutation each:
@@ -7663,8 +7675,8 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
     // which will catch the exception thrown by processItems().
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
-    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_NO_THROW(runNextTask(nonIO,
+    auto& qNonIO = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    EXPECT_NO_THROW(runNextTask(qNonIO,
                                 "Process checkpoint(s) for DCP producer "
                                 "test_producer->test_consumer"));
 
@@ -7699,9 +7711,9 @@ TEST_P(SingleThreadedActiveStreamTest, ProcessStreamsExceptionCrashes) {
     // Call producer->step() to execute ActiveStream::nextCheckpointItemTask()
     // Exception will not be caught
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
-    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
+    auto& qNonIO = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
     try {
-        runNextTask(nonIO,
+        runNextTask(qNonIO,
                     "Process checkpoint(s) for DCP producer "
                     "test_producer->test_consumer");
         FAIL() << "No exception thrown";

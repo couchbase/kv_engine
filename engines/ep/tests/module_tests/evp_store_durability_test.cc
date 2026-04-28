@@ -2600,9 +2600,10 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
 
     // When the task runs, it should not segfault due to the vBucket having
     // been deleted.
-    auto& taskQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    runNextTask(taskQ, "Notify clients of Sync Write Ambiguous vb:0");
-    runNextTask(taskQ, task->getDescription());
+    auto& nonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    runNextTask(nonIoQ, "Notify clients of Sync Write Ambiguous vb:0");
+    runNextTask(qNonIoQ, task->getDescription());
 }
 
 void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(

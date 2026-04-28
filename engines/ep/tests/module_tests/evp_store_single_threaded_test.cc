@@ -207,7 +207,9 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
     for (auto t : {TaskType::Writer,
                    TaskType::Reader,
                    TaskType::AuxIO,
-                   TaskType::NonIO}) {
+                   TaskType::NonIO,
+                   TaskType::QuickNonIO,
+                   TaskType::SlowIO}) {
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
         auto runTasks = [this](TaskQueue& queue) {
@@ -254,7 +256,9 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
     for (auto t : {TaskType::Writer,
                    TaskType::Reader,
                    TaskType::AuxIO,
-                   TaskType::NonIO}) {
+                   TaskType::NonIO,
+                   TaskType::QuickNonIO,
+                   TaskType::SlowIO}) {
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
         auto runTasks = [this](TaskQueue& queue) {
@@ -1361,10 +1365,10 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     producer->scheduleCheckpointProcessorTask();
 
-    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize())
-            << "Expected to have ActiveStreamCheckpointProcessorTask in NonIO "
-               "Queue";
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    EXPECT_EQ(1, qNonIoQ.getFutureQueueSize())
+            << "Expected to have ActiveStreamCheckpointProcessorTask in "
+               "QuickNonIO Queue";
 
     // Create 2 vbuckets/streams -
     // this means that we don't process all pending vBuckets on a single
@@ -1456,13 +1460,13 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     // If the Backfilling task then runs, which returns a disk snapshot and
     // re-registers the cursor; we still have an
     // ActiveStreamCheckpointProcessorTask outstanding with the vb in the queue.
-    EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
+    EXPECT_EQ(1, qNonIoQ.getFutureQueueSize());
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
 
     // Run the ActiveStreamCheckpointProcessorTask; which should re-schedule
     // due to having items outstanding.
-    runNextTask(lpNonIoQ,
+    runNextTask(qNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
     // Now run backfilling task.
@@ -1485,7 +1489,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // Now run chkptProcessorTask to complete it's queue. With the bug, this
     // results in us discarding the last item we just added to vBucket.
-    runNextTask(lpNonIoQ,
+    runNextTask(qNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
     // Let the backfill task complete running (it requires multiple steps to
@@ -1509,7 +1513,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // Now run chkptProcessorTask to complete it's queue, this will now be able
     // to access the checkpoint and get key2
-    runNextTask(lpNonIoQ,
+    runNextTask(qNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
     result = stream->next(*producer);
@@ -1542,10 +1546,10 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
-    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize())
-            << "Expected to have ActiveStreamCheckpointProcessorTask in NonIO "
-               "Queue";
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    EXPECT_EQ(1, qNonIoQ.getFutureQueueSize())
+            << "Expected to have ActiveStreamCheckpointProcessorTask in "
+               "QuickNonIO Queue";
 
     // Create first stream
     auto vb = store->getVBucket(vbid);
@@ -1615,7 +1619,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Next we must deque, but not run the snapshot task, we will interleave it
     // with backfill later
-    CheckedExecutor checkpointTask(task_executor, lpNonIoQ);
+    CheckedExecutor checkpointTask(task_executor, qNonIoQ);
     EXPECT_STREQ("Process checkpoint(s) for DCP producer test_producer",
                  checkpointTask.getTaskName().data());
 
@@ -1667,7 +1671,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
         FAIL() << "Expected Event::Mutation named 'key2'";
     }
 
-    runNextTask(lpNonIoQ,
+    runNextTask(qNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
     result = stream->next(*producer);
@@ -1912,8 +1916,8 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
-    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    EXPECT_EQ(1, qNonIoQ.getFutureQueueSize());
     // backfill:create()
     runNextTask(lpAuxioQ);
     // backfill:scan()
@@ -2532,8 +2536,8 @@ TEST_P(STParamPersistentBucketTest,
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
-    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    EXPECT_EQ(1, qNonIoQ.getFutureQueueSize());
     runBackfill();
 
     // inMemoryPhase and pendingBackfill is true and so transitions to
@@ -2568,7 +2572,7 @@ TEST_P(STParamPersistentBucketTest,
     ASSERT_EQ(1, registerCursorCount);
 
     // ActiveStreamCheckpointProcessorTask
-    runNextTask(lpNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
+    runNextTask(qNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
     // BackfillManagerTask
     runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
@@ -3117,10 +3121,12 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
 
     auto lpNonIoQ = task_executor->getLpTaskQ(TaskType::NonIO);
+    auto qNonIoQ = task_executor->getLpTaskQ(TaskType::QuickNonIO);
     // Initially one ConnManagerTask on NonIO queue.
-    const size_t numInitialNonIoTasks = 1;
-    EXPECT_EQ(numInitialNonIoTasks, lpNonIoQ->getFutureQueueSize());
+    EXPECT_EQ(1, lpNonIoQ->getFutureQueueSize());
     EXPECT_EQ(0, lpNonIoQ->getReadyQueueSize());
+    EXPECT_EQ(0, qNonIoQ->getFutureQueueSize());
+    EXPECT_EQ(0, qNonIoQ->getReadyQueueSize());
 
     // Directly flush the vbucket, ensuring data is on disk.
     // Cursor move also allows to remove the closed checkpoint.
@@ -3172,8 +3178,10 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // ActiveStreamCheckpointProcessorTask.
     EXPECT_EQ(1, lpAuxioQ->getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
-    EXPECT_EQ(numInitialNonIoTasks + 1, lpNonIoQ->getFutureQueueSize());
+    EXPECT_EQ(1, lpNonIoQ->getFutureQueueSize());
     EXPECT_EQ(0, lpNonIoQ->getReadyQueueSize());
+    EXPECT_EQ(1, qNonIoQ->getFutureQueueSize());
+    EXPECT_EQ(0, qNonIoQ->getReadyQueueSize());
 
     // Create an executor 'thread' to obtain shared ownership of the next
     // AuxIO task (which should be BackfillManagerTask). As long as this

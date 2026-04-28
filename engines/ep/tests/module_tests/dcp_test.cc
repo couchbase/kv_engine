@@ -65,9 +65,10 @@ using namespace std::chrono_literals;
 void DCPTest::SetUp() {
     EventuallyPersistentEngineTest::SetUp();
 
-    // Set AuxIO threads to zero, so that the producer's
+    // Set QuickNonIO threads to zero, so that the producer's
     // ActiveStreamCheckpointProcesserTask doesn't run.
-    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{0});
+    ExecutorPool::get()->setNumQuickNonIO(
+            ThreadPoolConfig::QuickNonIoThreadCount{0});
     // Set NonIO threads to zero, so the connManager
     // task does not run.
     ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
