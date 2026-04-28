@@ -210,7 +210,7 @@ bool operator==(const Item& lhs, const Item& rhs) {
            // be ignored from an "equivilence" pov.
            // (lhs.queuedTime == rhs.queuedTime) &&
            (lhs.vbucketId == rhs.vbucketId) && (lhs.op == rhs.op) &&
-           (lhs.deleted == rhs.deleted) &&
+           lhs.datatype == rhs.datatype && (lhs.deleted == rhs.deleted) &&
            // Note: deletionCause is only checked if the item is deleted
            ((lhs.deleted && lhs.deletionCause) ==
             (rhs.deleted && rhs.deletionCause)) &&

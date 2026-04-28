@@ -387,10 +387,10 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
 
     if (this->filter.isCacheTransferAllKeys() &&
         // Client wants all keys, but they signalled no availableBytes. Just
-        // jump straight to IncludeValue::No rather than later in the "run loop"
-        // of the task.
+        // jump straight to IncludeValue::NoWithUnderlyingDatatype rather than
+        // later in the "run loop" of the task.
         availableBytes.value_or(~0ull) == 0) {
-        includeValue = IncludeValue::No;
+        includeValue = IncludeValue::NoWithUnderlyingDatatype;
     }
 
     OBJ_LOG_INFO_CTX(p->getLogger(),
@@ -660,7 +660,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                              "requested transfer limit",
                              {"bytes_queued", totalBytesQueued},
                              {"sv_size", sv.size()});
-            includeValue = IncludeValue::No;
+            includeValue = IncludeValue::NoWithUnderlyingDatatype;
         } else {
             // No memory left, stop the transfer.
             OBJ_LOG_INFO_CTX(*this,
@@ -684,10 +684,15 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     // document/Blob size.
     //
     const auto memoryUsage = getMemoryUsage();
-    auto includeVal = includeValue;
-    if (memoryUsage.isMemoryPressured() && includeVal == IncludeValue::Yes &&
-        isAllKeys()) {
-        includeVal = IncludeValue::No;
+
+    // Decide how to include the value for the output.
+    // Begin with the current status ...
+    auto includeValForThisItem = includeValue;
+    if (memoryUsage.isMemoryPressured() &&
+        includeValForThisItem == IncludeValue::Yes && isAllKeys()) {
+        // ... switch to no value when memory is pressured and this is an
+        // all_keys transfer.
+        includeValForThisItem = IncludeValue::NoWithUnderlyingDatatype;
         OBJ_LOG_DEBUG_CTX(*this,
                           "CacheTransferStream isAllKeys and memory is "
                           "pressured, sending the key only",
@@ -695,7 +700,7 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
                           {"limit", memoryUsage.limit});
     }
 
-    if (!transferItem(sv, includeVal)) {
+    if (!transferItem(sv, includeValForThisItem)) {
         return Status::Stop;
     }
 
@@ -712,11 +717,11 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
 }
 
 bool CacheTransferStream::transferItem(const StoredValue& sv,
-                                       IncludeValue includeVal) {
-    OBJ_LOG_DEBUG_CTX(
-            *this,
-            "CacheTransferStream::transferItem",
-            {"sv", nlohmann::json{sv}, "include_value", to_string(includeVal)});
+                                       IncludeValue includeValForThisItem) {
+    OBJ_LOG_DEBUG_CTX(*this,
+                      "CacheTransferStream::transferItem",
+                      {"sv", nlohmann::json{sv}},
+                      {"include_value", to_string(includeValue)});
 
     // Generate a MutationResponse. It carries all the required information to
     // transfer the cache. Later we will tweak this so that a DcpMutation isn't
@@ -728,15 +733,13 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
     auto response = std::make_unique<MutationResponse>(
             queued_item{sv.toItem(getVBucket(),
                                   StoredValue::HideLockedCas::No,
-                                  includeVal == IncludeValue::Yes
-                                          ? StoredValue::IncludeValue::Yes
-                                          : StoredValue::IncludeValue::No)},
+                                  includeValForThisItem)},
             opaque_,
             IncludeDeleteTime::Yes,
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
             sid,
-            includeVal == IncludeValue::Yes && sv.isResident()
+            includeValForThisItem == IncludeValue::Yes && sv.isResident()
                     ? DcpResponse::Event::CachedValue
                     : DcpResponse::Event::CachedKeyMeta);
     {

@@ -1879,6 +1879,47 @@ TEST_F(HashTableTest, ReplaceValueAndDatatype) {
     EXPECT_EQ(initialCommittedState, sv->getCommitted());
 }
 
+TEST_F(HashTableTest, toItem) {
+    HashTable h(global_stats,
+                makeFactory(),
+                defaultHtSize,
+                /*locks*/ 1,
+                0,
+                defaultHtTempItemsAllowedPercent);
+    // Store a value with non-zero datatype (and some other non-default
+    // properties to check they are preserved in the toItem conversion).
+    auto key = makeStoredDocKey("testkey");
+    std::string value = "value";
+    Item i(key,
+           0,
+           0,
+           value.data(),
+           value.size(),
+           PROTOCOL_BINARY_DATATYPE_JSON,
+           1,
+           1,
+           Vbid(42));
+    EXPECT_EQ(MutationStatus::WasClean, h.set(i));
+
+    // Get the StoredValue and convert to Item
+    auto res = h.findForRead(key);
+    ASSERT_NE(nullptr, res.storedValue);
+    EXPECT_EQ(*res.storedValue->toItem(Vbid(42),
+                                       StoredValue::HideLockedCas::No,
+                                       IncludeValue::Yes),
+              i);
+    i.replaceValue({});
+    EXPECT_EQ(*res.storedValue->toItem(Vbid(42),
+                                       StoredValue::HideLockedCas::No,
+                                       IncludeValue::NoWithUnderlyingDatatype),
+              i);
+    i.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    EXPECT_EQ(
+            *res.storedValue->toItem(
+                    Vbid(42), StoredValue::HideLockedCas::No, IncludeValue::No),
+            i);
+}
+
 class GetRandomHashTable : public HashTable {
 public:
     GetRandomHashTable(EPStats& st,

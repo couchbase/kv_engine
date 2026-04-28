@@ -113,6 +113,18 @@ std::ostream& operator<<(std::ostream& os, const snapshot_info_t& info) {
     return os << "start:" << info.start << ", range:" << info.range;
 }
 
+std::string to_string(IncludeValue includeValue) {
+    switch (includeValue) {
+    case IncludeValue::Yes:
+        return "IncludeValue::Yes";
+    case IncludeValue::No:
+        return "IncludeValue::No";
+    case IncludeValue::NoWithUnderlyingDatatype:
+        return "IncludeValue::NoWithUnderlyingDatatype";
+    }
+    folly::assume_unreachable();
+}
+
 std::string to_string(CanDeduplicate value) {
     switch (value) {
     case CanDeduplicate::Yes:

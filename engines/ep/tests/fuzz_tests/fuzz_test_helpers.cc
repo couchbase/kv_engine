@@ -67,10 +67,8 @@ queued_item createItem(DocKeyView key, CheckpointActionType type) {
                                   sv::Expired::No,
                                   sv::Locked::No);
 
-    auto item = storedValue->toItem(Vbid(0),
-                                    StoredValue::HideLockedCas::No,
-                                    StoredValue::IncludeValue::Yes,
-                                    {});
+    auto item = storedValue->toItem(
+            Vbid(0), StoredValue::HideLockedCas::No, IncludeValue::Yes, {});
     item->setQueuedTime(cb::time::steady_clock::now());
 
     switch (type) {

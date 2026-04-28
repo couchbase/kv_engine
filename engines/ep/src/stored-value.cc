@@ -369,18 +369,26 @@ bool StoredValue::deleteImpl(DeleteSource delSource) {
 std::unique_ptr<Item> StoredValue::toItemBase(Vbid vbid,
                                               HideLockedCas hideLockedCas,
                                               IncludeValue includeValue) const {
-    auto item = std::make_unique<Item>(
-            getKey(),
-            getFlags(),
-            getExptime(),
-            includeValue == IncludeValue::Yes ? value : value_t{},
-            includeValue == IncludeValue::Yes ? datatype
-                                              : PROTOCOL_BINARY_RAW_BYTES,
-            hideLockedCas == HideLockedCas::Yes ? static_cast<uint64_t>(-1)
-                                                : getCas(),
-            bySeqno,
-            vbid,
-            getRevSeqno());
+    // Yes                       -> value + datatype
+    // No                        -> empty value + RAW_BYTES (datatype must
+    //                              reflect the now-empty payload)
+    // NoWithUnderlyingDatatype  -> empty value + datatype (preserve the
+    //                              underlying datatype as metadata)
+    const bool includeVal = (includeValue == IncludeValue::Yes);
+    const auto itemDatatype = (includeValue == IncludeValue::No)
+                                      ? PROTOCOL_BINARY_RAW_BYTES
+                                      : datatype;
+    auto item = std::make_unique<Item>(getKey(),
+                                       getFlags(),
+                                       getExptime(),
+                                       includeVal ? value : value_t{},
+                                       itemDatatype,
+                                       hideLockedCas == HideLockedCas::Yes
+                                               ? static_cast<uint64_t>(-1)
+                                               : getCas(),
+                                       bySeqno,
+                                       vbid,
+                                       getRevSeqno());
 
     item->setFreqCounterValue(getFreqCounterValue());
 
@@ -560,6 +568,7 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
     ss << sv.getKey();
     json["key"] = ss.str();
     json["committed"] = static_cast<int>(sv.getCommitted());
+    json["datatype"] = sv.datatype;
 }
 
 static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {

@@ -305,7 +305,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // StoredValue has the CommittedState of Pending.
             item = osv.toItem(getVBucketId(),
                               StoredValue::HideLockedCas::No,
-                              StoredValue::IncludeValue::Yes,
+                              IncludeValue::Yes,
                               {{cb::durability::Level::Majority,
                                 cb::durability::Timeout::Infinity()}});
             // A deleted ephemeral item stores the delete time under a delete

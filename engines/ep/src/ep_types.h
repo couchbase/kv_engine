@@ -60,6 +60,35 @@ static inline bool getHistoryFromCanDeduplicate(CanDeduplicate value) {
 std::string to_string(CanDeduplicate);
 std::ostream& operator<<(std::ostream&, const CanDeduplicate&);
 
+/*
+ * IncludeValue is used at SV->Item conversion and on DCP active streams to
+ * state how the value and its datatype should be carried.
+ */
+enum class IncludeValue : char {
+    /** Include the value  */
+    Yes,
+
+    /**
+     * Drop the value. Item datatype is forced to RAW_BYTES. Use when the
+     * datatype must reflect the (now empty) payload - e.g. GET key-only,
+     * durable abort, SyncWrite soft-delete, ActiveStream when the
+     * connection didn't negotiate underlying-datatype.
+     */
+    No,
+
+    /**
+     * Drop the value but keep the datatype.  e.g. CacheTransferStream sending
+     * key/meta only or an ActiveStream when the connection negotiated
+     * underlying-datatype (MB-31967, MB-40493).
+     */
+    NoWithUnderlyingDatatype,
+};
+
+std::string to_string(IncludeValue);
+inline auto format_as(IncludeValue v) {
+    return to_string(v);
+}
+
 enum class VisitPolicy { Ordered, Random };
 
 // Is the compaction callback invoked for the latest revision only, or any

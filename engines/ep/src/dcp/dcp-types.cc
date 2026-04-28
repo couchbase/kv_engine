@@ -26,15 +26,3 @@ std::string to_string(MarkerVersion version) {
     }
     folly::assume_unreachable();
 }
-
-std::string to_string(IncludeValue includeValue) {
-    switch (includeValue) {
-    case IncludeValue::Yes:
-        return "IncludeValue::Yes";
-    case IncludeValue::No:
-        return "IncludeValue::No";
-    case IncludeValue::NoWithUnderlyingDatatype:
-        return "IncludeValue::NoWithUnderlyingDatatype";
-    }
-    folly::assume_unreachable();
-}

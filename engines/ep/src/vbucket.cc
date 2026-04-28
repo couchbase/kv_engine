@@ -1453,7 +1453,7 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
 
     queued_item qi(v.toItem(getId(),
                             StoredValue::HideLockedCas::No,
-                            StoredValue::IncludeValue::Yes,
+                            IncludeValue::Yes,
                             durabilityReqs));
 
     if (qi->isCommitSyncWrite()) {
@@ -3091,9 +3091,8 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
 
         std::unique_ptr<Item> item;
         if (getKeyOnly == GetKeyOnly::Yes) {
-            item = v->toItem(getId(),
-                             StoredValue::HideLockedCas::No,
-                             StoredValue::IncludeValue::No);
+            item = v->toItem(
+                    getId(), StoredValue::HideLockedCas::No, IncludeValue::No);
         } else {
             const auto hideLockedCas =
                     ((options & HIDE_LOCKED_CAS) &&
@@ -4085,7 +4084,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
         if (v.isPrepareCompleted()) {
             auto itm = v.toItem(getId(),
                                 StoredValue::HideLockedCas::No,
-                                StoredValue::IncludeValue::No,
+                                IncludeValue::No,
                                 requirements);
             itm->setDeleted(DeleteSource::Explicit);
 
@@ -4103,7 +4102,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                 ht.unlocked_createSyncDeletePrepare(hbl, v, deleteSource);
         auto itm = deletedPrepare->toItem(getId(),
                                           StoredValue::HideLockedCas::No,
-                                          StoredValue::IncludeValue::Yes,
+                                          IncludeValue::Yes,
                                           requirements);
         std::tie(newSv, notifyCtx) =
                 addNewStoredValue(hbl, *itm, queueItmCtx, GenerateRevSeqno::No);

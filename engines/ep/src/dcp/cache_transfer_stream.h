@@ -189,12 +189,14 @@ protected:
      *
      * This funnction wraps the code required for adding to the readyQ
      *
-     * @param sv The StoredValue to transfer.
-     * @param includeVal Whether to include the value or just the key/meta.
+     * @param sv The StoredValue to clone into an output message (via toItem)
+     * @param includeValForThisItem Whether to include the value or not
+     * (key/meta)
      * @return true if the item was successfully queued for transfer, false if
      * the stream is no longer active.
      */
-    bool transferItem(const StoredValue& sv, IncludeValue includeVal);
+    bool transferItem(const StoredValue& sv,
+                      IncludeValue includeValForThisItem);
 
     /**
      * Transitions are either:

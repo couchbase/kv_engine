@@ -218,13 +218,6 @@ public:
      */
     enum class HideLockedCas : uint8_t { Yes, No };
 
-    /*
-     * Used at StoredValue->Item conversion, indicates whether the generated
-     * item includes the value or not (i.e., the new item carries only key and
-     * metadata).
-     */
-    enum class IncludeValue : uint8_t { Yes, No };
-
     /**
      * Class-specific deallocation function. We need to specify this
      * because with it, C++ runtime will call the sized delete version

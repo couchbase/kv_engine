@@ -558,6 +558,7 @@ TEST_P(DcpCacheTransferTest, all_keys) {
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
                   return item.getKey() == producers.last_dockey;
               }));
+    EXPECT_EQ(producers.last_datatype, PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_TRUE(producers.last_value.empty());
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
@@ -652,6 +653,7 @@ TEST_P(DcpCacheTransferTest, key_only_transfer) {
                   return item.getKey() == producers.last_dockey;
               }));
     EXPECT_TRUE(producers.last_value.empty());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, producers.last_datatype);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(
                       producers, cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
@@ -659,6 +661,7 @@ TEST_P(DcpCacheTransferTest, key_only_transfer) {
                   return item.getKey() == producers.last_dockey;
               }));
     EXPECT_TRUE(producers.last_value.empty());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, producers.last_datatype);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));

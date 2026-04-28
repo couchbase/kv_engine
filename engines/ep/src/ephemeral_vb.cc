@@ -739,7 +739,7 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
             cb::durability::Requirements(cb::durability::Level::Majority, {});
     auto item = values.pending->toItem(getId(),
                                        StoredValue::HideLockedCas::No,
-                                       StoredValue::IncludeValue::Yes,
+                                       IncludeValue::Yes,
                                        dummyReqs);
     item->setCommittedviaPrepareSyncWrite();
     if (commitSeqno) {

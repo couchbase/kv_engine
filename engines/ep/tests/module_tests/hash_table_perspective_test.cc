@@ -236,7 +236,7 @@ TEST_P(HashTablePerspectiveTest, findOnlyPrepared) {
         auto actualItem =
                 actual.storedValue->toItem(Vbid{0},
                                            StoredValue::HideLockedCas::No,
-                                           StoredValue::IncludeValue::Yes,
+                                           IncludeValue::Yes,
                                            prepared->getDurabilityReqs());
         EXPECT_EQ(*prepared, *actualItem);
         EXPECT_TRUE(actual.lock.getHTLock()) << "Mutex should be locked";
@@ -259,7 +259,7 @@ TEST_P(HashTablePerspectiveTest, ToItemPrepared) {
     auto prepared2 = ht.findOnlyPrepared(key).storedValue->toItem(
             Vbid(0),
             StoredValue::HideLockedCas::No,
-            StoredValue::IncludeValue::Yes,
+            IncludeValue::Yes,
             prepared->getDurabilityReqs());
 
     EXPECT_EQ(*prepared, *prepared2);
