@@ -30,6 +30,7 @@
 #include "hash_table_stat_visitor.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
+#include "memcached/engine_error.h"
 #include "objectregistry.h"
 #include "pre_link_document_context.h"
 #include "rollback_result.h"
@@ -4607,6 +4608,18 @@ MutationStatus VBucket::upsertToHashTable(Item& itm,
     }
 
     return ht.upsertItem(itm, eject, keyMetaDataOnly, eviction);
+}
+
+cb::engine_errc VBucket::addToHashTable(DocKeyView key,
+                                        std::string_view value,
+                                        ItemMetaData meta,
+                                        uint8_t datatype,
+                                        uint64_t bySeqno,
+                                        uint8_t cacheHint) {
+    // There is no memory check on the CacheTransfer path.
+    // consumer should only be making forward progress when memory checks
+    // confirm there is space.
+    return ht.addItem(key, value, meta, datatype, bySeqno, cacheHint);
 }
 
 bool VBucket::isNextState(vbucket_state_t state) const {

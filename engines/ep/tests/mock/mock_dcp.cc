@@ -569,7 +569,15 @@ cb::engine_errc MockDcpMessageProducers::cache_transfer_tx(
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
-    return cb::engine_errc::not_supported;
+    last_opaque = opaque;
+    last_vbucket = vbucket;
+    last_stream_id = sid;
+    last_op = cb::mcbp::ClientOpcode::DcpCacheTransfer;
+    for (auto& item : items) {
+        last_cache_transfer.emplace_back(std::move(item));
+    }
+
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc MockDcpMessageProducers::cache_transfer_end_tx(
@@ -622,4 +630,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_max_ttl = cb::NoExpiryLimit;
     last_metered = Collections::Metered::No;
     last_dockey = {};
+    last_cache_transfer.clear();
 }

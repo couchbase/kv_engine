@@ -162,7 +162,7 @@ public:
         return key;
     }
 
-    int64_t getBySeqno() const {
+    int64_t getBySeqno() const override {
         return bySeqno.load();
     }
 
@@ -254,7 +254,7 @@ public:
         return sizeof(Item) + key.size() + getValMemSize();
     }
 
-    uint64_t getRevSeqno() const {
+    uint64_t getRevSeqno() const override {
         return metaData.revSeqno;
     }
 

@@ -73,6 +73,45 @@ StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
     ObjectRegistry::onCreateStoredValue(this);
 }
 
+StoredValue::StoredValue(DocKeyView key,
+                         std::string_view value,
+                         ItemMetaData meta,
+                         uint8_t datatype,
+                         uint64_t bySeqno,
+                         uint8_t cacheHint,
+                         UniquePtr next,
+                         bool isOrdered)
+    : chain_next_or_replacement(std::move(next)),
+      bySeqno(bySeqno),
+      exptime(meta.exptime),
+      flags(meta.flags),
+      revSeqno(meta.revSeqno),
+      datatype(datatype),
+      ordered(isOrdered),
+      deletionSource(0),
+      committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)),
+      casIsSeparate(0) {
+    setCas(meta.cas);
+
+    new (this->key()) SerialisedDocKey(key);
+
+    Blob* data{nullptr};
+    if (value.empty()) {
+        data = Blob::New(0);
+        // resident defaults to false.
+    } else {
+        data = Blob::New(value.data(), value.size());
+        setResident(true);
+    }
+    this->value.reset(TaggedPtr<Blob>(data, 0));
+
+    // Finally set the "tag-owned" members.
+    setAge(0);
+    setFreqCounterValue(cacheHint);
+
+    ObjectRegistry::onCreateStoredValue(this);
+}
+
 StoredValue::~StoredValue() {
     ObjectRegistry::onDeleteStoredValue(this);
     // If still has a locked CAS, must clear this to delete the CasPair before

@@ -24,9 +24,11 @@
 #include "stored-value.h"
 #include "vbucket.h"
 #include <folly/ScopeGuard.h>
+#include <memcached/protocol_binary.h>
 #include <statistics/cbstat_collector.h>
 
 #include <memory>
+#include <mutex>
 
 /**
  * A visting implementation which will calls into the
@@ -217,7 +219,9 @@ bool CacheTransferHashTableVisitor::setUpHashTableVisit(VBucket& vb) {
 }
 
 void CacheTransferHashTableVisitor::tearDownHashTableVisit() {
-    // Drop our reference to the stream.
+    // Ensure any remaining items are flushed and then drop our reference to the
+    // stream.
+    stream->flushBuffer();
     stream.reset();
     readHandle.unlock();
 }
@@ -294,6 +298,10 @@ bool CacheTransferTask::run() {
             // The task should not reschedule
             reschedule = false;
         }
+
+        // Flush any buffered items before yielding to ensure progress
+        stream.flushBuffer();
+
         // Nofify the producer if something was queued
         if (visitor.getQueuedCount() > 0) {
             auto producer = stream.getProducer();
@@ -424,6 +432,10 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
         if (state != State::Active) {
             return;
         }
+
+        // Flush any buffered items before ending the stream.
+        flushBufferLocked(lh);
+
         if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
             request.end_seqno > request.start_seqno) {
             state = State::SwitchingToActiveStream;
@@ -441,10 +453,13 @@ bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
     // Does this stream still have the appropriate privileges to operate?
     if (filter.checkPrivileges(*producer.getCookie(), engine) !=
         cb::engine_errc::success) {
-        std::unique_lock lh(streamMutex);
-        pushToReadyQ(makeEndStreamResponse(
-                cb::mcbp::DcpStreamEndStatus::LostPrivileges));
-        lh.unlock();
+        {
+            std::lock_guard<std::mutex> lh(streamMutex);
+            // Flush any buffered items before ending the stream
+            flushBufferLocked(lh);
+            pushToReadyQ(makeEndStreamResponse(
+                    cb::mcbp::DcpStreamEndStatus::LostPrivileges));
+        }
         notifyStreamReady(false, &producer);
         return true;
     }
@@ -717,46 +732,87 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
 }
 
 bool CacheTransferStream::transferItem(const StoredValue& sv,
-                                       IncludeValue includeValForThisItem) {
+                                       IncludeValue includeValueForThisItem) {
+    includeValueForThisItem =
+            includeValueForThisItem == IncludeValue::Yes && sv.isResident()
+                    ? IncludeValue::Yes
+                    : IncludeValue::NoWithUnderlyingDatatype;
     OBJ_LOG_DEBUG_CTX(*this,
                       "CacheTransferStream::transferItem",
                       {"sv", nlohmann::json{sv}},
-                      {"include_value", to_string(includeValue)});
+                      {"include_value_for_this_item",
+                       to_string(includeValueForThisItem)});
 
-    // Generate a MutationResponse. It carries all the required information to
-    // transfer the cache. Later we will tweak this so that a DcpMutation isn't
-    // the final output message. Note that for IncludeXattrs etc.. we enable
-    // everything unconditionally. A consumer which enables CacheTransfer knows
-    // all these features and there is no desire to negoiate a cache transfer
-    // without xattr/collecions etc... The Delete... options actually have no
-    // meaning as we're not generating anything that is "deleted".
-    auto response = std::make_unique<MutationResponse>(
-            queued_item{sv.toItem(getVBucket(),
-                                  StoredValue::HideLockedCas::No,
-                                  includeValForThisItem)},
-            opaque_,
-            IncludeDeleteTime::Yes,
-            DocKeyEncodesCollectionId::Yes,
-            EnableExpiryOutput::Yes,
-            sid,
-            includeValForThisItem == IncludeValue::Yes && sv.isResident()
-                    ? DcpResponse::Event::CachedValue
-                    : DcpResponse::Event::CachedKeyMeta);
-    {
-        std::lock_guard<std::mutex> lh(streamMutex);
-        if (state != State::Active) {
-            return false;
-        }
-        totalBytesQueued += response->getMessageSize();
-        if (availableBytes) {
-            // reduce to 0 (we may go over by max value but maybe that's ok)
-            *availableBytes = (*availableBytes > sv.size())
-                                      ? (*availableBytes - sv.size())
-                                      : 0;
-        }
-        pushToReadyQ(std::move(response));
+    // Create cb::unique_item_ptr directly for the buffer
+    auto uniqueItem = sv.toItem(getVBucket(),
+                                StoredValue::HideLockedCas::No,
+                                includeValueForThisItem);
+    const size_t wireSize = uniqueItem->getValMemSize() +
+                            uniqueItem->getKey().size() +
+                            sizeof(cb::mcbp::request::DcpCacheTransferPayload);
+    cb::unique_item_ptr itemPtr{uniqueItem.release(), cb::ItemDeleter(&engine)};
+
+    std::lock_guard<std::mutex> lh(streamMutex);
+    if (state != State::Active) {
+        return false;
+    }
+
+    // Check if adding this item would exceed buffer and we have items to flush
+    if (!itemsBuffer.empty() && (bufferedSize + wireSize > getBatchMaxSize())) {
+        flushBufferLocked(lh);
+    }
+
+    // Add item to buffer as cb::ItemWithCacheHint
+    itemsBuffer.emplace_back(std::move(itemPtr), sv.getFreqCounterValue());
+    bufferedSize += wireSize;
+
+    if (availableBytes) {
+        *availableBytes = (*availableBytes > sv.size())
+                                  ? (*availableBytes - sv.size())
+                                  : 0;
     }
     return true;
+}
+
+bool CacheTransferStream::flushBuffer() {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    if (itemsBuffer.empty()) {
+        return true;
+    }
+    if (state != State::Active) {
+        // Clear buffer but return false to indicate stream is not active
+        itemsBuffer.clear();
+        bufferedSize = 0;
+        return false;
+    }
+    flushBufferLocked(lh);
+    return true;
+}
+
+void CacheTransferStream::flushBufferLocked(
+        const std::lock_guard<std::mutex>&) {
+    if (itemsBuffer.empty()) {
+        return;
+    }
+
+    // Move items directly to DcpCacheTransfer - no extra allocation needed
+    auto response = std::make_unique<DcpCacheTransfer>(
+            opaque_, std::move(itemsBuffer), getVBucket(), sid);
+
+    totalBytesQueued += response->getMessageSize();
+    pushToReadyQ(std::move(response));
+
+    // Reset buffer state (itemsBuffer is now empty after move)
+    bufferedSize = 0;
+}
+
+size_t CacheTransferStream::getBatchMaxSize() const {
+    return engine.getConfiguration().getDcpCacheTransferMaxBatchBytes();
+}
+
+size_t CacheTransferStream::getBufferedSize() const {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return bufferedSize;
 }
 
 void CacheTransferStream::logWithContext(spdlog::level::level_enum level,

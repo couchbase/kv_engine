@@ -15,6 +15,7 @@
 #include <memcached/vbucket.h>
 #include <platform/sized_buffer.h>
 #include <optional>
+#include <string_view>
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif
@@ -241,6 +242,10 @@ public:
      * doesn't exceed the body size)
      */
     bool isValid() const;
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
 
 protected:
     uint8_t magic;

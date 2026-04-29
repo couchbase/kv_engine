@@ -1158,6 +1158,25 @@ public:
                          uint64_t seqno,
                          uint64_t revSeqno = 0,
                          uint32_t deleteTime = 0);
+    /**
+     * Send a DcpCacheTransfer message containing a single item encoded using
+     * the DcpCacheTransferBuffer format (DcpCacheTransferPayload + key +
+     * value).
+     * @return The total wire size of the sent message (header + body) which
+     *         matches the flow-control bytes the consumer accounts for.
+     */
+    size_t dcpCacheTransfer(uint32_t opaque,
+                            Vbid vbucket,
+                            const Document& doc,
+                            uint64_t seqno,
+                            uint64_t revSeqno = 0,
+                            uint8_t cacheHint = 0);
+    /**
+     * Send a DcpCacheTransferEnd message (header only, no body).
+     * @return The total wire size of the sent message (header), which matches
+     *         the flow-control bytes the consumer accounts for.
+     */
+    size_t dcpCacheTransferEnd(uint32_t opaque, Vbid vbucket);
     void recvDcpBufferAck(uint32_t expected);
     void recvDcpBufferAck(std::size_t expected) {
         recvDcpBufferAck(gsl::narrow<uint32_t>(expected));

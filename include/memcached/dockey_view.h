@@ -334,6 +334,10 @@ struct DocKeyInterface {
 
         return h;
     }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(data()), size()};
+    }
 };
 
 /**

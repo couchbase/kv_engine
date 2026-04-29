@@ -57,9 +57,7 @@ std::shared_ptr<MockDcpProducer> MockCacheTransferStream::preValidateSteps() {
     return mockProducer;
 }
 
-std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
-        std::unordered_set<Item>& items,
-        std::unordered_set<StoredDocKey>* keys) {
+std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse() {
     auto producer = preValidateSteps();
     if (!producer) {
         EXPECT_TRUE(producer)
@@ -74,43 +72,69 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
         return nullptr;
     }
 
-    if (response->getEvent() != DcpResponse::Event::CachedValue &&
-        response->getEvent() != DcpResponse::Event::CachedKeyMeta) {
-        EXPECT_EQ(DcpResponse::Event::CachedValue, response->getEvent())
+    if (response->getEvent() != DcpResponse::Event::CacheTransfer) {
+        EXPECT_EQ(DcpResponse::Event::CacheTransfer, response->getEvent())
                 << "MockCacheTransferStream::validateNextResponse -> Expected "
-                   "a DcpResponse::Event::CachedValue or "
-                   "DcpResponse::Event::CachedKeyMeta, got:"
+                   "a DcpResponse::Event::CacheTransfer event, got:"
                 << response->to_string();
         return nullptr;
     }
-    const auto& mutationResponse =
-            *dynamic_cast<MutationResponse*>(response.get());
-    if (response->getEvent() == DcpResponse::Event::CachedValue) {
-        auto itr = items.find(*mutationResponse.getItem());
-        if (itr == items.end()) {
-            EXPECT_FALSE(true)
-                    << "MockCacheTransferStream::validateNextResponse -> "
-                       "Found this unexpected CacheTransferResponse Item in "
-                       "the stream. "
-                    << *mutationResponse.getItem();
-        } else {
-            // remove the item from the input set
-            items.erase(itr);
-        }
+    return response;
+}
+
+std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
+        std::unordered_set<Item>& items, std::unordered_set<Item>* keysMeta) {
+    auto response = validateNextResponse();
+    if (!response) {
+        return nullptr;
     }
-    if (response->getEvent() == DcpResponse::Event::CachedKeyMeta) {
-        Expects(keys);
-        auto itr = keys->find(
-                StoredDocKey(mutationResponse.getItem()->getDocKey()));
-        if (itr == keys->end()) {
-            EXPECT_FALSE(true)
-                    << "MockCacheTransferStream::validateNextResponse -> "
-                       "Found this unexpected CacheTransferResponse Item "
-                       "in the stream when processing CachedKeyMeta. "
-                    << *mutationResponse.getItem();
+
+    auto* ctResponse = dynamic_cast<DcpCacheTransfer*>(response.get());
+    EXPECT_NE(nullptr, ctResponse)
+            << "MockCacheTransferStream::validateNextResponse -> Failed "
+            << "dynamic_cast to CacheTransferResponse";
+    if (!ctResponse) {
+        return nullptr;
+    }
+
+    // Iterate each item from the batch:
+    // 1) An Item with a value is expected to be found in the provided `items`,
+    // and then removed from that set.
+    // 2) An Item without a value is expected to be found in `keysMeta` and then
+    // removed from that set.
+    for (auto& iwh : ctResponse->getItems()) {
+        auto& item = *reinterpret_cast<Item*>(iwh.item.get());
+        if (item.getNBytes() > 0) {
+            // Case1: Item with value, should be found in `items`
+            auto itr = items.find(item);
+            if (itr == items.end()) {
+                ADD_FAILURE() << "MockCacheTransferStream::"
+                                 "validateNextResponse -> stream produced an "
+                                 "item which is not found in the expected set:"
+                              << item;
+            } else {
+                items.erase(itr);
+            }
         } else {
-            // remove the item from the input set of key-meta
-            keys->erase(itr);
+            // Case 2: Item without value, should be found in `keysMeta` (and
+            // keysMeta must be provided in this case)
+            EXPECT_NE(nullptr, keysMeta)
+                    << "MockCacheTransferStream::validateNextResponse -> "
+                       "received a key/meta-only item but keysMeta set was "
+                       "not provided";
+            if (!keysMeta) {
+                continue;
+            }
+            auto itr = keysMeta->find(item);
+            if (itr == keysMeta->end()) {
+                ADD_FAILURE() << "MockCacheTransferStream::"
+                                 "validateNextResponse -> stream produced an "
+                                 "item (key only case) which is not found in "
+                                 "the expected set:"
+                              << item;
+            } else {
+                keysMeta->erase(itr);
+            }
         }
     }
     return response;

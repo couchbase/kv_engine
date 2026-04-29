@@ -2252,6 +2252,60 @@ size_t MemcachedConnection::dcpDeletionV2(const Document& doc,
                                                    deleteTime});
 }
 
+size_t MemcachedConnection::dcpCacheTransfer(uint32_t opaque,
+                                             Vbid vbucket,
+                                             const Document& doc,
+                                             uint64_t seqno,
+                                             uint64_t revSeqno,
+                                             uint8_t cacheHint) {
+    const auto& key = doc.info.id;
+    const auto& value = doc.value;
+    const size_t bodySize = sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
+                            key.size() + value.size();
+    const size_t totalSize = sizeof(cb::mcbp::Request) + bodySize;
+
+    Frame buffer;
+    buffer.payload.resize(totalSize);
+
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
+            {buffer.payload.data(), buffer.payload.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpCacheTransfer);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+
+    cb::mcbp::request::DcpCacheTransferPayload payload{
+            gsl::narrow_cast<uint16_t>(key.size()),
+            gsl::narrow_cast<uint32_t>(value.size()),
+            doc.info.cas,
+            seqno,
+            revSeqno,
+            doc.info.flags,
+            doc.info.expiration,
+            uint8_t(doc.info.datatype),
+            cacheHint};
+
+    std::vector<uint8_t> body(bodySize);
+    std::memcpy(body.data(), &payload, sizeof(payload));
+    std::memcpy(body.data() + sizeof(payload), key.data(), key.size());
+    std::memcpy(body.data() + sizeof(payload) + key.size(),
+                value.data(),
+                value.size());
+
+    builder.setValue({body.data(), body.size()});
+
+    sendFrame(buffer);
+    return buffer.payload.size();
+}
+
+size_t MemcachedConnection::dcpCacheTransferEnd(uint32_t opaque, Vbid vbucket) {
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::DcpCacheTransferEnd);
+    cmd.setOpaque(opaque);
+    cmd.setVBucket(vbucket);
+    sendCommand(cmd);
+    return sizeof(cb::mcbp::Request);
+}
+
 void MemcachedConnection::recvDcpBufferAck(uint32_t expected) {
     Frame frame;
     recvFrame(frame);

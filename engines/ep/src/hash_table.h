@@ -13,6 +13,7 @@
 
 #include "array_histogram.h"
 #include "copyable_atomic.h"
+#include "memcached/engine_error.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
 
@@ -1563,6 +1564,17 @@ public:
                               bool eject,
                               bool keyMetaDataOnly,
                               EvictionPolicy evictionPolicy);
+
+    /**
+     * CacheTransfer version of upsertItem, which is used to insert items into
+     * the HT during a cache transfer.
+     */
+    cb::engine_errc addItem(DocKeyView key,
+                            std::string_view value,
+                            ItemMetaData meta,
+                            uint8_t datatype,
+                            uint64_t bySeqno,
+                            uint8_t cacheHint);
 
     /**
      * 'Defragment' the StoredValue, this really means reallocate the object

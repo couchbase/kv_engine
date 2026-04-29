@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "dcp/response.h"
 #include "dcp/stream.h"
 #include "permitted_vb_states.h"
 #include "utilities/testing_hook.h"
@@ -26,6 +27,7 @@ enum class DcpAddStreamFlag : uint32_t;
 class AbortSyncWriteConsumer;
 class BucketLogger;
 class CacheTransferEndConsumer;
+class CacheTransferRxConsumer;
 class CommitSyncWriteConsumer;
 class CreateCollectionEvent;
 class CreateScopeEvent;
@@ -144,6 +146,17 @@ public:
     std::optional<size_t> getCacheTransferFreeMemory() const {
         return cacheTransfer;
     }
+
+    /**
+     * Process a cache transfer message (from a DcpCacheTransfer
+     * producer stream).
+     *
+     * @param items batch of items to push to cache
+     * @return cb::engine_errc::success if the item(s) were inserted into the
+     * cache otherwise a status code for why not.
+     */
+    cb::engine_errc processCacheTransfer(
+            const cb::mcbp::DcpCacheTransferBuffer items);
 
 protected:
     bool transitionState(StreamState newState);

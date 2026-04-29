@@ -25,6 +25,29 @@ StoredValue::UniquePtr StoredValueFactory::operator()(
             TaggedPtrBase::NoTagValue));
 }
 
+StoredValue::UniquePtr StoredValueFactory::operator()(
+        DocKeyView key,
+        std::string_view value,
+        ItemMetaData meta,
+        uint8_t datatype,
+        uint64_t bySeqno,
+        uint8_t cacheHint,
+        StoredValue::UniquePtr next) {
+    // Allocate a buffer to store the StoredValue and any trailing bytes
+    // that maybe required.
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
+            new (::operator new(StoredValue::getRequiredStorage(key)))
+                    StoredValue(key,
+                                value,
+                                meta,
+                                datatype,
+                                bySeqno,
+                                cacheHint,
+                                std::move(next),
+                                false),
+            TaggedPtrBase::NoTagValue));
+}
+
 StoredValue::UniquePtr StoredValueFactory::copyStoredValue(
         const StoredValue& other, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the copy of StoredValue and any
@@ -42,6 +65,28 @@ StoredValue::UniquePtr OrderedStoredValueFactory::operator()(
     return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(OrderedStoredValue::getRequiredStorage(
                     itm.getKey()))) OrderedStoredValue(itm, std::move(next)),
+            TaggedPtrBase::NoTagValue));
+}
+
+StoredValue::UniquePtr OrderedStoredValueFactory::operator()(
+        DocKeyView key,
+        std::string_view value,
+        ItemMetaData meta,
+        uint8_t datatype,
+        uint64_t bySeqno,
+        uint8_t cacheHint,
+        StoredValue::UniquePtr next) {
+    // Allocate a buffer to store the StoredValue and any trailing bytes
+    // that maybe required.
+    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
+            new (::operator new(OrderedStoredValue::getRequiredStorage(key)))
+                    OrderedStoredValue(key,
+                                       value,
+                                       meta,
+                                       datatype,
+                                       bySeqno,
+                                       cacheHint,
+                                       std::move(next)),
             TaggedPtrBase::NoTagValue));
 }
 

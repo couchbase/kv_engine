@@ -39,6 +39,22 @@ public:
                                               StoredValue::UniquePtr next) = 0;
 
     /**
+     * Create a new StoredValue (or subclass) from the given k/v/meta.
+     *
+     * @param next The StoredValue which will follow the new stored value in
+     *             the hash bucket chain, which this new item will take
+     *             ownership of. (Typically the top of the hash bucket into
+     *             which the new item is being inserted).
+     */
+    virtual StoredValue::UniquePtr operator()(DocKeyView key,
+                                              std::string_view value,
+                                              ItemMetaData meta,
+                                              uint8_t datatype,
+                                              uint64_t bySeqno,
+                                              uint8_t cacheHint,
+                                              StoredValue::UniquePtr next) = 0;
+
+    /**
      * Create a new StoredValue (or subclass) from the given StoredValue.
      *
      * @param other The StoredValue to be copied
@@ -46,8 +62,8 @@ public:
      *             copy) in the hash bucket chain (typically the top of the
      *             hash bucket into which the new item is being inserted).
      */
-    virtual StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                                   StoredValue::UniquePtr next) = 0;
+    virtual StoredValue::UniquePtr copyStoredValue(
+            const StoredValue& other, StoredValue::UniquePtr next) = 0;
 };
 
 /**
@@ -61,6 +77,14 @@ public:
      * Create an concrete StoredValue object.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
+                                      StoredValue::UniquePtr next) override;
+
+    StoredValue::UniquePtr operator()(DocKeyView key,
+                                      std::string_view value,
+                                      ItemMetaData meta,
+                                      uint8_t datatype,
+                                      uint64_t bySeqno,
+                                      uint8_t cacheHint,
                                       StoredValue::UniquePtr next) override;
 
     StoredValue::UniquePtr copyStoredValue(
@@ -78,6 +102,14 @@ public:
      * Create a new OrderedStoredValue with the given item.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
+                                      StoredValue::UniquePtr next) override;
+
+    StoredValue::UniquePtr operator()(DocKeyView key,
+                                      std::string_view value,
+                                      ItemMetaData meta,
+                                      uint8_t datatype,
+                                      uint64_t bySeqno,
+                                      uint8_t cacheHint,
                                       StoredValue::UniquePtr next) override;
 
     /**

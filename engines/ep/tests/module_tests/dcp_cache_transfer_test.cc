@@ -12,6 +12,8 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "item.h"
+#include "mcbp/protocol/datatype.h"
+#include "memcached/engine_error.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
 #include "tests/mock/mock_dcp.h"
@@ -19,7 +21,9 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+#include <gtest/gtest.h>
 #include <utilities/test_manifest.h>
+#include <algorithm>
 
 using namespace cb::mcbp;
 
@@ -109,9 +113,8 @@ TEST_P(DcpCacheTransferTest, basic_stream) {
                                store->getVBucket(vbid)->getHighSeqno(),
                                store->getVBucket(vbid)->getHighSeqno());
     runCacheTransferTask();
-    // Should find 2 items and 1 stream-end
-    ASSERT_EQ(3, stream->getItemsRemaining());
-    EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+    // Should find 1 tx message and 1 stream-end
+    ASSERT_EQ(2, stream->getItemsRemaining());
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
 
@@ -178,9 +181,26 @@ TEST_P(DcpCacheTransferTest, evicted_items) {
     if (isFullEviction()) {
         GTEST_SKIP();
     }
-    std::unordered_set<StoredDocKey> expectedKeyMeta;
-    expectedKeyMeta.emplace(
-            store_item(Vbid(0), makeStoredDocKey("2"), "2").getDocKey());
+    std::unordered_set<Item> expectedKeyMeta;
+    {
+        auto storedItem = store_item(Vbid(0),
+                                     makeStoredDocKey("2"),
+                                     "2",
+                                     0,
+                                     {cb::engine_errc::success});
+        // Create a value-less Item and set the datatype to match. When we evict
+        // the key the remaining StoredValue will still be tagged as JSON and we
+        // must expect to transfer key+meta with dtype JSON.
+        expectedKeyMeta.emplace(storedItem.getKey(),
+                                storedItem.getFlags(),
+                                storedItem.getExptime(),
+                                value_t{},
+                                PROTOCOL_BINARY_DATATYPE_JSON,
+                                storedItem.getCas(),
+                                storedItem.getBySeqno(),
+                                storedItem.getVBucketId(),
+                                storedItem.getRevSeqno());
+    }
     flushVBucketToDiskIfPersistent(vbid, 2); // must flush so we can evict
     evict_key(Vbid(0), makeStoredDocKey("2"));
 
@@ -192,9 +212,8 @@ TEST_P(DcpCacheTransferTest, evicted_items) {
                                store->getVBucket(vbid)->getHighSeqno(),
                                R"({"cts":{"all_keys":true}})");
     runCacheTransferTask();
-    // Should find 2 items and 1 stream-end
-    ASSERT_EQ(3, stream->getItemsRemaining());
-    EXPECT_TRUE(stream->validateNextResponse(expectedItems, &expectedKeyMeta));
+    // Should find 1 tx message and 1 stream-end
+    ASSERT_EQ(2, stream->getItemsRemaining());
     EXPECT_TRUE(stream->validateNextResponse(expectedItems, &expectedKeyMeta));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
     ASSERT_TRUE(expectedKeyMeta.empty());
@@ -305,7 +324,7 @@ TEST_P(DcpCacheTransferTest, skip_expired_items) {
 // Validate CacheTranfer via DcpProducer::streamRequest
 // The test requests a cache transfer upto and including the high seqno.
 TEST_P(DcpCacheTransferTest, viaStreamRequest) {
-    store_item(Vbid(0), makeStoredDocKey("k2"), "2");
+    expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
 
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(
@@ -325,26 +344,17 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest) {
 
     MockDcpMessageProducers producers;
 
-    // There is no order... check two keys and values are found, no more, no
-    // less.
-    std::unordered_map<std::string, std::pair<std::string, uint64_t>>
-            expectedValues = {{"1", {"1", 1}}, {"k2", {"2", 2}}};
-
-    while (!expectedValues.empty()) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->stepAndExpect(
-                          producers, cb::mcbp::ClientOpcode::DcpCachedValue));
-        // Check that the key is one of the expected keys
-        auto keyIt = expectedValues.find(producers.last_key);
-        ASSERT_NE(keyIt, expectedValues.end())
-                << "Unexpected key: " << producers.last_key;
-        // Check that the value matches the key
-        EXPECT_EQ(expectedValues[producers.last_key].first,
-                  producers.last_value);
-        EXPECT_EQ(expectedValues[producers.last_key].second,
-                  producers.last_byseqno);
-        // Remove the key so we don't see it again
-        expectedValues.erase(keyIt);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_EQ(expectedItems.size(), producers.last_cache_transfer.size());
+    for (const auto& expectedItem : expectedItems) {
+        EXPECT_EQ(1,
+                  std::ranges::count_if(producers.last_cache_transfer,
+                                        [&](const auto& itemWithMeta) {
+                                            return expectedItem ==
+                                                   *itemWithMeta.item;
+                                        }));
     }
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -356,7 +366,8 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest) {
 TEST_P(DcpCacheTransferTest, viaStreamRequest_with_filter) {
     CollectionsManifest cm;
     setCollections(cookie, cm.add(CollectionEntry::vegetable));
-    store_item(Vbid(0), makeStoredDocKey("veg", CollectionUid::vegetable), "v");
+    auto itm = store_item(
+            Vbid(0), makeStoredDocKey("veg", CollectionUid::vegetable), "v");
 
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(
@@ -376,14 +387,10 @@ TEST_P(DcpCacheTransferTest, viaStreamRequest_with_filter) {
 
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpCachedValue));
-    // seq is 3 as create-veg added a system-event
-    EXPECT_EQ(3, producers.last_byseqno);
-    EXPECT_EQ(CollectionUid::vegetable, producers.last_collection_id);
-    EXPECT_EQ("veg", producers.last_key);
-    EXPECT_EQ("v", producers.last_value);
-
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_EQ(1, producers.last_cache_transfer.size());
+    EXPECT_EQ(itm, *producers.last_cache_transfer.front().item);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
@@ -407,9 +414,9 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream) {
                          store->getVBucket(vbid)
                                  ->getHighSeqno()); // end seqno for the stream
     runCacheTransferTask();
-    // 3 items. 2 resident items and 1 cache-transfer to active stream
-    ASSERT_EQ(3, stream->getItemsRemaining());
-    EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+    // 2 response. 2 resident items (in 1 tx message) and 1 cache-transfer to
+    // active stream
+    ASSERT_EQ(2, stream->getItemsRemaining());
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsCacheTransferToActiveStream());
     // Test ends here, CacheTransfer_then_ActiveStream_2 tests more as it uses
@@ -443,16 +450,16 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
 
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpCachedValue));
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_EQ(2, producers.last_cache_transfer.size());
+    // Note cannot use expectedItems.contains because of subtle type
+    // differences.
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
+                  return item == *producers.last_cache_transfer.front().item;
               }));
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpCachedValue));
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
+                  return item == *producers.last_cache_transfer.back().item;
               }));
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -504,10 +511,11 @@ TEST_P(DcpCacheTransferTest, free_memory_limit) {
 
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpCachedValue));
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_EQ(1, producers.last_cache_transfer.size());
     EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
+                  return item == *producers.last_cache_transfer.front().item;
               }));
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
@@ -542,24 +550,24 @@ TEST_P(DcpCacheTransferTest, all_keys) {
                       mock_dcp_add_failover_log,
                       ctsJson.dump()));
 
-    // The task will first queue values and then switch to keys
+    // The task first pushes 1 full Item and then switch to key/meta for 1 Item
     runCacheTransferTask();
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(producers,
-                                      cb::mcbp::ClientOpcode::DcpCachedValue));
-    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
-              }));
-    EXPECT_FALSE(producers.last_value.empty());
-    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(
-                      producers, cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
-    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
-              }));
-    EXPECT_EQ(producers.last_datatype, PROTOCOL_BINARY_DATATYPE_JSON);
-    EXPECT_TRUE(producers.last_value.empty());
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+
+    EXPECT_EQ(2, producers.last_cache_transfer.size());
+
+    // count that one element has no value and the datatype is JSON
+    EXPECT_EQ(1,
+              std::ranges::count_if(
+                      producers.last_cache_transfer, [](const auto& item) {
+                          return item.item->getValueView().empty() &&
+                                 item.item->getDataType() ==
+                                         PROTOCOL_BINARY_DATATYPE_JSON;
+                      }));
+
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
@@ -598,23 +606,22 @@ TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
     // Even with the CTS task set to pause after every visit, it will visit the
     // entire chain in on run
     runCacheTransferTask();
-    for (auto count = expectedItems.size(); count > 0; count--) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->stepAndExpect(
-                          producers, cb::mcbp::ClientOpcode::DcpCachedValue));
-        ASSERT_EQ(1,
-                  std::ranges::count_if(expectedItems, [&](const auto& item) {
-                      return item.getKey() == producers.last_dockey;
-                  }));
-        for (auto itr = expectedItems.begin(); itr != expectedItems.end();
-             ++itr) {
-            if (itr->getKey() == producers.last_dockey) {
-                expectedItems.erase(itr);
-                break;
-            }
-        }
+
+    // One message will capture the entire HT...
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_FALSE(producers.last_cache_transfer.empty());
+    for (auto item : expectedItems) {
+        // EXPECT to find each expectedItem in the last_cache_transfer
+        // vector
+        EXPECT_EQ(1,
+                  std::count_if(producers.last_cache_transfer.begin(),
+                                producers.last_cache_transfer.end(),
+                                [&](const auto& cacheTransferItem) {
+                                    return *cacheTransferItem.item == item;
+                                }));
     }
-    ASSERT_TRUE(expectedItems.empty());
 
     // But needs a final run to find the HT is complete
     runCacheTransferTask();
@@ -648,20 +655,28 @@ TEST_P(DcpCacheTransferTest, key_only_transfer) {
     MockDcpMessageProducers producers;
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(
-                      producers, cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
-    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
-              }));
-    EXPECT_TRUE(producers.last_value.empty());
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, producers.last_datatype);
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(
-                      producers, cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
-    EXPECT_EQ(1, std::ranges::count_if(expectedItems, [&](const auto& item) {
-                  return item.getKey() == producers.last_dockey;
-              }));
-    EXPECT_TRUE(producers.last_value.empty());
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, producers.last_datatype);
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransfer));
+    EXPECT_FALSE(producers.last_cache_transfer.empty());
+    for (auto item : expectedItems) {
+        // We have copied the Item, but need to drop the value so that we get a
+        // correct key/meta comparison. The elements in last_cache_transfer have
+        // no value.
+        item.replaceValue({});
+        // EXPECT to find each expectedItem in the last_cache_transfer vector
+        EXPECT_EQ(1,
+                  std::count_if(
+                          producers.last_cache_transfer.begin(),
+                          producers.last_cache_transfer.end(),
+                          [&](const auto& cacheTransferItem) {
+                              // no value, but JSON datatype expected
+                              EXPECT_EQ(cacheTransferItem.item->getValueView()
+                                                .size(),
+                                        0);
+                              EXPECT_EQ(cacheTransferItem.item->getDataType(),
+                                        PROTOCOL_BINARY_DATATYPE_JSON);
+                              return *cacheTransferItem.item == item;
+                          }));
+    }
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
@@ -723,8 +738,7 @@ void DcpCacheTransferTest::testBackfillThresholdBehavior(bool allKeys) {
 
         // Now the transfer should complete successfully
         runCacheTransferTask();
-        ASSERT_EQ(3, stream->getItemsRemaining());
-        EXPECT_TRUE(stream->validateNextResponse(expectedItems));
+        ASSERT_EQ(2, stream->getItemsRemaining());
         EXPECT_TRUE(stream->validateNextResponse(expectedItems));
         EXPECT_TRUE(stream->validateNextResponseIsEnd());
     } else {
@@ -787,29 +801,34 @@ TEST_P(DcpCacheTransferTest, all_keys_memory_pressure) {
             stream->memoryUsedOffset = engine->getEpStats().mem_high_wat + 1;
 
             // Previous run is expected to have queued a value
-            EXPECT_EQ(
-                    cb::engine_errc::success,
-                    producer->stepAndExpect(
-                            producers, cb::mcbp::ClientOpcode::DcpCachedValue));
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepAndExpect(
+                              producers,
+                              cb::mcbp::ClientOpcode::DcpCacheTransfer));
         } else {
             // Previous run is expected to have queued a key (memory is
             // pressured)
             EXPECT_EQ(cb::engine_errc::success,
                       producer->stepAndExpect(
                               producers,
-                              cb::mcbp::ClientOpcode::DcpCachedKeyMeta));
+                              cb::mcbp::ClientOpcode::DcpCacheTransfer));
             // In the pressured state the task yields for a short time, we must
             // advance the clock so the next run sees the task is ready
             cb::time::steady_clock::advance(std::chrono::seconds(1));
         }
 
+        ASSERT_EQ(1, producers.last_cache_transfer.size());
+
         ASSERT_EQ(1,
                   std::ranges::count_if(expectedItems, [&](const auto& item) {
-                      return item.getKey() == producers.last_dockey;
+                      return item.getKey() ==
+                             producers.last_cache_transfer.front()
+                                     .item->getDocKey();
                   }));
         for (auto itr = expectedItems.begin(); itr != expectedItems.end();
              ++itr) {
-            if (itr->getKey() == producers.last_dockey) {
+            if (itr->getKey() ==
+                producers.last_cache_transfer.front().item->getDocKey()) {
                 expectedItems.erase(itr);
                 break;
             }

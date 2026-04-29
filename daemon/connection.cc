@@ -48,6 +48,7 @@
 #include <utilities/logtags.h>
 
 #include <exception>
+#include <string_view>
 
 #ifdef __linux__
 #include <linux/sockios.h>
@@ -2595,8 +2596,66 @@ cb::engine_errc Connection::cache_transfer_tx(
         gsl::span<cb::ItemWithCacheHint> items,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
-    // Coming soon.
-    return cb::engine_errc::not_supported;
+    // 1. Calculate total size needed to stream the items
+    size_t len = 0;
+    for (const auto& item : items) {
+        // Payload + key + value
+        len += sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
+               item.item->getDocKey().size() + item.item->getValueView().size();
+    }
+    cb::mcbp::Request req = {};
+    if (sid) {
+        req.setMagic(cb::mcbp::Magic::AltClientRequest);
+        req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
+        len += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    } else {
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+    }
+
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpCacheTransfer);
+    // no extras or key in the header. The body encodes an array of items.
+    req.setBodylen(gsl::narrow_cast<uint32_t>(len));
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
+
+    try {
+        copyToOutputStream(req.getBuffer());
+
+        if (sid) {
+            cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
+            copyToOutputStream(frameExtras.getBuffer());
+        }
+
+        // Now stream the items out
+        for (auto& entry : items) {
+            auto& item = entry.item;
+            cb::mcbp::request::DcpCacheTransferPayload payload{
+                    gsl::narrow_cast<uint16_t>(item->getDocKey().size()),
+                    gsl::narrow_cast<uint32_t>(item->getValueView().size()),
+                    item->getCas(),
+                    uint64_t(item->getBySeqno()),
+                    item->getRevSeqno(),
+                    item->getFlags(),
+                    item->getExptime(),
+                    item->getDataType(),
+                    entry.cacheHint};
+
+            copyToOutputStream(payload.getBuffer(),
+                               item->getDocKey().getBuffer());
+            const auto value = item->getValueView();
+            if (value.empty()) {
+                // key/meta no value to chain.
+                continue;
+            }
+            auto sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(item), value, getBucket());
+            chainDataToOutputStream(std::move(sendbuffer));
+        }
+    } catch (const std::bad_alloc&) {
+        return cb::engine_errc::disconnect;
+    }
+
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc Connection::cache_transfer_end_tx(uint32_t opaque,

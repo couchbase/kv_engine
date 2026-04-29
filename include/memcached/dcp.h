@@ -43,6 +43,10 @@ enum class version : uint8_t;
 
 namespace cb {
 struct ItemWithCacheHint {
+    ItemWithCacheHint(cb::unique_item_ptr item, uint8_t cacheHint)
+        : item(std::move(item)), cacheHint(cacheHint) {
+    }
+
     cb::unique_item_ptr item;
     uint8_t cacheHint{0}; // e.g. nru/mfu
 

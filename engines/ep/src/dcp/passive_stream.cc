@@ -25,6 +25,8 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/json_utilities.h>
+#include <memcached/dockey_view.h>
+#include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/json_log_conversions.h>
 #include <platform/optional.h>
@@ -371,7 +373,7 @@ bool PassiveStream::isCacheTransferAndFullEviction(
     // pressure). If this is a CachedValue and full eviction then the transfer
     // should end rather than continue to increase memory pressure. Value
     // Eviction buckets have no choice but to retry.
-    return resp.getEvent() == DcpResponse::Event::CachedValue &&
+    return resp.getEvent() == DcpResponse::Event::CacheTransferRx &&
            engine->getKVBucket()->isFullEviction();
 }
 
@@ -1395,6 +1397,11 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::CachedKeyMeta:
         ret = processCacheTransfer(static_cast<const MutationResponse&>(resp));
         break;
+    case DcpResponse::Event::CacheTransferRx: {
+        ret = processCacheTransfer(
+                static_cast<const CacheTransferRxConsumer&>(resp).getItems());
+        break;
+    }
     case DcpResponse::Event::CacheTransferEnd:
         ret = processCacheTransferEnd(
                 static_cast<const CacheTransferEndConsumer&>(resp));
@@ -1406,7 +1413,6 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CacheTransfer:
     case DcpResponse::Event::CacheTransferToActiveStream:
-    case DcpResponse::Event::CacheTransferRx:
         // These are invalid events for this path, they are handled by
         // the DcpConsumer class
         throw std::invalid_argument(
@@ -1528,6 +1534,72 @@ cb::engine_errc PassiveStream::processCacheTransfer(
                 {"vb", vb_},
                 {"status", ::to_string(status)});
         return cb::engine_errc::disconnect;
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processCacheTransfer(
+        const cb::mcbp::DcpCacheTransferBuffer items) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    std::shared_lock rlh(vb->getStateLock());
+
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    auto itr = items.begin();
+    auto manifest = vb->lockCollections();
+    while (itr != items.end()) {
+        // mcbp_validators isn't iterating and checking the buffer - that
+        // happens once here so we must fail on an error.
+        if (itr.hasError()) {
+            OBJ_LOG_WARN_CTX(*this,
+                             "PassiveStream::processCacheTransfer: error in "
+                             "DcpCacheTransferBuffer",
+                             {"vb", vb_},
+                             {"error", itr.getError()});
+            return cb::engine_errc::disconnect;
+        }
+        const auto& item = *itr;
+
+        DocKeyView key(item.getKey(), DocKeyEncodesCollectionId::Yes);
+        // It would be really odd if the vbucket didn't know about this
+        // collection.
+        if (!manifest.exists(key.getCollectionID())) {
+            OBJ_LOG_WARN_CTX(*this,
+                             "PassiveStream::processCacheTransfer: collection "
+                             "does not exist",
+                             {"vb", vb_},
+                             {"seqno", item.getBySeqno()},
+                             {"collection_id", key.getCollectionID()});
+            return cb::engine_errc::unknown_collection;
+        }
+
+        // Add the key/meta and value
+        // Value can be 0 for non-resident/key-only transfer and that is handled
+        // by this bespoke addToHashTable call.
+        const auto status = vb->addToHashTable(key,
+                                               item.getValue(),
+                                               {item.getCas(),
+                                                item.getRevSeqno(),
+                                                item.getFlags(),
+                                                item.getExpiration()},
+                                               item.getDatatype(),
+                                               item.getBySeqno(),
+                                               item.getCacheHint());
+        if (status != cb::engine_errc::success) {
+            return status;
+        }
+
+        // Add the key/meta/value bytes to our transfer metric.
+        engine->getEpStats().cacheTransferBytesRead += item.getSize();
+        ++itr;
     }
 
     return cb::engine_errc::success;

@@ -14,6 +14,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/producer_stream.h"
 #include "dcp/stream_request_info.h"
+#include <memcached/dcp.h>
 #include <memory>
 
 class StoredValue;
@@ -153,6 +154,21 @@ public:
         return filter.isCacheTransferAllKeys();
     }
 
+    /**
+     * Flush any buffered items to the readyQ as a DcpCacheTransfer response.
+     * This must be called before the stream ends or transitions state.
+     *
+     * @return true if items were flushed or buffer was empty, false if the
+     *         stream is no longer active.
+     */
+    bool flushBuffer();
+
+    /**
+     * Get the current size of buffered items (sum of their sizes).
+     * @return The current buffer size in bytes.
+     */
+    size_t getBufferedSize() const;
+
 protected:
     uint64_t getMaxSeqno() const {
         // maxSeqno is the Stream start...
@@ -187,7 +203,7 @@ protected:
     /**
      * The given sv is a candidate for transfer.
      *
-     * This funnction wraps the code required for adding to the readyQ
+     * This function wraps the code required for adding to the itemsBuffer
      *
      * @param sv The StoredValue to clone into an output message (via toItem)
      * @param includeValForThisItem Whether to include the value or not
@@ -232,6 +248,28 @@ protected:
 
     /// The last sequence number popped/sent from the stream.
     uint64_t lastSeqno{0};
+
+    /**
+     * Internal flush method - caller must hold streamMutex.
+     * @param lock The lock guard for streamMutex to verify caller holds the
+     * lock
+     */
+    void flushBufferLocked(const std::lock_guard<std::mutex>&);
+
+    /**
+     * Get the maximum buffer size for batching cache transfer items. A value of
+     * 0 means one item per batch and is used in some tests.
+     *
+     * @return The buffer size in bytes.
+     */
+    size_t getBatchMaxSize() const;
+
+    /// Container for batching items.
+    std::vector<cb::ItemWithCacheHint> itemsBuffer;
+
+    /// Current size of batch. This is the sum of item key+value sizes plus the
+    /// size of the DcpCacheTransferPayload for each item.
+    size_t bufferedSize{0};
 };
 
 std::string to_string(CacheTransferStream::Status status);

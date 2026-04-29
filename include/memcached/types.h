@@ -122,6 +122,12 @@ public:
     /// Return the time the item will expire (or 0 if no expiration).
     virtual uint32_t getExptime() const = 0;
 
+    /// Return the revision sequence number for this item.
+    virtual uint64_t getRevSeqno() const = 0;
+
+    /// Return the sequence number for this item.
+    virtual int64_t getBySeqno() const = 0;
+
     /// Return a read-only view of the Item's raw value.
     virtual std::string_view getValueView() const = 0;
 

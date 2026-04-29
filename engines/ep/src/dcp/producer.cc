@@ -1760,7 +1760,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
             return true;
         }
         return errorMessageHandler();
-    case cb::mcbp::ClientOpcode::DcpCachedValue:
+    case cb::mcbp::ClientOpcode::DcpCacheTransfer:
         if (responseStatus == cb::mcbp::Status::Enomem) {
             // A PassiveStream which has no memory available for the transfer
             auto stream = find_if2(streamFindFn);
@@ -2397,6 +2397,8 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
     case DcpResponse::Event::SeqnoAdvanced:
     case DcpResponse::Event::CachedValue:
     case DcpResponse::Event::CachedKeyMeta:
+    case DcpResponse::Event::CacheTransfer:
+    case DcpResponse::Event::CacheTransferEnd:
     case DcpResponse::Event::CacheTransferToActiveStream:
         break;
     default:

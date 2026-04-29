@@ -1293,6 +1293,12 @@
             "dynamic": true,
             "type": "float"
         },
+        "dcp_cache_transfer_max_batch_bytes": {
+            "default": "2*1024*1024",
+            "descr": "Maximum batch size in bytes for batching cache transfer items. At least 1 item will included in a batch, so a value of 0 is always 1 item per batch.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_cache_transfer_one_visit_per_step": {
             "default": "false",
             "descr": "Set to false for simpler unit-testing. When true CacheTransferTask to visit the hash table many times per step, when false one item per task step",

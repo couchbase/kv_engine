@@ -90,6 +90,9 @@ public:
         uint8_t getCacheHint() const {
             return payload.getCacheHint();
         }
+        size_t getSize() const {
+            return sizeof(payload) + key.size() + value.size();
+        }
 
     private:
         const request::DcpCacheTransferPayload& payload;

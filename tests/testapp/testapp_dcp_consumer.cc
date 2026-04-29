@@ -79,6 +79,11 @@ public:
                 DocKeyView::makeWireEncodedString(CollectionID::Default, "key");
         doc.info.cas = nextCas();
         generateDocumentValue(getValue());
+
+        const auto bucketStats = conn->stats("config");
+        const auto& evictionPolicy =
+                bucketStats["ep_item_eviction_policy"].get<std::string>();
+        fullEviction = evictionPolicy == "full_eviction";
     }
 
     void setupConsumer(
@@ -218,6 +223,10 @@ public:
         return dcpStats[statName].get<size_t>();
     }
 
+    bool isFullEviction() const {
+        return fullEviction;
+    }
+
     static uint64_t nextSeqno() {
         return seqno++;
     }
@@ -232,6 +241,7 @@ public:
     static uint64_t seqno;
     static uint64_t cas;
     uint32_t stream_opaque{std::numeric_limits<uint32_t>::max()};
+    bool fullEviction{false};
 };
 
 uint64_t DcpConsumerAckTest::seqno{1};
@@ -422,6 +432,46 @@ TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
             bucket.setMutationMemRatio(*conn, "1.0");
         }
         conn->recvDcpBufferAck(delBytes);
+    }
+}
+
+TEST_P(DcpConsumerAckTest, CacheTransfer) {
+    // Use a key unique to this test invocation so retries between tests do not
+    // collide in the hashtable.
+    doc.info.id = DocKeyView::makeWireEncodedString(
+            CollectionID::Default,
+            "cacheTransferKey" + std::to_string(nextSeqno()));
+    doc.info.cas = nextCas();
+
+    const auto cacheTransferBytes =
+            conn->dcpCacheTransfer(stream_opaque, Vbid(0), doc, nextSeqno());
+
+    if (testOutOfMem() && isFullEviction()) {
+        // Need to read a response, cache transfer will signal OutOfMem first.
+        BinprotResponse rsp;
+        conn->recvResponse(rsp);
+        ASSERT_FALSE(rsp.isSuccess());
+        EXPECT_EQ(cb::mcbp::Status::Enomem, rsp.getStatus());
+    }
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(cacheTransferBytes, getUnackedBytes());
+    } else {
+        conn->recvDcpBufferAck(cacheTransferBytes);
+        ASSERT_EQ(0, getUnackedBytes());
+    }
+
+    // Finish with a DcpCacheTransferEnd message and validate the same flow
+    // control accounting.
+    const auto cacheTransferEndBytes =
+            conn->dcpCacheTransferEnd(stream_opaque, Vbid(0));
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(cacheTransferEndBytes + cacheTransferBytes,
+                  getUnackedBytes());
+    } else {
+        conn->recvDcpBufferAck(cacheTransferEndBytes);
+        ASSERT_EQ(0, getUnackedBytes());
     }
 }
 

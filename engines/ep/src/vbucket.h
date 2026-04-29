@@ -2072,6 +2072,20 @@ public:
                                      bool checkMemUsed);
 
     /**
+     * Added for Consumer side of CacheTransfer, addToHashTable will add an
+     * entry to the vbucket's hash-table and set the key/value/meta as per the
+     * input. An empty value is always treated as valid and means the item is
+     * non-resident. The hash-table is expected to be empty and and if a
+     * collision (matching key) is found then key_already_exists is returned.
+     */
+    cb::engine_errc addToHashTable(DocKeyView key,
+                                   std::string_view value,
+                                   ItemMetaData meta,
+                                   uint8_t datatype,
+                                   uint64_t bySeqno,
+                                   uint8_t cacheHint);
+
+    /**
      * @return true if the vbucket has a nextState and it matches the given
      * state
      * @param state The state to check

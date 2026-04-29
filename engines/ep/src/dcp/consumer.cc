@@ -1885,5 +1885,9 @@ cb::engine_errc DcpConsumer::cache_transfer_end_rx(uint32_t opaque,
 
 cb::engine_errc DcpConsumer::cache_transfer_rx(
         uint32_t opaque, Vbid vbucket, cb::mcbp::DcpCacheTransferBuffer items) {
-    return cb::engine_errc::not_supported;
+    lastMessageTime = ep_uptime_now();
+
+    CacheTransferRxConsumer msg(opaque, vbucket, items);
+    UpdateFlowControl ufc(*this, msg.getMessageSize());
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
 }

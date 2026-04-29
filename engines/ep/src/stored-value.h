@@ -14,6 +14,7 @@
 #include "blob.h"
 #include "ep_time.h"
 #include "ep_types.h"
+#include "memcached/dockey_view.h"
 #include "serialised_dockey.h"
 #include "tagged_ptr.h"
 
@@ -917,6 +918,33 @@ protected:
      */
     StoredValue(const Item& itm, UniquePtr n, bool isOrdered);
 
+    /**
+     * Constructor - protected as allocation needs to be done via
+     * StoredValueFactory.
+     *
+     * @param key The key for this StoredValue
+     * @param value The value for this StoredValue
+     * @param meta The metadata for this StoredValue
+     * @param datatype The datatype for this StoredValue
+
+     * @param bySeqno The sequence number for this StoredValue
+     * @param cacheHint The initial value for the frequency counter (used by
+     *                  the eviction policy)
+     * @param n The StoredValue which will follow the new stored value in
+     *           the hash bucket chain, which this new item will take
+     *           ownership of. (Typically the top of the hash bucket into
+     *           which the new item is being inserted).
+     * @param isOrdered Are we constructing an OrderedStoredValue?
+     */
+    StoredValue(DocKeyView key,
+                std::string_view value,
+                ItemMetaData meta,
+                uint8_t datatype,
+                uint64_t bySeqno,
+                uint8_t cacheHint,
+                UniquePtr next,
+                bool isOrdered);
+
     // Destructor. protected, as needs to be carefully deleted (via
     // StoredValue::Destructor) depending on the value of isOrdered flag.
     ~StoredValue();
@@ -1400,6 +1428,39 @@ private:
     // OrderedStoredValueFactory.
     OrderedStoredValue(const Item& itm, UniquePtr n)
         : StoredValue(itm, std::move(n), /*isOrdered*/ true) {
+    }
+
+    /**
+     * Constructor - protected as allocation needs to be done via
+     * StoredValueFactory.
+     *
+     * @param key The key for this StoredValue
+     * @param value The value for this StoredValue
+     * @param meta The metadata for this StoredValue (flags, exptime, datatype)
+     * @param datatype The datatype for this StoredValue
+     * @param bySeqno The sequence number for this StoredValue
+     * @param cacheHint The initial value for the frequency counter (used by
+     *                  the eviction policy)
+     * @param n The OrderedStoredValue which will follow the new stored value in
+     *           the hash bucket chain, which this new item will take
+     *           ownership of. (Typically the top of the hash bucket into
+     *           which the new item is being inserted).
+     */
+    OrderedStoredValue(DocKeyView key,
+                       std::string_view value,
+                       ItemMetaData meta,
+                       uint8_t datatype,
+                       uint64_t bySeqno,
+                       uint8_t cacheHint,
+                       UniquePtr next)
+        : StoredValue(key,
+                      value,
+                      meta,
+                      datatype,
+                      bySeqno,
+                      cacheHint,
+                      std::move(next),
+                      /*isOrdered*/ true) {
     }
 
     // Copy Constructor. Private, as needs to be carefully created via

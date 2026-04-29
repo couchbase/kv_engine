@@ -228,6 +228,7 @@ public:
     cb::ExpiryLimit last_max_ttl;
     Collections::Metered last_metered = Collections::Metered::No;
     std::string consumer_name;
+    std::vector<cb::ItemWithCacheHint> last_cache_transfer;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

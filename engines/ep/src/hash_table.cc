@@ -13,6 +13,7 @@
 
 #include "ep_time.h"
 #include "item.h"
+#include "memcached/engine_error.h"
 #include "multi_lock_holder.h"
 #include "stats.h"
 #include "stored_value_factories.h"
@@ -1416,6 +1417,38 @@ MutationStatus HashTable::upsertItem(const Item& itm,
     }
 
     return MutationStatus::NotFound;
+}
+
+cb::engine_errc HashTable::addItem(DocKeyView key,
+                                   std::string_view value,
+                                   ItemMetaData meta,
+                                   uint8_t datatype,
+                                   uint64_t bySeqno,
+                                   uint8_t cacheHint) {
+    auto htRes = findInner(key);
+    if (htRes.committedSV || htRes.pendingSV) {
+        // bail, no CAS checks. HashTable should be empty.
+        return cb::engine_errc::key_already_exists;
+    }
+    auto& hbl = htRes.lock;
+
+    const auto emptyProperties = valueStats.prologue(hbl, nullptr);
+
+    // Create a new StoredValue and link it into the head of the bucket chain.
+    auto v = (*valFact)(key,
+                        value,
+                        meta,
+                        datatype,
+                        bySeqno,
+                        cacheHint,
+                        std::move(unlocked_getBucket(hbl)));
+
+    valueStats.epilogue(hbl, emptyProperties, v.get().get());
+
+    auto& ret = unlocked_getBucket(hbl);
+    ret = std::move(v);
+
+    return cb::engine_errc::success;
 }
 
 bool HashTable::reallocateStoredValue(const HashBucketLock& hbl,

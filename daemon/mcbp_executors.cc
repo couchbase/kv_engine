@@ -799,7 +799,22 @@ static void dcp_cached_key_meta_executor(Cookie& cookie) {
 
 static void dcp_cache_transfer_executor(Cookie& cookie) {
     cookie.obtainContext<NoSuccessResponseCommandContext>(
-                  cookie, [](Cookie& c) { return dcp_cache_transfer(c); })
+                  cookie,
+                  [](Cookie& c) {
+                      const auto& req = c.getRequest();
+                      const auto status =
+                              dcpCacheTransfer(c,
+                                               req.getOpaque(),
+                                               req.getVBucket(),
+                                               cb::mcbp::DcpCacheTransferBuffer{
+                                                       req.getValueString()});
+                      // Consumer will always process the cache transfer now, it
+                      // does not buffer/defer to async pattern. If it ever did
+                      // the buffered data needs copying so check we never
+                      // block.
+                      Expects(status != cb::engine_errc::would_block);
+                      return status;
+                  })
             .drive();
 }
 

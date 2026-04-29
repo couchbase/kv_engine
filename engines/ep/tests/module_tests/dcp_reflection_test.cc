@@ -13,6 +13,7 @@
  * Unit tests for DCP which connecting a DCP Producer to a DCP Consumer.
  */
 
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
@@ -34,6 +35,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "memcached/engine_error.h"
 #include "pdm_utils.h"
 #include "test_helpers.h"
 #include "vbucket_utils.h"
@@ -151,7 +153,9 @@ public:
 
         void transferCachedValue();
 
-        void transferCachedKeyMeta();
+        void transferCache(
+                DcpResponse& response,
+                cb::engine_errc expectedResult = cb::engine_errc::success);
 
         void transferSnapshotMarker(
                 uint64_t expectedStart,
@@ -623,16 +627,53 @@ void DCPLoopbackTestHelper::DcpRoute::transferCachedValue() {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
-    ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
-    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
+    transferCache(*msg);
 }
 
-void DCPLoopbackTestHelper::DcpRoute::transferCachedKeyMeta() {
-    auto streams = getStreams();
-    auto msg = getNextProducerMsg(*streams.first);
-    ASSERT_TRUE(msg);
-    ASSERT_EQ(DcpResponse::Event::CachedKeyMeta, msg->getEvent());
-    EXPECT_EQ(cb::engine_errc::success, streams.second->messageReceived(*msg));
+void DCPLoopbackStreamTest::DcpRoute::transferCache(
+        DcpResponse& response, cb::engine_errc expectedResult) {
+    ASSERT_EQ(DcpResponse::Event::CacheTransfer, response.getEvent());
+
+    // For CacheTransfer the producer/consumer don't use a common message
+    // type... the consumer works directly on the serialised
+    // DcpCacheTransferBuffer
+
+    // Convert the msg (DcpCacheTransfer) items into a DcpCacheTransferBuffer
+    auto& cacheTransfer = static_cast<DcpCacheTransfer&>(response);
+    auto& items = cacheTransfer.getItems();
+
+    // Build the serialized buffer format
+    std::string buffer;
+    for (const auto& itemWithHint : items) {
+        // Cast to Item* since we know this is ep-engine test code
+        const auto& item = static_cast<const Item&>(*itemWithHint.item);
+        auto key = item.getKey();
+        auto value = item.getValue();
+
+        cb::mcbp::request::DcpCacheTransferPayload payload(
+                static_cast<uint16_t>(key.size()),
+                value ? static_cast<uint32_t>(value->valueSize()) : 0,
+                item.getCas(),
+                item.getBySeqno(),
+                item.getRevSeqno(),
+                item.getFlags(),
+                item.getExptime(),
+                item.getDataType(),
+                itemWithHint.cacheHint);
+
+        auto payloadBuf = payload.getBuffer();
+        buffer.append(payloadBuf.data(), payloadBuf.size());
+        buffer.append(reinterpret_cast<const char*>(key.data()), key.size());
+        if (value) {
+            buffer.append(value->getData(), value->valueSize());
+        }
+    }
+
+    cb::mcbp::DcpCacheTransferBuffer transferBuffer(buffer);
+    EXPECT_EQ(expectedResult,
+              consumer->cache_transfer_rx(response.getOpaque(),
+                                          cacheTransfer.getVBucket(),
+                                          transferBuffer));
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
@@ -2925,9 +2966,10 @@ TEST_P(DCPCacheTransfer, CacheTransfer) {
     for (const auto& key : keys) {
         EXPECT_FALSE(replicaVB->ht.findForRead(key).storedValue);
     }
-    for (size_t i = 0; i < keys.size(); i++) {
-        route0_1.transferCachedValue();
-    }
+
+    // Everything batched into one payload.
+    route0_1.transferCachedValue();
+
     // Now the replica as the values as resident, but not dirty (nothing to
     // flush)
     for (const auto& key : keys) {
@@ -2941,6 +2983,10 @@ TEST_P(DCPCacheTransfer, CacheTransfer) {
 
 TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
     engines[Node0]->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
+
+    // Force 1 item per batch.
+    engines[Node0]->getConfiguration().setDcpCacheTransferMaxBatchBytes(0);
+
     auto keys = setupFBR(4);
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     EXPECT_EQ(0, replicaVB->dirtyQueueSize);
@@ -2962,7 +3008,8 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
 
     auto status = cb::engine_errc::no_memory;
     if (!fullEviction()) {
-        status = cb::engine_errc::temporary_failure;
+        // VE mode consumer will "mask" the memory issue and return success.
+        status = cb::engine_errc::success;
     }
 
     // force OOM condition on destination
@@ -2974,8 +3021,8 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
     auto msg = route0_1.getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     auto opaque = msg->getOpaque();
-    ASSERT_EQ(DcpResponse::Event::CachedValue, msg->getEvent());
-    EXPECT_EQ(status, streams.second->messageReceived(*msg));
+    ASSERT_EQ(DcpResponse::Event::CacheTransfer, msg->getEvent());
+    route0_1.transferCache(*msg, status);
     if (fullEviction()) {
         // Another Producer::step loop is required for removing vbid from
         // vbReady
@@ -2987,7 +3034,7 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
         // Generate the cancelled response and now force the transfer to end
         cb::mcbp::Response message{};
         message.setMagic(cb::mcbp::Magic::ClientResponse);
-        message.setOpcode(cb::mcbp::ClientOpcode::DcpCachedValue);
+        message.setOpcode(cb::mcbp::ClientOpcode::DcpCacheTransfer);
         message.setOpaque(opaque);
         message.setStatus(cb::mcbp::Status::Enomem);
         EXPECT_TRUE(route0_1.producer->handleResponse(message));
@@ -3036,10 +3083,8 @@ TEST_P(DCPCacheTransferVE, CacheTransferVE_ZeroResident) {
         EXPECT_FALSE(replicaVB->ht.findForRead(key).storedValue);
     }
 
-    // CTS will have queued all CachedKeyMeta messages
-    for (size_t i = 0; i < keys.size(); i++) {
-        route0_1.transferCachedKeyMeta();
-    }
+    // CTS will have queued all key/meta in 1 CacheTransfer messages, no value
+    route0_1.transferCachedValue();
 
     // Find the keys but not dirty and not resident.
     for (const auto& key : keys) {

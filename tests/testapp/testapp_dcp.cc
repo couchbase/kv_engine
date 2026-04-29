@@ -13,7 +13,9 @@
  */
 
 #include "testapp_client_test.h"
+#include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <nlohmann/json.hpp>
+#include <map>
 
 class DcpTest : public TestappClientTest {
 protected:
@@ -181,6 +183,112 @@ TEST_P(DcpTest, DcpStreamStats) {
             << "dcp stats: " << stats.dump(2);
 }
 
+/**
+ * Verify a producer can stream the cache via a CacheTransfer (CTS) stream.
+ *
+ * Stores a number of documents, then opens a producer connection and issues a
+ * stream-request with DcpAddStreamFlag::CacheTransfer | ActiveVbOnly. The
+ * start_seqno doubles as the maxSeqno used by CacheTransferStream to filter
+ * eligible items - we set it to the vbucket's high-seqno so every stored doc
+ * is eligible. end_seqno is set equal to start_seqno so the stream ends after
+ * the cache-transfer rather than switching to a regular ActiveStream.
+ *
+ * The test then reads DCP frames and verifies that the DcpCacheTransfer
+ * message(s) contain every stored key/value before the stream is ended.
+ */
+TEST_P(DcpTest, CacheTransferStream) {
+    std::map<std::string, std::string> expected;
+    for (int ii = 0; ii < 5; ++ii) {
+        auto key = fmt::format("CacheTransferStream_{}", ii);
+        auto value = fmt::format("value_{}", ii);
+        store_document(key, value);
+        expected.emplace(std::move(key), std::move(value));
+    }
+
+    // Determine the vbucket high-seqno and UUID so we can set start_seqno
+    // (the CacheTransfer maxSeqno) such that every stored item is in scope,
+    // and supply a valid UUID so the producer does not request a rollback.
+    uint64_t highSeqno{0};
+    uint64_t vbUuid{0};
+    userConnection->stats(
+            [&highSeqno, &vbUuid](auto& k, auto& v) {
+                if (k == "vb_0:high_seqno") {
+                    highSeqno = std::stoull(v);
+                } else if (k == "vb_0:uuid") {
+                    vbUuid = std::stoull(v);
+                }
+            },
+            "vbucket-details 0");
+    ASSERT_GE(highSeqno, expected.size());
+    ASSERT_NE(0, vbUuid);
+
+    const auto conn = createProducerConnection();
+
+    BinprotDcpStreamRequestCommand streamReq;
+    streamReq.setDcpFlags(cb::mcbp::DcpAddStreamFlag::CacheTransfer |
+                          cb::mcbp::DcpAddStreamFlag::ActiveVbOnly);
+    streamReq.setDcpReserved(0);
+    streamReq.setDcpStartSeqno(highSeqno);
+    streamReq.setDcpEndSeqno(highSeqno);
+    streamReq.setDcpVbucketUuid(vbUuid);
+    streamReq.setDcpSnapStartSeqno(highSeqno);
+    streamReq.setDcpSnapEndSeqno(highSeqno);
+    streamReq.setVBucket(Vbid(0));
+    conn->sendCommand(streamReq);
+
+    std::map<std::string, std::string> received;
+    bool seenStreamReqResponse = false;
+    bool seenCacheTransfer = false;
+    bool streamEnded = false;
+    while (!streamEnded) {
+        Frame frame;
+        conn->recvFrame(frame,
+                        cb::mcbp::ClientOpcode::Invalid,
+                        std::chrono::seconds(10));
+        if (cb::mcbp::is_server_magic(frame.getMagic())) {
+            continue;
+        }
+        if (frame.getHeader()->isResponse()) {
+            ASSERT_FALSE(seenStreamReqResponse);
+            ASSERT_TRUE(
+                    cb::mcbp::isStatusSuccess(frame.getResponse()->getStatus()))
+                    << "Stream request failed: "
+                    << frame.getResponse()->getStatus();
+            seenStreamReqResponse = true;
+            continue;
+        }
+
+        const auto* req = frame.getRequest();
+        switch (req->getClientOpcode()) {
+        case cb::mcbp::ClientOpcode::DcpCacheTransfer: {
+            seenCacheTransfer = true;
+            cb::mcbp::DcpCacheTransferBuffer buffer(req->getValueString());
+            for (auto it = buffer.begin(); it != buffer.end(); ++it) {
+                ASSERT_FALSE(it.hasError())
+                        << "DcpCacheTransferBuffer iteration error: "
+                        << it.getError().dump();
+                // Strip the 1-byte default collection prefix from the wire key.
+                auto wireKey = it->getKey();
+                ASSERT_FALSE(wireKey.empty());
+                received.emplace(std::string{wireKey.substr(1)},
+                                 std::string{it->getValue()});
+            }
+            break;
+        }
+        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+            streamEnded = true;
+            break;
+        default:
+            // Ignore other DCP messages (e.g. DcpNoop, DcpControl).
+            break;
+        }
+    }
+
+    EXPECT_TRUE(seenStreamReqResponse);
+    EXPECT_TRUE(seenCacheTransfer);
+    EXPECT_EQ(expected, received);
+}
+
 /// Verify that we log unclean DCP disconnects. Disabled as part of the
 /// change to reduce the number of notifications (this changes the scheduling
 /// order in the test)
@@ -202,8 +310,11 @@ TEST_P(DcpTest, MB60706) {
     Frame frame;
     do {
         conn->recvFrame(frame);
+        // This test needs to wait for the 1Mib documents, not documents from
+        // other tests
         if (frame.getRequest()->getClientOpcode() ==
-            cb::mcbp::ClientOpcode::DcpMutation) {
+                    cb::mcbp::ClientOpcode::DcpMutation &&
+            frame.getRequest()->getValue().size() == value.size()) {
             // DCP has started sending data
             conn->close();
             // Delete bucket forces the message we're looking for.

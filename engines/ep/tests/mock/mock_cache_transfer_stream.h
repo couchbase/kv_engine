@@ -30,14 +30,16 @@ public:
 
     /**
      * Perform some checks and then lookup the next response in the stream.
-     * It is expected that the stream will return a CacheTransferResponse and
-     * that the contained item will be found in the items set. If found in the
-     * set, the matching item is removed from the set.
+     * The stream is expected to return a DcpCacheTransfer response; each of
+     * its batched items is then matched against the input sets:
+     *  - items with a value are found in @p items
+     *  - items with no value are found in @p keysMeta (must be non-null)
+     * Matched entries are erased from their respective set.
      * @return nullptr if the expectations are not met.
      */
     std::unique_ptr<DcpResponse> validateNextResponse(
             std::unordered_set<Item>& items,
-            std::unordered_set<StoredDocKey>* keys = nullptr);
+            std::unordered_set<Item>* keysMeta = nullptr);
 
     std::unique_ptr<DcpResponse> validateNextResponseIsEnd(
             cb::mcbp::DcpStreamEndStatus expectedStatus =
@@ -57,4 +59,5 @@ public:
 
 private:
     std::shared_ptr<MockDcpProducer> preValidateSteps();
+    std::unique_ptr<DcpResponse> validateNextResponse();
 };
