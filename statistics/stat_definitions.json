@@ -307,6 +307,7 @@
         "key": "mem_used",
         "unit": "bytes",
         "description": "Engine's total memory usage",
+        "long_description": "Provides the most comprehensive view of bucket memory consumption. It is used for quota enforcement, eviction decisions, and monitoring memory pressure. It is calculated using jemalloc's ArenaMalloc. The metric includes (1) Item data (item metadata, keys, resident and non-resident values); (2) Structural overhead (checkpoint queues, persistence queues, DCP queues, hash table and collections/scope metadata); and (3) Component allocations (Magma storage buffers, bloom filters, durability monitor memory, arena allocator overhead and any other internal allocations).",
         "added": "7.0.0"
     },
     {

@@ -167,6 +167,7 @@ struct Spec {
     std::string added;
     std::string deprecated;
     std::string notes;
+    std::string longDescription;
 
     [[nodiscard]] std::string_view getName() const {
         return prometheus.family.empty() ? enumKey : prometheus.family;
@@ -317,6 +318,10 @@ void from_json(const nlohmann::json& j, Spec& s) {
 
     if (auto itr = j.find("notes"); itr != j.end()) {
         s.notes = itr.value();
+    }
+
+    if (auto itr = j.find("long_description"); itr != j.end()) {
+        s.longDescription = itr.value();
     }
 }
 
@@ -469,6 +474,11 @@ void addDocumentation(const Spec& spec,
     auto [statName, statDoc] = generateDocEntry(spec);
     statDoc["help"] = statJson.value("description", "");
 
+    const auto longDesc = statJson.value("long_description", "");
+    if (!longDesc.empty()) {
+        statDoc["long_description"] = longDesc;
+    }
+
     if (statJson.contains("/prometheus/labels"_json_pointer)) {
         auto labels = json::array();
         for (const auto& elem :
@@ -556,6 +566,11 @@ bool resolveMetricFamilyConflicts(
         }
 
         outputDocEntry["help"] = familyIt->second.value("description", "");
+
+        const auto longDesc = familyIt->second.value("long_description", "");
+        if (!longDesc.empty()) {
+            outputDocEntry["long_description"] = longDesc;
+        }
         entry.value() = outputDocEntry;
     }
 
