@@ -188,8 +188,8 @@ protected:
 
     void sendCommand(std::string key, Vbid vb, uint32_t identifier) {
         BinprotMutationCommand cmd;
+        std::string value;
         if (random_value == RandomValue::PerDocument) {
-            std::string value;
             if (document_type == DocumentType::Json) {
                 value = json_builder.generate(document_value.size(), 32).dump();
             } else {
