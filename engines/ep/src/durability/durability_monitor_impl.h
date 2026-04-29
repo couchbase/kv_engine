@@ -436,8 +436,12 @@ struct ActiveDurabilityMonitor::State {
      *
      * @param cookie Connection to notify on completion
      * @param item The prepare
+     * @param toCommit Queue to enqueue the SyncWrite onto if it is
+     *                 immediately satisfied by pre-existing replica acks
      */
-    void addSyncWrite(CookieIface* cookie, queued_item item);
+    void addSyncWrite(CookieIface* cookie,
+                      queued_item item,
+                      ResolvedQueue& toCommit);
 
     /**
      * Returns the next position for a node iterator.
