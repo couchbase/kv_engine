@@ -777,7 +777,7 @@ void Connection::executeCommandPipeline() {
         // a new command
         disableReadEvent();
     } else if (allow_more_commands) {
-        if (isPacketAvailable()) {
+        if (isPacketReadyForExecutionAvailable()) {
             // We have the entire packet spooled up in the input buffer
             // and may continue processing it at the next time slice
             disableReadEvent();
@@ -788,6 +788,24 @@ void Connection::executeCommandPipeline() {
     } else {
         enableReadEvent();
     }
+}
+
+bool Connection::isPacketReadyForExecutionAvailable() const {
+    for (const auto& cookie : cookies) {
+        // Skip cookies that aren't ready to execute:
+        // - empty: no packet to process
+        // - ewouldblock: waiting for I/O completion
+        // - outputbufferFull && havePendingData: blocked on full buffer
+        //   (continue if buffer is full but data has drained)
+        if (cookie->empty() || cookie->isEwouldblock() ||
+            (cookie->isOutputbufferFull() && havePendingData())) {
+            continue;
+        }
+        // Found a cookie ready for execution
+        return true;
+    }
+
+    return isPacketAvailable();
 }
 
 void Connection::resumeThrottledDcpStream() {
@@ -1095,6 +1113,16 @@ bool Connection::executeCommandsCallback() {
     cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    // We don't want this code to be executed in production. Its only
+    // here to verify MB-71632 and to make sure that the timeslice logic
+    // is working as expected.
+    if (zero_timeslice.load()) {
+        current_timeslice_end = start;
+        zero_timeslice.store(false);
+    }
+#endif
 
     processBlockedSendQueue(start);
     shutdownIfSendQueueStuck(start);
