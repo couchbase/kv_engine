@@ -10,6 +10,7 @@
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -163,7 +164,8 @@ Scope::Scope(const nlohmann::json& json) {
     if (iter != json.end()) {
         for (auto it = iter->begin(); it != iter->end(); ++it) {
             size_t pos = 0;
-            uint32_t cid = std::stoul(it.key(), &pos, 16);
+            const auto cid =
+                    gsl::narrow<uint32_t>(std::stoul(it.key(), &pos, 16));
             if (it.key().length() != pos) {
                 throw std::invalid_argument(
                         "Scope::Scope(): Extra characters present for CID");
@@ -244,7 +246,8 @@ Bucket::Bucket(const nlohmann::json& json) {
         if (iter != json.end()) {
             for (auto it = iter->begin(); it != iter->end(); ++it) {
                 size_t pos = 0;
-                uint32_t sid = std::stoul(it.key(), &pos, 16);
+                const auto sid =
+                        gsl::narrow<uint32_t>(std::stoul(it.key(), &pos, 16));
                 if (it.key().length() != pos) {
                     throw std::invalid_argument(
                             "Bucket::Bucket(): Extra characters present for "
