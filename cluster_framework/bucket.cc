@@ -39,14 +39,14 @@ Bucket::Bucket(const Cluster& cluster,
         for (size_t vb = 0; vb < vbuckets; ++vb) {
             vbucketmap[vb].resize(replicas + 1);
             for (size_t n = 0; n < (replicas + 1); ++n) {
-                vbucketmap[vb][n] = (vb + ii++) % nodes;
+                vbucketmap[vb][n] = gsl::narrow<int>((vb + ii++) % nodes);
             }
         }
     } else {
         for (size_t vb = 0; vb < vbuckets; ++vb) {
             vbucketmap[vb].resize(replicas + 1);
             for (size_t n = 0; n < (replicas + 1); ++n) {
-                vbucketmap[vb][n] = ii++ % nodes;
+                vbucketmap[vb][n] = gsl::narrow<int>(ii++ % nodes);
             }
         }
     }
