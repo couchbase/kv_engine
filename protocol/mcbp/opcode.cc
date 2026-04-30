@@ -12,10 +12,10 @@
 #include <mcbp/protocol/opcode.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
+#include <platform/string_utilities.h>
 #include <algorithm>
 #include <array>
 #include <bitset>
-#include <cctype>
 #include <stdexcept>
 
 namespace cb::mcbp {
@@ -965,9 +965,7 @@ void to_json(nlohmann::json& j, const ServerOpcode& opcode) {
 }
 
 ClientOpcode to_client_opcode(std::string_view string) {
-    std::string input;
-    std::transform(
-            string.begin(), string.end(), std::back_inserter(input), ::toupper);
+    auto input = cb::toupper(std::string{string});
     // If the user used space between the words, replace with '_'
     std::ranges::replace(input, ' ', '_');
 

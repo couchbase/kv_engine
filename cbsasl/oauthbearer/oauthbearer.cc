@@ -14,6 +14,7 @@
 #include <cbsasl/username_util.h>
 #include <fmt/format.h>
 #include <platform/split_string.h>
+#include <platform/string_utilities.h>
 
 namespace cb::sasl::mechanism::oauthbearer {
 
@@ -42,10 +43,7 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
         if (kv.size() != 2) {
             return {Error::BAD_PARAM, {}};
         }
-        std::string auth;
-        for (auto& c : kv.front()) {
-            auth.push_back(std::tolower(c));
-        }
+        const auto auth = cb::tolower(std::string{kv.front()});
         if (auth != "bearer") {
             return {Error::BAD_PARAM, {}};
         }

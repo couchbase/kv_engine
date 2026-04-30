@@ -10,6 +10,7 @@
 
 #include <mcbp/protocol/json_utilities.h>
 #include <platform/split_string.h>
+#include <platform/string_utilities.h>
 #include <platform/uuid.h>
 
 namespace cb::mcbp {
@@ -64,9 +65,7 @@ void to_json(nlohmann::json& json, const DcpOpenFlag& flags) {
 }
 
 DcpOpenFlag toDcpOpenFlag(std::string value) {
-    for (auto& c : value) {
-        c = std::tolower(c);
-    }
+    value = cb::tolower(std::move(value));
 
     if (value == "none" || value.empty()) {
         return DcpOpenFlag::None;

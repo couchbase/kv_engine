@@ -13,6 +13,7 @@
 #include "generator_utilities.h"
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/string_utilities.h>
 #include <utilities/json_utilities.h>
 #include <fstream>
 #include <iostream>
@@ -41,10 +42,9 @@ void Module::createMacros(std::ostream& out) {
         std::string nm(name);
         nm.append("_AUDIT_");
         nm.append(ev.name);
+        nm = cb::toupper(std::move(nm));
         for (auto& c : nm) {
-            if (std::isalnum(c)) {
-                c = toupper(c);
-            } else {
+            if (!std::isalnum(c)) {
                 c = '_';
             }
         }

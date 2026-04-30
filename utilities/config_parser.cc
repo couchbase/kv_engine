@@ -7,11 +7,11 @@
  * licenses/BSD-3-Clause-Sun-Microsystems.txt
  */
 
-#include <memcached/config_parser.h>
-
 #include <fmt/core.h>
+#include <gsl/gsl-lite.hpp>
+#include <memcached/config_parser.h>
 #include <platform/cb_malloc.h>
-
+#include <platform/string_utilities.h>
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -66,7 +66,7 @@ static std::pair<size_t, std::string::size_type> get_multiplier(
         idx = val.find_first_of(*p);
         m *= 1024;
         if (idx == std::string::npos) {
-            idx = val.find_first_of(toupper(*p));
+            idx = val.find_first_of(gsl::narrow_cast<char>(toupper(*p)));
         }
         if (idx != std::string::npos) {
             multiplier = m;
@@ -120,8 +120,7 @@ bool cb::config::value_as_bool(const std::string& val) {
     }
 
     // may be upper or a mix of case... lowercase and test again
-    std::string lowercase;
-    std::ranges::transform(val, std::back_inserter(lowercase), tolower);
+    const auto lowercase = cb::tolower(val);
 
     if ("true"sv == lowercase || "on"sv == lowercase) {
         return true;

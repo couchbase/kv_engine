@@ -19,21 +19,13 @@
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <logger/logger.h>
+#include <platform/string_utilities.h>
 #include <utilities/logtags.h>
-
-std::string getMechanism(std::string_view key) {
-    std::string mechanism;
-    // Uppercase the requested mechanism so that we don't have to remember
-    // to do case insensitive comparisons all over the code
-    std::transform(
-            key.begin(), key.end(), std::back_inserter(mechanism), toupper);
-    return mechanism;
-}
 
 SaslAuthCommandContext::SaslAuthCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       request(cookie.getRequest()),
-      mechanism(getMechanism(request.getKeyString())),
+      mechanism(cb::toupper(std::string{request.getKeyString()})),
       challenge(request.getValueString()),
       state(State::Initial) {
 }

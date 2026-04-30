@@ -384,7 +384,7 @@ static std::string getCppName(const std::string& str) {
             doUpper = true;
         } else {
             if (doUpper) {
-                out += toupper(c);
+                out += gsl::narrow_cast<char>(toupper(c));
                 doUpper = false;
             } else {
                 out += c;

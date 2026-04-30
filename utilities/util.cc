@@ -17,6 +17,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/util.h>
+#include <platform/string_utilities.h>
 
 template <typename T>
 bool parseInt(const std::string_view s, T& out) {
@@ -153,10 +154,8 @@ std::size_t parse_size_string(const std::string_view arg) {
 
     if (ec == std::errc()) {
         if (next != arg.data() + arg.size()) {
-            auto rest = std::string(next, arg.data() + arg.size() - next);
-            for (auto& c : rest) {
-                c = std::tolower(c);
-            }
+            const auto rest = cb::tolower(
+                    std::string(next, arg.data() + arg.size() - next));
             if (rest == "k" || rest == "kib") {
                 result *= 1_KiB;
             } else if (rest == "m" || rest == "mib") {

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -12,13 +11,14 @@
 #include <getopt.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
+#include <platform/string_utilities.h>
 #include <algorithm>
 #include <iostream>
 
 enum class Format { Raw, Gdb, Lldb };
 
 Format parseFormat(std::string format) {
-    std::transform(format.begin(), format.end(), format.begin(), toupper);
+    format = cb::toupper(std::move(format));
     if (format == "RAW") {
         return Format::Raw;
     }
