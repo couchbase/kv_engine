@@ -54,7 +54,7 @@ void to_json(nlohmann::json& json, const DownloadProperties::Tls& tls) {
 
 void from_json(const nlohmann::json& json, DownloadProperties& prop) {
     prop.hostname = json.value("host", "");
-    prop.port = json.value("port", 0);
+    prop.port = json.value("port", uint16_t{0});
     prop.bucket = json.value("bucket", "");
 
     if (json.contains("fsync_interval")) {
