@@ -14,6 +14,7 @@
 #include <event2/thread.h>
 #include <evhttp.h>
 #include <getopt.h>
+#include <gsl/gsl-lite.hpp>
 #include <libevent/utilities.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
@@ -482,7 +483,9 @@ options:
     cb::libevent::unique_event_base_ptr base(event_base_new());
 
     auto* http = evhttp_new(base.get());
-    if (evhttp_bind_socket(http, "*", std::atoi(port.c_str())) != 0) {
+    if (evhttp_bind_socket(
+                http, "*", gsl::narrow<in_port_t>(std::atoi(port.c_str()))) !=
+        0) {
         std::cerr << "Failed to set up for port: " << port << std::endl;
         return EXIT_FAILURE;
     }

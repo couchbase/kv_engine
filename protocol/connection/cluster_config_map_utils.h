@@ -89,7 +89,8 @@ public:
      */
     [[nodiscard]] std::pair<T&, Vbid> lookup(const std::string_view key) const {
         auto vb = hash_function(key) % active_vbmap.size();
-        return {*node_list[active_vbmap[vb]], Vbid(vb)};
+        return {*node_list[active_vbmap[vb]],
+                Vbid(gsl::narrow<Vbid::id_type>(vb))};
     }
 
     /**

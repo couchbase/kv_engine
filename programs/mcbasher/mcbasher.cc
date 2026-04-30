@@ -97,7 +97,7 @@ public:
           generator(random_device()) {
         scheduleReconnect();
         vbmap.resize(1024);
-        for (int ii = 0; ii < 1024; ++ii) {
+        for (uint16_t ii = 0; ii < 1024; ++ii) {
             vbmap[ii] = Vbid(ii);
         }
     }
@@ -232,7 +232,7 @@ protected:
         challenge.push_back('\0');
         challenge.append(password);
         injectCommand(BinprotSaslAuthCommand{"PLAIN", challenge});
-        scheduleTimeout(authenticationTimeout.count());
+        scheduleTimeout(gsl::narrow<uint32_t>(authenticationTimeout.count()));
     }
 
     void sendHello() {
@@ -519,7 +519,7 @@ int main(int argc, char** argv) {
             host.assign(optarg);
             break;
         case 'p':
-            port = std::stoi(optarg);
+            port = gsl::narrow<in_port_t>(std::stoi(optarg));
             break;
         case 'b':
             bucket.assign(optarg);

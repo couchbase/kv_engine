@@ -27,6 +27,7 @@
 #include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
 #include <charconv>
+#include <climits>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
@@ -350,8 +351,7 @@ protected:
     size_t mutations = 0;
     size_t snapshots = 0;
     size_t oso_snapshots = 0;
-    size_t current_buffer_window = 0;
-    size_t max_vbuckets = 0;
+    uint32_t current_buffer_window = 0;
     size_t totalStreams = 0;
 };
 
@@ -840,6 +840,14 @@ int main(int argc, char** argv) {
                         std::cout << "Not using DCP flow control" << std::endl;
                     }
                 } else {
+                    if (buffersize > std::numeric_limits<uint32_t>::max()) {
+                        std::cerr << "Error: DCP buffer size (" << buffersize
+                                  << " bytes) exceeds maximum supported by "
+                                     "DCP protocol (4 GiB / "
+                                  << std::numeric_limits<uint32_t>::max()
+                                  << " bytes)" << std::endl;
+                        std::exit(EXIT_FAILURE);
+                    }
                     if (verbose) {
                         std::cout << "Using DCP flow control with buffer size: "
                                   << buffersize << std::endl;

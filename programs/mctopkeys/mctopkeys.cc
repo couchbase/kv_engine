@@ -63,9 +63,10 @@ static std::vector<std::unique_ptr<MemcachedConnection>> getConnections(
                 json.value("hostname", connections.front()->getHostname());
         in_port_t port = 0;
         if (connections.front()->isSsl()) {
-            port = node["services"].value("kvSSL", 11207);
+            port = node["services"].value("kvSSL",
+                                          static_cast<in_port_t>(11207));
         } else {
-            port = node["services"].value("kv", 11210);
+            port = node["services"].value("kv", static_cast<in_port_t>(11210));
         }
         connections.emplace_back(getopt.createAuthenticatedConnection(
                 hostname, port, AF_UNSPEC, connections.front()->isSsl()));
