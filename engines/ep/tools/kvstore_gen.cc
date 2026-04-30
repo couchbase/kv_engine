@@ -38,11 +38,12 @@ using namespace std::string_literals;
 std::random_device randomDevice;
 std::mt19937_64 randomGenerator(randomDevice());
 
-static std::string makeRandomString(int size) {
+static std::string makeRandomString(std::size_t size) {
     std::uniform_int_distribution<> dis(0, 255);
     std::string result;
-    for (int i = 0; i < size; i++) {
-        result += dis(randomGenerator);
+    result.resize(size);
+    for (auto& c : result) {
+        c = static_cast<uint8_t>(dis(randomGenerator));
     }
     return result;
 }

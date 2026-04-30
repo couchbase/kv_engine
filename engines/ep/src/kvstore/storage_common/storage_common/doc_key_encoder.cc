@@ -35,9 +35,10 @@ std::string encodeDocKey(std::string_view key,
         }
     }
 
-    auto numericCollection = 0;
+    CollectionIDType numericCollection = 0;
     if (!collection.empty()) {
-        numericCollection = stoull(std::string(collection));
+        numericCollection =
+                gsl::narrow<CollectionIDType>(stoull(std::string(collection)));
     }
     CollectionID cid(numericCollection);
 

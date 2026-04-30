@@ -71,8 +71,8 @@ int main(int argc, char* argv[]) {
     float i = 0.0;
     float d = 0.0;
     float setpoint = 0.0;
-    int interval = 10000;
-    int steps = 0;
+    auto interval = 10000UL;
+    auto steps = 0UL;
 
     std::vector<option> long_options{
             {{"p", required_argument, nullptr, 'p'},
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
         auto start = FauxClock::getTime();
         PIDController<FauxClock> pid{
                 setpoint, p, i, d, std::chrono::milliseconds{interval}};
-        for (int step = 0; step < steps; step++) {
+        for (auto step = 0UL; step < steps; step++) {
             auto c = pid.step(pv, [](PIDControllerImpl&) { return false; });
 
             // Compute the sleep like the defragger does

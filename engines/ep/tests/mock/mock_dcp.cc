@@ -48,9 +48,10 @@ cb::engine_errc MockDcpMessageProducers::stream_req(
     last_start_seqno = start_seqno;
     last_end_seqno = end_seqno;
     last_vbucket_uuid = vbucket_uuid;
-    last_packet_size = sizeof(cb::mcbp::Request) +
-                       sizeof(cb::mcbp::request::DcpStreamReqPayload) +
-                       request_value.size();
+    last_packet_size = gsl::narrow<uint32_t>(
+            sizeof(cb::mcbp::Request) +
+            sizeof(cb::mcbp::request::DcpStreamReqPayload) +
+            request_value.size());
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
     last_collection_filter = request_value;
@@ -348,7 +349,8 @@ cb::engine_errc MockDcpMessageProducers::control(uint32_t opaque,
     last_opaque = opaque;
     last_key.assign(key.data(), key.size());
     last_value.assign(value.data(), value.size());
-    last_packet_size = sizeof(cb::mcbp::Request) + key.size() + value.size();
+    last_packet_size = gsl::narrow<uint32_t>(sizeof(cb::mcbp::Request) +
+                                             key.size() + value.size());
 
     if (last_key == DcpControlKeys::ConsumerName) {
         consumer_name = last_value;
@@ -394,9 +396,10 @@ cb::engine_errc MockDcpMessageProducers::system_event(
                         ->cid.to_host();
     }
 
-    last_packet_size = sizeof(cb::mcbp::Request) +
-                       sizeof(cb::mcbp::request::DcpSystemEventPayload) +
-                       key.size() + eventData.size();
+    last_packet_size = gsl::narrow<uint32_t>(
+            sizeof(cb::mcbp::Request) +
+            sizeof(cb::mcbp::request::DcpSystemEventPayload) + key.size() +
+            eventData.size());
     if (sid) {
         last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     }
@@ -509,7 +512,7 @@ cb::engine_errc MockDcpMessageProducers::oso_snapshot(
     if (sid) {
         totalBytes += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     }
-    last_packet_size = totalBytes;
+    last_packet_size = gsl::narrow<uint32_t>(totalBytes);
     return cb::engine_errc::success;
 }
 
@@ -529,7 +532,7 @@ cb::engine_errc MockDcpMessageProducers::seqno_advanced(
         last_stream_id = sid;
         totalBytes += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     }
-    last_packet_size = totalBytes;
+    last_packet_size = gsl::narrow<uint32_t>(totalBytes);
     return cb::engine_errc::success;
 }
 

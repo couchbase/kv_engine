@@ -1248,7 +1248,8 @@ float get_float_stat(EngineIface* h,
 uint32_t get_ul_stat(EngineIface* h,
                      const std::string_view statname,
                      const std::string_view statkey) {
-    return std::stoul(get_str_stat(h, statname, statkey));
+    return gsl::narrow<uint32_t>(
+            std::stoul(get_str_stat(h, statname, statkey)));
 }
 
 uint64_t get_ull_stat(EngineIface* h,
@@ -1362,11 +1363,11 @@ void wait_for_memory_usage_below(
         size_t mem_threshold,
         const std::chrono::seconds max_wait_time_in_secs) {
     std::chrono::microseconds sleepTime{128};
-    WaitTimeAccumulator<int> accumulator("to be below",
-                                         "mem_used",
-                                         {},
-                                         mem_threshold,
-                                         max_wait_time_in_secs);
+    WaitTimeAccumulator<std::size_t> accumulator("to be below",
+                                                 "mem_used",
+                                                 {},
+                                                 mem_threshold,
+                                                 max_wait_time_in_secs);
     for (;;) {
         auto current = get_ull_stat(h, "mem_used");
         if (current <= mem_threshold) {

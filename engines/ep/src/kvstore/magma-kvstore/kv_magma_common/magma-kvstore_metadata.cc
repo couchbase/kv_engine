@@ -242,13 +242,14 @@ std::pair<uint8_t, std::string_view> MetaData::MetaDataV0::decode(
     decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
     revSeqno = decoded.first;
 
-    decoded = cb::mcbp::unsigned_leb128<uint32_t>::decode(decoded.second);
-    exptime = decoded.first;
+    auto decoded32 =
+            cb::mcbp::unsigned_leb128<uint32_t>::decode(decoded.second);
+    exptime = decoded32.first;
 
-    decoded = cb::mcbp::unsigned_leb128<uint32_t>::decode(decoded.second);
-    flags = decoded.first;
+    decoded32 = cb::mcbp::unsigned_leb128<uint32_t>::decode(decoded32.second);
+    flags = decoded32.first;
 
-    buf.remove_prefix(buf.size() - decoded.second.size());
+    buf.remove_prefix(buf.size() - decoded32.second.size());
 
     return {allBits, buf};
 }
