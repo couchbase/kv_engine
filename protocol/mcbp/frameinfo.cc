@@ -50,7 +50,7 @@ std::vector<uint8_t> FrameInfo::encode(cb::mcbp::request::FrameInfoId id,
     }
 
     std::vector<uint8_t> ret(1);
-    ret[0] = uint8_t(id) << 0x04U;
+    ret[0] = gsl::narrow_cast<uint8_t>(static_cast<uint8_t>(id) << 4);
     if (data.size() < 0x0fU) {
         // We may fit in a single byte
         ret[0] |= uint8_t(data.size());

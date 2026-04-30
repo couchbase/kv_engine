@@ -446,12 +446,11 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
 
     do {
         // Keep sending continue until we get the response with complete
-        BinprotRangeScanContinue scanContinue(
-                Vbid(0),
-                id,
-                itemLimit,
-                std::chrono::milliseconds(0) /* no time limit*/,
-                0 /*no byte limit*/);
+        BinprotRangeScanContinue scanContinue(Vbid(0),
+                                              id,
+                                              gsl::narrow<uint32_t>(itemLimit),
+                                              0 /* no time limit*/,
+                                              0 /*no byte limit*/);
         userConnection->sendCommand(scanContinue);
         ++continuesIssued;
 
@@ -635,11 +634,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
 
     BinprotRangeScanContinue scanContinue(
-            Vbid(0),
-            id,
-            2,
-            std::chrono::milliseconds(0) /* no time limit*/,
-            0 /*no byte limit*/);
+            Vbid(0), id, 2, 0 /* no time limit*/, 0 /*no byte limit*/);
     userConnection->sendCommand(scanContinue);
 
     // On the admin connection, make a change to force an error path
@@ -715,12 +710,12 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             scanCanContinue = false;
         } else if (resp.getStatus() == cb::mcbp::Status::RangeScanMore) {
             // range-scan-more
-            userConnection->sendCommand(BinprotRangeScanContinue(
-                    Vbid(0),
-                    id,
-                    2, // 2 keys per continue
-                    std::chrono::milliseconds(0) /* no time limit*/,
-                    0 /*no byte limit*/));
+            userConnection->sendCommand(
+                    BinprotRangeScanContinue(Vbid(0),
+                                             id,
+                                             2, // 2 keys per continue
+                                             0 /* no time limit*/,
+                                             0 /*no byte limit*/));
         } else if (resp.getStatus() == cb::mcbp::Status::Success) {
             // keys/values - next packet should be status
             ASSERT_NE(0, resp.getDataView().size());

@@ -308,11 +308,12 @@ protected:
         opaques.emplace(id, vb);
 
         continueCount++;
-        BinprotRangeScanContinue rangeScanContinue(Vbid(vb),
-                                                   scans[vb],
-                                                   continueItemLimit,
-                                                   continueTimeLimit,
-                                                   continueByteLimit);
+        BinprotRangeScanContinue rangeScanContinue(
+                Vbid(vb),
+                scans[vb],
+                gsl::narrow<uint32_t>(continueItemLimit),
+                gsl::narrow<uint32_t>(continueTimeLimit.count()),
+                gsl::narrow<uint32_t>(continueByteLimit));
         rangeScanContinue.setOpaque(id);
         std::vector<uint8_t> vec;
         rangeScanContinue.encode(vec);

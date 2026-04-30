@@ -651,7 +651,7 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     }
 
     std::ranges::copy(passphrase, buf);
-    return passphrase.size();
+    return gsl::narrow<int>(passphrase.size());
 }
 
 void MemcachedConnection::connect() {
@@ -1175,10 +1175,10 @@ void MemcachedConnection::recvFrame(Frame& frame,
         auto timeoutvalue = readTimeout;
         if (readTimeout.count() == 0) {
             // none specified, use default
-            tmo.scheduleTimeout(timeout.count(), {});
+            tmo.scheduleTimeout(gsl::narrow<uint32_t>(timeout.count()), {});
             timeoutvalue = timeout;
         } else {
-            tmo.scheduleTimeout(readTimeout.count(), {});
+            tmo.scheduleTimeout(gsl::narrow<uint32_t>(readTimeout.count()), {});
         }
         asyncSocket->setReadCB(asyncReadCallback.get());
         if (!eventBase->loop()) {

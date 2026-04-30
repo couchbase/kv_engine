@@ -1234,9 +1234,9 @@ class BinprotRangeScanContinue : public BinprotGenericCommand {
 public:
     BinprotRangeScanContinue(Vbid vbid,
                              cb::rangescan::Id id,
-                             size_t itemLimit,
-                             std::chrono::milliseconds timeLimit,
-                             size_t byteLimit);
+                             uint32_t itemLimit,
+                             uint32_t timeLimit,
+                             uint32_t byteLimit);
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
