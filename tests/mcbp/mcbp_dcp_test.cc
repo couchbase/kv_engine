@@ -894,7 +894,7 @@ TEST_P(DcpSetVbucketStateValidatorTest, CorrectMessage) {
 TEST_P(DcpSetVbucketStateValidatorTest, LegalValues) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
 
-    for (int ii = 1; ii < 5; ++ii) {
+    for (uint8_t ii = 1; ii < 5; ++ii) {
         cb::mcbp::request::DcpSetVBucketState extras;
         extras.setState(ii);
         builder.setExtras(extras.getBuffer());

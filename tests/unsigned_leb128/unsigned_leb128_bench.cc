@@ -53,7 +53,7 @@ static void bench_unsigned_leb128_decode(benchmark::State& state) {
     std::array<std::vector<uint8_t>, numberOfInputs> buffers;
     size_t value = range.first;
     for (auto& b : buffers) {
-        b = makeLebPrefixedBuffer(value, state.range(1));
+        b = makeLebPrefixedBuffer(gsl::narrow<uint32_t>(value), state.range(1));
         if (value == range.second) {
             value = range.first;
         } else {
@@ -77,7 +77,7 @@ static void bench_unsigned_leb128_decodeCanonical(benchmark::State& state) {
     std::array<std::vector<uint8_t>, numberOfInputs> buffers;
     size_t value = range.first;
     for (auto& b : buffers) {
-        b = makeLebPrefixedBuffer(value, state.range(1));
+        b = makeLebPrefixedBuffer(gsl::narrow<uint32_t>(value), state.range(1));
         if (value == range.second) {
             value = range.first;
         } else {

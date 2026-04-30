@@ -1159,6 +1159,9 @@ public:
                          uint64_t revSeqno = 0,
                          uint32_t deleteTime = 0);
     void recvDcpBufferAck(uint32_t expected);
+    void recvDcpBufferAck(std::size_t expected) {
+        recvDcpBufferAck(gsl::narrow<uint32_t>(expected));
+    }
 
     cb::mcbp::request::GetCollectionIDPayload getCollectionId(
             std::string_view path);

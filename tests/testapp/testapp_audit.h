@@ -43,6 +43,6 @@ public:
     static void iterate(
             const std::function<bool(const nlohmann::json&)>& callback);
 
-    static int getAuditCount(const std::vector<nlohmann::json>& entries,
-                             int id);
+    static std::size_t getAuditCount(const std::vector<nlohmann::json>& entries,
+                                     int id);
 };

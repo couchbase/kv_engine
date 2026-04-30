@@ -62,9 +62,9 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
  *   Keys are named "key_0", "key_1"...
  *   Values are strings of the form "value_0", value_1"...
  */
-nlohmann::json make_flat_dict(int nelements) {
+nlohmann::json make_flat_dict(size_t nelements) {
     nlohmann::json dict;
-    for (int i = 0; i < nelements; i++) {
+    for (size_t i = 0; i < nelements; i++) {
         dict[std::string{"key_"} + std::to_string(i)] =
                 std::string{"value_"} + std::to_string(i);
     }

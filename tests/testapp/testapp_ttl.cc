@@ -106,7 +106,7 @@ time_t TtlTest::subdoc_modify(const std::string& key,
                              name,
                              R"(foo)",
                              R"("subdoc_modify")");
-    cmd.setExpiry(exptime);
+    cmd.setExpiry(gsl::narrow<uint32_t>(exptime));
     if (preserveTtl) {
         cmd.addFrameInfo(cb::mcbp::request::PreserveTtlFrameInfo{});
     }

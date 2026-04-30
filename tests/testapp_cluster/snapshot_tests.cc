@@ -76,8 +76,7 @@ protected:
 
     void validate_docs_on_destination() {
         for (int ii = 0; ii < 100; ++ii) {
-            ii = destination_node->arithmetic(
-                    fmt::format("key:{}", ii), 0, 1000);
+            destination_node->arithmetic(fmt::format("key:{}", ii), 0, 1000);
         }
     }
 

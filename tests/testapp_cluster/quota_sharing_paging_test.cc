@@ -110,10 +110,10 @@ protected:
         std::vector<std::pair<Vbid, std::string>> docKeys;
 
         auto storeNextItem = [&, key = 0]() mutable {
-            auto vb = key % maxVBuckets;
+            Vbid vb(gsl::narrow<Vbid::id_type>(key % maxVBuckets));
             auto docKey = "key_" + std::to_string(key);
-            conns[bucket]->store(docKey, Vbid(vb), itemValue);
-            docKeys.emplace_back(Vbid(vb), std::move(docKey));
+            conns[bucket]->store(docKey, vb, itemValue);
+            docKeys.emplace_back(vb, std::move(docKey));
             key++;
         };
 

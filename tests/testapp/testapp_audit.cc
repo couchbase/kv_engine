@@ -158,8 +158,8 @@ bool AuditTest::searchAuditLogForID(int id,
     return ret;
 }
 
-int AuditTest::getAuditCount(const std::vector<nlohmann::json>& entries,
-                             int id) {
+std::size_t AuditTest::getAuditCount(const std::vector<nlohmann::json>& entries,
+                                     int id) {
     return std::ranges::count_if(entries, [id](const auto& entry) {
         return entry.at("id").template get<int>() == id;
     });

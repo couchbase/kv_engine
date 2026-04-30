@@ -201,7 +201,7 @@ TEST_P(StatsTest, curr_bucket_connections) {
     conn->authenticate("Luke");
     conn->selectBucket(bucketName);
 
-    auto after = 0;
+    std::size_t after = 0;
     userConnection->stats([&after](auto key, auto value) {
         if (key == "curr_bucket_connections") {
             after = std::stoull(value);

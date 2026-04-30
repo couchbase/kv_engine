@@ -54,7 +54,7 @@ TEST_P(MutationWithMetaTest, CorrectMessage) {
 
 TEST_P(MutationWithMetaTest, InvalidExtlen) {
     for (int ii = 0; ii < 256; ++ii) {
-        request.setExtlen(ii);
+        request.setExtlen(gsl::narrow<uint8_t>(ii));
 
         switch (ii) {
         case 24:
