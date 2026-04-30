@@ -282,9 +282,10 @@ cb::engine_errc MutateWithMetaCommandContext::validateInput() {
         return ret;
     }
 
-    const auto datatype = static_cast<protocol_binary_datatype_t>(
-                                  cookie.getRequest().getDatatype()) &
-                          ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    const protocol_binary_datatype_t datatype =
+            static_cast<protocol_binary_datatype_t>(
+                    cookie.getRequest().getDatatype()) &
+            ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     const auto value = getDocumentData();
 
     ret = validateOffsetRequirements(value, datatype);
@@ -309,9 +310,10 @@ cb::engine_errc MutateWithMetaCommandContext::storeItem() {
     mutation_descr.vbucket_uuid = std::numeric_limits<uint64_t>::max();
     cb::engine_errc ret;
     uint64_t commandCas = request.getCas();
-    const auto datatype = static_cast<protocol_binary_datatype_t>(
-                                  cookie.getRequest().getDatatype()) &
-                          ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    const protocol_binary_datatype_t datatype =
+            static_cast<protocol_binary_datatype_t>(
+                    cookie.getRequest().getDatatype()) &
+            ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     const auto value = getDocumentData();
     if (command == MutateWithMetaCommand::Delete && value.empty()) {
         ret = bucket_delete_with_meta(cookie,
