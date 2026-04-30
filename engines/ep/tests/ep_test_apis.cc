@@ -83,13 +83,22 @@ CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
     }
 #endif
 
-    const auto perms =
-            (mode == Mode::ReadOnly) ? (S_IRUSR | S_IRGRP | S_IROTH) : 0;
+    switch (mode) {
+    case Mode::ReadOnly:
+        std::filesystem::permissions(
+                filename,
+                std::filesystem::perms::owner_read |
+                        std::filesystem::perms::group_read |
+                        std::filesystem::perms::others_read,
+                std::filesystem::perm_options::replace);
+        return;
+    case Mode::DenyAll:
+        std::filesystem::permissions(filename, std::filesystem::perms::none);
 
-    checkeq(0,
-            chmod(filename.c_str(), perms),
-            "Failed to make file '"s + dbFiles.at(0) +
-                    "' read-only: " + cb_strerror());
+        return;
+    }
+
+    Expects(false && "Invalid mode provided");
 }
 
 CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
