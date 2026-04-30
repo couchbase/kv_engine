@@ -10,6 +10,7 @@
 
 #include "read_callback.h"
 #include <folly/portability/GTest.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/vbucket.h>
@@ -42,7 +43,7 @@ protected:
         request->setVBucket(Vbid{666});
         request->setOpcode(cb::mcbp::ClientOpcode::Noop);
         request->setCas(0xdeadbeef);
-        request->setBodylen(bodylen);
+        request->setBodylen(gsl::narrow<uint32_t>(bodylen));
         addDataToStream(request->getFrame());
     }
 
