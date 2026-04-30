@@ -1,6 +1,3 @@
-if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-endif ()
-
 add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/configuration_iface.h
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h

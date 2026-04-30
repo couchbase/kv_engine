@@ -32,7 +32,7 @@ protected:
               double percentile);
 
     // Calculation for padding around the count in each histogram bucket
-    int countFieldWidth() const;
+    size_t countFieldWidth() const;
 
     // Calculation for histogram size rendering - how wide should the
     // ASCII bar be for the count of samples.

@@ -134,7 +134,7 @@ void TimingHistogramPrinter::dump(FILE* out,
                                   int64_t count,
                                   double percentile) {
     int num = barChartWidth(count);
-    int numberOfSpaces = countFieldWidth();
+    const auto numberOfSpaces = countFieldWidth();
 
     fmt::print(out,
                "[{:6.2f} - {:6.2f}]{} ({:6.4f}%)\t{}| {}\n",
@@ -147,7 +147,7 @@ void TimingHistogramPrinter::dump(FILE* out,
 }
 
 // Calculation for padding around the count in each histogram bucket
-int TimingHistogramPrinter::countFieldWidth() const {
+size_t TimingHistogramPrinter::countFieldWidth() const {
     return fmt::formatted_size("{}", maxCount) + 1;
 }
 
