@@ -290,7 +290,7 @@ protected:
     std::vector<std::atomic<uint16_t>>
             curWorkers; // track # of active workers per TaskSet
     // and limit it to the value set here
-    std::vector<std::atomic<int>> numWorkers;
+    std::vector<std::atomic_size_t> numWorkers;
     std::vector<std::atomic<size_t>>
             numReadyTasks; // number of ready tasks per task set
 

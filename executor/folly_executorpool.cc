@@ -593,7 +593,7 @@ struct FollyExecutorPool::State {
     }
 
     /// @returns the number of taskables registered.
-    int numTaskables() const {
+    size_t numTaskables() const {
         return taskOwners.size();
     }
 
@@ -601,7 +601,7 @@ struct FollyExecutorPool::State {
      * Returns the number of tasks owned by the specified taskable, plus
      * any pending reset after being cancelled.
      */
-    int numTasksForOwner(const Taskable& taskable) {
+    size_t numTasksForOwner(const Taskable& taskable) {
         auto& owner = taskOwners.at(&taskable);
         return owner.locator.size() + owner.pendingTaskResets;
     }
@@ -944,7 +944,7 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
 
 size_t FollyExecutorPool::getNumTaskables() const {
     cb::NoArenaGuard guard;
-    int numTaskables = 0;
+    size_t numTaskables = 0;
     futurePool->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &numTaskables] {
                 numTaskables = state->numTaskables();
