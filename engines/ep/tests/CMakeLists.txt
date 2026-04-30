@@ -392,15 +392,3 @@ ADD_TEST(NAME ep_perfsuite.ephemeral
         COMMAND ${_ep_perfsuite_cmdline} -e "bucket_type=ephemeral$<SEMICOLON>dbname=./ep_perfsuite.ephemeral.db")
 
 # ============================================================================ #
-
-# MB-67520: Enable warnings for narrowing conversions and
-# implicit int conversions when building with MSVC and Clang/AppleClang.
-# This is limited to a subset of targets whilst we make progress towards
-# being able to globally enable such flags.
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(ep-engine_ep_unit_tests PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_testsuite PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_testsuite_dcp PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_testsuite_xdcr PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_testsuite_basic PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-endif()

@@ -11,7 +11,7 @@
 
 #include "local_doc_parser.h"
 
-#include "flatbuffers/idl.h"
+#include "flatbuffer.h"
 
 #include "local_doc_constants.h"
 #include <collections/events_generated.h>

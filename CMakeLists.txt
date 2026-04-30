@@ -12,6 +12,12 @@ if (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
     message(FATAL_ERROR "CB_DEVELOPMENT_ASSERTS MUST have been enabled for KV_COMMIT_VALIDATION builds to ensure that tests are valid.")
 endif (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
 
+# MB-68266: Turn on some extra warnings as errors for clang
+#           builds to help catch potential issues earlier.
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
+endif ()
+
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
 # let's continue to find them there until it's all done

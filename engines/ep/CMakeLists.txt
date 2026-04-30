@@ -584,14 +584,3 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
 
     add_header_object_library(NAME ep_headers_obj HEADERS ${ep_headers})
 endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
-
-# MB-67520: Enable warnings for narrowing conversions and
-# implicit int conversions when building with MSVC and Clang/AppleClang.
-# This is limited to a subset of targets whilst we make progress towards
-# being able to globally enable such flags.
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(ep PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_perfsuite PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_engine_benchmarks PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-    target_compile_options(ep_mocks PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-endif()

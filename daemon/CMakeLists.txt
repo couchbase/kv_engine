@@ -135,14 +135,6 @@ endif()
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
 cb_enable_unity_build(memcached_daemon)
 
-# MB-67520: Enable warnings for narrowing conversions and
-# implicit int conversions when building with Clang/AppleClang.
-# This is limited to a subset of targets whilst we make progress towards
-# being able to globally enable such flags.
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(memcached_daemon PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-endif()
-
 add_dependencies(memcached_daemon
                  generate_audit_descriptors
                  generate_serverless_configuration)
@@ -192,13 +184,6 @@ target_link_libraries(memcached PRIVATE
 add_sanitizers(memcached)
 kv_enable_pch(memcached)
 
-# MB-67520: Enable warnings for narrowing conversions and
-# implicit int conversions when building with Clang/AppleClang.
-# This is limited to a subset of targets whilst we make progress towards
-# being able to globally enable such flags.
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(memcached PRIVATE -Werror=shorten-64-to-32 -Werror=implicit-int-conversion)
-endif()
 # Allow 'memcached' to export symbols - i.e. symbols marked as
 # MEMCACHED_PUBLIC_API / MEMCACHED_PUBLIC_CLASS should marked as externally
 # visible in the symbol table.
