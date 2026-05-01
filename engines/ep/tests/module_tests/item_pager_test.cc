@@ -2157,6 +2157,12 @@ TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
     ASSERT_NO_THROW(runPagingAdapterTask());
     // Back to initial task count
     EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+    // Debug dump the tasks as the above condition is sometimes failing.
+    if (initialNonIoTasks != lpNonioQ.getFutureQueueSize()) {
+        lpNonioQ.forEachFutureTask([](const ExTask& task) {
+            std::cerr << "FutureQueue task: " << task->getDescription() << '\n';
+        });
+    }
 }
 
 /**

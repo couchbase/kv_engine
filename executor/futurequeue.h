@@ -88,6 +88,17 @@ public:
         return queue.verifyHeapProperty();
     }
 
+    /*
+     * Invoke f(const ExTask&) for every task in the queue. Tasks are visited
+     * in heap order (not sorted by waketime). The queue mutex is held for the
+     * duration of the iteration, so f must not call back into the queue.
+     */
+    template <class Func>
+    void forEach(Func f) {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        queue.forEach(f);
+    }
+
 protected:
     /*
      * HeapifiableQueue exposes a method to maintain the heap ordering
@@ -114,6 +125,13 @@ protected:
                 return true;
             } else {
                 return false;
+            }
+        }
+
+        template <class Func>
+        void forEach(Func f) const {
+            for (const auto& task : this->c) {
+                f(task);
             }
         }
 
