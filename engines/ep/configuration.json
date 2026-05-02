@@ -37,26 +37,7 @@
  *       types: "on-prem", "serverless", "tsan", "dev-assert-enabled".
  *       If there is no default value for a deployment type, then the on-prem
  *       value is used.
- *     - a map defining an if condition with the following keys:
- *       {
- *          "if": {
- *            "parameter": {
- *              "equals": "value",
- *              "then": "use value1",
- *              "elif": [
- *                {"parameter": {"equals": "value", "then": "use value2"}}
- *              ]
- *            }
- *          },
- *          "else": "use value3"
- *       }
- *
- *       The condition generates a series of if/else if/else statements to set
- *       the parameter based on the value of other parameters. This code will
- *       be executed at the end of the configuration initialization. For this
- *       reason the compared parameters should not be dynamic. The deployment
- *       type conditionals are not supported.
- *     - a map of versioned defaults:
+*     - a map of versioned defaults:
  *       {
  *          "default": {
  *            "7.0": "value1",
@@ -1267,19 +1248,14 @@
                 }
             }
         },
-        "dcp_backfill_idle_protection_enabled" : {
-            "default": {
-                "if": {
-                    "bucket_type": {
-                        "equals": "ephemeral",
-                        "then": "false"
-                    },
-                    "else": "true"
-                }
-            },
+        "dcp_backfill_idle_protection_enabled": {
+            "default": "true",
             "descr": "When true, DCP backfills will be checked for progress. Any backfill which makes no progress for dcp_backfill_idle_limit_seconds will be subject to further checks. If the directory referenced by dbname is over dcp_backfill_idle_disk_threshold percent used and cancelling the backfill will free disk space, the scan cancels and the associated DCP stream will end with reason slow.",
             "dynamic": true,
-            "type": "bool"
+            "type": "bool",
+            "requires": {
+                "bucket_type": "persistent"
+            }
         },
         "dcp_backfill_idle_limit_seconds" : {
             "default": "720",

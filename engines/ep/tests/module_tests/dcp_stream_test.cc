@@ -10061,6 +10061,10 @@ TEST_P(SlowBackfillTest, BackfillCompletesWithProgress) {
 // Test related to MB-62703, check stream ends and backfill cancels if no
 // progress can be made.
 TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
+    if (ephemeral()) {
+        GTEST_SKIP() << "dcp_backfill_idle_protection_enabled is not supported "
+                        "for ephemeral buckets";
+    }
     setupIdleBackfill();
     validateStream();
 

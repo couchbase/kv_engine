@@ -76,9 +76,4 @@ private:
 
     // Maximum duration for backfill to run before yielding
     std::chrono::milliseconds backfillMaxDuration;
-
-    // For MB-62703 track the seqno of the scan and see if it changes over time
-    std::optional<seqno_t> trackedPosition;
-    cb::time::steady_clock::time_point lastPositionChangedTime;
-    std::optional<std::chrono::seconds> maxNoProgressDuration;
 };

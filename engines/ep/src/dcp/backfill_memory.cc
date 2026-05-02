@@ -35,9 +35,7 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
       evb(evb),
       rangeItr(nullptr),
       backfillMaxDuration(
-              evb->getConfiguration().getDcpBackfillRunDurationLimit()),
-      maxNoProgressDuration(
-              getBackfillIdleLimitSeconds(evb->getConfiguration())) {
+              evb->getConfiguration().getDcpBackfillRunDurationLimit()) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
                        this,
@@ -392,38 +390,5 @@ DCPBackfill::State DCPBackfillMemoryBuffered::getNextScanState(
 }
 
 bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
-    // Takeover streams are immune to this. Ns_server does not handle the stream
-    // close gracefully in some cases. The optional also controls if this
-    // feature is enabled
-    if (!maxNoProgressDuration || stream.isTakeoverStream()) {
-        return false;
-    }
-
-    if (!trackedPosition) {
-        lastPositionChangedTime = cb::time::steady_clock::now();
-        trackedPosition = rangeItr.curr();
-        return false;
-    }
-
-    if (*trackedPosition != rangeItr.curr()) {
-        // The position has changed, save new position and the time.
-        trackedPosition = rangeItr.curr();
-        lastPositionChangedTime = cb::time::steady_clock::now();
-        return false;
-    }
-
-    // No change in position, check if the limit we are within limit
-    if ((cb::time::steady_clock::now() - lastPositionChangedTime) <
-        *maxNoProgressDuration) {
-        return false;
-    }
-
-    // No change and outside of threshold.
-    OBJ_LOG_WARN_CTX(stream,
-                     "DCPBackfillMemoryBuffered::isSlow true, no progress"
-                     " has been made on the scan for more than the no "
-                     "progress duration",
-                     {"max_no_progress_duration", *maxNoProgressDuration},
-                     {"tracked_position", trackedPosition});
-    return true;
+    return false;
 }
