@@ -101,6 +101,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                                     : ForceValueCompression::No),
       syncReplication(p->getSyncReplSupport()),
       flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
+      skipDeletesInInitialBackfill(p->isSkipDeletesInInitialBackfillEnabled()),
       filter(std::move(f)),
       changeStreamsEnabled(p->areChangeStreamsEnabled()),
       endSeqno(en_seqno),
@@ -2896,9 +2897,12 @@ bool ActiveStream::isSeqnoAdvancedEnabled() const {
     // Then we only require SeqnoAdvance for streams which don't enable:
     // sync-writes - so we can replace abort/prepare with seqno-advance
     // FlatBuffers - so we can replace ModifyCollection with seqno-advance
+    // Or does enable SkipDeletesInInitialBackfill - so we can replace deleted
+    // items with seqno-advance
     return isCollectionEnabledStream() &&
            (syncReplication == SyncReplication::No ||
-            !flatBuffersSystemEventsEnabled);
+            !flatBuffersSystemEventsEnabled ||
+            isSkipDeletesInInitialBackfillEnabled());
 }
 
 bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {

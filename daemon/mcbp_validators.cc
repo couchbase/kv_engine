@@ -607,7 +607,8 @@ static Status dcp_open_validator(Cookie& cookie) {
             ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
               DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
               DcpOpenFlag::NoValueWithUnderlyingDatatype |
-              DcpOpenFlag::IncludeDeletedUserXattrs);
+              DcpOpenFlag::IncludeDeletedUserXattrs |
+              DcpOpenFlag::SkipDeletesInInitialBackfill);
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();
@@ -617,6 +618,14 @@ static Status dcp_open_validator(Cookie& cookie) {
     if (unknown != DcpOpenFlag::None) {
         cookie.setErrorContext(
                 fmt::format("Request contains invalid flags: {}", unknown));
+        return Status::Einval;
+    }
+
+    if (isFlagSet(flags, DcpOpenFlag::SkipDeletesInInitialBackfill) &&
+        !isFlagSet(flags, DcpOpenFlag::Producer)) {
+        cookie.setErrorContext(
+                "SkipDeletesInInitialBackfill may only be requested on a "
+                "producer stream");
         return Status::Einval;
     }
 

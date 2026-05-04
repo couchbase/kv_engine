@@ -44,6 +44,7 @@
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "memcached/protocol_binary.h"
 #include "paging_visitor.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -360,8 +361,9 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
         CookieIface* cookie,
         IncludeDeleteTime deleteTime,
         bool flatBuffersSystemEvents,
-        const std::string name) {
-    auto flags = cb::mcbp::DcpOpenFlag::IncludeXattrs;
+        const std::string name,
+        cb::mcbp::DcpOpenFlag flags) {
+    flags |= cb::mcbp::DcpOpenFlag::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
         flags |= cb::mcbp::DcpOpenFlag::IncludeDeleteTimes;
     }

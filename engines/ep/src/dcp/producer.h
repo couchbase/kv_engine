@@ -266,6 +266,10 @@ public:
         return connectionSupportsSnappy;
     }
 
+    bool isSkipDeletesInInitialBackfillEnabled() const {
+        return skipDeletesInInitialBackfill;
+    }
+
     bool isCursorDroppingEnabled() const {
         return supportsCursorDropping.load();
     }
@@ -836,6 +840,9 @@ protected:
      * which includes seqno-advanced messages.
      */
     const bool collectionsEnabled{false};
+
+    /// Should the stream include deleted items in backfills?
+    const bool skipDeletesInInitialBackfill;
 
     /**
      * Does the producer allow the client to create more than one active stream

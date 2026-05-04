@@ -20,15 +20,15 @@ TEST(DcpOpenFlag, to_and_from_json) {
             "[\"Producer\",\"unknown:0x2\",\"IncludeXattrs\",\"NoValue\","
             "\"unknown:0x10\",\"IncludeDeleteTimes\","
             "\"NoValueWithUnderlyingDatatype\",\"PiTR\","
-            "\"IncludeDeletedUserXattrs\",\"unknown:0x200\",\"unknown:0x400\","
-            "\"unknown:0x800\",\"unknown:0x1000\",\"unknown:0x2000\",\"unknown:"
-            "0x4000\",\"unknown:0x8000\",\"unknown:0x10000\",\"unknown:"
-            "0x20000\",\"unknown:0x40000\",\"unknown:0x80000\",\"unknown:"
-            "0x100000\",\"unknown:0x200000\",\"unknown:0x400000\",\"unknown:"
-            "0x800000\",\"unknown:0x1000000\",\"unknown:0x2000000\",\"unknown:"
-            "0x4000000\",\"unknown:0x8000000\",\"unknown:0x10000000\","
-            "\"unknown:0x20000000\",\"unknown:0x40000000\",\"unknown:"
-            "0x80000000\"]",
+            "\"IncludeDeletedUserXattrs\",\"SkipDeletesInInitialBackfill\","
+            "\"unknown:0x400\",\"unknown:0x800\",\"unknown:0x1000\",\"unknown:"
+            "0x2000\",\"unknown:0x4000\",\"unknown:0x8000\",\"unknown:"
+            "0x10000\",\"unknown:0x20000\",\"unknown:0x40000\",\"unknown:"
+            "0x80000\",\"unknown:0x100000\",\"unknown:0x200000\",\"unknown:"
+            "0x400000\",\"unknown:0x800000\",\"unknown:0x1000000\",\"unknown:"
+            "0x2000000\",\"unknown:0x4000000\",\"unknown:0x8000000\",\"unknown:"
+            "0x10000000\",\"unknown:0x20000000\",\"unknown:0x40000000\","
+            "\"unknown:0x80000000\"]",
             json.dump());
 
     EXPECT_EQ(flags, json.get<cb::mcbp::DcpOpenFlag>()) << json.dump();

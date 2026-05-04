@@ -365,7 +365,12 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData,
         cb::mcbp::DcpStreamId sid) {
-    EXPECT_EQ(version, mcbp::systemevent::version::version2);
+    if (version != mcbp::systemevent::version::version2) {
+        // cannot ASSERT here, so throw before continuing with invalid data
+        throw std::logic_error(
+                "CollectionsDcpTestProducers::systemEventVersion2 system event "
+                "version mismatch");
+    }
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;

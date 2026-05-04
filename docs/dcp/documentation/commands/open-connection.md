@@ -40,6 +40,9 @@ Flags are specified as a bitmask in network byte order with the following bits d
   datatype when it strips off the document value.
 * 0x100: __Include deleted user xattrs__. Requests that the server includes the document
   User Xattrs within deletion values.
+* 0x200: __Skip Deletes In Initial Backfill__. Requests that the server doesn't send deletes/tombstones
+  in the initial backfill (e.g. client never saw a mutation first). This requires collections being 
+  enabled as this feature requires seqno-advance support.
 
 When setting the Producer or Consumer flag the sender is telling the server what
 type of connection will be created. For example, if the Producer type is set

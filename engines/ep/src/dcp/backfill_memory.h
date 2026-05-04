@@ -76,4 +76,5 @@ private:
 
     // Maximum duration for backfill to run before yielding
     std::chrono::milliseconds backfillMaxDuration;
+    const bool skipDeletes;
 };

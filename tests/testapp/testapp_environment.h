@@ -157,6 +157,21 @@ public:
     /// The keystore used to keep track of the encrypt keys for the bucket
     cb::crypto::KeyStore keystore;
 
+    /**
+     * Delete the bucket and recreate it with the provided mode and extra
+     * configuration. By default don't delete the on-disk data
+     *
+     * @param conn The connection to use (should be an admin connection)
+     * @param name The name of the bucket to reload
+     * @param mode The mode to use when reloading the bucket
+     * @param extra_config Optional configuration to use in addition to
+     *                     the buckets configuration.
+     */
+    void reloadBucket(MemcachedConnection& conn,
+                      const std::string& name,
+                      BucketCreateMode mode = BucketCreateMode::AllowRecreate,
+                      const std::string& extra_config = {});
+
 protected:
     static void createEwbBucket(const std::string& name,
                                 BucketType type,

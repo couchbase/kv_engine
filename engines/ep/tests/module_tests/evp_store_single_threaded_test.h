@@ -80,12 +80,15 @@ public:
      * @param deleteTime yes/no - enable/disable delete times
      * @param flatBuffersSystemEvents enable/disable producer with FlatBuffers
      *        system events
+     * @param name producer name to register with
+     * @param flags flags to open the producer with
      */
     std::shared_ptr<MockDcpProducer> createDcpProducer(
             CookieIface* cookie,
             IncludeDeleteTime deleteTime,
             bool flatBuffersSystemEvents = true,
-            const std::string name = "test_producer");
+            const std::string name = "test_producer",
+            cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None);
 
     /*
      * DCP helper.

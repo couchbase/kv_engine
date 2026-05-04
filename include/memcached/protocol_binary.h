@@ -577,6 +577,10 @@ enum class DcpOpenFlag : uint32_t {
      * deletion values.
      */
     IncludeDeletedUserXattrs = 256,
+    /**
+     * Indicates that the server should not send delete messages.
+     */
+    SkipDeletesInInitialBackfill = 512,
 };
 std::string format_as(DcpOpenFlag flag);
 

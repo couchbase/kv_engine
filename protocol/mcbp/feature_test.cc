@@ -59,7 +59,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "GetRandomKeyIncludeXattr"},
          {cb::mcbp::Feature::SubdocAllowReplicaReadOnDeletedDocs,
           "SubdocAllowReplicaReadOnDeletedDocs"},
-         {cb::mcbp::Feature::MutateWithMeta, "MutateWithMeta"}}};
+         {cb::mcbp::Feature::MutateWithMeta, "MutateWithMeta"},
+         {cb::mcbp::Feature::DcpSkipDeletesInInitialBackfill,
+          "DcpSkipDeletesInInitialBackfill"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& [feature, name] : featureBlueprint) {

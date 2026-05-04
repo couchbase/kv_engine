@@ -89,6 +89,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "SubdocAllowReplicaReadOnDeletedDocs";
     case Feature::MutateWithMeta:
         return "MutateWithMeta";
+    case Feature::DcpSkipDeletesInInitialBackfill:
+        return "DcpSkipDeletesInInitialBackfill";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

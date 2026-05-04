@@ -5896,6 +5896,78 @@ TEST_P(CollectionsDcpParameterizedTest, MB_66959) {
                        Collections::CreateEventDcpData::size}));
 }
 
+// MB-26074 validate a filtered stream backfills correctly when using
+// SkipDeletesInInitialBackfill. The backfill code has to take care to
+// know the initial backfill on a filtered stream (when we may bump the
+// start seqno)
+TEST_P(CollectionsDcpParameterizedTest,
+       SkipDeletesInInitialBackfill_filteredStream) {
+    // Firstly ensure that the fruit collection starts > 1
+    ASSERT_TRUE(store_items(2, vbid, makeStoredDocKey("k"), "v"));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    using namespace mcbp::systemevent;
+    using namespace cb::mcbp;
+    using namespace CollectionEntry;
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(fruit));
+    store_deleted_item(vbid, makeStoredDocKey("k1", fruit), "v");
+    const auto key = makeStoredDocKey("k2", fruit);
+    store_item(vbid, key, "v");
+    store_deleted_item(vbid, makeStoredDocKey("k3", fruit), "v");
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    // Clear out checkpoints
+    ensureDcpWillBackfill();
+
+    // Setup filtered DCP
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP,
+            IncludeDeleteTime::No,
+            true,
+            "test_producer",
+            DcpOpenFlag::SkipDeletesInInitialBackfill);
+    producers->consumer = nullptr;
+
+    // Generate a stream request that is means we have observed
+    uint64_t rollbackSeqno{0};
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::None,
+                      1, // opaque
+                      vbid,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return cb::engine_errc::success;
+                      },
+                      R"({"collections":["9"]})"));
+
+    runBackfill();
+    // Filtered on fruit. None of the deletes should be visible.
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(producers->last_snap_start_seqno, 0);
+    EXPECT_EQ(producers->last_snap_end_seqno, 6);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Disk));
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_byseqno, 3);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    producer->stepAndExpect(*producers, ClientOpcode::DcpMutation);
+    EXPECT_EQ(producers->last_byseqno, 5);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_dockey, key);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(producers->last_byseqno, 6);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

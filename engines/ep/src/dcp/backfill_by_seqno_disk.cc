@@ -71,7 +71,10 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                                     .getDcpBackfillRunDurationLimit())),
             getVBucketId(),
             startSeqno,
-            DocumentFilter::ALL_ITEMS,
+            (stream->isSkipDeletesInInitialBackfillEnabled() &&
+             stream->isInitialBackfill())
+                    ? DocumentFilter::NO_DELETES
+                    : DocumentFilter::ALL_ITEMS,
             valFilter,
             SnapshotSource::Head);
 

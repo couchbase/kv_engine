@@ -172,6 +172,10 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// server). It may be used from the client to determine if the server
     /// supports the MutateWithMeta command.
     MutateWithMeta = 0x25,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports the SkipDeletesInInitialBackfill option to DCP OPEN
+    DcpSkipDeletesInInitialBackfill = 0x26,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);

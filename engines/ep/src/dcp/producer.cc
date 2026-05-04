@@ -226,6 +226,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       connectionSupportsSnappy(
               cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)),
       collectionsEnabled(cookie->isCollectionsSupported()),
+      skipDeletesInInitialBackfill(isFlagSet(
+              flags, cb::mcbp::DcpOpenFlag::SkipDeletesInInitialBackfill)),
       stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()),
       inlineCheckpointItemLimit(
               e.getConfiguration()

@@ -13,9 +13,19 @@
  */
 
 #include "testapp_client_test.h"
+#include <engines/ep/src/dcp/dcp-types.h>
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <nlohmann/json.hpp>
 #include <map>
+
+using namespace cb::mcbp;
+using namespace cb::mcbp::request;
+using namespace cb::mcbp::subdoc;
+using cb::durability::Level;
+using KeyAndSnapshotPair =
+        std::pair<std::string, std::optional<DcpSnapshotMarkerV1Payload>>;
+using KeyAndSnapshotVector = std::vector<KeyAndSnapshotPair>;
 
 class DcpTest : public TestappClientTest {
 protected:
@@ -29,8 +39,10 @@ protected:
 
     auto createProducerConnection(
             const std::function<void(MemcachedConnection&)>& on_auth_callback =
-                    {}) {
-        using cb::mcbp::Feature;
+                    {},
+            DcpOpenFlag flags = DcpOpenFlag::None,
+            const std::function<void(MemcachedConnection&)>&
+                    on_stream_created_callback = {}) {
         auto connection = getAdminConnection().clone(
                 true,
                 {Feature::JSON, Feature::SNAPPY, Feature::SnappyEverywhere},
@@ -42,43 +54,115 @@ protected:
         connection->selectBucket(bucketName);
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
-                getTestName(), cb::mcbp::DcpOpenFlag::Producer});
+                getTestName(), DcpOpenFlag::Producer | flags});
         EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                      << rsp.getDataView();
+        if (on_stream_created_callback) {
+            on_stream_created_callback(*connection);
+        }
         return connection;
     }
 
     auto setupProducerWithStream(
             const std::function<void(MemcachedConnection&)>& on_auth_callback =
-                    {}) {
-        auto producerConn = createProducerConnection(on_auth_callback);
+                    {},
+            DcpOpenFlag openFlags = DcpOpenFlag::None,
+            DcpAddStreamFlag streamFlags = DcpAddStreamFlag::None,
+            uint64_t uuid = 0,
+            uint64_t startSeqno = 0,
+            const std::function<void(MemcachedConnection&)>&
+                    on_stream_created_callback = {}) {
+        auto producerConn = createProducerConnection(
+                on_auth_callback, openFlags, on_stream_created_callback);
 
         BinprotDcpStreamRequestCommand streamReq;
         streamReq.setDcpReserved(0);
-        streamReq.setDcpStartSeqno(0);
-        streamReq.setDcpEndSeqno(0xffffffff);
-        streamReq.setDcpVbucketUuid(0);
-        streamReq.setDcpSnapStartSeqno(0);
-        streamReq.setDcpSnapEndSeqno(0xfffffff);
+        streamReq.setDcpStartSeqno(startSeqno);
+        streamReq.setDcpEndSeqno(std::numeric_limits<uint64_t>::max());
+        streamReq.setDcpVbucketUuid(uuid);
+        streamReq.setDcpSnapStartSeqno(startSeqno);
+        streamReq.setDcpSnapEndSeqno(std::numeric_limits<uint64_t>::max());
         streamReq.setVBucket(Vbid(0));
+        streamReq.setDcpFlags(streamFlags);
+
         producerConn->sendCommand(streamReq);
         // Instead of calling recvResponse(), which requires a Response and
         // throws on Request sent by DCP, use recvFrame and ignore any DCP
         // messages.
         Frame frame;
         producerConn->recvFrame(frame);
-        while (cb::mcbp::is_server_magic(frame.getMagic())) {
-            producerConn->recvFrame(frame,
-                                    cb::mcbp::ClientOpcode::Invalid,
-                                    std::chrono::seconds(5));
+        while (is_server_magic(frame.getMagic())) {
+            producerConn->recvFrame(
+                    frame, ClientOpcode::Invalid, std::chrono::seconds(5));
         }
-        if (cb::mcbp::is_client_magic(frame.getMagic())) {
-            EXPECT_TRUE(cb::mcbp::isStatusSuccess(
-                    frame.getResponse()->getStatus()));
+        if (is_client_magic(frame.getMagic())) {
+            auto* rsp = frame.getResponse();
+            if (!isStatusSuccess(rsp->getStatus()) ||
+                rsp->getStatus() == Status::Rollback) {
+                throw std::runtime_error(
+                        fmt::format("DCP_STREAM_REQ failed: {}",
+                                    rsp->to_json(true).dump()));
+            }
         }
 
         return producerConn;
     }
+
+    void verifyMb26074(bool ephemeral);
+
+    auto upsert(std::string key,
+                bool durable = false,
+                std::string extra_value = {}) {
+        BinprotSubdocMultiMutationCommand cmd(
+                key,
+                {{.opcode = ClientOpcode::SubdocDictUpsert,
+                  .flags = PathFlag::Mkdir_p | PathFlag::XattrPath,
+                  .path = "_sys.trusted",
+                  .value = "false"},
+                 {.opcode = ClientOpcode::SubdocDictUpsert,
+                  .flags = PathFlag::Mkdir_p,
+                  .path = "user.name",
+                  .value = "\"John Doe\""},
+                 {.opcode = ClientOpcode::SubdocDictUpsert,
+                  .flags = PathFlag::Mkdir_p,
+                  .path = "user.extra",
+                  .value = fmt::format("\"{}\"", extra_value)}},
+                DocFlag::Mkdoc);
+        if (durable) {
+            cmd.addFrameInfo(
+                    DurabilityFrameInfo{Level::MajorityAndPersistOnMaster});
+        }
+
+        const auto rsp = BinprotSubdocMultiMutationResponse{
+                userConnection->execute(cmd)};
+        if (rsp.isSuccess()) {
+            return true;
+        }
+        if (rsp.getStatus() == Status::Etmpfail) {
+            return false;
+        }
+        throw std::runtime_error(fmt::format(
+                "Failed to store document with system xattr: {} - {}",
+                rsp.getStatus(),
+                rsp.getDataView()));
+    };
+
+    auto remove(std::string key, bool durable = false) {
+        BinprotRemoveCommand cmd{std::move(key)};
+        if (durable) {
+            cmd.addFrameInfo(
+                    DurabilityFrameInfo{Level::MajorityAndPersistOnMaster});
+        }
+
+        const auto rsp = userConnection->execute(cmd);
+        ASSERT_EQ(Status::Success, rsp.getStatus())
+                << "Failed to delete document" << std::endl;
+    };
+
+    std::pair<KeyAndSnapshotVector, KeyAndSnapshotVector> drainStream(
+            DcpOpenFlag open_flag,
+            DcpAddStreamFlag stream_flag,
+            uint64_t start_seqno);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -95,7 +179,7 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     BinprotDcpStreamRequestCommand streamReq;
     streamReq.setDcpStartSeqno(0xdeadbeef);
     const auto rsp = conn->execute(streamReq);
-    ASSERT_EQ(cb::mcbp::Status::Rollback, rsp.getStatus());
+    ASSERT_EQ(Status::Rollback, rsp.getStatus());
 
     const auto data = rsp.getDataView();
     ASSERT_EQ(sizeof(uint64_t), data.size());
@@ -118,43 +202,43 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     conn.selectBucket(bucketName);
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
     conn.sendCommand(BinprotDcpOpenCommand{"UnorderedExecutionNotSupported",
-                                           cb::mcbp::DcpOpenFlag::Producer});
+                                           DcpOpenFlag::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    EXPECT_EQ(Status::NotSupported, rsp.getStatus());
 }
 
 /// DCP connections should not be able to select bucket
 TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
     const auto conn = createProducerConnection();
     const auto rsp = conn->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::SelectBucket, name});
+            BinprotGenericCommand{ClientOpcode::SelectBucket, name});
     ASSERT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    EXPECT_EQ(Status::NotSupported, rsp.getStatus());
 }
 
 /// DCP connections should not be able to perform SASL AUTH
 TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
     const auto conn = createProducerConnection();
-    const auto rsp = conn->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
+    const auto rsp =
+            conn->execute(BinprotGenericCommand{ClientOpcode::SaslListMechs});
+    EXPECT_EQ(Status::NotSupported, rsp.getStatus())
             << "SASL LIST MECH should fail";
     try {
         conn->authenticate("@admin");
         FAIL() << "DCP connections should not be able to reauthenticate";
     } catch (const ConnectionError& error) {
-        EXPECT_EQ(cb::mcbp::Status::NotSupported, error.getReason())
+        EXPECT_EQ(Status::NotSupported, error.getReason())
                 << "SASL AUTH should fail";
     }
 }
 
 TEST_P(DcpTest, CantDcpOpenTwice) {
     const auto conn = createProducerConnection();
-    const auto rsp = conn->execute(BinprotDcpOpenCommand{
-            "CantDcpOpenTwice", cb::mcbp::DcpOpenFlag::Producer});
+    const auto rsp = conn->execute(
+            BinprotDcpOpenCommand{"CantDcpOpenTwice", DcpOpenFlag::Producer});
     ASSERT_FALSE(rsp.isSuccess());
     const auto json = rsp.getDataJson();
     EXPECT_EQ("The connection is already opened as a DCP connection",
@@ -225,8 +309,8 @@ TEST_P(DcpTest, CacheTransferStream) {
     const auto conn = createProducerConnection();
 
     BinprotDcpStreamRequestCommand streamReq;
-    streamReq.setDcpFlags(cb::mcbp::DcpAddStreamFlag::CacheTransfer |
-                          cb::mcbp::DcpAddStreamFlag::ActiveVbOnly);
+    streamReq.setDcpFlags(DcpAddStreamFlag::CacheTransfer |
+                          DcpAddStreamFlag::ActiveVbOnly);
     streamReq.setDcpReserved(0);
     streamReq.setDcpStartSeqno(highSeqno);
     streamReq.setDcpEndSeqno(highSeqno);
@@ -242,16 +326,13 @@ TEST_P(DcpTest, CacheTransferStream) {
     bool streamEnded = false;
     while (!streamEnded) {
         Frame frame;
-        conn->recvFrame(frame,
-                        cb::mcbp::ClientOpcode::Invalid,
-                        std::chrono::seconds(10));
-        if (cb::mcbp::is_server_magic(frame.getMagic())) {
+        conn->recvFrame(frame, ClientOpcode::Invalid, std::chrono::seconds(10));
+        if (is_server_magic(frame.getMagic())) {
             continue;
         }
         if (frame.getHeader()->isResponse()) {
             ASSERT_FALSE(seenStreamReqResponse);
-            ASSERT_TRUE(
-                    cb::mcbp::isStatusSuccess(frame.getResponse()->getStatus()))
+            ASSERT_TRUE(isStatusSuccess(frame.getResponse()->getStatus()))
                     << "Stream request failed: "
                     << frame.getResponse()->getStatus();
             seenStreamReqResponse = true;
@@ -260,9 +341,9 @@ TEST_P(DcpTest, CacheTransferStream) {
 
         const auto* req = frame.getRequest();
         switch (req->getClientOpcode()) {
-        case cb::mcbp::ClientOpcode::DcpCacheTransfer: {
+        case ClientOpcode::DcpCacheTransfer: {
             seenCacheTransfer = true;
-            cb::mcbp::DcpCacheTransferBuffer buffer(req->getValueString());
+            DcpCacheTransferBuffer buffer(req->getValueString());
             for (auto it = buffer.begin(); it != buffer.end(); ++it) {
                 ASSERT_FALSE(it.hasError())
                         << "DcpCacheTransferBuffer iteration error: "
@@ -275,7 +356,7 @@ TEST_P(DcpTest, CacheTransferStream) {
             }
             break;
         }
-        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+        case ClientOpcode::DcpStreamEnd:
             streamEnded = true;
             break;
         default:
@@ -287,6 +368,299 @@ TEST_P(DcpTest, CacheTransferStream) {
     EXPECT_TRUE(seenStreamReqResponse);
     EXPECT_TRUE(seenCacheTransfer);
     EXPECT_EQ(expected, received);
+}
+
+// We need our own namespace to avoid name clash with the DcpProducer class
+// in ep-engine
+namespace testapp {
+
+class DcpProducer {
+public:
+    DcpProducer(MemcachedConnection& conn,
+                std::string agent,
+                const std::string& bucket)
+        : connection(conn.clone(
+                  true,
+                  {Feature::JSON, Feature::SNAPPY, Feature::SnappyEverywhere},
+                  std::move(agent))) {
+        connection->authenticate("@admin");
+        connection->selectBucket(bucket);
+    }
+
+    void open(std::string dcpname, DcpOpenFlag flags) {
+        auto rsp = connection->execute(BinprotDcpOpenCommand{
+                std::move(dcpname), DcpOpenFlag::Producer | flags});
+        if (!rsp.isSuccess()) {
+            throw std::runtime_error(
+                    fmt::format("DCP_STREAM_REQ failed: {} - {}",
+                                rsp.getStatus(),
+                                rsp.getDataView()));
+        }
+
+        std::vector<std::pair<std::string_view, std::string>> controls = {
+                {DcpControlKeys::SetPriority, "high"},
+                {DcpControlKeys::SupportsCursorDroppingVulcan, "true"},
+                {DcpControlKeys::SupportsHifiMfu, "true"},
+                {DcpControlKeys::SendStreamEndOnClientCloseStream, "true"},
+                {DcpControlKeys::EnableExpiryOpcode, "true"},
+                {DcpControlKeys::SetNoopInterval, "360"},
+                {DcpControlKeys::EnableNoop, "true"},
+                {DcpControlKeys::ConnectionBufferSize, "128"}};
+
+        for (const auto& [key, value] : controls) {
+            rsp = connection->execute(
+                    BinprotDcpControlCommand{std::string{key}, value});
+            if (!rsp.isSuccess()) {
+                fmt::print(stderr,
+                           "Failed to set {} to {}: {}",
+                           key,
+                           value,
+                           rsp.getStatus());
+            }
+        }
+    }
+
+    void addStream(uint64_t uuid,
+                   uint64_t startSeqno = 0,
+                   uint64_t snapStartSeqno = 0,
+                   uint64_t snapEndSeqno = std::numeric_limits<uint64_t>::max(),
+                   DcpAddStreamFlag flags = DcpAddStreamFlag::None) {
+        BinprotDcpStreamRequestCommand streamReq;
+        streamReq.setDcpReserved(0);
+        streamReq.setDcpStartSeqno(startSeqno);
+        streamReq.setDcpEndSeqno(std::numeric_limits<uint64_t>::max());
+        streamReq.setDcpVbucketUuid(uuid);
+        streamReq.setDcpSnapStartSeqno(snapStartSeqno);
+        streamReq.setDcpSnapEndSeqno(snapEndSeqno);
+        streamReq.setVBucket(Vbid(0));
+        streamReq.setDcpFlags(flags);
+        connection->sendCommand(streamReq);
+
+        Frame frame;
+        connection->recvFrame(frame);
+        while (is_server_magic(frame.getMagic())) {
+            connection->recvFrame(
+                    frame, ClientOpcode::Invalid, std::chrono::seconds(5));
+        }
+        if (is_client_magic(frame.getMagic())) {
+            auto* rsp = frame.getResponse();
+            if (!isStatusSuccess(rsp->getStatus()) ||
+                rsp->getStatus() == Status::Rollback) {
+                throw std::runtime_error(
+                        fmt::format("DCP_STREAM_REQ failed: {}",
+                                    rsp->to_json(true).dump()));
+            }
+        }
+    }
+
+    void drive(
+            std::function<std::pair<bool, bool>(const Request&)> on_message) {
+        Frame frame;
+        do {
+            connection->recvFrame(frame);
+            if (is_request(frame.getMagic())) {
+                const auto& req = *frame.getRequest();
+
+                if (req.getClientOpcode() == ClientOpcode::DcpNoop) {
+                    BinprotCommandResponse rsp{ClientOpcode::DcpNoop,
+                                               req.getOpaque()};
+                    connection->sendCommand(rsp);
+                    continue;
+                }
+
+                auto [stop, send_ack] = on_message(*frame.getRequest());
+                pending_buffer_size += getDcpBufferSize(*frame.getRequest());
+                if (send_ack) {
+                    connection->sendCommand(
+                            BinprotDcpBufferAck{pending_buffer_size});
+                    pending_buffer_size = 0;
+                }
+
+                if (stop) {
+                    return;
+                }
+            }
+        } while (true);
+    }
+
+protected:
+    static std::size_t getDcpBufferSize(const Request& request) {
+        switch (request.getClientOpcode()) {
+        case ClientOpcode::DcpStreamEnd:
+        case ClientOpcode::DcpMutation:
+        case ClientOpcode::DcpSnapshotMarker:
+        case ClientOpcode::DcpOsoSnapshot:
+        case ClientOpcode::DcpAddStream:
+        case ClientOpcode::DcpCloseStream:
+        case ClientOpcode::DcpStreamReq:
+        case ClientOpcode::DcpGetFailoverLog:
+        case ClientOpcode::DcpDeletion:
+        case ClientOpcode::DcpExpiration:
+        case ClientOpcode::DcpFlush_Unsupported:
+        case ClientOpcode::DcpSetVbucketState:
+        case ClientOpcode::DcpBufferAcknowledgement:
+        case ClientOpcode::DcpControl:
+        case ClientOpcode::DcpSystemEvent:
+        case ClientOpcode::DcpPrepare:
+        case ClientOpcode::DcpSeqnoAcknowledged:
+        case ClientOpcode::DcpCommit:
+        case ClientOpcode::DcpAbort:
+        case ClientOpcode::DcpSeqnoAdvanced:
+        case ClientOpcode::DcpCacheTransfer:
+            return request.getBodylen() + sizeof(Header);
+        default:
+            return 0;
+        }
+    }
+
+    std::unique_ptr<MemcachedConnection> connection;
+    std::size_t pending_buffer_size{0};
+};
+} // namespace testapp
+
+std::pair<KeyAndSnapshotVector, KeyAndSnapshotVector> DcpTest::drainStream(
+        DcpOpenFlag open_flag,
+        DcpAddStreamFlag stream_flag,
+        uint64_t start_seqno) {
+    uint64_t uuid = 0xdeadbeef;
+    userConnection->stats(
+            [&uuid](auto k, auto v) {
+                if (k == "vb_0:uuid") {
+                    uuid = std::stoull(v);
+                }
+            },
+            "vbucket-details 0");
+
+    testapp::DcpProducer producer(*userConnection, getTestName(), bucketName);
+    producer.open(getTestName(), open_flag);
+    producer.addStream(uuid,
+                       start_seqno,
+                       start_seqno,
+                       std::numeric_limits<uint64_t>::max(),
+                       stream_flag);
+
+    std::optional<DcpSnapshotMarkerV1Payload> snapshot;
+
+    std::vector<KeyAndSnapshotPair> keys;
+    std::vector<KeyAndSnapshotPair> deletions;
+
+    producer.drive([&](const Request& req) {
+        if (req.getClientOpcode() == ClientOpcode::DcpStreamEnd) {
+            return std::make_pair(true, true);
+        }
+
+        if (req.getClientOpcode() == ClientOpcode::DcpSnapshotMarker) {
+            Expects(req.getExtlen() == sizeof(DcpSnapshotMarkerV1Payload));
+            snapshot = *reinterpret_cast<const DcpSnapshotMarkerV1Payload*>(
+                    req.getExtdata().data());
+        } else if (req.getClientOpcode() == ClientOpcode::DcpDeletion) {
+            deletions.emplace_back(req.getKeyString(), snapshot);
+        } else if (req.getClientOpcode() == ClientOpcode::DcpMutation) {
+            keys.emplace_back(req.getKeyString(), snapshot);
+        }
+        return std::make_pair(false, true);
+    });
+    return {std::move(keys), std::move(deletions)};
+}
+
+static bool isDiskSnapshot(const DcpSnapshotMarkerFlag flag) {
+    return static_cast<uint32_t>(DcpSnapshotMarkerFlag::Disk) ==
+           (static_cast<uint32_t>(flag) &
+            static_cast<uint32_t>(DcpSnapshotMarkerFlag::Disk));
+}
+
+void DcpTest::verifyMb26074(bool ephemeral) {
+    const auto extra_bucket_config =
+            fmt::format("checkpoint_max_size=512{}",
+                        ephemeral ? ";bucket_type=ephemeral" : "");
+
+    mcd_env->getTestBucket().reloadBucket(*adminConnection,
+                                          bucketName,
+                                          TestBucket::BucketCreateMode::Clean,
+                                          extra_bucket_config);
+    rebuildUserConnection(isTlsEnabled());
+    prepare(*userConnection);
+    std::vector<cb::mcbp::Feature> features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SELECT_BUCKET,
+             cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
+             cb::mcbp::Feature::SNAPPY,
+             cb::mcbp::Feature::JSON,
+             cb::mcbp::Feature::Collections}};
+    userConnection->setFeatures(features);
+    userConnection->selectBucket(bucketName);
+
+    // key is name and this must be a collection ket (default collection is
+    // fine)
+    name.insert(0, 1, '\0');
+    upsert(name, !ephemeral);
+    remove(name, !ephemeral);
+    upsert(fmt::format("{}-1", name), !ephemeral);
+
+    // Verify that we skip the delete when we tell it to do so from an
+    // initial backfill
+    {
+        auto [mutations, deletions] =
+                drainStream(DcpOpenFlag::SkipDeletesInInitialBackfill,
+                            DcpAddStreamFlag::ToLatest,
+                            0);
+
+        EXPECT_TRUE(deletions.empty())
+                << "Expected not to see delete in DCP stream with "
+                   "SkipDeletesInInitialBackfill, but it was present";
+        ASSERT_EQ(1, mutations.size());
+        EXPECT_EQ(fmt::format("{}-1", name), mutations[0].first);
+    }
+
+    // Verify that we don't skip the delete when we tell it to do a normal
+    // initial backfill
+    {
+        auto [mutations, deletions] =
+                drainStream({}, DcpAddStreamFlag::ToLatest, 0);
+
+        ASSERT_EQ(1, deletions.size());
+        EXPECT_EQ(name, deletions[0].first);
+        ASSERT_TRUE(deletions[0].second.has_value());
+        EXPECT_TRUE(isDiskSnapshot(deletions[0].second->getFlags()));
+        ASSERT_EQ(1, mutations.size());
+        EXPECT_EQ(fmt::format("{}-1", name), mutations[0].first);
+    }
+
+    // Verify that we don't skip the delete when we tell it to do so, but
+    // we don't start from seqno 0
+    {
+        auto [mutations, deletions] =
+                drainStream(DcpOpenFlag::SkipDeletesInInitialBackfill,
+                            DcpAddStreamFlag::ToLatest,
+                            1);
+
+        ASSERT_EQ(1, deletions.size());
+        EXPECT_EQ(name, deletions[0].first);
+        ASSERT_TRUE(deletions[0].second.has_value());
+        EXPECT_TRUE(isDiskSnapshot(deletions[0].second->getFlags()));
+        ASSERT_EQ(1, mutations.size());
+        EXPECT_EQ(fmt::format("{}-1", name), mutations[0].first);
+    }
+}
+
+TEST_P(DcpTest, MB26074) {
+    verifyMb26074(false);
+    // Recreate the bucket with the normal state to avoid messing up the next
+    // test
+    mcd_env->getTestBucket().reloadBucket(
+            *adminConnection, bucketName, TestBucket::BucketCreateMode::Clean);
+    userConnection.reset();
+}
+
+TEST_P(DcpTest, MB26074_Ephemeral) {
+    verifyMb26074(true);
+    // Recreate the bucket with the normal state to avoid messing up the next
+    // test
+    mcd_env->getTestBucket().reloadBucket(
+            *adminConnection, bucketName, TestBucket::BucketCreateMode::Clean);
+    userConnection.reset();
 }
 
 /// Verify that we log unclean DCP disconnects. Disabled as part of the
@@ -313,7 +687,7 @@ TEST_P(DcpTest, MB60706) {
         // This test needs to wait for the 1Mib documents, not documents from
         // other tests
         if (frame.getRequest()->getClientOpcode() ==
-                    cb::mcbp::ClientOpcode::DcpMutation &&
+                    ClientOpcode::DcpMutation &&
             frame.getRequest()->getValue().size() == value.size()) {
             // DCP has started sending data
             conn->close();

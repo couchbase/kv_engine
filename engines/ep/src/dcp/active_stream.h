@@ -170,6 +170,13 @@ public:
     /// @Returns true if state_ is TakeoverWait
     bool isTakeoverWait() const;
 
+    bool isSkipDeletesInInitialBackfillEnabled() const {
+        // SkipDeletesInInitialBackfill is only applicable to collection-enabled
+        // streams as it requires seqno-advance support in cases when whole
+        // snapshots are empty.
+        return skipDeletesInInitialBackfill && isCollectionEnabledStream();
+    }
+
     void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     void setDeadWithLock(
@@ -1060,6 +1067,11 @@ private:
 
     /// Does this stream send system-events with a FlatBuffers value?
     const bool flatBuffersSystemEventsEnabled{false};
+
+    /// Whether the producer has SkipDeletesInInitialBackfill enabled. Cached
+    /// at construction from the DcpProducer so hot-path callers do not need to
+    /// promote the weak producer pointer.
+    const bool skipDeletesInInitialBackfill{false};
 
     /**
      * The filter the stream will use to decide which keys should be transmitted

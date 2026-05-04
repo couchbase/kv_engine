@@ -85,6 +85,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         case Feature::GetRandomKeyIncludeXattr:
         case Feature::MutateWithMeta:
+        case Feature::DcpSkipDeletesInInitialBackfill:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -131,6 +132,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::TCPDELAY_Unsupported:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         case Feature::MutateWithMeta:
+        case Feature::DcpSkipDeletesInInitialBackfill:
             // No other dependency
             break;
 
@@ -386,6 +388,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         case Feature::GetRandomKeyIncludeXattr:
         case Feature::MutateWithMeta:
+        case Feature::DcpSkipDeletesInInitialBackfill:
             // Informative features don't need special handling
             added = true;
             break;

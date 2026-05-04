@@ -35,7 +35,9 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
       evb(evb),
       rangeItr(nullptr),
       backfillMaxDuration(
-              evb->getConfiguration().getDcpBackfillRunDurationLimit()) {
+              evb->getConfiguration().getDcpBackfillRunDurationLimit()),
+      skipDeletes(s->isSkipDeletesInInitialBackfillEnabled() &&
+                  s->isInitialBackfill()) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
                        this,
@@ -310,6 +312,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // time field, this must be copied to the expiry time so that DCP
             // can transmit the original time of deletion
             if (item->isDeleted()) {
+                if (skipDeletes) {
+                    ++rangeItr;
+                    continue;
+                }
                 item->setExpTime(osv.getCompletedOrDeletedTime());
             }
         } catch (const std::bad_alloc&) {

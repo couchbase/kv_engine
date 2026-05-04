@@ -47,6 +47,9 @@ void to_json(nlohmann::json& json, const DcpOpenFlag& flags) {
             case DcpOpenFlag::IncludeDeletedUserXattrs:
                 array.emplace_back("IncludeDeletedUserXattrs");
                 break;
+            case DcpOpenFlag::SkipDeletesInInitialBackfill:
+                array.emplace_back("SkipDeletesInInitialBackfill");
+                break;
 
             case DcpOpenFlag::Unused:
             case DcpOpenFlag::Invalid:
@@ -95,6 +98,9 @@ DcpOpenFlag toDcpOpenFlag(std::string value) {
     }
     if (value == "pitr") {
         return DcpOpenFlag::PiTR_Unsupported;
+    }
+    if (value == "skipdeletesininitialbackfill") {
+        return DcpOpenFlag::SkipDeletesInInitialBackfill;
     }
     if (value.starts_with("unknown:")) {
         return static_cast<DcpOpenFlag>(

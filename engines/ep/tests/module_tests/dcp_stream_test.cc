@@ -3756,6 +3756,92 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 }
 
+// MB-26074: Verify that a disk-backfill scheduled as a consequence of
+// cursor-dropping (i.e. *not* the initial backfill) still includes deletes,
+// even when the SkipDeletesInInitialBackfill DCP flag is enabled.
+TEST_P(SingleThreadedActiveStreamTest,
+       SkipDeletesInInitialBackfillCursorDropDiskSnapshotIncludesDeletes) {
+    // Reset the default stream/producer created by SetUp() and re-create with
+    // the SkipDeletesInInitialBackfill flag under test.
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    // 1) Flush some deletes and we will stream from disk/seq-list
+    store_deleted_item(vbid, makeStoredDocKey("1"), "1"); // seqno 1
+    store_deleted_item(vbid, makeStoredDocKey("2"), "2"); // seqno 2
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    // Force "disk" stream
+    vb.checkpointManager->clear();
+
+    recreateProducerAndStream(
+            vb, cb::mcbp::DcpOpenFlag::SkipDeletesInInitialBackfill, "");
+    ASSERT_TRUE(producer->isSkipDeletesInInitialBackfillEnabled());
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_TRUE(stream->isInitialBackfill());
+
+    runBackfill();
+
+    // Items to be picked up after backfill
+    store_deleted_item(vbid, makeStoredDocKey("3"), "3");
+    store_deleted_item(vbid, makeStoredDocKey("4"), "4");
+
+    // snapshot marker + seqno-advance
+    EXPECT_EQ(2, stream->public_readyQSize());
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    ASSERT_TRUE(marker);
+    EXPECT_TRUE(isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk))
+            << "Initial backfill must be a disk snapshot. Got: "
+            << format_as(marker->getFlags());
+    EXPECT_EQ(0, marker->getStartSeqno());
+    EXPECT_EQ(2, marker->getEndSeqno());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    auto* seqnoAdvanced = dynamic_cast<SeqnoAdvanced*>(resp.get());
+    ASSERT_TRUE(seqnoAdvanced);
+    EXPECT_EQ(2, seqnoAdvanced->getBySeqno());
+    EXPECT_EQ(2, stream->getLastReadSeqno());
+    EXPECT_FALSE(stream->next(*producer));
+
+    // flush those items now so the they are ready for backfill
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    ASSERT_TRUE(stream->isInMemory());
+    ASSERT_TRUE(stream->public_handleSlowStream());
+    // no chance of resuming in-memory...
+    vb.checkpointManager->clear();
+    // step to schedule bfill
+    EXPECT_FALSE(stream->next(*producer));
+    ASSERT_TRUE(stream->isBackfilling());
+    runBackfill();
+
+    // snapshot marker + deletes
+    EXPECT_EQ(3, stream->public_readyQSize());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    ASSERT_TRUE(marker);
+    EXPECT_TRUE(isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk))
+            << "Cursor drop backfill must be a disk snapshot. Got: "
+            << format_as(marker->getFlags());
+    EXPECT_EQ(3, marker->getStartSeqno());
+    EXPECT_EQ(4, marker->getEndSeqno());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    EXPECT_EQ(3, dynamic_cast<MutationResponse&>(*resp.get()).getBySeqno());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    EXPECT_EQ(4, dynamic_cast<MutationResponse&>(*resp.get()).getBySeqno());
+
+    EXPECT_EQ(4, stream->getLastReadSeqno());
+    EXPECT_FALSE(stream->next(*producer));
+}
+
 // When the very first snapshot is to be filtered away (no items to be sent), we
 // send a SnapshotMarker with the snapStartSeqno and snapEndSeqno of the
 // StreamRequest + a SeqnoAdvanced to the snapEndSeqno. This completes the

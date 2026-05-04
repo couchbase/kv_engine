@@ -15,6 +15,7 @@
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
 #include <dek/manager.h>
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <memcached/unit_test_mode.h>
@@ -54,6 +55,17 @@ std::string TestBucket::mergeConfigString(const std::string& next) {
     }
 
     return settings;
+}
+
+void TestBucket::reloadBucket(MemcachedConnection& conn,
+                              const std::string& name,
+                              BucketCreateMode mode,
+                              const std::string& extra_config) {
+    const auto createModeGuard = folly::makeGuard(
+            [this, old = bucketCreateMode]() { bucketCreateMode = old; });
+    bucketCreateMode = mode;
+    conn.deleteBucket(name);
+    setUpBucket(name, extra_config, conn);
 }
 
 void TestBucket::createEwbBucket(const std::string& name,
