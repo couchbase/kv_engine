@@ -13,11 +13,8 @@
 #include "bucket_logger.h"
 #include "error_handler.h"
 
+#include <utilities/crc32.h>
 #include <utilities/logtags.h>
-
-extern "C" {
-#include "crc32.h"
-}
 
 void validateKeyMapping(std::string_view caller,
                         cb::ErrorHandlingMethod errorHandlingMethod,

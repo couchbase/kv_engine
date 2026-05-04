@@ -13,6 +13,8 @@ add_library(mcd_util STATIC
             config_parser.cc
             connection_iface.cc
             cookie_iface.cc
+            crc32.c
+            crc32.h
             dcp_stream_id.cc
             dek_file_utilities.cc
             dek_file_utilities.h
@@ -45,6 +47,17 @@ add_library(mcd_util STATIC
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(mcd_util)
+
+# Skip precompiled headers for the (tiny minority) of C source files.
+# This is to avoid adding complexity to precompiled_headers.h to handle C & C++
+# includes differently. In addition to skipping the precompiled headers we also
+# need to avoid including them in a unity objects as the inclusion of the
+# precompiled header in the unity object would cause a similar issue.
+set_source_files_properties(crc32.c
+        PROPERTIES
+        SKIP_PRECOMPILE_HEADERS ON
+        SKIP_UNITY_BUILD_INCLUSION ON)
+
 
 if (APPLE)
     target_sources(mcd_util PRIVATE breakpad_not_supported.cc)

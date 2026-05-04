@@ -215,8 +215,7 @@ target_include_directories(ep-engine_storage_common PUBLIC
 # includes differently. In addition to skipping the precompiled headers we also
 # need to avoid including them in a unity objects as the inclusion of the
 # precompiled header in the unity object would cause a similar issue.
-set_source_files_properties(src/crc32.c
-                            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                             PROPERTIES
                             SKIP_PRECOMPILE_HEADERS ON
                             SKIP_UNITY_BUILD_INCLUSION ON)
@@ -256,7 +255,6 @@ ADD_LIBRARY(ep STATIC
             src/conn_store.cc
             src/connhandler.cc
             src/connmap.cc
-            src/crc32.c
             src/cross_bucket_visitor_adapter.cc
             src/dcp/active_stream.cc
             src/dcp/active_stream.h

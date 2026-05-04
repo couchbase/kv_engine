@@ -19,14 +19,11 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/cluster_config_map_utils.h>
+#include <utilities/crc32.h>
 #include <iostream>
 #ifndef WIN32
 #include <csignal>
 #endif
-
-extern "C" {
-uint32_t crc32buf(const uint8_t* buf, size_t len);
-}
 
 /// Set to true when all consumers should drain their spooled data and
 /// not expect new data to arrive

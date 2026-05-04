@@ -1,4 +1,3 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2011-Present Couchbase, Inc.
  *
@@ -13,4 +12,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t crc32buf(const uint8_t* buf, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
