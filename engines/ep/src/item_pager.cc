@@ -184,9 +184,13 @@ bool StrictQuotaItemPager::shouldStopPaging(
 bool StrictQuotaItemPager::canPageItems(
         const ItemPager::PageableMemInfo& memInfo) const {
     auto* kvBucket = engine->getKVBucket();
+    // Find a limit for paging. It should be either the difference between:
+    // 1) pageable high/pageable low
+    // 2) current pageable/pageable low
+    // Pick the smaller (noting current could be huge in some extreme cases)
     size_t limit = 0;
-    if (stats.mem_high_wat > memInfo.lower) {
-        limit = stats.mem_high_wat - memInfo.lower;
+    if (memInfo.upper > memInfo.lower) {
+        limit = memInfo.upper - memInfo.lower;
     }
     if (memInfo.current > memInfo.lower) {
         limit = std::min(limit, memInfo.current - memInfo.lower);
