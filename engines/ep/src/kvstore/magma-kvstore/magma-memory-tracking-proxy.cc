@@ -496,6 +496,16 @@ void MagmaMemoryTrackingProxy::SetFragmentationRatio(double fragRatio) {
     magma->SetFragmentationRatio(fragRatio);
 }
 
+void MagmaMemoryTrackingProxy::SetLSMMaxBaseLevelSize(size_t size) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetLSMMaxBaseLevelSize(size);
+}
+
+void MagmaMemoryTrackingProxy::SetLSMMaxNumLevel0Tables(size_t numTables) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetLSMMaxNumLevel0Tables(numTables);
+}
+
 void MagmaMemoryTrackingProxy::EnableBlockCache(bool enable) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->EnableBlockCache(enable);

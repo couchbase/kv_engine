@@ -1537,6 +1537,26 @@
             "descr": "Maximum # of checkpoints retained for rollback.",
             "type": "size_t"
         },
+        "magma_max_base_level_size": {
+            "default": "1073741824",
+            "dynamic": true,
+            "descr": "Upper bound on the dynamic L0/L1 target size. The target scales with the bottom level; values above this are clamped.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_max_num_level0_tables": {
+            "default": "16",
+            "dynamic": true,
+            "descr": "Maximum number of L0 tables in the magma LSM trees.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "magma_checkpoint_interval": {
             "default": "120",
             "dynamic": false,

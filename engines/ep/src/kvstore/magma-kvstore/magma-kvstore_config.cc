@@ -50,6 +50,10 @@ public:
             config.setMagmaKeyTreeDataBlockSize(value);
         } else if (key == "magma_key_tree_index_block_size") {
             config.setMagmaKeyTreeIndexBlockSize(value);
+        } else if (key == "magma_max_base_level_size") {
+            config.setMagmaMaxBaseLevelSize(value);
+        } else if (key == "magma_max_num_level0_tables") {
+            config.setMagmaMaxNumLevel0Tables(value);
         } else if (key == "continuous_backup_interval") {
             config.setContinousBackupInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_upload_interval") {
@@ -121,6 +125,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaDeleteMemtableWritecache = config.getMagmaDeleteMemtableWritecache();
     magmaDeleteFragRatio = config.getMagmaDeleteFragRatio();
     magmaMaxCheckpoints = config.getMagmaMaxCheckpoints();
+    magmaMaxBaseLevelSize = config.getMagmaMaxBaseLevelSize();
+    magmaMaxNumLevel0Tables = config.getMagmaMaxNumLevel0Tables();
     magmaCheckpointInterval =
             std::chrono::milliseconds(1s * config.getMagmaCheckpointInterval());
     magmaMinCheckpointInterval = std::chrono::milliseconds(
@@ -233,6 +239,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_key_tree_index_block_size",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_max_base_level_size",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_max_num_level0_tables",
             std::make_unique<ConfigChangeListener>(*this));
 
     sanityCheckVBucketMapping = config.isVbucketMappingSanityChecking();
@@ -403,6 +415,18 @@ void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
     Expects(store);
     magmaFragmentationPercentage.store(value);
     store->setMagmaFragmentationPercentage(value);
+}
+
+void MagmaKVStoreConfig::setMagmaMaxBaseLevelSize(size_t value) {
+    Expects(store);
+    magmaMaxBaseLevelSize.store(value);
+    store->setMagmaMaxBaseLevelSize(value);
+}
+
+void MagmaKVStoreConfig::setMagmaMaxNumLevel0Tables(size_t value) {
+    Expects(store);
+    magmaMaxNumLevel0Tables.store(value);
+    store->setMagmaMaxNumLevel0Tables(value);
 }
 
 void MagmaKVStoreConfig::setBucketQuota(size_t value) {

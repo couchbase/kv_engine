@@ -665,6 +665,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
             configuration.getMagmaDeleteFragRatio();
     configuration.magmaCfg.MaxCheckpoints =
             configuration.getMagmaMaxCheckpoints();
+    configuration.magmaCfg.LSMMaxBaseLevelSize =
+            configuration.getMagmaMaxBaseLevelSize();
+    configuration.magmaCfg.LSMMaxNumLevel0Tables =
+            configuration.getMagmaMaxNumLevel0Tables();
     configuration.magmaCfg.CheckpointCreationInterval =
             configuration.getMagmaCheckpointInterval();
     configuration.magmaCfg.CheckpointCreationThreshold =
@@ -4491,6 +4495,14 @@ void MagmaKVStore::addStatUpdateToWriteOps(
 
 void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
     magma->SetFragmentationRatio(value / 100.0);
+}
+
+void MagmaKVStore::setMagmaMaxBaseLevelSize(size_t value) {
+    magma->SetLSMMaxBaseLevelSize(value);
+}
+
+void MagmaKVStore::setMagmaMaxNumLevel0Tables(size_t value) {
+    magma->SetLSMMaxNumLevel0Tables(value);
 }
 
 void MagmaKVStore::setMagmaEnableBlockCache(bool enable) {

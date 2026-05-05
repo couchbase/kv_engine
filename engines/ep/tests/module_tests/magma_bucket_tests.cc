@@ -493,6 +493,27 @@ TEST_P(STParamMagmaBucketTest, MagmaMemQuotaDynamicUpdate) {
     EXPECT_EQ(0.3f, config.getMagmaMemQuotaRatio());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaMaxBaseLevelSize) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_max_base_level_size", "536870912", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    EXPECT_EQ(536870912, config.getMagmaMaxBaseLevelSize());
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaMaxNumLevel0Tables) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_max_num_level0_tables", "8", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    EXPECT_EQ(8, config.getMagmaMaxNumLevel0Tables());
+}
+
 TEST_P(STParamMagmaBucketTest, MagmaSeqTreeDataBlocksSize) {
     std::string msg;
     ASSERT_EQ(cb::engine_errc::success,

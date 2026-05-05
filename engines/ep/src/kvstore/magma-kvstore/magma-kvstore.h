@@ -588,6 +588,9 @@ public:
 
     void setMagmaFragmentationPercentage(size_t value);
 
+    void setMagmaMaxBaseLevelSize(size_t value);
+    void setMagmaMaxNumLevel0Tables(size_t value);
+
     void setMagmaEnableBlockCache(bool enable);
 
     void setMagmaSeqTreeDataBlockSize(size_t value);

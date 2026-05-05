@@ -227,6 +227,8 @@ public:
                            magma::Magma::RollbackCallback callback);
     void SetMaxOpenFiles(size_t n, bool blocking = false);
     void SetFragmentationRatio(double fragRatio);
+    void SetLSMMaxBaseLevelSize(size_t size);
+    void SetLSMMaxNumLevel0Tables(size_t numTables);
     void EnableBlockCache(bool enable);
     void SetMemoryQuota(const size_t quota);
     void SetHistoryRetentionSize(size_t historyBytes);

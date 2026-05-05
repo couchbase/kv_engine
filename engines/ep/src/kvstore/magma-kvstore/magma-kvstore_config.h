@@ -64,6 +64,16 @@ public:
     size_t getMagmaMaxCheckpoints() const {
         return magmaMaxCheckpoints;
     }
+    size_t getMagmaMaxBaseLevelSize() const {
+        return magmaMaxBaseLevelSize.load();
+    }
+    void setMagmaMaxBaseLevelSize(size_t value);
+
+    size_t getMagmaMaxNumLevel0Tables() const {
+        return magmaMaxNumLevel0Tables.load();
+    }
+    void setMagmaMaxNumLevel0Tables(size_t value);
+
     std::chrono::milliseconds getMagmaCheckpointInterval() const {
         return magmaCheckpointInterval;
     }
@@ -399,6 +409,9 @@ private:
 
     // Max checkpoints that can be rolled back to
     size_t magmaMaxCheckpoints;
+
+    std::atomic<size_t> magmaMaxBaseLevelSize;
+    std::atomic<size_t> magmaMaxNumLevel0Tables;
 
     // Time interval between checkpoints
     std::chrono::milliseconds magmaCheckpointInterval;
