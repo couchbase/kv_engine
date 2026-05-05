@@ -155,6 +155,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
 };
 
 static const std::unordered_set<std::string_view> dcpParamSet{
+        "dcp_active_stream_inline_checkpoint_item_limit",
         "dcp_backfill_in_progress_per_connection_limit",
         "dcp_consumer_buffer_ratio",
         "connection_manager_interval",

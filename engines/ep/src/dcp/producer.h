@@ -433,6 +433,10 @@ public:
 
     size_t getBackfillByteLimit() const;
 
+    void setInlineCheckpointItemLimit(size_t limit);
+
+    size_t getInlineCheckpointItemLimit() const;
+
     StreamAggStats getStreamAggStats() const;
 
     cb::engine_errc switchToActiveStream(Vbid vbid, cb::mcbp::DcpStreamId sid);
@@ -865,4 +869,14 @@ protected:
      * 2x the default dcp_idle_timeout.
      */
     std::chrono::seconds stuckTimeout{std::chrono::seconds(720)};
+
+    /**
+     * If the number of items pending for an active stream's cursor is less
+     * than this limit, the stream extracts them inline (under streamMutex)
+     * rather than scheduling the ActiveStreamCheckpointProcessorTask. A value
+     * of 0 disables the inline path. Sourced from
+     * dcp_active_stream_inline_checkpoint_item_limit; updated dynamically via
+     * setInlineCheckpointItemLimit() when the config changes.
+     */
+    std::atomic<size_t> inlineCheckpointItemLimit{0};
 };

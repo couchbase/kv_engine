@@ -581,12 +581,14 @@ protected:
 
     /**
      * @param vb reference to the associated vbucket
+     * @param limit maximum number of items to dequeue from the
+     *              CheckpointManager in a single call
      *
      * @return the outstanding items for the stream's checkpoint cursor and
      *         checkpoint type.
      */
     virtual ActiveStream::OutstandingItemsResult getOutstandingItems(
-            VBucket& vb);
+            VBucket& vb, size_t limit);
 
     /**
      * Given a set of queued items, create mutation response for each item,
@@ -614,6 +616,24 @@ protected:
      * @return true if there are items to be send from checkpoint(s)
      */
     bool nextCheckpointItem(DcpProducer& producer);
+
+    /**
+     * Variant of nextCheckpointItem which, when only a small number of items
+     * are pending in the CheckpointManager, runs the extraction inline (under
+     * the held streamMutex) rather than scheduling the
+     * checkpointProcessorTask. This avoids the latency of dispatching the
+     * task when there is little work to do.
+     *
+     * For larger amounts of pending work, this falls back to scheduling the
+     * checkpointProcessorTask as nextCheckpointItem(DcpProducer&) does.
+     *
+     * @param producer reference to the DcpProducer
+     * @param lh held streamMutex lock
+     * @return true if items are available (already in readyQ if we ran
+     *         inline, or will be added once the scheduled task runs)
+     */
+    bool nextCheckpointItem(DcpProducer& producer,
+                            const std::lock_guard<std::mutex>& lh);
 
     /**
      * Get the next queued item.
@@ -655,11 +675,22 @@ protected:
                                 uint64_t lastProcessedSeqno);
 
     /**
-     * Unlocked variant of nextCheckpointItemTask caller must obtain
-     * streamMutex and pass a reference to it
-     * @param streamMutex reference to lockholder
+     * Pull the next batch of items from the CheckpointManager and push them
+     * onto the readyQ for the stream to send. Runs synchronously under the
+     * caller-held streamMutex - the caller is either the
+     * ActiveStreamCheckpointProcessorTask (via nextCheckpointItemTask) or
+     * the inline path in nextCheckpointItem when only a few items are
+     * pending.
+     *
+     * @param streamMutex reference to caller-held streamMutex
+     * @param limit maximum number of items to dequeue from the
+     *              CheckpointManager in a single call
      */
-    void nextCheckpointItemTask(const std::lock_guard<std::mutex>& streamMutex);
+    void populateReadyQ(const std::lock_guard<std::mutex>& streamMutex,
+                        size_t limit);
+    void populateReadyQ(const std::lock_guard<std::mutex>& streamMutex,
+                        VBucket& vb,
+                        size_t limit);
 
     bool supportSyncReplication() const {
         return syncReplication == SyncReplication::SyncReplication;
@@ -741,7 +772,8 @@ protected:
     std::unique_ptr<DcpResponse> backfillPhase(DcpProducer& producer,
                                                std::lock_guard<std::mutex>& lh);
 
-    std::unique_ptr<DcpResponse> inMemoryPhase(DcpProducer& producer);
+    std::unique_ptr<DcpResponse> inMemoryPhase(
+            DcpProducer& producer, const std::lock_guard<std::mutex>& lh);
 
     // Helper function for when scheduleBackfill_UNLOCKED discovers no backfill
     // is required.
@@ -777,7 +809,8 @@ protected:
     bool nextSnapshotIsCheckpoint = false;
 
 private:
-    std::unique_ptr<DcpResponse> takeoverSendPhase(DcpProducer& producer);
+    std::unique_ptr<DcpResponse> takeoverSendPhase(
+            DcpProducer& producer, const std::lock_guard<std::mutex>& lh);
 
     std::unique_ptr<DcpResponse> takeoverWaitPhase(DcpProducer& producer);
 

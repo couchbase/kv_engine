@@ -507,6 +507,7 @@ add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
 
 cb_add_test_executable(ep_engine_benchmarks
                benchmarks/access_scanner_bench.cc
+               benchmarks/active_stream_bench.cc
                benchmarks/benchmark_memory_tracker.cc
                benchmarks/checkpoint_iterator_bench.cc
                benchmarks/dcp_producer_bench.cc

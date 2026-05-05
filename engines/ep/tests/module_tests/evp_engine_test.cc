@@ -31,6 +31,7 @@
 #include <platform/dirutils.h>
 #include <chrono>
 #include <filesystem>
+#include <string>
 #include <thread>
 
 EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
@@ -78,6 +79,13 @@ void EventuallyPersistentEngineTest::initializeEngine() {
               ";max_num_shards=" + std::to_string(numShards) +
               ";dcp_backfill_run_duration_limit=" +
               std::to_string(std::chrono::milliseconds::max().count());
+
+    // A lot of tests drive DCP via the BG task - disable inline extraction
+    // if not already set
+    if (config.find("dcp_active_stream_inline_checkpoint_item_limit") ==
+        std::string::npos) {
+        config += ";dcp_active_stream_inline_checkpoint_item_limit=0";
+    }
 
     if (bucketType == "persistent_magma") {
         config += ";" + magmaConfig;

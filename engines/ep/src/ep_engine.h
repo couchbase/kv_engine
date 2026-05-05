@@ -1146,6 +1146,14 @@ public:
      */
     void setDcpBackfillByteLimit(size_t bytes);
 
+    /**
+     * Propagate a runtime change of
+     * dcp_active_stream_inline_checkpoint_item_limit to all existing DCP
+     * Producers, so their active streams pick up the new value without having
+     * to be re-created.
+     */
+    void setDcpActiveStreamInlineCheckpointItemLimit(size_t limit);
+
     /// Get the encryption key provider used by this instance of ep-engine
     [[nodiscard]] EncryptionKeyProvider* getEncryptionKeyProvider() {
         return &encryptionKeyProvider;

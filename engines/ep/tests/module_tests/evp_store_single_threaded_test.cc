@@ -131,6 +131,14 @@ void SingleThreadedKVBucketTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
+
+    // A lot of tests drive DCP via the BG task - disable inline extraction
+    // if not already set
+    if (config_string.find("dcp_active_stream_inline_checkpoint_item_limit") ==
+        std::string::npos) {
+        config_string += "dcp_active_stream_inline_checkpoint_item_limit=0;";
+    }
+
     config_string += "warmup=false";
     config_string += ";couchstore_midpoint_rollback_optimisation=false";
     config_string += ";dcp_backfill_run_duration_limit=" +

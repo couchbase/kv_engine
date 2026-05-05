@@ -497,3 +497,13 @@ void DcpConnMap::setBackfillByteLimit(size_t bytes) {
         }
     }
 }
+
+void DcpConnMap::setInlineCheckpointItemLimit(size_t limit) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
+        auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
+        if (producer) {
+            producer->setInlineCheckpointItemLimit(limit);
+        }
+    }
+}

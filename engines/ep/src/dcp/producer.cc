@@ -226,7 +226,10 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       connectionSupportsSnappy(
               cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)),
       collectionsEnabled(cookie->isCollectionsSupported()),
-      stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()) {
+      stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()),
+      inlineCheckpointItemLimit(
+              e.getConfiguration()
+                      .getDcpActiveStreamInlineCheckpointItemLimit()) {
     if (getName().find("secidx") != std::string::npos) {
         logBufferFullInterval = std::chrono::seconds{15};
 #ifdef CB_DEVELOPMENT_ASSERTS
@@ -2714,4 +2717,12 @@ void DcpProducer::setBackfillByteLimit(size_t bytes) {
 size_t DcpProducer::getBackfillByteLimit() const {
     const auto backfillMgr = backfillManagerHolder.copy();
     return backfillMgr ? backfillMgr->getBackfillByteLimit() : 0;
+}
+
+void DcpProducer::setInlineCheckpointItemLimit(size_t limit) {
+    inlineCheckpointItemLimit.store(limit, std::memory_order_relaxed);
+}
+
+size_t DcpProducer::getInlineCheckpointItemLimit() const {
+    return inlineCheckpointItemLimit.load(std::memory_order_relaxed);
 }

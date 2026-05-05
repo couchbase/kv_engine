@@ -142,7 +142,8 @@ std::unique_ptr<DcpResponse> MockActiveStream::public_inMemoryPhase(
         throw std::runtime_error(
                 "MockPassiveStream::public_inMemoryPhase: not backfilling!");
     }
-    return inMemoryPhase(producer);
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return inMemoryPhase(producer, lh);
 }
 
 cb::engine_errc MockPassiveStream::messageReceived(

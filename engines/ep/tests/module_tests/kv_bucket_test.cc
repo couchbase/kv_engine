@@ -147,6 +147,13 @@ void KVBucketTest::initialise(std::string_view baseConfig,
             config += ";ephemeral_mem_recovery_enabled=false";
         }
 
+        // A lot of tests drive DCP via the BG task - disable inline extraction
+        // if not already set
+        if (config.find("dcp_active_stream_inline_checkpoint_item_limit") ==
+            std::string::npos) {
+            config += ";dcp_active_stream_inline_checkpoint_item_limit=0";
+        }
+
         engine = SynchronousEPEngine::build(config, std::move(encryptionKeys));
         Expects(ObjectRegistry::getCurrentEngine() &&
                 "Expect current thread is associated with 'engine' after "

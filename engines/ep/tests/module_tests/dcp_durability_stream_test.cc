@@ -906,7 +906,8 @@ TEST_P(DurabilityActiveStreamTest,
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
-    auto items = stream->getOutstandingItems(*vb);
+    auto items = stream->getOutstandingItems(
+            *vb, std::numeric_limits<size_t>::max());
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 1);
     stream->public_nextQueuedItem(*producer);
@@ -916,7 +917,8 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(1, vb->acquireStateLockAndGetHighCompletedSeqno());
 
     // Move the DCP cursor
-    items = stream->getOutstandingItems(*vb);
+    items = stream->getOutstandingItems(*vb,
+                                        std::numeric_limits<size_t>::max());
     stream->public_processItems(items);
 
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -938,7 +940,8 @@ TEST_P(DurabilityActiveStreamTest,
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
-    items = stream->getOutstandingItems(*vb);
+    items = stream->getOutstandingItems(*vb,
+                                        std::numeric_limits<size_t>::max());
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 3);
     stream->public_nextQueuedItem(*producer);

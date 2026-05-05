@@ -152,6 +152,8 @@ public:
 
     void setBackfillByteLimit(size_t bytes);
 
+    void setInlineCheckpointItemLimit(size_t limit);
+
 protected:
     // Stores connections that have gone thorugh DcpConnMap::disconnect.
     // Dead connections are then released asynchronously in

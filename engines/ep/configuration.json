@@ -1221,6 +1221,12 @@
             "dynamic" : false,
             "type": "std::string"
         },
+        "dcp_active_stream_inline_checkpoint_item_limit": {
+            "default": "50",
+            "descr": "When the number of items pending for an ActiveStream's cursor is less than or equal to this value, the stream will run checkpoint item extraction inline rather than scheduling the ActiveStreamCheckpointProcessorTask. This avoids task-scheduling latency for small numbers of items. Set to 0 to always schedule the task.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_backfill_run_duration_limit": {
             "default": "300",
             "descr": "Maximum time (in ms) backfill task will run before yielding.",

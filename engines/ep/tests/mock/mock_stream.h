@@ -61,8 +61,9 @@ public:
                      const std::string& streamName = "");
 
     // Expose underlying protected ActiveStream methods as public
-    OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
-        return getOutstandingItems(vb);
+    OutstandingItemsResult public_getOutstandingItems(
+            VBucket& vb, size_t limit = std::numeric_limits<size_t>::max()) {
+        return getOutstandingItems(vb, limit);
     }
 
     void public_processItems(OutstandingItemsResult& result) {
@@ -150,9 +151,10 @@ public:
         state_ = state;
     }
 
-    OutstandingItemsResult getOutstandingItems(VBucket& vb) override {
+    OutstandingItemsResult getOutstandingItems(VBucket& vb,
+                                               size_t limit) override {
         preGetOutstandingItemsCallback();
-        return ActiveStream::getOutstandingItems(vb);
+        return ActiveStream::getOutstandingItems(vb, limit);
     }
 
     /// A callback to allow tests to inject code before we access the checkpoint

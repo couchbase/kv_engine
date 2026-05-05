@@ -202,10 +202,10 @@ std::unique_ptr<DcpResponse> ActiveStream::next(DcpProducer& producer) {
         response = backfillPhase(producer, lh);
         break;
     case StreamState::InMemory:
-        response = inMemoryPhase(producer);
+        response = inMemoryPhase(producer, lh);
         break;
     case StreamState::TakeoverSend:
-        response = takeoverSendPhase(producer);
+        response = takeoverSendPhase(producer, lh);
         break;
     case StreamState::TakeoverWait:
         response = takeoverWaitPhase(producer);
@@ -861,7 +861,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
-        DcpProducer& producer) {
+        DcpProducer& producer, const std::lock_guard<std::mutex>& lh) {
     if (readyQ.empty()) {
         if (pendingBackfill) {
             // Moving the state from InMemory to Backfilling will result in a
@@ -870,8 +870,12 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
             pendingBackfill = false;
             return {};
         }
-        if (nextCheckpointItem(producer)) {
-            return {};
+        if (nextCheckpointItem(producer, lh)) {
+            // Items are available - either already in readyQ (extraction ran
+            // inline) or will be after the scheduled task runs. Try to
+            // dispatch the next ready item; returns nullptr if readyQ is
+            // still empty (i.e. we scheduled the async task).
+            return nextQueuedItem(producer);
         }
     }
 
@@ -879,7 +883,7 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
-        DcpProducer& producer) {
+        DcpProducer& producer, const std::lock_guard<std::mutex>& lh) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb && takeoverStart != 0 && !vb->isTakeoverBackedUp() &&
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
@@ -893,8 +897,17 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
     if (!readyQ.empty()) {
         return nextQueuedItem(producer);
     }
-    if (nextCheckpointItem(producer)) {
-        return {};
+    if (nextCheckpointItem(producer, lh)) {
+        // Items are available - either already in readyQ (extraction ran
+        // inline) or will be after the scheduled task runs.
+        auto p = nextQueuedItem(producer);
+        if (p) {
+            OBJ_LOG_INFO_CTX(*this,
+                             "ActiveStream::takeoverSend: FOUND AN ITEM when i "
+                             "used to return null",
+                             {"last_sent_seqno", lastSentSeqno.load()});
+        }
+        return p;
     }
 
     if (waitForSnapshot != 0) {
@@ -1099,44 +1112,76 @@ bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
     return chkptItemsExtractionInProgress;
 }
 
+bool ActiveStream::nextCheckpointItem(DcpProducer& producer,
+                                      const std::lock_guard<std::mutex>& lh) {
+    auto vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return false;
+    }
+    const auto curs = cursor.lock();
+    if (!curs) {
+        return false;
+    }
+    const auto numItems = vb->checkpointManager->getNumItemsForCursor(*curs);
+
+    if (numItems == 0) {
+        return chkptItemsExtractionInProgress;
+    }
+
+    // If only a small number of items are pending, run the extraction inline
+    // to avoid the latency of dispatching the checkpointProcessorTask. A limit
+    // of 0 disables the inline path entirely. The limit lives on the producer
+    // so a runtime config change is picked up by existing streams.
+    const auto inlineLimit = producer.getInlineCheckpointItemLimit();
+    if (inlineLimit && numItems <= inlineLimit) {
+        populateReadyQ(lh, *vb, inlineLimit);
+        // We could have filtered everything away... so check if empty
+        return !readyQ.empty();
+    }
+
+    producer.scheduleCheckpointProcessorTask(vb_);
+    return true;
+}
+
 void ActiveStream::nextCheckpointItemTask() {
     try {
         // MB-29369: Obtain stream mutex here
         std::lock_guard<std::mutex> lh(streamMutex);
-        nextCheckpointItemTask(lh);
+        populateReadyQ(lh, checkpointDequeueLimit);
     } catch (const std::exception& e) {
         handleDcpProducerException(e);
     }
 }
 
-void ActiveStream::nextCheckpointItemTask(
-        const std::lock_guard<std::mutex>& streamMutex) {
+void ActiveStream::populateReadyQ(
+        const std::lock_guard<std::mutex>& streamMutex, size_t limit) {
     auto vbucket = engine->getVBucket(vb_);
-    if (!vbucket) {
-        // The entity deleting the vbucket must set stream to dead,
-        // calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
-        // cause deadlock because it will try to grab streamMutex which is
-        // already acquired at this point here
-        return;
+    if (vbucket) {
+        populateReadyQ(streamMutex, *vbucket, limit);
     }
+}
 
+void ActiveStream::populateReadyQ(
+        const std::lock_guard<std::mutex>& streamMutex,
+        VBucket& vb,
+        size_t limit) {
     if (!producerPtr.lock()) {
         // Nothing to do, the connection is being shut down
         return;
     }
 
-    // MB-29369: only run the task's work if the stream is in an in-memory
-    // phase (of which takeover is a variant).
+    // MB-29369: only run the task's work if the stream is in an
+    // in-memory phase (of which takeover is a variant).
     if (!(isInMemory() || isTakeoverSend())) {
         return;
     }
 
-    auto res = getOutstandingItems(*vbucket);
+    auto res = getOutstandingItems(vb, limit);
     processItems(streamMutex, res);
 }
 
 ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
-        VBucket& vb) {
+        VBucket& vb, size_t limit) {
     OutstandingItemsResult result;
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
@@ -1146,7 +1191,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     auto cursorPtr = cursor.lock();
     if (cursorPtr) {
         itemsForCursor = vb.checkpointManager->getNextItemsForDcp(
-                *cursorPtr, result.items, checkpointDequeueLimit);
+                *cursorPtr, result.items, limit);
     }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(

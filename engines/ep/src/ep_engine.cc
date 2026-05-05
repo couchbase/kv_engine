@@ -1836,6 +1836,8 @@ void EpEngineValueChangeListener::sizeValueChanged(std::string_view key,
         engine.configureRangeScanMaxDuration(std::chrono::seconds(value));
     } else if (key == "dcp_backfill_byte_limit") {
         engine.setDcpBackfillByteLimit(value);
+    } else if (key == "dcp_active_stream_inline_checkpoint_item_limit") {
+        engine.setDcpActiveStreamInlineCheckpointItemLimit(value);
     }
 }
 
@@ -2147,6 +2149,10 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
 
     configuration.addValueChangedListener(
             "dcp_backfill_byte_limit",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    configuration.addValueChangedListener(
+            "dcp_active_stream_inline_checkpoint_item_limit",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return cb::engine_errc::success;
@@ -7873,6 +7879,13 @@ ExTask EventuallyPersistentEngine::createItemPager() {
 void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
     if (dcpConnMap_) {
         dcpConnMap_->setBackfillByteLimit(bytes);
+    }
+}
+
+void EventuallyPersistentEngine::setDcpActiveStreamInlineCheckpointItemLimit(
+        size_t limit) {
+    if (dcpConnMap_) {
+        dcpConnMap_->setInlineCheckpointItemLimit(limit);
     }
 }
 

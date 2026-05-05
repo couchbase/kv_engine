@@ -298,6 +298,11 @@ public:
     void SetUp() override {
         bucketType = ::testing::get<0>(GetParam());
         DCPTest::SetUp();
+        // Disable the inline checkpoint-item extraction path - these tests
+        // exercise the async ActiveStreamCheckpointProcessorTask code path
+        // explicitly.
+        engine->getConfiguration().setDcpActiveStreamInlineCheckpointItemLimit(
+                0);
         vb0 = engine->getVBucket(Vbid(0));
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
     }

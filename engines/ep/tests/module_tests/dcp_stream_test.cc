@@ -3617,7 +3617,8 @@ TEST_P(SingleThreadedActiveStreamTest, MetaOnlyCheckpointsSkipped) {
     // CM: [1, 2] [3, 3] [2, 3]
     store_item(vbid, makeStoredDocKey("item 3"), "value"); // seqno 3
 
-    auto items = stream->getOutstandingItems(vb);
+    auto items =
+            stream->getOutstandingItems(vb, std::numeric_limits<size_t>::max());
     // getOutstandingItems will return 3 ranges, including the
     // [3, 3] meta-only snapshot. processItems should ignore it, as it doesn't
     // need to be replicated over DCP.
@@ -7794,6 +7795,177 @@ TEST_P(SingleThreadedActiveStreamTest, backfillReceivedExceptionCrashes) {
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+/**
+ * Fixture for tests that exercise the inline checkpoint-item extraction
+ * path added by MB-61033. Unlike SingleThreadedActiveStreamTest::SetUp(),
+ * this fixture leaves dcp_active_stream_inline_checkpoint_item_limit at
+ * its configured default (>0), so a single call to ActiveStream::next() is
+ * expected to populate the readyQ inline (no
+ * ActiveStreamCheckpointProcessorTask run) when the cursor has fewer items
+ * pending than the limit.
+ */
+class SingleThreadedActiveStreamInlineExtractionTest
+    : public SingleThreadedActiveStreamTest {
+protected:
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+        // Set a non-zero value, but lower than default so the tests don't need
+        // to work with so many items.
+        engine->getConfiguration().setDcpActiveStreamInlineCheckpointItemLimit(
+                5);
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        setupProducer();
+        cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+    }
+
+    /**
+     * Push the stream's cursor past any meta items that are already in the
+     * checkpoint at stream creation (cs and, for persistent, vbs) and drain
+     * the readyQ so the test starts from a clean baseline. The transition
+     * to InMemory at stream creation calls scheduleCheckpointProcessorTask
+     * for this vbucket, so we also run the task to drain its internal
+     * queue - leaving the test with queueSize == 0 for the assertions
+     * below.
+     */
+    void drainInitialCheckpointItems() {
+        auto* task = producer->getCheckpointSnapshotTask();
+        ASSERT_NE(nullptr, task);
+        // run() pops vbids from the task's queue and processes each
+        // stream's checkpoint items into its readyQ.
+        while (task->queueSize() > 0) {
+            task->run();
+        }
+        auto& readyQ = stream->public_readyQ();
+        while (!readyQ.empty()) {
+            readyQ.pop();
+        }
+        ASSERT_EQ(0, task->queueSize())
+                << "Initial checkpoint-processor queue should be drained";
+    }
+
+    /**
+     * Register the test's MockActiveStream into the producer's streams map
+     * so producer->step() can locate it via the vbid. setupProducer()
+     * builds the stream directly without registering it - tests driven via
+     * step() need this extra wiring.
+     */
+    void registerStreamWithProducer() {
+        auto streamPtr = std::static_pointer_cast<ActiveStream>(stream);
+        producer->updateStreamsMap(vbid,
+                                   cb::mcbp::DcpStreamId(1),
+                                   streamPtr,
+                                   DcpProducer::AllowSwapInStreamMap::No);
+    }
+};
+
+// Store fewer items than the inline limit. ActiveStream::next() should
+// extract the items inline and return the SnapshotMarker on the same call -
+// without scheduling the ActiveStreamCheckpointProcessorTask.
+TEST_P(SingleThreadedActiveStreamInlineExtractionTest,
+       NextReturnsDataInlineBelowLimit) {
+    drainInitialCheckpointItems();
+
+    auto* task = producer->getCheckpointSnapshotTask();
+    ASSERT_NE(nullptr, task);
+    ASSERT_EQ(0, task->queueSize());
+
+    // Default limit is 5 - one mutation is well below the threshold.
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    // First call to next(): inline path runs populateReadyQ() under the
+    // streamMutex, then nextQueuedItem returns the SnapshotMarker. With the
+    // async path this would have returned nullptr.
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp) << "Expected next() to return data inline";
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // The mutation is already in the readyQ from the same inline pull.
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    // Stream drained, no further work.
+    resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+
+    // The ActiveStreamCheckpointProcessorTask must not have been scheduled
+    // for this vbucket - the inline path bypasses it entirely.
+    EXPECT_EQ(0, task->queueSize()) << "Inline path should not schedule the "
+                                       "ActiveStreamCheckpointProcessorTask";
+}
+
+// Same as NextReturnsDataInlineBelowLimit but driven through
+// producer->step() with a DcpMessageProducers - this is closer to how the
+// engine drives DCP and exercises the user-visible behaviour: a single
+// step() returns DcpSnapshotMarker without first running the async task.
+TEST_P(SingleThreadedActiveStreamInlineExtractionTest,
+       StepReturnsDataInlineBelowLimit) {
+    registerStreamWithProducer();
+    drainInitialCheckpointItems();
+
+    auto* task = producer->getCheckpointSnapshotTask();
+    ASSERT_NE(nullptr, task);
+    ASSERT_EQ(0, task->queueSize());
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(1, producers.last_byseqno);
+
+    // No further data and no work pushed onto the
+    // ActiveStreamCheckpointProcessorTask - the inline path bypasses it.
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+    EXPECT_EQ(0, task->queueSize()) << "Inline path should not schedule the "
+                                       "ActiveStreamCheckpointProcessorTask";
+}
+
+// Verify the threshold boundary: at/above the inline limit the async
+// ActiveStreamCheckpointProcessorTask is selected instead. This is the
+// regression complement of NextReturnsDataInlineBelowLimit and ensures the
+// inline path doesn't silently take over the async path.
+TEST_P(SingleThreadedActiveStreamInlineExtractionTest,
+       NextSchedulesTaskAtOrAboveLimit) {
+    drainInitialCheckpointItems();
+
+    auto* task = producer->getCheckpointSnapshotTask();
+    ASSERT_NE(nullptr, task);
+    ASSERT_EQ(0, task->queueSize());
+
+    // Store enough items to push the cursor's pending count to/above the
+    // inline limit.
+    const auto limit = engine->getConfiguration()
+                               .getDcpActiveStreamInlineCheckpointItemLimit();
+    for (size_t i = 0; i < limit + 1; ++i) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+    }
+
+    // First call selects the async path - readyQ is left empty until the
+    // task runs.
+    auto resp = stream->next(*producer);
+    EXPECT_FALSE(resp) << "Above the limit, next() should defer to the "
+                          "async ActiveStreamCheckpointProcessorTask";
+    EXPECT_EQ(1, task->queueSize())
+            << "ActiveStreamCheckpointProcessorTask should have been "
+               "scheduled for this vbucket";
+
+    // After the task runs the data is drained as normal.
+    stream->nextCheckpointItemTask();
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         SingleThreadedActiveStreamInlineExtractionTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
