@@ -4968,6 +4968,7 @@ EventuallyPersistentEngine::parseStatKeyArg(CookieIface& cookie,
     boost::algorithm::trim(trimmedStatKey);
     boost::split(args, trimmedStatKey, boost::is_space());
     if (args.size() != 3 && args.size() != 4) {
+        setErrorContext(cookie, "Usage: vkey key vbucket [cid]");
         return {cb::engine_errc::invalid_arguments,
                 std::nullopt,
                 std::nullopt,

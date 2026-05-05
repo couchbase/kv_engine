@@ -313,7 +313,8 @@ StatsGroupManager::StatsGroupManager()
                .task_id = TaskId::Core_StatsBucketTask},
               {.id = StatGroupId::Vkey,
                .key = "vkey",
-               .description = "Get information for a given key",
+               .description =
+                       "Get information for a given key (vkey key vb [cid])",
                .privileged = false,
                .bucket = true,
                .task_id = TaskId::Core_StatsBucketTask},
