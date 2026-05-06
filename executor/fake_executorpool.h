@@ -26,6 +26,7 @@
 #include "cb3_executorthread.h"
 #include "cb3_taskqueue.h"
 #include <platform/cb_arena_malloc.h>
+#include <platform/exceptions.h>
 #include <memory>
 
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
@@ -218,7 +219,7 @@ public:
             message.append("\" got \"");
             message.append(getTaskName());
             message.append("\"");
-            throw std::runtime_error(message);
+            cb::throwWithTrace(std::runtime_error(std::move(message)));
         }
         run();
     }

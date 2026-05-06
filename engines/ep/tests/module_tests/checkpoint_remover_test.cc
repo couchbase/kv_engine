@@ -361,17 +361,16 @@ void CheckpointRemoverTest::testGetBytesToFree(
         bool triggeredByHWM) {
     if (triggeredByHWM) {
         // Should free to bucket LWM.
-        auto expectedBytesToFree = bucket.getPageableMemCurrent() -
-                                   bucket.getPageableMemLowWatermark();
+        const auto& stats = engine->getEpStats();
         auto target = CheckpointMemRecoveryTask::ReductionTarget::BucketLWM;
-        auto bytesToFree = remover->getBytesToFree(target);
-        EXPECT_EQ(expectedBytesToFree, bytesToFree);
+        EXPECT_EQ(stats.getEstimatedTotalMemoryUsed() - stats.mem_low_wat,
+                  remover->getBytesToFree(target));
     } else {
         // Should free to checkpoint lower mark.
         auto target =
                 CheckpointMemRecoveryTask::ReductionTarget::CheckpointLowerMark;
-        auto bytesToFree = remover->getBytesToFree(target);
-        EXPECT_EQ(bucket.getRequiredCMMemoryReduction(), bytesToFree);
+        EXPECT_EQ(bucket.getRequiredCMMemoryReduction(),
+                  remover->getBytesToFree(target));
     }
 }
 

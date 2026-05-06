@@ -496,12 +496,11 @@ void ItemPagingVisitor::update(bool expireAllItems) {
 }
 
 bool ItemPagingVisitor::shouldStopPaging() const {
-    auto current = static_cast<double>(store.getPageableMemCurrent());
-    auto lower = static_cast<double>(store.getPageableMemLowWatermark());
-
     // stop eviction whenever pageable memory usage is below the pageable low
-    // watermark
-    if (current <= lower) {
+    // watermark and total memory is below the low watermark
+    const auto& stats = store.getEPEngine().getEpStats();
+    if (stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat &&
+        store.getPageableMemCurrent() <= store.getPageableMemLowWatermark()) {
         return true;
     }
 

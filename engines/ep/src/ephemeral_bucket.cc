@@ -182,20 +182,11 @@ void EphemeralBucket::getAggregatedVBucketStats(
     bool doHigh = cb::prometheus::MetricGroup::All == metricGroup ||
                   cb::prometheus::MetricGroup::High == metricGroup;
     if (doHigh) {
-        auto replicaCollector = collector.withLabels(
-                {{"state", VBucket::toString(vbucket_state_replica)}});
-        // For ephemeral replica vBuckets, we track two more stats used for
-        // paging decisions. These are inactiveHTMemory and
-        // inactiveCheckpointOverhead. While we have stats with the same
-        // semantics already - vb_ht_memory{state=replica} and
-        // vb_checkpoint_memory_overhead{state=replica}, those are not using the
-        // same underlying counters.
-        //
-        // MB-55695: Expose inactiveHTMemory and inactiveCheckpointOverhead
-        replicaCollector.addStat(Key::ephemeral_vb_ht_memory,
-                                 stats.inactiveHTMemory);
-        replicaCollector.addStat(Key::ephemeral_vb_checkpoint_memory_overhead,
-                                 stats.inactiveCheckpointOverhead);
+        // We track active HT memory for paging decisions in ephemeral buckets
+        collector
+                .withLabels(
+                        {{"state", VBucket::toString(vbucket_state_active)}})
+                .addStat(Key::ephemeral_vb_ht_memory, stats.activeHTMemory);
     }
 }
 
@@ -204,14 +195,9 @@ size_t EphemeralBucket::getPageableMemCurrent() const {
     // be freed - only active items can (potentially) be directly deleted
     // (auto-delete or items which have expired) - given that the replica
     // must be an exact copy of the active.
-
-    // We don't directly track "active_mem_used", but we can roughly estimate
-    // by subtracting the mem used for HT and checkpoint items in inactive
-    // (replica, dead) vBuckets from the total.
-    const auto estimatedActiveMemory =
-            int64_t(stats.getEstimatedTotalMemoryUsed()) -
-            stats.inactiveHTMemory - stats.inactiveCheckpointOverhead;
-    return std::max(estimatedActiveMemory, int64_t(0));
+    // We don't directly track "active_mem_used", but it consists of at least
+    // the HT items in active vBuckets.
+    return std::max(stats.activeHTMemory.load(), int64_t(0));
 }
 
 size_t EphemeralBucket::getPageableMemHighWatermark() const {
@@ -345,9 +331,8 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     expectedNextState);
 
     vb->ht.setMemChangedCallback([vb, &stats = stats](int64_t delta) {
-        auto state = vb->getState();
-        if (state == vbucket_state_replica || state == vbucket_state_dead) {
-            stats.inactiveHTMemory += delta;
+        if (vb->getState() == vbucket_state_active) {
+            stats.activeHTMemory += delta;
         }
     });
     return {vb, VBucket::DeferredDeleter(engine)};

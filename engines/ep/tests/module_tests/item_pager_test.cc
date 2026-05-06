@@ -37,6 +37,7 @@
 #include "vbucket_utils.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <platform/backtrace.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/semaphore.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -464,7 +465,7 @@ protected:
      * items can be paged out - Persistent or Ephemeral-auto_delete), or
      * the Expiry pager (Ephemeral-fail_new_data).
      */
-    void runHighMemoryPager() {
+    void runHighMemoryPager() try {
         auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
@@ -525,6 +526,12 @@ protected:
 
         // Ensure any deletes are flushed to disk (so item counts are accurate).
         flushDirectlyIfPersistent(vbid);
+    } catch (const std::exception& ex) {
+        if (auto st = cb::getBacktrace(ex)) {
+            print_backtrace_frames(
+                    *st, [](auto frame) { std::cout << frame << std::endl; });
+        }
+        throw;
     }
 
     /**
@@ -2232,7 +2239,15 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
  * Test fixture for Ephemeral item pager tests with
  * ephemeral_full_policy=auto_delete.
  */
-class STEphemeralAutoDeleteItemPagerTest : public STItemPagerTest {};
+class STEphemeralAutoDeleteItemPagerTest : public STItemPagerTest {
+    void SetUp() override {
+        STItemPagerTest::SetUp();
+        increaseQuota(4_MiB);
+        auto& stats = engine->getEpStats();
+        stats.setLowWaterMark(stats.getMaxDataSize() * 0.75);
+        stats.setHighWaterMark(stats.getMaxDataSize() * 0.85);
+    }
+};
 
 // It is important that we hold the vbucket state lock during pageOut because
 // otherwise we could end up deleting items from replicas in case of a poorly
@@ -2263,11 +2278,7 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, PageOutHoldsVBStateLock) {
 // pager (which will delete data), but code in the paging visitor was checking
 // different values and stopped the pager. The pager would then just keep
 // getting triggered leading to noticeable CPU increase and no memory reduction.
-// Unfortunately the calculation of pageable watermarks is flawed and items may
-// be deleted with plenty of spare memory (MB-64008). This test checks that we
-// don't delete under the simple LWM when pageable mem used is above the
-// pageable LWM.
-TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64008) {
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
     // EphemeralMemRecovery utilises the ItemPager to delete items, so
     // running this test just on ItemPager alone is enough.
     if (isEphemeralMemRecoveryEnabled()) {
@@ -2276,101 +2287,36 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64008) {
 
     ASSERT_TRUE(itemPagerScheduled);
 
-    // Need two vbuckets and one must be replica so that we account the replica
-    // memory usage which will affect the result of getPageableMemCurrent
-    const Vbid activeVbid = vbid;
-    const Vbid replicaVbid(1);
-
-    setVBucketState(replicaVbid, vbucket_state_replica);
-
-    auto setReplica = [this](Vbid id, int count) {
-        auto key = makeStoredDocKey("replica_" + std::to_string(count));
-        auto item = make_item(id, key, "value");
-        item.setCas(1 + count);
-        uint64_t seqno;
-        ASSERT_EQ(cb::engine_errc::success,
-                  store->setWithMeta(item,
-                                     0,
-                                     &seqno,
-                                     cookie,
-                                     {vbucket_state_replica},
-                                     CheckConflicts::No,
-                                     true,
-                                     GenerateBySeqno::Yes,
-                                     GenerateCas::Yes));
-    };
-
-    auto setActive = [this](Vbid id, int count) {
-        auto key = makeStoredDocKey("active_" + std::to_string(count));
-        auto item = make_item(id, key, "value");
-        storeItem(item);
-    };
-
-    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    auto checkNotScheduling = [this, &lpNonioQ]() {
-        ASSERT_TRUE(itemPagerScheduled);
-        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
-        try {
-            runNextTask(lpNonioQ, "Paging out items.");
-            FAIL() << "ItemPager did run";
-        } catch (const std::logic_error& ex) {
-            ASSERT_STREQ("CheckedExecutor failed fetchNextTask", ex.what());
-        }
-    };
-    auto checkNotDeleting = [this, &lpNonioQ]() {
-        ASSERT_TRUE(itemPagerScheduled);
-        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
-        // Item pager consists of two Tasks - the parent ItemPager task,
-        // and then a task (via VCVBAdapter) to process each vBucket (which
-        // there is just one of as we only have one vBucket online).
-        runNextTask(lpNonioQ, "Paging out items.");
-        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize())
-                << "VBucket visitor scheduled";
-    };
+    // Need replica vbuckets to reduce pageable watermarks
+    setVBucketState(Vbid(1), vbucket_state_replica);
+    setVBucketState(Vbid(2), vbucket_state_replica);
 
     auto& stats = engine->getEpStats();
     int count = 0;
-    do {
-        setReplica(replicaVbid, count);
-        setActive(activeVbid, count);
-        ++count;
-    } while (store->getPageableMemCurrent() <=
-             store->getPageableMemHighWatermark());
-    // This is the condition which produced the issue in MB-59368,
-    // but we actually don't want to delete under LWM as in MB-64008.
+    for (;;) {
+        const auto memCur = store->getPageableMemCurrent();
+        const auto memHigh = store->getPageableMemHighWatermark();
+        if (memCur > memHigh) {
+            break;
+        }
+        std::string value(std::min((memHigh - memCur) / 16, size_t{100000}),
+                          'v');
+        auto key = makeStoredDocKey("active_" + std::to_string(count++));
+        auto item = make_item(vbid, key, value);
+        EXPECT_EQ(cb::engine_errc::success, storeItem(item));
+        flushAndExpelFromCheckpoints(vbid);
+    }
+
+    // This is the condition which produced the issue in MB-59368
     ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
-    checkNotScheduling();
-    store->wakeItemPager();
-    checkNotDeleting();
 
-    do {
-        setReplica(replicaVbid, count);
-        setActive(activeVbid, count);
-        ++count;
-    } while (stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat ||
-             store->getPageableMemCurrent() <=
-                     store->getPageableMemHighWatermark());
-    checkNotScheduling();
-    store->wakeItemPager();
-    checkNotDeleting();
-
-    auto& vb = *store->getVBucket(activeVbid);
+    auto& vb = *store->getVBucket(vbid);
     bool softDeleteCalled{false};
     VBucketTestIntrospector::setSoftDeleteStoredValueHook(
             vb, {[&softDeleteCalled](folly::SharedMutex& vbStateLock) {
                 softDeleteCalled = true;
             }});
 
-    do {
-        // Write the active last as the path it executes will do the memory
-        // check that schedules the pager.
-        setReplica(replicaVbid, count);
-        setActive(activeVbid, count);
-        ++count;
-    } while (stats.getEstimatedTotalMemoryUsed() <= stats.mem_high_wat);
     // Run the pager and check that items got deleted.
     runHighMemoryPager();
     EXPECT_TRUE(softDeleteCalled) << "Nothing was deleted";
@@ -2474,34 +2420,6 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_60046) {
     }
     // We certainly should see deletes.
     ASSERT_NE(0, deleteCount);
-}
-
-TEST_P(STEphemeralAutoDeleteItemPagerTest, ItemPager_NoThrottle_WithoutCursor) {
-    // This config change ensures that the first pager run will page enough
-    // values to hit the pause condition
-    engine->getConfiguration().setItemEvictionAgePercentage(0);
-    // Lots of small items
-    auto& stats = engine->getEpStats();
-    auto& vb = *store->getVBucket(vbid);
-    populateVbsUntil(
-            {vbid},
-            [&stats, &vb]() {
-                // No need to accumulate in checkpoints... clear everytime so
-                // memory is majority HT usage (and linked-list)
-                vb.checkpointManager->clear();
-                return stats.getPreciseTotalMemoryUsed() >
-                       stats.mem_high_wat.load();
-            },
-            "",
-            0);
-    // Schedule the item pager task...
-    store->attemptToFreeMemory();
-    auto numItems = vb.getNumItems();
-    // Run the item pager task...
-    runHighMemoryPager();
-
-    // Items has been reduced...
-    EXPECT_LT(vb.getNumItems(), numItems);
 }
 
 TEST_P(STEphemeralAutoDeleteItemPagerTest, ItemPager_Throttle_WithCursor) {

@@ -3635,12 +3635,7 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
             cookie);
 
     add_casted_stat(
-            "ht_mem_used_inactive", stats.inactiveHTMemory, add_stat, cookie);
-
-    add_casted_stat("checkpoint_memory_overhead_inactive",
-                    stats.inactiveCheckpointOverhead,
-                    add_stat,
-                    cookie);
+            "ht_mem_used_active", stats.activeHTMemory, add_stat, cookie);
 
     add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
     add_casted_stat(

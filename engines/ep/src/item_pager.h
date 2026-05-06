@@ -71,15 +71,15 @@ protected:
     virtual bool shouldPage(const PageableMemInfo&) const;
 
     /**
-     * Returns true if memory usage is low enough to stop paging.
+     * Returns the amount of memory to page, or 0 if paging should stop.
      */
-    virtual bool shouldStopPaging(const PageableMemInfo&) const;
+    virtual std::size_t getBytesToPage(const PageableMemInfo&) const;
 
     /**
      * Return true if paging is not throttled. Is used for
      * ephemeral buckets specifically to avoid queueing too many deletes.
      */
-    virtual bool canPageItems(const PageableMemInfo&) const = 0;
+    virtual bool canPageItems(std::size_t bytesToPage) const;
 
     /**
      * Schedules paging visitor tasks to run immediately.
@@ -185,16 +185,13 @@ public:
     PageableMemInfo getPageableMemInfo() const override;
 
     /**
-     * Returns true if total memory is above the HWM.
+     * Returns true if total or pageable memory is above the HWM.
      */
     bool shouldPage(const PageableMemInfo&) const override;
 
-    /**
-     * Returns true if total memory is below the LWM.
-     */
-    bool shouldStopPaging(const PageableMemInfo&) const override;
+    std::size_t getBytesToPage(const PageableMemInfo&) const override;
 
-    bool canPageItems(const PageableMemInfo&) const override;
+    bool canPageItems(std::size_t bytesToPage) const override;
 
     EvictionRatios getEvictionRatios(
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,

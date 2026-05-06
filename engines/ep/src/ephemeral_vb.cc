@@ -374,18 +374,16 @@ uint64_t EphemeralVBucket::getPersistedHighPreparedSeqno() const {
 
 void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
                                                  vbucket_state_t to) {
-    checkpointManager->updateStatsForStateChange(from, to);
-    auto isInactive = [](vbucket_state_t state) {
-        return state == vbucket_state_replica || state == vbucket_state_dead;
-    };
-    if (!isInactive(from) && isInactive(to)) {
-        stats.inactiveHTMemory += ht.getItemMemory();
+    if (from != vbucket_state_active && to == vbucket_state_active) {
+        stats.activeHTMemory += ht.getItemMemory();
+    } else if (from == vbucket_state_active && to != vbucket_state_active) {
+        stats.activeHTMemory -= ht.getItemMemory();
+    }
+    if (to == vbucket_state_replica || to == vbucket_state_dead) {
         // It should not be possible to auto delete items on a replica (or dead)
         // vbucket, so it doesn't make sense for the autoDeleteCount to be
         // non-zero
         autoDeleteCount.reset();
-    } else if (isInactive(from) && !isInactive(to)) {
-        stats.inactiveHTMemory -= ht.getItemMemory();
     }
 }
 

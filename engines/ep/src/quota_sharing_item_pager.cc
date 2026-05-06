@@ -110,10 +110,6 @@ ItemPager::PageableMemInfo QuotaSharingItemPager::getPageableMemInfo() const {
     return memInfo;
 }
 
-bool QuotaSharingItemPager::canPageItems(const PageableMemInfo& memInfo) const {
-    return true;
-}
-
 size_t QuotaSharingItemPager::getEvictableMemForState(
         const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
         PermittedVBStates states) const {

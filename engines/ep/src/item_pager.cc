@@ -171,51 +171,56 @@ ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
     return {current, upper, lower};
 }
 
-bool StrictQuotaItemPager::shouldPage(const ItemPager::PageableMemInfo&) const {
-    return stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat;
+bool StrictQuotaItemPager::shouldPage(
+        const ItemPager::PageableMemInfo& memInfo) const {
+    return memInfo.current > memInfo.upper ||
+           stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat;
 }
 
-bool StrictQuotaItemPager::shouldStopPaging(
+std::size_t StrictQuotaItemPager::getBytesToPage(
         const ItemPager::PageableMemInfo& memInfo) const {
-    return memInfo.current <= memInfo.lower ||
-           stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat;
-}
-
-bool StrictQuotaItemPager::canPageItems(
-        const ItemPager::PageableMemInfo& memInfo) const {
-    auto* kvBucket = engine->getKVBucket();
-    // Find a limit for paging. The lower of either.
-    // 1) high water mark - low water mark.
-    // 2) mem_used - pageable low
-    // Note: that we do this because 2 could be far too big if memory usage is
-    // inflated for some reason.
-    size_t limit = 0;
+    const auto total = stats.getEstimatedTotalMemoryUsed();
     const auto hwm = stats.mem_high_wat.load();
     const auto lwm = stats.mem_low_wat.load();
-    if (hwm > lwm) {
-        limit = hwm - lwm;
+    const auto want = std::max(
+            (memInfo.current > memInfo.lower ? memInfo.current - memInfo.lower
+                                             : 0),
+            (total > lwm ? total - lwm : 0));
+    if (hwm > lwm && want > hwm - lwm) {
+        // Limit paging to the difference between high and low watermark,
+        // as current-lower could be huge in some extreme cases.
+        return hwm - lwm;
     }
-    if (memInfo.current > memInfo.lower) {
-        limit = std::min(limit, memInfo.current - memInfo.lower);
-    }
-    return kvBucket->canPageItems(limit);
+    return want;
+}
+
+bool StrictQuotaItemPager::canPageItems(std::size_t bytesToPage) const {
+    return engine->getKVBucket()->canPageItems(bytesToPage);
 }
 
 bool ItemPager::shouldPage(const ItemPager::PageableMemInfo& memInfo) const {
     return memInfo.current > memInfo.upper;
 }
 
-bool ItemPager::shouldStopPaging(
+std::size_t ItemPager::getBytesToPage(
         const ItemPager::PageableMemInfo& memInfo) const {
-    return memInfo.current <= memInfo.lower;
+    if (memInfo.current <= memInfo.lower) {
+        return 0;
+    }
+    return memInfo.current - memInfo.lower;
+}
+
+bool ItemPager::canPageItems(std::size_t) const {
+    return true;
 }
 
 bool ItemPager::runPager(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     const auto memInfo = getPageableMemInfo();
+    const auto bytesToPage = getBytesToPage(memInfo);
 
-    if (shouldStopPaging(memInfo)) {
+    if (bytesToPage == 0) {
         // doEvict may have been set to ensure eviction would continue until the
         // low watermark was reached - it now has, so clear the flag.
         doEvict = false;
@@ -234,7 +239,7 @@ bool ItemPager::runPager(bool manuallyNotified) {
         // sufficiently draining out of the system. EP buckets don't throttle.
         // A limit is created by StrictQuotaItemPager::canPageItems and the
         // bucket implemented canPageItems decides if paging can/cannot proceed.
-        if (!canPageItems(memInfo)) {
+        if (!canPageItems(bytesToPage)) {
             return true;
         }
 
@@ -246,8 +251,7 @@ bool ItemPager::runPager(bool manuallyNotified) {
         // acquired token, PagingVisitor::complete() will call
         // pagerSemaphore->signal() to release it.
 
-        std::ptrdiff_t bytesToEvict = memInfo.current - memInfo.lower;
-        schedulePagingVisitors(bytesToEvict);
+        schedulePagingVisitors(bytesToPage);
     }
 
     return true;

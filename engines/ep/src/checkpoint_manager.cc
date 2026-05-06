@@ -748,20 +748,6 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
 
 CheckpointManager::ReleaseResult
 CheckpointManager::expelUnreferencedCheckpointItems() {
-    // Update EPStats::inactiveCheckpointOverhead if the overhead is different
-    // when this helper is destroyed - which occurs _after_ the destruction
-    // of expelledItems (declared below)
-    auto overheadCheck = gsl::finally(
-            [pre = static_cast<int64_t>(getMemOverhead()), this]() {
-                auto post = static_cast<int64_t>(getMemOverhead());
-                auto state = vb.getState();
-                if ((state == vbucket_state_replica ||
-                     state == vbucket_state_dead) &&
-                    pre != post) {
-                    stats.inactiveCheckpointOverhead += post - pre;
-                }
-            });
-
     ExtractItemsResult extractRes;
     {
         std::lock_guard<std::mutex> lh(queueLock);
@@ -1366,10 +1352,6 @@ void CheckpointManager::dump(const std::lock_guard<std::mutex>& lh) const {
     std::cerr << *this << std::endl;
 }
 
-vbucket_state_t CheckpointManager::getVBState() const {
-    return vb.getState();
-}
-
 void CheckpointManager::clear(std::optional<uint64_t> seqno) {
     // Swap our checkpoint list for a new one so that we can clear everything
     // and addOpenCheckpoint will create the new checkpoint in our new list.
@@ -1798,19 +1780,6 @@ bool CheckpointManager::isOpenCheckpointDisk() {
 bool CheckpointManager::isOpenCheckpointInitialDisk() {
     std::lock_guard<std::mutex> lh(queueLock);
     return checkpointList.back()->isInitialDiskCheckpoint();
-}
-
-void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
-                                                  vbucket_state_t to) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    auto isInactive = [](vbucket_state_t state) {
-        return state == vbucket_state_replica || state == vbucket_state_dead;
-    };
-    if (!isInactive(from) && isInactive(to)) {
-        stats.inactiveCheckpointOverhead += getMemOverhead(lh);
-    } else if (isInactive(from) && !isInactive(to)) {
-        stats.inactiveCheckpointOverhead -= getMemOverhead(lh);
-    }
 }
 
 size_t CheckpointManager::getNumCheckpoints() const {

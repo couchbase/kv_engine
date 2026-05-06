@@ -597,8 +597,6 @@ public:
     /// checkpoint.
     bool isOpenCheckpointInitialDisk();
 
-    void updateStatsForStateChange(vbucket_state_t from, vbucket_state_t to);
-
     /**
      * @return The number of checkpoints currently managed by this CM.
      */
@@ -974,8 +972,6 @@ protected:
      * @param lh Lock to the CM
      */
     void dump(const std::lock_guard<std::mutex>& lh) const;
-
-    vbucket_state_t getVBState() const;
 
     CheckpointList checkpointList;
     EPStats                 &stats;

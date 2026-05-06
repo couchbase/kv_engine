@@ -36,5 +36,7 @@ bool StrictQuotaMemoryTracker::isBelowBackfillThreshold(
 
 bool StrictQuotaMemoryTracker::needsToFreeMemory() const {
     return engine.getEpStats().getEstimatedTotalMemoryUsed() >
-           engine.getEpStats().mem_high_wat;
+                   engine.getEpStats().mem_high_wat ||
+           engine.getKVBucket()->getPageableMemCurrent() >
+                   engine.getKVBucket()->getPageableMemHighWatermark();
 }

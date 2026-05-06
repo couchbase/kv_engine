@@ -388,11 +388,8 @@ public:
     folly::aligned<Counter, folly::hardware_constructive_interference_size>
             checkpointManagerEstimatedMemUsage;
 
-    //! Total memory used by hashtable items for replica or dead vbuckets.
-    cb::RelaxedAtomic<int64_t> inactiveHTMemory;
-
-    //! Total memory used by checkpoints for replica or dead vbuckets.
-    cb::RelaxedAtomic<int64_t> inactiveCheckpointOverhead;
+    //! Total memory used by hashtable items for active vbuckets.
+    cb::RelaxedAtomic<int64_t> activeHTMemory;
 
     //! Whether or not to force engine shutdown.
     std::atomic<bool> forceShutdown;

@@ -90,11 +90,6 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     core->memOverhead += sizeof(Checkpoint);
     core->numCheckpoints++;
     stats.checkpointManagerEstimatedMemUsage->fetch_add(sizeof(Checkpoint));
-
-    auto state = manager.getVBState();
-    if (state == vbucket_state_replica || state == vbucket_state_dead) {
-        stats.inactiveCheckpointOverhead += getMemOverhead();
-    }
 }
 
 Checkpoint::~Checkpoint() {
@@ -117,18 +112,6 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
     Expects(manager);
     QueueDirtyResult rv;
-    // Update EPStats::inactiveCheckpointOverhead if the overhead is different
-    // when this helper is destroyed
-    auto overheadCheck = gsl::finally(
-            [pre = static_cast<int64_t>(getMemOverhead()), this]() {
-                auto post = static_cast<int64_t>(getMemOverhead());
-                auto state = manager->getVBState();
-                if ((state == vbucket_state_replica ||
-                     state == vbucket_state_dead) &&
-                    pre != post) {
-                    stats.inactiveCheckpointOverhead += post - pre;
-                }
-            });
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
@@ -657,15 +640,7 @@ void Checkpoint::addStats(const AddStatFn& add_stat, CookieIface& cookie) {
 
 void Checkpoint::detachFromManager() {
     Expects(manager);
-
-    // In EPStats we track the mem used by checkpoints owned by CM, so we need
-    // to decrease those stats when we detach a checkpoint from the CM.
-    auto state = manager->getVBState();
-    if (state == vbucket_state_replica || state == vbucket_state_dead) {
-        stats.inactiveCheckpointOverhead -= getMemOverhead();
-    }
     stats.checkpointManagerEstimatedMemUsage->fetch_sub(getMemUsage());
-
     manager = nullptr;
 
     // stop tracking MemoryCounters against the CM
