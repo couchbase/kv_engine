@@ -4188,6 +4188,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NSets", magmaStats->NSets);
     fill("magma_NInserts", magmaStats->NInserts);
     fill("magma_NReadIO", magmaStats->NReadIOs);
+    fill("magma_NReadIOsGet", magmaStats->NReadIOsGet);
+    fill("magma_NReadIOsSet", magmaStats->NReadIOsSet);
     fill("magma_NReadBytesCompact", magmaStats->NReadBytesCompact);
     fill("magma_BytesIncoming", magmaStats->BytesIncoming);
     fill("magma_BytesOverwritten", magmaStats->BytesOverwritten);
@@ -4242,6 +4244,11 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats->NonResidentBloomFilterSize);
     fill("magma_BlockCacheHits", magmaStats->BlockCacheHits);
     fill("magma_BlockCacheMisses", magmaStats->BlockCacheMisses);
+    fill("magma_NBloomFilterHits", magmaStats->NBloomFilterHits);
+    fill("magma_NBloomFilterMisses", magmaStats->NBloomFilterMisses);
+    fill("magma_NBloomFilterCacheHits", magmaStats->NBloomFilterCacheHits);
+    fill("magma_NBloomFilterCacheMisses",
+         magmaStats->NBloomFilterCacheMisses);
     fill("magma_NTablesDeleted", magmaStats->NTablesDeleted);
     fill("magma_NTablesCreated", magmaStats->NTablesCreated);
     fill("magma_NTableFiles", magmaStats->NTableFiles);

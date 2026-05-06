@@ -2783,7 +2783,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 80> statNames = {
+    constexpr std::array<std::string_view, 86> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2814,6 +2814,8 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NSets",
              "magma_NInserts",
              "magma_NReadIO",
+             "magma_NReadIOsGet",
+             "magma_NReadIOsSet",
              "magma_NReadBytesCompact",
 
              // Write amp analysis.
@@ -2855,6 +2857,10 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NonResidentBloomFilterSize",
              "magma_BlockCacheHits",
              "magma_BlockCacheMisses",
+             "magma_NBloomFilterHits",
+             "magma_NBloomFilterMisses",
+             "magma_NBloomFilterCacheHits",
+             "magma_NBloomFilterCacheMisses",
              "magma_NTablesDeleted",
              "magma_NTablesCreated",
              "magma_NTableFiles",
@@ -2963,6 +2969,10 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         }
     }
 
+    // Per-path read IO breakdown (get path vs set/compact path).
+    addStat(Key::ep_magma_readio_get, "magma_NReadIOsGet");
+    addStat(Key::ep_magma_readio_set, "magma_NReadIOsSet");
+
     // Compaction bytes read/written.
     addStat(Key::ep_magma_read_bytes_compact, "magma_NReadBytesCompact");
     addStat(Key::ep_magma_write_bytes_compact, "magma_NWriteBytesCompact");
@@ -3063,6 +3073,14 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Block cache.
     addStat(Key::ep_magma_block_cache_hits, "magma_BlockCacheHits");
     addStat(Key::ep_magma_block_cache_misses, "magma_BlockCacheMisses");
+
+    // Bloom filter.
+    addStat(Key::ep_magma_bloom_filter_lookups_hit, "magma_NBloomFilterHits");
+    addStat(Key::ep_magma_bloom_filter_lookups_miss, "magma_NBloomFilterMisses");
+    addStat(Key::ep_magma_bloom_filter_cache_hits,
+            "magma_NBloomFilterCacheHits");
+    addStat(Key::ep_magma_bloom_filter_cache_misses,
+            "magma_NBloomFilterCacheMisses");
 
     // SST file counts.
     addStat(Key::ep_magma_tables_deleted, "magma_NTablesDeleted");

@@ -1546,6 +1546,20 @@
         "added": "7.1.0"
     },
     {
+        "key": "ep_magma_readio_get",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of read IOs performed on the get path",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_readio_set",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of read IOs performed on the set path",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_magma_readioamp",
         "unit": "ratio",
         "description": "Number of read IOs performed by GetDocs divided by the number of GetDocs",
@@ -1835,6 +1849,35 @@
         "unit": "none",
         "description": "Number of block cache misses",
         "added": "7.1.0"
+    },
+/* Bloom filter. */
+    {
+        "key": "ep_magma_bloom_filter_lookups_hit",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of bloom filter lookups where the filter correctly indicated the key did not exist",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_bloom_filter_lookups_miss",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of bloom filter lookups where the filter returned a false positive",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_bloom_filter_cache_hits",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of bloom filter lookups served from the in-memory bloom filter cache",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_magma_bloom_filter_cache_misses",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of bloom filter lookups that required a disk read",
+        "added": "8.1.0"
     },
 /* SST file count. */
     {
