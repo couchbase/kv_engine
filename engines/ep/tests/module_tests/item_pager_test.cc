@@ -368,6 +368,9 @@ protected:
         }
         // Disable pausing mid-vbucket by default
         config_string += "paging_visitor_pause_check_count=1;";
+        // Disable the tombstone purger to avoid it being scheduled which can
+        // disrupt EXPECT statements around ready tasks
+        config_string += "ephemeral_metadata_purge_interval=0;";
         config_string +=
                 "concurrent_pagers=" + std::to_string(getNumConcurrentPagers());
         config_string += ";expiry_pager_concurrency=" +
