@@ -39,6 +39,7 @@ static_assert((int(Datatype::Raw) | int(Datatype::JSON) |
               "We expect datatype to require 3 bits to encode for a layout "
               "optimisation in StoredValue.");
 
+std::string format_as(Datatype datatype);
 } // namespace cb::mcbp
 
 /**

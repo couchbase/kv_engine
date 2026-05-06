@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -58,4 +57,8 @@ std::string cb::mcbp::datatype::to_string(protocol_binary_datatype_t datatype) {
         return ret;
     }
     return std::string{"invalid"};
+}
+
+std::string cb::mcbp::format_as(Datatype datatype) {
+    return to_json(datatype).dump();
 }
