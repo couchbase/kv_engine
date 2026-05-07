@@ -184,13 +184,16 @@ bool StrictQuotaItemPager::shouldStopPaging(
 bool StrictQuotaItemPager::canPageItems(
         const ItemPager::PageableMemInfo& memInfo) const {
     auto* kvBucket = engine->getKVBucket();
-    // Find a limit for paging. It should be either the difference between:
-    // 1) pageable high/pageable low
-    // 2) current pageable/pageable low
-    // Pick the smaller (noting current could be huge in some extreme cases)
+    // Find a limit for paging. The lower of either.
+    // 1) high water mark - low water mark.
+    // 2) mem_used - pageable low
+    // Note: that we do this because 2 could be far too big if memory usage is
+    // inflated for some reason.
     size_t limit = 0;
-    if (memInfo.upper > memInfo.lower) {
-        limit = memInfo.upper - memInfo.lower;
+    const auto hwm = stats.mem_high_wat.load();
+    const auto lwm = stats.mem_low_wat.load();
+    if (hwm > lwm) {
+        limit = hwm - lwm;
     }
     if (memInfo.current > memInfo.lower) {
         limit = std::min(limit, memInfo.current - memInfo.lower);
@@ -229,12 +232,8 @@ bool ItemPager::runPager(bool manuallyNotified) {
         // canPageItems for ephemeral buckets will check that the pager has
         // not already created the maximum amount of deletions without
         // sufficiently draining out of the system. EP buckets don't throttle.
-        // We require that for ephemeral the pager is limited to deleting either
-        // 1) the difference from current to lower
-        // 2) the difference from hwm to lower
-        // Whichever is the smaller value. E.g. if current is now in between
-        // hwm/lwm, only try and delete that amount so we reduce the chance of
-        // overshooting the lwm.
+        // A limit is created by StrictQuotaItemPager::canPageItems and the
+        // bucket implemented canPageItems decides if paging can/cannot proceed.
         if (!canPageItems(memInfo)) {
             return true;
         }
