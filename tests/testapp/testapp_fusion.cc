@@ -566,6 +566,14 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_0.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_0["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_0["snapshot_pending_bytes"]);
+    ASSERT_TRUE(vb_0.contains("logstore_data_size"));
+    ASSERT_TRUE(vb_0["logstore_data_size"].is_number_integer());
+    ASSERT_TRUE(vb_0.contains("logstore_garbage_size"));
+    ASSERT_TRUE(vb_0["logstore_garbage_size"].is_number_integer());
+    ASSERT_TRUE(vb_0.contains("logstore_fragmentation_ratio"));
+    ASSERT_TRUE(vb_0["logstore_fragmentation_ratio"].is_number_float());
+    ASSERT_TRUE(vb_0.contains("logstore_pending_delete_size"));
+    ASSERT_TRUE(vb_0["logstore_pending_delete_size"].is_number_integer());
 
     // verify vb_1 stats
     const auto vb_1 = res["vb_1"];
@@ -588,6 +596,14 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_1.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_1["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_1["snapshot_pending_bytes"]);
+    ASSERT_TRUE(vb_1.contains("logstore_data_size"));
+    ASSERT_TRUE(vb_1["logstore_data_size"].is_number_integer());
+    ASSERT_TRUE(vb_1.contains("logstore_garbage_size"));
+    ASSERT_TRUE(vb_1["logstore_garbage_size"].is_number_integer());
+    ASSERT_TRUE(vb_1.contains("logstore_fragmentation_ratio"));
+    ASSERT_TRUE(vb_1["logstore_fragmentation_ratio"].is_number_float());
+    ASSERT_TRUE(vb_1.contains("logstore_pending_delete_size"));
+    ASSERT_TRUE(vb_1["logstore_pending_delete_size"].is_number_integer());
 
     // Delete vb_1
     auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::DelVbucket};

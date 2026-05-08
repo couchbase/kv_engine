@@ -759,6 +759,12 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
                 stats.FusionFSStats.SyncSessionTotalBytes;
         json["sync_session_total_bytes"] =
                 stats.FusionFSStats.SyncSessionCompletedBytes;
+        json["logstore_data_size"] = stats.FusionFSStats.LogStoreDataSize;
+        json["logstore_garbage_size"] = stats.FusionFSStats.LogStoreGarbageSize;
+        json["logstore_fragmentation_ratio"] =
+                stats.FusionFSStats.LogStoreFragmentationRatio;
+        json["logstore_pending_delete_size"] =
+                stats.FusionFSStats.LogStorePendingDeleteSize;
     }
     return copyToPrimaryDomain(
             std::make_tuple(std::move(status), std::move(json)));
