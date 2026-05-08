@@ -17,7 +17,7 @@ void ShutdownTest::SetUp() {
     config["threads"] = 4;
     doSetUpTestCaseWithConfiguration(config);
 
-    if (!memcachedProcess->isRunning()) {
+    if (memcachedProcess && !memcachedProcess->isRunning()) {
         std::cerr << "memcached not running. Terminate test execution"
                   << std::endl;
         mcd_env->terminate(EXIT_FAILURE);
