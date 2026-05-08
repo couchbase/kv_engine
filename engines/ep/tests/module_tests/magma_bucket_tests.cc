@@ -166,7 +166,7 @@ TEST_P(STParamMagmaBucketTest, makeCompactionContextSetupAtWarmup) {
             dynamic_cast<MagmaKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(magmaKVStore);
     ASSERT_THROW(magmaKVStore->makeImplicitCompactionContext(vbid),
-                 std::runtime_error);
+                 std::invalid_argument);
 
     // Run warmup, and we should set the makeCompactionContextCallback in the
     // final stage
