@@ -70,6 +70,18 @@ public:
         futureQueue.snooze(task, secs);
     }
 
+    /*
+     * Invoke f(const ExTask&) for every task in the futureQueue. Visit order
+     * is heap order (not sorted by waketime). Both the TaskQueue mutex and the
+     * FutureQueue queueMutex are held during iteration, so f must not call
+     * back into the TaskQueue.
+     */
+    template <class Func>
+    void forEachFutureTask(Func f) {
+        std::lock_guard<std::mutex> lh(mutex);
+        futureQueue.forEach(f);
+    }
+
 private:
     void _schedule(ExTask& task);
     std::chrono::steady_clock::time_point _reschedule(ExTask& task);

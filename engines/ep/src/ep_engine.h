@@ -1087,6 +1087,11 @@ public:
      */
     bool isMagmaBlindWriteOptimisationEnabled() const;
 
+    /// @return true if getenv("MEMCACHED_UNIT_TESTING") returns something
+    bool isUnitTesting() const {
+        return unitTesting;
+    }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1671,6 +1676,9 @@ protected:
      * be incorrect.
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
+
+    // cached value of getenv("MEMCACHED_UNIT_TESTS") != nullptr
+    const bool unitTesting{false};
 };
 
 /**
