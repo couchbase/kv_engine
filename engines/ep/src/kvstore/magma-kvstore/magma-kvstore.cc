@@ -317,13 +317,6 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
     // If we've not got a CompactionContext then this must be an implicit
     // compaction so we need to create a CompactionContext
     if (!ctx) {
-        if (!magmaKVStore.makeCompactionContextCallback) {
-            // We can't perform an implicit compaction if
-            // makeCompactionContextCallback isn't set.
-            throw std::invalid_argument(
-                    "MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB() no "
-                    "makeCompactionContextCallback set");
-        }
         ctx = magmaKVStore.makeImplicitCompactionContext(vbid);
         // If we don't have a valid compaction context then throw to prevent us
         // creating a MagmaCompactionCB that won't be able to do any compaction
@@ -4340,8 +4333,9 @@ void MagmaKVStore::pendingTasks() {
 
 std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
         Vbid vbid) {
+    auto makeCompactionContextCallback = getMakeCompactionContextCallback();
     if (!makeCompactionContextCallback) {
-        throw std::runtime_error(
+        throw std::invalid_argument(
                 "MagmaKVStore::makeImplicitCompactionContext: Have not set "
                 "makeCompactionContextCallback to create a CompactionContext");
     }

@@ -28,6 +28,7 @@
 #include <memcached/thread_pool_config.h>
 #include <nlohmann/json.hpp>
 
+#include <folly/Synchronized.h>
 #include <platform/atomic_duration.h>
 #include <relaxed_atomic.h>
 #include <atomic>
@@ -926,7 +927,11 @@ public:
 
     void setMakeCompactionContextCallback(
             MakeCompactionContextCallback cb) override {
-        makeCompactionContextCallback = cb;
+        makeCompactionContextCallback = std::move(cb);
+    }
+
+    MakeCompactionContextCallback getMakeCompactionContextCallback() const {
+        return makeCompactionContextCallback.copy();
     }
 
     void setPreFlushHook(std::function<void()> hook) override {
@@ -1117,8 +1122,13 @@ protected:
     /**
      * Callback function to be invoked when the underlying KVStore needs to
      * create a compaction context.
+     *
+     * Synchronized to protect against a race between the warmup thread
+     * (which sets this callback) and Magma compactor threads (which read
+     * it for implicit compaction). MB-71291
      */
-    MakeCompactionContextCallback makeCompactionContextCallback;
+    folly::Synchronized<MakeCompactionContextCallback>
+            makeCompactionContextCallback;
 
     /**
      * Guards against users attempting to flush against the same vBucket
