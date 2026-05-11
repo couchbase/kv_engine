@@ -5911,6 +5911,12 @@ cb::const_byte_buffer adjustValueForExtendedMeta(cb::const_byte_buffer value,
         uint16_t nmeta;
         memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
         nmeta = ntohs(nmeta);
+
+        if (value.size() < nmeta) {
+            throw std::invalid_argument(
+                    "EPE::adjustValueForExtendedMeta: value.size < nmeta");
+        }
+
         // Correct the vallen, skipping over any extras which could
         // have been included in the value
         value = {value.data(), value.size() - nmeta};

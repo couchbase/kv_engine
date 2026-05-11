@@ -10,12 +10,12 @@
 #include "testapp_client_test.h"
 
 #include <fmt/format.h>
+#include <folly/portability/GMock.h>
 #include <memcached/limits.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 #include <utilities/json_utilities.h>
-
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -456,4 +456,56 @@ TEST_P(MemTrackingBucketTest, MB_68823) {
         FAIL() << "Timeout before the log line was dumped to the file";
     }
     FAIL() << "StreamRequest should have failed";
+}
+
+TEST_P(MemTrackingBucketTest, MB_71836) {
+    auto& conn = getConnection();
+    conn.authenticate("@admin");
+    conn.selectBucket(bucketName);
+
+    // Craft an invalid SetWithMeta payload
+    Document doc{};
+    const auto key = "key";
+    doc.info.id = key;
+    doc.info.cas = 123;
+    doc.info.expiration = 0;
+    doc.info.flags = 0xaabbccdd;
+    doc.value = "value";
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+    // 1-byte meta
+    const std::vector<uint8_t> meta = {0xff};
+
+    class InvalidSetWithMetaCommand : public BinprotSetWithMetaCommand {
+    public:
+        InvalidSetWithMetaCommand(const Document& doc,
+                                  Vbid vbid,
+                                  uint64_t cas,
+                                  uint64_t seqno,
+                                  uint32_t options,
+                                  const std::vector<uint8_t>& meta)
+            : BinprotSetWithMetaCommand(doc, vbid, cas, seqno, options, meta) {
+        }
+
+        void encode(std::vector<uint8_t>& buf) const override {
+            BinprotSetWithMetaCommand::encode(buf);
+            // Poison the meta_size with its max value (uint16_t, 0xffff).
+            // Before the fix, that triggers broken code that underflows the
+            // internal doc value representation by making its size huge.
+            buf.at(48) = static_cast<uint16_t>(0xff);
+            buf.at(49) = static_cast<uint16_t>(0xff);
+        }
+    };
+
+    InvalidSetWithMetaCommand cmd(
+            doc, Vbid(0), cb::mcbp::cas::Wildcard, 1, 0, meta);
+    // We want to validate the invalid request and force disconnection.
+    // Before the fix the invalid payload goes through, sign is that we try to
+    // allocate a huge blob by that, the connection stays alive we just return
+    // E2big.
+    try {
+        conn.execute(cmd);
+        FAIL() << "Server should force disconnection";
+    } catch (const std::system_error& e) {
+        EXPECT_THAT(e.what(), testing::HasSubstr("AsyncSocketException: Network error"));
+    }
 }
