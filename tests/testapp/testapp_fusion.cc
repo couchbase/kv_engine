@@ -1130,6 +1130,28 @@ TEST_P(FusionTest, StopFusionUploader) {
     }
 }
 
+TEST_P(FusionTest, StartFusionUploader_NonActiveVbucket) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
+    connection->setVbucket(vbid, vbucket_state_replica, {});
+    auto resp = startFusionUploader(vbid, "123");
+    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, resp.getStatus());
+    // Restore active state so TearDown cleanup can proceed
+    connection->setVbucket(vbid, vbucket_state_active, {});
+}
+
+TEST_P(FusionTest, StopFusionUploader_NonActiveVbucket) {
+    if (!isFusionSupportedInBucket()) {
+        GTEST_SKIP() << "Fusion is not supported in this bucket";
+    }
+    connection->setVbucket(vbid, vbucket_state_replica, {});
+    auto resp = stopFusionUploader(vbid);
+    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, resp.getStatus());
+    // Restore active state so TearDown cleanup can proceed
+    connection->setVbucket(vbid, vbucket_state_active, {});
+}
+
 TEST_P(FusionTest, ToggleUploader) {
     if (!isFusionSupportedInBucket()) {
         GTEST_SKIP() << "Fusion is not supported in this bucket";

@@ -686,6 +686,12 @@ protected:
     cb::engine_errc fusionStatGuestVolumesAggregate(CookieIface& cookie,
                                                     const AddStatFn& add_stat);
 
+    /**
+     * @return false if the vbucket does not exist or is not in the
+     *         active state, true otherwise.
+     */
+    bool isVbucketActive(Vbid vbid);
+
     void deleteVbucketImpl(LockedVBucketPtr& lockedVB) override;
 
     bool shouldPrepareSnapshotGenerateChecksums() const;

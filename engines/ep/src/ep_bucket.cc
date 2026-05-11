@@ -3416,7 +3416,22 @@ cb::engine_errc EPBucket::syncFusionLogstore(Vbid vbid, bool reset) {
     return getRWUnderlying(vbid)->syncFusionLogstore(vbid, reset);
 }
 
+bool EPBucket::isVbucketActive(Vbid vbid) {
+    const auto vb = getVBucket(vbid);
+    if (!vb) {
+        return false;
+    }
+    std::shared_lock rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
+        return false;
+    }
+    return true;
+}
+
 cb::engine_errc EPBucket::startFusionUploader(Vbid vbid, uint64_t term) {
+    if (!isVbucketActive(vbid)) {
+        return cb::engine_errc::not_my_vbucket;
+    }
     auto* underlying = getRWUnderlying(vbid);
     Expects(underlying);
     if (!underlying->getStorageProperties().supportsFusion()) {
@@ -3426,6 +3441,9 @@ cb::engine_errc EPBucket::startFusionUploader(Vbid vbid, uint64_t term) {
 }
 
 cb::engine_errc EPBucket::stopFusionUploader(Vbid vbid) {
+    if (!isVbucketActive(vbid)) {
+        return cb::engine_errc::not_my_vbucket;
+    }
     auto* underlying = getRWUnderlying(vbid);
     Expects(underlying);
     if (!underlying->getStorageProperties().supportsFusion()) {
