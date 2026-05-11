@@ -151,9 +151,8 @@ enum class ClientOpcode : uint8_t {
     DcpAbort = 0x63,
     DcpSeqnoAdvanced = 0x64,
     DcpOsoSnapshot = 0x65,
-    // 0x66/0x67 are free
-    DcpCacheTransferEnd = 0x68,
-    DcpCacheTransfer = 0x69,
+    DcpCacheTransfer = 0x66,
+    DcpCacheTransferEnd = 0x67,
     /* End DCP */
 
     /// Fusion
