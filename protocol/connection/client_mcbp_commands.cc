@@ -1710,6 +1710,17 @@ BinprotDcpControlCommand::BinprotDcpControlCommand(std::string key,
                             std::move(value)) {
 }
 
+BinprotDcpBufferAck::BinprotDcpBufferAck(std::size_t bytes)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
+    meta.setBufferBytes(gsl::narrow<uint32_t>(bytes));
+}
+
+void BinprotDcpBufferAck::encode(std::vector<uint8_t>& buf) const {
+    auto buffer = meta.getBuffer();
+    writeHeader(buf, 0, buffer.size());
+    buf.insert(buf.end(), buffer.begin(), buffer.end());
+}
+
 BinprotDcpMutationCommand::BinprotDcpMutationCommand(std::string key,
                                                      std::string_view value,
                                                      uint32_t opaque,

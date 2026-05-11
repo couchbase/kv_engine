@@ -856,6 +856,15 @@ public:
     BinprotDcpControlCommand(std::string key = {}, std::string value = {});
 };
 
+class BinprotDcpBufferAck : public BinprotGenericCommand {
+public:
+    BinprotDcpBufferAck(std::size_t bytes);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    cb::mcbp::request::DcpBufferAckPayload meta;
+};
+
 class BinprotDcpMutationCommand : public BinprotMutationCommand {
 public:
     BinprotDcpMutationCommand(std::string key,
