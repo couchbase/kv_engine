@@ -1703,8 +1703,11 @@ void BinprotDcpAddStreamCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), buffer.begin(), buffer.end());
 }
 
-BinprotDcpControlCommand::BinprotDcpControlCommand()
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpControl) {
+BinprotDcpControlCommand::BinprotDcpControlCommand(std::string key,
+                                                   std::string value)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpControl,
+                            std::move(key),
+                            std::move(value)) {
 }
 
 BinprotDcpMutationCommand::BinprotDcpMutationCommand(std::string key,

@@ -376,19 +376,19 @@ void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
 static void setControlMessages(
         MemcachedConnection& connection,
         const std::vector<std::pair<std::string, std::string>>& controls) {
-    for (const auto& p : controls) {
+    for (const auto& [key, value] : controls) {
         if (verbose) {
-            std::cout << "Set DCP control message: " << p.first << "="
-                      << p.second << std::endl;
-        }
-        if (!connection
-                     .execute(BinprotGenericCommand{
-                             cb::mcbp::ClientOpcode::DcpControl,
-                             p.first,
-                             p.second})
-                     .isSuccess()) {
-            std::cerr << "Failed to set " << p.first << " to " << p.second
+            std::cout << "Set DCP control message: " << key << "=" << value
                       << std::endl;
+        }
+        const auto rsp =
+                connection.execute(BinprotDcpControlCommand{key, value});
+        if (!rsp.isSuccess()) {
+            fmt::println(stderr,
+                         "Failed to set {} to {}: {}",
+                         key,
+                         value,
+                         rsp.getStatus());
             std::exit(EXIT_FAILURE);
         }
     }

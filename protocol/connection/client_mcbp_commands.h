@@ -853,7 +853,7 @@ protected:
 
 class BinprotDcpControlCommand : public BinprotGenericCommand {
 public:
-    BinprotDcpControlCommand();
+    BinprotDcpControlCommand(std::string key = {}, std::string value = {});
 };
 
 class BinprotDcpMutationCommand : public BinprotMutationCommand {
