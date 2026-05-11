@@ -387,14 +387,16 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
         // to visit is less than the desired concurrency.
         pagerSemaphore->release(numConcurrentPagers - partFilters.size());
     }
+
+    // disable visitor pausing in unit tests to make paging deterministic.
+    const auto canPause = !engine->isUnitTesting();
     for (const auto& partFilter : partFilters) {
-        auto pv = std::make_unique<ItemPagingVisitor>(
-                *kvBucket,
-                stats,
-                makeEvictionStrategy(),
-                pagerSemaphore,
-                true, /* allow pausing between vbuckets */
-                partFilter);
+        auto pv = std::make_unique<ItemPagingVisitor>(*kvBucket,
+                                                      stats,
+                                                      makeEvictionStrategy(),
+                                                      pagerSemaphore,
+                                                      canPause,
+                                                      partFilter);
 
         kvBucket->visitAsync(std::move(pv),
                              "Item pager",
