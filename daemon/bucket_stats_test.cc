@@ -35,7 +35,7 @@ protected:
     void TearDown() override {
         // destroy the bucket which was created for this test
         BucketManager::instance().doBlockingDestroy(cookie, "foobar", true, {});
-        remove_all(bucketPath);
+        cb::io::remove_with_retry(bucketPath);
     }
 
     Bucket* bucket = nullptr;

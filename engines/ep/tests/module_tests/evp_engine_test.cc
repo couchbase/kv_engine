@@ -39,15 +39,8 @@ EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
 
 void EventuallyPersistentEngineTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
-    // from a previous run. Note some tests (e.g. EngineInitReadOnlyDataDir)
-    // make the directory read-only, so if a previous run crashed before
-    // restoring writable, then we could fail to remove_all() here. As such,
-    // ensure writable before attempting to remove.
-    using namespace std::filesystem;
-    if (exists(test_dbname)) {
-        permissions(test_dbname, perms::owner_all);
-        remove_all(test_dbname);
-    }
+    // from a previous run.
+    cb::io::remove_with_retry(test_dbname);
 
     // Create an ExecutorPool unless its already created by SetUp in a subclass
     if (!ExecutorPool::exists()) {
@@ -116,7 +109,7 @@ void EventuallyPersistentEngineTest::TearDown() {
         int retry = 0;
         for (;;) {
             try {
-                std::filesystem::remove_all(path);
+                cb::io::remove_with_retry(path);
                 break;
             } catch (const std::exception&) {
                 if (++retry == 100) {
@@ -621,7 +614,7 @@ TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
 TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
     shutdownEngine();
 
-    std::filesystem::remove_all(test_dbname);
+    cb::io::remove_with_retry(test_dbname);
 
     std::string config = config_string;
     config += "dbname=" + test_dbname + ";";

@@ -119,7 +119,7 @@ static enum test_result skipped_test_function(EngineIface*) {
 }
 
 enum test_result rmdb(std::string_view path) {
-    std::filesystem::remove_all(path);
+    cb::io::remove_with_retry(path);
     return SUCCESS;
 }
 

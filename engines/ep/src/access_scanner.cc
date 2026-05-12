@@ -72,7 +72,7 @@ ItemAccessVisitor::ItemAccessVisitor(
         // (e.g. due to a crash). We *don't* want to use the common
         // method removeFile, as we can't continue running the visitor
         // if we failed to remove the file.
-        std::filesystem::remove_all(next);
+        cb::io::remove_with_retry(next);
     } catch (const std::exception& e) {
         EP_LOG_WARN_CTX("Failed to remove existing access log",
                         {"path", next},

@@ -131,9 +131,7 @@ void TestBucket::createBucket(const std::string& name,
                               const std::string& config,
                               MemcachedConnection& conn) {
     const auto dbdir = dbPath / name;
-    if (exists(dbdir)) {
-        remove_all(dbdir);
-    }
+    cb::io::remove_with_retry(dbdir);
 
     std::string settings = "dbname=" + dbdir.generic_string();
     if (!config.empty()) {
@@ -164,9 +162,7 @@ void TestBucket::setUpBucket(const std::string& name,
                              MemcachedConnection& conn) {
     const auto dbdir = dbPath / name;
     if (bucketCreateMode == BucketCreateMode::Clean) {
-        if (exists(dbdir)) {
-            remove_all(dbdir);
-        }
+        cb::io::remove_with_retry(dbdir);
     }
 
     createEwbBucket(name,
@@ -337,16 +333,11 @@ void McdEnvironment::terminate(int exitcode) {
     }
 
     if (cleanup) {
-        for (int ii = 0; ii < 100; ++ii) {
-            try {
-                std::filesystem::remove_all(test_directory);
-                break;
-            } catch (const std::exception& e) {
-                std::cerr << "Failed to remove: "
-                          << test_directory.generic_string() << ": " << e.what()
-                          << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds{20});
-            }
+        std::error_code ec;
+        cb::io::remove_with_retry(test_directory);
+        if (!ec) {
+            std::cerr << "Failed to remove: " << test_directory.generic_string()
+                      << ": " << ec.message() << std::endl;
         }
     } else {
         std::cerr << "Test directory " << test_directory.generic_string()

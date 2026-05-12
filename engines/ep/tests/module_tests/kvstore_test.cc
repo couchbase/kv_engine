@@ -155,7 +155,7 @@ KVStoreTest::KVStoreTest()
 }
 
 void KVStoreTest::SetUp() {
-    std::filesystem::remove_all(data_dir);
+    cb::io::remove_with_retry(data_dir);
 
     // Data directory creation is normally done by the engine initialization;
     // we're not running a full engine here so we have to create the directory
@@ -171,7 +171,7 @@ void KVStoreTest::SetUp() {
 }
 
 void KVStoreTest::TearDown() {
-    std::filesystem::remove_all(data_dir);
+    cb::io::remove_with_retry(data_dir);
 }
 
 TEST_P(KVStoreParamTest, CompressedTest) {

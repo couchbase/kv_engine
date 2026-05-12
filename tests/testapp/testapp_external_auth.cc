@@ -437,7 +437,7 @@ TEST_P(ExternalAuthTest, TestErrorIncludeLdapInfo) {
 
 TEST_P(ExternalAuthTest, TestExternalAuthAudit) {
     auto logdir = mcd_env->getAuditLogDir();
-    std::filesystem::remove_all(logdir);
+    cb::io::remove_with_retry(logdir);
     std::filesystem::create_directories(logdir);
 
     auto& json = mcd_env->getAuditConfig();

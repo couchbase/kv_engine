@@ -8130,7 +8130,7 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     verify_curr_items(slowBucket, keysPerVbucket, "after warmup");
     // 12. Ensure the buckets are destroyed and shutdown at the end of the test
     testHarness->destroy_bucket(smallBucket, true);
-    std::filesystem::remove_all(smallBucketDir);
+    cb::io::remove_with_retry(smallBucketDir);
     testHarness->destroy_bucket(slowBucket, true);
     return SUCCESS;
 }

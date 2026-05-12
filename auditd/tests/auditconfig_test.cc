@@ -23,7 +23,7 @@ protected:
     }
 
     static void TearDownTestCase() {
-        std::filesystem::remove_all(testdir);
+        cb::io::remove_with_retry(testdir);
     }
 
     nlohmann::json json;

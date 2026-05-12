@@ -2716,7 +2716,7 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         ExecutorPool::shutdown();
 
         // Cleanup any files we created.
-        std::filesystem::remove_all(test_dbname);
+        cb::io::remove_with_retry(test_dbname);
     }
 }
 

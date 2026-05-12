@@ -271,7 +271,7 @@ void removePathIfExists(const std::string& path) {
         // the file.
         for (int ii = 0; ii < 20; ++ii) {
             try {
-                std::filesystem::remove_all(p);
+                cb::io::remove_with_retry(p);
                 return;
             } catch (const std::exception& e) {
                 std::cerr << "Failed to remove: " << p.generic_string() << ": "
@@ -281,7 +281,7 @@ void removePathIfExists(const std::string& path) {
         }
 
         // Try a final time and this time we'll throw an exception
-        std::filesystem::remove_all(p);
+        cb::io::remove_with_retry(p);
     }
 }
 

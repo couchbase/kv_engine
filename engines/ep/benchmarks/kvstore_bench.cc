@@ -107,7 +107,7 @@ protected:
                 gsl::narrow_cast<uint16_t>(workload.getNumShards()),
                 shardId);
 
-        std::filesystem::remove_all(kvstoreConfig->getDBName());
+        cb::io::remove_with_retry(kvstoreConfig->getDBName());
         std::filesystem::create_directories(kvstoreConfig->getDBName());
         kvstore = setup_kv_store(*kvstoreConfig);
 
@@ -135,7 +135,7 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         kvstore.reset();
-        std::filesystem::remove_all(kvstoreConfig->getDBName());
+        cb::io::remove_with_retry(kvstoreConfig->getDBName());
     }
 
 private:

@@ -30,7 +30,7 @@ void AuditTest::SetUp() {
     TestappClientTest::SetUp();
     reconfigure_client_cert_auth("disabled", "", "", "");
     auto logdir = mcd_env->getAuditLogDir();
-    std::filesystem::remove_all(logdir);
+    cb::io::remove_with_retry(logdir);
     std::filesystem::create_directories(logdir);
     setEnabled(true);
 }

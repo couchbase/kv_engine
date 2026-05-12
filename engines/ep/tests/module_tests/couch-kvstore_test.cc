@@ -239,7 +239,7 @@ public:
           flush(manifest) {
         config.setLogger(logger);
         config.setBuffered(false);
-        std::filesystem::remove_all(data_dir);
+        cb::io::remove_with_retry(data_dir);
         // Data directory creation is normally done by the engine
         // initialization; we're not running a full engine here so we have to
         // create the directory manually.
@@ -276,7 +276,7 @@ public:
     }
 
     ~CouchKVStoreErrorInjectionTest() override {
-        std::filesystem::remove_all(data_dir);
+        cb::io::remove_with_retry(data_dir);
     }
 
     EPStats globalStats;
@@ -1399,7 +1399,7 @@ public:
           config(1024, 4, data_dir, "couchdb", 0),
           flush(manifest) {
         config.setBuffered(false);
-        std::filesystem::remove_all(data_dir);
+        cb::io::remove_with_retry(data_dir);
         // Data directory creation is normally done by the engine
         // initialization; we're not running a full engine here so we have to
         // create the directory manually.
@@ -1460,7 +1460,7 @@ public:
     }
 
     ~CouchstoreTest() override {
-        std::filesystem::remove_all(data_dir);
+        cb::io::remove_with_retry(data_dir);
     }
 
     void flushItem(queued_item item) {

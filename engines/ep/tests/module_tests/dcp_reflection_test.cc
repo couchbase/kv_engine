@@ -337,16 +337,16 @@ protected:
         // don't exist.
         // Paranoia - remove any previous replica disk files.
         for (auto index : {1, 2, 3}) {
-            std::filesystem::remove_all(test_dbname + "-node_" +
-                                        std::to_string(index));
+            cb::io::remove_with_retry(test_dbname + "-node_" +
+                                      std::to_string(index));
         }
     }
 
     void internalSetUp() {
         // Paranoia - remove any previous replica disk files.
-        std::filesystem::remove_all(test_dbname + "-node_1");
-        std::filesystem::remove_all(test_dbname + "-node_2");
-        std::filesystem::remove_all(test_dbname + "-node_3");
+        cb::io::remove_with_retry(test_dbname + "-node_1");
+        cb::io::remove_with_retry(test_dbname + "-node_2");
+        cb::io::remove_with_retry(test_dbname + "-node_3");
 
         auto meta = nlohmann::json{
                 {"topology", nlohmann::json::array({{"active", "replica"}})}};

@@ -36,7 +36,7 @@ protected:
     }
 
     void SetUp() override {
-        std::filesystem::remove_all(mcd_env->getDbPath());
+        cb::io::remove_with_retry(mcd_env->getDbPath());
 
         mcd_env->getTestBucket().setBucketCreateMode(
                 TestBucket::BucketCreateMode::Clean);

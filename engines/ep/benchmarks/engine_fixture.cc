@@ -55,7 +55,7 @@ void EngineFixture::TearDown(const benchmark::State& state) {
         engine->getDcpConnMap().manageConnections();
         engine.reset();
         ExecutorPool::shutdown();
-        std::filesystem::remove_all("benchmarks-test");
+        cb::io::remove_with_retry("benchmarks-test");
     }
     ObjectRegistry::onSwitchThread(nullptr);
 }

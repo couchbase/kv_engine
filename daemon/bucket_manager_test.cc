@@ -36,7 +36,7 @@ public:
     }
 
     void TearDown() override {
-        remove_all(bucketPath);
+        cb::io::remove_with_retry(bucketPath);
     }
 
     static void SetUpTestSuite() {
@@ -52,7 +52,7 @@ public:
             if (is_directory(p.path(), ec)) {
                 if (p.path().filename().string().starts_with(
                             "BucketManagerTest")) {
-                    remove_all(p.path(), ec);
+                    cb::io::remove_with_retry(p.path(), ec);
                 }
             }
         }

@@ -82,7 +82,7 @@ KVBucketTest::KVBucketTest() : test_dbname(getProcessUniqueDatabaseName()) {
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    std::filesystem::remove_all(test_dbname);
+    cb::io::remove_with_retry(test_dbname);
 
     if (!ExecutorPool::exists()) {
         ExecutorPool::create();
@@ -209,7 +209,7 @@ void KVBucketTest::TearDown() {
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
     // Cleanup any files we created.
-    std::filesystem::remove_all(test_dbname);
+    cb::io::remove_with_retry(test_dbname);
 }
 
 void KVBucketTest::destroy(bool force) {

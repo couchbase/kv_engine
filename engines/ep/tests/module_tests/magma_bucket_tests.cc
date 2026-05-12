@@ -24,6 +24,7 @@
 #include "vbucket.h"
 
 #include <platform/cb_arena_malloc.h>
+#include <platform/dirutils.h>
 #include <utilities/magma_support.h>
 #include <utilities/test_manifest.h>
 
@@ -1308,7 +1309,7 @@ public:
     // Copy log files from logstore to N guest volumes for the vbucket under
     // test.
     std::vector<std::string> setupGuestVolumes(size_t n) {
-        std::filesystem::remove_all(fusionGuestVolumes);
+        cb::io::remove_with_retry(fusionGuestVolumes);
         std::filesystem::create_directories(fusionGuestVolumes);
 
         std::vector<std::string> guestVolumePaths;
@@ -1623,8 +1624,8 @@ TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
     flushVBucket(vbid);
 
     shutdownAndPurgeTasks(engine.get());
-    std::filesystem::remove_all(dbPath / "magma.0");
-    std::filesystem::remove_all(dbPath / "magma.1");
+    cb::io::remove_with_retry(dbPath / "magma.0");
+    cb::io::remove_with_retry(dbPath / "magma.1");
     reinitialise(buildNewWarmupConfig(config_string), false);
 
     MockCookieUniquePtr cookie2{create_mock_cookie(engine.get())};
@@ -1706,8 +1707,8 @@ TEST_P(STMagmaFusionTest, LoadVBucket) {
     const auto guestVolumePaths = setupGuestVolumes(3);
 
     shutdownAndPurgeTasks(engine.get());
-    std::filesystem::remove_all(dbPath / "magma.0");
-    std::filesystem::remove_all(dbPath / "magma.1");
+    cb::io::remove_with_retry(dbPath / "magma.0");
+    cb::io::remove_with_retry(dbPath / "magma.1");
     reinitialise(buildNewWarmupConfig(config_string), false);
 
     MockCookieUniquePtr cookie2{create_mock_cookie(engine.get())};

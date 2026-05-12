@@ -17,8 +17,9 @@ protected:
     void SetUp() override {
         root = cb::io::mkdtemp("DekFileUtilTest");
     }
+
     void TearDown() override {
-        remove_all(root);
+        cb::io::remove_with_retry(root);
     }
 
     void touch(const std::filesystem::path& path) {

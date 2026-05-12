@@ -36,7 +36,7 @@ protected:
             if (is_directory(p.path(), ec)) {
                 if (p.path().filename().string().starts_with(
                             "BucketMeteringStatsTest")) {
-                    remove_all(p.path(), ec);
+                    cb::io::remove_with_retry(p.path(), ec);
                 }
             }
         }
@@ -63,7 +63,7 @@ protected:
 
     void TearDown() override {
         BucketManager::instance().destroyAll();
-        remove_all(bucketPath);
+        cb::io::remove_with_retry(bucketPath);
     }
 
     Bucket* bucket = nullptr;

@@ -15,6 +15,7 @@
 #include "tests/module_tests/test_helpers.h"
 
 #include <folly/portability/GTest.h>
+#include <platform/dirutils.h>
 
 class SnapshotEngineTest
     : public SingleThreadedEPBucketTest,
@@ -173,7 +174,7 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
         std::error_code ec;
         auto path = std::filesystem::path{test_dbname} / "snapshots" /
                     manifest1.uuid;
-        std::filesystem::remove_all(path / "manifest.json", ec);
+        cb::io::remove_with_retry(path / "manifest.json", ec);
         ASSERT_FALSE(ec);
     }
 
@@ -205,7 +206,7 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
     }
 
     std::error_code ec;
-    std::filesystem::remove_all(removePath, ec);
+    cb::io::remove_with_retry(removePath, ec);
     ASSERT_FALSE(ec);
 
     std::filesystem::path truncatePath;

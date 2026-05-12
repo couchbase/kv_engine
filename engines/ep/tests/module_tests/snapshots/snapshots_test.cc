@@ -35,7 +35,7 @@ public:
     void TearDown() override {
         KVStoreParamTest::TearDown();
         std::error_code ec;
-        remove_all(snapshotdir, ec);
+        cb::io::remove_with_retry(snapshotdir, ec);
         EXPECT_FALSE(ec) << ec.message();
     }
 
