@@ -282,6 +282,13 @@ As well as changes from the source that satisfy the start-seqno a stream can
 be configured to transfer relevant items from the source's cache. The use of
 the CacheTransfer flag will enable this feature.
 
+The feature, its eligibility rules and the
+[DcpCacheTransfer](cache-transfer.md) /
+[DcpCacheTransferEnd](cache-transfer-end.md) messages it produces are
+described in detail in [cache_transfer.md](../cache_transfer.md). The phase
+can be further configured by including a
+[`cts` object](stream-request-value.md#cts) in the request's JSON value.
+
 The use-case for CacheTransfer is to permit memory to memory copying of the
 relevant documents avoiding the need for a replica vbucket to populate its
 cache from disk. This situation occurs when a vbucket is transferred to a new

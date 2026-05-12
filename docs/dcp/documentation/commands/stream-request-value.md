@@ -10,6 +10,10 @@ The following keys can be included in the JSON object.
 * `sid` - for specifying an ID the client would like to associated with the stream
 * `collections` - for specifying the set of collection IDs the stream must include
 * `scope` - for specifying the scope-ID the stream must include
+* `purge_seqno` - for telling the server the most recently observed purge-seqno
+* `cts` - for configuring the [CacheTransfer](../cache_transfer.md) phase of
+  the stream (only meaningful when the stream-request extras has the
+  `CacheTransfer` flag set)
 
 ## Key Definition
 
@@ -101,6 +105,45 @@ The value is a JSON string with the purge-seqno as a base-10 representation.
 }
 ```
 
+### cts
+
+The `cts` (cache-transfer-stream) key is a JSON object used to configure the
+[CacheTransfer](../cache_transfer.md) phase of a stream. The key is only
+meaningful when the stream-request extras has the `CacheTransfer` flag
+(`0x100`) set; the stream is otherwise unaffected by it.
+
+The object supports the following keys (all optional):
+
+* `free_memory` - a non-negative JSON integer (unsigned) describing the
+  amount of memory in bytes that the consumer has available for the items it
+  is about to receive. The producer treats this as a soft budget and
+  decrements it as it queues items.
+    * If `free_memory` reaches `0` and `all_keys` is `false`, the cache
+      transfer is stopped.
+    * If `free_memory` reaches `0` and `all_keys` is `true`, the producer
+      switches to shipping key + metadata only for the remaining items.
+* `all_keys` - a JSON boolean. When `true` the producer attempts to ship
+  every eligible item from the hash-table, downgrading the value to "key +
+  metadata only" whenever it is forced to (consumer budget exhausted or
+  producer above its high-water-mark). When `false` (the default) the
+  producer only ships items whose value is currently resident, and stops
+  when the consumer's `free_memory` budget is exhausted.
+
+For example:
+
+```
+{
+    "cts" : {
+        "free_memory" : 1073741824,
+        "all_keys" : true
+    }
+}
+```
+
+The semantics of these options (including which items are eligible for
+transfer and how memory pressure is handled) are described in detail in
+[cache_transfer.md](../cache_transfer.md).
+
 ## Validation
 
 * The stream-request code does not error for unknown keys.
@@ -129,6 +172,13 @@ be created per vbucket.
 * The stream-request will fail if `purge_seqno` is not a JSON string.
 * The stream-request will fail if `purge_seqno` value cannot be converted using
   std::strtoull
+
+### cts
+* The stream-request will fail if `cts` is not a JSON object.
+* The stream-request will fail if `cts.free_memory` is present and is not a
+  JSON unsigned integer.
+* The stream-request will fail if `cts.all_keys` is present and is not a
+  JSON boolean.
 
 ## Example
 

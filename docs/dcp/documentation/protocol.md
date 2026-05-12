@@ -25,3 +25,6 @@ The typical scenario begins with the client requesting a stream. Upon success th
 * [**Buffer Acknowledgement**](commands/buffer-ack.md)
 * [**Control**](commands/control.md)
 * [**Seqno Advanced**](commands/seqno-advanced.md)
+* [**Cache Transfer**](commands/cache-transfer.md) (see also the
+  [Cache Transfer overview](cache_transfer.md))
+* [**Cache Transfer End**](commands/cache-transfer-end.md)
