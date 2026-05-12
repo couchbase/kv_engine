@@ -86,6 +86,11 @@ public:
         fullEviction = evictionPolicy == "full_eviction";
     }
 
+    void TearDown() override {
+        conn->dcpCloseStream(Vbid(0));
+        TestappTest::TearDown();
+    }
+
     void setupConsumer(
             std::string_view name,
             const std::vector<std::pair<std::string, std::string>>& controls) {

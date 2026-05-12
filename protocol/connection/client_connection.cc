@@ -2167,6 +2167,12 @@ void MemcachedConnection::dcpAddStream(Vbid vbid,
     sendCommand(BinprotDcpAddStreamCommand{flags, vbid});
 }
 
+void MemcachedConnection::dcpCloseStream(Vbid vbid) {
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::DcpCloseStream};
+    cmd.setVBucket(vbid);
+    sendCommand(cmd);
+}
+
 void MemcachedConnection::dcpStreamRequestResponse(
         uint32_t opaque,
         const std::vector<std::pair<uint64_t, uint64_t>>& failovers) {

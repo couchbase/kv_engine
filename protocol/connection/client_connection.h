@@ -1126,6 +1126,9 @@ public:
                           uint64_t snapEnd,
                           const nlohmann::json& value);
 
+    /// Send a DcpCloseStream command for the given vbucket on this connection.
+    void dcpCloseStream(Vbid vbid);
+
     /* following dcp functions are for working with a consumer */
     void dcpAddStream(Vbid vbid, cb::mcbp::DcpAddStreamFlag flags = {});
 
