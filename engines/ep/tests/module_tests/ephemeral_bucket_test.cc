@@ -1289,7 +1289,9 @@ protected:
         store->enableItemPager();
 
         int numItems = 0;
-        std::string value = std::string(1024 * 20, 'v');
+        // Use a small valueSize so that deletes don't immediatley reduce memory
+        // very much.
+        std::string value = std::string(256, 'v');
         while (pageableMemCurrent < pageableMemHighWatermark) {
             const std::string key("key" + std::to_string(numItems));
             auto item = make_item(vbid, makeStoredDocKey(key), value);
@@ -1346,8 +1348,22 @@ protected:
     }
 };
 
+// Test that auto-delete throttles when the limit is reached and unthrottles
+// once DCP progresses
 TEST_F(SingleThreadedEphemeralAutoDeleteThrottleTest, AutoDeleteThrottling) {
     populateTillHighWatermark();
+    // ensure StrictQuotaItemPager::shouldStopPaging returns false by
+    // artificially lowering the watermarks so paging will not bail early
+    // intermitently. Particularly ensuring the following is false:
+    // "|| stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat".
+    // This also influences the "limit" that StrictQuotaItemPager::canPageItems
+    // generates. That is ok as we are testing that the pager throttles due
+    // to DCP cursors not advancing.
+    auto& stats = engine->getEpStats();
+    stats.setHighWaterMark(stats.mem_high_wat / 2);
+    stats.setLowWaterMark(stats.mem_low_wat / 2);
+    ASSERT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_high_wat);
+
     auto vb = store->getVBucket(vbid);
 
     auto numItemsBefore = vb->getNumItems();
@@ -1367,102 +1383,75 @@ TEST_F(SingleThreadedEphemeralAutoDeleteThrottleTest, AutoDeleteThrottling) {
     // The item pager task is scheduled when the high watermark is reached
     // in storeInner(), don't need to wake-it up again.
     // Run the item pager task
+    const auto fqSize = lpNonioQ.getFutureQueueSize();
     runNextTask(lpNonioQ, "Paging out items.");
+    // One new task in future-queue
+    ASSERT_GT(lpNonioQ.getFutureQueueSize(), fqSize);
 
-    // The item pager task schedules a visitor task to visit the items in the
-    // vbucket and see which item are eligible for eviction. Run the visitor
-    // task until completion
-    runNextTask(lpNonioQ);
-    runNextTask(lpNonioQ);
-    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    // Run until no more visitors are scheduled.
+    while (lpNonioQ.getFutureQueueSize() != fqSize) {
+        runNextTask(lpNonioQ);
+    }
+
     ASSERT_LT(vb->getNumItems(), numItemsBefore);
+
+    // PagingVisitor calls checkAndMaybeFreeMemory which will schedule
+    // paging again, this one gets throttled because the deleted items still
+    // exist (memory reduction hasn't really happened yet).
+    ASSERT_EQ(0, ephBucket.getPagingThrottled());
+    runNextTask(lpNonioQ, "Paging out items.");
+    EXPECT_EQ(fqSize, lpNonioQ.getFutureQueueSize())
+            << "mem_used:" << stats.getPreciseTotalMemoryUsed()
+            << " hwm:" << stats.mem_high_wat << " lwm:" << stats.mem_low_wat
+            << " numItems:" << vb->getNumItems();
+    EXPECT_EQ(1, ephBucket.getPagingThrottled())
+            << "paged:" << ephBucket.getPagedBytes() << " bytes paged, max "
+            << ephBucket.getMaxPagingBytes();
+    if (fqSize != lpNonioQ.getFutureQueueSize()) {
+        lpNonioQ.forEachFutureTask([](const ExTask& task) {
+            std::cerr << "Future task: " << task->getDescription() << std::endl;
+        });
+    }
 
     // trying running the item pager task again
     store->attemptToFreeMemory();
+
     runNextTask(lpNonioQ, "Paging out items.");
     // We should have been throttled now & therefore the
-    // ready queue should be empty - i.e no visitor tasks are scheduled.
-    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-    ASSERT_LE(1, ephBucket.getPagingThrottled());
-}
+    // future queue should return to the old size - i.e no visitor tasks are
+    // scheduled.
+    ASSERT_EQ(fqSize, lpNonioQ.getFutureQueueSize());
+    ASSERT_EQ(2, ephBucket.getPagingThrottled());
 
-TEST_F(SingleThreadedEphemeralAutoDeleteThrottleTest,
-       AutoDeleteThrottledUntilDcpCursorAdvances) {
-    populateTillHighWatermark();
-    auto vb = store->getVBucket(vbid);
-    auto numItemsBefore = vb->getNumItems();
-    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-
-    // create a new producer and stream ...
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
-
-    createDcpStream(*producer);
-
-    ASSERT_EQ(1, vb->checkpointManager->getNumCursors());
-    MockDcpMessageProducers producers;
-
-    notifyAndStepToCheckpoint(*producer, producers);
-
-    auto& ephBucket = static_cast<EphemeralBucket&>(*store);
-    auto throttledBefore = ephBucket.getPagingThrottled();
-
-    // Run the item pager task, scheduled when the high watermark was breached.
-    // The pager will delete items and set pagedSeqno. Since the DCP cursor
-    // hasn't consumed the deletions yet, canPagingResume() will return false
-    // and throttling will kick in during this run.
-    runNextTask(lpNonioQ, "Paging out items.");
-    // The pager schedules a visitor task
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
-    // The visitor runs and may reschedule the pager.
-    // The ItemPagingVisitor uses a 25ms wall-clock budget
-    // (CappedDurationVBucketVisitor::maxChunkDuration). Under CPU load
-    // that budget can be exceeded mid hash-table-walk, in which case
-    // VBCBAdaptor::run() snoozes and returns true (rather than calling
-    // ItemPagingVisitor::complete()). The visitor task is left queued as
-    // "Item pager on vb:X" and the pager is not woken. Re-run any such
-    // paused visitor tasks until the pager becomes the next ready task.
+    // Now if we drain DCP, we can test that the pager becomes unthrottled.
+    // Drain DCP, step through the marker and all items
+    auto& quickNonIO = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
     while (true) {
-        CheckedExecutor executor(task_executor, lpNonioQ);
-        if (executor.getTaskName() == "Paging out items.") {
-            executor.runCurrentTask("Paging out items.");
-            executor.completeCurrentTask();
+        auto status = producer->step(false, producers);
+        if (status == cb::engine_errc::would_block) {
+            // DCP rescheduled the ActiveStreamCheckpointProcessor
+            runNextTask(quickNonIO);
             break;
         }
-        ASSERT_TRUE(executor.getTaskName().starts_with("Item pager "))
-                << "Unexpected task: " << executor.getTaskName();
-        executor.runCurrentTask();
-        executor.completeCurrentTask();
+
+        EXPECT_EQ(status, cb::engine_errc::success);
     }
-    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-    ASSERT_LT(vb->getNumItems(), numItemsBefore);
 
-    // Throttling should have kicked in because the DCP cursor hasn't
-    // consumed the deletions (pagedSeqno) yet
-    ASSERT_GT(ephBucket.getPagingThrottled(), throttledBefore);
-    auto throttledAfterFirstRun = ephBucket.getPagingThrottled();
-
-    // Try to run the pager again - it should be throttled
+    // trying running the item pager task again
     store->attemptToFreeMemory();
-    runNextTask(lpNonioQ, "Paging out items.");
-    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-
-    // Throttling count should have increased
-    auto throttledAfterSecondRun = ephBucket.getPagingThrottled();
-    ASSERT_GT(throttledAfterSecondRun, throttledAfterFirstRun);
-
-    // Now consume items through DCP producer to advance the cursor
-    // past the pagedSeqno
-    auto stepCount = numItemsBefore;
-    while (stepCount > 0) {
-        EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
-        stepCount--;
-    }
 
     // The producer has consumed all the items, no item pager
     // task should be scheduled since throttling should still be in effect
     // until the cursor sees the pagedSeqno
-    store->attemptToFreeMemory();
-    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
-    ASSERT_EQ(ephBucket.getPagingThrottled(), throttledAfterSecondRun);
+    runNextTask(lpNonioQ, "Paging out items.");
+    // No more throttling and a new task is scheduled.
+    ASSERT_EQ(2, ephBucket.getPagingThrottled());
+    EXPECT_GT(lpNonioQ.getFutureQueueSize(), fqSize);
+    bool found = false;
+    lpNonioQ.forEachFutureTask([&found](const ExTask& task) {
+        if ("Item pager no vbucket assigned" == task->getDescription()) {
+            found = true;
+        }
+    });
+    EXPECT_TRUE(found) << "Expected to have found the item pager visitor task";
 }

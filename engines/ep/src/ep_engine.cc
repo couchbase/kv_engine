@@ -1805,7 +1805,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       startupTime(0),
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
-      minCompressionRatio(default_min_compression_ratio) {
+      minCompressionRatio(default_min_compression_ratio),
+      unitTesting(getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
     // Note: The use of offsetof below is non-standard according to GCC 13.2
     // because EventuallyPersistentEngine is not a standard layout type - and
     // GCC warns about it:

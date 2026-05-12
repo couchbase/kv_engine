@@ -1266,6 +1266,11 @@ public:
      */
     StatusAndVBPtr getValidVBucketFromString(std::string_view vbNum);
 
+    /// @return true if getenv("MEMCACHED_UNIT_TESTING") returns something
+    bool isUnitTesting() const {
+        return unitTesting;
+    }
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1908,6 +1913,9 @@ protected:
     // Chronicle auth token. Cached at bucket creation for passing down the
     // information to KVStore instantiation.
     folly::Synchronized<std::string> chronicleAuthToken;
+
+    // cached value of getenv("MEMCACHED_UNIT_TESTS") != nullptr
+    const bool unitTesting{false};
 };
 
 /**
