@@ -3206,8 +3206,8 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
 
     // Update alog_sleep_time by 10 mins and ensure the update is successful.
     const std::chrono::minutes update_by{10};
-    std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
-                                                 update_by)};
+    const auto targetTaskTime1 =
+            make_time_string(std::chrono::system_clock::now());
 
     set_param(h,
               EngineParamCategory::Flush,
@@ -3217,13 +3217,15 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
 
     // Recalculate now() + 10mins as upper bound on when the task should be
     // scheduled.
-    std::string targetTaskTime2{make_time_string(std::chrono::system_clock::now() +
-                                                 update_by)};
+    const auto targetTaskTime2 =
+            make_time_string(std::chrono::system_clock::now() + update_by);
 
     // ep_access_scanner_task_time should fall within the range of
     // targetTaskTime1 and targetTaskTime2
-    err_msg.assign("Unexpected task time range, expect: " +
-                   targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
+    err_msg = fmt::format("Unexpected task time range, expect: {} <= {} <= {}",
+                          targetTaskTime1,
+                          str,
+                          targetTaskTime2);
     checkle(targetTaskTime1, str, err_msg);
     checkle(str, targetTaskTime2, err_msg);
 
