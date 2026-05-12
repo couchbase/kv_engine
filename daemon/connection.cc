@@ -693,14 +693,31 @@ inline void Connection::handleRejectCommand(Cookie& cookie,
 
 void Connection::executeCommandPipeline() {
     const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
-    const auto tooMuchData = [this, maxSendQueueSize](bool allowDcpResponse) {
-        if (isAuthenticationProvider() ||
-            (allowDcpResponse && isDCP() && isPacketAvailable() &&
-             getPacket().isResponse())) {
+    const auto tooMuchData = [this, maxSendQueueSize]() {
+        if (getSendQueueSize() < maxSendQueueSize) {
+            return false;
+        }
+
+        if (isAuthenticationProvider()) {
             ++numEvents;
             return false;
         }
-        return getSendQueueSize() >= maxSendQueueSize;
+
+        if (isDCP()) {
+            if (!isPacketAvailable() || getPacket().isResponse()) {
+                ++numEvents;
+                return false;
+            }
+
+            const auto& req = getPacket().getRequest();
+            if (is_client_magic(req.getMagic()) &&
+                is_dcp(req.getClientOpcode())) {
+                ++numEvents;
+                return false;
+            }
+        }
+
+        return true;
     };
 
     using cb::mcbp::Status;
@@ -723,7 +740,7 @@ void Connection::executeCommandPipeline() {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
 
-        bool stop = tooMuchData(true);
+        bool stop = tooMuchData();
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
                !stop && cookies.size() < maxActiveCommands &&
@@ -751,7 +768,7 @@ void Connection::executeCommandPipeline() {
                 //  * We have an ongoing command and this command allows
                 //    for reorder
                 if (getBucket().shouldThrottle(cookie, true, 0)) {
-                    stop = handleThrottleCommand(cookie) || tooMuchData(true);
+                    stop = handleThrottleCommand(cookie) || tooMuchData();
                 } else if ((!active || cookie.mayReorder()) &&
                            cookie.execute(true)) {
                     // Command executed successfully, reset the cookie to
@@ -759,7 +776,7 @@ void Connection::executeCommandPipeline() {
                     cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
-                    stop = tooMuchData(true);
+                    stop = tooMuchData();
                 } else {
                     active = true;
                     // We need to block, so we need to preserve the request
@@ -795,7 +812,7 @@ void Connection::executeCommandPipeline() {
         get_high_resolution_thread_stats(*this).conn_timeslice_yields++;
     }
 
-    if (tooMuchData(false)) {
+    if (tooMuchData()) {
         // The client have too much data spooled. Disable read event
         // to avoid the client from getting rescheduled just to back
         // out again due to too much data in the queue to start executing

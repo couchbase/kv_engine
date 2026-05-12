@@ -58,6 +58,8 @@ enum class Attribute {
     MustPreserveBuffer,
     /// Does the operation swallow the response in some cases
     IsQuiet,
+    /// Is the command part of the DCP subsystem
+    DCP,
     Count
 };
 
@@ -121,6 +123,10 @@ public:
     bool isDeprecated(ClientOpcode opcode) const {
         ensureValid(opcode, __func__);
         return opcodes[static_cast<int>(opcode)].check(Attribute::Deprecated);
+    }
+    bool isDcp(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::DCP);
     }
     bool isClientWritingData(ClientOpcode opcode) const {
         ensureValid(opcode, __func__);
@@ -455,51 +461,62 @@ public:
                 Attribute::Reorder,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling}});
-        setup(ClientOpcode::DcpOpen, {"DCP_OPEN"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpOpen,
+              {"DCP_OPEN"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpAddStream,
-              {"DCP_ADD_STREAM"sv, {Attribute::Supported}});
+              {"DCP_ADD_STREAM"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpCloseStream,
-              {"DCP_CLOSE_STREAM"sv, {Attribute::Supported}});
+              {"DCP_CLOSE_STREAM"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpStreamReq,
               {"DCP_STREAM_REQ"sv,
-               {Attribute::Supported, Attribute::MustPreserveBuffer}});
+               {Attribute::Supported,
+                Attribute::MustPreserveBuffer,
+                Attribute::DCP}});
         setup(ClientOpcode::DcpGetFailoverLog,
-              {"DCP_GET_FAILOVER_LOG"sv, {Attribute::Supported}});
+              {"DCP_GET_FAILOVER_LOG"sv,
+               {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpStreamEnd,
-              {"DCP_STREAM_END"sv, {Attribute::Supported}});
+              {"DCP_STREAM_END"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpSnapshotMarker,
-              {"DCP_SNAPSHOT_MARKER"sv, {Attribute::Supported}});
+              {"DCP_SNAPSHOT_MARKER"sv,
+               {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpMutation,
-              {"DCP_MUTATION"sv, {Attribute::Supported}});
+              {"DCP_MUTATION"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpDeletion,
-              {"DCP_DELETION"sv, {Attribute::Supported}});
+              {"DCP_DELETION"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpExpiration,
-              {"DCP_EXPIRATION"sv, {Attribute::Supported}});
+              {"DCP_EXPIRATION"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpFlush_Unsupported, {"DCP_FLUSH"sv, {}});
         setup(ClientOpcode::DcpSetVbucketState,
-              {"DCP_SET_VBUCKET_STATE"sv, {Attribute::Supported}});
-        setup(ClientOpcode::DcpNoop, {"DCP_NOOP"sv, {Attribute::Supported}});
+              {"DCP_SET_VBUCKET_STATE"sv,
+               {Attribute::Supported, Attribute::DCP}});
+        setup(ClientOpcode::DcpNoop,
+              {"DCP_NOOP"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpBufferAcknowledgement,
-              {"DCP_BUFFER_ACKNOWLEDGEMENT"sv, {Attribute::Supported}});
+              {"DCP_BUFFER_ACKNOWLEDGEMENT"sv,
+               {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpControl,
-              {"DCP_CONTROL"sv, {Attribute::Supported}});
+              {"DCP_CONTROL"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpSystemEvent,
-              {"DCP_SYSTEM_EVENT"sv, {Attribute::Supported}});
+              {"DCP_SYSTEM_EVENT"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpPrepare,
-              {"DCP_PREPARE"sv, {Attribute::Supported}});
+              {"DCP_PREPARE"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpSeqnoAcknowledged,
-              {"DCP_SEQNO_ACKNOWLEDGED"sv, {Attribute::Supported}});
+              {"DCP_SEQNO_ACKNOWLEDGED"sv,
+               {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpCommit,
-              {"DCP_COMMIT"sv, {Attribute::Supported}});
-        setup(ClientOpcode::DcpAbort, {"DCP_ABORT"sv, {Attribute::Supported}});
+              {"DCP_COMMIT"sv, {Attribute::Supported, Attribute::DCP}});
+        setup(ClientOpcode::DcpAbort,
+              {"DCP_ABORT"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpSeqnoAdvanced,
-              {"DCP_SEQNO_ADVANCED"sv, {Attribute::Supported}});
+              {"DCP_SEQNO_ADVANCED"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpCacheTransferEnd,
-              {"DCP_CACHE_TRANSFER_END"sv, {Attribute::Supported}});
+              {"DCP_CACHE_TRANSFER_END"sv,
+               {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpCacheTransfer,
-              {"DCP_CACHE_TRANSFER"sv, {Attribute::Supported}});
+              {"DCP_CACHE_TRANSFER"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpOsoSnapshot,
-              {"DCP_OSO_SNAPSHOT"sv, {Attribute::Supported}});
+              {"DCP_OSO_SNAPSHOT"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::StopPersistence,
               {"STOP_PERSISTENCE"sv, {Attribute::Supported}});
         setup(ClientOpcode::StartPersistence,
@@ -913,6 +930,13 @@ bool is_deprecated(ClientOpcode opcode) {
         return false;
     }
     return opcodeInformationServiceInstance.isDeprecated(opcode);
+}
+
+bool is_dcp(ClientOpcode opcode) {
+    if (!is_valid_opcode(opcode) || !is_supported_opcode(opcode)) {
+        return false;
+    }
+    return opcodeInformationServiceInstance.isDcp(opcode);
 }
 
 bool is_preserve_ttl_supported(ClientOpcode opcode) {

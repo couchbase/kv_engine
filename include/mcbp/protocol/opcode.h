@@ -508,6 +508,9 @@ bool is_subject_for_throttling(ClientOpcode opcode);
 /// Is the command currently supported but deprecated
 bool is_deprecated(ClientOpcode opcode);
 
+/// Is this command part of the DCP subsystem
+bool is_dcp(ClientOpcode opcode);
+
 /// Does the client write data with this opcode?
 bool is_client_writing_data(ClientOpcode opcode);
 
