@@ -3052,6 +3052,56 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMCancels) {
     }
 }
 
+// Under full-eviction OOM, only the first CacheTransfer message processed by
+// the PassiveStream should return no_memory back to the producer; subsequent
+// messages must not signal OOM again so we don't flood the network with OOM
+// responses.
+TEST_P(DCPCacheTransfer, CacheTransferOOMOnlyFirstSignals) {
+    if (!fullEviction()) {
+        GTEST_SKIP() << "OOM signalling only applies in full-eviction mode";
+    }
+
+    engines[Node0]->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
+    // Force 1 item per batch so each producer step yields a separate CT
+    // message.
+    engines[Node0]->getConfiguration().setDcpCacheTransferMaxBatchBytes(0);
+
+    setupFBR(3);
+    auto route0_1 = createDcpRoute(Node0, Node1);
+
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            route0_1.doStreamRequest(cb::mcbp::DcpAddStreamFlag::CacheTransfer)
+                    .first);
+    flushNodeIfPersistent(Node1);
+
+    // Force OOM on the destination before any CT messages are delivered so
+    // every message goes down the Pause/OOM path.
+    engines[Node1]->getEpStats().setMaxDataSize(1);
+
+    auto streams = route0_1.getStreams();
+
+    // First CT message under OOM must return no_memory.
+    auto msg = route0_1.getNextProducerMsg(*streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::CacheTransfer, msg->getEvent());
+    route0_1.transferCache(*msg, cb::engine_errc::no_memory);
+
+    // Subsequent CT messages under the same OOM condition must NOT signal
+    // OOM - the stream only signals OOM once. The stream returns
+    // temporary_failure internally which the consumer translates to success
+    // (it schedules the DcpConsumerTask to ack the bytes later).
+    msg = route0_1.getNextProducerMsg(*streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::CacheTransfer, msg->getEvent());
+    route0_1.transferCache(*msg, cb::engine_errc::success);
+
+    msg = route0_1.getNextProducerMsg(*streams.first);
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::CacheTransfer, msg->getEvent());
+    route0_1.transferCache(*msg, cb::engine_errc::success);
+}
+
 class DCPCacheTransferVE : public DCPLoopbackStreamTest {
 public:
     void SetUp() override {

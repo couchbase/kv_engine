@@ -352,8 +352,14 @@ cb::engine_errc PassiveStream::messageReceived(const DcpResponse& dcpResponse,
         // Don't ack the bytes
         unackedBytes += ufc.release();
 
-        if (isCacheTransferAndFullEviction(dcpResponse)) {
-            maybeLogCacheTransferOutOfMemory();
+        if (isCacheTransferAndFullEviction(dcpResponse) &&
+            maybeLogCacheTransferOutOfMemory()) {
+            // Full eviction cache transfer will signal OOM to the client, but
+            // we don't need to flood the network with OOM responses, hence we
+            // use the return of maybeLogCacheTransferOutOfMemory() to only log
+            // the first OOM occurrence and only return OOM for the first
+            // message hitting this condition, signalling the client should
+            // ideally stop transfer.
             return cb::engine_errc::no_memory;
         }
 
@@ -374,13 +380,15 @@ bool PassiveStream::isCacheTransferAndFullEviction(
            engine->getKVBucket()->isFullEviction();
 }
 
-void PassiveStream::maybeLogCacheTransferOutOfMemory() {
+bool PassiveStream::maybeLogCacheTransferOutOfMemory() {
     // Log only once as there could be many messages in flight.
     if (!hasLoggedCacheTransferOutOfMemory) {
         OBJ_LOG_INFO_CTX(
                 *this, "CacheTransfer signalling out of memory", {"vb", vb_});
         hasLoggedCacheTransferOutOfMemory = true;
+        return true;
     }
+    return false;
 }
 
 ProcessUnackedBytesResult PassiveStream::processUnackedBytes(

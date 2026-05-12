@@ -404,8 +404,12 @@ protected:
     /**
      * Log when the CacheTransfer has signalled out of memory condition (and log
      * only once)
+     *
+     * @return true if the function did log the out of memory condition, i.e.
+     * this function can be used as an edge trigger for CacheTransfer OOM
+     * occurrences
      */
-    void maybeLogCacheTransferOutOfMemory();
+    bool maybeLogCacheTransferOutOfMemory();
 
     /**
      * Add any cache transfer request configuration to the given json object.
