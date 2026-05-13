@@ -518,7 +518,7 @@ int main(int argc, char** argv) {
             {std::string{DcpControlKeys::EnableExpiryOpcode}, "true"},
             {std::string{DcpControlKeys::SetNoopInterval}, "60"},
             {std::string{DcpControlKeys::EnableNoop}, "true"}};
-    std::string name = "dcpdrain:" + std::to_string(::getpid());
+    std::string name = "dcpdrain-" + std::to_string(::getpid());
     EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
     std::string streamRequestFileName;
@@ -794,7 +794,7 @@ int main(int argc, char** argv) {
 
             int idx = 0;
             for (const auto& node_vbuckets : perConnVbuckets) {
-                const auto streamname = fmt::format("{}:{}", name, idx++);
+                const auto streamname = fmt::format("{}-{}", name, idx++);
                 auto [hostname, port, family] =
                         cb::inet::parse_hostname(host, {});
                 auto conn = options.createAuthenticatedConnection(
