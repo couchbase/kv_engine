@@ -287,7 +287,8 @@ protected:
                     req.getBodylen() + sizeof(cb::mcbp::Header);
             if (current_buffer_window > (buffersize * acknowledge_ratio) &&
                 !hang) {
-                sendBufferAck();
+                sendBufferAck(current_buffer_window);
+                current_buffer_window = 0;
             }
         }
     }
@@ -324,14 +325,14 @@ protected:
                 &terminateOnErrorWriteCallback, std::move(iob));
     }
 
-    void sendBufferAck() {
+    void sendBufferAck(size_t bytes) {
         // send buffer ack
         std::array<uint8_t, sizeof(cb::mcbp::Header) + 4> backing;
         cb::mcbp::RequestBuilder builder({backing.data(), backing.size()});
         builder.setMagic(cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
         cb::mcbp::request::DcpBufferAckPayload payload;
-        payload.setBufferBytes(current_buffer_window);
+        payload.setBufferBytes(bytes);
         builder.setExtras(payload.getBuffer());
 
         auto packet = builder.getFrame()->getFrame();
@@ -340,7 +341,6 @@ protected:
         iob->append(packet.size());
         connection->getUnderlyingAsyncSocket().writeChain(
                 &terminateOnErrorWriteCallback, std::move(iob));
-        current_buffer_window = 0;
     }
 
     size_t mutation_bytes = 0;
