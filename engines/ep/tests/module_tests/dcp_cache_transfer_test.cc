@@ -13,6 +13,7 @@
 #include "failover-table.h"
 #include "item.h"
 #include "mcbp/protocol/datatype.h"
+#include "mcbp/protocol/request.h"
 #include "memcached/engine_error.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
@@ -462,8 +463,24 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
                   return item == *producers.last_cache_transfer.back().item;
               }));
 
+    // Validate buffer log
+    auto size = sizeof(cb::mcbp::Request);
+    for (const auto& item : expectedItems) {
+        size += item.getKey().size() + item.getNBytes() +
+                sizeof(cb::mcbp::request::DcpCacheTransferPayload);
+    }
+    EXPECT_EQ(size, producer->getBytesOutstanding());
+
+    // This step switches CTS to an ActiveStream and will have pushed a
+    // CacheTransferEnd (called producer->cache_transfer_end_tx).
     EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(producers));
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransferEnd));
+
+    // The CacheTransferEnd message is just a single Request (24b)
+    EXPECT_EQ(size + sizeof(cb::mcbp::Request),
+              producer->getBytesOutstanding());
+
     notifyAndRunToCheckpoint(*producer, producers);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(

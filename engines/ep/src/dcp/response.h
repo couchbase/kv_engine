@@ -387,8 +387,9 @@ private:
 
 /**
  * This is a DcpResponse object that is only queued by a CacheTransferStream. It
- * does not generate a DCP message, but exists to signal to the producer that
- * the CacheTransferStream is finshed and an ActiveStream must now replace it.
+ * does generates a DCP message CacheTransferEnd message and also exists to
+ * signal to the producer that the CacheTransferStream is done and an
+ * ActiveStream must now replace it.
  *
  * Using a DcpResponse object in this way provides a way to avoid lock
  * inversions and ensures that the switch to ActiveStream occurs after all
@@ -399,7 +400,10 @@ public:
     CacheTransferToActiveStreamResponse(uint32_t opaque,
                                         Vbid vbucket,
                                         cb::mcbp::DcpStreamId sid)
-        : DcpResponse(Event::CacheTransferToActiveStream, opaque, sid),
+        : DcpResponse(Event::CacheTransferToActiveStream,
+                      opaque,
+                      sid,
+                      sizeof(cb::mcbp::Request)),
           vbucket(vbucket) {
     }
 
@@ -407,8 +411,10 @@ public:
         return vbucket;
     }
 
-    size_t getMessageSize() const override {
-        // Only used for readyQ memory accounting, not for flow-control
+    size_t getApproximateSize() const override {
+        // This is only used in the memory accounting, not for
+        // flow-control. Return sizeof the object as the best approximation of
+        // the allocation size.
         return sizeof(*this);
     }
 
