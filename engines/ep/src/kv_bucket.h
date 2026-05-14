@@ -1250,6 +1250,9 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    void setMonitorTaskInterval(std::chrono::seconds interval);
+    std::chrono::seconds getMonitorTaskInterval() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the

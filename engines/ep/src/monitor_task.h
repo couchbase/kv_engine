@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ep_task.h"
+#include <relaxed_atomic.h>
 
 /**
  * The MonitorTask performs relatively expensive operations
@@ -39,6 +40,14 @@ public:
         return std::chrono::milliseconds(1);
     }
 
+    void setInterval(std::chrono::seconds i) {
+        interval = i;
+    }
+
+    std::chrono::seconds getInterval() const {
+        return interval;
+    }
+
 private:
-    const std::chrono::seconds interval;
+    cb::RelaxedAtomic<std::chrono::seconds> interval;
 };
