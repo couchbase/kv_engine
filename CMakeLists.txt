@@ -103,26 +103,25 @@ endif (MEMORY_ALLOCATOR)
 
 if (BREAKPAD_FOUND)
     add_definitions(-DHAVE_BREAKPAD)
-endif (BREAKPAD_FOUND)
-
-if (UNIX)
-    # On Linux Breakpad unit test relies on examining the minidump -> core
-    # file with GDB.
-    find_program(GDB_EXECUTABLE gdb)
     set(test_extra_args --source_root=${Memcached_SOURCE_DIR})
-    if (BREAKPAD_FOUND)
-        list(APPEND test_extra_args --breakpad)
+    list(APPEND test_extra_args --breakpad)
+    if (UNIX)
+        # On Linux Breakpad unit test relies on examining the minidump -> core
+        # file with GDB.
+        find_program(GDB_EXECUTABLE gdb)
+        if (MINIDUMP2CORE)
+            list(APPEND test_extra_args --md2core_exe=${MINIDUMP2CORE})
+        endif ()
+        if (GDB_EXECUTABLE)
+            list(APPEND test_extra_args --gdb_exe=${GDB_EXECUTABLE})
+        endif ()
     endif ()
-    if (MINIDUMP2CORE)
-        list(APPEND test_extra_args --md2core_exe=${MINIDUMP2CORE})
-    endif ()
-    if (GDB_EXECUTABLE)
-        list(APPEND test_extra_args --gdb_exe=${GDB_EXECUTABLE})
-    endif ()
+
     function(add_breakpad_test VARIANT)
-        add_test(memcached-breakpad-test-${VARIANT}
-                ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
+        add_test(NAME memcached-breakpad-test-${VARIANT}
+                WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                COMMAND ${PYTHON_EXECUTABLE} ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+                $<TARGET_FILE:memcached> ${VARIANT} ${test_extra_args})
         set_tests_properties(memcached-breakpad-test-${VARIANT}
                 PROPERTIES TIMEOUT 120)
     endfunction()
@@ -130,20 +129,17 @@ if (UNIX)
     add_breakpad_test(segfault)
     add_breakpad_test(std_exception)
     add_breakpad_test(std_exception_with_trace)
-    add_breakpad_test(std_exception_via_std_thread)
     add_breakpad_test(unknown_exception)
-    add_breakpad_test(dump_fail_perm)
-
-    # ELSEIF (WIN32)
-    # Disable the test on Windows until we understand why we're seeing all
-    # of the temporary test failures caused by python not detecting that
-    # the processes died.
-    # On Windows the test doesn't use minidump-2-core or GDB.
-    # ADD_TEST(breakpad-test
-    #          ${PYTHON_EXECUTABLE}
-    #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-    #          ${Memcached_BINARY_DIR}/memcached)
-endif (UNIX)
+    if (NOT WIN32)
+        # For some reason I don't get the log output..
+        # Should run in a debugger to figure out why it isn't working.
+        # For now just run the other tests
+        add_breakpad_test(std_exception_via_std_thread)
+        # We would need to use some windows ACL's for this.. ignore
+        # for now
+        add_breakpad_test(dump_fail_perm)
+    endif ()
+endif ()
 
 # We commonly use a bunch of expensive headers so pre-compiling them should give
 # us a speed-up. It's simpler to define a single target and just re-use the

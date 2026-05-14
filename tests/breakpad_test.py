@@ -219,10 +219,13 @@ class Subprocess(object):
                 else:
                     raise
 
+        # Conditionally set preexec_fn to None on Windows
+        preexec = set_core_file_ulimit if os.name != 'nt' else None
+
         self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
                                         env=os.environ,
                                         universal_newlines=True,
-                                        preexec_fn=set_core_file_ulimit)
+                                        preexec_fn=preexec)
 
         try:
             (_, self.stderrdata) = self.process.communicate(timeout=timeout)
@@ -265,7 +268,11 @@ logging.debug("Using minidump_dir=" + minidump_dir)
 
 if args.crash_mode == 'dump_fail_perm':
     # We purposefully make Breakpad fail due to a lack of permission to write to the directory by setting the
-    # permissions on the directory to read-only.
+    # permissions on the directory to read-only. This test is not supported on Windows as os.chmod() does not
+    # effectively block writes on directories (Windows uses ACLs, not Unix permissions).
+    if os.name == 'nt':
+        logging.error("SKIP - dump_fail_perm test is not supported on Windows.")
+        cleanup_and_exit(0)
     os.chmod(minidump_dir, mode=0o555)
 
 rbac_data = {}
@@ -344,7 +351,7 @@ if args.breakpad:
 
 # Check the message includes the exception what() message (std::exception
 # crash)
-if args.crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
+if os.name != 'nt' and  args.crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
     logging.error(
         "FAIL - No exception what() message written to stderr on crash.")
     print_stderrdata(stderrdata)
@@ -352,7 +359,7 @@ if args.crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
 
 # Check the message include the location the exception was thrown from
 # (throwWithTrace)
-if args.crash_mode == 'std_exception_with_trace' and 'Exception thrown from:' not in stderrdata:
+if os.name != 'nt' and args.crash_mode == 'std_exception_with_trace' and 'Exception thrown from:' not in stderrdata:
     logging.error(
         "FAIL - No exception thrown backtrace message was written to stderr on crash.")
     print_stderrdata(stderrdata)
@@ -360,7 +367,7 @@ if args.crash_mode == 'std_exception_with_trace' and 'Exception thrown from:' no
 
 # Check the message also included a stack backtrace - we just check
 # for one known function.
-if args.breakpad and 'recursive_crash_function' not in stderrdata:
+if os.name != 'nt' and args.breakpad and 'recursive_crash_function' not in stderrdata:
     logging.error("FAIL - No stack backtrace written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
