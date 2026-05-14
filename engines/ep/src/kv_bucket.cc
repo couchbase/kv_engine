@@ -146,6 +146,8 @@ public:
             store.setHistoryRetentionBytes(value);
         } else if (key == "dcp_backfill_in_progress_per_connection_limit") {
             store.getKVStoreScanTracker().updateMaxRunningDcpBackfills(value);
+        } else if (key == "monitor_task_interval") {
+            store.setMonitorTaskInterval(std::chrono::seconds(value));
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -475,6 +477,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     continuousBackupEnabled = config.isContinuousBackupEnabled();
     config.addValueChangedListener(
             "continuous_backup_enabled",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "monitor_task_interval",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -3543,4 +3549,14 @@ const Configuration& KVBucket::getConfiguration() const {
 
 Configuration& KVBucket::getConfiguration() {
     return engine.getConfiguration();
+}
+
+void KVBucket::setMonitorTaskInterval(std::chrono::seconds interval) {
+    Expects(monitorTask);
+    monitorTask->setInterval(interval);
+}
+
+std::chrono::seconds KVBucket::getMonitorTaskInterval() const {
+    Expects(monitorTask);
+    return monitorTask->getInterval();
 }
