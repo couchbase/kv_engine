@@ -151,6 +151,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "magma_compacteddata_compression_algo",
         "magma_enable_index_block_autotuning",
         "magma_enable_data_block_autotuning",
+        "monitor_task_interval",
 };
 
 static const std::unordered_set<std::string_view> dcpParamSet{

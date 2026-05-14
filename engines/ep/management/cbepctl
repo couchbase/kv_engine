@@ -315,6 +315,7 @@ Available params for "set":
                                                percentage of used log data size.
     magma_fusion_max_log_size    - Upper cap for the effective log size, in bytes.
     magma_fusion_max_num_log_files - Base cap for maximum number of log files.
+    monitor_task_interval - Schedule interval (in seconds) for the MonitorTask.
 
   Available params for "set dcp_param":
     dcp_consumer_process_buffered_messages_yield_limit - The threshold at which

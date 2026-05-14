@@ -24,10 +24,10 @@ bool MonitorTask::run() {
     stats.residentBytes = fragStats.getResidentBytes();
 
     EP_LOG_DEBUG_CTX("MonitorTask:",
-                     {"interval", interval},
+                     {"interval", interval.load()},
                      {"rss", stats.residentBytes});
 
     // Sleep for "interval" and reschedule
-    snooze(interval);
+    snooze(interval.load());
     return !stats.isShutdown;
 }

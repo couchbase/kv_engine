@@ -2301,7 +2301,7 @@
         "monitor_task_interval": {
             "default": "1",
             "descr": "Schedule interval (in seconds) for the MonitorTask.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {

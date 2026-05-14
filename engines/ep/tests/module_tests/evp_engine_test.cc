@@ -751,6 +751,28 @@ TEST_P(MonitorTaskTest, TaskScheduled) {
     EXPECT_TRUE(found);
 }
 
+TEST_P(MonitorTaskTest, Interval) {
+    auto& bucket = *engine->getKVBucket();
+    const auto defaultInterval = bucket.getMonitorTaskInterval().count();
+    EXPECT_EQ(1, defaultInterval);
+
+    // Set to different valid value
+    std::string msg;
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("monitor_task_interval",
+                                    std::to_string(defaultInterval + 1),
+                                    msg));
+    // Check changed
+    EXPECT_EQ(defaultInterval + 1, bucket.getMonitorTaskInterval().count());
+
+    // Set to invalid value
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "monitor_task_interval", std::to_string(0), msg));
+    // Check unchanged
+    EXPECT_EQ(defaultInterval + 1, bucket.getMonitorTaskInterval().count());
+}
+
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          MonitorTaskTest,
                          EPEngineParamTest::allConfigValues(),
