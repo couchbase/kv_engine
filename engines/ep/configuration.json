@@ -1250,12 +1250,9 @@
         },
         "dcp_backfill_idle_protection_enabled": {
             "default": "true",
-            "descr": "When true, DCP backfills will be checked for progress. Any backfill which makes no progress for dcp_backfill_idle_limit_seconds will be subject to further checks. If the directory referenced by dbname is over dcp_backfill_idle_disk_threshold percent used and cancelling the backfill will free disk space, the scan cancels and the associated DCP stream will end with reason slow.",
+            "descr": "When true, DCP backfills will be checked for progress. Any backfill which makes no progress for dcp_backfill_idle_limit_seconds will be subject to further checks. If the directory referenced by dbname is over dcp_backfill_idle_disk_threshold percent used and cancelling the backfill will free disk space, the scan cancels and the associated DCP stream will end with reason slow. This is ignored for emphemeral buckets",
             "dynamic": true,
-            "type": "bool",
-            "requires": {
-                "bucket_type": "persistent"
-            }
+            "type": "bool"
         },
         "dcp_backfill_idle_limit_seconds" : {
             "default": "720",
