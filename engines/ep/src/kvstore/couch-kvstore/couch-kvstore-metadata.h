@@ -24,22 +24,8 @@
 #include <memory>
 #include <type_traits>
 
-/**
- * Definitions for extended (flexible) metadata
- *
- * @1: Flex Code to identify the number of extended metadata fields
- * @2: Size of the Flex Code, set to 1 byte
- * @3: Current size of extended metadata
- */
-typedef enum {
-    FLEX_META_CODE = 0x01,
-    FLEX_DATA_OFFSET = 1,
-    EXT_META_LEN = 1
-} protocol_binary_flexmeta;
-
-// Bitwise masks for manipulating the flexCode variable inside MetaDataV1
-const uint8_t flexCodeMask = 0x7F;
-const uint8_t deleteSourceMask = 0x80;
+// Bitwise mass for manipulating the  deleteSource variable inside MetaDataV1
+const uint8_t deleteSourceMask = 0x7F;
 
 // These classes are written to disk in couchstore, so we want to (a) have
 // a stable binary layout and (b) minimise the space they take.
@@ -139,28 +125,8 @@ protected:
         MetaDataV1() = default;
 
         void initialise(const char* raw) {
-            flexCode = raw[0];
+            deleteSource = raw[0];
             dataType = raw[1];
-
-            if (getFlexCode() != FLEX_META_CODE) {
-                std::invalid_argument(
-                        "MetaDataV1::initialise illegal "
-                        "flexCode \"" +
-                        std::to_string(flexCode) + "\"");
-            }
-        }
-
-        void setFlexCode() {
-            setFlexCode(FLEX_META_CODE);
-        }
-
-        void setFlexCode(uint8_t code) {
-            uint8_t codeIn = code & flexCodeMask;
-            flexCode = codeIn + (flexCode & deleteSourceMask);
-        }
-
-        uint8_t getFlexCode() const {
-            return static_cast<uint8_t>(flexCode & flexCodeMask);
         }
 
         void setDataType(protocol_binary_datatype_t dataType) {
@@ -172,28 +138,38 @@ protected:
         }
 
         void copyToBuf(char* raw) const {
-            raw[0] = flexCode;
+            raw[0] = deleteSource;
             raw[1] = dataType;
         }
 
         void setDeleteSource(DeleteSource source) {
             auto deleteInt =
                     static_cast<uint8_t>((static_cast<uint8_t>(source)) << 7);
-            flexCode = deleteInt + (flexCode & flexCodeMask);
+            deleteSource = deleteInt + (deleteSource & deleteSourceMask);
         }
 
         DeleteSource getDeleteSource() const {
-            auto deleteBit = flexCode >> 7;
+            auto deleteBit = deleteSource >> 7;
             return static_cast<DeleteSource>(deleteBit);
         }
 
     private:
         /*
-         * V1 is a 2 byte extension storing datatype
-         *   0 - flexCode (which also holds deleteSource in bit 7)
+         * V1 is a 2 byte extension storing datatype and also deleteSource.
+         *
+         * Note byte 0 is/was something called "flexCode" which overtime had its
+         * meaning eroded. Intially when V1 was added the intention was that the
+         * value of byte 0 could redefine the meaning of the following byte(s).
+         * However genuine evolution of the metadata never used the flexCode The
+         * size meta defined the version. Validation of flexCode was lost and
+         * never maintained and the setFlexCode/getFlexCode methods only had use
+         * in a few unit tests. MB-71994 removes setters/getters of the flex
+         * code, but it is still here for the deleteSource bit.
+         *
+         *   0 - deleteSource (only holds deleteSource in bit 7)
          *   1 - dataType
          */
-        uint8_t flexCode = 0;
+        uint8_t deleteSource = 0; // was flexCode
         uint8_t dataType = PROTOCOL_BINARY_RAW_BYTES;
     };
 
@@ -499,18 +475,6 @@ public:
         return allMeta.v0.getFlags(); // flags are not byteswapped
     }
 
-    void setFlexCode() {
-        allMeta.v1.setFlexCode();
-    }
-
-    void setFlexCode(uint8_t code) {
-        allMeta.v1.setFlexCode(code);
-    }
-
-    uint8_t getFlexCode() const {
-        return allMeta.v1.getFlexCode();
-    }
-
     void setDeleteSource(DeleteSource source) {
         allMeta.v1.setDeleteSource(source);
     }
@@ -519,11 +483,7 @@ public:
         return allMeta.v1.getDeleteSource();
     }
 
-    /*
-     * Note that setting the data type will also set the flex code.
-     */
     void setDataType(protocol_binary_datatype_t dataType) {
-        setFlexCode();
         allMeta.v1.setDataType(dataType);
     }
 

@@ -1735,7 +1735,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     meta.cas = 0xf00fcafe11225566ull;
     meta.expiry = 0xaa00bb11;
     meta.flags = 0x01020304;
-    meta.ext1 = FLEX_META_CODE;
+    meta.ext1 = 0x01; // The value of the now removed FLEX_META_CODE;
     meta.ext2 = datatype;
     meta.metaV2V3.v2.conflictResMode = 0x01;
 
@@ -1892,7 +1892,6 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(cas, metadata->getCas());
     EXPECT_EQ(exp, metadata->getExptime());
     EXPECT_EQ(flags, metadata->getFlags());
-    EXPECT_EQ(FLEX_META_CODE, metadata->getFlexCode());
     EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
     EXPECT_EQ(level, metadata->getDurabilityLevel());
@@ -1916,7 +1915,6 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(cas, metadata->getCas());
     EXPECT_EQ(exp, metadata->getExptime());
     EXPECT_EQ(flags, metadata->getFlags());
-    EXPECT_EQ(FLEX_META_CODE, metadata->getFlexCode());
     EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
     EXPECT_EQ(out.size, MetaData::getMetaDataSize(MetaData::Version::V1));
@@ -1968,7 +1966,6 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(cas, copy->getCas());
     EXPECT_EQ(100, copy->getExptime());
     EXPECT_EQ(flags, copy->getFlags());
-    EXPECT_EQ(FLEX_META_CODE, copy->getFlexCode());
     EXPECT_EQ(deleteSource, copy->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy->getDataType());
 
@@ -1984,7 +1981,6 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(99, copy2->getCas());
     EXPECT_EQ(100, copy2->getExptime());
     EXPECT_EQ(flags, copy2->getFlags());
-    EXPECT_EQ(FLEX_META_CODE, copy2->getFlexCode());
     EXPECT_EQ(deleteSource, copy2->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
