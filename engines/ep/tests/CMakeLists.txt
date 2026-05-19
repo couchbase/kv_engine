@@ -239,6 +239,9 @@ set(slow_test_timeout_seconds 1200)
 set(default_timeout_seconds 300)
 
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
+if(NOT WIN32)
+    set(timeout_signal TIMEOUT_SIGNAL_NAME SIGQUIT)
+endif()
 gtest_discover_tests(ep-engine_ep_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX ep-engine_ep_unit_tests.
@@ -246,8 +249,8 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT ${default_timeout_seconds}
-        TIMEOUT_SIGNAL_NAME SIGQUIT
-                   ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+                   ${timeout_signal}
+                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${ALL_SANITIZERS_ENV}]==]")
 gtest_discover_tests(ep-engine_ep_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX ep-engine_ep_unit_tests.
@@ -255,8 +258,8 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT ${slow_test_timeout_seconds}
-        TIMEOUT_SIGNAL_NAME SIGQUIT
-                   ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+                   ${timeout_signal}
+                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${ALL_SANITIZERS_ENV}]==]")
 IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
     # Create a set of tests for magma which are filtered such that only the
     # magma variants should run
