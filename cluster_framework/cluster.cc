@@ -56,6 +56,12 @@ public:
     BucketPersistenceBackend getBucketPersistenceBackend() const override {
         return backend;
     }
+    void setEncryptionAtRest(bool enabled) override {
+        encryptionAtRest = enabled;
+    }
+    bool isEncryptionAtRest() const override {
+        return encryptionAtRest;
+    }
     [[nodiscard]] std::shared_ptr<Bucket> createBucket(
             const std::string& name,
             const nlohmann::json& attributes,
@@ -101,6 +107,7 @@ protected:
     std::atomic<int64_t> revno{1};
     static constexpr int64_t epoch = 1;
     BucketPersistenceBackend backend = BucketPersistenceBackend::Couchstore;
+    bool encryptionAtRest = true;
 };
 
 ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
@@ -200,38 +207,42 @@ void ClusterImpl::createBucketOnNode(const Node& node,
 
     const auto dbname = node.directory / bucket.getName();
 
-    auto deks = dbname / "deks";
-    create_directories(deks);
+    std::string encryptionPart;
+    if (encryptionAtRest) {
+        auto deks = dbname / "deks";
+        create_directories(deks);
 
-    cb::crypto::KeyStore keystore;
-    keystore.setActiveKey(cb::crypto::KeyDerivationKey::generate());
-    keystore.iterateKeys([&deks](auto key) {
-        // ns_server generates (encrypted) files with the content of the
-        // key (and possibly more info). While creating snapshots we
-        // have logic which tries to copy all these files into the
-        // snapshot so we need a file
-        cb::io::FileSink file(deks / fmt::format("{}.key.0", key->id));
-        nlohmann::json json = *key;
-        file.sink(json.dump(2));
-        file.close();
-    });
+        cb::crypto::KeyStore keystore;
+        keystore.setActiveKey(cb::crypto::KeyDerivationKey::generate());
+        keystore.iterateKeys([&deks](auto key) {
+            // ns_server generates (encrypted) files with the content of the
+            // key (and possibly more info). While creating snapshots we
+            // have logic which tries to copy all these files into the
+            // snapshot so we need a file
+            cb::io::FileSink file(deks / fmt::format("{}.key.0", key->id));
+            nlohmann::json json = *key;
+            file.sink(json.dump(2));
+            file.close();
+        });
 
-    nlohmann::json json = keystore;
-    std::string escaped;
-    for (const auto& c : json.dump()) {
-        if (c == '=') {
-            escaped.push_back('\\');
+        nlohmann::json json = keystore;
+        std::string escaped;
+        for (const auto& c : json.dump()) {
+            if (c == '=') {
+                escaped.push_back('\\');
+            }
+            escaped.push_back(c);
         }
-        escaped.push_back(c);
+        encryptionPart = fmt::format(";encryption={}", escaped);
     }
 
     connection->createBucket(
             bucket.getName(),
-            fmt::format("{}dbname={};alog_path={};encryption={}",
+            fmt::format("{}dbname={};alog_path={}{}",
                         config,
                         dbname.generic_string(),
                         (dbname / "access.log").generic_string(),
-                        escaped),
+                        encryptionPart),
             BucketType::Couchbase);
     connection->selectBucket(bucket.getName());
 

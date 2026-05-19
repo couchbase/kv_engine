@@ -53,7 +53,8 @@ public:
     static void TearDownTestCase();
 
     /// Start the cluster with 4 nodes.
-    static void StartCluster(BucketPersistenceBackend backend);
+    static void StartCluster(BucketPersistenceBackend backend,
+                             bool encryptionAtRest = true);
 
     /// Shutdown the cluster
     static void ShutdownCluster();

@@ -64,6 +64,7 @@ int main(int argc, char** argv) {
 #endif
     ::testing::InitGoogleTest(&argc, argv);
     auto backend = BucketPersistenceBackend::Couchstore;
+    bool encryptionAtRest = true;
 
     cb::getopt::CommandLineOptionsParser parser;
     using cb::getopt::Argument;
@@ -84,6 +85,10 @@ int main(int argc, char** argv) {
              "magma",
              "The name of the backend"});
 
+    parser.addOption({[&encryptionAtRest](auto) { encryptionAtRest = false; },
+                      "no-encryption-at-rest",
+                      "Disable encryption-at-rest when creating buckets"});
+
     parser.addOption({[&parser](auto) {
                           std::cout << std::endl
                                     << std::endl
@@ -94,7 +99,7 @@ int main(int argc, char** argv) {
 
     parser.parse(argc, argv, []() { std::exit(EXIT_FAILURE); });
 
-    cb::test::ClusterTest::StartCluster(backend);
+    cb::test::ClusterTest::StartCluster(backend, encryptionAtRest);
     const auto ret = RUN_ALL_TESTS();
     cb::test::ClusterTest::ShutdownCluster();
 

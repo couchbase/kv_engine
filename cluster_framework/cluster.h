@@ -46,6 +46,12 @@ public:
             BucketPersistenceBackend backend) = 0;
     virtual BucketPersistenceBackend getBucketPersistenceBackend() const = 0;
 
+    /// Enable or disable encryption-at-rest for subsequently-created buckets.
+    /// When disabled, no keystore is generated and the bucket config does not
+    /// contain an `encryption=` entry.
+    virtual void setEncryptionAtRest(bool enabled) = 0;
+    virtual bool isEncryptionAtRest() const = 0;
+
     /**
      * Create a Couchbase bucket
      *
