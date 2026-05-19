@@ -333,12 +333,7 @@ void McdEnvironment::terminate(int exitcode) {
     }
 
     if (cleanup) {
-        std::error_code ec;
         cb::io::remove_with_retry(test_directory);
-        if (!ec) {
-            std::cerr << "Failed to remove: " << test_directory.generic_string()
-                      << ": " << ec.message() << std::endl;
-        }
     } else {
         std::cerr << "Test directory " << test_directory.generic_string()
                   << " not removed as minidump files exists" << std::endl;
