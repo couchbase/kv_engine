@@ -11,8 +11,7 @@
 
 namespace cb::breakpad::internal {
 
-std::unique_ptr<BreakpadInstance> BreakpadInstance::create(const std::string&,
-                                                           const std::string&) {
+std::unique_ptr<BreakpadInstance> BreakpadInstance::create(const std::string&) {
     return {};
 }
 

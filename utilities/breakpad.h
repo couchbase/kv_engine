@@ -33,11 +33,14 @@ void initialize(const cb::breakpad::Settings& settings,
 void destroy();
 
 namespace internal {
+
+void log_crash_information(const char* minidump_file, bool success);
+
 class BreakpadInstance {
 public:
     virtual ~BreakpadInstance() = default;
     static std::unique_ptr<BreakpadInstance> create(
-            const std::string& minidump_dir, const std::string& log_name);
+            const std::string& minidump_dir);
 
 protected:
     BreakpadInstance() = default;
