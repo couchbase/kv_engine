@@ -15,7 +15,6 @@
 
 #include <benchmark/benchmark.h>
 #include <daemon/timing_histogram.h>
-#include <folly/portability/GTest.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <nlohmann/json.hpp>
 #include <random>
@@ -27,7 +26,7 @@
 
 class HdrHistogramEmpty : public HdrHistogram {
 public:
-    HdrHistogramEmpty() : HdrHistogram(1, 1, 1) {
+    HdrHistogramEmpty() : HdrHistogram(1, 2, 1) {
     }
 };
 
