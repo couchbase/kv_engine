@@ -173,6 +173,23 @@ static cb::engine_errc stat_sched_executor(const StatGroup&,
 }
 
 /**
+ * Handler for the <code>stats settings</code> command. Returns a JSON
+ * document containing the current daemon Settings.
+ *
+ * @param arg - should be empty
+ * @param cookie the command context
+ */
+static cb::engine_errc stat_settings_executor(const StatGroup&,
+                                              const std::string& arg,
+                                              Cookie& cookie) {
+    if (!arg.empty()) {
+        return cb::engine_errc::invalid_arguments;
+    }
+    append_stats({}, Settings::instance().to_json().dump(), cookie);
+    return cb::engine_errc::success;
+}
+
+/**
  * Handler for the <code>stats audit</code> used to get statistics from
  * the audit subsystem.
  *
@@ -733,6 +750,7 @@ static std::unordered_map<StatGroupId, command_stat_handler> stat_handlers = {
         {StatGroupId::Reset, {true, stat_reset_executor}},
         {StatGroupId::WorkerThreadInfo, {true, stat_sched_executor}},
         {StatGroupId::Audit, {true, stat_audit_executor}},
+        {StatGroupId::Settings, {true, stat_settings_executor}},
         {StatGroupId::BucketDetails, {true, stat_bucket_details_executor}},
         {StatGroupId::Connections, {true, stat_connections_executor}},
         {StatGroupId::ClientConnectionDetails,

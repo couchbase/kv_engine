@@ -94,6 +94,9 @@ enum class StatGroupId {
     // Global thread numbers
     Threads,
 
+    // Daemon settings
+    Settings,
+
     enum_max
 };
 

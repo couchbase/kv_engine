@@ -1532,3 +1532,124 @@ TEST(SettingsUpdateTest, MagmaFlusherThreadPercentage) {
     EXPECT_EQ(4, settings.getMagmaFlusherThreadPercentage());
 }
 #endif
+
+TEST_F(SettingsTest, ToJsonReflectsInput) {
+    // Values fed into the JSON constructor should be visible in to_json().
+    // Where reconfigure() applies a transformation (e.g. MiB -> bytes) the
+    // expected value in the output is also transformed.
+    // Numeric values use unsigned literals so that reconfigure() takes the
+    // numeric branch (matching JSON parsed from a config file). Otherwise the
+    // value would be treated as a signed integer and the thread-count settings
+    // would attempt to interpret it as a string spec.
+    const nlohmann::json input = {
+            {"max_connections", 12345u},
+            {"system_connections", 1000u},
+            {"max_client_connection_details", 256u},
+            {"max_concurrent_authentications", 7u},
+            {"max_concurrent_commands_per_connection", 64u},
+            {"max_packet_size", 30u},
+            {"max_send_queue_size", 2u},
+            {"verbosity", 3u},
+            {"datatype_json", true},
+            {"datatype_snappy", false},
+            {"xattr_enabled", true},
+            {"collections_enabled", false},
+            {"tracing_enabled", false},
+            {"clustermap_push_notifications_enabled", false},
+            {"connection_idle_time", 600u},
+            {"connection_trace_size", 8u},
+            {"num_reader_threads", 3u},
+            {"num_writer_threads", 4u},
+            {"num_storage_threads", 6u},
+            {"tcp_keepalive_probes", 5u},
+            {"scramsha_fallback_iteration_count", 20000u},
+            {"throttle_enabled", true},
+            {"node_capacity", 99u},
+            {"read_unit_size", 8192u},
+            {"write_unit_size", 2048u},
+    };
+
+    Settings settings(input);
+    const auto out = settings.to_json();
+
+    EXPECT_EQ(12345u, out["max_connections"]);
+    EXPECT_EQ(1000u, out["system_connections"]);
+    EXPECT_EQ(256u, out["max_client_connection_details"]);
+    EXPECT_EQ(7u, out["max_concurrent_authentications"]);
+    EXPECT_EQ(64u, out["max_concurrent_commands_per_connection"]);
+    EXPECT_EQ(30u * 1024u * 1024u, out["max_packet_size"]);
+    EXPECT_EQ(2u * 1024u * 1024u, out["max_send_queue_size"]);
+    EXPECT_EQ(3, out["verbosity"]);
+    EXPECT_TRUE(out["datatype_json"].get<bool>());
+    EXPECT_FALSE(out["datatype_snappy"].get<bool>());
+    EXPECT_TRUE(out["xattr_enabled"].get<bool>());
+    EXPECT_FALSE(out["collections_enabled"].get<bool>());
+    EXPECT_FALSE(out["tracing_enabled"].get<bool>());
+    EXPECT_FALSE(out["clustermap_push_notifications_enabled"].get<bool>());
+    EXPECT_EQ(600u, out["connection_idle_time"]);
+    EXPECT_EQ(8u, out["connection_trace_size"]);
+    EXPECT_EQ("3", out["num_reader_threads"]);
+    EXPECT_EQ("4", out["num_writer_threads"]);
+    EXPECT_EQ("6", out["num_storage_threads"]);
+    EXPECT_EQ(5u, out["tcp_keepalive_probes"]);
+    EXPECT_EQ(20000, out["scramsha_fallback_iteration_count"]);
+    EXPECT_TRUE(out["throttle_enabled"].get<bool>());
+    EXPECT_EQ(99u, out["node_capacity"]);
+    EXPECT_EQ(8192u, out["read_unit_size"]);
+    EXPECT_EQ(2048u, out["write_unit_size"]);
+}
+
+TEST_F(SettingsTest, ToJsonExposesAllSections) {
+    // Default-constructed settings must serialize every section we expose,
+    // so that operators always see a complete snapshot via "stats settings".
+    Settings settings;
+    const auto json = settings.to_json();
+
+    for (std::string_view key : {"deployment_model",
+                                 "root",
+                                 "rbac_file",
+                                 "audit_file",
+                                 "verbosity",
+                                 "logger",
+                                 "breakpad",
+                                 "phosphor_config",
+                                 "interfaces",
+                                 "max_packet_size",
+                                 "max_connections",
+                                 "tcp_keepalive_idle",
+                                 "threads",
+                                 "num_reader_threads",
+                                 "command_time_slice",
+                                 "datatype_json",
+                                 "sasl_mechanisms",
+                                 "client_cert_auth",
+                                 "external_auth_service",
+                                 "prometheus",
+                                 "dcp_consumer_max_marker_version",
+                                 "fusion_migration_rate_limit",
+                                 "magma_blind_write_optimisation_enabled",
+                                 "subdoc_multi_max_paths",
+                                 "file_fragment_max_chunk_size",
+                                 "throttle_enabled",
+                                 "abrupt_shutdown_timeout"}) {
+        EXPECT_TRUE(json.contains(key)) << "Missing key: " << key;
+    }
+}
+
+TEST_F(SettingsTest, ToJsonStableAcrossInstances) {
+    // Two Settings built from the same JSON must produce identical
+    // to_json() output. Detects accidental dependence on construction
+    // order or default-vs-explicit drift.
+    const nlohmann::json input = {
+            {"max_connections", 60001u},
+            {"system_connections", 5001u},
+            {"verbosity", 2u},
+            {"datatype_json", true},
+            {"xattr_enabled", true},
+            {"num_reader_threads", 2u},
+            {"tcp_keepalive_probes", 4u},
+    };
+    Settings a(input);
+    Settings b(input);
+    EXPECT_EQ(a.to_json(), b.to_json());
+}

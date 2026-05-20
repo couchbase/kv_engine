@@ -470,6 +470,12 @@ StatsGroupManager::StatsGroupManager()
                .privileged = true,
                .bucket = false,
                .task_id = TaskId::Core_StatsBucketTask},
+              {.id = StatGroupId::Settings,
+               .key = "settings",
+               .description = "Get the current daemon settings as JSON",
+               .privileged = true,
+               .bucket = false,
+               .task_id = TaskId::Core_StatsBucketTask},
       }) {
 }
 

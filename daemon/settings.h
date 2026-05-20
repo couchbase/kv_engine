@@ -1425,6 +1425,16 @@ public:
         notify_changed("throttle_enabled");
     }
 
+    /**
+     * Generate a JSON representation of the current settings.
+     *
+     * The output is intended for diagnostics ("stats settings") and includes
+     * the current value of every configurable setting. To add a new setting
+     * to the output, add a single line to the corresponding section of
+     * Settings::to_json() in settings.cc.
+     */
+    nlohmann::json to_json() const;
+
 protected:
     void setDcpDisconnectWhenStuckNameRegex(std::string val);
 

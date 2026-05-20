@@ -568,6 +568,194 @@ void Settings::reconfigure(const nlohmann::json& json) {
     }
 }
 
+nlohmann::json Settings::to_json() const {
+    // Helper: render a chrono duration as a human-readable string (e.g. "5s",
+    // "200ms"). Keeps the output stable regardless of the underlying period.
+    const auto dur = [](auto value) {
+        return cb::time2text(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(value));
+    };
+
+    nlohmann::json json;
+
+    // Installation / files
+    json["deployment_model"] =
+            (deployment_model.load() == DeploymentModel::Serverless)
+                    ? "serverless"
+                    : "normal";
+    json["root"] = root;
+    json["rbac_file"] = rbac_file;
+    json["audit_file"] = audit_file;
+    json["error_maps_dir"] = error_maps_dir;
+    json["portnumber_file"] = portnumber_file;
+    json["parent_identifier"] = parent_identifier;
+
+    // Logging / diagnostics
+    json["verbosity"] = verbose.load();
+    json["logger"] = logger_settings;
+    json["breakpad"] = breakpad;
+    json["phosphor_config"] = getPhosphorConfig();
+
+    // Network / interfaces
+    json["interfaces"] = getInterfaces();
+    json["max_packet_size"] = max_packet_size;
+    json["max_send_queue_size"] = getMaxSendQueueSize();
+    json["max_so_sndbuf_size"] = getMaxSoSndbufSize();
+    json["max_so_rcvbuf_size"] = getMaxSoRcvbufSize();
+
+    // Connections
+    json["max_connections"] = getMaxConnections();
+    json["system_connections"] = getSystemConnections();
+    json["max_client_connection_details"] = getMaxClientConnectionDetails();
+    json["max_concurrent_commands_per_connection"] =
+            getMaxConcurrentCommandsPerConnection();
+    json["max_concurrent_authentications"] = getMaxConcurrentAuthentications();
+    json["connection_idle_time"] = getConnectionIdleTime();
+    json["connection_trace_size"] = getConnectionTraceSize();
+    json["allow_localhost_interface"] = isLocalhostInterfaceAllowed();
+
+    // TCP keepalive / timeouts
+    json["tcp_keepalive_idle"] = dur(getTcpKeepAliveIdle());
+    json["tcp_keepalive_interval"] = dur(getTcpKeepAliveInterval());
+    json["tcp_keepalive_probes"] = getTcpKeepAliveProbes();
+    json["tcp_user_timeout"] = dur(getTcpUserTimeout());
+    json["tcp_unauthenticated_user_timeout"] =
+            dur(getTcpUnauthenticatedUserTimeout());
+
+    // Thread pool sizes
+    json["threads"] = getNumWorkerThreads();
+    json["num_reader_threads"] = threadConfig2String(getNumReaderThreads());
+    json["num_writer_threads"] = threadConfig2String(getNumWriterThreads());
+    json["num_auxio_threads"] =
+            storageThreadConfig2String(getNumAuxIoThreads());
+    json["num_nonio_threads"] =
+            storageThreadConfig2String(getNumNonIoThreads());
+    json["num_quicknonio_threads"] =
+            storageThreadConfig2String(getNumQuickNonIoThreads());
+    json["num_slowio_threads"] =
+            storageThreadConfig2String(getNumSlowIoThreads());
+    json["num_io_threads_per_core"] = getNumIOThreadsPerCore();
+    json["num_storage_threads"] =
+            storageThreadConfig2String(getNumStorageThreads());
+
+    // Event scheduling
+    json["default_reqs_per_event"] = default_reqs_per_event;
+    json["reqs_per_event_high_priority"] = reqs_per_event_high_priority;
+    json["reqs_per_event_med_priority"] = reqs_per_event_med_priority;
+    json["reqs_per_event_low_priority"] = reqs_per_event_low_priority;
+    json["command_time_slice"] = dur(getCommandTimeSlice());
+
+    // Protocol features
+    json["datatype_json"] = isDatatypeJsonEnabled();
+    json["datatype_snappy"] = isDatatypeSnappyEnabled();
+    json["dedupe_nmvb_maps"] = isDedupeNmvbMaps();
+    json["xattr_enabled"] = isXattrEnabled();
+    json["collections_enabled"] = isCollectionsEnabled();
+    json["tracing_enabled"] = isTracingEnabled();
+    json["stdin_listener"] = isStdinListenerEnabled();
+    json["clustermap_push_notifications_enabled"] =
+            isClustermapPushNotificationsEnabled();
+    json["enable_deprecated_bucket_autoselect"] =
+            enable_deprecated_bucket_autoselect.load();
+    json["not_locked_returns_tmpfail"] = getNotLockedReturnsTmpfail();
+    json["opcode_attributes_override"] = getOpcodeAttributesOverride();
+
+    // SASL / authentication
+    json["sasl_mechanisms"] = getSaslMechanisms();
+    json["ssl_sasl_mechanisms"] = getSslSaslMechanisms();
+    json["scramsha_fallback_iteration_count"] =
+            getScramshaFallbackIterationCount();
+    json["scramsha_fallback_salt"] = getScramshaFallbackSalt();
+    json["client_cert_auth"] =
+            nlohmann::json::parse(client_cert_mapper.to_string());
+
+    // External auth service
+    json["external_auth_service"] = isExternalAuthServiceEnabled();
+    json["external_auth_service_scram_support"] =
+            doesExternalAuthServiceSupportScram();
+    json["active_external_users_push_interval"] =
+            dur(getActiveExternalUsersPushInterval());
+    json["external_auth_slow_duration"] = dur(getExternalAuthSlowDuration());
+    json["external_auth_request_timeout"] =
+            dur(getExternalAuthRequestTimeout());
+
+    // Prometheus
+    {
+        const auto cfg = *prometheus_config.rlock();
+        json["prometheus"]["port"] = cfg.first;
+        json["prometheus"]["family"] =
+                (cfg.second == AF_INET6) ? "inet6" : "inet";
+    }
+    json["slow_prometheus_scrape_duration"] =
+            getSlowPrometheusScrapeDuration().count();
+
+    // Subdoc
+    json["subdoc_multi_max_paths"] = getSubdocMultiMaxPaths();
+    json["subdoc_offload_size_threshold"] = getSubdocOffloadSizeThreshold();
+    json["subdoc_offload_paths_threshold"] = getSubdocOffloadPathThreshold();
+
+    // Quota sharing
+    json["quota_sharing_pager_concurrency_percentage"] =
+            getQuotaSharingPagerConcurrencyPercentage();
+    json["quota_sharing_pager_sleep_time_ms"] =
+            getQuotaSharingPagerSleepTime().count();
+
+    // DCP
+    json["dcp_disconnect_when_stuck_timeout_seconds"] =
+            dur(getDcpDisconnectWhenStuckTimeout());
+    json["dcp_disconnect_when_stuck_name_regex"] =
+            getDcpDisconnectWhenStuckNameRegex();
+    json["dcp_consumer_max_marker_version"] = getDcpConsumerMaxMarkerVersion();
+    json["dcp_snapshot_marker_hps_enabled"] = isDcpSnapshotMarkerHPSEnabled();
+    json["dcp_snapshot_marker_purge_seqno_enabled"] =
+            isDcpSnapshotMarkerPurgeSeqnoEnabled();
+
+    // Fusion
+    json["fusion_migration_rate_limit"] = getFusionMigrationRateLimit();
+    json["fusion_sync_rate_limit"] = getFusionSyncRateLimit();
+    json["fusion_num_uploader_threads"] = getFusionNumUploaderThreads();
+    json["fusion_num_migrator_threads"] = getFusionNumMigratorThreads();
+    json["fusion_max_pending_upload_bytes"] = getFusionMaxPendingUploadBytes();
+    json["fusion_max_pending_upload_bytes_lwm_percentage"] =
+            getFusionMaxPendingUploadBytesLwmPercentage();
+
+    // Magma
+    json["magma_blind_write_optimisation_enabled"] =
+            isMagmaBlindWriteOptimisationEnabled();
+    json["magma_max_default_storage_threads"] =
+            getMagmaMaxDefaultStorageThreads();
+    json["magma_flusher_thread_percentage"] = getMagmaFlusherThreadPercentage();
+    json["magma_compaction_rate_limit"] = getMagmaCompactionRateLimit();
+    json["magma_enable_compaction_dataonly_ratelimiting"] =
+            getMagmaEnableCompactionDataonlyRateLimiting();
+
+    // File fragment / snapshot transfer
+    json["file_fragment_max_chunk_size"] = getFileFragmentMaxChunkSize();
+    json["file_fragment_max_read_size"] = getFileFragmentMaxReadSize();
+    json["file_fragment_checksum_enabled"] = isFileFragmentChecksumEnabled();
+    json["file_fragment_checksum_length"] = getFileFragmentChecksumLength();
+    json["prepare_snapshot_always_checksum"] =
+            shouldPrepareSnapshotAlwaysChecksum();
+    json["snapshot_download_fsync_interval"] =
+            getSnapshotDownloadFsyncInterval();
+    json["snapshot_download_write_size"] = getSnapshotDownloadWriteSize();
+    json["snapshot_download_throttle_bytes"] =
+            getSnapshotDownloadThrottleBytes();
+
+    // Throttling / serverless capacity
+    json["throttle_enabled"] = isThrottleEnabled();
+    json["default_throttle_reserved_units"] = getDefaultThrottleReservedUnits();
+    json["default_throttle_hard_limit"] = getDefaultThrottleHardLimit();
+    json["read_unit_size"] = getReadUnitSize();
+    json["write_unit_size"] = getWriteUnitSize();
+    json["node_capacity"] = getNodeCapacity();
+
+    // Shutdown
+    json["abrupt_shutdown_timeout"] = dur(getAbruptShutdownTimeout());
+
+    return json;
+}
+
 void Settings::setOpcodeAttributesOverride(const std::string& value) {
     if (!value.empty()) {
         // Verify the content...
