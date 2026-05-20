@@ -32,3 +32,7 @@ add_test(NAME memcached-spdlogger-test
 cb_add_test_executable(memcached_logger_benchmark logger_benchmark.cc)
 kv_enable_pch(memcached_logger_benchmark)
 target_link_libraries(memcached_logger_benchmark PRIVATE benchmark::benchmark memcached_logger)
+
+add_test(NAME memcached_logger_benchmark
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_logger_benchmark --benchmark_min_time=0.0000001s)

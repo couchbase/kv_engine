@@ -24,8 +24,5 @@ target_link_libraries(json_validator_bench PRIVATE
         Folly::headers benchmark::benchmark GTest::gtest json_validator)
 add_test(NAME json_validator_bench
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        # Set min_time to a low number, so we only end up making only one
-        # iteration. Once we update to benchmark >v1.8, we can use
-        # --benchmark_min_time=1x to run only once.
-        COMMAND json_validator_bench --benchmark_min_time=0.0000001)
+        COMMAND json_validator_bench --benchmark_min_time=0.0000001s)
 

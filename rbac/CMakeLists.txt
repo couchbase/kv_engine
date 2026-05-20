@@ -26,3 +26,6 @@ add_sanitizers(memcached_rbac_test)
 cb_add_test_executable(privilege_check_bench privilege_check_bench.cc)
 target_link_libraries(privilege_check_bench PRIVATE
         Folly::headers benchmark::benchmark memcached_rbac)
+add_test(NAME privilege_check_bench
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND privilege_check_bench --benchmark_min_time=0.0000001s)

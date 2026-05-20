@@ -37,3 +37,7 @@ target_link_libraries(memcached_mcbp_bench PRIVATE
                       memcached_daemon
                       benchmark::benchmark)
 add_sanitizers(memcached_mcbp_bench)
+
+add_test(NAME memcached_mcbp_bench
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_mcbp_bench --benchmark_min_time=0.0000001s)

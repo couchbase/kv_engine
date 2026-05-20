@@ -128,6 +128,10 @@ target_link_libraries(string_utilities_benchmark PRIVATE
 kv_enable_pch(string_utilities_benchmark)
 add_sanitizers(string_utilities_benchmark)
 
+add_test(NAME string_utilities_benchmark
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND string_utilities_benchmark --benchmark_min_time=0.0000001s)
+
 add_library(magma_support OBJECT magma_support.h magma_support.cc)
 if (TARGET magma)
     target_compile_definitions(magma_support PUBLIC HAVE_MAGMA_SUPPORT=1)
