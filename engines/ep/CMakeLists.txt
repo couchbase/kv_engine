@@ -520,7 +520,6 @@ cb_add_test_executable(ep_engine_benchmarks
                benchmarks/vb_ready_queue_bench.cc
                benchmarks/vbucket_bench.cc
                benchmarks/probabilistic_counter_bench.cc
-               benchmarks/quota_sharing_bench.cc
                benchmarks/stats_bench.cc
                benchmarks/tracing_bench.cc
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
@@ -555,11 +554,6 @@ if (NOT CB_SANITIZERS)
 
     # The following tests currently don't work
     # add_benchmark_test(AccessLogBenchEngine)
-
-    # The following test should probably be deleted as it
-    # starts with the following comment:
-    #  "Skip this test as it's not working."
-    # add_benchmark_test(QuotaSharingBench)
 
     add_benchmark_test(BM_CheckpointIteratorCompare)
     add_benchmark_test(BM_CompareQueuedItemsBySeqnoAndKey)
