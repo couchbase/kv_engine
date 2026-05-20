@@ -11,13 +11,12 @@
 
 #include "mcbp_mock_connection.h"
 #include <benchmark/benchmark.h>
+#include <daemon/bucket_manager.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcbp_validators.h>
 #include <mcbp/protocol/header.h>
-#include <memcached/protocol_binary.h>
 
-FrontEndThread thread;
 /**
  * Test the performance of the command validators for the some of the most
  * frequent commands.
@@ -28,14 +27,21 @@ public:
         memset(&request, 0, sizeof(request));
         request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.setDatatype(cb::mcbp::Datatype::Raw);
+        thread = std::make_unique<FrontEndThread>();
+        connection = std::make_unique<McbpMockConnection>(*thread);
+        BucketManager::instance().associateInitialBucket(*connection);
     }
 
-    McbpValidatorBench() : connection(thread) {
+    void TearDown(benchmark::State& st) override {
+        BucketManager::instance().disassociateBucket(*connection);
+        connection.reset();
+        thread.reset();
     }
 
 protected:
+    std::unique_ptr<FrontEndThread> thread;
     McbpValidator validator;
-    McbpMockConnection connection;
+    std::unique_ptr<McbpMockConnection> connection;
 
     union {
         cb::mcbp::Request request;
@@ -50,7 +56,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
 
     void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    Cookie cookie(connection);
+    Cookie cookie(*connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
@@ -66,7 +72,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
 
     void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    Cookie cookie(connection);
+    Cookie cookie(*connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
@@ -82,7 +88,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
 
     void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
-    Cookie cookie(connection);
+    Cookie cookie(*connection);
 
     while (state.KeepRunning()) {
         cookie.reset();
@@ -109,6 +115,8 @@ int main(int argc, char** argv) {
     ],
     "domain": "local"
   }})"sv);
+
+    BucketManager::instance();
 
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();
