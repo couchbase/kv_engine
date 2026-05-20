@@ -1009,7 +1009,7 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
                      {"error", ec.message()}});
         }
 
-        logger->logWithContext(spdlog::level::debug,
+        logger->logWithContext(spdlog::level::info,
                                "Starting continuous backup",
                                {{"vb", vbid},
                                 {"vb_state", VBucket::toString(newState)},
@@ -1025,7 +1025,7 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
         backupStatus = BackupStatus::Started;
     } else if (stopBackup) {
         logger->logWithContext(
-                spdlog::level::debug,
+                spdlog::level::info,
                 "Stopping continuous backup",
                 {{"vb", vbid}, {"vb_state", VBucket::toString(newState)}});
         auto status = magma->StopBackup(vbid.get());
