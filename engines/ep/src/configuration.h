@@ -365,6 +365,18 @@ protected:
     bool requirementsMet(const Attribute& value) const;
 
     /**
+     * Describes the unmet requirements for the given attribute.
+     *
+     * Multiple unmet requirements are comma-separated. Returns an empty
+     * string if all requirements are met, or if the attribute has no
+     * requirements at all.
+     *
+     * @param value the attribute whose requirements should be examined.
+     * @return a description of the unmet requirements, or an empty string.
+     */
+    std::string describeUnmetRequirements(const Attribute& value) const;
+
+    /**
      * Adds an alias for a configuration. Values can be set in configuration
      * under the original or aliased named, but setters/getters will only be
      * generated for the main name.

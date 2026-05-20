@@ -509,13 +509,45 @@ bool Configuration::requirementsMet(const Attribute& value) const {
     }
     return true;
 }
+
+std::string Configuration::describeUnmetRequirements(
+        const Attribute& value) const {
+    Expects(initialized);
+    if (!value.requirement) {
+        return {};
+    }
+    std::string description;
+    for (const auto& requirement : value.requirement->requirements) {
+        const auto iter = attributes.find(requirement.first);
+        if (iter == attributes.end()) {
+            // Parameter does not exist - we cannot verify it, so skip it
+            continue;
+        }
+        if (iter->second->getValue() == requirement.second) {
+            continue;
+        }
+        if (!description.empty()) {
+            description += ", ";
+        }
+        description += fmt::format("requires {}={} (current value: {})",
+                                   requirement.first,
+                                   to_string(requirement.second),
+                                   to_string(iter->second->getValue()));
+    }
+    return description;
+}
+
 void Configuration::requirementsMetOrThrow(std::string_view key) const {
     Expects(initialized);
     auto itr = attributes.find(key);
     if (itr != attributes.end()) {
         if (!requirementsMet(*itr->second)) {
-            throw requirements_unsatisfied("Cannot set" + std::string{key} +
-                                           " : requirements not met");
+            auto reason = describeUnmetRequirements(*itr->second);
+            throw requirements_unsatisfied(
+                    fmt::format("Cannot set {}: requirements not met{}{}",
+                                key,
+                                reason.empty() ? "" : " - ",
+                                reason));
         }
     }
 }
@@ -716,8 +748,13 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
         auto it = attributes.find(key);
         if (it != attributes.end()) {
             if (!requirementsMet(*it->second)) {
+                auto reason = describeUnmetRequirements(*it->second);
                 result.at(key) = ParameterError::invalidValue(
-                        "Parameter requirements not met");
+                        reason.empty()
+                                ? std::string("Parameter requirements not met")
+                                : fmt::format(
+                                          "Parameter requirements not met: {}",
+                                          reason));
                 failed = true;
             }
         }

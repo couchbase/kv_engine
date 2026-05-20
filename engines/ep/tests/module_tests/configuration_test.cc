@@ -733,6 +733,23 @@ TEST(ConfigurationTest, ValidateWithRequirementsNotMet) {
             << validation.dump(4);
 }
 
+// When a parameter cannot be set, show a verbose message describing which
+// requirement is not met.
+TEST(ConfigurationTest, ValidateWithRequirementsNotMet_ErrorMessageDescribes) {
+    auto validation = nlohmann::json(createTestConfiguration().setAndValidate(
+            {{"bucket_type", "not_persistent"}, {"backend", "couchdb"}}));
+    ASSERT_TRUE(validation["backend"].contains("message"))
+            << validation.dump(4);
+    const auto message = validation["backend"]["message"].get<std::string>();
+    // Old prefix is preserved
+    EXPECT_THAT(message, testing::HasSubstr("Parameter requirements not met"))
+            << message;
+    // New detail: which requirement is unmet, and what the current value is.
+    EXPECT_THAT(message, testing::HasSubstr("bucket_type")) << message;
+    EXPECT_THAT(message, testing::HasSubstr("persistent")) << message;
+    EXPECT_THAT(message, testing::HasSubstr("not_persistent")) << message;
+}
+
 TEST(ConfigurationTest, ValidateDynamic) {
     ConfigurationShim configuration;
     configuration.public_clear();
