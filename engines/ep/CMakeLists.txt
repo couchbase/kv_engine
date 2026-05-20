@@ -528,7 +528,7 @@ cb_add_test_executable(ep_engine_benchmarks
                ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
 kv_enable_pch(ep_engine_benchmarks)
 
-TARGET_LINK_LIBRARIES(ep_engine_benchmarks
+target_link_libraries(ep_engine_benchmarks
         PRIVATE
                 ep
                 mock_dcp
@@ -536,13 +536,54 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 couchstore_test_fileops
                 benchmark::benchmark
                 cluster_framework
-                GTest::gtest
-                GTest::gmock
                 platform_cb_malloc_arena)
-TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
-                           tests
-                           benchmarks
-                           ${Couchstore_SOURCE_DIR})
+target_include_directories(ep_engine_benchmarks PUBLIC tests)
+
+# MB-52812 Run the benchmarks on non-sanitizer builds only as some of the
+# benchmarks are not expected to run in a reasonable time when built with
+# sanitizers.
+# Ideally we could have just run the ep_engine_benchmark binary directly,
+# but there are a few benchmarks which currently don't work. While
+# trying to resolve them try to run each test individually.
+if (NOT CB_SANITIZERS)
+    function(add_benchmark_test benchmark_name)
+        add_test(NAME ep_engine_benchmarks-${benchmark_name}
+                WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                COMMAND ep_engine_benchmarks --benchmark_min_time=0.0000001s
+                                             --benchmark_filter=^${benchmark_name})
+    endfunction()
+
+    # The following tests currently don't work
+    # add_benchmark_test(AccessLogBenchEngine)
+
+    # The following test should probably be deleted as it
+    # starts with the following comment:
+    #  "Skip this test as it's not working."
+    # add_benchmark_test(QuotaSharingBench)
+
+    add_benchmark_test(BM_CheckpointIteratorCompare)
+    add_benchmark_test(BM_CompareQueuedItemsBySeqnoAndKey)
+    add_benchmark_test(BM_SaturateCounter)
+    add_benchmark_test(CheckpointBench)
+    add_benchmark_test(DcpProducerStreamsMapBench)
+    add_benchmark_test(DefragmentBench)
+    add_benchmark_test(EngineStatsBench)
+    add_benchmark_test(ExecutorPoolFixture<FollyExecutorPool>)
+    add_benchmark_test(HashTableBench)
+    add_benchmark_test(ItemCompressorBench)
+    add_benchmark_test(KVStoreBench)
+    add_benchmark_test(MemTrackingVBucketBench)
+    add_benchmark_test(MultiVBEngineStatsBench)
+    add_benchmark_test(PagingVisitorBench)
+    add_benchmark_test(PureFollyExecutorBench)
+    add_benchmark_test(SessionTracingEncode)
+    add_benchmark_test(SessionTracingRecordMutationSpan)
+    add_benchmark_test(SessionTracingScopeTimer)
+    add_benchmark_test(StatsBench)
+    add_benchmark_test(VBCBAdaptorBench)
+    add_benchmark_test(VBReadyQueueBench)
+    add_benchmark_test(VBucketDetailsBench)
+endif ()
 
 add_sanitizers(ep_engine_benchmarks)
 cb_enable_unity_build(ep_engine_benchmarks)

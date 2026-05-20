@@ -26,14 +26,15 @@
 
 void EngineFixture::SetUp(const benchmark::State& state) {
     if (state.thread_index() == 0) {
+        dbname = cb::io::mkdtemp("benchmarks-test");
         {
             NonBucketAllocationGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
         }
         executorPool = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());
-        std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
-
+        auto config = fmt::format(
+                "dbname={};ht_locks=47;{}", dbname.string(), varConfig);
         engine = SynchronousEPEngine::build(config);
 
         initialize_time_functions(get_mock_server_api()->core);
@@ -55,7 +56,9 @@ void EngineFixture::TearDown(const benchmark::State& state) {
         engine->getDcpConnMap().manageConnections();
         engine.reset();
         ExecutorPool::shutdown();
-        cb::io::remove_with_retry("benchmarks-test");
+        if (!dbname.empty()) {
+            cb::io::remove_with_retry(dbname.string());
+        }
     }
     ObjectRegistry::onSwitchThread(nullptr);
 }

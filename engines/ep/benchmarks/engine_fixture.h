@@ -41,4 +41,5 @@ protected:
     // Allows subclasses to add stuff to the config
     std::string varConfig;
     SingleThreadedExecutorPool* executorPool;
+    std::filesystem::path dbname;
 };
