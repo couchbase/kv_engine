@@ -1149,7 +1149,8 @@ cb::engine_errc VBucket::commit(
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
-        notifyClientOfSyncWriteComplete(cookie, cb::engine_errc::success);
+        notifyClientOfSyncWriteComplete(
+                cookie, cb::engine_errc::success, notify.getSeqno());
     }
 
     return cb::engine_errc::success;
@@ -1273,14 +1274,17 @@ void VBucket::notifyActiveDMOfLocalSyncWrite() {
 }
 
 void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
-                                              cb::engine_errc result) {
+                                              cb::engine_errc result,
+                                              int64_t bySeqno) {
     EP_LOG_DEBUG(
-            "VBucket::notifyClientOfSyncWriteComplete ({}) cookie:{} result:{}",
+            "VBucket::notifyClientOfSyncWriteComplete ({}) cookie:{} result:{} "
+            "bySeqno:{}",
             id,
             static_cast<const void*>(cookie),
-            result);
+            result,
+            bySeqno);
     Expects(cookie);
-    syncWriteCompleteCb(cookie, result);
+    syncWriteCompleteCb(cookie, result, bySeqno);
 }
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,

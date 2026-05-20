@@ -145,6 +145,7 @@ static bool not_locked_returns_tmpfail;
 static double dcp_consumer_enable_max_marker_version;
 static bool dcp_snapshot_marker_hps_enabled;
 static bool dcp_snapshot_marker_purge_seqno_enabled;
+static bool sync_writes_return_committed_seqno;
 static std::atomic_bool magma_blind_write_optimisation_enabled;
 
 void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
@@ -224,6 +225,10 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() override {
         return dcp_snapshot_marker_purge_seqno_enabled;
+    }
+
+    bool isSyncWritesReturnCommittedSeqno() override {
+        return sync_writes_return_committed_seqno;
     }
 
     bool isMagmaBlindWriteOptimisationEnabled() override {
@@ -338,5 +343,6 @@ void init_mock_server() {
     dcp_consumer_enable_max_marker_version = 2.2;
     dcp_snapshot_marker_hps_enabled = true;
     dcp_snapshot_marker_purge_seqno_enabled = true;
+    sync_writes_return_committed_seqno = true;
     magma_blind_write_optimisation_enabled = true;
 }

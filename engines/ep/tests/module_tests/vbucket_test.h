@@ -135,7 +135,9 @@ protected:
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for
     // Commit/Abort
     const SyncWriteCompleteCallback TracedSyncWriteCompleteCb =
-            [this](CookieIface* cookie, cb::engine_errc status) {
+            [this](CookieIface* cookie,
+                   cb::engine_errc status,
+                   int64_t bySeqno) {
                 swCompleteTrace.count++;
                 swCompleteTrace.cookie = cookie;
                 swCompleteTrace.status = status;

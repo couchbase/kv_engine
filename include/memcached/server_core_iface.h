@@ -113,6 +113,12 @@ struct ServerCoreIface {
     virtual bool isDcpSnapshotMarkerPurgeSeqnoEnabled() = 0;
 
     /**
+     * If true, a successful SyncWrite response carries the commit seqno;
+     * if false (legacy behaviour) the prepare seqno is returned.
+     */
+    virtual bool isSyncWritesReturnCommittedSeqno() = 0;
+
+    /**
      * Whether blind write optimisation is enabled.
      */
     virtual bool isMagmaBlindWriteOptimisationEnabled() = 0;

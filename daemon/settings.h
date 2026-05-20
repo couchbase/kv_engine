@@ -1310,6 +1310,18 @@ public:
         notify_changed("dcp_snapshot_marker_purge_seqno_enabled");
     }
 
+    bool isSyncWritesReturnCommittedSeqno() const {
+        return sync_writes_return_committed_seqno.load(
+                std::memory_order_acquire);
+    }
+
+    void setSyncWritesReturnCommittedSeqno(bool val) {
+        sync_writes_return_committed_seqno.store(val,
+                                                 std::memory_order_release);
+        has.sync_writes_return_committed_seqno = true;
+        notify_changed("sync_writes_return_committed_seqno");
+    }
+
     bool isMagmaBlindWriteOptimisationEnabled() const {
         return magma_blind_write_optimisation_enabled.load(
                 std::memory_order_acquire);
@@ -1745,6 +1757,11 @@ protected:
     /// Whether to send the Purge Seqno in Snapshot Marker.
     std::atomic<bool> dcp_snapshot_marker_purge_seqno_enabled{true};
 
+    /// If true, the seqno returned in the response of a successful SyncWrite
+    /// is the commit seqno; if false (legacy behaviour), the prepare seqno is
+    /// returned.
+    std::atomic<bool> sync_writes_return_committed_seqno{true};
+
     /// The maximum number of paths allowed in a subdoc multi-path operation
     std::atomic<size_t> subdoc_multi_max_paths{16};
 
@@ -1912,6 +1929,7 @@ public:
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
+        bool sync_writes_return_committed_seqno = false;
         bool magma_blind_write_optimisation_enabled = false;
         bool magma_max_default_storage_threads = false;
         bool magma_flusher_thread_percentage = false;

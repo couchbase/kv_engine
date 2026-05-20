@@ -14,6 +14,7 @@
 #include <cluster_framework/cluster.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/limits.h>
+#include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <condition_variable>
@@ -33,22 +34,66 @@ static FrameInfoVector GetMajorityDurabilityFrameInfoVector() {
 
 class DurabilityTest : public cb::test::ClusterTest {
 protected:
+    /// Returns {high_seqno, high_completed_seqno} for vbucket 0.
+    static std::pair<uint64_t, uint64_t> readSeqnos(MemcachedConnection& conn) {
+        auto stats = conn.stats("vbucket-details 0");
+        return {stats["vb_0:high_seqno"].get<uint64_t>(),
+                stats["vb_0:high_completed_seqno"].get<uint64_t>()};
+    }
+
+    /// Toggle the daemon-level sync_writes_return_committed_seqno setting on
+    /// every node in the cluster.
+    static void setReturnCommittedSeqno(bool enabled) {
+        cluster->changeConfig([enabled](nlohmann::json& config) {
+            config["sync_writes_return_committed_seqno"] = enabled;
+        });
+    }
+
+    /**
+     * Drive a single Majority SyncWrite and verify the seqno reported on the
+     * mutation response.
+     *
+     * @param returnCommitSeqno selects the daemon-level
+     *        sync_writes_return_committed_seqno behaviour for this run:
+     *        - true:  response carries the commit seqno (matches high_seqno).
+     *        - false: response carries the prepare seqno (legacy behaviour,
+     *                 matches high_completed_seqno).
+     */
     static void mutate(MemcachedConnection& conn,
                        std::string id,
-                       MutationType type) {
+                       MutationType type,
+                       bool returnCommitSeqno) {
         MutationInfo old{};
         if (type != MutationType::Add) {
             old = conn.store(id, Vbid{0}, "", cb::mcbp::Datatype::Raw);
         }
 
+        setReturnCommittedSeqno(returnCommitSeqno);
+
+        const auto [preHighSeqno, preHighCompletedSeqno] = readSeqnos(conn);
+
         Document doc{};
         doc.value = "body";
-        doc.info.id = std::move(id);
+        doc.info.id = id;
         doc.info.datatype = cb::mcbp::Datatype::Raw;
         const auto info = conn.mutate(
                 doc, Vbid{0}, type, GetMajorityDurabilityFrameInfoVector);
         EXPECT_NE(0, info.cas);
         EXPECT_NE(old.cas, info.cas);
+
+        // A Majority sync write produces a prepare followed by a commit so
+        // high_seqno advances by 2 and high_completed_seqno settles on the
+        // prepare's seqno (one below the new high_seqno).
+        const auto [postHighSeqno, postHighCompletedSeqno] = readSeqnos(conn);
+        EXPECT_EQ(preHighSeqno + 2, postHighSeqno);
+        EXPECT_EQ(postHighSeqno - 1, postHighCompletedSeqno);
+        if (returnCommitSeqno) {
+            // Response carries the commit's bySeqno (== high_seqno).
+            EXPECT_EQ(postHighSeqno, info.seqno);
+        } else {
+            // Legacy: response carries the prepare's bySeqno (== HCS).
+            EXPECT_EQ(postHighCompletedSeqno, info.seqno);
+        }
     }
 
     static void subdoc(MemcachedConnection& conn,
@@ -85,34 +130,85 @@ protected:
     void checkMB50413(cb::test::Bucket& bucket, const MutationInfo& minfo);
 };
 
-TEST_F(DurabilityTest, Set) {
-    mutate(*getConnection(), "Set", MutationType::Set);
+/**
+ * Parameterised over the daemon-level sync_writes_return_committed_seqno
+ * setting so the same fixture exercises both the new (commit-seqno) and
+ * legacy (prepare-seqno) response paths.
+ */
+class DurabilityMutateTest : public DurabilityTest,
+                             public ::testing::WithParamInterface<bool> {
+protected:
+    /// Each parameterised run mutates a different key so the cases can share
+    /// the test-suite bucket without colliding.
+    std::string keyFor(std::string_view base) const {
+        return std::string{base} + (GetParam() ? "_Commit" : "_Prepare");
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(ReturnCommittedSeqno,
+                         DurabilityMutateTest,
+                         ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& testInfo) {
+                             return testInfo.param ? "CommitSeqno"
+                                                   : "PrepareSeqno";
+                         });
+
+TEST_P(DurabilityMutateTest, Set) {
+    mutate(*getConnection(), keyFor("Set"), MutationType::Set, GetParam());
 }
 
-TEST_F(DurabilityTest, Add) {
-    mutate(*getConnection(), "Add", MutationType::Add);
+TEST_P(DurabilityMutateTest, Add) {
+    mutate(*getConnection(), keyFor("Add"), MutationType::Add, GetParam());
 }
 
-TEST_F(DurabilityTest, Replace) {
-    mutate(*getConnection(), "Replace", MutationType::Replace);
+TEST_P(DurabilityMutateTest, Replace) {
+    mutate(*getConnection(),
+           keyFor("Replace"),
+           MutationType::Replace,
+           GetParam());
 }
 
-TEST_F(DurabilityTest, Append) {
-    mutate(*getConnection(), "Append", MutationType::Append);
+TEST_P(DurabilityMutateTest, Append) {
+    mutate(*getConnection(),
+           keyFor("Append"),
+           MutationType::Append,
+           GetParam());
 }
 
-TEST_F(DurabilityTest, Prepend) {
-    mutate(*getConnection(), "Prepend", MutationType::Prepend);
+TEST_P(DurabilityMutateTest, Prepend) {
+    mutate(*getConnection(),
+           keyFor("Prepend"),
+           MutationType::Prepend,
+           GetParam());
 }
 
-TEST_F(DurabilityTest, Delete) {
+TEST_P(DurabilityMutateTest, Delete) {
+    const auto returnCommitSeqno = GetParam();
+    const auto key = keyFor("Delete");
+
     auto conn = getConnection();
-    const auto old =
-            conn->store("Delete", Vbid{0}, "", cb::mcbp::Datatype::Raw);
-    auto info = getConnection()->remove(
-            "Delete", Vbid{0}, 0, GetMajorityDurabilityFrameInfoVector);
+    const auto old = conn->store(key, Vbid{0}, "", cb::mcbp::Datatype::Raw);
+
+    setReturnCommittedSeqno(returnCommitSeqno);
+
+    const auto [preHighSeqno, preHighCompletedSeqno] = readSeqnos(*conn);
+
+    const auto info =
+            conn->remove(key, Vbid{0}, 0, GetMajorityDurabilityFrameInfoVector);
     EXPECT_NE(0, info.cas);
     EXPECT_NE(old.cas, info.cas);
+
+    // A Majority sync delete produces a prepare followed by a commit so
+    // high_seqno advances by 2 and high_completed_seqno settles on the
+    // prepare's seqno (one below the new high_seqno).
+    const auto [postHighSeqno, postHighCompletedSeqno] = readSeqnos(*conn);
+    EXPECT_EQ(preHighSeqno + 2, postHighSeqno);
+    EXPECT_EQ(postHighSeqno - 1, postHighCompletedSeqno);
+    if (returnCommitSeqno) {
+        EXPECT_EQ(postHighSeqno, info.seqno);
+    } else {
+        EXPECT_EQ(postHighCompletedSeqno, info.seqno);
+    }
 }
 
 TEST_F(DurabilityTest, Increment) {

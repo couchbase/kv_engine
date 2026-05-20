@@ -103,6 +103,10 @@ public:
         return true;
     }
 
+    bool isSyncWritesReturnCommittedSeqno() override {
+        return true;
+    }
+
     bool isMagmaBlindWriteOptimisationEnabled() override {
         return true;
     }

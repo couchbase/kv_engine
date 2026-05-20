@@ -94,6 +94,10 @@ struct ServerCoreApi : public ServerCoreIface {
         return Settings::instance().isDcpSnapshotMarkerPurgeSeqnoEnabled();
     }
 
+    bool isSyncWritesReturnCommittedSeqno() override {
+        return Settings::instance().isSyncWritesReturnCommittedSeqno();
+    }
+
     bool isMagmaBlindWriteOptimisationEnabled() override {
         return Settings::instance().isMagmaBlindWriteOptimisationEnabled();
     }

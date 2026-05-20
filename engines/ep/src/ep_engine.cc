@@ -2311,12 +2311,15 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SycnWrite is durable).
     if (durability) {
-        auto deletedCas = takeEngineSpecific<uint64_t>(cookie);
-        if (deletedCas.has_value()) {
+        auto state = takeEngineSpecific<SyncWriteCookieState>(cookie);
+        if (state.has_value()) {
             // Non-null means this is the second call to this function after
             // the SyncWrite has completed. Return SUCCESS.
 
-            cas = *deletedCas;
+            cas = state->cas;
+            if (isSyncWritesReturnCommittedSeqno() && state->commitSeqno != 0) {
+                mut_info.seqno = state->commitSeqno;
+            }
             // @todo-durability - add support for non-sucesss (e.g. Aborted)
             // when we support non-successful completions of SyncWrites.
             return cb::engine_errc::success;
@@ -2334,8 +2337,8 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
             // completion; so the next call to this function should return
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function).
-            // (just store non-null value to indicate this).
-            storeEngineSpecific(cookie, cas);
+            storeEngineSpecific(
+                    cookie, SyncWriteCookieState{.cas = cas, .commitSeqno = 0});
         }
         ret = cb::engine_errc::would_block;
         break;
@@ -2540,11 +2543,19 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SyncWrite is durable).
     if (item.isPending()) {
-        auto cookieCas = takeEngineSpecific<uint64_t>(cookie);
-        if (cookieCas.has_value()) {
+        auto state = takeEngineSpecific<SyncWriteCookieState>(cookie);
+        if (state.has_value()) {
             // Non-null means this is the second call to this function after
-            // the SyncWrite has completed. Return SUCCESS.
-            return {cb::engine_errc::success, *cookieCas};
+            // the SyncWrite has completed.
+            //
+            // If the bucket is configured to surface the commit seqno (rather
+            // than the prepare seqno) in the response, override the Item's
+            // bySeqno here.  The front-end will subsequently read this value
+            // via getItemInfo() when constructing the mutation response.
+            if (isSyncWritesReturnCommittedSeqno() && state->commitSeqno != 0) {
+                item.setBySeqno(state->commitSeqno);
+            }
+            return {cb::engine_errc::success, state->cas};
         }
     }
 
@@ -2612,8 +2623,12 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             // completion; so the next call to this function should return
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function. Store the cas of the item so that we
-            // can return it to the client later.
-            storeEngineSpecific(cookie, item.getCas());
+            // can return it to the client later.  The commitSeqno field is
+            // populated by the SyncWrite complete callback once the commit
+            // has been generated (see KVBucket::makeSyncWriteCompleteCB).
+            storeEngineSpecific(cookie,
+                                SyncWriteCookieState{.cas = item.getCas(),
+                                                     .commitSeqno = 0});
         }
         status = cb::engine_errc::would_block;
         break;
@@ -7956,6 +7971,10 @@ bool EventuallyPersistentEngine::isDcpSnapshotMarkerHPSEnabled() const {
 
 bool EventuallyPersistentEngine::isDcpSnapshotMarkerPurgeSeqnoEnabled() const {
     return serverApi->core->isDcpSnapshotMarkerPurgeSeqnoEnabled();
+}
+
+bool EventuallyPersistentEngine::isSyncWritesReturnCommittedSeqno() const {
+    return serverApi->core->isSyncWritesReturnCommittedSeqno();
 }
 
 bool EventuallyPersistentEngine::isMagmaBlindWriteOptimisationEnabled() const {

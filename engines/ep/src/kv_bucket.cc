@@ -3056,13 +3056,25 @@ SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
     return [&engine = this->engine](CookieIface* cookie,
-                                    cb::engine_errc status) {
+                                    cb::engine_errc status,
+                                    int64_t bySeqno) {
         if (status != cb::engine_errc::success) {
             // For non-success status codes clear the cookie's engine_specific;
             // as the operation is now complete. This ensures that any
             // subsequent call by the same cookie to store() is treated as a new
             // operation (and not the completion of the previous one).
             engine.clearEngineSpecific(*cookie);
+        } else if (bySeqno) {
+            // SyncWrite committed successfully.  Update the engine_specific
+            // state (stashed during the first storeIfInner/removeInner pass)
+            // with the commit seqno so the next pass can optionally surface
+            // it to the client.
+            auto state =
+                    engine.takeEngineSpecific<SyncWriteCookieState>(*cookie);
+            if (state) {
+                state->commitSeqno = bySeqno;
+                engine.storeEngineSpecific(*cookie, *state);
+            }
         }
         engine.notifyIOComplete(cookie, status);
     };

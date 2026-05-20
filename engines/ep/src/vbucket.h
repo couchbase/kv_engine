@@ -1609,9 +1609,13 @@ public:
      *
      * @param cookie The client's cookie
      * @param result The result of the SyncWrite processing
+     * @param bySeqno For a successful commit at Active, the seqno of the
+     *                commit item.  Set to 0 for abort/timeout/ambiguous
+     *                outcomes.
      */
     void notifyClientOfSyncWriteComplete(CookieIface* cookie,
-                                         cb::engine_errc result);
+                                         cb::engine_errc result,
+                                         int64_t bySeqno = 0);
 
     /**
      * Notify the PassiveDM that the snapshot-end mutation for the currently

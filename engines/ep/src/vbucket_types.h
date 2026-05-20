@@ -42,13 +42,19 @@ using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
 /**
  * Callback function invoked when an accepted SyncWrite operation has been
  * completed (has been committed / aborted / times out).
+ *
+ * @param cookie    The client connection cookie that initiated the SyncWrite.
+ * @param status    The completion status (success/ambiguous/...).
+ * @param bySeqno   For successful commits at Active, the seqno of the commit
+ *                  item.  For abort / timeout / non-active paths the value is
+ *                  0 (unknown) and should be ignored.
  */
-using SyncWriteCompleteCallback =
-        std::function<void(CookieIface* cookie, cb::engine_errc status)>;
+using SyncWriteCompleteCallback = std::function<void(
+        CookieIface* cookie, cb::engine_errc status, int64_t bySeqno)>;
 
 /// Instance of SyncWriteCompleteCallback which does nothing.
 const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
-        [](CookieIface* cookie, cb::engine_errc status) {};
+        [](CookieIface* cookie, cb::engine_errc status, int64_t bySeqno) {};
 
 /**
  * Callback function invoked at Replica for sending a SeqnoAck message to the

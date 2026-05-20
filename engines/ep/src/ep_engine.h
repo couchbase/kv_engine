@@ -60,6 +60,21 @@ class VBucketCountVisitor;
 // Forward decl
 class EventuallyPersistentEngine;
 
+/**
+ * Cookie engine-specific state used to bridge the two passes of a SyncWrite
+ * (or SyncDelete) through storeIfInner / removeInner.
+ *
+ * The first pass stores @c cas (and a 0 commitSeqno) when the operation is
+ * about to block waiting on durability.  When the SyncWrite is completed the
+ * commit callback updates @c commitSeqno (where known) so that the second
+ * pass can optionally surface the commit seqno to the client (controlled by
+ * the sync_writes_return_committed_seqno configuration parameter).
+ */
+struct SyncWriteCookieState {
+    uint64_t cas{0};
+    int64_t commitSeqno{0};
+};
+
 namespace cb::prometheus {
 enum class MetricGroup;
 } // namespace cb::prometheus
@@ -1195,6 +1210,12 @@ public:
      * @return true if the Purge Seqno should be sent in Snapshot Marker.
      */
     bool isDcpSnapshotMarkerPurgeSeqnoEnabled() const;
+
+    /**
+     * @return true if a successful SyncWrite response should carry the
+     * commit seqno; false for the legacy prepare-seqno behaviour.
+     */
+    bool isSyncWritesReturnCommittedSeqno() const;
 
     /**
      * Whether blind write optimisation is enabled.

@@ -540,6 +540,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDcpSnapshotMarkerHPSEnabled(value.get<bool>());
         } else if (key == "dcp_snapshot_marker_purge_seqno_enabled"sv) {
             setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
+        } else if (key == "sync_writes_return_committed_seqno"sv) {
+            setSyncWritesReturnCommittedSeqno(value.get<bool>());
         } else if (key == "magma_blind_write_optimisation_enabled"sv) {
             setMagmaBlindWriteOptimisationEnabled(value.get<bool>());
         } else if (key == "default_throttle_reserved_units"sv) {
@@ -1699,6 +1701,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"to", other.isMagmaBlindWriteOptimisationEnabled()});
             setMagmaBlindWriteOptimisationEnabled(
                     other.isMagmaBlindWriteOptimisationEnabled());
+        }
+    }
+
+    if (other.has.sync_writes_return_committed_seqno) {
+        if (other.isSyncWritesReturnCommittedSeqno() !=
+            isSyncWritesReturnCommittedSeqno()) {
+            LOG_INFO_CTX("Change sync_writes_return_committed_seqno",
+                         {"from", isSyncWritesReturnCommittedSeqno()},
+                         {"to", other.isSyncWritesReturnCommittedSeqno()});
+            setSyncWritesReturnCommittedSeqno(
+                    other.isSyncWritesReturnCommittedSeqno());
         }
     }
 
