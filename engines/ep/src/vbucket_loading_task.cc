@@ -136,7 +136,7 @@ void VBucketLoadingTask::notifyComplete(cb::engine_errc result) {
         std::lock_guard vbset(store.getVbSetMutexLock());
         errorCode = result;
     }
-    cookie.notifyIoComplete(cb::engine_errc::success);
+    engine->notifyIOComplete(cookie, cb::engine_errc::success);
 }
 
 void VBucketLoadingTask::checkTransition(

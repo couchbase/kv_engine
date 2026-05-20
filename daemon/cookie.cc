@@ -1027,6 +1027,33 @@ ConnectionIface& Cookie::getConnectionIface() {
 
 void Cookie::notifyIoComplete(cb::engine_errc status) {
     auto& thr = getConnection().getThread();
+    // MB-66783: The runInEventBaseThreadAlwaysEnqueue call wraps the lambda in
+    // a folly::AtomicNotificationQueue::Node struct. This code path is
+    // executed by EPTasks (ie bucket arena), so that's where the struct alloc
+    // would be accounted. That struct will be later destroyed on the front-end
+    // worker thread (ie NoBucket arena) that handles the connection. So we
+    // need to ensure that in this code path that Node struct is allocated off
+    // any bucket arena to prevent alloc/dealloc mismatches at release.
+    //
+    // In MB-66783 I tried a comprehensive fix by enforcing NonBucket scope
+    // here at Cookie level. That is considered an anti-pattern though, as in
+    // the current model EPEngine handles the arena context switch in the
+    // multiple EPE paths that call into here.
+    //
+    // Thus, under MB-66783 I fix various broken paths by still handling the
+    // context switch at EPE level.
+    //
+    // Note: We always expect to execute under NonBucket context here, so
+    // enforce that invariant (dev builds only).
+#ifdef CB_DEVELOPMENT_ASSERTS
+    const auto index = cb::ArenaMalloc::getCurrentClientIndex();
+    if (index != cb::NoClientIndex) {
+        throw std::logic_error(fmt::format(
+                "Cookie::notifyIoComplete: Invalid arena:{} index:{}",
+                cb::ArenaMalloc::getCurrentClientArena(),
+                index));
+    }
+#endif
     thr.eventBase.runInEventBaseThreadAlwaysEnqueue(
             [this, status, scheduled = std::chrono::steady_clock::now()]() {
                 TRACE_LOCKGUARD_TIMED(getConnection().getThread().mutex,
