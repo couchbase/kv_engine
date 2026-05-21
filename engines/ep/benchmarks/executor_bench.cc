@@ -69,9 +69,8 @@ private:
 };
 
 /**
- * Benchmark fixture for subclasses of ep-engine's ExecutorPool class.
+ * Benchmark fixture for FollyExecutorPool
  */
-template <typename T>
 class ExecutorPoolFixture : public benchmark::Fixture {
 public:
     /// Setup the ExecutorPool. After this method returns, the calling
@@ -81,7 +80,7 @@ public:
             // Create the pool with the specified number of IO threads.
             // Note: Don't actually need any Reader/Writer/AuxIO threads here,
             // but ExecutorPool cannot handle having a count of zero :(
-            pool = std::make_unique<T>(
+            pool = std::make_unique<FollyExecutorPool>(
                     nonIOCount,
                     ThreadPoolConfig::ThreadCount(1),
                     ThreadPoolConfig::ThreadCount(1),
@@ -110,7 +109,7 @@ public:
         }
     }
 
-    T* getPool() {
+    FollyExecutorPool* getPool() {
         return poolPtr.load();
     }
 
@@ -316,55 +315,28 @@ public:
     }
 
 private:
-    std::unique_ptr<T> pool;
+    std::unique_ptr<FollyExecutorPool> pool;
     /// Semaphore used to coordinate pool creation/usage.
     folly::SaturatingSemaphore<true> poolSem;
 
     /// Thread-safe pointer to pool so threads other than the one which
     /// created the pool can correctly access it.
-    std::atomic<T*> poolPtr;
+    std::atomic<FollyExecutorPool*> poolPtr;
 
     NullTaskable taskable;
 };
 
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            OneShotScheduleRun_CB3,
-                            CB3ExecutorPool)
+BENCHMARK_DEFINE_F(ExecutorPoolFixture, OneShotScheduleRun)
 (benchmark::State& state) {
     bench_OneShotScheduleRun(state);
 }
 
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            OneShotScheduleRun_Folly,
-                            FollyExecutorPool)
-(benchmark::State& state) {
-    bench_OneShotScheduleRun(state);
-}
-
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            LongLivedScheduleRun_CB3,
-                            CB3ExecutorPool)
+BENCHMARK_DEFINE_F(ExecutorPoolFixture, LongLivedScheduleRun)
 (benchmark::State& state) {
     bench_LongLivedScheduleRun(state);
 }
 
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            LongLivedScheduleRun_Folly,
-                            FollyExecutorPool)
-(benchmark::State& state) {
-    bench_LongLivedScheduleRun(state);
-}
-
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            TimeoutAddCancel_CB3,
-                            CB3ExecutorPool)
-(benchmark::State& state) {
-    bench_TimeoutAddCancel(state);
-}
-
-BENCHMARK_TEMPLATE_DEFINE_F(ExecutorPoolFixture,
-                            TimeoutAddCancel_Folly,
-                            FollyExecutorPool)
+BENCHMARK_DEFINE_F(ExecutorPoolFixture, TimeoutAddCancel)
 (benchmark::State& state) {
     bench_TimeoutAddCancel(state);
 }
@@ -441,7 +413,7 @@ protected:
 };
 
 /**
- * Folly Executor variant of CB3ExecutorPoolBench::OneShotScheduleRun - see
+ * Folly Executor variant of ExecutorPoolFixture::OneShotScheduleRun - see
  * that benchmark for description of what is being tested.
  */
 BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
@@ -479,7 +451,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, OneShotScheduleRun)
 }
 
 /**
- * Folly Executor variant of CB3ExecutorPoolBench::TimeoutAddCancel - see
+ * Folly Executor variant of ExecutorPoolFixture::TimeoutAddCancel - see
  * that benchmark for description of what is being tested.
  */
 BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
@@ -566,10 +538,7 @@ BENCHMARK_DEFINE_F(PureFollyExecutorBench, TimeoutAddCancel)
     }
 }
 
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun_CB3)
-        ->ThreadRange(1, 16)
-        ->UseRealTime();
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun_Folly)
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, OneShotScheduleRun)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
@@ -577,23 +546,13 @@ BENCHMARK_REGISTER_F(PureFollyExecutorBench, OneShotScheduleRun)
         ->ThreadRange(1, 16)
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun_CB3)
-        ->ThreadRange(1, 16)
-        ->Range(16, 64)
-        ->ArgName("Tasks")
-        ->UseRealTime();
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun_Folly)
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun)
         ->ThreadRange(1, 16)
         ->Range(16, 64)
         ->ArgName("Tasks")
         ->UseRealTime();
 
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_CB3)
-        ->ThreadRange(1, 16)
-        ->Range(1000, 4096)
-        ->ArgName("Timeouts")
-        ->UseRealTime();
-BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_Folly)
+BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel)
         ->ThreadRange(1, 16)
         ->Range(1000, 30000)
         ->ArgName("Timeouts")

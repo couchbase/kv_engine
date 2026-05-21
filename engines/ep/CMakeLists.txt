@@ -542,9 +542,8 @@ target_include_directories(ep_engine_benchmarks PUBLIC tests)
 # benchmarks are not expected to run in a reasonable time when built with
 # sanitizers.
 # Ideally we could have just run the ep_engine_benchmark binary directly,
-# but there are a few benchmarks which currently don't work. While
-# trying to resolve them try to run each test individually.
-# The CB3ExecutorPool benchmarks are currently disabled as they don't work
+# but the run time of the single binary is 18min+ on my M1, so it is
+# better to run each suite separately to allow them to run concurrently
 if (NOT CB_SANITIZERS)
     function(add_benchmark_test benchmark_name)
         add_test(NAME ep_engine_benchmarks-${benchmark_name}
@@ -561,7 +560,7 @@ if (NOT CB_SANITIZERS)
     add_benchmark_test(DcpProducerStreamsMapBench)
     add_benchmark_test(DefragmentBench)
     add_benchmark_test(EngineStatsBench)
-    add_benchmark_test(ExecutorPoolFixture<FollyExecutorPool>)
+    add_benchmark_test(ExecutorPoolFixture)
     add_benchmark_test(HashTableBench)
     add_benchmark_test(ItemCompressorBench)
     add_benchmark_test(KVStoreBench)
