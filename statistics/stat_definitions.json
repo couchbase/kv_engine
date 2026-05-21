@@ -3482,6 +3482,38 @@
         "unit": "none"
     },
     {
+        "key": "memcached_num_quicknonio_threads_actual",
+        "cbstat": "num_quicknonio_threads_actual",
+        "description": "The current number of threads in the QuickNonIO pool",
+        "added": "8.1.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_quicknonio_threads_configured",
+        "cbstat": "num_quicknonio_threads_configured",
+        "description": "The configured number of threads in the QuickNonIO pool",
+        "added": "8.1.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_slowio_threads_actual",
+        "cbstat": "num_slowio_threads_actual",
+        "description": "The current number of threads in the SlowIO pool",
+        "added": "8.1.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_slowio_threads_configured",
+        "cbstat": "num_slowio_threads_configured",
+        "description": "The configured number of threads in the SlowIO pool",
+        "added": "8.1.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
         "key": "memcached_num_reader_threads_actual",
         "cbstat": "num_reader_threads_actual",
         "description": "The current number of threads in the reader pool",

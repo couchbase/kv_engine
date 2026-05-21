@@ -916,7 +916,11 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_auxio_threads_configured", -1),
                     Pair("num_auxio_threads_actual", Gt(0)),
                     Pair("num_nonio_threads_configured", -1),
-                    Pair("num_nonio_threads_actual", Gt(0))));
+                    Pair("num_nonio_threads_actual", Gt(0)),
+                    Pair("num_quicknonio_threads_configured", -1),
+                    Pair("num_quicknonio_threads_actual", Gt(0)),
+                    Pair("num_slowio_threads_configured", -1),
+                    Pair("num_slowio_threads_actual", Gt(0))));
 
     // 2. Reconfigure with a different number, check the stats update as
     // expected.
@@ -945,7 +949,37 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_auxio_threads_configured", newNumThreads),
                     Pair("num_auxio_threads_actual", newNumThreads),
                     Pair("num_nonio_threads_configured", newNumThreads),
-                    Pair("num_nonio_threads_actual", newNumThreads)));
+                    Pair("num_nonio_threads_actual", newNumThreads),
+                    // quicknonio and slowio were not reconfigured, keep
+                    // default values (configured == -1, actual > 0).
+                    Pair("num_quicknonio_threads_configured", -1),
+                    Pair("num_quicknonio_threads_actual", Gt(0)),
+                    Pair("num_slowio_threads_configured", -1),
+                    Pair("num_slowio_threads_actual", Gt(0))));
+}
+
+// Verify that the sum of all num_*_threads_actual values (excluding the
+// frontend pool) reported by "stats threads" equals ep_num_workers reported
+// by the bucket. ep_num_workers is the size of the shared ExecutorPool which
+// is composed of reader/writer/auxio/nonio/quicknonio/slowio threads.
+TEST_P(StatsTest, ActualBackgroundThreadsSumEqualsEpNumWorkers) {
+    auto threadStats = adminConnection->stats("threads");
+
+    int sumActual = 0;
+    for (const auto& [key, value] : threadStats.items()) {
+        if (key.ends_with("_actual") && key != "num_frontend_threads_actual") {
+            sumActual += value.get<int>();
+        }
+    }
+
+    int epNumWorkers = 0;
+    adminConnection->executeInBucket(
+            bucketName, [&epNumWorkers](auto& connection) {
+                const nlohmann::json stats = connection.stats("");
+                epNumWorkers = stats.at("ep_num_workers").get<int>();
+            });
+
+    EXPECT_EQ(epNumWorkers, sumActual);
 }
 
 TEST_P(StatsTest, ThreadDetails) {
@@ -967,6 +1001,10 @@ TEST_P(StatsTest, ThreadDetails) {
     EXPECT_TRUE(json.contains("num_reader_threads_actual"));
     EXPECT_TRUE(json.contains("num_writer_threads_configured"));
     EXPECT_TRUE(json.contains("num_writer_threads_actual"));
+    EXPECT_TRUE(json.contains("num_quicknonio_threads_configured"));
+    EXPECT_TRUE(json.contains("num_quicknonio_threads_actual"));
+    EXPECT_TRUE(json.contains("num_slowio_threads_configured"));
+    EXPECT_TRUE(json.contains("num_slowio_threads_actual"));
     EXPECT_LT(10, json.size()) << "There should be some threads reported";
 }
 

@@ -556,6 +556,10 @@ static void stat_threads_emit_configured_and_actual(
     emitThread("writer", setting.getNumWriterThreads(), exPool.getNumWriters());
     emitThread("auxio", setting.getNumAuxIoThreads(), exPool.getNumAuxIO());
     emitThread("nonio", setting.getNumNonIoThreads(), exPool.getNumNonIO());
+    emitThread("quicknonio",
+               setting.getNumQuickNonIoThreads(),
+               exPool.getNumQuickNonIO());
+    emitThread("slowio", setting.getNumSlowIoThreads(), exPool.getNumSlowIO());
 }
 
 static cb::engine_errc stat_threads_executor(const StatGroup&,
