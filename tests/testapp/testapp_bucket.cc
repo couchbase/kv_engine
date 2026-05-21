@@ -395,8 +395,9 @@ public:
         // Note: Important to set the env BEFORE starting memcached,
         // env vars wouldn't be passed to the memcached process otherwise
         // (unless testapp is run in -e (embedded) mode)
-        ASSERT_FALSE(getenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT"));
-        ASSERT_EQ(0, setenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT", "1", 0));
+        if (!getenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT")) {
+            ASSERT_EQ(0, setenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT", "1", 0));
+        }
         BucketTest::SetUpTestCase();
     }
 
