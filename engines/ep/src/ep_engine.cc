@@ -5900,9 +5900,10 @@ void EventuallyPersistentEngine::decodeWithMetaOptions(
  *
  * @param value nmeta is removed from the value by this function
  * @param extras
+ * @return cb::engine_errc::success and a valid buffer value, an error otherwise
  */
-cb::const_byte_buffer adjustValueForExtendedMeta(cb::const_byte_buffer value,
-                                                 cb::const_byte_buffer extras) {
+std::pair<cb::engine_errc, cb::const_byte_buffer> adjustValueForExtendedMeta(
+        cb::const_byte_buffer value, cb::const_byte_buffer extras) {
     if (extras.size() == 26 || extras.size() == 30) {
         // 26 = nmeta
         // 30 = options and nmeta (options followed by nmeta)
@@ -5913,15 +5914,18 @@ cb::const_byte_buffer adjustValueForExtendedMeta(cb::const_byte_buffer value,
         nmeta = ntohs(nmeta);
 
         if (value.size() < nmeta) {
-            throw std::invalid_argument(
-                    "EPE::adjustValueForExtendedMeta: value.size < nmeta");
+            EP_LOG_ERR_CTX(
+                    "EPE::adjustValueForExtendedMeta: value_size < nmeta",
+                    {"value_size", value.size()},
+                    {"nmeta", nmeta});
+            return {cb::engine_errc::disconnect, {}};
         }
 
         // Correct the vallen, skipping over any extras which could
         // have been included in the value
         value = {value.data(), value.size() - nmeta};
     }
-    return value;
+    return {cb::engine_errc::success, value};
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
@@ -5969,7 +5973,10 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                 cookie, forceFlag, generateCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
     }
-    auto value = adjustValueForExtendedMeta(request.getValue(), extras);
+    auto [err, value] = adjustValueForExtendedMeta(request.getValue(), extras);
+    if (err != cb::engine_errc::success) {
+        return err;
+    }
 
     cb::time::steady_clock::time_point startTime;
     {
@@ -6235,7 +6242,11 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto value = adjustValueForExtendedMeta(request.getValue(), extras);
+    auto [err, value] = adjustValueForExtendedMeta(request.getValue(), extras);
+    if (err != cb::engine_errc::success) {
+        return err;
+    }
+
     auto key = makeDocKey(cookie, request.getKey());
     mutation_descr_t mut_info;
 
