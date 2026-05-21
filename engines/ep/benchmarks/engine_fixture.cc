@@ -27,14 +27,17 @@
 void EngineFixture::SetUp(const benchmark::State& state) {
     if (state.thread_index() == 0) {
         dbname = cb::io::mkdtemp("benchmarks-test");
+        const auto alog_path = dbname / "access.log";
         {
             NonBucketAllocationGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
         }
         executorPool = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());
-        auto config = fmt::format(
-                "dbname={};ht_locks=47;{}", dbname.string(), varConfig);
+        const auto config = fmt::format("dbname={};ht_locks=47;alog_path={};{}",
+                                        dbname.string(),
+                                        alog_path.string(),
+                                        varConfig);
         engine = SynchronousEPEngine::build(config);
 
         initialize_time_functions(get_mock_server_api()->core);

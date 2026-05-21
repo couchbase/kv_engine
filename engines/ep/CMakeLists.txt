@@ -544,6 +544,7 @@ target_include_directories(ep_engine_benchmarks PUBLIC tests)
 # Ideally we could have just run the ep_engine_benchmark binary directly,
 # but there are a few benchmarks which currently don't work. While
 # trying to resolve them try to run each test individually.
+# The CB3ExecutorPool benchmarks are currently disabled as they don't work
 if (NOT CB_SANITIZERS)
     function(add_benchmark_test benchmark_name)
         add_test(NAME ep_engine_benchmarks-${benchmark_name}
@@ -552,9 +553,7 @@ if (NOT CB_SANITIZERS)
                                              --benchmark_filter=^${benchmark_name})
     endfunction()
 
-    # The following tests currently don't work
-    # add_benchmark_test(AccessLogBenchEngine)
-
+    add_benchmark_test(AccessLogBenchEngine)
     add_benchmark_test(BM_CheckpointIteratorCompare)
     add_benchmark_test(BM_CompareQueuedItemsBySeqnoAndKey)
     add_benchmark_test(BM_SaturateCounter)
