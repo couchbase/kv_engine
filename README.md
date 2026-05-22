@@ -50,6 +50,7 @@ built via the Couchbase
 * [Throttling](docs/Throttling.md)
 * [Top Keys](docs/Topkeys.md)
 * [Bucket Configuration](docs/BucketConfiguration.md)
+* [HdrHistogram JSON format](docs/HdrHistogramFormat.md)
 
 ### Protocols
 
