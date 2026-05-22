@@ -35,7 +35,8 @@ FileDownloader::FileDownloader(
                            std::string_view,
                            cb::logger::Json json)> log_callback,
         std::function<void(std::size_t)> stats_collect_callback,
-        std::function<std::size_t()> get_throttle_rate)
+        std::function<std::size_t()> get_throttle_rate,
+        const cb::io::IoHint io_hint)
     : connection(std::move(connection)),
       directory(std::move(directory)),
       uuid(std::move(uuid)),
@@ -46,7 +47,8 @@ FileDownloader::FileDownloader(
       checksum_length(checksum_length),
       log_callback(std::move(log_callback)),
       stats_collect_callback(std::move(stats_collect_callback)),
-      get_throttle_rate(std::move(get_throttle_rate)) {
+      get_throttle_rate(std::move(get_throttle_rate)),
+      io_hint(io_hint) {
     // Empty
 }
 
@@ -199,18 +201,16 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
                 filename,
                 cb::io::FileSink::Mode::Append,
                 fsync_interval,
-                cb::io::IoHint::DontNeed);
+                io_hint);
     }
 
     class ErrorSink : public cb::io::FileSink {
     public:
         ErrorSink(std::filesystem::path path,
                   std::size_t fsync_interval,
-                  std::size_t error_sink_write_size)
-            : FileSink(path,
-                       Mode::Append,
-                       fsync_interval,
-                       cb::io::IoHint::DontNeed),
+                  std::size_t error_sink_write_size,
+                  cb::io::IoHint io_hint)
+            : FileSink(path, Mode::Append, fsync_interval, io_hint),
               error_sink_write_size(error_sink_write_size) {
         }
 
@@ -228,7 +228,7 @@ std::unique_ptr<cb::io::FileSink> FileDownloader::openFile(
     };
 
     return std::make_unique<ErrorSink>(
-            filename, fsync_interval, *error_sink_write_size);
+            filename, fsync_interval, *error_sink_write_size, io_hint);
 }
 
 void FileDownloader::throttleAcquire(size_t bytes) const {

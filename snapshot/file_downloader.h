@@ -12,6 +12,7 @@
 #include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/file_sink.h>
+#include <platform/io_hint.h>
 #include <platform/json_log.h>
 #include <platform/token_bucket_rate_limiter.h>
 #include <spdlog/spdlog.h>
@@ -80,7 +81,8 @@ public:
                                       std::string_view,
                                       cb::logger::Json json)> log_callback,
                    std::function<void(std::size_t)> stats_collect_callback,
-                   std::function<std::size_t()> get_throttle_rate);
+                   std::function<std::size_t()> get_throttle_rate,
+                   cb::io::IoHint io_hint);
     /**
      * Download the file provided in the meta section
      *
@@ -159,5 +161,7 @@ protected:
     const std::function<void(std::size_t)> stats_collect_callback;
     /// The callback to get the throttle rate (bytes per second, 0 disables)
     const std::function<std::size_t()> get_throttle_rate;
+    /// The IO hint to use for the file operations writing the file
+    const cb::io::IoHint io_hint;
 };
 } // namespace cb::snapshot

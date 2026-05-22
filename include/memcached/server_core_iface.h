@@ -12,8 +12,7 @@
 #pragma once
 
 #include "types.h"
-#include <memcached/thread_pool_config.h>
-
+#include <platform/io_hint.h>
 #include <functional>
 
 struct ServerCoreIface {
@@ -152,4 +151,7 @@ struct ServerCoreIface {
      * Get the snapshot download throttle rate (in bytes per second).
      */
     virtual size_t getSnapshotDownloadThrottleBytes() const = 0;
+
+    /// Get the IO hint to use for files written as part of snapshot downloads.
+    virtual cb::io::IoHint getSnapshotDownloadFadvise() const = 0;
 };

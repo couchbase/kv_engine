@@ -39,6 +39,7 @@
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
 #include "kvstore/kvstore.h"
+#include "platform/io_hint.h"
 #include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "stats-info.h"
@@ -8003,4 +8004,8 @@ size_t EventuallyPersistentEngine::getSnapshotDownloadWriteSize() const {
 
 size_t EventuallyPersistentEngine::getSnapshotDownloadThrottleBytes() const {
     return serverApi->core->getSnapshotDownloadThrottleBytes();
+}
+
+cb::io::IoHint EventuallyPersistentEngine::getSnapshotDownloadFadvise() const {
+    return serverApi->core->getSnapshotDownloadFadvise();
 }

@@ -136,6 +136,10 @@ public:
     size_t getSnapshotDownloadThrottleBytes() const override {
         return 0;
     }
+
+    cb::io::IoHint getSnapshotDownloadFadvise() const override {
+        return cb::io::IoHint::Normal;
+    }
 };
 
 int main(int argc, char **argv) {

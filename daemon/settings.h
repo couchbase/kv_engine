@@ -16,6 +16,7 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>
+#include <platform/io_hint.h>
 #include <platform/timeutils.h>
 #include <relaxed_atomic.h>
 #include <utilities/breakpad_settings.h>
@@ -709,6 +710,26 @@ public:
         xattr_enabled.store(enable);
         has.xattr_enabled = true;
         notify_changed("xattr_enabled");
+    }
+
+    /**
+     * Get the IO hint setting to use while downloading snapshots
+     *
+     * @return the current IO hint setting
+     */
+    cb::io::IoHint getSnapshotDownloadFadvise() const {
+        return snapshot_download_fadvise.load(std::memory_order_acquire);
+    }
+
+    /**
+     * Set the IO hint setting used when downloading snapshots
+     *
+     * @param hint the IO hint to use for FBR
+     */
+    void setSnapshotDownloadFadvise(cb::io::IoHint hint) {
+        snapshot_download_fadvise.store(hint, std::memory_order_release);
+        has.snapshot_download_fadvise = true;
+        notify_changed("snapshot_download_fadvise");
     }
 
     /// Set time until the first probe is sent
@@ -1698,6 +1719,10 @@ protected:
     /// May xattrs be used or not
     std::atomic_bool xattr_enabled{false};
 
+    /// IO hint to use for FBR
+    std::atomic<cb::io::IoHint> snapshot_download_fadvise{
+            cb::io::IoHint::Normal};
+
     /// Should collections be enabled
     std::atomic_bool collections_enabled{true};
 
@@ -1869,6 +1894,7 @@ public:
         bool dedupe_nmvb_maps = false;
         bool error_maps = false;
         bool xattr_enabled = false;
+        bool snapshot_download_fadvise = false;
         bool collections_enabled = false;
         bool opcode_attributes_override = false;
         bool tracing_enabled = false;

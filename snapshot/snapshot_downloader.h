@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <platform/io_hint.h>
 #include <platform/json_log.h>
 #include <protocol/connection/client_connection.h>
 #include <spdlog/spdlog.h>
@@ -35,5 +36,6 @@ void download(std::unique_ptr<MemcachedConnection> connection,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback,
               const std::function<void(std::size_t)>& stats_collect_callback,
-              const std::function<std::size_t()>& get_throttle_rate);
+              const std::function<std::size_t()>& get_throttle_rate,
+              cb::io::IoHint io_hint);
 } // namespace cb::snapshot

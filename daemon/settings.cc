@@ -219,6 +219,16 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDatatypeJsonEnabled(value.get<bool>());
         } else if (key == "datatype_snappy"sv) {
             setDatatypeSnappyEnabled(value.get<bool>());
+        } else if (key == "snapshot_download_fadvise"sv) {
+            using namespace cb::io;
+            auto hint = parse_io_hint(value.get<std::string>());
+            if (!hint.has_value() ||
+                (*hint != IoHint::Normal && *hint != IoHint::DontNeed)) {
+                throw std::invalid_argument(
+                        "snapshot_download_fadvise must be one of: normal or "
+                        "dont-need");
+            }
+            setSnapshotDownloadFadvise(*hint);
         } else if (key == "root"sv) {
             auto dir = value.get<std::string>();
 
@@ -578,7 +588,8 @@ nlohmann::json Settings::to_json() const {
                 std::chrono::duration_cast<std::chrono::nanoseconds>(value));
     };
 
-    nlohmann::json json;
+    nlohmann::json json{
+            {"snapshot_download_fadvise", getSnapshotDownloadFadvise()}};
 
     // Installation / files
     json["deployment_model"] =
@@ -1145,6 +1156,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO_CTX("Change collections_enabled",
                          {"enabled", other.collections_enabled.load()});
             setCollectionsEnabled(other.collections_enabled.load());
+        }
+    }
+
+    if (other.has.snapshot_download_fadvise) {
+        if (other.getSnapshotDownloadFadvise() !=
+            getSnapshotDownloadFadvise()) {
+            LOG_INFO_CTX("Change snapshot_download_fadvise",
+                         {"from", getSnapshotDownloadFadvise()},
+                         {"to", other.getSnapshotDownloadFadvise()});
+            setSnapshotDownloadFadvise(other.getSnapshotDownloadFadvise());
         }
     }
 

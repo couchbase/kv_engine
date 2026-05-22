@@ -30,6 +30,7 @@
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
 #include <platform/cb_arena_malloc_client.h>
+#include <platform/io_hint.h>
 #include <utilities/testing_hook.h>
 
 #include <chrono>
@@ -1251,6 +1252,9 @@ public:
      * Get the snapshort download throttle rate (in bytes per second).
      */
     size_t getSnapshotDownloadThrottleBytes() const;
+
+    /// Get the IO hint used for writing files as part of downloading snapshots
+    cb::io::IoHint getSnapshotDownloadFadvise() const;
 
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {

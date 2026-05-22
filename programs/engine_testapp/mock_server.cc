@@ -260,6 +260,10 @@ struct MockServerCoreApi : public ServerCoreIface {
     size_t getSnapshotDownloadThrottleBytes() const override {
         return 0;
     }
+
+    cb::io::IoHint getSnapshotDownloadFadvise() const override {
+        return cb::io::IoHint::Normal;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

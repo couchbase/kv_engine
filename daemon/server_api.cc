@@ -125,6 +125,10 @@ struct ServerCoreApi : public ServerCoreIface {
     size_t getSnapshotDownloadThrottleBytes() const override {
         return Settings::instance().getSnapshotDownloadThrottleBytes();
     }
+
+    cb::io::IoHint getSnapshotDownloadFadvise() const override {
+        return Settings::instance().getSnapshotDownloadFadvise();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {
