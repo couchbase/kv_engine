@@ -804,6 +804,26 @@ public:
 
     void setScramshaFallbackSalt(const std::string& value);
 
+    bool isNetworkPacketTimestampsEnabled() const {
+#ifdef __linux__
+        return network_packet_timestamps_enabled.load(
+                std::memory_order_acquire);
+#else
+        return false;
+#endif
+    }
+
+    void setNetworkPacketTimestampsEnabled(bool enabled) {
+#ifdef __linux__
+        network_packet_timestamps_enabled.store(enabled,
+                                                std::memory_order_release);
+        has.network_packet_timestamps_enabled = true;
+        notify_changed("network_packet_timestamps_enabled");
+#else
+        (void)enabled;
+#endif
+    }
+
     std::string getScramshaFallbackSalt() const;
 
     void setScramshaFallbackIterationCount(int count) {
@@ -1653,6 +1673,11 @@ protected:
     /// Is tracing enabled or not
     std::atomic_bool tracing_enabled{true};
 
+#ifdef __linux__
+    /** Whether to use receive timestamps. */
+    std::atomic_bool network_packet_timestamps_enabled{true};
+#endif
+
     /// Use standard input listener
     std::atomic_bool stdin_listener{true};
 
@@ -1824,6 +1849,9 @@ public:
         bool snapshot_download_fadvise = false;
         bool opcode_attributes_override = false;
         bool tracing_enabled = false;
+#ifdef __linux__
+        bool network_packet_timestamps_enabled = false;
+#endif
         bool stdin_listener = false;
         bool scramsha_fallback_salt = false;
         bool scramsha_fallback_iteration_count = false;

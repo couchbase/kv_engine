@@ -393,6 +393,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "tracing_enabled"sv) {
             setTracingEnabled(value.get<bool>());
+        } else if (key == "network_packet_timestamps_enabled"sv) {
+            setNetworkPacketTimestampsEnabled(value.get<bool>());
         } else if (key == "scramsha_fallback_salt"sv) {
             // Try to base64 decode it to validate that it is a legal value..
             auto salt = value.get<std::string>();
@@ -666,6 +668,8 @@ nlohmann::json Settings::to_json() const {
     json["log_tls_certificate_verification_problems"] =
             isLogTlsCertificateVerificationProblems();
     json["tracing_enabled"] = isTracingEnabled();
+    json["network_packet_timestamps_enabled"] =
+            isNetworkPacketTimestampsEnabled();
     json["stdin_listener"] = isStdinListenerEnabled();
     json["clustermap_push_notifications_enabled"] =
             isClustermapPushNotificationsEnabled();
@@ -1257,6 +1261,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
         setTracingEnabled(other.isTracingEnabled());
     }
+
+#ifdef __linux__
+    if (other.has.network_packet_timestamps_enabled) {
+        if (other.isNetworkPacketTimestampsEnabled() !=
+            isNetworkPacketTimestampsEnabled()) {
+            LOG_INFO_CTX("Changed network_packet_timestamps_enabled setting",
+                         {"enabled", other.isNetworkPacketTimestampsEnabled()});
+        }
+        setNetworkPacketTimestampsEnabled(
+                other.isNetworkPacketTimestampsEnabled());
+    }
+#endif
 
     if (other.has.scramsha_fallback_salt) {
         const auto o = other.getScramshaFallbackSalt();

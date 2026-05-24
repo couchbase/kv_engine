@@ -1386,6 +1386,17 @@ public:
      */
     int onConnectionVerifyCallback(int preverify_ok, X509_STORE_CTX* x509_ctx);
 
+    /**
+     * Send the provided buffer to the server. This method is intended
+     * for unit tests which need to send a pipeline of commands to the
+     * server and the provided buffer should be a sequence of fully
+     * formatted network packets as the implementation will try to generate
+     * a packet dump if packet_dump_callback is set to true
+     *
+     * @param buf the formatted buffer to send.
+     */
+    void sendBuffer(cb::const_byte_buffer buf);
+
 protected:
     /**
      * Perform a SASL authentication to memcached
@@ -1399,7 +1410,6 @@ protected:
                             const std::string& mech);
 
     void sendBuffer(const std::vector<iovec>& buf);
-    void sendBuffer(cb::const_byte_buffer buf);
 
     void applyFrameInfos(BinprotCommand& command,
                          const GetFrameInfoFunction& fi);

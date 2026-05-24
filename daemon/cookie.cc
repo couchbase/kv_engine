@@ -492,11 +492,13 @@ void Cookie::incrementGeneration() {
 }
 
 void Cookie::initialize(std::chrono::steady_clock::time_point now,
+                        std::chrono::steady_clock::time_point start_,
                         const cb::mcbp::Header& header) {
     reset();
     incrementGeneration();
     setPacket(header);
-    start = now;
+    start = start_;
+    processingStart = now;
 }
 
 cb::mcbp::Status Cookie::validateServerRequest(
@@ -714,6 +716,17 @@ void Cookie::collectTimings(
     const auto opcode = packet->getRequest().getClientOpcode();
     const auto elapsed = endTime - start;
     tracer.record(cb::tracing::Code::Request, start, endTime);
+    if (start != processingStart) {
+        // Add two explicit spans instead of leaving the single implicit one:
+        // waiting: covers time from packet arrival until validation started
+        // processing: starts right after waiting and spans until completion
+        tracer.record(cb::tracing::Code::ServerRequestWaiting,
+                      start,
+                      processingStart);
+        tracer.record(cb::tracing::Code::ServerRequestProcessing,
+                      processingStart,
+                      endTime);
+    }
 
     BucketManager::instance().aggregatedTimings.collect(opcode, elapsed);
 

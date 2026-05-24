@@ -62,11 +62,16 @@ public:
      * commands (DCP depends on this feature) we have a separate method
      * to initialize the object.
      *
-     * @param now the current time point (used to mark the start time without
-     *          needing to call std::chrono::steady_clock::now() again)
+     * @param now the current time point (used to mark the time we started
+     *          processing this command without needing to call
+     *          std::chrono::steady_clock::now() again)
+     * @param start the time point to use as the start of the command (may
+     *          be earlier than now; e.g. the packet arrival time when
+     *          network receive timestamps are enabled)
      * @param packet the entire packet
      */
     void initialize(std::chrono::steady_clock::time_point now,
+                    std::chrono::steady_clock::time_point start,
                     const cb::mcbp::Header& packet);
 
     /// Is this object initialized or not..
@@ -727,10 +732,17 @@ protected:
     uint64_t cas = 0;
 
     /**
-     * The high resolution timer value for when we started executing the
-     * current command.
+     * The high resolution timer value used as the start of the current
+     * command (may be the packet arrival time rather than when we
+     * started processing it; see processingStart for the latter).
      */
     std::chrono::steady_clock::time_point start;
+
+    /**
+     * The high resolution timer value for when we actually started
+     * processing the current command on the front-end thread.
+     */
+    std::chrono::steady_clock::time_point processingStart;
 
     /// The high resolution timer value for when we started throttling
     std::chrono::steady_clock::time_point throttle_start;

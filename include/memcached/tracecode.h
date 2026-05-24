@@ -106,6 +106,23 @@ enum class Code : uint8_t {
     PrepareSnapshotWriteManifest,
     /// Time spent in prepareSnapshot cleaning up on failure
     PrepareSnapshotCleanupOnFailure,
+    /**
+     * Time spent between the request becoming available (packet arrival,
+     * when network timestamps are enabled) and the point where we started
+     * working on this specific command. For a pipelined connection this
+     * captures the per-command queuing delay, which would otherwise only
+     * be visible as the gap between Request and ServerRequestProcessing.
+     */
+    ServerRequestWaiting,
+    /**
+     * Time spent processing the request on the front-end thread, from
+     * the point where we started working on this specific command up
+     * until the request completed. Unlike Request (which may start
+     * earlier, at packet arrival, when network timestamps are enabled)
+     * this always reflects the same window Request used to represent
+     * before network receive timestamps were introduced.
+     */
+    ServerRequestProcessing,
 };
 
 std::string_view format_as(Code code);

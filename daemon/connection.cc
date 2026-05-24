@@ -760,9 +760,14 @@ void Connection::executeCommandPipeline() {
             }
 
             auto& cookie = *cookies.back();
-            // We always want to collect trace information if we're running
-            // for a serverless configuration
-            cookie.initialize(now, getPacket());
+            const auto system_time =
+                    network_packet_timestamps_enabled
+                            ? std::chrono::system_clock::now()
+                            : std::chrono::system_clock::time_point{};
+            const auto packet_received_time =
+                    getPacketReceivedTime(system_time, now);
+            cookie.initialize(
+                    now, packet_received_time.value_or(now), getPacket());
             updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();
@@ -1372,6 +1377,7 @@ Connection::Connection(FrontEndThread& thr)
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(INVALID_SOCKET),
+      network_packet_timestamps_enabled(false),
       executionLog(0) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1432,6 +1438,8 @@ Connection::Connection(SOCKET sfd,
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(sfd),
+      network_packet_timestamps_enabled(
+              Settings::instance().isNetworkPacketTimestampsEnabled()),
       executionLog(Settings::instance().getConnectionTraceSize()) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));

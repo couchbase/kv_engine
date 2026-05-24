@@ -36,6 +36,9 @@ public:
     void enableReadEvent() override;
 
 protected:
+    std::optional<std::chrono::steady_clock::time_point> getPacketReceivedTime(
+            std::chrono::system_clock::time_point system_time,
+            std::chrono::steady_clock::time_point steady_time) const override;
     nlohmann::json getInputQueueInfo() const;
 
     LibeventConnection(FrontEndThread& thr) : Connection(thr) {

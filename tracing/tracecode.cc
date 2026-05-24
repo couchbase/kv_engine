@@ -104,6 +104,10 @@ std::string_view format_as(const Code tracecode) {
         return "prepare_snapshot.write_manifest"sv;
     case Code::PrepareSnapshotCleanupOnFailure:
         return "prepare_snapshot.cleanup_on_failure"sv;
+    case Code::ServerRequestWaiting:
+        return "server_request_waiting"sv;
+    case Code::ServerRequestProcessing:
+        return "server_request_processing"sv;
     }
     Expects(false && "Unknown cb::tracing::Code");
 }

@@ -52,8 +52,14 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     // worker threads mutex, but when we try to signal another cookie we
     // hold the worker thread mutex when we try to acquire the mutex inside
     // libevent.
-    constexpr auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
-                             BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
+    constexpr auto default_options =
+            BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
+            BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
+    auto options = default_options;
+    if (network_packet_timestamps_enabled) {
+        options |= BEV_OPT_RECV_TIMESTAMPS;
+    }
+
     if (sslStructure) {
         bev.reset(
                 bufferevent_openssl_socket_new(thr.eventBase.getLibeventBase(),
@@ -526,6 +532,47 @@ void LibeventConnection::enableReadEvent() {
                     "read events");
         }
     }
+}
+
+std::optional<std::chrono::steady_clock::time_point>
+LibeventConnection::getPacketReceivedTime(
+        const std::chrono::system_clock::time_point system_time,
+        const std::chrono::steady_clock::time_point steady_time) const {
+    timespec ts;
+    const auto input = bufferevent_get_input(bev.get());
+    if (evbuffer_get_timestamp(input, &ts) == -1) {
+        LOG_DEBUG_CTX(
+                "getPacketReceivedTime: evbuffer does not contain timestamp",
+                {"conn_id", getId()});
+
+        return std::nullopt;
+    }
+
+    const auto duration_since_epoch = std::chrono::seconds(ts.tv_sec) +
+                                      std::chrono::nanoseconds(ts.tv_nsec);
+
+    // 2. Construct the system_clock time_point
+    std::chrono::system_clock::time_point packet_time(
+            std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                    duration_since_epoch));
+
+    // 3. Compare with the current system time
+    std::chrono::nanoseconds latency;
+    if (packet_time <= system_time) {
+        latency = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                system_time - packet_time);
+        LOG_DEBUG_CTX("getPacketReceivedTime: timestamp found",
+                      {"conn_id", getId()},
+                      {"latency_ns", latency.count()});
+    } else {
+        LOG_DEBUG_CTX(
+                "getPacketReceivedTime: timestamp in the future, using now",
+                {"conn_id", getId()});
+
+        return std::nullopt;
+    }
+
+    return steady_time - latency;
 }
 
 nlohmann::json LibeventConnection::getInputQueueInfo() const {

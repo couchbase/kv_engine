@@ -366,8 +366,9 @@ TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
     builder.setKey("key");
 
     auto& cookie = connection->getFirstCookie();
-    cookie.initialize(std::chrono::steady_clock::now(),
-                      *reinterpret_cast<const Header*>(builder.getFrame()));
+    const auto now = std::chrono::steady_clock::now();
+    cookie.initialize(
+            now, now, *reinterpret_cast<const Header*>(builder.getFrame()));
     cookie.setEwouldblock();
     cookie.setThrottled(true);
 

@@ -12,8 +12,11 @@
 #include "testapp_client_test.h"
 
 #include <fmt/format.h>
+#include <folly/ScopeGuard.h>
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
+#include <utilities/slow_operation.h>
 
 // Test fixture for new MCBP miscellaneous commands
 class MiscTest : public TestappClientTest {
@@ -269,6 +272,169 @@ TEST_P(MiscTest, SetChronicalAuthToken) {
         const auto resp = conn.execute(cmd);
         EXPECT_EQ(expectedStatus, resp.getStatus());
     });
+}
+
+/**
+ * Verify that packet timestamps are captured and surface in trace spans for
+ * slow operations in a way that distinguishes queue-wait time from execution
+ * time.
+ *
+ * Not supported on Windows. On macOS, SO_TIMESTAMP does not work reliably on
+ * loopback devices, so the test is also skipped there.
+ *
+ * The test builds a two-command pipeline and sends both requests back-to-back
+ * on the same connection before reading any response:
+ *
+ *  1. A SET with a deliberately wrong CAS, configured via the EwouldBlock
+ *     engine to retry many times (SlowCasMismatch). This command is expected
+ *     to consume most of the wall-clock time; the majority of that time should
+ *     be visible in the "execute" trace span.
+ *
+ *  2. A GET on the same key. The GET itself executes quickly, but because
+ *     packet timestamps record when the packet arrived (not when execution
+ *     started), the server measures the full wall-clock time from arrival to
+ *     completion. That total includes the time spent waiting for the slow SET
+ *     to finish, so the GET also appears in the slow-operation log. Its trace
+ *     span should show a small "execute" span but a large
+ * "server_request_waiting" span covering the time it queued behind the SET.
+ *
+ * The test asserts that the SET's execute span captures the artificial delay,
+ * whereas the GET's execute span remains small despite appearing in the slow
+ * operations log due to queuing delay, with that queuing delay instead
+ * showing up in the GET's "server_request_waiting" span.
+ */
+TEST_P(MiscTest, PacketStamping) {
+#ifndef __linux__
+    GTEST_SKIP_("Packet stamping is only supported on Linux");
+#else
+    // Store the document we are going to operate on.
+    std::string value = "value";
+    DocumentInfo info;
+    info.id = name;
+    BinprotMutationCommand cmd;
+    cmd.setDocumentInfo(info);
+    cmd.addValueBuffer(value);
+    cmd.setMutationType(MutationType::Set);
+
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // We're going to modify the ewouldblock handling. Make sure
+    // we rebuild the userConnection when we're done with this test
+    // to avoid potential problems in the next one if something misbehaves
+    const auto resetGuard = folly::makeGuard([&] { userConnection.reset(); });
+
+    // Configure the EwouldBlock engine to simulate a slow SET: upper 16 bits
+    // are the sleep (in milliseconds) injected before each simulated CAS
+    // mismatch, lower 16 bits are the number of CAS commands to fail. This
+    // SET supplies an explicit (deliberately wrong) CAS, so the server never
+    // retries it internally; one failure is all that will ever be consumed.
+    uint32_t ewb_value = 500 << 16;
+    ewb_value |= 1;
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::SlowCasMismatch,
+                                               cb::engine_errc::success,
+                                               ewb_value);
+
+    // Create a pipeline of two commands: the slow set followed by the get
+    info.cas = 1234;
+    cmd.setDocumentInfo(info);
+
+    std::vector<uint8_t> buffer;
+    cmd.encode(buffer);
+    {
+        std::vector<uint8_t> buffer2;
+        BinprotGetCommand get_command(name);
+        get_command.encode(buffer2);
+        buffer.insert(buffer.end(), buffer2.begin(), buffer2.end());
+    }
+
+    userConnection->sendBuffer({buffer.data(), buffer.size()});
+
+    // Now we have two responses to read back. The first is the slow SET, which
+    // we expect to fail with KeyEexists due to the CAS mismatch.
+    userConnection->recvResponse(rsp);
+
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus())
+            << rsp.getDataView();
+
+    // Given that it was slow we should be able to find a "slow operation"
+    // log entry and that should contain the trace information for the command.
+    // Read that out and create a sorted vector of the spans.
+    std::vector<cb::TraceEntry> tracespans;
+    std::string command = "SET";
+
+    auto verify_log_entry = [&]() -> bool {
+        bool result = false;
+        mcd_env->iterateLogLines([&](const auto line) {
+            if (line.contains(name)) {
+                auto [cmd, spans] = cb::parse_slow_operation(line);
+                if (cmd != command) {
+                    return true;
+                }
+                tracespans = std::move(spans);
+                result = true;
+                return false;
+            }
+            return true;
+        });
+        return result;
+    };
+
+    if (!cb::waitForPredicateUntil(verify_log_entry,
+                                   std::chrono::seconds{5},
+                                   std::chrono::milliseconds{10})) {
+        throw std::runtime_error(
+                "Timed out waiting for slow operation to be found in the log "
+                "files");
+    }
+
+    // The SET spent its time retrying CAS mismatches inside "execute", so that
+    // span must be at least as long as the configured delay (500ms).
+    auto execute_span = std::ranges::find_if(tracespans, [](const auto& entry) {
+        return entry.name == "execute";
+    });
+    ASSERT_NE(execute_span, tracespans.end());
+    std::chrono::microseconds duration(execute_span->duration);
+    EXPECT_GE(duration, std::chrono::milliseconds(500));
+
+    // Now read out the response for the get command and given that it was
+    // queued behind the other command and we used the packet timestamp
+    // as the start time it should be reported as a slow operation.
+
+    userConnection->recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::Get, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+
+    command = "GET";
+    tracespans.clear();
+    if (!cb::waitForPredicateUntil(verify_log_entry,
+                                   std::chrono::seconds{5},
+                                   std::chrono::milliseconds{10})) {
+        throw std::runtime_error(
+                "Timed out waiting for slow operation to be found in the log "
+                "files");
+    }
+
+    // The GET itself is fast; its "execute" span should be well under the
+    // 500ms delay the SET was configured with. The 300ms ceiling is generous
+    // enough to tolerate a heavily loaded CI machine.
+    execute_span = std::ranges::find_if(tracespans, [](const auto& entry) {
+        return entry.name == "execute";
+    });
+    ASSERT_NE(execute_span, tracespans.end());
+    duration = std::chrono::microseconds(execute_span->duration);
+    EXPECT_LE(duration, std::chrono::milliseconds(300));
+
+    // The GET was queued behind the slow SET, so the time it spent waiting
+    // to be processed should show up as its own span rather than being
+    // hidden inside "execute".
+    auto waiting_span = std::ranges::find_if(tracespans, [](const auto& entry) {
+        return entry.name == "server_request_waiting";
+    });
+    ASSERT_NE(waiting_span, tracespans.end());
+    duration = std::chrono::microseconds(waiting_span->duration);
+    EXPECT_GE(duration, std::chrono::milliseconds(500));
+#endif
 }
 
 TEST_F(TestappTest, CollectionsSelectBucket) {

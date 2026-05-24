@@ -524,6 +524,7 @@ nlohmann::json TestappTest::generate_config() {
               {"content", "default"}}},
             {"scramsha_fallback_iteration_count", 4096},
             {"threads", 2},
+            {"network_packet_timestamps_enabled", true},
             {"num_auxio_threads", "default"},
             {"num_nonio_threads", "default"},
             {"num_reader_threads", "balanced"},

@@ -1222,6 +1222,9 @@ protected:
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;
 
+    /** Whether we're trying to fetch timestamps from the socket or not. */
+    const bool network_packet_timestamps_enabled;
+
     /// number of references to the object (set to 1 during creation as the
     /// creator has a reference)
     uint8_t refcount{1};
@@ -1366,6 +1369,22 @@ protected:
 
     /// Get the number of bytes stuck in the send queue
     virtual size_t getSendQueueSize() const = 0;
+
+    /**
+     * Get the packet receive time (if supported) for the current packet.
+     *
+     * @param system_time the current system time to avoid fetching the
+     *                     system time internally (needed in order to
+     *                     convert the packet time to the steady clock)
+     * @param steady_time the current steady time to avoid fetching the
+     *                     steady time internally
+     */
+    virtual std::optional<std::chrono::steady_clock::time_point>
+    getPacketReceivedTime(
+            std::chrono::system_clock::time_point system_time,
+            std::chrono::steady_clock::time_point steady_time) const {
+        return std::nullopt;
+    }
 
     /**
      * Shutdown the connection if the send queue is stuck  (no data transmitted
