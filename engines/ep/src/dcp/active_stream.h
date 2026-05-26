@@ -151,6 +151,13 @@ public:
     /// @Returns true if state_ is Backfilling
     bool isBackfilling() const;
 
+    /**
+     * @returns true if the stream is currently in its initial backfill. That is
+     * the first backfill for streams which were requested with start_seqno of
+     * 0.
+     */
+    bool isInitialBackfill() const;
+
     /// @Returns true if state_ is InMemory
     bool isInMemory() const;
 
@@ -1071,4 +1078,11 @@ private:
     std::string logPrefix;
 
     const size_t checkpointDequeueLimit{std::numeric_limits<size_t>::max()};
+
+    /**
+     * Initialised as true if ActiveStream is created with start-seqno:0 and
+     * back to false when ActiveStream can no longer be doing the initial
+     * backfill.
+     */
+    std::atomic<bool> initialBackfill{false};
 };

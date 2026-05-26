@@ -3822,6 +3822,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47753) {
     auto* as = static_cast<ActiveStream*>(stream.get());
 
     EXPECT_TRUE(as->isBackfilling());
+    EXPECT_TRUE(as->isInitialBackfill());
 
     // Store a new item and flush it, to a different collection, clear the
     // checkpoint so we cannot get a cursor for this item.
@@ -3852,6 +3853,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47753) {
     // And this stream produces no more, prior to fixing MB-47753 a second
     // backfill produced an empty snapshot
     EXPECT_TRUE(as->isInMemory());
+    EXPECT_FALSE(as->isInitialBackfill());
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
@@ -5810,6 +5812,8 @@ TEST_P(CollectionsDcpPersistentOnly, MB_66612) {
                       R"({"collections":["a"]})"));
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream);
+    EXPECT_TRUE(stream->isBackfilling());
+    EXPECT_FALSE(stream->isInitialBackfill()); // start == 3
     runBackfill();
     const auto curChkSeqno = vb->getHighSeqno() + 1;
     EXPECT_EQ(curChkSeqno, stream->getCurChkSeqno());

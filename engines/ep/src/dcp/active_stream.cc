@@ -105,7 +105,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       changeStreamsEnabled(p->areChangeStreamsEnabled()),
       endSeqno(en_seqno),
       checkpointDequeueLimit(
-              e->getConfiguration().getDcpCheckpointDequeueLimit()) {
+              e->getConfiguration().getDcpCheckpointDequeueLimit()),
+      initialBackfill(start_seqno_ == 0) {
     if (isTakeoverStream()) {
         endSeqno = dcpMaxSeqno;
     }
@@ -234,6 +235,10 @@ bool ActiveStream::isActive() const {
 
 bool ActiveStream::isBackfilling() const {
     return state_.load() == StreamState::Backfilling;
+}
+
+bool ActiveStream::isInitialBackfill() const {
+    return isBackfilling() && initialBackfill.load();
 }
 
 bool ActiveStream::isInMemory() const {
@@ -2388,6 +2393,10 @@ void ActiveStream::completeBackfillInner(
         completeBackfillHook();
     }
 
+    // Any backfill complete will invalidate "initialBackfill" conditions - no
+    // further way to change this back to true.
+    initialBackfill = false;
+
     bool inverse = true;
     isBackfillTaskRunning.compare_exchange_strong(inverse, false);
 
@@ -2572,6 +2581,10 @@ void ActiveStream::transitionState(StreamState newState) {
 
     StreamState oldState = state_.load();
     state_ = newState;
+
+    if (newState != StreamState::Backfilling) {
+        initialBackfill = false;
+    }
 
     cb::logger::Json extraInfo;
 

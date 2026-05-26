@@ -1139,6 +1139,63 @@ TEST_P(CollectionsDcpStreamsTest, OptimiseStartSeqno) {
     EXPECT_EQ(bf.getStartSeqno(), seq);
 }
 
+// Note: using CollectionsDcpStreamsTest as it offers simpler ways to create and
+// step DCP
+TEST_P(CollectionsDcpStreamsTest, InitialBackfillToMemory) {
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::defaultC}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    auto vb = store->getVBucket(vbid);
+
+    // Require conditions for backfilling - no data in checkpoints.
+    ensureDcpWillBackfill();
+    createDcpStream("");
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_TRUE(stream->isInitialBackfill());
+    runBackfill();
+    // Initial backfill done
+    EXPECT_FALSE(stream->isInitialBackfill());
+}
+
+TEST_P(CollectionsDcpStreamsTest, ToMemory) {
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::defaultC}, "v");
+    auto vb = store->getVBucket(vbid);
+
+    createDcpStream("");
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_FALSE(stream->isInitialBackfill());
+}
+
+TEST_P(CollectionsDcpStreamsTest, InitialBackfillToBackfill) {
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::defaultC}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    auto vb = store->getVBucket(vbid);
+
+    // Require conditions for backfilling - no data in checkpoints.
+    ensureDcpWillBackfill();
+    createDcpStream("");
+
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::defaultC}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_TRUE(stream->isInitialBackfill());
+    stream->handleSlowStream();
+    ensureDcpWillBackfill();
+
+    runBackfill();
+    // Initial backfill done
+    EXPECT_FALSE(stream->isInitialBackfill());
+    // BUt still backfilling (cursor drop means a new backfill)
+    EXPECT_TRUE(stream->isBackfilling());
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTestsWithHugeDuration,
                          CollectionsDcpStreamsTestWithHugeDuration,
                          STParameterizedBucketTest::allConfigValuesNoNexus(),
