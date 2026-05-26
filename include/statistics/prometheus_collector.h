@@ -15,6 +15,7 @@
 #include "definitions.h"
 #include <prometheus/client_metric.h>
 #include <prometheus/metric_family.h>
+#include <utilities/testing_hook.h>
 
 namespace cb::prometheus {
 /* common prefix added to the majority of metrics to indicate the originating
@@ -102,6 +103,13 @@ public:
      * prefix.
      */
     PrometheusStatCollector withPrefix(std::string prefix) const;
+
+    // Test hook invoked immediately before bucket accumulation begins in
+    // addStat(StatDef, HdrHistogram, labels). Inject a sample here to
+    // deterministically reproduce the race described in MB-67424: with the
+    // old code the sample would appear in the iterated bucket counts but
+    // not in sampleCount, violating the Prometheus le="+Inf" invariant.
+    TestingHook<> addSampleHook;
 
 protected:
     void addClientMetric(const cb::stats::StatDef& key,

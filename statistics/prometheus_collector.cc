@@ -61,20 +61,27 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     if (v.getValueCount() > 0) {
         histData.mean = std::round(v.getMean());
     }
-    histData.sampleCount = v.getValueCount() + v.getOverflowCount();
+
+    addSampleHook();
 
     for (const auto& bucket :
          v.logViewRepresentable(1 /*firstBucketWidth*/, 2 /* logBase */)) {
         histData.buckets.push_back(
                 {bucket.lower_bound, bucket.upper_bound, bucket.count});
-
+        // Accumulate sampleCount from the same bucket counts fed to Prometheus
+        // so sampleCount is always consistent with the cumulative bucket
+        // values. Using getValueCount() instead would be racy with concurrent
+        // addValue() calls (which also hold a read lock) and could yield
+        // sampleCount less than the bucket sum, violating the Prometheus
+        // le="+Inf" invariant.
+        histData.sampleCount += bucket.count;
         // TODO: HdrHistogram doesn't track the sum of all added values but
         //  prometheus requires that value. For now just approximate it
         //  from bucket counts.
         auto avgBucketValue = (bucket.lower_bound + bucket.upper_bound) / 2;
         histData.sampleSum += avgBucketValue * bucket.count;
     }
-    // Include overflowed samples sum in total histogram sum.
+    histData.sampleCount += v.getOverflowCount();
     histData.sampleSum += v.getOverflowSum();
 
     // ns_server may rely on some stats being present in prometheus,

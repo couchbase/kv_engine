@@ -29,7 +29,9 @@
 #include <statistics/prometheus_collector.h>
 #include <statistics/statdef.h>
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <serverless/config.h>
+
 #include <chrono>
 #include <vector>
 
@@ -345,4 +347,78 @@ TEST_F(PrometheusStatTest, OverflowSamplesRecorded) {
 
     EXPECT_EQ(2, histogram.sample_count)
             << "sample_count should include samples in range and overflows";
+}
+
+// Helper: build a Prometheus-only histogram StatDef for use in tests below.
+static cb::stats::StatDef makeHistogramStatDef(std::string_view name) {
+    return {name,
+            cb::stats::units::none,
+            prometheus::MetricType::Histogram,
+            {},
+            cb::stats::StatDef::PrometheusOnlyTag{}};
+}
+
+TEST_F(PrometheusStatTest, SampleCountMatchesBucketSumPlusOverflow) {
+    // Verify sample_count == last-bucket cumulative_count + overflow_count.
+    // This is the exact invariant the Prometheus le="+Inf" label requires:
+    // sample_count must equal the count of the implicit +Inf bucket, which
+    // prometheus-cpp derives from sample_count.
+    using namespace cb::stats;
+    using namespace ::testing;
+
+    HdrHistogram hist(1, 60'000'000, 1);
+
+    constexpr uint64_t inRangeCount = 5;
+    constexpr uint64_t overflowCount = 3;
+
+    for (uint64_t i = 0; i < inRangeCount; ++i) {
+        hist.addValue(1000);
+    }
+    for (uint64_t i = 0; i < overflowCount; ++i) {
+        // Exceed highestTrackableValue to force the overflow path.
+        hist.addValue(std::numeric_limits<uint64_t>::max());
+    }
+
+    StatMap stats;
+    PrometheusStatCollector(stats).addStat(
+            makeHistogramStatDef("test_hist"), hist, {});
+
+    const auto& histogram = stats.at("test_hist").metric.front().histogram;
+
+    EXPECT_EQ(inRangeCount, histogram.bucket.back().cumulative_count);
+    EXPECT_EQ(inRangeCount + overflowCount, histogram.sample_count);
+}
+
+TEST_F(PrometheusStatTest,
+       SampleCountConsistentWhenSampleInjectedBeforeIteration) {
+    // Regression test for MB-67424 using a deterministic hook.
+    //
+    // addSampleHook() fires at the exact point the race
+    // could occur: after the mean is computed but before bucket iteration
+    // begins — where a concurrent addValue() raced with the old
+    // getValueCount() read.
+    //
+    // Old code: sampleCount = getValueCount() [reads 1]
+    //           hook fires  → histogram now has 2 samples
+    //           iterator    → bucket counts sum to 2
+    //           result      → sample_count=1 < cumulative_count=2  VIOLATION
+    //
+    // New code: hook fires  → histogram now has 2 samples
+    //           iterator    → accumulates sampleCount from same bucket.count
+    //           result      → sample_count=2 == cumulative_count=2  OK
+    using namespace cb::stats;
+
+    HdrHistogram hist(1, 60'000'000, 1);
+    hist.addValue(1000);
+
+    StatMap stats;
+    PrometheusStatCollector collector(stats);
+    collector.addSampleHook = [&hist] { hist.addValue(1000); };
+
+    collector.addStat(makeHistogramStatDef("test_hist"), hist, {});
+
+    const auto& histogram = stats.at("test_hist").metric.front().histogram;
+
+    EXPECT_EQ(2, histogram.sample_count);
+    EXPECT_GE(histogram.sample_count, histogram.bucket.back().cumulative_count);
 }
