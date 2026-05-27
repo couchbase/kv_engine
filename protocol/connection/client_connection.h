@@ -1129,6 +1129,14 @@ public:
     /// Send a DcpCloseStream command for the given vbucket on this connection.
     void dcpCloseStream(Vbid vbid);
 
+    /// Send a DcpStreamEnd message (no response expected) for the given
+    /// vbucket on this connection. Used to simulate a producer ending a stream
+    /// to a consumer on the server.
+    void dcpStreamEnd(uint32_t opaque,
+                      Vbid vbid,
+                      cb::mcbp::DcpStreamEndStatus status =
+                              cb::mcbp::DcpStreamEndStatus::Ok);
+
     /* following dcp functions are for working with a consumer */
     void dcpAddStream(Vbid vbid, cb::mcbp::DcpAddStreamFlag flags = {});
 

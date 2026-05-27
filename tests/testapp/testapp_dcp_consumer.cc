@@ -87,7 +87,7 @@ public:
     }
 
     void TearDown() override {
-        conn->dcpCloseStream(Vbid(0));
+        conn->dcpStreamEnd(stream_opaque, Vbid(0));
         TestappTest::TearDown();
     }
 

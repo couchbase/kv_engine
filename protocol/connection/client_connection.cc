@@ -2173,6 +2173,20 @@ void MemcachedConnection::dcpCloseStream(Vbid vbid) {
     sendCommand(cmd);
 }
 
+void MemcachedConnection::dcpStreamEnd(uint32_t opaque,
+                                       Vbid vbid,
+                                       cb::mcbp::DcpStreamEndStatus status) {
+    cb::mcbp::request::DcpStreamEndPayload payload;
+    payload.setStatus(status);
+
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::DcpStreamEnd};
+    cmd.setOpaque(opaque);
+    cmd.setVBucket(vbid);
+    cmd.setExtras(std::string_view{reinterpret_cast<const char*>(&payload),
+                                   sizeof(payload)});
+    sendCommand(cmd);
+}
+
 void MemcachedConnection::dcpStreamRequestResponse(
         uint32_t opaque,
         const std::vector<std::pair<uint64_t, uint64_t>>& failovers) {
