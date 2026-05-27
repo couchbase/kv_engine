@@ -172,7 +172,6 @@ const char* GlobalTask::getTaskName(TaskId id) {
     }
     throw std::logic_error("GlobalTask::getTaskName() unknown id " +
                            std::to_string(static_cast<int>(id)));
-    return nullptr;
 }
 
 /*
@@ -193,7 +192,6 @@ TaskPriority GlobalTask::getTaskPriority(TaskId id) {
     }
     throw std::logic_error("GlobalTask::getTaskPriority() unknown id " +
                            std::to_string(static_cast<int>(id)));
-    return TaskPriority::PRIORITY_COUNT;
 }
 
 /*
