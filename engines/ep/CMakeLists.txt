@@ -455,6 +455,9 @@ endif(NOT WIN32)
 # test.
 function(add_ep_testsuite name source)
   cb_add_test_executable(${name} ${source})
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set_target_properties(${name} PROPERTIES ENABLE_EXPORTS TRUE)
+  endif()
   kv_enable_pch(${name})
   target_link_libraries(${name}
           PRIVATE

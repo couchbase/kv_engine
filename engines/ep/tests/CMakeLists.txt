@@ -167,6 +167,9 @@ IF(EP_USE_MAGMA)
 ENDIF()
 cb_enable_unity_build(ep-engine_ep_unit_tests)
 set_target_properties(ep-engine_ep_unit_tests PROPERTIES UNITY_BUILD_BATCH_SIZE 4)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set_target_properties(ep-engine_ep_unit_tests PROPERTIES ENABLE_EXPORTS TRUE)
+endif()
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
@@ -217,6 +220,9 @@ cb_add_test_executable(ep-engine_couch-fs-stats_test
         ${Memcached_SOURCE_DIR}/executor/globaltask.cc
         ${Memcached_SOURCE_DIR}/executor/tracer.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set_target_properties(ep-engine_couch-fs-stats_test PROPERTIES ENABLE_EXPORTS TRUE)
+endif()
 kv_enable_pch(ep-engine_couch-fs-stats_test)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         PRIVATE
