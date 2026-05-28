@@ -50,6 +50,15 @@ public:
     virtual ~ErrorInjector() = default;
 
     /**
+     * RAII guard returned by stopBGCompaction(). On destruction it resumes
+     * background compaction for the vBucket.
+     */
+    class BGCompactionGuard {
+    public:
+        virtual ~BGCompactionGuard() = default;
+    };
+
+    /**
      * Make the next KVStore::commit (flush) operation fail
      */
     virtual void failNextCommit() = 0;
@@ -67,6 +76,13 @@ public:
     virtual bool deleteLocalDoc(Vbid, std::string_view key) = 0;
 
     virtual void failNextScan(const std::function<ScanStatus()>& fn) = 0;
+
+    /**
+     * Stop background (implicit) compaction for the given vBucket and return
+     * an RAII guard which re-enables it on destruction. For KVStores without
+     * background compaction (Couchstore) this is a no-op.
+     */
+    virtual std::unique_ptr<BGCompactionGuard> stopBGCompaction(Vbid) = 0;
 };
 
 class CouchKVStoreErrorInjector : public ErrorInjector {
@@ -115,6 +131,10 @@ public:
             kvstore->scanErrorInjector = nullptr;
             return result;
         };
+    }
+
+    std::unique_ptr<BGCompactionGuard> stopBGCompaction(Vbid) override {
+        return std::make_unique<BGCompactionGuard>();
     }
 
 protected:
@@ -200,6 +220,26 @@ public:
             kvstore->scanErrorInjector = nullptr;
             return result;
         };
+    }
+
+    /// RAII guard which resumes magma's background compaction on destruction.
+    class MagmaBGCompactionGuard : public BGCompactionGuard {
+    public:
+        MagmaBGCompactionGuard(MockMagmaKVStore& kvstore, Vbid vbid)
+            : kvstore(kvstore), vbid(vbid) {
+        }
+        ~MagmaBGCompactionGuard() override {
+            kvstore.resumeImplicitCompaction(vbid);
+        }
+
+    private:
+        MockMagmaKVStore& kvstore;
+        Vbid vbid;
+    };
+
+    std::unique_ptr<BGCompactionGuard> stopBGCompaction(Vbid vbid) override {
+        kvstore->stopBGCompaction(vbid);
+        return std::make_unique<MagmaBGCompactionGuard>(*kvstore, vbid);
     }
 
     void onOpenFile(FileMock* file) {
@@ -1062,6 +1102,11 @@ void KVStoreErrorInjectionTest::testCollectionDropCompaction(
         bool failCompaction) {
     using namespace ::testing;
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Stop background compaction so that it cannot race with the explicit
+    // compaction we drive below (which would invalidate the deterministic
+    // compaction-failure assertions). RAII guard re-enables on scope exit.
+    auto bgCompactionGuard = errorInjector->stopBGCompaction(vbid);
 
     // Create collections fruit and vegetable, with 10 docs each.
     CollectionsManifest cm(CollectionEntry::fruit);

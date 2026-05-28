@@ -101,6 +101,10 @@ magma::Status MockMagmaKVStore::newCheckpoint(Vbid vbid) {
     return magma->NewCheckpoint(vbid.get());
 }
 
+void MockMagmaKVStore::stopBGCompaction(Vbid vbid) {
+    magma->StopBGCompaction(vbid.get());
+}
+
 ScanStatus MockMagmaKVStore::scan(BySeqnoScanContext& scanCtx) const {
     if (scanErrorInjector) {
         scanErrorInjector();
