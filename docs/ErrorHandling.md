@@ -206,7 +206,7 @@ This category encompass errors which occur when kv-engine attempts to
 access its data files, such as corrupted / missing data, or failure to
 read / write. Data *files* includes:
 
-1. Actual user data (i.e. couchstore / forestdb files)
+1. Actual user data (i.e. couchstore / magma files)
 
 2. Log files (`memcached.log`, `auditd.log`)
 
@@ -246,7 +246,7 @@ The type of file affected will influence the way the error is handled:
   which otherwise would have been lost. Note this shouldn’t replace or
   prevent notifying ns_server of the data-file issue.
 
-* *Error handling within storage libraries (couchstore, forestdb)
+* *Error handling within storage libraries (couchstore, magma)
   should be as thorough as possible.* The appropriate response to an
   error in the storage layer will frequently need to be determined by
   the user of that (ep-engine, 2i) and hence error conditions should
