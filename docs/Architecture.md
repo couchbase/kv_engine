@@ -20,7 +20,7 @@
                        |   |   Memcached   |           |       Engine (Back-end)                | |
                        |   |  (Front-end)  |           |                                        | |
  +------------+        |   |   ────────    |           | +------------------------+             | |
- |Smart-client|--11210-+-->|  ╱        ╲   |           | | default.so (MC Bucket) |             | |
+ |Smart-client|--11210-+-->|  ╱        ╲   |           | | Couchbase Bucket       |             | |                 +------------+
  +------------+        |   |   Dispatch    |   Engine  | |                        |             | |
                        |   |  ╲          <-+-Interface-+->  +##################+  |             | |                 +------------+
  +------------+        |   |   ───────▶    |           | |  #    Hash-table    |  |             | |                 |  Replicas  |
@@ -28,13 +28,13 @@
  +------------+        |   |  ╱        ╲   |           | +------------------------+             | |                 +------------+
                        |   |    Worker     |           |                                        | |                 |   Views    |
                        |   |  ╲            |           |                                        | |  DCP Producer   +------------+
-         +----+        |   |   ───────▶    |           | +------------------------+   ────────  | +-----11209-----> +------------+
---11211->|Moxi|--11210-+-->|   ────────    |           | | ep.so (CB Bucket)      |  ╱        ╲ | |                 |    XDCR    |
-         +----+        |   |  ╱        ╲   |           | |  +------------------+  |    AuxIO    | |                 +------------+
+                       |   |   ───────▶    |           | +------------------------+   ────────  | +-----11209-----> +------------+
+                       |   |   ────────    |           | | Couchbase Bucket       |  ╱        ╲ | |                 |    XDCR    |
+                       |   |  ╱        ╲   |           | |  +------------------+  |    AuxIO    | |                 +------------+
                        |   |    Worker     |           | |  |    vbucket 0     |  |  ╲          | |                 +------------+
-         +----+        |   |  ╲            |           | |  |                  |  |   ───────▶  | |                 |    GSI     |
---11211->|Moxi|--11210-+-->|   ───────▶    |           | |  |  +############+  |  |   ────────  | |                 +------------+
-         +----+        |   |               |           | |  |  # Hash-table |  |  |  ╱        ╲ | |
+                       |   |  ╲            |           | |  |                  |  |   ───────▶  | |                 |    GSI     |
+                       |   |   ───────▶    |           | |  |  +############+  |  |   ────────  | |                 +------------+
+                       |   |               |           | |  |  # Hash-table |  |  |  ╱        ╲ | |
                        |   |   ────────    |           | |  |  +------------+  |  |    NonIO    | |
                        |   |  ╱        ╲   |   Engine  | |  +------------------+  |  ╲          | |
 +-------+ DCP Consumer |   |    stdin    <-+-Interface-+->                        |   ───────▶  | |
@@ -61,8 +61,7 @@
 Main components:
 
  * [couchbase/memcached](http://github.com/couchbase/memcached): Front-end to
- KV-Engine, responsible for handling connections and buckets. Also includes
- 'default engine' used for Memcached buckets.
+ KV-Engine, responsible for handling connections and buckets.
  * [couchbase/ep-engine](http://github.com/couchbase/ep-engine): Main bucket
  implementation used by end-users. Responsible for storing documents in memory,
  persisting documents to disk and streaming changes to other Couchbase
@@ -272,13 +271,6 @@ to clean up any resources it shares between instances.
 ## ep-engine (Couchbase Bucket)
 [ep-engine](http://github.com/couchbase/ep-engine) (Eventually Persistent
 engine) is the usual bucket engine used by Couchbase clusters.
-
-## default engine (Memcached Bucket)
-Default engine is roughly in spirit with the original operation of memcached.
-It is not in active development for Couchbase Server and does not support most
-of the additional KV engine features (replication, xdcr, rebalance, persistence,
-views, backups). Default engine is broadly speaking just a single hash-table per
-KV node and has no cluster awareness.
 
 ## Experimental and Test Engines
 
