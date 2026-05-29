@@ -104,10 +104,10 @@ choice.
 C++ Standard Versions
 ---------------------
 
-KV-Engine is currently written using C++11 conforming code,
+KV-Engine is written using C++23 conforming code,
 although we restrict ourselves to features which are available in the major
 toolchains supported as host compilers. Regardless of the supported features, code is expected to (when
-reasonable) be standard, portable, and modern C++11 code. We avoid unnecessary
+reasonable) be standard, portable, and modern C++23 code. We avoid unnecessary
 vendor-specific extensions, etc.
 
 C++ Standard Library
@@ -120,10 +120,10 @@ functionality missing from the standard library for which there are standard
 interfaces or active work on adding standard interfaces will often be
 implemented in the `cb` namespace following the expected standard interface.
 
-Supported C++11 Language and Library Features
+Supported C++23 Language and Library Features
 ---------------------------------------------
 
-While KV-Engine uses C++11, not all features are available in all of
+While KV-Engine uses C++23, not all features are available in all of
 the toolchains which we support.
 
 The ultimate definition of this set is what build bots with those respective
