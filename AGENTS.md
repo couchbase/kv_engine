@@ -78,6 +78,7 @@ Guidelines:
   safety and clarity
 - Structured bindings, `std::optional`, `std::variant`, `constexpr`, and other
   modern features are acceptable
+- Use designated initializers introduced in C++20
 - Don't use C-style arrays, use `std::array` or `std::vector` instead
 - Don't use single character variable names
 - Always use braces for control structures, even if they are optional
