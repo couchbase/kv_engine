@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
             } while (!caughtSigInt);
         }
 
-        FILE* destination = stdout;
+        FILE* destination = nullptr;
         if (!output.empty() && output != "-") {
             destination = fopen(output.c_str(), "w");
             if (destination == nullptr) {
@@ -148,11 +148,14 @@ int main(int argc, char** argv) {
         std::string chunk;
         do {
             chunk = connection->ioctl_get(chunk_key);
-            fwrite(chunk.data(), chunk.size(), 1, destination);
+            fwrite(chunk.data(),
+                   chunk.size(),
+                   1,
+                   destination ? destination : stdout);
         } while (!chunk.empty());
-        fprintf(destination, "\n");
+        fprintf(destination ? destination : stdout, "\n");
 
-        if (destination != stdout) {
+        if (destination) {
             fclose(destination);
         }
 
