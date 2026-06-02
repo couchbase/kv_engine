@@ -601,7 +601,7 @@ private:
         }
 
         std::string to_string() const override {
-            return "ErrOnFirst inject_error=" + cb::to_string(injected_error);
+            return fmt::format("ErrOnFirst inject_error={}", injected_error);
         }
 
     private:
@@ -625,9 +625,9 @@ private:
         }
 
         std::string to_string() const override {
-            return std::string("ErrOnNextN") +
-                   " inject_error=" + cb::to_string(injected_error) +
-                   " count=" + std::to_string(count);
+            return fmt::format("ErrOnNextN inject_error={} count={}",
+                               injected_error,
+                               count);
         }
 
     private:
@@ -653,9 +653,9 @@ private:
         }
 
         std::string to_string() const override {
-            return std::string("ErrRandom") +
-                   " inject_error=" + cb::to_string(injected_error) +
-                   " percentage=" + std::to_string(percentage_to_err);
+            return fmt::format("ErrRandom inject_error={} percentage={}",
+                               injected_error,
+                               percentage_to_err);
         }
 
     private:
@@ -767,10 +767,10 @@ private:
             }
 
             std::string to_string() const override {
-                return std::string("ErrOnNoNotify") +
-                       " inject_error=" + cb::to_string(injected_error) +
-                       " issued_return_error=" +
-                       std::to_string(issued_return_error);
+                return fmt::format(
+                        "ErrOnNoNotify inject_error={} issued_return_error={}",
+                        injected_error,
+                        issued_return_error);
             }
 
         private:
@@ -795,8 +795,7 @@ private:
         }
 
         std::string to_string() const override {
-            return std::string("CASMismatch") +
-                   " count=" + std::to_string(count);
+            return fmt::format("CASMismatch count={}", count);
         }
 
     protected:
