@@ -141,7 +141,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)},
             {"on_disk_prepare_bytes",
              std::to_string(vbs.getOnDiskPrepareBytes())},
-            {"checkpoint_type", to_string(vbs.checkpointType)}};
+            {"checkpoint_type", to_string(vbs.checkpointType)},
+            {"build", PRODUCT_VERSION}};
 
     to_json(json, vbs.transition);
 }
