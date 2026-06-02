@@ -45,7 +45,7 @@ IF (EP_USE_MAGMA)
             src/kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.cc
             src/kvstore/magma-kvstore/kv_magma_common/magma-kvstore_magma_db_stats.cc)
     target_link_libraries(ep-engine_magma_common PRIVATE platform)
-    target_link_libraries(ep-engine_magma_common PUBLIC magma)
+    target_link_libraries(ep-engine_magma_common PUBLIC magma_headers)
     target_include_directories(ep-engine_magma_common PUBLIC
             src/kvstore/magma-kvstore/kv_magma_common)
     set_property(TARGET ep-engine_magma_common PROPERTY POSITION_INDEPENDENT_CODE 1)
