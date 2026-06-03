@@ -201,7 +201,7 @@ static size_t get_number_of_worker_threads() {
         // on the CPU count:
         //     <5 cores: create 4 workers.
         //    >5+ cores: create #CPUs * 7/8.
-        ret = Couchbase::get_available_cpu_count();
+        ret = cb::get_available_cpu_count();
 
         if (ret > 4) {
             ret = (ret * 7) / 8;

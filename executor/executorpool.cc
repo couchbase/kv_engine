@@ -110,8 +110,7 @@ void ExecutorPool::setNumIOThreadPerCore(
 
 ExecutorPool::ExecutorPool(size_t maxThreads,
                            ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
-    : maxGlobalThreads(maxThreads ? maxThreads
-                                  : Couchbase::get_available_cpu_count()),
+    : maxGlobalThreads(maxThreads ? maxThreads : cb::get_available_cpu_count()),
       ioThreadsPerCore(ioThreadsPerCore) {
 }
 

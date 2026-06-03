@@ -145,7 +145,7 @@ static std::string getRangeValidatorCode(const std::string& key,
         if (max != first->end() &&
             max->type() == nlohmann::json::value_t::string &&
             max->get<std::string>() == "NUM_CPU") {
-            maxs = "Couchbase::get_available_cpu_count()";
+            maxs = "cb::get_available_cpu_count()";
         } else if (max != first->end()) {
             maxs = std::to_string(max->get<uint64_t>());
         } else {
