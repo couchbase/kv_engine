@@ -265,6 +265,16 @@ struct CompactionContext {
         return vbPtr;
     }
 
+    bool isCollectionHighSeqno(CollectionID cid, uint64_t seqno) const;
+
+    bool shouldRefreshCollectionHighSeqnos() const;
+
+    void setCollectionHighSeqnos(std::unordered_map<CollectionID, uint64_t>&&);
+
+    void setCollectionHighSeqnosRefreshInterval(std::chrono::seconds value) {
+        collectionHighSeqnos.refreshInterval = value;
+    }
+
     /// The configuration for this compaction.
     const CompactionConfig compactConfig;
     BloomFilterCBPtr bloomFilterCallback;
@@ -318,6 +328,15 @@ struct CompactionContext {
 private:
     /// Pointer to the in memory vbucket that we're compacting for
     std::weak_ptr<VBucket> vb;
+
+    /// MB-71917: Cache per-collection persisted high seqnos so we can avoid
+    /// purging a tombstone that is the highest seqno for its collection.
+    struct {
+        mutable std::shared_mutex mutex;
+        std::unordered_map<CollectionID, uint64_t> cache;
+        std::chrono::steady_clock::time_point lastRefreshTime;
+        std::chrono::seconds refreshInterval{0};
+    } collectionHighSeqnos;
 };
 
 struct kvstats_ctx {

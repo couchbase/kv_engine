@@ -15,6 +15,7 @@
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dockey_validator.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -359,6 +360,7 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         // explicit compaction
         oldestRollbackableHighSeqno = std::numeric_limits<uint64_t>::max();
     }
+    refreshCollectionHighSeqnos();
 }
 
 MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
@@ -402,6 +404,22 @@ bool MagmaKVStore::MagmaCompactionCB::canPurge(CollectionID collection) {
         return true;
     }
     return onlyThisCollection.value() == collection;
+}
+
+void MagmaKVStore::MagmaCompactionCB::refreshCollectionHighSeqnos() {
+    std::unordered_map<CollectionID, uint64_t> collectionHighSeqnos;
+    {
+        auto vb = ctx->getVBucket();
+        auto manifestHandle = vb->getManifest().lock();
+        for (const auto& [cid, entry] : manifestHandle) {
+            auto highSeqno = entry.getPersistedHighSeqno();
+            if (highSeqno) {
+                // Only cache if high seqno was updated
+                collectionHighSeqnos[cid] = highSeqno;
+            }
+        }
+    }
+    ctx->setCollectionHighSeqnos(std::move(collectionHighSeqnos));
 }
 
 MagmaKVStoreTransactionContext::MagmaKVStoreTransactionContext(
@@ -575,6 +593,20 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
                             userSanitizedItemStr);
                 }
                 drop = true;
+            }
+
+            if (drop) {
+                auto diskKey = makeDiskDocKey(keySlice);
+                auto docKey = diskKey.getDocKey();
+                if (!docKey.isInSystemEventCollection()) {
+                    if (cbCtx.ctx->shouldRefreshCollectionHighSeqnos()) {
+                        cbCtx.refreshCollectionHighSeqnos();
+                    }
+                    if (cbCtx.ctx->isCollectionHighSeqno(
+                                docKey.getCollectionID(), seqno)) {
+                        drop = false;
+                    }
+                }
             }
 
             if (drop) {
@@ -4388,6 +4420,8 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
         throw std::runtime_error(ss.str());
     }
     ctx->highCompletedSeqno = readState.state.persistedCompletedSeqno;
+
+    ctx->setCollectionHighSeqnosRefreshInterval(60s);
 
     logger->debug(
             "MagmaKVStore::makeImplicitCompactionContext {} purge_before_ts:{} "

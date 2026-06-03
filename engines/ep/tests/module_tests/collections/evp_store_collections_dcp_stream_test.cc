@@ -466,28 +466,23 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
 
     ASSERT_TRUE(store_items(
             2, vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice"));
-    flushVBucketToDiskIfPersistent(vbid, 2);
-
     ASSERT_TRUE(store_items(
             2, vbid, StoredDocKey{"Beef", CollectionEntry::meat}, "nice"));
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     auto streamSeqno = vb->getHighSeqno();
 
-    store_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC}, "value");
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    delete_item(vbid, StoredDocKey{"Key", CollectionEntry::defaultC});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
+    store_deleted_item(
+            vbid, StoredDocKey{"Key1", CollectionEntry::defaultC}, "");
+    store_item(vbid, StoredDocKey{"Key2", CollectionEntry::defaultC}, "value");
     store_item(vbid, StoredDocKey{"Lamb", CollectionEntry::meat}, "value");
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     purgeTombstonesBefore(vb->getHighSeqno());
 
     EXPECT_EQ(6, streamSeqno);
     EXPECT_EQ(9, vb->getHighSeqno());
-    EXPECT_EQ(8, vb->getPurgeSeqno());
+    EXPECT_EQ(7, vb->getPurgeSeqno());
 
     ensureDcpWillBackfill();
 
@@ -985,6 +980,156 @@ TEST_P(CollectionsDcpStreamsTest,
     // compaction is run the on disk doc count is 0
     runCollectionsEraser(replicaVB);
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+}
+
+// MB-71917: When the last seqno of a collection is a delete and it gets
+// purged, the collection high seqno appears to decrease from a replica's
+// perspective.
+//
+// Scenario:
+// 1. fruit collection has a mutation at seqno N, then a deletion at seqno N+1
+// 2. The collection high seqno (metadata) is N+1 (the deletion)
+// 3. After purging, the deletion is removed from disk
+// 4. A new replica streaming this collection via DCP would only receive the
+//    collection create event; both the mutation and the delete are absent (the
+//    mutation was superseded by the delete, the delete was purged). The replica
+//    computes a collection high seqno from received items, which is lower than
+//    the source's metadata value of N+1.
+//
+// Previous (buggy) behaviour: the replica ended up with a collection high
+// seqno equal to the collection create event seqno (2), not the purged
+// deletion seqno (4).
+//
+// Expected behaviour: the replica must end up with the same collection high
+// seqno as the source (4). This is required for the no-rollback optimisation
+// in failover-table.cc which assumes that collection high seqno does not go
+// backwards. If a replica has a stale (lower) collection high seqno and
+// reconnects at that seqno, the optimisation would incorrectly allow the
+// stream to proceed without rollback, causing the consumer to miss the purged
+// deletes on a collection-filtered stream.
+TEST_P(CollectionsDcpStreamsTest,
+       ReplicaCollectionHighSeqnoMatchesSourceAfterPurge) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Store a mutation in fruit - this will be seqno 3
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Seqno 3 is the fruit mutation
+    EXPECT_EQ(3, vb->getHighSeqno());
+
+    // Delete the item from fruit - this becomes the collection high seqno (4)
+    delete_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit});
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Record the fruit collection high seqno - it should be the deletion seqno
+    const auto fruitHighSeqnoPrePurge =
+            vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit);
+    EXPECT_EQ(4, fruitHighSeqnoPrePurge);
+
+    // Store items in the meat collection to advance the vbucket high seqno
+    // beyond the fruit collection's high seqno
+    store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(5, vb->getHighSeqno());
+
+    // Attempt to purge the tombstone (the fruit deletion at seqno 4).
+    // MB-71917: The tombstone must NOT be purged because it is the highest
+    // seqno for the fruit collection.
+    purgeTombstonesBefore(vb->getHighSeqno());
+
+    // After attempted purge, the purge seqno should NOT advance to 4 because
+    // the tombstone was retained (it's the collection's high seqno).
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    // The collection high seqno in metadata is still the deletion's seqno -
+    // it does not decrease locally
+    const auto fruitHighSeqnoPostPurge =
+            vb->getManifest().lock().getHighSeqno(CollectionEntry::fruit);
+    EXPECT_EQ(fruitHighSeqnoPrePurge, fruitHighSeqnoPostPurge);
+
+    // Now stream the fruit collection from seqno 0 to a brand new replica.
+    // This simulates building a replica from scratch. The replica should end
+    // up with the same collection high seqno as the source.
+    ensureDcpWillBackfill();
+
+    // Set up consumer replication so DCP items are applied to the replica
+    store->setVBucketState(replicaVB, vbucket_state_replica);
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      0, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
+    consumer->enableFlatBuffersSystemEvents();
+    const auto& failoverLog = vb->failovers->getFailoverLog();
+    std::vector<vbucket_failover_t> networkFailoverLog;
+    for (const auto entry : failoverLog) {
+        networkFailoverLog.push_back({htonll(entry.uuid), htonll(entry.seqno)});
+    }
+    consumer->public_streamAccepted(
+            1,
+            cb::mcbp::Status::Success,
+            cb::const_byte_buffer{
+                    reinterpret_cast<const uint8_t*>(networkFailoverLog.data()),
+                    networkFailoverLog.size() * sizeof(vbucket_failover_t)});
+    producers->consumer = consumer.get();
+    producers->replicaVB = replicaVB;
+
+    // Stream fruit from seqno 0 (fresh replica)
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno (from beginning)
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno
+                                      0, // snap_end_seqno
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["9"]})"}}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    // Run backfill and step through all items to replicate them to the consumer
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+
+    // The create collection event for fruit
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  cb::engine_errc::success);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
+              producers->last_system_event);
+
+    // The deletion at seqno 4 was retained (not purged), so it is streamed
+    // to the replica.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpDeletion,
+                  cb::engine_errc::success);
+
+    // There may be a seqno advance (since the snapshot end is beyond the
+    // collection's items due to meat mutations), drain any remaining messages.
+    while (producer->step(false, *producers) != cb::engine_errc::would_block) {
+    }
+
+    // Flush the replica to ensure the collection stats are persisted
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
+
+    // The replica's collection high seqno for fruit must match the source's.
+    // This is critical because the no-rollback optimisation assumes the
+    // collection high seqno does not go backwards. If the replica has a lower
+    // value, it could incorrectly skip rollback on subsequent reconnections,
+    // missing purged deletes.
+    auto replicaVBPtr = store->getVBucket(replicaVB);
+    auto replicaFruitHighSeqno =
+            replicaVBPtr->getManifest().lock().getHighSeqno(
+                    CollectionEntry::fruit);
+    EXPECT_EQ(fruitHighSeqnoPostPurge, replicaFruitHighSeqno);
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTests,

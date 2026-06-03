@@ -131,13 +131,15 @@ TEST_F(EphemeralBucketStatTest, ActiveMemoryTracking) {
     auto& stats = engine->getEpStats();
     EXPECT_EQ(0, stats.activeHTMemory);
 
-    auto key = makeStoredDocKey("item2");
+    auto key = makeStoredDocKey("item1");
+    auto key2 = makeStoredDocKey("item2");
 
     // Store an item and confirm activeHTMemory increases
     std::string value = "value";
     store_item(activeVB, key, value);
+    store_item(activeVB, key2, value);
     auto smallItemMem = stats.activeHTMemory.load();
-    EXPECT_GT(smallItemMem, 80);
+    EXPECT_GT(smallItemMem, 160);
 
     // Replace the existing item with a _larger_ item and confirm
     // activeHTMemory increases further
@@ -151,15 +153,17 @@ TEST_F(EphemeralBucketStatTest, ActiveMemoryTracking) {
     EXPECT_LT(stats.activeHTMemory, largerItemMem);
     EXPECT_GT(stats.activeHTMemory, 0);
 
-    // now remove the tombstone and confirm the activeHTMemory is still 0
+    // Remove the tombstone, confirm activeHTMemory decreases (other item
+    // remains)
     auto& active = *store->getVBucket(activeVB);
-
+    // Advance high seqno to allow purging the tombstone
+    store_item(activeVB, key2, value);
     EphemeralVBucket::HTTombstonePurger purger(
             0 /* remove tombstones of any age */);
     purger.setCurrentVBucket(active);
     active.ht.visit(purger);
 
-    EXPECT_EQ(0, stats.activeHTMemory.load());
+    EXPECT_LT(stats.activeHTMemory, smallItemMem);
 
     destroy_mock_cookie(cookie);
 }
@@ -981,6 +985,9 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
         // HCS updated for commit
         EXPECT_EQ(1, itr->getHighCompletedSeqno());
     }
+
+    // Advance high seqno to allow purging the tombstone
+    store_item(vbid, makeStoredDocKey("key2"), "value");
 
     // Run the StaleItemDeleter (scheduled by the first run of the HTCleaner)
     runNextTask(queue, "Eph tombstone stale item deleter");

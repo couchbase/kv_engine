@@ -299,22 +299,26 @@ TEST_F(DCPBackfillDiskTest,
     // seqno 1
     store_item(vbid, makeStoredDocKey("key"), "value");
 
-    // seqno 2
-    store_item(vbid, makeStoredDocKey("key2"), "value");
-
-    // seqno 3: delete
-    delete_item(vbid, makeStoredDocKey("key2"));
-
-    // seqno 4: collection SystemEvent (any mutation not in _default).
+    // seqno 2: collection SystemEvent
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     vbucket->updateFromManifest(
             std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             makeManifest((cm)));
 
+    // seqno 3: delete
+    store_deleted_item(
+            vbid, makeStoredDocKey("key3", CollectionEntry::fruit), "");
+
+    // seqno 4
+    store_item(vbid, makeStoredDocKey("key4", CollectionEntry::fruit), "value");
+
     flushAndRemoveCheckpoints(vbid);
     // purge tombstones up to seqno 3 (the delete)
     runCompaction(vbid, 3, true);
+
+    // seqno 5
+    store_item(vbid, makeStoredDocKey("key5"), "value");
 
     auto [status, state] =
             vbucket->getShard()->getRWUnderlying()->getPersistedVBucketState(

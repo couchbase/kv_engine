@@ -12,6 +12,7 @@
 #include "ephemeral_tombstone_purger.h"
 
 #include "bucket_logger.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ephemeral_bucket.h"
@@ -32,6 +33,18 @@ void EphemeralVBucket::HTTombstonePurger::setDeadline(
 
 void EphemeralVBucket::HTTombstonePurger::setCurrentVBucket(VBucket& vb) {
     vbucket = &dynamic_cast<EphemeralVBucket&>(vb);
+
+    // MB-71917: Cache per-collection high seqnos so we can avoid purging a
+    // tombstone that is the highest seqno for its collection.
+    collectionHighSeqnos.clear();
+    auto manifestHandle = vbucket->getManifest().lock();
+    for (const auto& [cid, entry] : manifestHandle) {
+        auto highSeqno = entry.getHighSeqno();
+        if (highSeqno) {
+            // Only cache if high seqno was updated
+            collectionHighSeqnos[cid] = highSeqno;
+        }
+    }
 }
 
 bool EphemeralVBucket::HTTombstonePurger::visit(
@@ -48,20 +61,34 @@ bool EphemeralVBucket::HTTombstonePurger::visit(
         if ((osv->isDeleted() || osv->isPrepareCompleted()) &&
             (now >= osv->getCompletedOrDeletedTime()) &&
             (now - osv->getCompletedOrDeletedTime() >= purgeAge)) {
-            // This item should be purged. Remove from the HashTable and move
-            // over to being owned by the sequence list. Remove by pointer (not
-            // by key) so that we do not remove any committed/prepared
-            // StoredValues for which there may be two with the same key.
-            auto ownedSV = vbucket->ht.unlocked_release(hbl, *osv);
-            {
-                std::lock_guard<std::mutex> listWriteLg(
-                        vbucket->seqList->getListWriteLock());
-                // Mark the item stale, with no replacement item
-                vbucket->seqList->markItemStale(
-                        listWriteLg, std::move(ownedSV), nullptr);
+            bool purgeItem = true;
+            if (osv->isDeleted() &&
+                !osv->getKey().isInSystemEventCollection()) {
+                auto itr = collectionHighSeqnos.find(
+                        osv->getKey().getCollectionID());
+                if (itr != collectionHighSeqnos.end() &&
+                    static_cast<uint64_t>(osv->getBySeqno()) >= itr->second) {
+                    purgeItem = false;
+                }
             }
-            ++vbucket->htDeletedPurgeCount;
-            ++numPurgedItems;
+
+            if (purgeItem) {
+                // This item should be purged. Remove from the HashTable and
+                // move over to being owned by the sequence list. Remove by
+                // pointer (not by key) so that we do not remove any
+                // committed/prepared StoredValues for which there may be two
+                // with the same key.
+                auto ownedSV = vbucket->ht.unlocked_release(hbl, *osv);
+                {
+                    std::lock_guard<std::mutex> listWriteLg(
+                            vbucket->seqList->getListWriteLock());
+                    // Mark the item stale, with no replacement item
+                    vbucket->seqList->markItemStale(
+                            listWriteLg, std::move(ownedSV), nullptr);
+                }
+                ++vbucket->htDeletedPurgeCount;
+                ++numPurgedItems;
+            }
         }
     }
     ++numVisitedItems;

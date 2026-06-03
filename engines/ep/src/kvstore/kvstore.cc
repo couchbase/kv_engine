@@ -49,6 +49,31 @@
 #include <sys/stat.h>
 #include <utilities/logtags.h>
 
+bool CompactionContext::isCollectionHighSeqno(CollectionID cid,
+                                              uint64_t seqno) const {
+    std::shared_lock lh(collectionHighSeqnos.mutex);
+    auto itr = collectionHighSeqnos.cache.find(cid);
+    return itr != collectionHighSeqnos.cache.end() && seqno >= itr->second;
+}
+
+bool CompactionContext::shouldRefreshCollectionHighSeqnos() const {
+    if (collectionHighSeqnos.refreshInterval.count() == 0) {
+        return false;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    std::shared_lock lh(collectionHighSeqnos.mutex);
+    return now > collectionHighSeqnos.lastRefreshTime +
+                         collectionHighSeqnos.refreshInterval;
+}
+
+void CompactionContext::setCollectionHighSeqnos(
+        std::unordered_map<CollectionID, uint64_t>&& value) {
+    const auto now = std::chrono::steady_clock::now();
+    std::unique_lock lh(collectionHighSeqnos.mutex);
+    collectionHighSeqnos.cache = std::move(value);
+    collectionHighSeqnos.lastRefreshTime = now;
+}
+
 ScanContext::ScanContext(
         Vbid vbid,
         std::unique_ptr<KVFileHandle> handle,

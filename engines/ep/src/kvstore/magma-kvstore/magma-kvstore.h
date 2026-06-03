@@ -815,6 +815,14 @@ protected:
         bool canPurge(CollectionID collection);
 
         /**
+         * MB-71917: Cache per-collection persisted high seqnos so we can avoid
+         * purging a tombstone that is the highest seqno for its collection.
+         * For implicit compaction the cache could be very stale without
+         * periodic refresh.
+         */
+        void refreshCollectionHighSeqnos();
+
+        /**
          * Vbucket being compacted - required so that we can work out which
          * vBucket is being compacted for implicit (magma driven) compactions.
          */

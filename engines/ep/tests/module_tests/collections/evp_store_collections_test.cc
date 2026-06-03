@@ -4182,12 +4182,16 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
     compareDiskStatMemoryVsPersisted();
 
     // add some items
+    store_deleted_item(
+            vbid, StoredDocKey{"cheese", CollectionEntry::dairy}, "");
     store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
     store_item(vbid, StoredDocKey{"butter", CollectionEntry::dairy}, "lovely");
+    store_deleted_item(
+            vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "");
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "nice");
     store_item(vbid, StoredDocKey{"apricot", CollectionEntry::fruit}, "lovely");
 
-    flushVBucketToDiskIfPersistent(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 6);
     auto c1_d2 = manifest.lock(CollectionEntry::fruit).getDiskSize();
     auto c2_d2 = manifest.lock(CollectionEntry::dairy).getDiskSize();
     EXPECT_GT(c1_d2, c1_d1);
@@ -4226,7 +4230,13 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
     }
     compareDiskStatMemoryVsPersisted();
 
-    // Now purge those tombstones
+    // Advance high seqno
+    store_deleted_item(
+            vbid, StoredDocKey{"cheese", CollectionEntry::dairy}, "");
+    store_deleted_item(
+            vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "");
+
+    // Now purge those tombstones (except collection high seqnos)
     runCompaction(vbid, 0, true);
 
     auto c1_d5 = manifest.lock(CollectionEntry::fruit).getDiskSize();
@@ -4235,13 +4245,11 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
         // Magma decrements the collection disk size when we delete items rather
         // than when we purge the tombstones so no change is expected
         EXPECT_EQ(c1_d5, c1_d4);
+        EXPECT_EQ(c2_d5, c2_d4);
     } else {
         EXPECT_LT(c1_d5, c1_d4);
+        EXPECT_LT(c2_d5, c2_d4);
     }
-
-    // dairy is equal because we haven't purged the tombstone (it's the high
-    // seqno which remains)
-    EXPECT_EQ(c2_d5, c2_d4);
     compareDiskStatMemoryVsPersisted();
 }
 

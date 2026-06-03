@@ -6909,6 +6909,7 @@ TEST_P(SingleThreadedActiveStreamTest,
             Collections::Manifest{std::string{manifest}});
     ASSERT_EQ(1, vb.getHighSeqno());
 
+    store_deleted_item(vbid, makeStoredDocKey("lettuce", cVegetable), "");
     store_item(vbid, makeStoredDocKey("potato", cVegetable), "value");
 
     flushAndRemoveCheckpoints(vbid);
@@ -6933,7 +6934,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(0, stream->public_readyQSize());
 
     //! 3. Test the snapshot marker does not include the purgeSeqno. Must
-    //! receive the one mutation relevant to this stream.
+    //! receive the mutations relevant to this stream.
     recreateProducerAndStream(
             vb,
             cb::mcbp::DcpOpenFlag::None,
@@ -6949,8 +6950,9 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Perform the actual backfill - fills up the readyQ in the stream.
     producer->getBFM().backfill();
 
-    // One snapshot marker, one system-event (collection-created), one mutation.
-    EXPECT_EQ(3, stream->public_readyQSize());
+    // One snapshot marker, one system-event (collection-created), one deletion,
+    // one mutation.
+    EXPECT_EQ(4, stream->public_readyQSize());
 
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -6960,10 +6962,12 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
     resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
     //! 4. Test the snapshot marker includes the purgeSeqno. Must receive
-    //! the one mutation relevant to this stream.
+    //! the mutations relevant to this stream.
     recreateProducerAndStream(
             vb,
             cb::mcbp::DcpOpenFlag::None,
@@ -6979,8 +6983,9 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Perform the actual backfill - fills up the readyQ in the stream.
     producer->getBFM().backfill();
 
-    // One snapshot marker, one system-event (collection-created), one mutation.
-    EXPECT_EQ(3, stream->public_readyQSize());
+    // One snapshot marker, one system-event (collection-created), one deletion,
+    // one mutation.
+    EXPECT_EQ(4, stream->public_readyQSize());
 
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -6990,25 +6995,18 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
     resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Deletion, resp->getEvent());
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
-    // delete the item.
-    delete_item(vbid, makeStoredDocKey("potato", cVegetable));
-
-    //! Store another document to bump the hiseqno number, to force purging of
-    //! the deleted document "vegetable:potato" (seqno: 3). For reasons unknown
-    //! to me currently, we don't purge a tombstone who seqno is the hiseqno of
-    //! the vbucket.
-    store_item(vbid, makeStoredDocKey("foo"), "bar");
-    flushAndRemoveCheckpoints(vbid);
-    EXPECT_EQ(4, vb.getHighSeqno());
-    purgeTombstonesBefore(4);
+    EXPECT_EQ(3, vb.getHighSeqno());
+    purgeTombstonesBefore(3);
 
     const auto purgeSeqno = vb.getPurgeSeqno();
-    EXPECT_EQ(3, purgeSeqno);
+    EXPECT_EQ(2, purgeSeqno);
 
-    //! 5. Test the snapshot marker includes the purgeSeqno is 3. All the
-    //! mutations relevant to this stream are filtered out.
+    //! 5. Test the snapshot marker includes the purgeSeqno is 2. The purged
+    //! seqno is not included.
     recreateProducerAndStream(
             vb,
             cb::mcbp::DcpOpenFlag::None,
@@ -7036,7 +7034,8 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
     resp = stream->next(*producer);
-    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_NE(purgeSeqno, resp->getBySeqno());
 }
 
 TEST_P(SingleThreadedActiveStreamTest,

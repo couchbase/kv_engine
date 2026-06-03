@@ -119,6 +119,11 @@ protected:
 
     /// Count of how many items have been purged.
     size_t numPurgedItems;
+
+    /// MB-71917: Cache of per-collection high seqnos, populated once per
+    /// vbucket in setCurrentVBucket(). Avoids acquiring the manifest lock
+    /// for every tombstone visited.
+    std::unordered_map<CollectionID, uint64_t> collectionHighSeqnos;
 };
 
 /**

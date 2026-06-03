@@ -2977,57 +2977,6 @@ TEST_F(MB71914MergeSnapshotTest, MonotonicException) {
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
-       seqno_advanced_backfill_from_empty_disk_snapshot_replica_due_deleted) {
-    VBucketPtr vb = store->getVBucket(vbid);
-    CollectionsManifest cm{};
-    setCollections(cookie,
-                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
-
-    StoredDocKey keyOne{"meat::one", CollectionEntry::meat};
-    StoredDocKey keyTwo{"meat::two", CollectionEntry::meat};
-    StoredDocKey keyThree{"dairy::one", CollectionEntry::dairy};
-    store_item(vbid, keyOne, "pork");
-    store_item(vbid, keyTwo, "beef");
-
-    // 2 collections + 2 mutations
-    flushVBucketToDiskIfPersistent(vbid, 4);
-
-    delete_item(vbid, keyOne);
-    delete_item(vbid, keyTwo);
-    store_item(vbid, keyThree, "cheese");
-
-    // 2 deletes
-    flushVBucketToDiskIfPersistent(vbid, 3);
-
-    // Purge tombstones
-    if (persistent()) {
-        runCompaction(vbid, 0, true);
-    } else {
-        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-        EphemeralVBucket::HTTombstonePurger purger(0);
-        purger.setCurrentVBucket(*evb);
-        evb->ht.visit(purger);
-        EXPECT_EQ(purger.getVisitedCount(), 5);
-        EXPECT_EQ(purger.getNumItemsMarkedStale(), 2);
-        EXPECT_EQ(evb->purgeStaleItems(), 2);
-    }
-
-    store->setVBucketState(vbid, vbucket_state_replica);
-    ensureDcpWillBackfill();
-
-    // filter only CollectionEntry::meat
-    createDcpObjects({{R"({"collections":["8"]})"}});
-
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
-                  cb::engine_errc::success);
-    EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(producers->last_byseqno.load(), 7);
-}
-
-TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_disk_snapshot) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};

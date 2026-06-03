@@ -13,6 +13,7 @@
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore-config.h"
 #include "couch-kvstore-db-holder.h"
 #include "diskdockey.h"
@@ -1065,6 +1066,12 @@ static int time_purge_hook(Db& d,
                 purgeItem = true;
             }
 
+            if (purgeItem && !docKey.isInSystemEventCollection() &&
+                ctx.isCollectionHighSeqno(docKey.getCollectionID(),
+                                          info->db_seq)) {
+                purgeItem = false;
+            }
+
             if (purgeItem) {
                 // Update stats and return
                 ctx.stats.tombstonesPurged++;
@@ -1566,6 +1573,25 @@ CompactDBStatus CouchKVStore::compactDBInternal(
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
                         droppedCollections);
+
+        {
+            // MB-71917: Cache per-collection persisted high seqnos so we can
+            // avoid purging a tombstone that is the highest seqno for its
+            // collection.
+            std::unordered_map<CollectionID, uint64_t> collectionHighSeqnos;
+            {
+                auto vb = hook_ctx->getVBucket();
+                auto manifestHandle = vb->getManifest().lock();
+                for (const auto& [cid, entry] : manifestHandle) {
+                    auto highSeqno = entry.getPersistedHighSeqno();
+                    if (highSeqno) {
+                        // Only cache if high seqno was updated
+                        collectionHighSeqnos[cid] = highSeqno;
+                    }
+                }
+            }
+            hook_ctx->setCollectionHighSeqnos(std::move(collectionHighSeqnos));
+        }
 
         errCode = cb::couchstore::compact(
                 *sourceDb,
