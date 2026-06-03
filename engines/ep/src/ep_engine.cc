@@ -79,6 +79,7 @@
 #include <platform/split_string.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
+#include <platform/sysinfo.h>
 #include <serverless/config.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -2068,6 +2069,57 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
             "not_locked_returns_tmpfail",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
+    {
+        // MB-70173
+        //
+        // EPEngine intantiates a WorkLoadPolicy object. At construction that
+        // calls into platform's cb::get_available_cpu_count(), which ends up
+        // in cb::cgroup::ControlGroup::instance().
+        // If EPE is the first caller into ControlGroup (eg ep_testsuite) then
+        // the ControlGroup::instance() singleton is allocated in a bucket
+        // context. That is a problem because that same singleton is then
+        // released in the NoBucket context (at program shutdown).
+        //
+        // A first fix attempt was made by allocating the singleton in the
+        // NoBucket context by moving the object instantiation to the static /
+        // global scope (within the ControlGroup code itself) where the
+        // object would be instantiated at program startup. That breaks the
+        // code for macos/windows though, as the logic in platform expects that
+        // that singleton exists only on linux envs.
+        // A similar option would be wrapping that static/global instantiation
+        // into platform ifdefs. That seems a bad choice for maintenance
+        // though, as those ifdefs should stay consistent with the same ifdefs
+        // that already determine at caller what platforms make the call into
+        // ControlGroup.
+        //
+        // A second fix attempt was made by wrapping the singleton
+        // instantiation in a cb::NoArenaGuard scope (again within
+        // ControlGroup::instance()). That breaks the build though, as
+        // we ship two copies of the cgroup objects:
+        //   1. cgroup_objs is pulled directly into libplatform.a (which
+        //      also links cb_arena_malloc.cc, je_arena_malloc.cc,
+        //      cb_malloc_arena.cc — the arena-aware allocator +
+        //      operator new overrides)
+        //   2. libcgroup.a is a separate standalone static lib
+        //      (cgroup_objs + loadfile + split_string) that does not
+        //      depend on libplatform.a or any arena-malloc symbols.
+        // That second fix attempt breaks (2) as the linker won't find
+        // any cb::NoArenaGuard symbol there.
+        // Also, general design is that code other than EPE doesn't make any
+        // explicit domain switch, so that kind of approach would be an
+        // anti-pattern in the current design.
+        //
+        // Finally, forcing cb::NoArenaGuard here in EPE is a working fix for
+        // MB-70173:
+        //   - We just wrap a call into platform's cb::get_available_cpu_count
+        //   - If that's the first absolute call into that, then the
+        //     ControlGroup singleton would be allocated in NoBucket context
+        //   - Else, the ControlGroup singleton already exists and the
+        //     subsequent instantiation of WorkLoadPolicy below would just call
+        //     into that
+        cb::NoArenaGuard guard;
+        cb::get_available_cpu_count();
+    }
     // The number of shards for a magma bucket cannot be changed after the first
     // bucket instantiation. This is because the number of shards determines
     // the on disk structure of the data. To solve this problem we store a file
