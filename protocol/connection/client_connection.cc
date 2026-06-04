@@ -2701,7 +2701,15 @@ public:
     void readDataAvailable(size_t len) noexcept override {
         throttle_callback(len);
         offset += len;
-        onDataReceived({reinterpret_cast<const char*>(buffer.data()), offset});
+        try {
+            onDataReceived(
+                    {reinterpret_cast<const char*>(buffer.data()), offset});
+        } catch (const std::exception& e) {
+            exception = folly::AsyncSocketException(
+                    folly::AsyncSocketException::INTERNAL_ERROR,
+                    fmt::format("exception occurred: {}", e.what()));
+            base.terminateLoopSoon();
+        }
     }
 
     void readEOF() noexcept override {
