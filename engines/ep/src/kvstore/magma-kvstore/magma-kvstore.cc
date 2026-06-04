@@ -4785,14 +4785,6 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
             json["term"] = data;
         }
         {
-            auto [status, data] = magma->GetFusionPendingSyncBytes(id);
-            const auto errc = checkFusionStatCallStatus(stat, vbid, status);
-            if (errc != cb::engine_errc::success) {
-                return {errc, {}};
-            }
-            json["snapshot_pending_bytes"] = data;
-        }
-        {
             const auto [status, stats] = magma->GetFusionUploaderStats(id);
             if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {

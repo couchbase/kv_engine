@@ -755,6 +755,7 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
     nlohmann::json json;
     auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
+        json["snapshot_pending_bytes"] = stats.FusionPendingUploadBytes;
         json["sync_session_completed_bytes"] =
                 stats.FusionFSStats.SyncSessionTotalBytes;
         json["sync_session_total_bytes"] =
