@@ -57,6 +57,7 @@ cb_add_test_executable(memcached_testapp
     testapp_lock.cc
     testapp_logging.cc
     testapp_maxconn.cc
+    testapp_memory.cc
     testapp_misc.cc
     testapp_not_supported.cc
     testapp_pause_resume.cc
