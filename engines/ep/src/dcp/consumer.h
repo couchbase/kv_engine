@@ -533,6 +533,15 @@ protected:
                                                    const DcpResponse& msg);
 
     /**
+     * Dispatch the message to the given stream
+     */
+    cb::engine_errc dispatchMessage(UpdateFlowControl& ufc,
+                                    Vbid vbucket,
+                                    uint32_t opaque,
+                                    const DcpResponse& msg,
+                                    PassiveStream& stream);
+
+    /**
      * Helper function to return the STREAM_NOT_FOUND if v7 status codes are
      * enabled, otherwise cb::engine_errc::no_such_key
      */

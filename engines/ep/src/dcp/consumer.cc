@@ -512,7 +512,7 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
                      {"status", cb::mcbp::to_string(status)});
 
     StreamEndResponse msg(opaque, status, vbucket, cb::mcbp::DcpStreamId{});
-    auto res = lookupStreamAndDispatchMessage(ufc, vbucket, opaque, msg);
+    auto res = dispatchMessage(ufc, vbucket, opaque, msg, *stream);
 
     if (res == cb::engine_errc::success) {
         // Stream End message successfully passed to stream. Can now remove
@@ -1671,10 +1671,18 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
         return getOpaqueMissMatchErrorCode();
     }
 
-    // Pass the message to the associated stream.
+    return dispatchMessage(ufc, vbucket, opaque, msg, *stream);
+}
+
+cb::engine_errc DcpConsumer::dispatchMessage(UpdateFlowControl& ufc,
+                                             Vbid vbucket,
+                                             uint32_t opaque,
+                                             const DcpResponse& msg,
+                                             PassiveStream& stream) {
+    // Pass the message to the given stream.
     cb::engine_errc err;
     try {
-        err = stream->messageReceived(msg, ufc);
+        err = stream.messageReceived(msg, ufc);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }
