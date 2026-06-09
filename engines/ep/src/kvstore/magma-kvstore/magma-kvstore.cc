@@ -38,6 +38,7 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/compress.h>
 #include <platform/sized_buffer.h>
@@ -2122,6 +2123,12 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         ValueFilter valOptions,
         SnapshotSource source,
         std::unique_ptr<KVFileHandle> handle) const {
+    TRACE_EVENT2("magma",
+                 "MagmaKVStore::initBySeqnoScanContext",
+                 "vbid",
+                 vbid.get(),
+                 "startSeqno",
+                 startSeqno);
     const auto startTime = std::chrono::steady_clock::now();
     if (!handle) {
         handle = makeFileHandle(vbid);
@@ -2249,6 +2256,8 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         DocumentFilter options,
         ValueFilter valOptions,
         std::unique_ptr<KVFileHandle> handle) const {
+    TRACE_EVENT1(
+            "magma", "MagmaKVStore::initByIdScanContext", "vbid", vbid.get());
     const auto startTime = std::chrono::steady_clock::now();
     if (!handle) {
         handle = makeFileHandle(vbid);
