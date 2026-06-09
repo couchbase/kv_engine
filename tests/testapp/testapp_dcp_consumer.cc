@@ -88,6 +88,20 @@ public:
 
     void TearDown() override {
         conn->dcpStreamEnd(stream_opaque, Vbid(0));
+        // Because thhis test suite runs with
+        // dcp_consumer_flow_control_ack_ratio=0.0 we will get an ack back.
+        // Read that ack which we can treat as acknowledgement of the stream
+        // end, and then we can tear down the test
+        if (testOutOfMem()) {
+            Frame frame;
+            // We get an ack for everything the test wrote
+            conn->recvFrame(frame);
+        } else {
+            // We get the ack for just the stream end
+            conn->recvDcpBufferAck(
+                    sizeof(cb::mcbp::request::DcpStreamEndPayload) +
+                    sizeof(cb::mcbp::Request));
+        }
         TestappTest::TearDown();
     }
 
