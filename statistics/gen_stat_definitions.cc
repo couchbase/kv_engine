@@ -579,9 +579,14 @@ bool resolveMetricFamilyConflicts(
 
 void addConfigDocumentation(const Spec& spec,
                             std::string_view helpText,
+                            std::string_view longDescription,
                             nlohmann::json& documentation) {
     auto [statName, statDoc] = generateDocEntry(spec);
     statDoc["help"] = helpText;
+
+    if (!longDescription.empty()) {
+        statDoc["long_description"] = longDescription;
+    }
 
     documentation[statName] = std::move(statDoc);
 }
@@ -719,7 +724,10 @@ int main(int argc, char** argv) {
                 continue;
             }
             auto description = configParam.value().value("descr", "");
-            addConfigDocumentation(spec, description, documentation);
+            auto longDescription =
+                    configParam.value().value("long_description", "");
+            addConfigDocumentation(
+                    spec, description, longDescription, documentation);
         }
     }
 

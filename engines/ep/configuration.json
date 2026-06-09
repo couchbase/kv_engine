@@ -265,6 +265,7 @@
         "checkpoint_memory_ratio": {
             "default": "0.2",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",
+            "long_description": "Provides the maximum percentage of the bucket's memory quota dedicated to checkpoints. When this ratio is hit, the system enters a temporary TempOOM phase and immediately triggers memory recovery to minimize the duration of TempOOM state. A checkpoint is a sequenced queue of mutations that acts as the single source of truth for both persistence and replication within a bucket. Persistence and replication consume from this queue independently, each progressing at its own pace without coordinating with the other. The checkpoint queue allow disk flusher and DCP consumers to read from the same data structure to ensure consistency. This value helps ensure efficient memory utilization.",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -967,6 +968,7 @@
             "dynamic": true,
             "type": "size_t",
             "descr": "Memory quota (in bytes) for this bucket.",
+            "long_description": "Provides the absolute maximum amount of memory, measured in bytes, allocated to a specific bucket on a single node. It represents the hard memory quota configured by the administrator, serving as the strict baseline for calculating critical thresholds like high and low watermarks. This value is critical for capacity planning.",
             "aliases":["cache_size"]
         },
         "max_ttl":{
@@ -1133,6 +1135,7 @@
         "mem_high_wat_percent": {
             "default": "0.85",
             "descr": "Ratio of the Bucket Quota at which to place the high watermark. This is the maximum desired memory usage. This value should be lower than mutation_mem_ratio to avoid no memory errors.",
+            "long_description": "Provides the specific percentage of the total bucket memory quota that acts as the high watermark threshold. By default, the high watermark is set at 85% of the bucket's allocated memory. It represents the critical trigger point where the engine proactively initiates background memory management routines to evict data from RAM to disk until memory usage drops below the low watermark. This value is vital for identifying heavy memory pressure.",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -1145,6 +1148,7 @@
         "mem_low_wat_percent": {
             "default": "0.75",
             "descr": "Ratio of the Bucket Quota at which to place the low watermark. This is the point to which to reduce the memory usage of the bucket after hitting the high watermark.",
+            "long_description": "Provides the specific percentage of the maximum bucket memory quota designated as the low watermark. By default it is set at 10% lower than the high watermark. It represents the target recovery threshold for the item pager, indicating the point at which continuous eviction from memory to disk ceases after a high watermark breach. This value ensures a healthy buffer of free memory.",
             "dynamic": true,
             "type": "float",
             "validator": {
@@ -1157,6 +1161,7 @@
         "mutation_mem_ratio": {
             "default": "0.93",
             "descr": "Ratio of the Bucket Quota that can be used before mutations return tmpOOMs",
+            "long_description": "Provides the precise percentage of the maximum bucket memory quota beyond which the engine will begin to reject frontend mutations with temporary OOM errors.  It is set at a default of 93%. It represents a protective throttling threshold, indicating the system is nearing complete memory exhaustion and must temporarily block incoming writes. It is a dynamic value that can be modified. This value protects the node from allocating beyond the assigned bucket quota. It prevent crashes in the cases like high memory fragmentation where memcached memory usage is higher than logical allocation.",
             "dynamic": true,
             "type": "float",
             "validator" : {
@@ -1204,6 +1209,7 @@
         "persistent_metadata_purge_age": {
             "default": "259200",
             "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days. If this is dynamically changed for a magma bucket then magma may not trigger compactions when it should, this can be avoided by running a full manual compaction after changing this parameter.",
+            "long_description": "Provides the configured time interval after which the persistent metadata of deleted items, known as tombstones, is permanently purged from disk storage. It represents the active policy for tombstone expiration, balancing robust replication consistency against disk space reclamation. This value is crucial for tuning storage overhead.",
             "dynamic": true,
             "type": "size_t",
             "requires": {
