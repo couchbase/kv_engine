@@ -208,6 +208,28 @@ void SingleThreadedKVBucketTest::setVBucketToActiveWithValidTopology(
             vbid, vbucket_state_active, {{"topology", topology}});
 }
 
+void SingleThreadedKVBucketTest::loadVBucketFromLocalSnapshot(
+        EventuallyPersistentEngine& engine,
+        Vbid vbid,
+        vbucket_state_t newState,
+        const nlohmann::json& meta) {
+    auto* kvBucket = engine.getKVBucket();
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = kvBucket->setVBucketState(
+                vbid, newState, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(taskQ, "Loading VBucket " + to_string(vbid));
+    }
+
+    auto vb = kvBucket->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(newState, vb->getState());
+}
+
 void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
         EventuallyPersistentEngine* ep) {
     ep->getEpStats().isShutdown = true;

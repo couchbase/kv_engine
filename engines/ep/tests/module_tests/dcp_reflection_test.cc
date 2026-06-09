@@ -113,6 +113,36 @@ public:
     }
 
     /**
+     * @return The dbname configured for the given Node.
+     */
+    std::string getNodeDbname(Node node) const {
+        if (node == Node0) {
+            return test_dbname;
+        }
+        return test_dbname + "-node_" + std::to_string(node);
+    }
+
+    /**
+     * Simulate the transfer of a local snapshot from one node to another by
+     * copying the snapshot directory and asking the destination node to scan
+     * its on-disk snapshots into the in-memory snapshot cache. After this
+     * call, the destination node can use_snapshot:fbr against `uuid`.
+     */
+    void transferSnapshot(Node from, Node to, const std::string& uuid) {
+        const auto fromSnap =
+                std::filesystem::path(getNodeDbname(from)) / "snapshots" / uuid;
+        const auto toSnapBase =
+                std::filesystem::path(getNodeDbname(to)) / "snapshots";
+        std::filesystem::create_directories(toSnapBase);
+        std::filesystem::copy(fromSnap,
+                              toSnapBase / uuid,
+                              std::filesystem::copy_options::recursive);
+        ASSERT_EQ(cb::engine_errc::success,
+                  dynamic_cast<EPBucket&>(*engines[to]->getKVBucket())
+                          .initialiseSnapshots());
+    }
+
+    /**
      * DcpRoute connects nodes together and provides methods for joining
      * the streams and "sending" messages. A route can be destroyed as well
      * for simulation of connection failures
@@ -267,10 +297,11 @@ public:
         return storePrepare(docKey);
     }
 
-    cb::engine_errc storePrepare(const StoredDocKey& docKey) {
+    cb::engine_errc storePrepare(const StoredDocKey& docKey,
+                                 std::string value = {}) {
         using namespace cb::durability;
         auto reqs = Requirements(Level::Majority, Timeout::Infinity());
-        return store->set(*makePendingItem(docKey, {}, reqs), cookie);
+        return store->set(*makePendingItem(docKey, value, reqs), cookie);
     }
 
     cb::engine_errc storeCommit(std::string key) {
@@ -290,14 +321,16 @@ public:
                           vb->lockCollections(docKey));
     }
 
-    cb::engine_errc storeSet(std::string key) {
+    cb::engine_errc storeSet(std::string key, std::string value = {}) {
         auto docKey = makeStoredDocKey(key);
-        return store->set(*makeCommittedItem(docKey, {}), cookie);
+        return store->set(*makeCommittedItem(docKey, value), cookie);
     }
 
-    cb::engine_errc storeSet(const DocKeyView& docKey, bool xattrBody = false) {
+    cb::engine_errc storeSet(const DocKeyView& docKey,
+                             std::string value = {},
+                             bool xattrBody = false) {
         return store->set(
-                *makeCompressibleItem(vbid, docKey, {}, 0, false, xattrBody),
+                *makeCompressibleItem(vbid, docKey, value, 0, false, xattrBody),
                 cookie);
     }
 
@@ -336,17 +369,16 @@ protected:
         // Not all tests create all nodes, so don't fail if node directories
         // don't exist.
         // Paranoia - remove any previous replica disk files.
-        for (auto index : {1, 2, 3}) {
-            cb::io::remove_with_retry(test_dbname + "-node_" +
-                                      std::to_string(index));
+        for (auto index : {Node1, Node2, Node3}) {
+            cb::io::remove_with_retry(getNodeDbname(index));
         }
     }
 
     void internalSetUp() {
         // Paranoia - remove any previous replica disk files.
-        cb::io::remove_with_retry(test_dbname + "-node_1");
-        cb::io::remove_with_retry(test_dbname + "-node_2");
-        cb::io::remove_with_retry(test_dbname + "-node_3");
+        for (auto index : {Node1, Node2, Node3}) {
+            cb::io::remove_with_retry(getNodeDbname(index));
+        }
 
         auto meta = nlohmann::json{
                 {"topology", nlohmann::json::array({{"active", "replica"}})}};
@@ -1511,7 +1543,7 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
         GTEST_SKIP();
     }
     auto k1 = makeStoredDocKey("k1");
-    EXPECT_EQ(cb::engine_errc::success, storeSet(k1, true /*xattr*/));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1, {}, true /*xattr*/));
 
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
@@ -3102,6 +3134,109 @@ TEST_P(DCPCacheTransfer, CacheTransferOOMOnlyFirstSignals) {
     route0_1.transferCache(*msg, cb::engine_errc::success);
 }
 
+class DCPCacheTransferNoNexus : public DCPLoopbackStreamTest {
+public:
+    void SetUp() override {
+        DCPLoopbackStreamTest::SetUp();
+    }
+};
+
+// MB-72298: Case when commit/prepare for same key.
+TEST_P(DCPCacheTransferNoNexus, commit_prepare_same_key) {
+    const auto key = makeStoredDocKey("key");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(key, "mutation"));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              storePrepare(key, "prepare"));
+
+    flushNodeIfPersistent(Node0);
+
+    nlohmann::json manifest;
+    ASSERT_EQ(cb::engine_errc::success,
+              engines[Node0]->prepare_snapshot(
+                      *cookie, vbid, [&manifest](const nlohmann::json& m) {
+                          manifest = m;
+                      }));
+    ASSERT_TRUE(manifest.contains("uuid"));
+
+    transferSnapshot(Node0, Node1, manifest["uuid"].get<std::string>());
+
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = engines[Node1]->deleteVBucket(*cookie, vbid, true);
+        if (ret != cb::engine_errc::would_block) {
+            ASSERT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
+    }
+
+    loadVBucketFromLocalSnapshot(*engines[Node1], vbid, vbucket_state_replica);
+
+    auto route0_1 = createDcpRoute(Node0, Node1);
+
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            route0_1.doStreamRequest(cb::mcbp::DcpAddStreamFlag::CacheTransfer)
+                    .first);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    // vbucket loading populates cache with prepares
+    ASSERT_TRUE(replicaVB->ht.findOnlyPrepared(key).storedValue);
+    EXPECT_TRUE(replicaVB->ht.findOnlyPrepared(key)
+                        .storedValue->isPreparedMaybeVisible());
+    EXPECT_EQ(replicaVB->ht.findOnlyPrepared(key).storedValue->getBySeqno(), 2);
+    // no committed version yet.
+    EXPECT_FALSE(replicaVB->ht.findOnlyCommitted(key).storedValue);
+
+    // Previously failed - remote rejected the commit which is copied by CTS
+    route0_1.transferCacheBatch();
+
+    ASSERT_TRUE(replicaVB->ht.findOnlyCommitted(key).storedValue);
+    EXPECT_EQ(replicaVB->ht.findOnlyCommitted(key).storedValue->getBySeqno(),
+              1);
+    ASSERT_TRUE(replicaVB->ht.findOnlyPrepared(key).storedValue);
+    EXPECT_EQ(replicaVB->ht.findOnlyPrepared(key).storedValue->getBySeqno(), 2);
+
+    // Just like warmup, the prepare is resident and maybe visible
+    EXPECT_TRUE(replicaVB->ht.findOnlyPrepared(key)
+                        .storedValue->isPreparedMaybeVisible());
+    auto read = [this](VBucket& vb,
+                       const StoredDocKey& k,
+                       ForGetReplicaOp forGetReplicaOp,
+                       cb::engine_errc expectedStatus,
+                       std::string expectedValue) {
+        std::shared_lock rlh(vb.getStateLock());
+        const auto options = static_cast<get_options_t>(NONE);
+        auto gv = vb.getInternal(rlh,
+                                 cookie,
+                                 *engine,
+                                 options,
+                                 VBucket::GetKeyOnly::No,
+                                 vb.lockCollections(k),
+                                 forGetReplicaOp);
+        EXPECT_EQ(expectedStatus, gv.getStatus());
+        if (expectedStatus == cb::engine_errc::success) {
+            ASSERT_TRUE(gv.item);
+            EXPECT_EQ(expectedValue, gv.item->getValueView());
+        } else {
+            EXPECT_FALSE(gv.item);
+        }
+    };
+    // reading the key finds the prepare and returns
+    // sync_write_re_commit_in_progress (same as if warmed up)
+    read(*replicaVB,
+         key,
+         ForGetReplicaOp::No,
+         cb::engine_errc::sync_write_re_commit_in_progress,
+         {});
+    // reading the key (GetReplica) find the committed mutation.
+    read(*replicaVB,
+         key,
+         ForGetReplicaOp::Yes,
+         cb::engine_errc::success,
+         "mutation");
+}
+
 class DCPCacheTransferVE : public DCPLoopbackStreamTest {
 public:
     void SetUp() override {
@@ -3170,3 +3305,9 @@ INSTANTIATE_TEST_SUITE_P(DCPReflectionCacheTransferVE,
                          DCPCacheTransferVE,
                          STParameterizedBucketTest::valueOnlyEvictionPolicy(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        DCPReflectionCacheTransferNoNexus,
+        DCPCacheTransferNoNexus,
+        STParameterizedBucketTest::persistentNoNexusConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);

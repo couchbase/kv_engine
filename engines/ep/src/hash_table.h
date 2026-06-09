@@ -174,8 +174,9 @@ enum class DeletionDurability : uint8_t {};
  * This is implemented by using the same key for both (so they map to the same
  * hash bucket), and then connecting them via the chain_next_of_replacement
  * field. If both Pending or Committed items are present then the Pending item
- * is the first one in the chain; the StoredValue::committed flag is used to
- * distinguish between them.
+ * is preferably the first one in the chain (as that could reduce some
+ * hash-table chain searches, depending on what is being looked for); the
+ * StoredValue::committed flag is used to distinguish between them.
  */
 class HashTable {
 public:

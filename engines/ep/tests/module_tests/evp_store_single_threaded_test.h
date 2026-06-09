@@ -317,6 +317,26 @@ protected:
             nlohmann::json topology = nlohmann::json::array({{"active",
                                                               "replica"}}));
 
+    /**
+     * Recreate the vbucket using the "use_snapshot": "fbr" meta. A matching
+     * local snapshot must already exist on disk (e.g. as a result of a prior
+     * engine->prepare_snapshot call). Drives the AuxIO VBucketLoadingTask to
+     * completion.
+     *
+     * @param engine Target engine - useful in tests with more than one engine
+     * @param vbid The vbucket to (re-)create from the snapshot
+     * @param newState The state to transition the vbucket to (typically
+     *        replica)
+     * @param meta The set-vbucket-state meta to apply. Defaults to a plain
+     *        local-snapshot request; callers can inject extra fields (e.g.
+     *        "expected_next_state") for tests that need them.
+     */
+    void loadVBucketFromLocalSnapshot(EventuallyPersistentEngine& engine,
+                                      Vbid vbid,
+                                      vbucket_state_t newState,
+                                      const nlohmann::json& meta = {
+                                              {"use_snapshot", "fbr"}});
+
     void cancelAndPurgeTasks();
 
     /**

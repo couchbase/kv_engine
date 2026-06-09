@@ -3326,22 +3326,9 @@ StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
 
 TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshot) {
     auto docKey = prepareForUseSnapshot(vbid);
-
-    const nlohmann::json meta{{"use_snapshot", "fbr"}};
-    for (;;) {
-        const auto ret = store->setVBucketState(
-                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
-        if (ret != cb::engine_errc::would_block) {
-            EXPECT_EQ(cb::engine_errc::success, ret);
-            break;
-        }
-        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
-                    "Loading VBucket vb:0");
-    }
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
 
     auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    EXPECT_EQ(vbucket_state_replica, vb->getState());
     EXPECT_EQ(1, vb->getHighSeqno());
     EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
@@ -3375,21 +3362,8 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshot) {
 // Can create an active from FBR path
 TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotStraightToActive) {
     auto docKey = prepareForUseSnapshot(vbid);
-    const nlohmann::json meta{{"use_snapshot", "fbr"}};
-    for (;;) {
-        const auto ret = store->setVBucketState(
-                vbid, vbucket_state_active, &meta, TransferVB::No, cookie);
-        if (ret != cb::engine_errc::would_block) {
-            EXPECT_EQ(cb::engine_errc::success, ret);
-            break;
-        }
-        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
-                    "Loading VBucket vb:0");
-    }
-
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_active);
     auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    EXPECT_EQ(vbucket_state_active, vb->getState());
     EXPECT_EQ(1, vb->getHighSeqno());
     EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
@@ -3420,24 +3394,14 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotStraightToActive) {
 
 TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
     auto docKey = prepareForUseSnapshot(vbid);
-
-    // Simulate replica move (non takeover)
-    const nlohmann::json meta{{"use_snapshot", "fbr"},
-                              {"expected_next_state", "replica"}};
-    for (;;) {
-        const auto ret = store->setVBucketState(
-                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
-        if (ret != cb::engine_errc::would_block) {
-            EXPECT_EQ(cb::engine_errc::success, ret);
-            break;
-        }
-        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
-                    "Loading VBucket vb:0");
-    }
+    loadVBucketFromLocalSnapshot(
+            *engine,
+            vbid,
+            vbucket_state_replica,
+            nlohmann::json{{"use_snapshot", "fbr"},
+                           {"expected_next_state", "replica"}});
 
     auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    EXPECT_EQ(vbucket_state_replica, vb->getState());
     EXPECT_TRUE(vb->isNextState(vbucket_state_replica));
     EXPECT_FALSE(vb->isNextState(vbucket_state_active));
     EXPECT_FALSE(vb->isNextState(vbucket_state_pending));
@@ -3478,22 +3442,8 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotWithPrepare) {
     nlohmann::json topology = {
             {"topology", nlohmann::json::array({{"active", "replica"}})}};
     auto docKey = prepareForUseSnapshot(vbid, topology);
-
-    const nlohmann::json meta{{"use_snapshot", "fbr"}};
-    for (;;) {
-        const auto ret = store->setVBucketState(
-                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
-        if (ret != cb::engine_errc::would_block) {
-            EXPECT_EQ(cb::engine_errc::success, ret);
-            break;
-        }
-        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
-                    "Loading VBucket vb:0");
-    }
-
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
     auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    EXPECT_EQ(vbucket_state_replica, vb->getState());
     EXPECT_EQ(1, vb->getHighSeqno());
     EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
@@ -3552,21 +3502,9 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotWithPrepare) {
 TEST_P(EPBucketTestCouchstoreFE, MB_70916) {
     auto docKey = prepareForUseSnapshot(vbid);
 
-    const nlohmann::json meta{{"use_snapshot", "fbr"}};
-    for (;;) {
-        const auto ret = store->setVBucketState(
-                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
-        if (ret != cb::engine_errc::would_block) {
-            EXPECT_EQ(cb::engine_errc::success, ret);
-            break;
-        }
-        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
-                    "Loading VBucket vb:0");
-    }
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
 
     auto vb = store->getVBucket(vbid);
-    ASSERT_TRUE(vb);
-    EXPECT_EQ(vbucket_state_replica, vb->getState());
     EXPECT_EQ(1, vb->getHighSeqno());
     EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());

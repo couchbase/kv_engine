@@ -1426,27 +1426,45 @@ cb::engine_errc HashTable::addItem(DocKeyView key,
                                    uint64_t bySeqno,
                                    uint8_t cacheHint) {
     auto htRes = findInner(key);
-    if (htRes.committedSV || htRes.pendingSV) {
-        // bail, no CAS checks. HashTable should be empty.
+    // This is the CacheTransfer path - only committed items are sent and there
+    // should be no existing commit
+    if (htRes.committedSV) {
         return cb::engine_errc::key_already_exists;
     }
     auto& hbl = htRes.lock;
 
     const auto emptyProperties = valueStats.prologue(hbl, nullptr);
 
-    // Create a new StoredValue and link it into the head of the bucket chain.
-    auto v = (*valFact)(key,
-                        value,
-                        meta,
-                        datatype,
-                        bySeqno,
-                        cacheHint,
-                        std::move(unlocked_getBucket(hbl)));
+    if (htRes.pendingSV) {
+        // A prepare already exists for this key and can remain at the head of
+        // the bucket chain. Create the new committed StoredValue chaining it
+        // after the prepare (taking over the prepare's current tail), then
+        // link it in behind the prepare.
+        // This now mimics what DCP would have done
+        auto v = (*valFact)(key,
+                            value,
+                            meta,
+                            datatype,
+                            bySeqno,
+                            cacheHint,
+                            std::move(htRes.pendingSV->getNext()));
 
-    valueStats.epilogue(hbl, emptyProperties, v.get().get());
+        valueStats.epilogue(hbl, emptyProperties, v.get().get());
+        htRes.pendingSV->setNext(std::move(v));
+    } else {
+        // Create a new StoredValue and link it into the head of the bucket
+        // chain.
+        auto v = (*valFact)(key,
+                            value,
+                            meta,
+                            datatype,
+                            bySeqno,
+                            cacheHint,
+                            std::move(unlocked_getBucket(hbl)));
 
-    auto& ret = unlocked_getBucket(hbl);
-    ret = std::move(v);
+        valueStats.epilogue(hbl, emptyProperties, v.get().get());
+        unlocked_getBucket(hbl) = std::move(v);
+    }
 
     return cb::engine_errc::success;
 }
