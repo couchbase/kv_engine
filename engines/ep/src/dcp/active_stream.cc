@@ -901,14 +901,7 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
     if (nextCheckpointItem(producer, lh)) {
         // Items are available - either already in readyQ (extraction ran
         // inline) or will be after the scheduled task runs.
-        auto p = nextQueuedItem(producer);
-        if (p) {
-            OBJ_LOG_INFO_CTX(*this,
-                             "ActiveStream::takeoverSend: FOUND AN ITEM when i "
-                             "used to return null",
-                             {"last_sent_seqno", lastSentSeqno.load()});
-        }
-        return p;
+        return nextQueuedItem(producer);
     }
 
     if (waitForSnapshot != 0) {
