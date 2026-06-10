@@ -635,24 +635,11 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                                       UpdateFlowControl& ufc) {
     lastMessageTime = ep_uptime_now();
 
-    if (doDisconnect()) {
-        return cb::engine_errc::disconnect;
-    }
-
     if (bySeqno == 0) {
         OBJ_LOG_WARN_CTX(*logger,
                          "Invalid sequence number (0) for deletion!",
                          {"vb", vbucket});
         return cb::engine_errc::invalid_arguments;
-    }
-
-    auto stream = findStream(vbucket);
-    if (!stream) {
-        return getNoStreamFoundErrorCode();
-    }
-
-    if (stream->getOpaque() != opaque) {
-        return getOpaqueMissMatchErrorCode();
     }
 
     queued_item item(Item::makeDeletedItem(deletionCause,
@@ -718,14 +705,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                               key.getEncoding(),
                               EnableExpiryOutput::Yes,
                               cb::mcbp::DcpStreamId{});
-    auto err = stream->messageReceived(response, ufc);
-
-    // The item was processed, but replication is requested to pause
-    if (err == cb::engine_errc::temporary_failure) {
-        notifyVbucketReady(vbucket);
-    }
-
-    return err;
+    return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, response);
 }
 
 cb::engine_errc DcpConsumer::expiration(uint32_t opaque,
@@ -788,27 +768,18 @@ cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
     }
 
     UpdateFlowControl ufc(*this, bytes);
-    auto err = deletion(opaque,
-                        key,
-                        value,
-                        datatype,
-                        cas,
-                        vbucket,
-                        bySeqno,
-                        revSeqno,
-                        deleteTime,
-                        includeDeleteTime,
-                        deleteSource,
-                        ufc);
-
-    // TMPFAIL means the stream has buffered the message for later processing
-    // so skip flowControl, success or any other error, we still need to ack
-    if (err == cb::engine_errc::temporary_failure) {
-        // Mask the TMPFAIL
-        return cb::engine_errc::success;
-    }
-
-    return err;
+    return deletion(opaque,
+                    key,
+                    value,
+                    datatype,
+                    cas,
+                    vbucket,
+                    bySeqno,
+                    revSeqno,
+                    deleteTime,
+                    includeDeleteTime,
+                    deleteSource,
+                    ufc);
 }
 
 cb::engine_errc DcpConsumer::snapshotMarker(
