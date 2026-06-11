@@ -37,7 +37,7 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        return std::chrono::milliseconds(1);
+        return std::chrono::milliseconds(10);
     }
 
     void setInterval(std::chrono::seconds i) {
