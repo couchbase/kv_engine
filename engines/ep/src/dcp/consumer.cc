@@ -1799,8 +1799,14 @@ void DcpConsumer::addNoopSecondsPendingControl(Controls& controls) {
 }
 
 void DcpConsumer::addBufferSizeControl(size_t bufferSize) {
-    pendingControls.lock()->emplace_back(DcpControlKeys::ConnectionBufferSize,
-                                         std::to_string(bufferSize));
+    pendingControls.lock()->emplace_back(
+            DcpControlKeys::ConnectionBufferSize,
+            std::to_string(bufferSize),
+            []() { /* do nothing on success */ },
+            [](Controls&) {
+                /* disconnect at failure */
+                return true;
+            });
 }
 
 cb::engine_errc DcpConsumer::cache_transfer_end_rx(uint32_t opaque,
