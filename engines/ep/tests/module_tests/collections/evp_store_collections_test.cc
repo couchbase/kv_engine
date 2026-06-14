@@ -57,10 +57,26 @@
 #include <thread>
 
 TEST_P(CollectionsParameterizedTest, uid_increment) {
+    auto getManifestUidStat = [this]() {
+        std::string value;
+        AddStatFn handler = [&value](std::string_view,
+                                     std::string_view v,
+                                     CookieIface&) { value = std::string(v); };
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->getStats(*cookie, "manifest", {}, handler));
+        return value;
+    };
+
+    // Initial manifest is the 'epoch' with uid 0
+    EXPECT_EQ("0", getManifestUidStat());
+
     CollectionsManifest cm{CollectionEntry::meat};
     EXPECT_EQ(setCollections(cookie, cm), cb::engine_errc::success);
+    EXPECT_EQ(std::to_string(cm.getUid()), getManifestUidStat());
+
     cm.add(CollectionEntry::vegetable);
     EXPECT_EQ(setCollections(cookie, cm), cb::engine_errc::success);
+    EXPECT_EQ(std::to_string(cm.getUid()), getManifestUidStat());
 }
 
 TEST_P(CollectionsParameterizedTest, uid_decrement) {

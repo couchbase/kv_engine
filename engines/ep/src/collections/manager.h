@@ -166,6 +166,11 @@ public:
             CollectionID) const;
 
     /**
+     * @return the uid of the current collections manifest
+     */
+    ManifestUid getManifestUid() const;
+
+    /**
      * Method to check if a ScopeID is valid
      * @param sid scoped id to validate
      * @return cb::EngineErrorGetScopeIDResult containing the status of success

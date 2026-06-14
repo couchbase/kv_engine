@@ -771,6 +771,7 @@ static std::unordered_map<StatGroupId, command_stat_handler> stat_handlers = {
         {StatGroupId::ScopesById, {false, stat_bucket_collections_stats}},
         {StatGroupId::Collections, {false, stat_bucket_collections_stats}},
         {StatGroupId::CollectionsById, {false, stat_bucket_collections_stats}},
+        {StatGroupId::Manifest, {false, stat_bucket_collections_stats}},
         {StatGroupId::StatTimings, {true, stat_timings_executor}},
         {StatGroupId::Threads, {true, stat_threads_executor}},
         {StatGroupId::TasksAll, {true, stat_tasks_all_executor}},

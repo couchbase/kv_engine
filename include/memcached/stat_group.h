@@ -37,6 +37,7 @@ enum class StatGroupId {
     Collections,
     CollectionsById,
     CollectionsDetails,
+    Manifest,
     TasksAll,
     ExternalAuthTimings,
 

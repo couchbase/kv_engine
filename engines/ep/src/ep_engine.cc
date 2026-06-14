@@ -5445,6 +5445,12 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key.starts_with("diskinfo")) {
         return doDiskinfoStats(c, add_stat, key);
     }
+    if (key == "manifest"sv) {
+        bucketCollector.addStat(
+                cb::stats::Key::manifest_uid,
+                kvBucket->getCollectionsManager().getManifestUid());
+        return cb::engine_errc::success;
+    }
     if (key.starts_with("collections")) {
         return doCollectionStats(
                 c, add_stat, std::string(key.data(), key.size()));

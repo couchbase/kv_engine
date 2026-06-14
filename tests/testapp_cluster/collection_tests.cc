@@ -333,10 +333,23 @@ TEST_F(CollectionsTests, ResurrectCollection) {
 
     auto bucket = cluster->getBucket("default");
     ASSERT_NE(nullptr, bucket);
+
+    auto expectManifestUidOnAllNodes = [&bucket](uint64_t expected) {
+        cluster->iterateNodes([&bucket, expected](const cb::test::Node& node) {
+            auto conn = node.getConnection();
+            conn->authenticate("@admin");
+            conn->selectBucket(bucket->getName());
+            EXPECT_EQ(expected,
+                      conn->stats("manifest")["manifest_uid"].get<uint64_t>());
+        });
+    };
+
     cluster->collections.remove(CollectionEntry::vegetable);
     bucket->setCollectionManifest(cluster->collections.getJson());
+    expectManifestUidOnAllNodes(cluster->collections.getUid());
     cluster->collections.add(CollectionEntry::vegetable);
     bucket->setCollectionManifest(cluster->collections.getJson());
+    expectManifestUidOnAllNodes(cluster->collections.getUid());
     mutate(*conn,
            DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
                                              "Generation2"),

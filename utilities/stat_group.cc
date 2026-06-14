@@ -148,6 +148,12 @@ StatsGroupManager::StatsGroupManager()
                .privileged = false,
                .bucket = true,
                .task_id = TaskId::Core_StatsBucketTask},
+              {.id = StatGroupId::Manifest,
+               .key = "manifest",
+               .description = "Get the uid of the current collections manifest",
+               .privileged = false,
+               .bucket = true,
+               .task_id = TaskId::Core_StatsBucketTask},
               {.id = StatGroupId::TasksAll,
                .key = "tasks-all",
                .description = "Get information from the tasks in the executor "

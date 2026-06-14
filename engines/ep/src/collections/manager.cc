@@ -239,6 +239,10 @@ Collections::Manager::getCollectionEntry(CollectionID cid) const {
             current->getUid(), current->getCollectionEntry(cid));
 }
 
+Collections::ManifestUid Collections::Manager::getManifestUid() const {
+    return currentManifest.rlock()->getUid();
+}
+
 cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
         ScopeID sid) const {
     auto manifestLocked = currentManifest.rlock();
