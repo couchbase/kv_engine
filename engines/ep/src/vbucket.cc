@@ -769,10 +769,26 @@ void VBucket::setState_UNLOCKED(
         setTakeoverBackedUpState(false);
     }
 
-    if (meta && meta->contains("topology")) {
-        setupSyncReplication(vbStateLock, &meta->at("topology"));
-    } else {
-        setupSyncReplication(vbStateLock, nullptr);
+    try {
+        if (meta && meta->contains("topology")) {
+            setupSyncReplication(vbStateLock, &meta->at("topology"));
+        } else {
+            setupSyncReplication(vbStateLock, nullptr);
+        }
+    } catch (const std::exception& ex) {
+        auto* dm = durabilityMonitor.get();
+        if (dynamic_cast<ActiveDurabilityMonitor*>(dm)) {
+            state = vbucket_state_active;
+        } else if (dynamic_cast<PassiveDurabilityMonitor*>(dm)) {
+            state = vbucket_state_replica;
+        } else if (dynamic_cast<DeadDurabilityMonitor*>(dm)) {
+            state = vbucket_state_dead;
+        }
+        EP_LOG_ERR_CTX("VBucket::setState: reverting due to exception",
+                       {"vb", id},
+                       {"state", VBucket::toString(state)},
+                       {"error", ex.what()});
+        throw;
     }
 
     updateStatsForStateChange(oldstate, to);
