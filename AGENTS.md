@@ -161,6 +161,9 @@ Agents must not:
 All commit messages must:
 
 - Start with: `MB-XXXXX: Short summary`
+- The summary (or subject line) of a Git commit should ideally be 50
+  characters or less, with 72 characters serving as the absolute hard
+  maximum. This practice is part of the industry-standard 50/72 rule.
 - Be wrapped at **72 characters per line**
 - Include a clear explanation of:
   - What changed
