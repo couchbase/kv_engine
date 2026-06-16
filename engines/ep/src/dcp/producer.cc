@@ -1360,8 +1360,8 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
     }
 
     if (key == DcpControlKeys::ConnectionBufferSize) {
-        uint64_t size;
-        if (safe_strtoull(value, size)) {
+        uint32_t size;
+        if (safe_strtoul(value, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
             log.wlock()->setBufferSize(size);
