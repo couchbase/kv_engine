@@ -76,7 +76,15 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
                 propertyListener(attribute, value);
             }
             switch (attribute) {
-            case 'r': // combined nonce
+            case 'r':
+                // RFC 5802 Section 7: server nonce MUST start with client nonce
+                if (!value.starts_with(clientNonce)) {
+                    errorMessage =
+                            "Server nonce validation failed: nonce does not "
+                            "start with client nonce";
+                    LOG_ERROR_CTX(errorMessage, {"uuid", context.getUuid()});
+                    return {Error::BAD_PARAM, errorMessage};
+                }
                 nonce = value;
                 break;
             case 's':
