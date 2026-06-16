@@ -49,12 +49,41 @@ public:
             throw ConnectionError("Failed to fetch cluster map", rsp);
         }
         auto json = rsp.getDataJson();
-        auto vbservermap = json["vBucketServerMap"];
-        const auto& services = json["nodesExt"].at(0).at("services");
-        uint16_t port =
-                connection.isSsl() ? services.at("kvSSL") : services.at("kv");
+
+        uint16_t port;
+        try {
+            auto vbservermap = json["vBucketServerMap"];
+
+            // Validate and extract nodesExt
+            if (!json.contains("nodesExt")) {
+                throw std::runtime_error(
+                        "'nodesExt' not found in cluster config");
+            }
+            const auto& nodesExt = json["nodesExt"];
+            if (!nodesExt.is_array() || nodesExt.empty()) {
+                throw std::runtime_error("'nodesExt' is not a non-empty array");
+            }
+
+            // Validate and extract services
+            if (!nodesExt[0].contains("services")) {
+                throw std::runtime_error("'services' not found in nodesExt[0]");
+            }
+            const auto& services = nodesExt[0]["services"];
+
+            // Validate and extract port
+            const char* port_key = connection.isSsl() ? "kvSSL" : "kv";
+            if (!services.contains(port_key)) {
+                throw std::runtime_error(fmt::format(
+                        "'{}' port not found in services", port_key));
+            }
+            port = services[port_key].get<uint16_t>();
+        } catch (const std::exception& e) {
+            throw std::runtime_error(fmt::format(
+                    "Failed to parse cluster config: {}", e.what()));
+        }
 
         std::vector<std::unique_ptr<T>> node_list;
+        auto vbservermap = json["vBucketServerMap"];
         auto nodes = vbservermap["serverList"];
         for (const auto& n : nodes) {
             auto h = n.get<std::string>();
