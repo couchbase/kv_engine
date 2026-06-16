@@ -307,7 +307,7 @@ void McdEnvironment::setupPasswordDatabase() {
     using cb::sasl::pwdb::UserFactory;
 
     // Reduce the iteration count to speed up the unit tests
-    UserFactory::setDefaultScramShaIterationCount(10);
+    UserFactory::setDefaultScramShaIterationCount(4096);
 
     for (const auto& [u, p] : users) {
         passwordDatabase.upsert(UserFactory::create(u, p));

@@ -274,18 +274,18 @@ TEST_P(SaslTest, IterationCountMayBeChanged) {
         EXPECT_EQ(expected, *iteration_count) << "When running " << mech;
     };
 
-    memcached_cfg["scramsha_fallback_iteration_count"] = 5;
+    memcached_cfg["scramsha_fallback_iteration_count"] = 4097;
     reconfigure();
 
-    tryFailedAuth("SCRAM-SHA512", 5);
-    tryFailedAuth("SCRAM-SHA256", 5);
-    tryFailedAuth("SCRAM-SHA1", 5);
+    tryFailedAuth("SCRAM-SHA512", 4097);
+    tryFailedAuth("SCRAM-SHA256", 4097);
+    tryFailedAuth("SCRAM-SHA1", 4097);
 
-    memcached_cfg["scramsha_fallback_iteration_count"] = 10;
+    memcached_cfg["scramsha_fallback_iteration_count"] = 4096;
     reconfigure();
-    tryFailedAuth("SCRAM-SHA512", 10);
-    tryFailedAuth("SCRAM-SHA256", 10);
-    tryFailedAuth("SCRAM-SHA1", 10);
+    tryFailedAuth("SCRAM-SHA512", 4096);
+    tryFailedAuth("SCRAM-SHA256", 4096);
+    tryFailedAuth("SCRAM-SHA1", 4096);
 }
 
 TEST_P(SaslTest, ExpiredPLAIN) {

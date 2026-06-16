@@ -527,7 +527,7 @@ nlohmann::json TestappTest::generate_config() {
              {{"enabled", true},
               {"minidump_dir", mcd_env->getMinidumpDir().string()},
               {"content", "default"}}},
-            {"scramsha_fallback_iteration_count", 10},
+            {"scramsha_fallback_iteration_count", 4096},
             {"threads", 2},
             {"num_auxio_threads", "default"},
             {"num_nonio_threads", "default"},

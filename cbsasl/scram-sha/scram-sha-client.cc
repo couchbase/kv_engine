@@ -84,7 +84,17 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
                 break;
             case 'i':
                 try {
-                    iterationCount = (unsigned int)std::stoul(value);
+                    auto count = std::stoul(value);
+                    // RFC 5802 requires iteration count >= 4096
+                    if (count < 4096) {
+                        errorMessage = fmt::format(
+                                "Iteration count too low: {} (minimum is 4096)",
+                                count);
+                        LOG_ERROR_CTX(errorMessage,
+                                      {"uuid", context.getUuid()});
+                        return {Error::BAD_PARAM, errorMessage};
+                    }
+                    iterationCount = (unsigned int)count;
                 } catch (...) {
                     return {Error::BAD_PARAM, {}};
                 }
