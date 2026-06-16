@@ -136,6 +136,22 @@ std::pair<Error, std::string> ServerBackend::step(std::string_view input) {
         return {Error::BAD_PARAM, {}};
     }
 
+    // RFC 5802 Section 7: Validate mandatory client-final-message attributes
+    // c= (channel binding data) MUST be present
+    if (!attributes.contains('c')) {
+        return {Error::BAD_PARAM, {}};
+    }
+
+    // r= (nonce) MUST be present and match the nonce sent to client
+    auto iter_r = attributes.find('r');
+    if (iter_r == attributes.end()) {
+        return {Error::BAD_PARAM, {}};
+    }
+
+    if (iter_r->second != nonce) {
+        return {Error::BAD_PARAM, {}};
+    }
+
     auto iter = attributes.find('p');
     if (iter == attributes.end()) {
         return {Error::BAD_PARAM, {}};
