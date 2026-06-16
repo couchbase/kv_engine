@@ -105,9 +105,12 @@ void ConnectionMap::add(const nlohmann::json& description) {
 }
 
 void ConnectionMap::remove(const std::string& uuid) {
-    for (auto iter = connections.begin(); iter != connections.end(); iter++) {
+    auto iter = connections.begin();
+    while (iter != connections.end()) {
         if ((*iter)->getServerInterfaceUuid() == uuid) {
-            connections.erase(iter);
+            iter = connections.erase(iter);
+        } else {
+            ++iter;
         }
     }
 }
