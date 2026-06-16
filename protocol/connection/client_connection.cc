@@ -618,7 +618,21 @@ intptr_t MemcachedConnection::getServerConnectionId() {
                 "size returned");
     }
 
-    return st.front()["socket"].get<size_t>();
+    const auto& stat = st.front();
+    if (!stat.contains("socket")) {
+        throw std::runtime_error(
+                "MemcachedConnection::getServerConnectionId: 'socket' key not "
+                "found in stats response");
+    }
+
+    try {
+        return static_cast<intptr_t>(stat["socket"].get<size_t>());
+    } catch (const nlohmann::json::type_error& e) {
+        throw std::runtime_error(fmt::format(
+                "MemcachedConnection::getServerConnectionId: Failed "
+                "to convert 'socket' value to size_t: {}",
+                e.what()));
+    }
 }
 
 uint64_t tls_protocol_to_options(TlsVersion protocol) {
