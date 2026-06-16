@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -11,7 +10,6 @@
 #include "stringutils.h"
 
 #include <stdexcept>
-#include <cctype>
 
 /**
  * According to the RFC:
@@ -34,15 +32,45 @@
  *       - Tagging characters [StringPrep, C.9]
  */
 std::string SASLPrep(const std::string& string) {
-    for (const auto& c : string) {
-        if (c & 0x80) {
-            throw std::runtime_error("SASLPrep: Multibyte UTF-8 is not"
-                                         " implemented yet");
+    for (std::size_t ii = 0; ii < string.size(); ++ii) {
+        unsigned char cc = string[ii];
+
+        if (cc < 0x20) {
+            throw std::runtime_error(
+                    "SASLPrep: ASCII control characters are not allowed");
         }
 
-        if (iscntrl(c)) {
-            throw std::runtime_error("SASLPrep: control characters is not"
-                                         " allowed");
+        if (cc == 0x7F) {
+            throw std::runtime_error("SASLPrep: DEL character is not allowed");
+        }
+
+        if (cc & 0x80) {
+            int expected_bytes = 0;
+            // 0xC0/0xC1 are overlong; 0xF5-0xF7 exceed U+10FFFF — both invalid
+            if ((cc & 0xE0) == 0xC0 && cc >= 0xC2) {
+                expected_bytes = 1;
+            } else if ((cc & 0xF0) == 0xE0) {
+                expected_bytes = 2;
+            } else if ((cc & 0xF8) == 0xF0 && cc <= 0xF4) {
+                expected_bytes = 3;
+            } else {
+                throw std::runtime_error(
+                        "SASLPrep: Invalid UTF-8 sequence detected");
+            }
+
+            for (int jj = 0; jj < expected_bytes; ++jj) {
+                ++ii;
+                if (ii >= string.size()) {
+                    throw std::runtime_error(
+                            "SASLPrep: Incomplete UTF-8 sequence at end of "
+                            "string");
+                }
+                unsigned char continuation = string[ii];
+                if ((continuation & 0xC0) != 0x80) {
+                    throw std::runtime_error(
+                            "SASLPrep: Invalid UTF-8 continuation byte");
+                }
+            }
         }
     }
 
