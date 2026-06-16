@@ -258,8 +258,8 @@ nlohmann::json Request::to_json(bool validated) const {
                             buffer.size()});
                     break;
                 case request::FrameInfoId::ImpersonateWithTokenAuthDataId:
-                    frameid["euid-token-id"] = ntohl(
-                            *reinterpret_cast<const uint32_t*>(buffer.data()));
+                    frameid["euid-token-id"] = ntohs(
+                            *reinterpret_cast<const uint16_t*>(buffer.data()));
                     break;
                 }
 
