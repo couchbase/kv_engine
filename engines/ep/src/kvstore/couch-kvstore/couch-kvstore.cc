@@ -183,7 +183,7 @@ static GetValue makeItemFromDocInfo(Vbid vbid,
                                        vbid,
                                        docinfo.rev_seq);
     if (status != cb::engine_errc::success) {
-        return GetValue(nullptr, status);
+        return GetValue(status);
     }
 
     // Blob creation is deferred to avoid exceeding quota.
@@ -647,7 +647,7 @@ GetValue CouchKVStore::get(const DiskDocKey& key,
                      db.getFilename(),
                      options);
 
-        return GetValue(nullptr, couchErr2EngineErr(errCode));
+        return GetValue(couchErr2EngineErr(errCode));
     }
 
     GetValue gv = getWithHeader(db, key, vb, filter);
@@ -4833,7 +4833,7 @@ GetValue CouchKVStore::getBySeqno(KVFileHandle& handle,
     auto status = couchstore_docinfo_by_sequence(db, seq, &docInfo);
 
     if (status != COUCHSTORE_SUCCESS || docInfo == nullptr) {
-        return GetValue(nullptr, couchErr2EngineErr(status));
+        return GetValue(couchErr2EngineErr(status));
     }
 
     GetValue rv;

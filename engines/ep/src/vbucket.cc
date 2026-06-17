@@ -3020,13 +3020,12 @@ GetValue VBucket::getAndUpdateTtl(
                                             cookie,
                                             engine,
                                             false);
-            return GetValue(
-                    nullptr, ec, std::numeric_limits<uint64_t>::max(), true);
+            return GetValue(ec, true);
         }
         return gv;
     }
     case FetchForWriteResult::Status::ESyncWriteInProgress:
-        return GetValue(nullptr, cb::engine_errc::sync_write_in_progress);
+        return GetValue(cb::engine_errc::sync_write_in_progress);
     }
     folly::assume_unreachable();
 }
@@ -3058,8 +3057,7 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
         // been made visible to clients, then we cannot yet report _any_
         // value for this key until the Prepare has bee re-committed.
         if (v->isPreparedMaybeVisible()) {
-            return GetValue(nullptr,
-                            cb::engine_errc::sync_write_re_commit_in_progress);
+            return GetValue(cb::engine_errc::sync_write_re_commit_in_progress);
         }
 
         // 1 If SV is deleted or expired and user didn't request deleted items
@@ -3286,13 +3284,13 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
         auto* v = res.storedValue;
         if (isLogicallyNonExistent(*v, cHandle)) {
             ht.cleanupIfTemporaryItem(res.lock, *v);
-            return GetValue(nullptr, cb::engine_errc::no_such_key);
+            return GetValue(cb::engine_errc::no_such_key);
         }
 
         const auto currentUptimeSeconds = ep_current_time();
         // if v is locked return error
         if (v->isLocked(currentUptimeSeconds)) {
-            return GetValue(nullptr, cb::engine_errc::locked_tmpfail);
+            return GetValue(cb::engine_errc::locked_tmpfail);
         }
 
         // If the value is not resident, wait for it...
@@ -3303,15 +3301,9 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
                                              *v,
                                              cookie,
                                              engine);
-                return GetValue(nullptr,
-                                ec,
-                                std::numeric_limits<uint64_t>::max(),
-                                true);
+                return GetValue(ec, true);
             }
-            return GetValue(nullptr,
-                            cb::engine_errc::would_block,
-                            std::numeric_limits<uint64_t>::max(),
-                            true);
+            return GetValue(cb::engine_errc::would_block, true);
         }
 
         // Narrowing note: For now narrow_cast and accept this has always been a
@@ -3333,7 +3325,7 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
         // No value found in the hashtable.
         switch (eviction) {
         case EvictionPolicy::Value:
-            return GetValue(nullptr, cb::engine_errc::no_such_key);
+            return GetValue(cb::engine_errc::no_such_key);
 
         case EvictionPolicy::Full:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
@@ -3342,18 +3334,15 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
                                                            cookie,
                                                            engine,
                                                            false);
-                return GetValue(nullptr,
-                                ec,
-                                std::numeric_limits<uint64_t>::max(),
-                                true);
+                return GetValue(ec, true);
             }
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT for getLocked().
-            return GetValue(nullptr, cb::engine_errc::no_such_key);
+            return GetValue(cb::engine_errc::no_such_key);
         }
         folly::assume_unreachable();
     case FetchForWriteResult::Status::ESyncWriteInProgress:
-        return GetValue(nullptr, cb::engine_errc::sync_write_in_progress);
+        return GetValue(cb::engine_errc::sync_write_in_progress);
     }
     folly::assume_unreachable();
 }

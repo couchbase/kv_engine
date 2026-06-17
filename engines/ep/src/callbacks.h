@@ -62,6 +62,8 @@ class GetValue {
 public:
     GetValue();
 
+    explicit GetValue(cb::engine_errc s, bool incomplete = false);
+
     explicit GetValue(std::unique_ptr<Item> v,
                       cb::engine_errc s = cb::engine_errc::success,
                       uint64_t i = -1,

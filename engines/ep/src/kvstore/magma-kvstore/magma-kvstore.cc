@@ -1630,7 +1630,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                        vb,
                                        meta.getRevSeqno());
     if (status != cb::engine_errc::success) {
-        return GetValue(nullptr, status);
+        return GetValue(status);
     }
 
     // Blob creation is deferred to avoid exceeding quota.

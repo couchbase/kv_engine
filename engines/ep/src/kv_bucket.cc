@@ -1666,7 +1666,7 @@ GetValue KVBucket::getInternal(const DocKeyView& key,
     Expects(cookie);
     auto lr = lookupVBucket(vbucket);
     if (!lr) {
-        return GetValue(nullptr, lr.error());
+        return GetValue(lr.error());
     }
     auto vb = std::move(*lr);
 
@@ -1680,7 +1680,7 @@ GetValue KVBucket::getInternal(const DocKeyView& key,
         cb::engine_errc rv =
                 requireVBucketState(rlh, *vb, {permittedState}, *cookie);
         if (rv != cb::engine_errc::success) {
-            return GetValue(nullptr, rv);
+            return GetValue(rv);
         }
     }
 
@@ -1689,7 +1689,7 @@ GetValue KVBucket::getInternal(const DocKeyView& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
-            return GetValue(nullptr, cb::engine_errc::unknown_collection);
+            return GetValue(cb::engine_errc::unknown_collection);
         }
 
         auto result = vb->getInternal(rlh,
@@ -1898,7 +1898,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKeyView& key,
                                 IsMutationOp::Yes,
                                 __func__);
     if (!lr) {
-        return GetValue(nullptr, lr.error());
+        return GetValue(lr.error());
     }
     auto [vb, rlh] = std::move(*lr);
 
@@ -1908,7 +1908,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKeyView& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
-            return GetValue(nullptr, cb::engine_errc::unknown_collection);
+            return GetValue(cb::engine_errc::unknown_collection);
         }
 
         auto result = vb->getAndUpdateTtl(
@@ -1933,21 +1933,21 @@ GetValue KVBucket::getLocked(const DocKeyView& key,
     Expects(cookie);
     auto lr = lookupVBucket(vbucket);
     if (!lr) {
-        return GetValue(nullptr, lr.error());
+        return GetValue(lr.error());
     }
     auto vb = std::move(*lr);
 
     std::shared_lock rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
+        return GetValue(cb::engine_errc::not_my_vbucket);
     }
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
         engine.setUnknownCollectionErrorContext(*cookie,
                                                 cHandle.getManifestUid());
-        return GetValue(nullptr, cb::engine_errc::unknown_collection);
+        return GetValue(cb::engine_errc::unknown_collection);
     }
 
     auto result = vb->getLocked(lockTimeout, cookie, engine, cHandle);

@@ -12,6 +12,7 @@
 #include "callbacks.h"
 
 #include "item.h"
+#include <gsl/gsl-lite.hpp>
 
 GetValue::GetValue()
     : id(std::numeric_limits<uint64_t>::max()),
@@ -20,6 +21,13 @@ GetValue::GetValue()
 }
 GetValue::GetValue(GetValue&& other) = default;
 GetValue& GetValue::operator=(GetValue&& other) = default;
+
+GetValue::GetValue(cb::engine_errc s, bool incomplete)
+    : id(std::numeric_limits<uint64_t>::max()),
+      status(s),
+      partial(incomplete) {
+    Expects(status != cb::engine_errc::success);
+}
 
 GetValue::GetValue(std::unique_ptr<Item> v,
                    cb::engine_errc s,
