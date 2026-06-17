@@ -96,6 +96,26 @@ Guidelines:
   `docs/CodingStandards.rst`.
 - Always build (see building hints and testing hints) before running tests!
 
+## New C++ File Headers
+Whenever you create a new C++ file (e.g., `.cc`, or `.h`), you must prepend the exact copyright header specified below.
+
+### Execution Rules
+1. **Dynamic Year**: Automatically replace [YEAR] with the current year (e.g. 2026).
+2. **Existing Files**: Do not modify or duplicate the header if editing an existing file.
+
+### C++ Header Template
+```cpp
+/*
+ *     Copyright [YEAR]-Present Couchbase, Inc.
+ *
+ *   Use of this software is governed by the Business Source License included
+ *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
+ *   in that file, in accordance with the Business Source License, use of this
+ *   software will be governed by the Apache License, Version 2.0, included in
+ *   the file licenses/APL2.txt.
+ */
+```
+
 ---
 
 ## Building hints
