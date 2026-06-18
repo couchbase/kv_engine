@@ -713,6 +713,26 @@ public:
     }
 
     /**
+     * Should TLS certificate verification problems be logged?
+     *
+     * @return true if problems should be logged
+     */
+    bool isLogTlsCertificateVerificationProblems() const {
+        return log_tls_certificate_verification_problems.load();
+    }
+
+    /**
+     * Set if TLS certificate verification problems should be logged
+     *
+     * @param enable true if problems should be logged
+     */
+    void setLogTlsCertificateVerificationProblems(bool enable) {
+        log_tls_certificate_verification_problems.store(enable);
+        has.log_tls_certificate_verification_problems = true;
+        notify_changed("log_tls_certificate_verification_problems");
+    }
+
+    /**
      * Get the IO hint setting to use while downloading snapshots
      *
      * @return the current IO hint setting
@@ -1719,6 +1739,9 @@ protected:
     /// May xattrs be used or not
     std::atomic_bool xattr_enabled{false};
 
+    /// Should TLS certificate verification problems be logged
+    std::atomic_bool log_tls_certificate_verification_problems{true};
+
     /// IO hint to use for FBR
     std::atomic<cb::io::IoHint> snapshot_download_fadvise{
             cb::io::IoHint::Normal};
@@ -1894,6 +1917,7 @@ public:
         bool dedupe_nmvb_maps = false;
         bool error_maps = false;
         bool xattr_enabled = false;
+        bool log_tls_certificate_verification_problems = false;
         bool snapshot_download_fadvise = false;
         bool collections_enabled = false;
         bool opcode_attributes_override = false;

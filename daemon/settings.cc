@@ -281,6 +281,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     std::chrono::seconds(value.get<uint32_t>()));
         } else if (key == "xattr_enabled"sv) {
             setXattrEnabled(value.get<bool>());
+        } else if (key == "log_tls_certificate_verification_problems"sv) {
+            setLogTlsCertificateVerificationProblems(value.get<bool>());
         } else if (key == "client_cert_auth"sv) {
             auto config = cb::x509::ClientCertConfig::create(value);
             reconfigureClientCertAuth(std::move(config));
@@ -663,6 +665,8 @@ nlohmann::json Settings::to_json() const {
     json["datatype_snappy"] = isDatatypeSnappyEnabled();
     json["dedupe_nmvb_maps"] = isDedupeNmvbMaps();
     json["xattr_enabled"] = isXattrEnabled();
+    json["log_tls_certificate_verification_problems"] =
+            isLogTlsCertificateVerificationProblems();
     json["collections_enabled"] = isCollectionsEnabled();
     json["tracing_enabled"] = isTracingEnabled();
     json["stdin_listener"] = isStdinListenerEnabled();
@@ -1148,6 +1152,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO_CTX("Change XATTR",
                          {"enabled", other.xattr_enabled.load()});
             setXattrEnabled(other.xattr_enabled.load());
+        }
+    }
+
+    if (other.has.log_tls_certificate_verification_problems) {
+        if (other.isLogTlsCertificateVerificationProblems() !=
+            isLogTlsCertificateVerificationProblems()) {
+            LOG_INFO_CTX(
+                    "Change log_tls_certificate_verification_problems",
+                    {"from", isLogTlsCertificateVerificationProblems()},
+                    {"to", other.isLogTlsCertificateVerificationProblems()});
+            setLogTlsCertificateVerificationProblems(
+                    other.isLogTlsCertificateVerificationProblems());
         }
     }
 
