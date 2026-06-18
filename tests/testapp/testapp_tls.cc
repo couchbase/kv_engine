@@ -40,6 +40,23 @@ protected:
                         .getConnection(true,
                                        mcd_env->haveIPv4() ? AF_INET : AF_INET6)
                         .clone();
+        initialCertVerificationProblems = getTlsCertVerificationProblems();
+    }
+
+    uint64_t getTlsCertVerificationProblems() {
+        std::optional<uint64_t> problems;
+        adminConnection->stats(
+                [&problems](auto key, auto value) {
+                    if (key == "tls_certificate_verification_problems") {
+                        problems = std::stoull(value);
+                    }
+                },
+                {});
+        if (!problems.has_value()) {
+            throw std::runtime_error(
+                    "Failed to get tls_certificate_verification_problems stat");
+        }
+        return *problems;
     }
 
     void reloadConfig() {
@@ -79,6 +96,7 @@ protected:
 
     nlohmann::json tls;
     std::unique_ptr<MemcachedConnection> connection;
+    uint64_t initialCertVerificationProblems{0};
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,

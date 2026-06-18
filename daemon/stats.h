@@ -59,6 +59,9 @@ struct GlobalStatistics {
     /** The number of authentication errors */
     cb::RelaxedAtomic<uint64_t> auth_errors;
 
+    /// The number of times we've seen TLS cert verification issues
+    cb::RelaxedAtomic<uint64_t> tls_certificate_verification_problems{0};
+
     // ! Histograms of various task wait times, one per Task.
     std::array<Hdr1sfMicroSecHistogram, static_cast<int>(TaskId::TASK_COUNT)>
             taskSchedulingHistogram;

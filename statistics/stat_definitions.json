@@ -2691,6 +2691,12 @@
         "description" : "The number of connections to user ports in memcached"
     },
     {
+        "key": "tls_certificate_verification_problems",
+        "unit": "none",
+        "added": "totoro",
+        "description" : "The number of times TLS certificate verification has found issues with the certificate presented by the client during connection establishment"
+    },
+    {
         "key": "rejected_connections",
         "description": "The number of connections rejected due to hitting the maximum number of connections",
         "cbstat": "rejected_conns",

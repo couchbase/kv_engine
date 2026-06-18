@@ -70,6 +70,9 @@ static void server_global_stats(const StatCollector& collector) {
                           global_statistics.conn_structs);
         collector.addStat(Key::curr_connections_closing,
                           global_statistics.curr_conn_closing);
+        collector.addStat(
+                Key::tls_certificate_verification_problems,
+                global_statistics.tls_certificate_verification_problems);
         if (isFusionSupportEnabled()) {
             collector.addStat(Key::fusion_migration_rate_limit,
                               magma::Magma::GetFusionMigrationRateLimit());
