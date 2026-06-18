@@ -327,11 +327,11 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
                     "MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB() "
                     "couldn't create compaction context");
         }
-        ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
-                std::make_unique<MagmaImplicitCompactionPurgedItemContext>(
-                        ctx->getRollbackPurgeSeqno(),
-                        magmaDbStats,
-                        ctx->maybeUpdateVBucketPurgeSeqno);
+        ctx->purgedItemCtx->rollbackPurgeSeqnoCtx = makeArenaMatchUniquePtr<
+                MagmaImplicitCompactionPurgedItemContext>(
+                ctx->getRollbackPurgeSeqno(),
+                magmaDbStats,
+                ctx->maybeUpdateVBucketPurgeSeqno);
 
         Status status;
         std::tie(status, oldestRollbackableHighSeqno) =
@@ -344,7 +344,7 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         }
     } else {
         ctx->purgedItemCtx->rollbackPurgeSeqnoCtx =
-                std::make_unique<MagmaRollbackPurgeSeqnoCtx>(
+                makeArenaMatchUniquePtr<MagmaRollbackPurgeSeqnoCtx>(
                         ctx->getRollbackPurgeSeqno(), magmaDbStats);
 
         // set to unlimited since all checkpoints are cleared by magma explicit

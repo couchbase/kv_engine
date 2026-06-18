@@ -30,6 +30,7 @@
 
 #include <folly/Synchronized.h>
 #include <platform/atomic_duration.h>
+#include <platform/cb_arena_malloc.h>
 #include <relaxed_atomic.h>
 #include <atomic>
 #include <chrono>
@@ -162,6 +163,40 @@ enum class PurgedItemType {
 };
 
 /**
+ * unique_ptr deleter that records the ArenaMalloc client+domain that was active
+ * when the object was allocated, and restores it for the duration of the
+ * delete. This allows an object whose allocation and deallocation crosses a
+ * memory-domain boundary to always be freed against the arena it was allocated
+ * from.
+ */
+struct ArenaMatchDeleter {
+    /// Capture the currently-active client (index + domain + arena).
+    cb::ArenaMalloc::ClientHandle allocClient{
+            cb::ArenaMalloc::getCurrentClient()};
+
+    template <class T>
+    void operator()(T* p) const {
+        auto prev = cb::ArenaMalloc::switchToClient(allocClient);
+        delete p;
+        cb::ArenaMalloc::switchToClient(prev);
+    }
+};
+
+template <class T>
+using ArenaMatchUniquePtr = std::unique_ptr<T, ArenaMatchDeleter>;
+
+/**
+ * Construct a T via an ArenaMatchUniquePtr. The deleter is constructed (and
+ * captures the current client) before the allocation, so the captured client
+ * matches the arena that `new` allocates from.
+ */
+template <class T, class... Args>
+ArenaMatchUniquePtr<T> makeArenaMatchUniquePtr(Args&&... args) {
+    ArenaMatchDeleter deleter;
+    return ArenaMatchUniquePtr<T>(new T(std::forward<Args>(args)...), deleter);
+}
+
+/**
  * RollbackPurgeSeqnoCtx implements common behaviours to all KVStores that are
  * executed when we update the rollbackPurgeSeqno. This allows us to subclass
  * PurgedItemContext for KVStores with specific additional behaviours.
@@ -209,7 +244,7 @@ class PurgedItemCtx {
 public:
     PurgedItemCtx(uint64_t purgeSeq)
         : rollbackPurgeSeqnoCtx(
-                  std::make_unique<RollbackPurgeSeqnoCtx>(purgeSeq)) {
+                  makeArenaMatchUniquePtr<RollbackPurgeSeqnoCtx>(purgeSeq)) {
     }
 
     virtual ~PurgedItemCtx() = default;
@@ -237,7 +272,7 @@ public:
      * override it to add additional behaves that they may wish to execute when
      * updating the purge seqno.
      */
-    std::unique_ptr<RollbackPurgeSeqnoCtx> rollbackPurgeSeqnoCtx;
+    ArenaMatchUniquePtr<RollbackPurgeSeqnoCtx> rollbackPurgeSeqnoCtx;
 };
 
 struct CompactionContext {
