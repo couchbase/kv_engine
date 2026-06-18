@@ -18,9 +18,9 @@
 
 #include <memory>
 
-#include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
+#include <openssl/ssl.h>
 
 namespace cb::openssl {
 struct X509deletor {

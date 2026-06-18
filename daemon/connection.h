@@ -22,11 +22,11 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/connection_iface.h>
 #include <memcached/dcp.h>
-#include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/ringbuffer.h>
 #include <platform/socket.h>
+#include <utilities/openssl_utils.h>
 
 #include <array>
 #include <chrono>

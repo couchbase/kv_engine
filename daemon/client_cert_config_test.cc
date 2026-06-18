@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -11,13 +10,12 @@
 #include "client_cert_config.h"
 
 #include <folly/portability/GTest.h>
-#include <memcached/openssl.h>
-
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #include <platform/dirutils.h>
+#include <utilities/openssl_utils.h>
 
 using namespace cb::x509;
 

@@ -9,8 +9,8 @@
  */
 #pragma once
 #include "ssl_utils.h"
-#include <memcached/openssl.h>
 #include <nlohmann/json.hpp>
+#include <utilities/openssl_utils.h>
 #include <stdexcept>
 
 class CreateSslContextException : public std::runtime_error {
