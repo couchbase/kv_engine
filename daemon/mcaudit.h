@@ -14,6 +14,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json.hpp>
+#include <platform/socket.h>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -99,6 +100,23 @@ void audit_command_access_failed(Cookie& cookie);
  * @param packet the packet to dump in the audit event
  */
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet);
+
+/**
+ * Send an audit event for a TLS CRL verification failure or bypass.
+ *
+ * @param socket_fd the underlying socket file descriptor (used to resolve
+ *                  remote and local addresses)
+ * @param disconnected was the client disconnected or not according to policy
+ * @param reason    human-readable description of the verification outcome
+ *                  (e.g. the OpenSSL error string)
+ * @param peer_certificate optional JSON object with "subject", "issuer", and
+ *                         "serial" fields extracted from the peer certificate
+ */
+void audit_tls_certificate_problem(
+        SOCKET socket_fd,
+        bool disconnected,
+        std::string_view reason,
+        const std::optional<nlohmann::json>& peer_certificate);
 
 namespace cb::audit {
 /// Iterate over the audit trail on disk and generate a list of the DEKs

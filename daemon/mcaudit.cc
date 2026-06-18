@@ -25,6 +25,7 @@
 #include <memcached/audit_interface.h>
 #include <nlohmann/json.hpp>
 #include <platform/scope_timer.h>
+#include <platform/socket.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <optional>
@@ -284,6 +285,39 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     const auto message = ss.str();
     root["packet"] = message.c_str() + strlen("Invalid packet: ");
     do_audit(nullptr, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
+}
+
+void audit_tls_certificate_problem(
+        SOCKET socket_fd,
+        bool disconnected,
+        std::string_view reason,
+        const std::optional<nlohmann::json>& peer_certificate) {
+    nlohmann::json root;
+    const auto identifier =
+            disconnected
+                    ? MEMCACHED_AUDIT_TLS_CLIENT_DISCONNECTED___CERTIFICATE_REJECTED_BY_CRL_POLICY
+                    : MEMCACHED_AUDIT_TLS_CERTIFICATE_VERIFICATION_PROBLEM;
+    const auto& descr = AuditDescriptorManager::lookup(identifier);
+    root["id"] = identifier;
+    root["name"] = descr.getName();
+    root["description"] = descr.getDescription();
+    root["timestamp"] = cb::time::timestamp();
+    root["real_userid"] = {{"domain", "local"}, {"user", "@memcached"}};
+    root["reason"] = reason;
+    try {
+        root["remote"] = cb::net::getPeerNameAsJson(socket_fd);
+        root["local"] = cb::net::getSockNameAsJson(socket_fd);
+    } catch (const std::exception&) {
+        root["remote"] = {{"ip", "unknown"}, {"port", 0}};
+        root["local"] = {{"ip", "unknown"}, {"port", 0}};
+    }
+    if (peer_certificate) {
+        root["peer_certificate"] = *peer_certificate;
+    }
+    do_audit(nullptr,
+             identifier,
+             root,
+             "Failed to send TLS certificate problem audit event");
 }
 
 cb::engine_errc mc_audit_event(Cookie& cookie,

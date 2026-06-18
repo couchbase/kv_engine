@@ -278,6 +278,54 @@
       },
       "optional_fields": {
       }
+    },
+    {
+      "id": 20495,
+      "name": "TLS certificate verification problem",
+      "description": "A TLS peer certificate failed CRL verification",
+      "enabled": false,
+      "filtering_permitted": false,
+      "mandatory_fields": {
+        "timestamp": "",
+        "reason": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        },
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
+      },
+      "optional_fields": {
+        "peer_certificate": {
+          "subject": "",
+          "issuer": "",
+          "serial": ""
+        }
+      }
+    },
+    {
+      "id": 20496,
+      "name": "TLS client disconnected - certificate rejected by CRL policy",
+      "description": "A TLS connection was rejected because the peer certificate did not pass CRL verification under the Strict or Require policy",
+      "enabled": false,
+      "filtering_permitted": false,
+      "mandatory_fields": {
+        "timestamp": "",
+        "reason": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        },
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
+      },
+      "optional_fields": {
+        "peer_certificate": {
+          "subject": "",
+          "issuer": "",
+          "serial": ""
+        }
+      }
     }
   ]
 }
