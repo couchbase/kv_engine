@@ -252,6 +252,7 @@
         "key": "ep_item_flush_failed",
         "unit": "none",
         "description": "Number of times an item failed to flush due to storage errors",
+        "long_description": "Provides the number of items that failed to be persisted to disk due to storage errors, typically disk I/O failures. The metric increments when a mutation (set/add/replace) cannot be written to disk, a deletion cannot be committed to disk, or the underlying storage engine returns an error during flush operations. Persistent failures indicate a serious storage problem that risks data loss and potential service disruption.",
         "added": "7.0.0"
     },
     {
@@ -557,6 +558,7 @@
         "key": "ep_oom_errors",
         "unit": "none",
         "description": "Number of times unrecoverable OOMs happened while processing operations",
+        "long_description": "Provides number of unrecoverable out-of-memory errors operations that fail because the bucket has exceeded its total memory quota. The metric increments when memory usage exceeds the bucket quota, operations cannot proceed even after memory reclamation attempts, and the system is in a hard OOM state with no space available. A non-zero and rising value indicates the bucket quota is insufficient for the current workload and immediate intervention is required.",
         "added": "7.0.0"
     },
     {
@@ -694,6 +696,7 @@
         "key": "ep_compaction_failed",
         "unit": "none",
         "description": "Counter of how many times compaction has failed, e.g. a system call error caused compaction to fail",
+        "long_description": "Provides the number of time the compaction process stats but forced to abort or failed. Common causes include out of disk space, permission issues, disk I/O bottlenecks, and system crashes or restarts. A rising value indicates a serious problem: disk usage grows indefinitely as old document versions are never purged, fragmented files degrade read performance, and eventually the Data Service will stop accepting writes when the disk reaches capacity.",
         "added": "7.1.0"
     },
     {
@@ -2954,6 +2957,7 @@
     {
         "key": "auth_errors",
         "description": "The number of failed authentication requests",
+        "long_description": "Provides the number of failed client authentication attempt at the memcached layer. Failure causes include invalid credentials (wrong username or password), an unsupported or malformed SASL mechanism, bad authentication request parameters, SASL-level protocol errors, and unavailability of an external authentication provider.",
         "unit": "none",
         "added": "7.0.0"
     },
@@ -3303,6 +3307,7 @@
     {
         "key": "audit_dropped_events",
         "description": "The number of audit events dropped due to errors while trying to insert them to the audit trail",
+        "long_description": "Provides the number of audit events that were failed and never written to the audit trail. When audit logging is enabled, Couchbase logs security related operations such as authentication attempts, bucket operations, and key modifications for compliance purposes. The audit daemon maintains an internal event queue, when that queue reaches its capacity of 50,000 pending events, new events are dropped and this counter is incremented to prevent unbounded memory growth under high load. A non-zero value means audit records have been permanently lost.",
         "unit": "none",
         "cbstat": "dropped_events",
         "type": "counter",
