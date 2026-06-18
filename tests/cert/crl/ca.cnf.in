@@ -1,0 +1,25 @@
+# OpenSSL CA configuration for CRL generation
+[ca]
+default_ca = CA_default
+
+[CA_default]
+dir              = @DB_DIR@
+database         = $dir/index.txt
+new_certs_dir    = $dir
+serial           = $dir/serial
+crlnumber        = $dir/crlnumber
+private_key      = @CA_KEY@
+certificate      = @CA_CERT@
+default_md       = sha256
+default_crl_days = 30
+preserve         = no
+policy           = policy_anything
+
+[policy_anything]
+countryName            = optional
+stateOrProvinceName    = optional
+localityName           = optional
+organizationName       = optional
+organizationalUnitName = optional
+commonName             = optional
+emailAddress           = optional

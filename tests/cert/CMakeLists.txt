@@ -111,6 +111,7 @@ add_subdirectory(intermediate)
 add_subdirectory(clients)
 add_subdirectory(parse-test)
 add_subdirectory(servers)
+add_subdirectory(crl)
 
 add_custom_target(Generate_kv_engine_X509_Test_Certificates
                   DEPENDS
@@ -118,4 +119,5 @@ add_custom_target(Generate_kv_engine_X509_Test_Certificates
                   Generate_kv_engine_X509_Test_Intermediate_Certificate
                   Generate_kv_engine_X509_Test_Client_Certificate
                   Generate_kv_engine_X509_Test_Parse_Certificate
-                  Generate_kv_engine_X509_Test_Node_Certificate)
+                  Generate_kv_engine_X509_Test_Node_Certificate
+                  Generate_kv_engine_X509_Test_CRL)
