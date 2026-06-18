@@ -14,6 +14,8 @@ add_library(mcd_util STATIC
             connection_iface.cc
             cookie_iface.cc
             crc32.c
+            crl_policy.cc
+            crl_policy.h
             crc32.h
             dcp_stream_id.cc
             dek_file_utilities.cc
@@ -103,6 +105,7 @@ cb_add_test_executable(utilities_testapp
         breakpad_settings_test.cc
         clustermap_utils_test.cc
         config_parser_test.cc
+        crl_policy_test.cc
         dek_file_utilities_test.cc
         stat_group_test.cc
         string_utilities_test.cc

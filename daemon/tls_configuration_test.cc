@@ -171,6 +171,39 @@ TEST_F(TlsConfigurationFormatTest, UnknownKeys) {
     expectFail(legalSpec);
 }
 
+TEST_F(TlsConfigurationFormatTest, CrlCheckIntermediate) {
+    // optional — absent is valid
+    expectSuccess(legalSpec);
+    legalSpec["crl_check_intermediate"] = true;
+    expectSuccess(legalSpec);
+    legalSpec["crl_check_intermediate"] = false;
+    expectSuccess(legalSpec);
+    legalSpec["crl_check_intermediate"] = "true";
+    expectFail(legalSpec);
+    legalSpec["crl_check_intermediate"] = 1;
+    expectFail(legalSpec);
+}
+
+TEST_F(TlsConfigurationFormatTest, CrlPolicies) {
+    // optional — absent is valid
+    expectSuccess(legalSpec);
+    legalSpec["crl_policies"] = {{"node_to_node", "Disabled"},
+                                 {"client_auth", "Disabled"}};
+    expectSuccess(legalSpec);
+    legalSpec["crl_policies"] = {{"node_to_node", "Require"},
+                                 {"client_auth", "Strict"}};
+    expectSuccess(legalSpec);
+}
+
+TEST_F(TlsConfigurationFormatTest, CrlFiles) {
+    // optional — absent is valid
+    expectSuccess(legalSpec);
+    legalSpec["crl_files"] = nlohmann::json::array();
+    expectSuccess(legalSpec);
+    legalSpec["crl_files"] = {"path1", "path2"};
+    expectSuccess(legalSpec);
+}
+
 class TlsConfigurationTest : public ::testing::Test {
 public:
     TlsConfigurationTest()
@@ -270,5 +303,35 @@ TEST_F(TlsConfigurationTest, SecurityLevelSetToMaximum) {
         EXPECT_TRUE(error_message.contains(
                 R"("error":["error:0A00018F:SSL routines::ee key too small"])"))
                 << error_message;
+    }
+}
+
+TEST_F(TlsConfigurationTest, CrlCheckIntermediate) {
+    for (const auto value : {true, false}) {
+        legalSpec["crl_check_intermediate"] = value;
+        try {
+            TlsConfiguration configuration(legalSpec);
+            auto ssl = configuration.createClientSslHandle();
+            ASSERT_TRUE(ssl) << "value=" << value;
+        } catch (const std::exception& e) {
+            FAIL() << e.what() << " value=" << value;
+        }
+    }
+}
+
+TEST_F(TlsConfigurationTest, CrlPolicies) {
+    for (const auto* nodePolicy :
+         {"Disabled", "Permissive", "Strict", "Require"}) {
+        for (const auto* clientPolicy :
+             {"Disabled", "Permissive", "Strict", "Require"}) {
+            legalSpec["crl_policies"] = {{"node_to_node", nodePolicy},
+                                         {"client_auth", clientPolicy}};
+            try {
+                TlsConfiguration configuration(legalSpec);
+            } catch (const std::exception& e) {
+                FAIL() << e.what() << " node=" << nodePolicy
+                       << " client=" << clientPolicy;
+            }
+        }
     }
 }

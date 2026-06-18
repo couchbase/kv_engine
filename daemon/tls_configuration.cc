@@ -92,6 +92,14 @@ bool getBoolean(const nlohmann::json& spec, const std::string key) {
     return iter->get<bool>();
 }
 
+std::vector<std::string> getClrFiles(const nlohmann::json& spec) {
+    if (!spec.contains("crl_files") || !spec["crl_files"].is_array() ||
+        spec["crl_files"].empty()) {
+        return {};
+    }
+    return spec["crl_files"].get<std::vector<std::string>>();
+}
+
 nlohmann::json TlsConfiguration::to_json() const {
     return {{"private key", private_key},
             {"certificate chain", certificate_chain},
@@ -102,7 +110,10 @@ nlohmann::json TlsConfiguration::to_json() const {
              {{"TLS 1.2", cipher_list}, {"TLS 1.3", cipher_suites}}},
             {"cipher order", cipher_order},
             {"client cert auth", to_string(clientCertMode)},
-            {"security level", security_level}};
+            {"security level", security_level},
+            {"crl_policies", crl_policies},
+            {"crl_files", crl_files},
+            {"crl_check_intermediate", crl_check_intermediate}};
 }
 
 TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
@@ -117,6 +128,9 @@ TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
       clientCertMode(from_string(getString(spec, "client cert auth"))),
       security_level(
               spec.value("security level", OpenSSL_DefaultSecurityLevel)),
+      crl_policies(spec.value("crl_policies", CrlPolicyPerScope{})),
+      crl_files(spec.value("crl_files", std::vector<std::string>{})),
+      crl_check_intermediate(spec.value("crl_check_intermediate", false)),
       serverContext(createServerContext(spec)) {
 }
 
@@ -301,6 +315,14 @@ void TlsConfiguration::validate(const nlohmann::json& spec) {
         }
     }
 
+    if (spec.contains("crl_check_intermediate")) {
+        if (!spec["crl_check_intermediate"].is_boolean()) {
+            throw std::invalid_argument(
+                    "TLS configuration for \"crl_check_intermediate\" must be "
+                    "a boolean value");
+        }
+    }
+
     const std::vector<std::string> keys{{"private key"},
                                         {"certificate chain"},
                                         {"CA file"},
@@ -309,7 +331,10 @@ void TlsConfiguration::validate(const nlohmann::json& spec) {
                                         {"cipher list"},
                                         {"cipher order"},
                                         {"client cert auth"},
-                                        {"security level"}};
+                                        {"security level"},
+                                        {"crl_policies"},
+                                        {"crl_files"},
+                                        {"crl_check_intermediate"}};
     auto isLegalKey = [&keys](const std::string& key) {
         for (const auto& k : keys) {
             if (k == key) {

@@ -10,6 +10,7 @@
 #pragma once
 #include "ssl_utils.h"
 #include <nlohmann/json.hpp>
+#include <utilities/crl_policy.h>
 #include <utilities/openssl_utils.h>
 #include <stdexcept>
 
@@ -84,6 +85,9 @@ protected:
     const bool cipher_order;
     const ClientCertMode clientCertMode;
     const int security_level;
+    const CrlPolicyPerScope crl_policies;
+    const std::vector<std::string> crl_files;
+    const bool crl_check_intermediate;
 
     cb::openssl::unique_ssl_ctx_ptr serverContext;
 };
