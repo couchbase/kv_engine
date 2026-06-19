@@ -30,10 +30,11 @@ void DcpFlowControlManager::updateConsumersBufferSize(
     }
 
     // Compute new per-consumer buffer size and resize buffer of all existing
-    // consumers
+    // consumers - currently cannot use >4Gib so cap to that
     const auto bucketQuota = engine.getEpStats().getMaxDataSize();
-    const size_t bufferSize =
-            (dcpConsumerBufferRatio * bucketQuota) / numConsumers;
+    const size_t bufferSize = std::min(
+            size_t((dcpConsumerBufferRatio * bucketQuota) / numConsumers),
+            4_GiB);
     for (auto* c : consumers) {
         c->setFlowControlBufSize(bufferSize);
     }
