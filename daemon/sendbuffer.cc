@@ -26,3 +26,11 @@ IOBufSendBuffer::IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf,
                                  std::string_view view)
     : SendBuffer(view), buf(std::move(buf)) {
 }
+
+StringSendBuffer::StringSendBuffer(std::string buf)
+    : SendBuffer({}), buf(std::move(buf)) {
+    // Anchor the payload to the string owned by this object. The data pointer
+    // of the source string is not stable across the move (small strings are
+    // stored inline), so the view must reference our own buffer.
+    payload = {this->buf.data(), this->buf.size()};
+}

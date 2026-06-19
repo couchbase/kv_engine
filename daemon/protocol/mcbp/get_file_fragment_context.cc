@@ -209,13 +209,10 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                 [this]() {
                     try {
                         const auto to_read = std::min(length, chunk_size);
-                        auto iob = create_io_buf(to_read);
-                        filestream.read(
-                                reinterpret_cast<char*>(iob->writableTail()),
-                                to_read);
-                        iob->append(to_read);
-                        calculate_and_append_checksum(*iob);
-                        chunk.swap(iob);
+                        auto buf = create_buffer(to_read);
+                        filestream.read(buf.data(), to_read);
+                        calculate_and_append_checksum(buf);
+                        chunk.swap(buf);
                         length -= to_read;
                         offset += to_read;
                         connection.getBucket().readFileChunkComplete(to_read);
@@ -237,18 +234,16 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
 }
 
 cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
-    std::unique_ptr<folly::IOBuf> iob;
-    chunk.swap(iob);
-    if (!iob) {
+    std::string buf;
+    chunk.swap(buf);
+    if (buf.empty()) {
         Expects(length == 0 && "Pending data to send");
         state = State::Done;
         return cb::engine_errc::success;
     }
 
-    std::string_view view{reinterpret_cast<const char*>(iob->data()),
-                          iob->length()};
     connection.chainDataToOutputStream(
-            std::make_unique<IOBufSendBuffer>(std::move(iob), view));
+            std::make_unique<StringSendBuffer>(std::move(buf)));
     if (length) {
         // We need to read another chunk
         state = State::ReadFileChunk;
@@ -258,20 +253,23 @@ cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
     return cb::engine_errc::too_much_data_in_output_buffer;
 }
 
-void GetFileFragmentContext::calculate_and_append_checksum(folly::IOBuf& iob) {
+void GetFileFragmentContext::calculate_and_append_checksum(std::string& buf) {
     if (checksum_length == 0) {
         return;
     }
-    // Compute a checksum (put it into network order) and append it to the IOBuf
-    uint32_t crc = htonl(crc32c(iob.data(), iob.length(), 0));
-    std::memcpy(iob.writableTail(), &crc, sizeof(crc));
-    iob.append(sizeof(crc));
+    // Compute a checksum (put it into network order) and append it to the
+    // buffer
+    uint32_t crc = htonl(crc32c(std::string_view{buf.data(), buf.size()}));
+    const auto* crc_bytes = reinterpret_cast<const char*>(&crc);
+    buf.append(crc_bytes, sizeof(crc));
 }
 
-std::unique_ptr<folly::IOBuf> GetFileFragmentContext::create_io_buf(
-        size_t length) const {
-    if (checksum_length) {
-        length += sizeof(uint32_t);
-    }
-    return folly::IOBuf::createCombined(length);
+std::string GetFileFragmentContext::create_buffer(size_t length) const {
+    std::string buf;
+    // Reserve space for the data plus the optional checksum so that appending
+    // the checksum does not trigger a reallocation.
+    buf.reserve(checksum_length ? length + sizeof(uint32_t) : length);
+    // Size the buffer to the requested length ready to be read into.
+    buf.resize(length);
+    return buf;
 }

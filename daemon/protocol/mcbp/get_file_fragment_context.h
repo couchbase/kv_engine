@@ -13,7 +13,8 @@
 #include "steppable_command_context.h"
 
 #include <folly/Synchronized.h>
-#include <folly/io/IOBuf.h>
+
+#include <string>
 
 /**
  * Implementation of the "GetFileFragment" command.
@@ -58,12 +59,12 @@ protected:
     cb::engine_errc read_file_chunk();
     cb::engine_errc chain_file_chunk();
 
-    /// Helper to calculate the checksum of the given IOBuf and append it to the
-    /// IOBuf
-    void calculate_and_append_checksum(folly::IOBuf& iob);
-    /// Helper to create an IOBuf with the given length + optional checksum
+    /// Helper to calculate the checksum of the given buffer and append it to
+    /// the buffer
+    void calculate_and_append_checksum(std::string& buf);
+    /// Helper to create a buffer with the given length + optional checksum
     /// space
-    std::unique_ptr<folly::IOBuf> create_io_buf(size_t length) const;
+    std::string create_buffer(size_t length) const;
 
     static size_t get_network_length(size_t file_read_length,
                                      size_t file_checksum_length);
@@ -76,7 +77,7 @@ protected:
     /// How many bytes of the file are check-summed (0 not checksumming)
     std::size_t checksum_length{0};
 
-    folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
+    folly::Synchronized<std::string> chunk;
     /// We're using a file_stream to read the file if we need
     /// to read it in chunks (i.e., not using sendfile).
     std::ifstream filestream;
