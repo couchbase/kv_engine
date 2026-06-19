@@ -129,6 +129,9 @@ The object supports the following keys (all optional):
   producer only ships items whose value is currently resident, and stops
   when the consumer's `free_memory` budget is exhausted.
 
+If `free_memory` is omitted the producer assumes `free_memory:0`
+If `all_keys` is omitted the producer assumes `all_keys:false`
+
 For example:
 
 ```

@@ -1314,7 +1314,9 @@ void PassiveStream::generateCacheTransferRequest(
     if (engine->getKVBucket()->isValueEviction()) {
         cts["all_keys"] = true;
     }
-    cts["free_memory"] = freeMem;
+    if (freeMem) {
+        cts["free_memory"] = freeMem;
+    }
     stream_req_json["cts"] = std::move(cts);
 }
 

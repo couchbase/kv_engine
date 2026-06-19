@@ -394,11 +394,13 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
     Expects(p);
 
     if (this->filter.isCacheTransferAllKeys() &&
+        (!availableBytes.has_value() || availableBytes.value() == 0)) {
         // Client wants all keys, but they signalled no availableBytes. Just
         // jump straight to IncludeValue::NoWithUnderlyingDatatype rather than
         // later in the "run loop" of the task.
-        availableBytes.value_or(~0ull) == 0) {
         includeValue = IncludeValue::NoWithUnderlyingDatatype;
+        // if it was 0, reset so we don't log later about transition to key-only
+        availableBytes.reset();
     }
 
     OBJ_LOG_INFO_CTX(p->getLogger(),

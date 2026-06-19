@@ -206,12 +206,13 @@ TEST_P(DcpCacheTransferTest, evicted_items) {
     evict_key(Vbid(0), makeStoredDocKey("2"));
 
     // Must not find the evicted item
-    auto stream = createStream(*producer,
-                               1,
-                               Vbid(0),
-                               store->getVBucket(vbid)->getHighSeqno(),
-                               store->getVBucket(vbid)->getHighSeqno(),
-                               R"({"cts":{"all_keys":true}})");
+    auto stream = createStream(
+            *producer,
+            1,
+            Vbid(0),
+            store->getVBucket(vbid)->getHighSeqno(),
+            store->getVBucket(vbid)->getHighSeqno(),
+            R"({"cts":{"all_keys":true, "free_memory":999999999}})");
     runCacheTransferTask();
     // Should find 1 tx message and 1 stream-end
     ASSERT_EQ(2, stream->getItemsRemaining());
@@ -599,7 +600,8 @@ TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
     ASSERT_EQ(1, store->getVBucket(vbid)->ht.getSize());
     expectedItems.insert(store_item(Vbid(0), makeStoredDocKey("k2"), "2"));
     ASSERT_EQ(2, expectedItems.size());
-    nlohmann::json ctsJson = {{"cts", {{"all_keys", true}}}};
+    nlohmann::json ctsJson = {
+            {"cts", {{"all_keys", true}, {"free_memory", 1_GiB}}}};
     // CTS options are expressed in the JSON stream-request value
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(
@@ -735,7 +737,9 @@ void DcpCacheTransferTest::testBackfillThresholdBehavior(bool allKeys) {
             Vbid(0),
             store->getVBucket(vbid)->getHighSeqno(),
             store->getVBucket(vbid)->getHighSeqno(),
-            nlohmann::json{{"cts", {{"all_keys", allKeys}}}}.dump());
+            nlohmann::json{
+                    {"cts", {{"all_keys", allKeys}, {"free_memory", 1_GiB}}}}
+                    .dump());
 
     // Run the cache transfer task
     runCacheTransferTask();

@@ -3435,7 +3435,6 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
                     0 /* cacheTransfer */));
     auto streamReqJson = passiveStream->public_setupForNewStreamRequest(*vb);
     EXPECT_EQ(streamReqJson["cts"]["all_keys"], true);
-    EXPECT_EQ(streamReqJson["cts"]["free_memory"], 0); // 0 is no values
 }
 
 TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotWithPrepare) {
