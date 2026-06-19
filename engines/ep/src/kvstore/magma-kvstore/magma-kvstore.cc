@@ -313,6 +313,14 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
       ctx(std::move(compactionContext)),
       magmaKVStore(magmaKVStore),
       onlyThisCollection(cid) {
+    // MB-59966: Ensure allocations within this ctor are accounted in
+    // Primary. We have code in the compaction paths that reallocate
+    // objects nested within MagmaCompactionCB; those path migh execute under
+    // Primary or Secondary domain; by forcing Primary here we ensure that
+    // those allocation are always accounted in Primary regardless of the
+    // caller's domain.
+    cb::UseArenaMallocPrimaryDomain domainGuard;
+
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
 
     // If we've not got a CompactionContext then this must be an implicit
@@ -354,7 +362,12 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
 }
 
 MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
+    // MB-59966: Allocation nested within MagmaCompactionCB are always
+    // allocated under Primary, so we have to release those under that same
+    // domain
+    cb::UseArenaMallocPrimaryDomain domainGuard;
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
+    ctx.reset();
 }
 
 void MagmaKVStore::processCollectionPurgeDelta(MagmaDbStats& magmaDbStats,
