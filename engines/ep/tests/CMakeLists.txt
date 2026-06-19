@@ -358,8 +358,8 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
                 COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.magma$<SEMICOLON>backend=magma")
         ADD_TEST(NAME ${name}.full_eviction.magma
                 COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.magma$<SEMICOLON>backend=magma")
-        SET_TESTS_PROPERTIES(${name}.value_eviction.magma PROPERTIES TIMEOUT ${timeout} ENVIRONMENT JE_MALLOC_CONF=junk:true)
-        SET_TESTS_PROPERTIES(${name}.full_eviction.magma PROPERTIES TIMEOUT ${timeout} ENVIRONMENT JE_MALLOC_CONF=junk:true)
+        SET_TESTS_PROPERTIES(${name}.value_eviction.magma PROPERTIES TIMEOUT ${timeout} ENVIRONMENT "CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT=1;JE_MALLOC_CONF=junk:true")
+        SET_TESTS_PROPERTIES(${name}.full_eviction.magma PROPERTIES TIMEOUT ${timeout} ENVIRONMENT "CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT=1;JE_MALLOC_CONF=junk:true")
     ENDIF ()
 ENDFUNCTION()
 
