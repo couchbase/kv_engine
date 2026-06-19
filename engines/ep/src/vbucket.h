@@ -2096,6 +2096,13 @@ public:
      */
     bool isNextState(vbucket_state_t state) const;
 
+    /**
+     * Schedule destruction of the given checkpoints.
+     *
+     * @param checkpoints list of checkpoints to be scheduled for destruction
+     */
+    void scheduleDestruction(CheckpointList&& checkpoints) const;
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
@@ -2479,6 +2486,32 @@ protected:
     /// The VBucket collection state
     std::unique_ptr<Collections::VB::Manifest> manifest;
 
+    KVBucket* const bucket;
+    std::mutex rollbackOrCompactionMutex;
+    Vbid id;
+
+    /**
+     * Factory method which when invoked returns an object to be used by
+     * ActiveDurabilityMonitor for handling aborting of SyncWrites after they
+     * timeout.
+     * The VBucket owns a factory (instead of simply the task itself) primarily
+     * because only the ActiveDurabilityMonitor actually times out (and aborts)
+     * SyncWrites, hence if there is no ActiveDM (vbucket is not active) then
+     * there should be no task. It also aids in testing as we can inject
+     * test-only objects.
+     */
+    const SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory;
+
+    // Test hook for checking that softDeleteStoredValue holds the state lock
+    TestingHook<folly::SharedMutex&> softDeleteStoredValueHook;
+
+    /// Cached logical disk size for this vbucket (used in the case where
+    /// the vbucket is locked)
+    std::atomic_size_t cachedLogicalDiskSize{0};
+
+    // How was this vbucket created
+    const CreateVbucketMethod creationMethod;
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, cb::engine_errc code);
 
@@ -2809,50 +2842,6 @@ private:
 
     vbucket_state_t                 initialState;
 
-protected:
-    KVBucket* const bucket;
-    std::mutex rollbackOrCompactionMutex;
-    Vbid id;
-
-public:
-    /**
-     * Schedule destruction of the given checkpoints.
-     *
-     * @param checkpoints
-     */
-    void scheduleDestruction(CheckpointList&& checkpoints) const;
-
-    /**
-     * Manager of this vBucket's checkpoints. unique_ptr for pimpl.
-     * Declared after state as Checkpoint destruction may update stats
-     * based on the vbucket's current state.
-     */
-    std::unique_ptr<CheckpointManager> checkpointManager;
-
-protected:
-    /**
-     * Factory method which when invoked returns an object to be used by
-     * ActiveDurabilityMonitor for handling aborting of SyncWrites after they
-     * timeout.
-     * The VBucket owns a factory (instead of simply the task itself) primarily
-     * because only the ActiveDurabilityMonitor actually times out (and aborts)
-     * SyncWrites, hence if there is no ActiveDM (vbucket is not active) then
-     * there should be no task. It also aids in testing as we can inject
-     * test-only objects.
-     */
-    const SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory;
-
-    // Test hook for checking that softDeleteStoredValue holds the state lock
-    TestingHook<folly::SharedMutex&> softDeleteStoredValueHook;
-
-    /// Cached logical disk size for this vbucket (used in the case where
-    /// the vbucket is locked)
-    std::atomic_size_t cachedLogicalDiskSize{0};
-
-    // How was this vbucket created
-    const CreateVbucketMethod creationMethod;
-
-private:
     /**
      * The replication topology, set as part of SET_VBUCKET_STATE.
      * It is encoded as json string with and array of (max 2) replication
@@ -2955,5 +2944,13 @@ private:
     friend class VBucketTestIntrospector;
     friend class VBucketDurabilityTest;
     friend class DurabilityEPBucketTest;
+
+public:
+    /**
+     * Manager of this vBucket's checkpoints. unique_ptr for pimpl.
+     * Declared after state as Checkpoint destruction may update stats
+     * based on the vbucket's current state.
+     */
+    std::unique_ptr<CheckpointManager> checkpointManager;
 };
 
