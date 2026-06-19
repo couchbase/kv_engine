@@ -21,8 +21,10 @@
 #include <memcached/types.h>
 #include <memcached/unit_test_mode.h>
 #include <nlohmann/json.hpp>
-#include <platform/backtrace.h>
+#include <openssl/types.h>
 #include <platform/socket.h>
+#include <utilities/crl_policy.h>
+#include <utilities/openssl_utils.h>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -456,6 +458,24 @@ public:
     /// Set whether to verify the peer's certificate
     void setSslPeerVerify(bool val) {
         ssl_peer_verify = val;
+    }
+
+    /**
+     * Set the CRL configuration and issue callback for outbound TLS
+     * connections. Both must be configured before connect() is called.
+     *
+     * @param config   CRL policy, file paths, and intermediate-CA check flag.
+     * @param callback Invoked for each CRL verification issue encountered
+     *                 during the TLS handshake; receives (rejected, errorStr,
+     *                 certInfo).
+     */
+    void setCrlConfiguration(
+            NodeToNodeCrlConfig config,
+            cb::openssl::CrlPolicyVerificationIssueCallback callback) {
+        crl_policy = config.policy;
+        crl_files = std::move(config.crl_files);
+        crl_check_intermediate = config.crl_check_intermediate;
+        crlPolicyVerificationIssueCallback = std::move(callback);
     }
 
     /// Set the passphrase to use for decoding the PEM file
@@ -1345,6 +1365,22 @@ public:
     void setReadChunkSizeCallback(
             std::function<std::size_t(std::size_t)> callback);
 
+    /**
+     * OpenSSL verify callback entry point for this connection's TLS handshake.
+     * Delegates to crlPolicyVerifyCallback() using the policy and issue
+     * callback configured via setCrlConfiguration().
+     *
+     * This method is public so that the static trampoline registered with
+     * SSL_CTX_set_verify can reach it after retrieving this instance from the
+     * SSL_CTX ex_data via cb::openssl::getMemcachedConnection().
+     *
+     * @param preverify_ok OpenSSL's pre-verification result for this step.
+     * @param x509_ctx     The X.509 store context for the current verification
+     * step.
+     * @return 1 to allow the connection, 0 to reject it.
+     */
+    int onConnectionVerifyCallback(int preverify_ok, X509_STORE_CTX* x509_ctx);
+
 protected:
     /**
      * Perform a SASL authentication to memcached
@@ -1396,6 +1432,12 @@ protected:
     std::filesystem::path ssl_cert_file;
     std::filesystem::path ssl_key_file;
     std::filesystem::path ca_file;
+    CrlPolicy crl_policy = CrlPolicy::Disabled;
+    std::vector<std::string> crl_files;
+    bool crl_check_intermediate = false;
+    cb::openssl::CrlPolicyVerificationIssueCallback
+            crlPolicyVerificationIssueCallback;
+
     // By default we verify the peer unless we're running in unit test mode
     // as we have waaay to many unit tests which connects to a localhost
     // server using a self-signed certificate and locate all these instances

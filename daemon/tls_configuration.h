@@ -13,30 +13,7 @@
 #include <utilities/crl_policy.h>
 #include <utilities/openssl_utils.h>
 #include <stdexcept>
-
-class CreateSslContextException : public std::runtime_error {
-public:
-    CreateSslContextException(std::string_view message,
-                              std::string_view function,
-                              nlohmann::json ssl_error)
-        : CreateSslContextException(
-                  format(message, function, std::move(ssl_error))) {
-    }
-    const nlohmann::json error;
-
-protected:
-    explicit CreateSslContextException(nlohmann::json error)
-        : std::runtime_error(error.dump()), error(std::move(error)) {
-    }
-
-    static nlohmann::json format(std::string_view message,
-                                 std::string_view function,
-                                 nlohmann::json error) {
-        return nlohmann::json{{"message", message},
-                              {"function", function},
-                              {"error", std::move(error)}};
-    }
-};
+#include <string>
 
 class TlsConfiguration {
 public:
@@ -52,7 +29,7 @@ public:
      *
      * @param spec The specification for the JSON to use
      * @throws std::invalid_argument for format errors
-     * @throws CreateSslContextException for SSL related errors
+     * @throws cb::openssl::CreateSslContextException for SSL related errors
      */
     explicit TlsConfiguration(const nlohmann::json& spec);
 
@@ -69,6 +46,16 @@ public:
     /// @param spec the JSON to check
     /// @throws std::invalid_argument if it fails to meet the criterias
     static void validate(const nlohmann::json& spec);
+
+    /**
+     * Return the CRL policy and the list of PEM-encoded CRL file paths
+     * configured for node-to-node TLS connections.
+     *
+     * @return A pair of (CrlPolicy, list of CRL file paths).
+     */
+    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const {
+        return {crl_policies.nodeToNode, crl_files, crl_check_intermediate};
+    }
 
 protected:
     /// Create the OpenSSL Server context structure

@@ -12,6 +12,8 @@
 #include <platform/base64.h>
 #include <filesystem>
 
+using cb::openssl::CreateSslContextException;
+
 /// Helper method to get one of the files we've got stored for
 /// unit tests
 static std::string getCertFile(const std::string& filename) {
@@ -200,7 +202,9 @@ TEST_F(TlsConfigurationFormatTest, CrlFiles) {
     expectSuccess(legalSpec);
     legalSpec["crl_files"] = nlohmann::json::array();
     expectSuccess(legalSpec);
-    legalSpec["crl_files"] = {"path1", "path2"};
+    legalSpec["crl_files"] = {OBJECT_ROOT "/tests/cert/crl/root_ca.crl",
+                              OBJECT_ROOT
+                              "/tests/cert/crl/intermediate_ca.crl"};
     expectSuccess(legalSpec);
 }
 
@@ -333,5 +337,39 @@ TEST_F(TlsConfigurationTest, CrlPolicies) {
                        << " client=" << clientPolicy;
             }
         }
+    }
+}
+
+TEST_F(TlsConfigurationTest, CrlFiles_NoFiles) {
+    legalSpec["crl_files"] = nlohmann::json::array();
+
+    try {
+        TlsConfiguration configuration(legalSpec);
+    } catch (const std::exception& e) {
+        FAIL() << e.what();
+    }
+}
+
+TEST_F(TlsConfigurationTest, CrlFiles) {
+    legalSpec["crl_files"] = {OBJECT_ROOT "/tests/cert/crl/root_ca.crl",
+                              OBJECT_ROOT
+                              "/tests/cert/crl/intermediate_ca.crl"};
+    try {
+        TlsConfiguration configuration(legalSpec);
+    } catch (const std::exception& e) {
+        FAIL() << e.what();
+    }
+}
+
+TEST_F(TlsConfigurationTest, CrlFiles_NonExistingFile) {
+    legalSpec["crl_files"] = {"/missing/file.crl"};
+    try {
+        TlsConfiguration configuration(legalSpec);
+        FAIL() << "The file should not exists!";
+    } catch (const std::exception& e) {
+        std::string message = e.what();
+        EXPECT_TRUE(message.starts_with(
+                "cb::io::loadFile(/missing/file.crl) failed"))
+                << message;
     }
 }

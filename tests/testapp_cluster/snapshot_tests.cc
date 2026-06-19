@@ -9,6 +9,7 @@
  */
 
 #include "clustertest.h"
+#include "test_utilities.h"
 
 #include <boost/filesystem/operations.hpp>
 #include <cluster_framework/auth_provider_service.h>
@@ -82,14 +83,6 @@ protected:
 
     void validate_snapshot(const std::filesystem::path& root,
                            const cb::snapshot::Manifest& manifest);
-
-    void do_snapshot_status(
-            std::string_view context,
-            Vbid vbid,
-            MemcachedConnection& requestConnection,
-            const std::vector<std::string_view>& failStates,
-            const std::vector<std::string_view>& successStates,
-            std::chrono::seconds waitFor = std::chrono::seconds(0));
 
     static std::unique_ptr<MemcachedConnection> source_node;
     static std::filesystem::path source_path;
@@ -213,49 +206,6 @@ void SnapshotClusterTest::validate_snapshot(
     }
 }
 
-void SnapshotClusterTest::do_snapshot_status(
-        std::string_view context,
-        Vbid vbid,
-        MemcachedConnection& requestConnection,
-        const std::vector<std::string_view>& failStates,
-        const std::vector<std::string_view>& successStates,
-        std::chrono::seconds waitFor) {
-    bool done = false;
-    const auto timeout = std::chrono::steady_clock::now() + waitFor;
-    std::string value = "unintialised";
-    do {
-        std::string key;
-        requestConnection.stats(
-                [&key, &value](auto k, auto v) {
-                    key = k;
-                    value = v;
-                },
-                fmt::format("snapshot-status {}", vbid.get()));
-
-        ASSERT_EQ(key, fmt::format("vb_{}:status", vbid.get()));
-        if (std::ranges::find(failStates, value) != failStates.end()) {
-            ASSERT_FALSE(true)
-                    << "called from " << context
-                    << " snapshot-status returned a failing state " << key
-                    << " " << value << " while waiting for "
-                    << nlohmann::json(successStates).dump()
-                    << " snapshot-details: "
-                    << requestConnection.stats("snapshot-details").dump();
-        }
-
-        if (std::ranges::find(successStates, value) != successStates.end()) {
-            done = true;
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-    } while (!done && std::chrono::steady_clock::now() < timeout);
-    ASSERT_TRUE(done) << "called from " << context
-                      << ". Timeout waiting for snapshot-status to reach a "
-                         "desired state. waited for:"
-                      << waitFor.count()
-                      << "s with last observed state: " << value;
-}
-
 void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
     cluster->changeConfig([throttleRate](nlohmann::json& config) {
         config["file_fragment_max_read_size"] = GetParam();
@@ -283,12 +233,12 @@ void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
     std::string error;
 
     // check but with a timeout as we're downloading on this node
-    do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
-                       Vbid{0},
-                       *destination_node,
-                       {"failed", "incomplete", "none"},
-                       {"available"},
-                       30s);
+    cb::test::do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
+                                 Vbid{0},
+                                 *destination_node,
+                                 {"failed", "incomplete", "none"},
+                                 {"available"},
+                                 30s);
     bool found = false;
     destination_node->stats(
             [&manifest, &error, &found](auto k, auto v) {
@@ -327,11 +277,11 @@ void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
             *manifest);
 
     // Release the snapshot on the source node (not needed anymore)
-    do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
-                       Vbid{0},
-                       *source_node,
-                       {"failed", "running", "none", "incomplete"},
-                       {"available"});
+    cb::test::do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
+                                 Vbid{0},
+                                 *source_node,
+                                 {"failed", "running", "none", "incomplete"},
+                                 {"available"});
     EXPECT_TRUE(
             exists(source_path / bucket_name / "snapshots" / manifest->uuid));
     rsp = source_node->execute(BinprotGenericCommand{
@@ -339,11 +289,12 @@ void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
             << "Failed to release on source node";
     // Expect immediate "none"
-    do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
-                       Vbid{0},
-                       *source_node,
-                       {"failed", "running", "available", "incomplete"},
-                       {"none"});
+    cb::test::do_snapshot_status(
+            fmt::format("{}:{}", __func__, __LINE__),
+            Vbid{0},
+            *source_node,
+            {"failed", "running", "available", "incomplete"},
+            {"none"});
     EXPECT_FALSE(
             exists(source_path / bucket_name / "snapshots" / manifest->uuid));
 
@@ -384,11 +335,11 @@ void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
                                  nlohmann::json{{"use_snapshot", "fbr"}});
 
     // Release and delete the snapshot on the destination node
-    do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
-                       Vbid{0},
-                       *destination_node,
-                       {"failed", "running", "none", "incomplete"},
-                       {"available"});
+    cb::test::do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
+                                 Vbid{0},
+                                 *destination_node,
+                                 {"failed", "running", "none", "incomplete"},
+                                 {"available"});
     EXPECT_TRUE(exists(destination_path / bucket_name / "snapshots" /
                        manifest->uuid));
     rsp = destination_node->execute(BinprotGenericCommand{
@@ -396,11 +347,12 @@ void SnapshotClusterTest::copy_snapshot(size_t throttleRate) {
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
             << "Failed to release on destination node";
-    do_snapshot_status(fmt::format("{}:{}", __func__, __LINE__),
-                       Vbid{0},
-                       *destination_node,
-                       {"failed", "running", "available", "incomplete"},
-                       {"none"});
+    cb::test::do_snapshot_status(
+            fmt::format("{}:{}", __func__, __LINE__),
+            Vbid{0},
+            *destination_node,
+            {"failed", "running", "available", "incomplete"},
+            {"none"});
     EXPECT_FALSE(exists(destination_path / bucket_name / "snapshots" /
                         manifest->uuid));
 

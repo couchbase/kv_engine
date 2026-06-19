@@ -10,7 +10,9 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <string>
 #include <string_view>
+#include <vector>
 
 enum class CrlPolicy {
     /// Ignore missing or expired
@@ -55,3 +57,10 @@ struct CrlPolicyPerScope {
 
 void to_json(nlohmann::json& json, const CrlPolicyPerScope& scope);
 void from_json(const nlohmann::json& json, CrlPolicyPerScope& scope);
+
+/// All CRL-related settings needed to configure a node-to-node TLS connection.
+struct NodeToNodeCrlConfig {
+    CrlPolicy policy{CrlPolicy::Disabled};
+    std::vector<std::string> crl_files;
+    bool crl_check_intermediate{false};
+};

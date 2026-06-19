@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2019-Present Couchbase, Inc.
  *
@@ -23,10 +22,8 @@
 #include <memcached/server_core_iface.h>
 #include <platform/atomic_duration.h>
 #include <platform/platform_time.h>
-#include <utilities/engine_errc_2_mcbp.h>
-#include <xattr/blob.h>
+#include <utilities/crl_policy.h>
 #include <xattr/utils.h>
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -263,6 +260,9 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
+    }
+    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
+        return {};
     }
 };
 

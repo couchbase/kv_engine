@@ -28,6 +28,7 @@ add_library(mcd_util STATIC
             fusion_utilities.h
             io_control.cc
             json_utilities.cc
+            openssl_utils.cc
             json_utilities.h
             lock_utilities.h
             logtags.cc

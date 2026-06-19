@@ -26,11 +26,13 @@
 #include <mcbp/protocol/magic.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <platform/backtrace.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/file_sink.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
+#include <utilities/openssl_utils.h>
 #include <xattr/utils.h>
 #include <cerrno>
 #include <functional>
@@ -668,6 +670,38 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     return gsl::narrow<int>(passphrase.size());
 }
 
+static int client_connection_verify_callback(int preverify_ok,
+                                             X509_STORE_CTX* x509_ctx) {
+    const SSL* ssl = reinterpret_cast<SSL*>(X509_STORE_CTX_get_ex_data(
+            x509_ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
+
+    if (!ssl) {
+        // Reject new connections during shutdown or if we can't get
+        // the SSL object
+        return 0;
+    }
+
+    auto* connection =
+            cb::openssl::getMemcachedConnection(SSL_get_SSL_CTX(ssl));
+    if (!connection) {
+        return 0;
+    }
+    return connection->onConnectionVerifyCallback(preverify_ok, x509_ctx);
+}
+
+int MemcachedConnection::onConnectionVerifyCallback(int preverify_ok,
+                                                    X509_STORE_CTX* x509_ctx) {
+    if (crlPolicyVerificationIssueCallback) {
+        return cb::openssl::crlPolicyVerifyCallback(
+                preverify_ok,
+                crl_policy,
+                x509_ctx,
+                crlPolicyVerificationIssueCallback);
+    }
+    return cb::openssl::crlPolicyVerifyCallback(
+            preverify_ok, crl_policy, x509_ctx, [](auto, auto*, auto) {});
+}
+
 void MemcachedConnection::connect() {
     if (asyncSocket) {
         // drop the previous one
@@ -703,7 +737,13 @@ void MemcachedConnection::connect() {
     }
 
     if (ssl) {
-        auto* context = SSL_CTX_new(SSLv23_client_method());
+        using cb::openssl::CreateSslContextException;
+        using cb::openssl::getOpenSslError;
+        using cb::openssl::unique_ssl_ctx_ptr;
+
+        unique_ssl_ctx_ptr client_ctx =
+                cb::openssl::createClientSideSslContext(this);
+        auto* context = client_ctx.get();
         if (context == nullptr) {
             throw std::runtime_error("Failed to create openssl client context");
         }
@@ -714,59 +754,92 @@ void MemcachedConnection::connect() {
         SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
         SSL_CTX_set_options(context, tls_protocol_to_options(tls_protocol));
 
-        if (SSL_CTX_set_ciphersuites(context, tls13_ciphers.c_str()) == 0 &&
-            !tls13_ciphers.empty()) {
-            throw std::runtime_error("Failed to select a cipher suite from: " +
-                                     tls13_ciphers);
+        if (!tls13_ciphers.empty() &&
+            SSL_CTX_set_ciphersuites(context, tls13_ciphers.c_str()) == 0) {
+            throw CreateSslContextException(
+                    "Failed to select a cipher suite from: " + tls13_ciphers,
+                    "SSL_CTX_set_ciphersuites",
+                    getOpenSslError());
         }
 
-        if (SSL_CTX_set_cipher_list(context, tls12_ciphers.c_str()) == 0 &&
-            !tls12_ciphers.empty()) {
-            throw std::runtime_error("Failed to select a cipher suite from: " +
-                                     tls12_ciphers);
+        if (!tls12_ciphers.empty() &&
+            SSL_CTX_set_cipher_list(context, tls12_ciphers.c_str()) == 0) {
+            throw CreateSslContextException(
+                    "Failed to select a cipher suite from: " + tls12_ciphers,
+                    "SSL_CTX_set_cipher_list",
+                    getOpenSslError());
         }
 
         if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
             SSL_CTX_set_default_passwd_cb(context, my_pem_password_cb);
             SSL_CTX_set_default_passwd_cb_userdata(context, this);
             if (!SSL_CTX_use_certificate_chain_file(
-                        context, ssl_cert_file.generic_string().c_str()) ||
-                !SSL_CTX_use_PrivateKey_file(
+                        context, ssl_cert_file.generic_string().c_str())) {
+                throw CreateSslContextException(
+                        "Failed to certificate chain file: " +
+                                ssl_cert_file.generic_string(),
+                        "SSL_CTX_use_certificate_chain_file",
+                        getOpenSslError());
+            }
+
+            if (!SSL_CTX_use_PrivateKey_file(
                         context,
                         ssl_key_file.generic_string().c_str(),
-                        SSL_FILETYPE_PEM) ||
-                !SSL_CTX_check_private_key(context)) {
-                std::vector<char> ssl_err(1024);
-                ERR_error_string_n(
-                        ERR_get_error(), ssl_err.data(), ssl_err.size());
-                SSL_CTX_free(context);
-                throw std::runtime_error(
-                        std::string("Failed to use SSL cert and "
-                                    "key: ") +
-                        ssl_err.data());
+                        SSL_FILETYPE_PEM)) {
+                throw CreateSslContextException(
+                        "Failed to private key file: " +
+                                ssl_key_file.generic_string(),
+                        "SSL_CTX_use_PrivateKey_file",
+                        getOpenSslError());
+            }
+            if (!SSL_CTX_check_private_key(context)) {
+                throw CreateSslContextException("Failed to check private key",
+                                                "SSL_CTX_check_private_key",
+                                                getOpenSslError());
             }
         }
 
-        if (!ca_file.empty()) {
-            if (!SSL_CTX_load_verify_locations(
-                        context, ca_file.generic_string().c_str(), nullptr)) {
-                std::vector<char> ssl_err(1024);
-                ERR_error_string_n(
-                        ERR_get_error(), ssl_err.data(), ssl_err.size());
-                SSL_CTX_free(context);
-                throw std::runtime_error(
-                        std::string("Failed to use CA file: ") +
-                        ssl_err.data());
-            }
+        if (!ca_file.empty() &&
+            !SSL_CTX_load_verify_locations(
+                    context, ca_file.generic_string().c_str(), nullptr)) {
+            throw CreateSslContextException(
+                    "Failed to use CA file: " + ca_file.generic_string(),
+                    "SSL_CTX_load_verify_locations",
+                    getOpenSslError());
         }
 
+        X509_STORE* store = SSL_CTX_get_cert_store(context);
+        if (!store) {
+            throw CreateSslContextException("Failed to get cert store",
+                                            "SSL_CTX_get_cert_store",
+                                            getOpenSslError());
+        }
+
+        for (const auto& filename : crl_files) {
+            auto content = cb::io::loadFile(filename, {}, INT_MAX);
+            cb::openssl::loadCrlFromMemory(store, content);
+        }
+
+        if (crl_policy != CrlPolicy::Disabled) {
+            // Apply CRL check flags to the X509_STORE so OpenSSL enforces CRL
+            // verification during chain validation. These are store flags, not
+            // SSL verify mode bits — the two must not be mixed.
+            long crl_flags = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_USE_DELTAS;
+            if (crl_check_intermediate) {
+                crl_flags |= X509_V_FLAG_CRL_CHECK_ALL;
+            }
+            X509_STORE_set_flags(store, crl_flags);
+        }
+
+        int ssl_flags = 0;
         if (ssl_peer_verify) {
-            SSL_CTX_set_verify(context, SSL_VERIFY_PEER, nullptr);
+            ssl_flags = SSL_VERIFY_PEER;
         }
+
+        SSL_CTX_set_verify(
+                context, ssl_flags, client_connection_verify_callback);
 
         auto ctx = std::make_shared<folly::SSLContext>(context);
-        SSL_CTX_free(context);
-
         auto ss = folly::AsyncSSLSocket::newSocket(
                 ctx, eventBase.get(), folly::NetworkSocket(sock), false);
 

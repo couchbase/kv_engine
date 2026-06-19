@@ -69,6 +69,13 @@ public:
 
     std::size_t getNumberOfDaemonConnections() const;
 
+    /**
+     * Return the CRL configuration for node-to-node TLS connections,
+     * including the policy, CRL file paths, and whether intermediate CA
+     * certificates are also checked against a CRL.
+     */
+    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const;
+
 protected:
     std::pair<cb::engine_errc, std::string> doListInterface();
     std::pair<cb::engine_errc, std::string> doDeleteInterface(

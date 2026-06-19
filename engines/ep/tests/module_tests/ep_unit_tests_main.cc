@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -29,6 +28,7 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_time.h>
 #include <platform/cbassert.h>
+#include <utilities/crl_policy.h>
 #include <array>
 
 using namespace std::chrono_literals;
@@ -139,6 +139,10 @@ public:
 
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
+    }
+
+    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
+        return {};
     }
 };
 

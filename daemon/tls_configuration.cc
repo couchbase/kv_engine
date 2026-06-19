@@ -8,10 +8,27 @@
  *   the file licenses/APL2.txt.
  */
 #include "tls_configuration.h"
+
+#include "mcaudit.h"
+#include "memcached.h"
+#include "network_interface_manager.h"
+#include "settings.h"
 #include "ssl_utils.h"
+#include "stats.h"
+
+#include <cbcrypto/digest.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
 #include <platform/base64.h>
+#include <platform/dirutils.h>
+
+using cb::openssl::CreateSslContextException;
+using cb::openssl::getOpenSslError;
+using cb::openssl::loadCrlFromMemory;
 
 std::string getString(const nlohmann::json& spec,
                       const std::string key,
@@ -150,21 +167,53 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     return gsl::narrow_cast<int>(password.size());
 }
 
-nlohmann::json getOpenSslError() {
-    std::vector<std::string> ret;
-    unsigned long code;
-    while ((code = ERR_get_error()) != 0) {
-        std::vector<char> ssl_err(1024);
-        ERR_error_string_n(code, ssl_err.data(), ssl_err.size());
-        ret.emplace_back(ssl_err.data());
+static int my_custom_verify_callback(int preverify_ok,
+                                     X509_STORE_CTX* x509_ctx) {
+    const SSL* ssl = reinterpret_cast<SSL*>(X509_STORE_CTX_get_ex_data(
+            x509_ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
+
+    if (!ssl || is_memcached_shutting_down() || !networkInterfaceManager) {
+        // Reject new connections during shutdown or if we can't get
+        // the SSL object
+        return 0;
     }
-    return ret;
+
+    const auto activePolicy = cb::openssl::getCrlPolicy(SSL_get_SSL_CTX(ssl));
+    const auto fd = SSL_get_fd(ssl);
+
+    return cb::openssl::crlPolicyVerifyCallback(
+            preverify_ok,
+            activePolicy,
+            x509_ctx,
+            [fd](bool rejected,
+                 const char* errorStr,
+                 std::optional<nlohmann::json> certInfo) {
+                if (Settings::instance()
+                            .isLogTlsCertificateVerificationProblems()) {
+                    if (rejected) {
+                        LOG_ERROR_CTX(
+                                "Connection rejected: CRL verification failed",
+                                {"conn_id", fd},
+                                {"error", errorStr});
+                    } else {
+                        LOG_WARNING_CTX("CRL verification issue bypassed",
+                                        {"conn_id", fd},
+                                        {"error", errorStr});
+                    }
+                }
+                audit_tls_certificate_problem(fd, rejected, errorStr, certInfo);
+                ++global_statistics.tls_certificate_verification_problems;
+            });
 }
 
 cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         const nlohmann::json& spec) {
-    cb::openssl::unique_ssl_ctx_ptr ret{SSL_CTX_new(SSLv23_server_method())};
+    auto ret = cb::openssl::createServerSideSslContext(crl_policies.clientAuth);
     auto* server_ctx = ret.get();
+    if (!server_ctx) {
+        throw CreateSslContextException(
+                "Failed to create SSL_CTX", "SSL_CTX_new", getOpenSslError());
+    }
     SSL_CTX_set_dh_auto(server_ctx, 1);
     auto options = decode_ssl_protocol(minimum_version);
     if (cipher_order) {
@@ -179,10 +228,23 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     // MB-59835: Session cache has been linked to a crash..
     SSL_CTX_set_session_cache_mode(server_ctx, SSL_SESS_CACHE_OFF);
 
-    if (!SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
+    if (!ca_file.empty() &&
+        !SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
         throw CreateSslContextException("Failed to use: " + ca_file,
                                         "SSL_CTX_load_verify_locations",
                                         getOpenSslError());
+    }
+
+    X509_STORE* store = SSL_CTX_get_cert_store(server_ctx);
+    if (!store) {
+        throw CreateSslContextException("Failed to get cert store",
+                                        "SSL_CTX_get_cert_store",
+                                        getOpenSslError());
+    }
+
+    for (const auto& filename : crl_files) {
+        auto content = cb::io::loadFile(filename, {}, INT_MAX);
+        loadCrlFromMemory(store, content);
     }
 
     auto iter = spec.find("password");
@@ -216,17 +278,36 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                 getOpenSslError());
     }
 
+    if (!SSL_CTX_check_private_key(server_ctx)) {
+        throw CreateSslContextException(
+                "Certificate and private key do not match",
+                "SSL_CTX_check_private_key",
+                getOpenSslError());
+    }
+
     // This might not be necessary, just to make sure that we don't
     // try to use the userdata we set previously in the SSL instance
     // created from this ssl context (because we don't want to keep
     // the password stored in memory)
     SSL_CTX_set_default_passwd_cb_userdata(server_ctx, nullptr);
     set_ssl_ctx_ciphers(server_ctx, cipher_list, cipher_suites);
+
+    if (crl_policies.clientAuth != CrlPolicy::Disabled) {
+        // Apply CRL check flags to the X509_STORE so OpenSSL enforces CRL
+        // verification during chain validation. These are store flags, not
+        // SSL verify mode bits — the two must not be mixed.
+        long crl_flags = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_USE_DELTAS;
+        if (crl_check_intermediate) {
+            crl_flags |= X509_V_FLAG_CRL_CHECK_ALL;
+        }
+        X509_STORE_set_flags(store, crl_flags);
+    }
+
     int ssl_flags = 0;
     switch (clientCertMode) {
     case ClientCertMode::Mandatory:
         ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-        // FALLTHROUGH
+        [[fallthrough]];
     case ClientCertMode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
         auto* certNames = SSL_load_client_CA_file(ca_file.c_str());
@@ -237,13 +318,13 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
                     getOpenSslError());
         }
         SSL_CTX_set_client_CA_list(server_ctx, certNames);
-        SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr);
-        SSL_CTX_set_verify(server_ctx, ssl_flags, nullptr);
         break;
     }
     case ClientCertMode::Disabled:
         break;
     }
+
+    SSL_CTX_set_verify(server_ctx, ssl_flags, my_custom_verify_callback);
 
     return ret;
 }

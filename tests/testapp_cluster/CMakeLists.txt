@@ -11,11 +11,14 @@ cb_add_test_executable(cluster_test
                main.cc
                misc_tests.cc
                mutate_with_meta.cc
+               node_to_node_encryption.cc
                out_of_order_tests.cc
                quota_sharing_paging_test.cc
                rbac_tests.cc
                regression_tests.cc
                snapshot_tests.cc
+               test_utilities.cc
+               test_utilities.h
                throttling_tests.cc
                upgrade_test.cc
                upgrade_test.h)

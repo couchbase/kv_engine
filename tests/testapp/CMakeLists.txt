@@ -97,6 +97,7 @@ target_link_libraries(memcached_testapp PRIVATE
     mcd_test_util
     mc_client_connection
     cbsasl
+    cbcrypto
     json_validator
     platform
     platform_cb_malloc_arena

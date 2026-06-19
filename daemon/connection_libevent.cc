@@ -226,8 +226,14 @@ void LibeventConnection::event_callback(short event) {
     if (isTlsEnabled() && !term) {
         auto errors = getOpenSslErrorCodes();
         for (const auto& err : errors) {
-            if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
+            const auto reason = ERR_GET_REASON(err);
+            if (reason == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
                 details.append("TLS unexpected EOF,");
+                term = true;
+                break;
+            }
+            if (reason == SSL_R_CERTIFICATE_VERIFY_FAILED) {
+                details.append("Certificate verification failed,");
                 term = true;
                 break;
             }

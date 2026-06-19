@@ -13,6 +13,7 @@
 #include "environment.h"
 #include "mc_time.h"
 #include "memcached.h"
+#include "network_interface_manager.h"
 #include "settings.h"
 #include <executor/executorpool.h>
 #include <memcached/document_expired.h>
@@ -128,6 +129,13 @@ struct ServerCoreApi : public ServerCoreIface {
 
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return Settings::instance().getSnapshotDownloadFadvise();
+    }
+
+    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
+        if (networkInterfaceManager) {
+            return networkInterfaceManager->getNodeToNodeCrlConfig();
+        }
+        return {};
     }
 };
 
