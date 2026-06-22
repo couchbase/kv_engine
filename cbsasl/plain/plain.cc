@@ -12,6 +12,7 @@
 
 #include "cbsasl/pwfile.h"
 #include "check_password.h"
+#include <cbcrypto/secret.h>
 
 namespace cb::sasl::mechanism::plain {
 
@@ -47,10 +48,12 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
 }
 
 std::pair<Error, std::string> ClientBackend::start() {
-    auto usernm = usernameCallback();
-    auto passwd = passwordCallback();
-    if (usernm.empty() || usernm.find('\0') != std::string::npos ||
-        passwd.find('\0') != std::string::npos) {
+    cb::crypto::SecretString username_holder(usernameCallback());
+    cb::crypto::SecretString password_holder(passwordCallback());
+    std::string_view usernm = username_holder;
+    std::string_view passwd = password_holder;
+
+    if (usernm.empty() || usernm.contains('\0') || passwd.contains('\0')) {
         return {Error::BAD_PARAM, {}};
     }
 

@@ -9,6 +9,7 @@
  */
 
 #include "cbsasl/scram-sha/scram-sha.h"
+#include <cbcrypto/secret.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -120,7 +121,8 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
         }
 
         // I've got the SALT, lets generate the salted password
-        if (!generateSaltedPassword(passwordCallback())) {
+        cb::crypto::SecretString password(passwordCallback());
+        if (!generateSaltedPassword(password)) {
             errorMessage = "Failed to generate salted passwod";
             LOG_ERROR_CTX(errorMessage, {"uuid", context.getUuid()});
             return {Error::FAIL, errorMessage};

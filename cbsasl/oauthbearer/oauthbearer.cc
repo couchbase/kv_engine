@@ -11,6 +11,7 @@
 #include "oauthbearer.h"
 #include "parse_gs2_header.h"
 
+#include <cbcrypto/secret.h>
 #include <cbsasl/username_util.h>
 #include <fmt/format.h>
 #include <platform/split_string.h>
@@ -58,12 +59,17 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
 }
 
 std::pair<Error, std::string> ClientBackend::start() {
-    auto user = usernameCallback();
+    cb::crypto::SecretString username_holder(usernameCallback());
+    cb::crypto::SecretString password_holder(passwordCallback());
+    std::string_view usernm = username_holder;
+    std::string_view passwd = password_holder;
+
     auto header = fmt::format(
             "n,{},",
-            user.empty() ? "" : fmt::format("a={}", username::encode(user)));
+            usernm.empty() ? ""
+                           : fmt::format("a={}", username::encode(usernm)));
     header.push_back(0x01);
-    header.append(fmt::format("auth=Bearer {}", passwordCallback()));
+    header.append(fmt::format("auth=Bearer {}", passwd));
     header.push_back(0x01);
     header.push_back(0x01);
     return {Error::OK, std::move(header)};
