@@ -867,6 +867,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
 
     loggerName += "magma_" + std::to_string(configuration.getShardId());
     logger = BucketLogger::createBucketLogger(loggerName);
+    if (engine) {
+        // Add bucket name to prefix for all magma logs
+        logger->setPrefix(nlohmann::ordered_json{{"bucket", engine->getName()}},
+                          "");
+    }
     configuration.magmaCfg.LogContext = logger->getSpdLogger();
     configuration.magmaCfg.UID = loggerName;
 

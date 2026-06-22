@@ -8,10 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 #include "pwfile.h"
+#include <cblogger/logger.h>
 #include <cbsasl/password_database.h>
 #include <dek/manager.h>
 #include <folly/Synchronized.h>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>

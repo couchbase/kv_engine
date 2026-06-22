@@ -10,11 +10,11 @@
 
 #include "mutate_with_meta_context.h"
 #include "engine_wrapper.h"
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
-#include <logger/logger.h>
 #include <mcbp/codec/with_meta_options.h>
 #include <mcbp/protocol/datatype.h>
 #include <memcached/durability_spec.h>

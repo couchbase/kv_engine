@@ -54,10 +54,10 @@
 #include <boost/lexical_cast.hpp>
 #include <cbcrypto/common.h>
 #include <cbcrypto/file_utilities.h>
+#include <cblogger/logger.h>
 #include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
-#include <logger/logger.h>
 #include <mcbp/codec/with_meta_options.h>
 #include <memcached/audit_interface.h>
 #include <memcached/collections.h>

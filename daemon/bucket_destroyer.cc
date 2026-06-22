@@ -12,7 +12,7 @@
 #include "connection.h"
 
 #include "memcached.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <platform/json_log_conversions.h>
 
 using namespace std::chrono_literals;

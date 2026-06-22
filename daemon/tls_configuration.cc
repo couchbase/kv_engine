@@ -17,7 +17,7 @@
 #include "stats.h"
 
 #include <cbcrypto/digest.h>
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <nlohmann/json.hpp>
 #include <openssl/bio.h>
 #include <openssl/err.h>

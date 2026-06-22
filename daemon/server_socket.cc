@@ -17,9 +17,9 @@
 #include "settings.h"
 #include "stats.h"
 
+#include <cblogger/logger.h>
 #include <folly/io/async/EventBase.h>
 #include <libevent/utilities.h>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>

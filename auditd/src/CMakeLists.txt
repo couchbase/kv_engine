@@ -11,7 +11,7 @@ add_library(auditd STATIC
 add_dependencies(auditd generate_audit_descriptors)
 kv_enable_pch(auditd)
 target_link_libraries(auditd PRIVATE
-                      memcached_logger
+                      cblogger
                       mcd_dek
                       mcd_util
                       platform

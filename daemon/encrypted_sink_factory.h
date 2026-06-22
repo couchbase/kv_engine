@@ -1,5 +1,5 @@
 /*
- *     Copyright 2015-Present Couchbase, Inc.
+ *     Copyright 2026-Present Couchbase, Inc.
  *
  *   Use of this software is governed by the Business Source License included
  *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
@@ -8,17 +8,16 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "event.h"
+#pragma once
 
-#include "audit.h"
-#include <cblogger/logger.h>
-#include <nlohmann/json.hpp>
-#include <utilities/logtags.h>
+#include <cblogger/file_sink_encryption_config.h>
 
-bool Event::process(AuditImpl& audit) {
-    return audit.write_to_audit_trail(payload);
-}
+namespace cb::logger {
 
-bool Event::drop_if_audit_disabled() {
-    return true;
-}
+/**
+ * Build the encryption config passed to initialize() so cblogger's file sink
+ * can fetch the active log DEK from cb::dek::Manager
+ */
+FileSinkEncryptionConfig makeFileSinkEncryptionConfig();
+
+} // namespace cb::logger

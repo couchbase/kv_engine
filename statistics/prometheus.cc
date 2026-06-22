@@ -12,13 +12,13 @@
 #include "statistics/prometheus.h"
 #include "statistics/prometheus_collector.h"
 
+#include <cblogger/logger.h>
 #include <daemon/log_macros.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <fmt/format.h>
 #include <folly/SynchronizedPtr.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/timeutils.h>

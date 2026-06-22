@@ -10,9 +10,8 @@
 
 #include "testapp.h"
 
-#include "logger/logger_test_fixture.h"
-
 #include <folly/portability/GTest.h>
+#include <spdlog/spdlog.h>
 
 class LoggingTest : public TestappTest,
                     public ::testing::WithParamInterface<int> {

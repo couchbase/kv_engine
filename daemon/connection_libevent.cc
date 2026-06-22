@@ -19,10 +19,10 @@
 #include "settings.h"
 #include "tracing.h"
 
+#include <cblogger/logger.h>
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
 #include <event2/event.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
 #include <mcbp/protocol/response.h>

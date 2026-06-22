@@ -10,13 +10,13 @@
 #include "steppable_command_context.h"
 #include "executors.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/thread_stats.h>
-#include <logger/logger.h>
 #include <platform/histogram.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)

@@ -40,11 +40,11 @@
 
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
+#include <cblogger/logger.h>
 #include <daemon/enginemap.h>
 #include <fmt/format.h>
 #include <folly/CancellationToken.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <memcached/collections.h>
 #include <memcached/config_parser.h>
 #include <memcached/connection_iface.h>

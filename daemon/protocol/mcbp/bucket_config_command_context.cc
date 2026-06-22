@@ -12,10 +12,10 @@
 
 #include "daemon/concurrency_semaphores.h"
 #include "daemon/enginemap.h"
-#include "logger/logger.h"
 #include "mcbp/engine_wrapper.h"
 #include "memcached/bucket_type.h"
 #include "memcached/configuration_iface.h"
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <fmt/format.h>

@@ -16,10 +16,10 @@
 #include "dcp/response.h"
 #include "item.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
-#include "logger/logger.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+#include <cblogger/logger.h>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <folly/portability/GTest.h>

@@ -10,7 +10,7 @@
  */
 
 #include "executors.h"
-#include "logger/logger.h"
+#include <cblogger/logger.h>
 
 #include <daemon/cookie.h>
 #include <daemon/mc_time.h>

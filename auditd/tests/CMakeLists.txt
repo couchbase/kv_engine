@@ -7,7 +7,7 @@ cb_enable_unity_build(memcached_audit_test)
 kv_enable_pch(memcached_audit_test)
 target_link_libraries(memcached_audit_test PRIVATE
                       auditd
-                      memcached_logger
+                      cblogger
                       memcached_rbac
                       platform
                       GTest::gtest

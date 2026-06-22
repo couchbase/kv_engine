@@ -9,10 +9,10 @@
  */
 #include "set_chronicle_auth_token_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <logger/logger.h>
 #include <memcached/engine.h>
 #include <utilities/fusion_utilities.h>
 

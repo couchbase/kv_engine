@@ -12,6 +12,7 @@
 #include "engine_wrapper.h"
 #include "utilities.h"
 
+#include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
@@ -26,7 +27,6 @@
 #include <daemon/stats_tasks.h>
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <mcbp/codec/stats_codec.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>

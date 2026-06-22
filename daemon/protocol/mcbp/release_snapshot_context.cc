@@ -10,10 +10,10 @@
 
 #include "release_snapshot_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <logger/logger.h>
 #include <memcached/engine.h>
 
 ReleaseSnapshotContext::ReleaseSnapshotContext(Cookie& cookie)

@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "logger/logger_test_fixture.h"
+#include <logger_test_fixture.h>
 
 /**
  * Unit tests for the BucketLogger class
@@ -28,5 +28,5 @@ protected:
     void setUpLogger() override;
 
     // Old logging level so we can reset the logger in TearDown
-    spdlog::level::level_enum oldLogLevel;
+    cb::logger::Level oldLogLevel;
 };

@@ -10,9 +10,9 @@
 
 #include "cbsasl/scram-sha/scram-sha.h"
 #include <cbcrypto/secret.h>
+#include <cblogger/logger.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>

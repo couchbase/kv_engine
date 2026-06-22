@@ -12,8 +12,8 @@
 
 #include "daemon/mcaudit.h"
 
+#include <cblogger/logger.h>
 #include <daemon/settings.h>
-#include <logger/logger.h>
 #include <memcached/audit_interface.h>
 
 cb::engine_errc AuditConfigureCommandContext::configuring() {

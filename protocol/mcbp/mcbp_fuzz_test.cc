@@ -9,6 +9,7 @@
  */
 #include <auditd/couchbase_audit_events.h>
 #include <auditd/src/audit_descriptor_manager.h>
+#include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
@@ -16,7 +17,6 @@
 #include <daemon/mcaudit.h>
 #include <daemon/settings.h>
 #include <fuzztest/fuzztest.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <cstdint>
 #include <filesystem>

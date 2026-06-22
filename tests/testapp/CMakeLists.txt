@@ -84,15 +84,14 @@ cb_add_test_executable(memcached_testapp
     testapp_withmeta.cc
     testapp_xattr.cc
     testapp_xattr_deleted.cc
-    testapp_xattr.h
-    ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+    testapp_xattr.h)
 
 target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR} ${Platform_SOURCE_DIR}/external)
 
 target_link_libraries(memcached_testapp PRIVATE
     testapp_auth_provider
     memcached_daemon
-    memcached_logger
+    cblogger
     mcd_util
     mcd_test_util
     mc_client_connection

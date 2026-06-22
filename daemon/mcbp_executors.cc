@@ -72,7 +72,7 @@
 #include "settings.h"
 #include "subdocument.h"
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>

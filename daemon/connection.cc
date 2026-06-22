@@ -26,8 +26,8 @@
 #include "ssl_utils.h"
 #include "thread_stats.h"
 #include "tracing.h"
+#include <cblogger/logger.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>

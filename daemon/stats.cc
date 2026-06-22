@@ -20,9 +20,9 @@
 #include "network_interface_manager.h"
 #include "sdk_connection_manager.h"
 #include "settings.h"
+#include <cblogger/logger.h>
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
-#include <logger/logger.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>

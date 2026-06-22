@@ -15,7 +15,7 @@
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <prometheus/metric_family.h>
 
 #include <unordered_map>

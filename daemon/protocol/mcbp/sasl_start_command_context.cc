@@ -10,6 +10,7 @@
 
 #include "sasl_start_command_context.h"
 
+#include <cblogger/logger.h>
 #include <cbsasl/mechanism.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
@@ -19,7 +20,6 @@
 #include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
-#include <logger/logger.h>
 #include <platform/scope_timer.h>
 
 SaslStartCommandContext::SaslStartCommandContext(Cookie& cookie)

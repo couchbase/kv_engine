@@ -9,8 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <cblogger/logger.h>
 #include <folly/portability/GTest.h>
-#include <logger/logger.h>
 
 int main(int argc, char** argv) {
     cb::logger::createConsoleLogger();

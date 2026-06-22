@@ -16,10 +16,10 @@
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "vbucket.h"
 
+#include <cblogger/logger.h>
 #include <folly/portability/GTest.h>
 #include <fuzztest/fuzztest.h>
 #include <fuzztest/googletest_fixture_adapter.h>
-#include <logger/logger.h>
 
 /**
  * Fuzz test for the PassiveStream class.

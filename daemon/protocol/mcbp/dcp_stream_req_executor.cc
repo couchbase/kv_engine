@@ -14,8 +14,8 @@
 #include "dcp_add_failover_log.h"
 #include "engine_wrapper.h"
 
+#include <cblogger/logger.h>
 #include <daemon/cookie.h>
-#include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_stream_req_executor(Cookie& cookie) {

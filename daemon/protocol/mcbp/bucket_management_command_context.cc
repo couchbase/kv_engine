@@ -9,6 +9,7 @@
  */
 #include "bucket_management_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/bucket_destroyer.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/concurrency_semaphores.h>
@@ -18,7 +19,6 @@
 #include <daemon/settings.h>
 #include <daemon/yielding_limited_concurrency_task.h>
 #include <executor/executorpool.h>
-#include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <serverless/config.h>
 #include <utilities/json_utilities.h>

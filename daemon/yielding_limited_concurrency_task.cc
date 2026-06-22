@@ -9,7 +9,7 @@
  */
 
 #include "yielding_limited_concurrency_task.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 
 YieldingLimitedConcurrencyTask::YieldingLimitedConcurrencyTask(
         TaskId id,

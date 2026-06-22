@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "logger/prefix_logger.h"
+#include <cblogger/prefix_logger.h>
 #include <fmt/core.h>
 #include <platform/json_log.h>
 #include <spdlog/fmt/ostr.h>
@@ -91,7 +91,9 @@ public:
      * @param msg The message to log
      * @param ctx The context object
      */
-    void logWithContext(spdlog::level::level_enum lvl,
+    using cb::logger::Logger::logWithContext;
+
+    void logWithContext(cb::logger::Level lvl,
                         std::string_view msg,
                         cb::logger::Json ctx) override;
 
@@ -269,8 +271,8 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
  *
  * These macros require the class to proide the following public member
  * functions (BicketLogger itself supports these methods).
- * - shouldLog(spdlog::level::level_enum severity) const
- * - logWithContext(spdlog::level::level_enum severity,
+ * - shouldLog(cb::logger::Level severity) const
+ * - logWithContext(cb::logger::Level severity,
  *                  std::string_view msg,
  *                  cb::logger::Json ctx) const
  * - log(spdlog::level::level_enum severity, std::string_view msg) const

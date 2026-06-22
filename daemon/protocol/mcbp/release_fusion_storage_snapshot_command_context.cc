@@ -10,9 +10,9 @@
 
 #include "release_fusion_storage_snapshot_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <logger/logger.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 

@@ -15,11 +15,11 @@
 #include "memcached.h"
 #include "settings.h"
 
+#include <cblogger/logger.h>
 #include <daemon/nobucket_taskable.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <executor/executorpool.h>
 #include <executor/globaltask.h>
-#include <logger/logger.h>
 #include <phosphor/phosphor.h>
 #include <phosphor/tools/export.h>
 #include <platform/uuid.h>

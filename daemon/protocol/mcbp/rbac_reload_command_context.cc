@@ -9,12 +9,12 @@
  */
 #include "rbac_reload_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/settings.h>
-#include <logger/logger.h>
 
 cb::engine_errc RbacReloadCommandContext::execute() {
     try {

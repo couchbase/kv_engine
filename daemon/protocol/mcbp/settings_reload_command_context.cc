@@ -9,6 +9,7 @@
  */
 #include "settings_reload_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/cmdline.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/config_parse.h>
@@ -19,7 +20,6 @@
 #include <daemon/network_interface_manager.h>
 #include <daemon/settings.h>
 #include <dek/manager.h>
-#include <logger/logger.h>
 #include <platform/dirutils.h>
 
 SettingsReloadCommandContext::SettingsReloadCommandContext(Cookie& cookie)

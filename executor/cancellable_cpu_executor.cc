@@ -9,7 +9,7 @@
  */
 #include "cancellable_cpu_executor.h"
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 
 void CancellableCPUExecutor::add(GlobalTask* task, folly::Func func) {
     tasks.enqueue(QueueElem(task, std::move(func)));

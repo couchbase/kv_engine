@@ -10,6 +10,7 @@
 
 #include "sasl_auth_command_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
@@ -18,7 +19,6 @@
 #include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
-#include <logger/logger.h>
 #include <platform/string_utilities.h>
 #include <utilities/logtags.h>
 

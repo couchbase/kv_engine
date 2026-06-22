@@ -5,7 +5,7 @@ add_library(memcached_daemon_protocol_utils STATIC
 target_link_libraries(memcached_daemon_protocol_utils
         PRIVATE
         hdrhistogram
-        memcached_logger
+        cblogger
         platform
         cbcompress)
 target_include_directories(memcached_daemon_protocol_utils

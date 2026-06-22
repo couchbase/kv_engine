@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <exception>
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <platform/backtrace.h>
 #include <platform/byte_literals.h>
 #include <platform/exceptions.h>

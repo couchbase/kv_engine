@@ -13,12 +13,12 @@
 #include "mock_server.h"
 #include "utilities/terminate_handler.h"
 
+#include <cblogger/logger.h>
 #include <daemon/enginemap.h>
 #include <executor/executorpool.h>
 #include <folly/ScopeGuard.h>
 #include <getopt.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine_testapp.h>

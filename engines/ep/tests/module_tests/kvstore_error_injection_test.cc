@@ -18,7 +18,6 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
-#include "logger/logger.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -26,6 +25,7 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include "warmup.h"
+#include <cblogger/logger.h>
 
 #ifdef EP_USE_MAGMA
 #include "../mock/mock_magma_kvstore.h"

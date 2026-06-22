@@ -15,8 +15,8 @@
 
 #include <auditd/couchbase_audit_events.h>
 #include <cbcrypto/file_utilities.h>
+#include <cblogger/logger.h>
 #include <dek/manager.h>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>

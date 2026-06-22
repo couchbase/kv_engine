@@ -83,7 +83,7 @@ void BucketLoggerTest::setUpLogger() {
 TEST_F(BucketLoggerTest, TraceMacro) {
     // Set up trace level logger
     cb::logger::shutdown();
-    log_level = spdlog::level::level_enum::trace;
+    log_level = cb::logger::Level::trace;
     setUpLogger();
 
     EP_LOG_TRACE("{}", "formattedtext");
@@ -143,7 +143,7 @@ TEST_F(BucketLoggerTest, CriticalMacro) {
 TEST_F(BucketLoggerTest, TraceRawMacro) {
     // Set up trace level logger
     cb::logger::shutdown();
-    log_level = spdlog::level::level_enum::trace;
+    log_level = cb::logger::Level::trace;
     setUpLogger();
 
     EP_LOG_TRACE_RAW("rawtext");

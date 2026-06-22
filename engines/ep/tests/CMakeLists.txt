@@ -150,7 +150,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/warmup_test.cc
         module_tests/item_compression_task_test.cc
         $<TARGET_OBJECTS:couchstore_test_fileops>
-        ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+        ${Platform_SOURCE_DIR}/cblogger/logger_test_fixture.cc)
 
 # MSVC get a warning due to shadow of a global variable
 set_source_files_properties(module_tests/file_ops_tracker_test.cc PROPERTIES
@@ -175,7 +175,8 @@ endif()
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
         ${Couchstore_SOURCE_DIR}
-        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
+        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include
+        ${Platform_SOURCE_DIR}/cblogger)
 
 target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         ep

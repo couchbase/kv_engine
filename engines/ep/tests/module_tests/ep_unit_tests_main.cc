@@ -17,11 +17,11 @@
 #include "bucket_logger.h"
 #include "ep_time.h"
 #include "unit_test_server_core.h"
+#include <cblogger/logger.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/Stdlib.h>
 #include <fuzzing/init.h>
 #include <getopt.h>
-#include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/unit_test_mode.h>

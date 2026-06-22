@@ -19,10 +19,10 @@
 #include "tests/mock/mock_stream.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "vbucket.h"
+#include <cblogger/logger.h>
 #include <folly/portability/GTest.h>
 #include <fuzztest/fuzztest.h>
 #include <fuzztest/googletest_fixture_adapter.h>
-#include <logger/logger.h>
 
 /**
  * Fuzz test for the ActiveStream class.

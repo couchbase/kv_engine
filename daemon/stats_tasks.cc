@@ -24,8 +24,8 @@
 #include "memcached/engine_error.h"
 #include "nobucket_taskable.h"
 
+#include <cblogger/logger.h>
 #include <dek/manager.h>
-#include <logger/logger.h>
 #include <statistics/cbstat_collector.h>
 
 #include <memory>
@@ -242,8 +242,14 @@ void StatsTaskEncryptionKeyIds::getStats(cb::engine_errc& command_error,
     if (semaphore.try_acquire()) {
         cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
         if (cookie.getConnection().getBucket().type == BucketType::NoBucket) {
-            nlohmann::json json = {{"@audit", cb::audit::getDeksInUse()},
-                                   {"@logs", cb::logger::getDeksInUse()}};
+            // cblogger can't reach the key store, so pass the active log key id
+            auto logKey =
+                    cb::dek::Manager::instance().lookup(cb::dek::Entity::Logs);
+            nlohmann::json json = {
+                    {"@audit", cb::audit::getDeksInUse()},
+                    {"@logs",
+                     cb::logger::getDeksInUse(logKey ? logKey->id
+                                                     : std::string_view{})}};
             add_stat_callback("encryption-key-ids", json.dump(), cookie);
             command_error = cb::engine_errc::success;
         } else {

@@ -9,10 +9,10 @@
  */
 #include "engine_wrapper.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/collections.h>
 #include <memcached/durability_spec.h>

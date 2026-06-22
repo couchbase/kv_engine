@@ -8,10 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <cblogger/logger.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/mcaudit.h>
 #include <folly/portability/GTest.h>
-#include <logger/logger.h>
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);

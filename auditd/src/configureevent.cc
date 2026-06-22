@@ -12,7 +12,7 @@
 #include "configureevent.h"
 #include "audit.h"
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <memcached/cookie_iface.h>
 
 bool ConfigureEvent::process(AuditImpl& audit) {

@@ -11,9 +11,9 @@
 
 #include <statistics/cbstat_collector.h>
 
+#include <cblogger/logger.h>
 #include <fmt/args.h>
 #include <hdrhistogram/hdrhistogram.h>
-#include <logger/logger.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>

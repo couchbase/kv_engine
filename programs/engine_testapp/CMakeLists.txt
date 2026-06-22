@@ -8,7 +8,7 @@ add_library(mock_server STATIC
 )
 set_property(TARGET mock_server PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mock_server)
-target_link_libraries(mock_server PUBLIC memcached_logger)
+target_link_libraries(mock_server PUBLIC cblogger)
 target_link_libraries(mock_server PRIVATE platform_headers)
 target_link_libraries(mock_server INTERFACE
                       mcd_tracing
@@ -27,7 +27,7 @@ add_library(engine_testapp OBJECT engine_testapp.cc
 )
 kv_enable_pch(engine_testapp)
 target_link_libraries(engine_testapp PRIVATE phosphor)
-target_link_libraries(engine_testapp PUBLIC Folly::headers hdrhistogram memcached_logger)
+target_link_libraries(engine_testapp PUBLIC Folly::headers hdrhistogram cblogger)
 cb_enable_unity_build(engine_testapp)
 
 # An object library will not propagate dependencies

@@ -18,7 +18,7 @@
 #include "sasl_auth_task.h"
 #include "tracing.h" // SlowMutexThreshold
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>

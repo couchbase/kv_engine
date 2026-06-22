@@ -11,7 +11,7 @@
 #pragma once
 
 #include "ep_types.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 
 namespace cb {
 

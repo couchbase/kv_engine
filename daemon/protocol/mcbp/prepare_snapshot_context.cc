@@ -10,12 +10,12 @@
 
 #include "prepare_snapshot_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
-#include <logger/logger.h>
 #include <memcached/engine.h>
 
 PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)

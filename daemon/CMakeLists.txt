@@ -28,6 +28,8 @@ add_library(memcached_daemon STATIC
             datatype_filter.h
             decode_token_task.cc
             decode_token_task.h
+            encrypted_sink_factory.cc
+            encrypted_sink_factory.h
             enginemap.cc
             enginemap.h
             environment.cc
@@ -142,7 +144,7 @@ add_dependencies(memcached_daemon
 target_link_libraries(memcached_daemon
         PUBLIC
                       mcd_util
-                      memcached_logger
+                      cblogger
                       platform
                       OpenSSL::SSL
                       subjson
@@ -209,6 +211,7 @@ cb_add_test_executable(memcached_unit_tests
                        client_cert_config_test.cc
                        connection_unit_tests.cc
                        datatype_filter_test.cc
+                       encrypted_sink_factory_test.cc
                        error_map_manager_test.cc
                        executor_tracing_test.cc
                        filedescriptor_distribution_test.cc

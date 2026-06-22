@@ -10,10 +10,10 @@
 #include "auditfile.h"
 
 #include <cbcrypto/file_reader.h>
+#include <cblogger/logger.h>
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/ScopeGuard.h>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>

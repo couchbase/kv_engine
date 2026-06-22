@@ -10,7 +10,7 @@
 #include "mcbp_privileges.h"
 
 #include "connection.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/unit_test_mode.h>
 

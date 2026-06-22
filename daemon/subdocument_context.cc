@@ -14,8 +14,8 @@
 #include "settings.h"
 #include "subdocument_parser.h"
 #include "thread_stats.h"
+#include <cblogger/logger.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
 #include <subdoc/util.h>

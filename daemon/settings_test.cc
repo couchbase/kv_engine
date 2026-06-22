@@ -9,8 +9,8 @@
  */
 
 #include "settings.h"
+#include <cblogger/logger.h>
 #include <folly/portability/GTest.h>
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/magma_support.h>

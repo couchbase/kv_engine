@@ -8,7 +8,7 @@ target_link_libraries(memcached_statistics_test
         PRIVATE
                 GTest::gmock
                 memcached_daemon
-                memcached_logger
+                cblogger
                 statistics)
 
 add_sanitizers(memcached_statistics_test)

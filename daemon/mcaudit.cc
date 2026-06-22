@@ -14,9 +14,9 @@
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
-#include "logger/logger.h"
 #include "memcached.h"
 #include "settings.h"
+#include <cblogger/logger.h>
 
 #include <auditd/couchbase_audit_events.h>
 #include <auditd/src/audit_descriptor_manager.h>

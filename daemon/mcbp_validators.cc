@@ -22,8 +22,8 @@
 #include "xattr/utils.h"
 
 #include <cbcrypto/key_store.h>
+#include <cblogger/logger.h>
 #include <dek/manager.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <memcached/collections.h>
 #include <memcached/dcp.h>

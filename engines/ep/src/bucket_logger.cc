@@ -11,7 +11,7 @@
 
 #include "bucket_logger.h"
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <utility>
 
 #include "ep_engine.h"
@@ -23,7 +23,7 @@ BucketLogger::BucketLogger(const std::string& name)
     : PrefixLogger(name, cb::logger::get()) {
 }
 
-void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
+void BucketLogger::logWithContext(cb::logger::Level lvl,
                                   std::string_view msg,
                                   cb::logger::Json ctx) {
     // get engine before disabling memory tracking!
@@ -55,8 +55,10 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
             finalContext["conn_id"] = connectionId;
         }
 
-        // Write the bucket
-        if (engine) {
+        // Write the bucket. Skip if a static prefix already carries it as the
+        // magma logger sets {"bucket": <name>} via setPrefix), to avoid
+        // duplicates
+        if (engine && !basePrefix.contains("bucket")) {
             finalContext["bucket"] = engine->getName();
         }
 

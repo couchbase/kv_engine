@@ -89,7 +89,7 @@ target_link_libraries(mcd_util
                 platform
         PRIVATE
                 engine_utilities
-                memcached_logger
+                cblogger
                 hdrhistogram
                 nlohmann_json::nlohmann_json
                 OpenSSL::SSL)

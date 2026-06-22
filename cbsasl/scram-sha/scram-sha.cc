@@ -10,8 +10,8 @@
 #include "cbsasl/scram-sha/scram-sha.h"
 #include "cbsasl/scram-sha/stringutils.h"
 
+#include <cblogger/logger.h>
 #include <cbsasl/username_util.h>
-#include <logger/logger.h>
 #include <platform/base64.h>
 #include <string>
 

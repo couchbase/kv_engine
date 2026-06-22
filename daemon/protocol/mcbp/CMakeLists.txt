@@ -148,7 +148,7 @@ target_link_libraries(memcached_daemon_mcbp
         Folly::folly
         magma_support
         hdrhistogram
-        memcached_logger
+        cblogger
         nlohmann_json::nlohmann_json
         phosphor
         platform

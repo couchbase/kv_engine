@@ -11,10 +11,10 @@
 #include "create_fusion_namespace_command_context.h"
 
 #include "daemon/connection.h"
+#include <cblogger/logger.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
-#include <logger/logger.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 

@@ -11,9 +11,9 @@
 #include "executors.h"
 #include "platform/json_log.h"
 
+#include <cblogger/logger.h>
 #include <daemon/cookie.h>
 #include <daemon/settings.h>
-#include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 

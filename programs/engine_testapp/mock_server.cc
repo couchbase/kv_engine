@@ -11,9 +11,9 @@
 #include "mock_server.h"
 #include "mock_cookie.h"
 
+#include <cblogger/logger.h>
 #include <gsl/gsl-lite.hpp>
 #include <json/syntax_validator.h>
-#include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/document_expired.h>
 #include <memcached/engine.h>

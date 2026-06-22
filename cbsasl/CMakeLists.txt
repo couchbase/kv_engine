@@ -40,7 +40,7 @@ target_link_libraries(cbsasl
                 fmt::fmt
                 phosphor
                 mcd_util
-                memcached_logger
+                cblogger
                 libsodium::libsodium)
 add_sanitizers(cbsasl)
 

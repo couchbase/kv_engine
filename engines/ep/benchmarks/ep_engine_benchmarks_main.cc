@@ -12,8 +12,8 @@
 #include <programs/engine_testapp/mock_server.h>
 
 #include <benchmark/benchmark.h>
+#include <cblogger/logger.h>
 #include <engines/ep/src/bucket_logger.h>
-#include <logger/logger.h>
 #include <platform/cbassert.h>
 
 #include "ep_time.h"

@@ -11,12 +11,12 @@
 
 #include "executors.h"
 
+#include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
 #include <daemon/settings.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/request.h>
 #include <platform/scope_timer.h>
 #include <serverless/config.h>

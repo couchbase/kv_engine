@@ -11,8 +11,8 @@
 #include "breakpad.h"
 #include "terminate_handler.h"
 
-#include <logger/logger.h>
-#include <logger/logger_config.h>
+#include <cblogger/logger.h>
+#include <cblogger/logger_config.h>
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #ifdef WIN32

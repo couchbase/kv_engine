@@ -37,10 +37,10 @@
 #include "buckets.h"
 #include "memcached.h"
 
+#include <cblogger/logger.h>
 #include <fmt/chrono.h>
 #include <folly/io/async/EventBase.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <platform/platform_time.h>
 #include <atomic>
 #include <chrono>

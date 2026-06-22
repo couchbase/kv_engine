@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <cstdlib>
 
 /**

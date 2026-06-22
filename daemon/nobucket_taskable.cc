@@ -11,7 +11,7 @@
 #include "nobucket_taskable.h"
 #include "memcached.h"
 #include "stats.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
 

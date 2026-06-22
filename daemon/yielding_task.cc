@@ -9,7 +9,7 @@
  */
 
 #include "yielding_task.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 
 bool YieldingTask::run() {
     try {

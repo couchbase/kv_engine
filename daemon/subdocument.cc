@@ -21,9 +21,9 @@
 #include "subdocument_traits.h"
 #include "thread_stats.h"
 
+#include <cblogger/logger.h>
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>

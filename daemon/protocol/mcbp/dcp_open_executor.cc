@@ -12,9 +12,9 @@
 #include "engine_wrapper.h"
 #include "executors.h"
 #include "utilities.h"
+#include <cblogger/logger.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
-#include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <string>
 

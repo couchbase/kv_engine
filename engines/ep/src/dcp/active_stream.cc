@@ -23,10 +23,10 @@
 #include "queue_op.h"
 #include "vbucket.h"
 
+#include <cblogger/logger.h>
 #include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
 #include <folly/lang/Assume.h>
-#include <logger/logger.h>
 #include <mcbp/protocol/json_utilities.h>
 #include <memcached/protocol_binary.h>
 #include <platform/backtrace.h>

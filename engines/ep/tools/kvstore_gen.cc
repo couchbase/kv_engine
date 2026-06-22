@@ -24,7 +24,7 @@
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "vbucket_state.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <platform/atomic.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <spdlog/fmt/fmt.h>

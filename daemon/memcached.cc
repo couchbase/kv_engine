@@ -14,6 +14,7 @@
 #include "cmdline.h"
 #include "concurrency_semaphores.h"
 #include "cookie.h"
+#include "encrypted_sink_factory.h"
 #include "enginemap.h"
 #include "environment.h"
 #include "error_map_manager.h"
@@ -21,7 +22,6 @@
 #include "front_end_thread.h"
 #include "libevent_locking.h"
 #include "log_macros.h"
-#include "logger/logger.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "mcbp_executors.h"
@@ -34,6 +34,7 @@
 #include "stdin_check.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
+#include <cblogger/logger.h>
 #include <cbsasl/mechanism.h>
 #include <dek/manager.h>
 #include <executor/executorpool.h>
@@ -892,8 +893,10 @@ int memcached_main(int argc, char** argv) {
 
     /* Configure file logger, if specified as a settings object */
     if (Settings::instance().has.logger) {
-        auto ret =
-                cb::logger::initialize(Settings::instance().getLoggerConfig());
+        auto ret = cb::logger::initialize(
+                Settings::instance().getLoggerConfig(),
+                cb::logger::Level::info,
+                cb::logger::makeFileSinkEncryptionConfig());
         if (ret) {
             FATAL_ERROR_CTX(EXIT_FAILURE,
                             "Failed to initialize logger",
@@ -974,7 +977,8 @@ int memcached_main(int argc, char** argv) {
     cb::breakpad::initialize(Settings::instance().getBreakpadSettings(),
                              Settings::instance().getLoggerConfig());
 
-    // Allow magma functions to log using our logger
+    // Allow magma functions to log using our logger. magma expects a
+    // std::shared_ptr<spdlog::logger>; hand it the underlying spdlog::logger
     magma::Magma::SetGlobalLogger(cb::logger::get()->getSpdLogger());
 
     // Simple benchmark of clock performance - the system clock can have a

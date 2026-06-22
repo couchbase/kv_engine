@@ -10,6 +10,7 @@
 
 #include "get_file_fragment_context.h"
 
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
@@ -18,7 +19,6 @@
 #include <executor/executorpool.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Unistd.h>
-#include <logger/logger.h>
 #include <memcached/engine.h>
 #include <platform/crc32c.h>
 #include <platform/dirutils.h>

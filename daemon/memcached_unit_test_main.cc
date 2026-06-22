@@ -11,12 +11,12 @@
 #include "environment.h"
 #include "external_auth_manager_thread.h"
 
+#include <cblogger/logger.h>
 #include <daemon/enginemap.h>
 #include <executor/executorpool.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <getopt.h>
-#include <logger/logger.h>
 #include <memcached/unit_test_mode.h>
 
 #include <iostream>

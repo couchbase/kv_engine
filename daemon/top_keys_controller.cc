@@ -11,7 +11,7 @@
 #include "top_keys_controller.h"
 
 #include "front_end_thread.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 
 namespace cb::trace::topkeys {
 

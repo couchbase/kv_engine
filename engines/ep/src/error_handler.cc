@@ -10,8 +10,8 @@
 
 #include "error_handler.h"
 
+#include <cblogger/logger.h>
 #include <folly/lang/Assume.h>
-#include <logger/logger.h>
 
 namespace cb {
 

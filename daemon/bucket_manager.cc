@@ -19,7 +19,7 @@
 #include "memcached.h"
 #include "settings.h"
 #include "thread_stats.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <memcached/config_parser.h>
 #include <platform/base64.h>
 #include <platform/json_log_conversions.h>

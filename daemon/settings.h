@@ -11,8 +11,8 @@
 #pragma once
 
 #include "client_cert_config.h"
-#include "logger/logger_config.h"
 #include "network_interface.h"
+#include <cblogger/logger_config.h>
 
 #include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>

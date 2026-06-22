@@ -17,7 +17,7 @@
 #include "resource_allocation_domain.h"
 #include "settings.h"
 #include "thread_stats.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>

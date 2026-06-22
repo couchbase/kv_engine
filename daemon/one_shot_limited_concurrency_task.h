@@ -10,8 +10,8 @@
 #pragma once
 
 #include "nobucket_taskable.h"
+#include <cblogger/logger.h>
 #include <executor/limited_concurrency_task.h>
-#include <logger/logger.h>
 #include <functional>
 
 class OneShotLimitedConcurrencyTask : public LimitedConcurrencyTask {

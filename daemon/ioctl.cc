@@ -21,7 +21,7 @@
 #include "top_keys_controller.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <mcbp/mcbp.h>
 #include <memcached/io_control.h>
 #include <memcached/util.h>

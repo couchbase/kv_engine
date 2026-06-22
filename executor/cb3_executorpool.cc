@@ -12,7 +12,7 @@
 #include "cb3_executorthread.h"
 #include "cb3_taskqueue.h"
 
-#include <logger/logger.h>
+#include <cblogger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/string_hex.h>
