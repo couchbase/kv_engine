@@ -11,7 +11,7 @@
 
 #include <cbsasl/user.h>
 #include <functional>
-#include <string>
+#include <string_view>
 
 /**
  * Searches for a user entry for the specified user.
@@ -20,7 +20,7 @@
  * @return user updated with the user information if found (or dummy if
  *         user don't exist)
  */
-[[nodiscard]] cb::sasl::pwdb::User find_user(const std::string& username);
+[[nodiscard]] cb::sasl::pwdb::User find_user(std::string_view username);
 
 /**
  * (Re)Load the user database (specified by the environment variable

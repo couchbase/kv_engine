@@ -180,7 +180,7 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
     return {Error::FAIL, {}};
 }
 
-bool ClientBackend::generateSaltedPassword(const std::string& secret) {
+bool ClientBackend::generateSaltedPassword(std::string_view secret) {
     try {
         saltedPassword = cb::crypto::PBKDF2_HMAC(
                 algorithm, secret, salt, iterationCount);

@@ -13,6 +13,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace cb::sasl {
 
@@ -64,7 +65,7 @@ namespace mechanism::plain {
  * Try to run a plain text authentication with the specified username and
  * password.
  */
-Error authenticate(const std::string& username, const std::string& passwd);
+Error authenticate(std::string_view username, std::string_view passwd);
 } // namespace mechanism::plain
 } // namespace cb::sasl
 

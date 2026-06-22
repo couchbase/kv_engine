@@ -200,13 +200,13 @@ public:
      * @return a newly created dummy object
      */
     static User create(
-            const std::string& name,
-            const std::string& pw,
+            std::string_view name,
+            std::string_view pw,
             const std::function<bool(crypto::Algorithm)>& callback = {},
             std::string_view password_hash_type = {},
             std::optional<time_t> password_expiry_time = {});
 
-    static User create(const std::string& name,
+    static User create(std::string_view name,
                        const std::vector<std::string>& passwords,
                        std::function<bool(crypto::Algorithm)> callback = {},
                        std::string_view password_hash_type = {},
@@ -220,7 +220,7 @@ public:
      *
      * @return a newly created dummy object
      */
-    static User createDummy(const std::string& name,
+    static User createDummy(std::string_view name,
                             cb::crypto::Algorithm algorithm);
 
     /**
@@ -231,6 +231,6 @@ public:
      */
     static void setDefaultScramShaIterationCount(int count);
 
-    static void setScramshaFallbackSalt(const std::string& salt);
+    static void setScramshaFallbackSalt(std::string_view salt);
 };
 } // namespace cb::sasl::pwdb

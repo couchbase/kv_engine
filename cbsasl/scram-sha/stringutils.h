@@ -11,6 +11,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 /**
  * Apply https://www.ietf.org/rfc/rfc4013.txt to the input string
@@ -23,4 +24,4 @@
  * @return a SASLPrep'd string
  * @throws std::runtime_error if we encounter a multibyte character
  */
-std::string SASLPrep(const std::string& string);
+std::string SASLPrep(std::string_view string);

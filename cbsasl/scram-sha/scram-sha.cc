@@ -90,7 +90,7 @@ std::string ScramShaBackend::getAuthMessage() {
 
 void ScramShaBackend::addAttribute(std::ostream& out,
                                    char key,
-                                   const std::string& value,
+                                   std::string_view value,
                                    bool more) {
     out << key << '=';
 

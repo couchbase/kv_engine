@@ -131,13 +131,13 @@ ScamShaFallbackSalt::ScamShaFallbackSalt() {
     set(encoded);
 }
 
-User UserFactory::create(const std::string& name,
+User UserFactory::create(std::string_view name,
                          const std::vector<std::string>& passwords,
                          std::function<bool(crypto::Algorithm)> callback,
                          std::string_view password_hash_type,
                          std::optional<time_t> password_expiry_time) {
     using namespace std::string_view_literals;
-    User ret{name, false};
+    User ret(std::string{name}, false);
     if (password_expiry_time) {
         ret.setExpiryTime(*password_expiry_time);
     }
@@ -174,20 +174,20 @@ User UserFactory::create(const std::string& name,
     return ret;
 }
 
-User UserFactory::create(const std::string& unm,
-                         const std::string& passwd,
+User UserFactory::create(std::string_view unm,
+                         std::string_view passwd,
                          const std::function<bool(Algorithm)>& callback,
                          const std::string_view password_hash_type,
                          std::optional<time_t> password_expiry_time) {
     return create(unm,
-                  std::vector<std::string>{{passwd}},
+                  std::vector<std::string>{{std::string{passwd}}},
                   callback,
                   password_hash_type,
                   password_expiry_time);
 }
 
-User UserFactory::createDummy(const std::string& unm, Algorithm algorithm) {
-    User ret{unm};
+User UserFactory::createDummy(std::string_view unm, Algorithm algorithm) {
+    User ret(std::string{unm});
 
     // Generate a random password
     std::vector<uint8_t> salt;
@@ -227,7 +227,7 @@ void UserFactory::setDefaultScramShaIterationCount(int count) {
     IterationCount.store(count);
 }
 
-void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
+void UserFactory::setScramshaFallbackSalt(std::string_view salt) {
     ScamShaFallbackSalt::instance().set(salt);
 }
 

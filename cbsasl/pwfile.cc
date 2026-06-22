@@ -23,7 +23,7 @@ public:
         db.swap(ndb);
     }
 
-    cb::sasl::pwdb::User find(const std::string& username) {
+    cb::sasl::pwdb::User find(std::string_view username) {
         return (*db.rlock())->find(username);
     }
 
@@ -45,7 +45,7 @@ protected:
     folly::Synchronized<std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>> db;
 };
 
-cb::sasl::pwdb::User find_user(const std::string& username) {
+cb::sasl::pwdb::User find_user(std::string_view username) {
     return PasswordDatabaseManager::instance().find(username);
 }
 

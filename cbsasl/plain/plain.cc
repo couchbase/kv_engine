@@ -62,7 +62,7 @@ std::pair<Error, std::string> ClientBackend::start() {
     return {Error::OK, std::move(buffer)};
 }
 
-Error authenticate(const std::string& username, const std::string& passwd) {
+Error authenticate(std::string_view username, std::string_view passwd) {
     auto user = find_user(username);
     if (user.isDummy()) {
         return Error::NO_USER;

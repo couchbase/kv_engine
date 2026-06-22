@@ -51,7 +51,7 @@ protected:
      */
     static void addAttribute(std::ostream& out,
                              char key,
-                             const std::string& value,
+                             std::string_view value,
                              bool more);
 
     using AttributeMap = std::unordered_map<char, std::string>;
@@ -213,7 +213,7 @@ protected:
     std::string getClientKey();
     std::string getClientProof();
 
-    bool generateSaltedPassword(const std::string& secret);
+    bool generateSaltedPassword(std::string_view secret);
 
     std::string getSaltedPassword() {
         if (saltedPassword.empty()) {

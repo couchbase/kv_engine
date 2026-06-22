@@ -34,9 +34,9 @@ std::string listmech(bool tls) {
     return "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN";
 }
 
-pwdb::User ServerContext::lookupUser(const std::string& username) {
+pwdb::User ServerContext::lookupUser(std::string_view username) {
     if (lookup_user_function) {
-        return lookup_user_function(username);
+        return lookup_user_function(std::string{username});
     }
 
     return ::find_user(username);

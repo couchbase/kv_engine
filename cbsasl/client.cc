@@ -20,7 +20,7 @@ namespace cb::sasl::client {
 ClientContext::ClientContext(
         GetUsernameCallback user_cb,
         GetPasswordCallback password_cb,
-        const std::string& mechanisms,
+        std::string_view mechanisms,
         const std::function<std::string()>& generate_nonce_function,
         std::function<void(char, const std::string&)> scram_property_listener) {
     switch (selectMechanism(mechanisms)) {

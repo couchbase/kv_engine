@@ -13,9 +13,17 @@
 #include <nlohmann/json_fwd.hpp>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace cb::sasl::pwdb {
+
+struct StringHash {
+    using is_transparent = void;
+    std::size_t operator()(std::string_view sv) const {
+        return std::hash<std::string_view>{}(sv);
+    }
+};
 
 class PasswordDatabase {
 public:
@@ -42,7 +50,7 @@ public:
      * @param username the username to look up
      * @return a copy of the user object
      */
-    User find(const std::string& username) const;
+    User find(std::string_view username) const;
 
     /// Iterate over all of the users in the database
     void iterate(const std::function<void(const User&)>& usercallback) const;
@@ -62,7 +70,7 @@ protected:
     /**
      * The actual user database
      */
-    std::unordered_map<std::string, User> db;
+    std::unordered_map<std::string, User, StringHash, std::equal_to<>> db;
 };
 
 /// Create a JSON representation of the password database
@@ -74,6 +82,6 @@ public:
     MutablePasswordDatabase() : PasswordDatabase() {
     }
     void upsert(User user);
-    void remove(const std::string& username);
+    void remove(std::string_view username);
 };
 } // namespace cb::sasl::pwdb

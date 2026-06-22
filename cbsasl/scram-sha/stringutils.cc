@@ -31,7 +31,7 @@
  *         [StringPrep, C.8]
  *       - Tagging characters [StringPrep, C.9]
  */
-std::string SASLPrep(const std::string& string) {
+std::string SASLPrep(std::string_view string) {
     for (std::size_t ii = 0; ii < string.size(); ++ii) {
         unsigned char cc = string[ii];
 
@@ -74,5 +74,5 @@ std::string SASLPrep(const std::string& string) {
         }
     }
 
-    return string;
+    return std::string{string};
 }

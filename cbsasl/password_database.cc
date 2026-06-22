@@ -42,7 +42,7 @@ PasswordDatabase::PasswordDatabase(const nlohmann::json& json) {
     }
 }
 
-User PasswordDatabase::find(const std::string& username) const {
+User PasswordDatabase::find(std::string_view username) const {
     auto it = db.find(username);
     if (it == db.end()) {
         // Return a dummy user (allow the authentication to go
@@ -82,7 +82,7 @@ void MutablePasswordDatabase::upsert(User user) {
     db[name] = std::move(user);
 }
 
-void MutablePasswordDatabase::remove(const std::string& username) {
+void MutablePasswordDatabase::remove(std::string_view username) {
     auto it = db.find(username);
     if (it != db.end()) {
         db.erase(it);

@@ -149,7 +149,7 @@ public:
      * @param username The user to search for
      * @return A user object (may be a dummy object if the user don't exists)
      */
-    [[nodiscard]] pwdb::User lookupUser(const std::string& username);
+    [[nodiscard]] pwdb::User lookupUser(std::string_view username);
 
     /**
      * Should one bypass authentication and return "No User" if the user
