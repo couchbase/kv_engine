@@ -269,7 +269,9 @@ std::string GetFileFragmentContext::create_buffer(size_t length) const {
     // Reserve space for the data plus the optional checksum so that appending
     // the checksum does not trigger a reallocation.
     buf.reserve(checksum_length ? length + sizeof(uint32_t) : length);
-    // Size the buffer to the requested length ready to be read into.
-    buf.resize(length);
+    // Size the buffer to the requested length ready to be read into, without
+    // initialising the storage - it is immediately overwritten by the file
+    // read.
+    buf.resize_and_overwrite(length, [](char*, std::size_t n) { return n; });
     return buf;
 }
