@@ -168,6 +168,7 @@ int crlPolicyVerifyCallback(
         // certificate is accepted (per PRD: Disabled → revoked cert: Allow)
         if (error == X509_V_ERR_UNABLE_TO_GET_CRL ||
             error == X509_V_ERR_CRL_HAS_EXPIRED ||
+            error == X509_V_ERR_CRL_NOT_YET_VALID ||
             error == X509_V_ERR_CRL_SIGNATURE_FAILURE ||
             error == X509_V_ERR_CERT_REVOKED) {
             X509_STORE_CTX_set_error(x509_ctx, X509_V_OK);
@@ -176,10 +177,11 @@ int crlPolicyVerifyCallback(
     }
 
     if (activePolicy == CrlPolicy::Permissive) {
-        // Allow missing or expired CRLs, but maintain hard drops for outright
-        // bad signatures
+        // Allow missing, expired or not yet valid CRLs, but maintain hard drops
+        // for outright bad signatures
         if (error == X509_V_ERR_UNABLE_TO_GET_CRL ||
-            error == X509_V_ERR_CRL_HAS_EXPIRED) {
+            error == X509_V_ERR_CRL_HAS_EXPIRED ||
+            error == X509_V_ERR_CRL_NOT_YET_VALID) {
             errorCallback(false, errorStr, certInfo);
             X509_STORE_CTX_set_error(x509_ctx, X509_V_OK);
             return 1;
@@ -198,9 +200,10 @@ int crlPolicyVerifyCallback(
             X509_STORE_CTX_set_error(x509_ctx, X509_V_OK);
             return 1;
         }
-        // Expired CRL or revoked certificate: reject
+        // Expired, not yet valid CRL, or revoked certificate: reject
         if (error == X509_V_ERR_CRL_HAS_EXPIRED ||
-            error == X509_V_ERR_CERT_REVOKED) {
+            error == X509_V_ERR_CERT_REVOKED ||
+            error == X509_V_ERR_CRL_NOT_YET_VALID) {
             errorCallback(true, errorStr, certInfo);
             return 0;
         }
@@ -218,6 +221,7 @@ int crlPolicyVerifyCallback(
         // problem from a legitimate revocation rejection.
         if (error == X509_V_ERR_UNABLE_TO_GET_CRL ||
             error == X509_V_ERR_CRL_HAS_EXPIRED ||
+            error == X509_V_ERR_CRL_NOT_YET_VALID ||
             error == X509_V_ERR_CRL_SIGNATURE_FAILURE) {
             errorCallback(true, errorStr, certInfo);
         }

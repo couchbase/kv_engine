@@ -19,7 +19,7 @@ find_program(PYTHON3_EXECUTABLE python3 REQUIRED)
 #                  (0 is mapped to -crlsec 1 since OpenSSL 3 rejects -crldays 0)
 macro(Generate_kv_engine_CRL)
     cmake_parse_arguments(CRL
-        ""
+        "NOT_YET_VALID"
         "NAME;CA_CERT;CA_KEY;CA_TARGET;CERT_TARGET;REVOKED_SERIAL;CRL_DAYS"
         ""
         ${ARGN})
@@ -47,6 +47,13 @@ macro(Generate_kv_engine_CRL)
         set(_crl_days_arg "")
     endif ()
 
+    # Build up the optional -D CRL_NOT_YET_VALID=... argument.
+    if (CRL_NOT_YET_VALID)
+        set(_not_yet_valid_arg "-DCRL_NOT_YET_VALID=TRUE")
+    else ()
+        set(_not_yet_valid_arg "")
+    endif ()
+
     # Determine which cmake targets this command depends on.
     set(_depends ${CRL_CA_TARGET} ${CRL_CNF})
     if (CRL_CERT_TARGET)
@@ -62,6 +69,7 @@ macro(Generate_kv_engine_CRL)
                 -D OUTPUT=${CRL_FILE}
                 ${_revoke_arg}
                 ${_crl_days_arg}
+                ${_not_yet_valid_arg}
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/GenerateCrl.cmake
         DEPENDS ${_depends}
         COMMENT "Generate CRL: ${CRL_NAME}.crl")
@@ -109,6 +117,16 @@ Generate_kv_engine_CRL(
     CA_TARGET Generate_kv_engine_X509_Test_Intermediate_Certificate
     CRL_DAYS  0)
 
+# Intermediate CA — CRL whose thisUpdate is pinned to 2049-12-31 so it is
+# not yet valid at any realistic build time (X509_V_ERR_CRL_NOT_YET_VALID).
+# Used to test that Permissive tolerates this and that Strict/Require reject it.
+Generate_kv_engine_CRL(
+    NAME          intermediate_ca_not_yet_valid
+    CA_CERT       ${INTERMEDIATE_BINARY_DIR}/intermediate.cert
+    CA_KEY        ${INTERMEDIATE_BINARY_DIR}/intermediate.key
+    CA_TARGET     Generate_kv_engine_X509_Test_Intermediate_Certificate
+    NOT_YET_VALID)
+
 # Intermediate CA — CRL with a corrupted signature. Used to test that all
 # policies handle X509_V_ERR_CRL_SIGNATURE_FAILURE correctly:
 #   Permissive/Strict: reject silently (falls through to preverify_ok=0)
@@ -131,6 +149,7 @@ add_custom_target(Generate_kv_engine_X509_Test_CRL
                   ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca.crl
                   ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_jane_revoked.crl
                   ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_expired.crl
+                  ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_not_yet_valid.crl
                   ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_bad_signature.crl)
 
 add_custom_target(Dump_kv_engine_X509_Test_CRL
@@ -148,6 +167,9 @@ add_custom_target(Dump_kv_engine_X509_Test_CRL
                           -text -noout
                   COMMAND ${OPENSSL_BINARY} crl
                           -in ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_expired.crl
+                          -text -noout
+                  COMMAND ${OPENSSL_BINARY} crl
+                          -in ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_not_yet_valid.crl
                           -text -noout
                   COMMAND ${OPENSSL_BINARY} crl
                           -in ${CMAKE_CURRENT_BINARY_DIR}/intermediate_ca_bad_signature.crl

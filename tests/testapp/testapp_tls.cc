@@ -618,6 +618,94 @@ TEST_P(TlsTests, CrlClientAuthPolicy_Require_ExpiredCrl) {
             X509_V_ERR_CRL_HAS_EXPIRED);
 }
 
+// With Permissive and a not-yet-valid CRL, CRL_NOT_YET_VALID is tolerated and
+// the connection is allowed.  We load root_ca.crl (valid) for the root CA
+// level and intermediate_ca_not_yet_valid.crl (thisUpdate pinned to 2049) for
+// jane's issuer.
+TEST_P(TlsTests, CrlClientAuthPolicy_Permissive_NotYetValidCrl) {
+    const std::string rootCrl = OBJECT_ROOT "/tests/cert/crl/root_ca.crl";
+    const std::string notYetValidCrl =
+            OBJECT_ROOT "/tests/cert/crl/intermediate_ca_not_yet_valid.crl";
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+    tls["CA file"] =
+            OBJECT_ROOT "/tests/cert/intermediate/client_intermediate_ca.pem";
+    tls["client cert auth"] = "mandatory";
+    tls["crl_policies"] = {{"node_to_node", "Disabled"},
+                           {"client_auth", "Permissive"}};
+    tls["crl_files"] = std::vector<std::string>{{rootCrl, notYetValidCrl}};
+    reloadConfig();
+
+    setClientCertData(*connection, "jane");
+    connection->reconnect();
+    connection->setFeature(cb::mcbp::Feature::JSON, true);
+
+    EXPECT_EQ(getTlsCertVerificationProblems(),
+              initialCertVerificationProblems + 1);
+    waitForAuditEvent(MEMCACHED_AUDIT_TLS_CERTIFICATE_VERIFICATION_PROBLEM,
+                      X509_V_ERR_CRL_NOT_YET_VALID);
+}
+
+// With Strict and a not-yet-valid CRL, CRL_NOT_YET_VALID is treated as a hard
+// failure and the connection must be rejected.
+TEST_P(TlsTests, CrlClientAuthPolicy_Strict_NotYetValidCrl) {
+    const std::string rootCrl = OBJECT_ROOT "/tests/cert/crl/root_ca.crl";
+    const std::string notYetValidCrl =
+            OBJECT_ROOT "/tests/cert/crl/intermediate_ca_not_yet_valid.crl";
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+    tls["CA file"] =
+            OBJECT_ROOT "/tests/cert/intermediate/client_intermediate_ca.pem";
+    tls["client cert auth"] = "mandatory";
+    tls["crl_policies"] = {{"node_to_node", "Disabled"},
+                           {"client_auth", "Strict"}};
+    tls["crl_files"] = std::vector<std::string>{{rootCrl, notYetValidCrl}};
+    reloadConfig();
+
+    setClientCertData(*connection, "jane");
+    try {
+        connection->reconnect();
+        connection->setFeature(cb::mcbp::Feature::JSON, true);
+        FAIL() << "Expected TLS handshake to fail: Strict rejects "
+                  "not-yet-valid CRL";
+    } catch (const std::exception&) {
+    }
+    EXPECT_EQ(getTlsCertVerificationProblems(),
+              initialCertVerificationProblems + 1);
+    waitForAuditEvent(
+            MEMCACHED_AUDIT_TLS_CLIENT_DISCONNECTED___CERTIFICATE_REJECTED_BY_CRL_POLICY,
+            X509_V_ERR_CRL_NOT_YET_VALID);
+}
+
+// With Require and a not-yet-valid CRL, CRL_NOT_YET_VALID is treated as a hard
+// failure and the connection must be rejected.
+TEST_P(TlsTests, CrlClientAuthPolicy_Require_NotYetValidCrl) {
+    const std::string rootCrl = OBJECT_ROOT "/tests/cert/crl/root_ca.crl";
+    const std::string notYetValidCrl =
+            OBJECT_ROOT "/tests/cert/crl/intermediate_ca_not_yet_valid.crl";
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
+    tls["CA file"] =
+            OBJECT_ROOT "/tests/cert/intermediate/client_intermediate_ca.pem";
+    tls["client cert auth"] = "mandatory";
+    tls["crl_policies"] = {{"node_to_node", "Disabled"},
+                           {"client_auth", "Require"}};
+    tls["crl_files"] = std::vector<std::string>{{rootCrl, notYetValidCrl}};
+    reloadConfig();
+
+    setClientCertData(*connection, "jane");
+    try {
+        connection->reconnect();
+        connection->setFeature(cb::mcbp::Feature::JSON, true);
+        FAIL() << "Expected TLS handshake to fail: Require rejects "
+                  "not-yet-valid CRL";
+    } catch (const std::exception&) {
+    }
+
+    EXPECT_EQ(getTlsCertVerificationProblems(),
+              initialCertVerificationProblems + 1);
+    waitForAuditEvent(
+            MEMCACHED_AUDIT_TLS_CLIENT_DISCONNECTED___CERTIFICATE_REJECTED_BY_CRL_POLICY,
+            X509_V_ERR_CRL_NOT_YET_VALID);
+}
+
 // With Permissive and a CRL whose signature is corrupted
 // (X509_V_ERR_CRL_SIGNATURE_FAILURE), the policy falls through to OpenSSL's
 // native preverify_ok=0, so the connection is rejected.  Unlike missing/expired

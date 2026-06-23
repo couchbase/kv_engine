@@ -46,10 +46,19 @@ else ()
     set(_crl_days_arg "")
 endif ()
 
+# When CRL_NOT_YET_VALID is set, pin thisUpdate to a far-future date so the
+# CRL is not yet valid at any realistic build time.  Requires OpenSSL 3.0+.
+if (DEFINED CRL_NOT_YET_VALID AND CRL_NOT_YET_VALID)
+    set(_lastupdate_arg "-crl_lastupdate" "20491231000000Z")
+else ()
+    set(_lastupdate_arg "")
+endif ()
+
 execute_process(
     COMMAND ${OPENSSL} ca
             -gencrl
             ${_crl_days_arg}
+            ${_lastupdate_arg}
             -config ${CA_CNF}
             -out ${OUTPUT}.tmp
     RESULT_VARIABLE result
