@@ -17,7 +17,12 @@
 #include "vbucket.h"
 #include "warmup.h"
 
+#include <cbcrypto/symmetric.h>
 #include <platform/dirutils.h>
+
+#include <filesystem>
+#include <optional>
+#include <vector>
 
 class AccessLogTest : public STParamPersistentBucketTest {
 public:
@@ -26,7 +31,7 @@ public:
         config_string +=
                 "alog_resident_ratio_threshold=100;alog_max_stored_items=10;"
                 "alog_path=" +
-                test_dbname + cb::io::DirectorySeparator + "access.log";
+                test_dbname + "/access.log";
 
         STParamPersistentBucketTest::SetUp();
         // Run warmup (empty) but this will ensure access scanner is runnable
@@ -293,9 +298,66 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
     ASSERT_GE(loaded, 3);
 }
 
+// Fixture which forces multiple shards so that, with only vb0 and vb1 created,
+// at least one shard has no vbuckets mapped to it.
+class AccessLogEmptyShardTest : public AccessLogTest {
+public:
+    void SetUp() override {
+        config_string += "max_num_shards=4;";
+        AccessLogTest::SetUp();
+    }
+
+    /// @return the id of a shard which has no vbuckets mapped to it.
+    std::optional<uint16_t> findEmptyShard() {
+        auto& vbMap = store->getVBuckets();
+        for (uint16_t i = 0; i < vbMap.getNumShards(); i++) {
+            if (vbMap.getShard(i)->getVBuckets().empty()) {
+                return i;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
+// MB-72109: A shard with no vbuckets is no longer rewritten by the access
+// scanner, so any access log files left over from when it did have vbuckets
+// must be removed.
+TEST_P(AccessLogEmptyShardTest, RemoveAllFilesForEmptyShard) {
+    const auto emptyShard = findEmptyShard();
+    ASSERT_TRUE(emptyShard.has_value())
+            << "Test requires a shard with no vbuckets mapped to it";
+
+    // Create real access log files for the empty shard the same way the engine
+    // does - via MutationLogWriter.
+    const std::string base = test_dbname + cb::io::DirectorySeparator +
+                             "access.log." + std::to_string(*emptyShard);
+    const cb::crypto::SharedEncryptionKey key =
+            cb::crypto::DataEncryptionKey::generate();
+    const std::vector<std::string> files = {
+            base, base + ".old", base + ".cef", base + ".old.cef"};
+    for (const auto& file : files) {
+        {
+            MutationLogWriter writer(file, MIN_LOG_HEADER_SIZE, key);
+        }
+        ASSERT_TRUE(std::filesystem::exists(file)) << file;
+    }
+
+    // Run the access scanner.
+    generateAccessLog();
+    // All of the empty shard's access log files should have been removed.
+    for (const auto& file : files) {
+        EXPECT_FALSE(std::filesystem::exists(file)) << file;
+    }
+}
+
 // The test config here only wants to cover persistent and both eviction modes
 // running all backends is wasted effort
 INSTANTIATE_TEST_SUITE_P(AccessLogTest,
                          AccessLogTest,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(AccessLogEmptyShardTest,
+                         AccessLogEmptyShardTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

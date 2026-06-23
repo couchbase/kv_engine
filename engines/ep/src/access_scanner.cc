@@ -344,6 +344,15 @@ bool AccessScanner::run() {
                 if (vbuckets.size() > 0) {
                     createAndScheduleTask(
                             i, std::move(semaphoreGuard), std::move(vbuckets));
+                } else {
+                    // MB-72109: No vbuckets are mapped to this shard now, so
+                    // Remove any left over access log files to reclaim
+                    // the space
+                    const std::string name(alogPath + "." + std::to_string(i));
+                    removeFile(name);
+                    removeFile(name + ".old");
+                    removeFile(name + ".cef");
+                    removeFile(name + ".old.cef");
                 }
             }
         }
