@@ -262,6 +262,45 @@ TEST_F(HashTableTest, Find) {
     testFind(h);
 }
 
+// addItem is the CacheTransfer consumer path. A HashTable resize on the
+// producer can cause the same committed item to be visited (and so
+// transferred) twice, so addItem must be idempotent: re-adding an identical
+// item is silently accepted, while a key that already exists with different
+// metadata is a genuine clash and must be rejected.
+TEST_F(HashTableTest, AddItemIdempotentForDuplicate) {
+    HashTable h(global_stats,
+                makeFactory(),
+                defaultHtSize,
+                /*locks*/ 1,
+                0,
+                defaultHtTempItemsAllowedPercent);
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    const ItemMetaData meta{/*cas*/ 1, /*revSeqno*/ 1, /*flags*/ 0, /*exp*/ 0};
+    const auto datatype = PROTOCOL_BINARY_RAW_BYTES;
+    const uint64_t bySeqno = 1;
+    const uint8_t cacheHint = 0;
+
+    // First add succeeds and creates the committed StoredValue.
+    EXPECT_EQ(cb::engine_errc::success,
+              h.addItem(key, value, meta, datatype, bySeqno, cacheHint));
+    EXPECT_EQ(1, count(h, false));
+
+    // Re-adding the identical item is a duplicate delivery - silently accepted
+    // with no change to the table.
+    EXPECT_EQ(cb::engine_errc::success,
+              h.addItem(key, value, meta, datatype, bySeqno, cacheHint));
+    EXPECT_EQ(1, count(h, false));
+
+    // Same key but different metadata (cas) is a genuine clash - rejected.
+    const ItemMetaData differentMeta{/*cas*/ 2, /*revSeqno*/ 1, 0, 0};
+    EXPECT_EQ(
+            cb::engine_errc::key_already_exists,
+            h.addItem(key, value, differentMeta, datatype, bySeqno, cacheHint));
+    EXPECT_EQ(1, count(h, false));
+}
+
 TEST_F(HashTableTest, Resize) {
     HashTable h(global_stats,
                 makeFactory(),

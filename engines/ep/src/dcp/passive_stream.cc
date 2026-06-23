@@ -1537,6 +1537,14 @@ cb::engine_errc PassiveStream::processCacheTransfer(
                                                item.getBySeqno(),
                                                item.getCacheHint());
         if (status != cb::engine_errc::success) {
+            OBJ_LOG_WARN_CTX(*this,
+                             "PassiveStream::processCacheTransfer: failed to "
+                             "add item to HashTable",
+                             {"vb", vb_},
+                             {"seqno", item.getBySeqno()},
+                             {"cas", item.getCas()},
+                             {"rev_seqno", item.getRevSeqno()},
+                             {"status", status});
             return status;
         }
 

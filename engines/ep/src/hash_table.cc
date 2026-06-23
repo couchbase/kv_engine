@@ -1429,6 +1429,20 @@ cb::engine_errc HashTable::addItem(DocKeyView key,
     // This is the CacheTransfer path - only committed items are sent and there
     // should be no existing commit
     if (htRes.committedSV) {
+        // A committed StoredValue already exists for this key. If it is
+        // identical to the item we are being asked to add then this is a
+        // duplicate delivery of the same item - ignore it and report success.
+        // Otherwise the existing value genuinely differs and we report the
+        // key as already existing.
+        const ItemMetaData existingMeta{htRes.committedSV->getCas(),
+                                        htRes.committedSV->getRevSeqno(),
+                                        htRes.committedSV->getFlags(),
+                                        htRes.committedSV->getExptime()};
+        if (existingMeta == meta &&
+            htRes.committedSV->getDatatype() == datatype &&
+            static_cast<uint64_t>(htRes.committedSV->getBySeqno()) == bySeqno) {
+            return cb::engine_errc::success;
+        }
         return cb::engine_errc::key_already_exists;
     }
     auto& hbl = htRes.lock;
