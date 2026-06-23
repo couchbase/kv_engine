@@ -1284,6 +1284,12 @@
                 }
             }
         },
+        "dcp_backfill_antilag_interval": {
+            "default": "10000",
+            "descr": "Send SeqnoAdvanced on the n-th filtered item. Disabled if set to 0.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_backfill_in_progress_per_connection_limit": {
             "default": "64",
             "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",

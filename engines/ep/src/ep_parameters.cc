@@ -171,6 +171,7 @@ static const std::unordered_set<std::string_view> dcpParamSet{
         "dcp_producer_catch_exceptions",
         "dcp_takeover_max_time",
         "dcp_backfill_byte_limit",
+        "dcp_backfill_antilag_interval",
         "dcp_oso_max_collections_per_backfill",
         "dcp_backfill_run_duration_limit",
         "dcp_backfill_idle_protection_enabled",
