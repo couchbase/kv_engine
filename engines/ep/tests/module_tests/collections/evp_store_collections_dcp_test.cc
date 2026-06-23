@@ -3209,6 +3209,66 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
+// Test that during a disk backfill with collection filtering, a SeqnoAdvanced
+// is sent mid-backfill for filtered items at the configured interval.
+TEST_P(CollectionsDcpParameterizedTest, anti_lag_seqno_advanced_backfill) {
+    engine->getConfiguration().setDcpBackfillAntilagInterval(3);
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Create two collections
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Store items: vegetable at seq 3, fruit at seq 4-6, vegetable at seq 7
+    store_item(vbid, StoredDocKey{"v1", CollectionEntry::vegetable}, "value");
+    store_item(vbid, StoredDocKey{"f1", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"f2", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"f3", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"f4", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"v2", CollectionEntry::vegetable}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 6);
+
+    // Force backfill from disk
+    ensureDcpWillBackfill();
+
+    // Start a filtered DCP stream for the vegetable collection
+    createDcpObjects({{R"({"collections":["a"]})"}});
+
+    // Drive the backfill
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(8, producers->last_snap_end_seqno);
+
+    // Create vegetable event (seq 1) passes filter
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(1, producers->last_byseqno);
+
+    // Create fruit event (seq 2) skipped
+
+    // Vegetable mutation (seq 3) passes filter
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(3, producers->last_byseqno);
+
+    // Fruit mutations (seq 4-5) skipped
+
+    // Fruit mutation (seq 6) skipped (3rd in a row)
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(6, producers->last_byseqno);
+
+    // Fruit mutation (seq 7) skipped
+
+    // Vegetable mutation (seq 8) passes filter
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(8, producers->last_byseqno);
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_EQ(8, stream->getLastReadSeqno());
+}
+
 class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {
 public:
     void resurrectionTest(bool dropAtEnd, bool updateItemPath, bool deleteItem);

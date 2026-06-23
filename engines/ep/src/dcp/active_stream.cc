@@ -107,7 +107,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       endSeqno(en_seqno),
       checkpointDequeueLimit(
               e->getConfiguration().getDcpCheckpointDequeueLimit()),
-      initialBackfill(start_seqno_ == 0) {
+      initialBackfill(start_seqno_ == 0),
+      backfillAntilagInterval(
+              e->getConfiguration().getDcpBackfillAntilagInterval()) {
     if (isTakeoverStream()) {
         endSeqno = dcpMaxSeqno;
     }
@@ -599,9 +601,11 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // Should the item replicate?
         // Is the item accepted by the stream filter (e.g matching collection) ?
         if (!shouldProcessItem(*item) || !filter.checkAndUpdate(*item)) {
+            backfillFilteredItem(static_cast<uint64_t>(item->getBySeqno()));
             // Skip this item, but continue backfill at next item.
             return true;
         }
+        backfillAntilagSkipped = 0;
 
         queued_item qi(std::move(item));
         // We need to send a mutation instead of a commit if this Item is a
@@ -692,6 +696,17 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
     } catch (const std::exception& e) {
         handleDcpProducerException(e);
         return false;
+    }
+}
+
+void ActiveStream::backfillFilteredItem(uint64_t seqno) {
+    if (backfillAntilagInterval == 0 || !isSeqnoAdvancedEnabled()) {
+        return;
+    }
+    if (++backfillAntilagSkipped >= backfillAntilagInterval) {
+        backfillAntilagSkipped = 0;
+        std::lock_guard<std::mutex> lh(streamMutex);
+        queueSeqnoAdvanced(seqno);
     }
 }
 
@@ -2858,7 +2873,10 @@ void ActiveStream::incrementNumBackfillPauses() {
 }
 
 void ActiveStream::queueSeqnoAdvanced() {
-    const auto seqno = lastSentSnapEndSeqno.load();
+    queueSeqnoAdvanced(lastSentSnapEndSeqno.load());
+}
+
+void ActiveStream::queueSeqnoAdvanced(uint64_t seqno) {
     pushToReadyQ(std::make_unique<SeqnoAdvanced>(opaque_, vb_, sid, seqno));
     lastSentSeqnoAdvance.store(seqno);
 

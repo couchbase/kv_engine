@@ -74,6 +74,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
     // Check if the stream will allow the key, this is here to avoid reading
     // the value when dropping keys
     if (!stream_->collectionAllowed(lookup.getKey().getDocKey())) {
+        stream_->backfillFilteredItem(lookup.getBySeqno());
         setStatus(cb::engine_errc::key_already_exists);
         return;
     }

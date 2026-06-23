@@ -287,6 +287,15 @@ public:
                           backfill_source_t backfill_source);
 
     /**
+     * Called during backfill when an item is filtered out (e.g. by collection
+     * filter). Periodically a SeqnoAdvanced is queued to prevent the consumer
+     * from falling behind the purge seqno.
+     *
+     * @param seqno the seqno of the filtered item
+     */
+    void backfillFilteredItem(uint64_t seqno);
+
+    /**
      * @param maxScanSeqno the maximum seqno of the snapshot supplying the OSO
      *        backfill. A SeqnoAdvanced maybe sent if the last backfilled
      *        item is not the maxSeqno item
@@ -933,6 +942,12 @@ private:
     void queueSeqnoAdvanced();
 
     /**
+     * Method to enqueue a SeqnoAdvanced op with the given seqno.
+     * Also updates lastSentSeqnoAdvance and lastReadSeqno.
+     */
+    void queueSeqnoAdvanced(uint64_t seqno);
+
+    /**
      * Enqueue a single snapshot + seqno advance
      * @param meta Metadata on the snapshot being sent
      * @param start value of snapshot start
@@ -1144,4 +1159,8 @@ private:
      * backfill.
      */
     std::atomic<bool> initialBackfill{false};
+
+    const size_t backfillAntilagInterval;
+
+    size_t backfillAntilagSkipped{0};
 };
