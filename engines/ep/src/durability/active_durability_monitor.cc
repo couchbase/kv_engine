@@ -15,6 +15,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "durability_monitor_impl.h"
 #include "item.h"
+#include "objectregistry.h"
 #include "passive_durability_monitor.h"
 #include "stats.h"
 #include "trace_helpers.h"
@@ -23,6 +24,7 @@
 
 #include <folly/concurrency/UnboundedQueue.h>
 
+#include <memcached/cookie_iface.h>
 #include <memcached/dockey_view.h>
 #include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>
@@ -1005,9 +1007,16 @@ void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
 
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
         if (sw.getCookie() != nullptr) {
-            // collection no longer exists, cannot commit
+            // The collection was dropped between the prepare and commit.
+            // Return unknown_collection rather than ambiguous error.
+            // The cookie's error context is owned by the connection
+            {
+                NonBucketAllocationGuard guard;
+                sw.getCookie()->setUnknownCollectionErrorContext(
+                        cHandle.getManifestUid());
+            }
             vb.notifyClientOfSyncWriteComplete(
-                    sw.getCookie(), cb::engine_errc::sync_write_ambiguous);
+                    sw.getCookie(), cb::engine_errc::unknown_collection);
         }
         return;
     }
@@ -1080,9 +1089,17 @@ void ActiveDurabilityMonitor::abort(VBucketStateLockRef vbStateLock,
 
     auto cHandle = vb.lockCollections(key);
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
-        // collection no longer exists, don't generate an abort
-        vb.notifyClientOfSyncWriteComplete(
-                sw.getCookie(), cb::engine_errc::sync_write_ambiguous);
+        // The collection was dropped, notify client of unknown_collection
+        if (sw.getCookie() != nullptr) {
+            // The cookie's error context is owned by the connection
+            {
+                NonBucketAllocationGuard guard;
+                sw.getCookie()->setUnknownCollectionErrorContext(
+                        cHandle.getManifestUid());
+            }
+            vb.notifyClientOfSyncWriteComplete(
+                    sw.getCookie(), cb::engine_errc::unknown_collection);
+        }
         return;
     }
 

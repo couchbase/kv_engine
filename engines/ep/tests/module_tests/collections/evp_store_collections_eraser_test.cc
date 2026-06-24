@@ -1594,6 +1594,42 @@ TEST_P(CollectionsEraserSyncWriteTest, AbortAfterDropBeforeErase) {
     EXPECT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
 }
 
+TEST_P(CollectionsEraserSyncWriteTest,
+       CommitAfterDropNotifiesUnknownCollection) {
+    addCollection();
+    createPendingWrite(); // prepare at seqno 2
+
+    // Ack to majority so the prepare resolves and is queued to commit...
+    processAck(2 /*prepareSeqno*/);
+    // the collection is dropped before the resolved queue is processed.
+    dropCollection();
+
+    // Processing the resolved queue must NOT commit into the dropped
+    // collection.
+    processResolvedSyncWrites();
+    EXPECT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
+
+    // The client is told the collection is unknown, not sync_write_ambiguous.
+    EXPECT_EQ(cb::engine_errc::unknown_collection, mock_waitfor_cookie(cookie));
+}
+
+TEST_P(CollectionsEraserSyncWriteTest,
+       AbortAfterDropNotifiesUnknownCollection) {
+    addCollection();
+    createPendingWrite(); // prepare at seqno 2
+    dropCollection();
+
+    // Force the prepare to time out so it resolves as an abort.
+    vb->processDurabilityTimeout(cb::time::steady_clock::now() +
+                                 std::chrono::seconds(1000));
+
+    processResolvedSyncWrites();
+    EXPECT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
+
+    // The client is told the collection is unknown, not sync_write_ambiguous.
+    EXPECT_EQ(cb::engine_errc::unknown_collection, mock_waitfor_cookie(cookie));
+}
+
 TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontCommitOldPrepare) {
     {
         CB_SCOPED_TRACE("First generation");
