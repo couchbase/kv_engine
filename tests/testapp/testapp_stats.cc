@@ -920,7 +920,7 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_quicknonio_threads_configured", -1),
                     Pair("num_quicknonio_threads_actual", Gt(0)),
                     Pair("num_slowio_threads_configured", -1),
-                    Pair("num_slowio_threads_actual", Gt(0))));
+                    Pair("num_slowio_threads_actual", Eq(4))));
 
     // 2. Reconfigure with a different number, check the stats update as
     // expected.

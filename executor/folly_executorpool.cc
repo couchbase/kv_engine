@@ -713,7 +713,7 @@ FollyExecutorPool::FollyExecutorPool(
             maxQuickNonIO,
             makeThreadFactory("QuickNonIoPool", TaskType::QuickNonIO));
     slowIoPool = std::make_unique<CancellableCPUExecutor>(
-            maxAuxIO, makeThreadFactory("SlowIoPool", TaskType::SlowIO));
+            maxSlowIO, makeThreadFactory("SlowIoPool", TaskType::SlowIO));
 }
 
 FollyExecutorPool::~FollyExecutorPool() {
@@ -808,7 +808,7 @@ void FollyExecutorPool::setNumQuickNonIO(
 
 void FollyExecutorPool::setNumSlowIO(ThreadPoolConfig::SlowIoThreadCount v) {
     maxSlowIO = calcNumSlowIO(v);
-    slowIoPool->setNumThreads(maxNonIO);
+    slowIoPool->setNumThreads(maxSlowIO);
 }
 
 size_t FollyExecutorPool::getNumSleepers() const {
