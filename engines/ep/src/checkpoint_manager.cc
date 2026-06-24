@@ -785,15 +785,31 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
         auto* checkpoint = extractRes.getCheckpoint();
         Expects(checkpoint);
 
-        // Expel always touches the oldest checkpoint in the list.
-        // The checkpoint touched by Expel might not exist anymore if the
-        // VBucket has rolled-back. Just give up in that case.
-        if (checkpoint != checkpointList.begin()->get()) {
+        // Expel always touches the oldest checkpoint in the list, which is
+        // pinned by the expel-cursor while the queueLock is released. By the
+        // time we get here the touched checkpoint might no longer be pinned by
+        // the expel-cursor if a concurrent VBucket rollback has occurred. Just
+        // give up in that case. The expel-cursor is the authoritative signal:
+        // verify it is still registered in this CM and still pinning the front
+        // checkpoint. This covers both rollback flavours:
+        //
+        // 1. clear() swaps this CM's CheckpointList and repositions the
+        //    expel-cursor onto the new (empty) oldest checkpoint, so the
+        //    touched checkpoint is no longer at the front of the list.
+        //
+        // 2. resetVBucket()/takeAndResetCursors() drains this CM's cursors into
+        //    a different CM. The expel-cursor is deliberately left behind by
+        //    takeAndResetCursors() so it can be released here, but should that
+        //    ever change the find() below still guards against its absence.
+        //
+        // Note: only this CM's state is read, under the lock we hold.
+        const auto expelCursorIt = cursors.find(expelCursorName);
+        if (checkpoint != checkpointList.begin()->get() ||
+            expelCursorIt == cursors.end()) {
             return {0, 0};
         }
 
-        Expects(extractRes.getExpelCursor().getCheckpoint()->get() ==
-                checkpoint);
+        Expects(expelCursorIt->second->getCheckpoint()->get() == checkpoint);
         checkpoint->applyQueuedItemsMemUsageDecrement(queuedItemsMemReleased);
     }
 
@@ -1775,6 +1791,19 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
         otherPCursor = other.pCursor;
         otherCursors = std::move(other.cursors);
         other.cursors.clear();
+
+        // The expel-cursor is a transient cursor owned by an in-flight
+        // ItemExpel running on 'other' (which releases the queueLock
+        // mid-operation). It pins the checkpoint being expelled in 'other' and
+        // must be released by that ItemExpel, in 'other'. Migrating it into
+        // this (different) CheckpointManager would orphan it here - breaking
+        // ItemExpel's pinning invariant and leaving a stale cursor that trips
+        // the next expel run - so leave it behind in 'other'.
+        auto expelIt = otherCursors.find(expelCursorName);
+        if (expelIt != otherCursors.end()) {
+            other.cursors[expelCursorName] = std::move(expelIt->second);
+            otherCursors.erase(expelIt);
+        }
     }
 
     std::lock_guard<std::mutex> lh(queueLock);
@@ -2141,15 +2170,14 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     // CM::queueLock is released.
     // Note: Previous validation ensures that lowestCursor points to the oldest
     //  checkpoint at this point
-    const auto name = "expel-cursor";
-    Expects(cursors.find(name) == cursors.end());
+    Expects(cursors.find(expelCursorName) == cursors.end());
     const auto cursor =
-            std::make_shared<CheckpointCursor>(name,
+            std::make_shared<CheckpointCursor>(expelCursorName,
                                                oldestCkptIterator,
                                                oldestCheckpoint->begin(),
                                                CheckpointCursor::Droppable::No,
                                                0);
-    cursors[name] = cursor;
+    cursors[expelCursorName] = cursor;
 
     return {std::move(expelledItems),
             this,

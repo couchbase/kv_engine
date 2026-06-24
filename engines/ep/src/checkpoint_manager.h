@@ -1006,6 +1006,11 @@ protected:
     // failure.
     static constexpr const char* backupPCursorName = "persistence-backup";
 
+    // Transient cursor registered by ItemExpel at the oldest checkpoint while
+    // the CM::queueLock is released mid-run. Its presence pins the touched
+    // checkpoint. See CheckpointManager::expelUnreferencedCheckpointItems().
+    static constexpr const char* expelCursorName = "expel-cursor";
+
     /**
      * Flush stats that are accounted when we persist an item between the
      * backup and persistence cursors. Should the flush fail we need to undo
