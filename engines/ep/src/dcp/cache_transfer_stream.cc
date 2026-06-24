@@ -205,6 +205,9 @@ bool CacheTransferHashTableVisitor::setUpHashTableVisit(VBucket& vb) {
     if (!stream || !stream->isActive()) {
         // No stream, no visit.
         // Not active, no visit.
+        // We can drop the stream reference now if we did acquire it rather than
+        // later in destruction.
+        stream.reset();
         return false;
     }
 
