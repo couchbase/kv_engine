@@ -1820,7 +1820,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (newVal != currVal) {
             LOG_INFO_CTX("Change magma_max_default_storage_threads",
                          {"from", currVal},
-                         {"to", currVal});
+                         {"to", newVal});
             setMagmaMaxDefaultStorageThreads(newVal);
         }
     }
@@ -1831,7 +1831,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (newVal != currVal) {
             LOG_INFO_CTX("Change magma_flusher_thread_percentage",
                          {"from", currVal},
-                         {"to", currVal});
+                         {"to", newVal});
             setMagmaFlusherThreadPercentage(newVal);
         }
     }
@@ -1842,7 +1842,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (newVal != currVal) {
             LOG_INFO_CTX("Change magma_compaction_rate_limit",
                          {"from", currVal},
-                         {"to", currVal});
+                         {"to", newVal});
             setMagmaCompactionRateLimit(newVal);
         }
     }
@@ -1854,7 +1854,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (newVal != currVal) {
             LOG_INFO_CTX("Change magma_enable_compaction_dataonly_ratelimiting",
                          {"from", currVal},
-                         {"to", currVal});
+                         {"to", newVal});
             setMagmaEnableCompactionDataonlyRatelimiting(newVal);
         }
     }
