@@ -78,11 +78,20 @@ class CliTool(object):
         if not f:
             print(self.parser.error("Unknown command"))
 
+        def connection_error(e):
+            # for mid-protocol fails, cleanly report without dumping a stack
+            # trace.
+            print("Cannot talk to %s:%d - verify if the memcached data port "
+                  "is correct %s" % (host, port, e), file=sys.stderr)
+            sys.exit(1)
+
         try:
             if callable(f[0]):
                 f[0](mc, *args[2:], **opts.__dict__)
             else:
                 getattr(mc, f[0])(*args[2:])
+        except (TimeoutError, EOFError) as e:
+            connection_error(e)
         except socket.error as e:
             # "Broken pipe" is confusing, so print "Connection refused" instead.
             if type(e) is tuple and e[0] == 32 or \
@@ -90,7 +99,7 @@ class CliTool(object):
                 print("Could not connect to %s:%d: "
                       "Connection refused" % (host, port), file=sys.stderr)
             else:
-                raise
+                connection_error(e)
 
     def format_command_list(self):
         output = ""
