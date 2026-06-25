@@ -140,10 +140,6 @@ public:
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
     }
-
-    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
-        return {};
-    }
 };
 
 int main(int argc, char **argv) {

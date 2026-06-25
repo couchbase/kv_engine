@@ -261,9 +261,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
     }
-    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
-        return {};
-    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

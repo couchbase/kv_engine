@@ -11,7 +11,7 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
-#include <platform/byte_literals.h>
+#include <utilities/crl_policy.h>
 #include <optional>
 #include <string>
 
@@ -46,6 +46,8 @@ struct DownloadProperties {
         bool ssl_peer_verify = true;
         /// The passphrase to decode the
         std::string passphrase;
+        /// An optional CRL configuration
+        std::optional<CrlConfiguration> crl_config;
         bool operator==(const Tls&) const = default;
     };
 

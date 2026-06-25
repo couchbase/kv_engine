@@ -88,8 +88,12 @@ TEST(DownloadPropertiesTest, ConversionTls) {
     properties.bucket = "travel-sample";
     properties.hostname = "::1";
     properties.port = 11210;
-    properties.tls = {
-            "/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", false, "secret"};
+    properties.tls = {"/foo/mycert.pem",
+                      "/foo/mykey.pem",
+                      "/foo/CA",
+                      false,
+                      "secret",
+                      std::nullopt};
 
     nlohmann::json json = properties;
 
@@ -127,8 +131,12 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     properties.hostname = "::1";
     properties.port = 11210;
     properties.sasl = {"PLAIN", "Administrator", "asdfasdf"};
-    properties.tls = {
-            "/foo/mycert.pem", "/foo/mykey.pem", "/foo/CA", true, "secret"};
+    properties.tls = {"/foo/mycert.pem",
+                      "/foo/mykey.pem",
+                      "/foo/CA",
+                      true,
+                      "secret",
+                      std::nullopt};
 
     nlohmann::json json = properties;
 
@@ -183,4 +191,130 @@ TEST(DownloadPropertiesTest, FromJson) {
     properties = json;
     ASSERT_TRUE(properties.tls.has_value());
     EXPECT_FALSE(properties.tls->ssl_peer_verify);
+    EXPECT_FALSE(properties.tls->crl_config.has_value());
+}
+
+TEST(DownloadPropertiesTest, ConversionTlsWithCrlConfig) {
+    nlohmann::json blueprint = R"(
+{
+  "bucket": "travel-sample",
+  "host": "::1",
+  "port": 11210,
+  "tls": {
+    "cert": "/foo/mycert.pem",
+    "key": "/foo/mykey.pem",
+    "ca_store": "/foo/CA",
+    "ssl_peer_verify": true,
+    "passphrase": "c2VjcmV0",
+    "crl_policies": {
+      "node_to_node": "Strict",
+      "client_auth": "Require"
+    },
+    "crl_check_intermediate": true,
+    "crl_files": ["/crl/crl1.pem", "/crl/crl2.pem"]
+  }
+}
+)"_json;
+
+    DownloadProperties properties;
+    properties.bucket = "travel-sample";
+    properties.hostname = "::1";
+    properties.port = 11210;
+    properties.tls = {"/foo/mycert.pem",
+                      "/foo/mykey.pem",
+                      "/foo/CA",
+                      true,
+                      "secret",
+                      CrlConfiguration{{CrlPolicy::Strict, CrlPolicy::Require},
+                                       {"/crl/crl1.pem", "/crl/crl2.pem"},
+                                       true}};
+
+    nlohmann::json json = properties;
+
+    // test to_json methods
+    EXPECT_EQ(blueprint, json);
+
+    // test from_json methods
+    DownloadProperties parsed = json;
+    EXPECT_EQ(properties, parsed);
+}
+
+TEST(DownloadPropertiesTest, FromJsonTlsCrlPoliciesOnly) {
+    nlohmann::json json = R"(
+{
+  "bucket": "travel-sample",
+  "host": "::1",
+  "port": 11210,
+  "tls": {
+    "cert": "/foo/mycert.pem",
+    "key": "/foo/mykey.pem",
+    "ca_store": "",
+    "crl_policies": {
+      "node_to_node": "Permissive",
+      "client_auth": "Disabled"
+    }
+  }
+}
+)"_json;
+
+    DownloadProperties properties = json;
+    ASSERT_TRUE(properties.tls.has_value());
+    ASSERT_TRUE(properties.tls->crl_config.has_value());
+    EXPECT_EQ(CrlPolicy::Permissive,
+              properties.tls->crl_config->policies.nodeToNode);
+    EXPECT_EQ(CrlPolicy::Disabled,
+              properties.tls->crl_config->policies.clientAuth);
+    EXPECT_TRUE(properties.tls->crl_config->files.empty());
+    EXPECT_FALSE(properties.tls->crl_config->check_intermediate);
+}
+
+TEST(DownloadPropertiesTest, FromJsonTlsCrlFilesOnly) {
+    nlohmann::json json = R"(
+{
+  "bucket": "travel-sample",
+  "host": "::1",
+  "port": 11210,
+  "tls": {
+    "cert": "/foo/mycert.pem",
+    "key": "/foo/mykey.pem",
+    "ca_store": "",
+    "crl_files": ["/crl/my.crl"]
+  }
+}
+)"_json;
+
+    DownloadProperties properties = json;
+    ASSERT_TRUE(properties.tls.has_value());
+    ASSERT_TRUE(properties.tls->crl_config.has_value());
+    EXPECT_EQ(CrlPolicy::Disabled,
+              properties.tls->crl_config->policies.nodeToNode);
+    EXPECT_EQ(CrlPolicy::Disabled,
+              properties.tls->crl_config->policies.clientAuth);
+    ASSERT_EQ(1u, properties.tls->crl_config->files.size());
+    EXPECT_EQ("/crl/my.crl", properties.tls->crl_config->files[0]);
+    EXPECT_FALSE(properties.tls->crl_config->check_intermediate);
+}
+
+TEST(DownloadPropertiesTest, FromJsonTlsCrlCheckIntermediateOnly) {
+    nlohmann::json json = R"(
+{
+  "bucket": "travel-sample",
+  "host": "::1",
+  "port": 11210,
+  "tls": {
+    "cert": "/foo/mycert.pem",
+    "key": "/foo/mykey.pem",
+    "ca_store": "",
+    "crl_check_intermediate": true
+  }
+}
+)"_json;
+
+    DownloadProperties properties = json;
+    ASSERT_TRUE(properties.tls.has_value());
+    ASSERT_TRUE(properties.tls->crl_config.has_value());
+    EXPECT_TRUE(properties.tls->crl_config->check_intermediate);
+    EXPECT_TRUE(properties.tls->crl_config->files.empty());
+    EXPECT_EQ(CrlPolicy::Disabled,
+              properties.tls->crl_config->policies.nodeToNode);
 }

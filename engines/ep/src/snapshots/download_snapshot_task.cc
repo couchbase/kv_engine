@@ -53,39 +53,45 @@ void DownloadSnapshotTask::createConnection() {
             connection->setPemPassphrase(properties.tls->passphrase);
         }
         connection->setSslPeerVerify(properties.tls->ssl_peer_verify);
-        auto crlConfig = engine->getServerApi()->core->getNodeToNodeCrlConfig();
-        if (crlConfig.policy != CrlPolicy::Disabled) {
-            connection->setCrlConfiguration(
-                    std::move(crlConfig),
-                    [](bool rejected,
-                       const char* errorStr,
-                       std::optional<nlohmann::json> certInfo) {
-                        if (rejected) {
-                            if (certInfo) {
-                                EP_LOG_ERR_CTX(
-                                        "Connection rejected: CRL verification "
-                                        "failed",
-                                        {"error", errorStr},
-                                        {"cert_info", *certInfo});
+        if (properties.tls->crl_config.has_value()) {
+            auto& crlConfig = *properties.tls->crl_config;
+            if (crlConfig.policies.nodeToNode != CrlPolicy::Disabled) {
+                connection->setCrlConfiguration(
+                        crlConfig.policies.nodeToNode,
+                        std::move(crlConfig.files),
+                        crlConfig.check_intermediate,
+                        [](bool rejected,
+                           const char* errorStr,
+                           std::optional<nlohmann::json> certInfo) {
+                            if (rejected) {
+                                if (certInfo) {
+                                    EP_LOG_ERR_CTX(
+                                            "Connection rejected: CRL "
+                                            "verification "
+                                            "failed",
+                                            {"error", errorStr},
+                                            {"cert_info", *certInfo});
+                                } else {
+                                    EP_LOG_ERR_CTX(
+                                            "Connection rejected: CRL "
+                                            "verification "
+                                            "failed",
+                                            {"error", errorStr});
+                                }
                             } else {
-                                EP_LOG_ERR_CTX(
-                                        "Connection rejected: CRL verification "
-                                        "failed",
-                                        {"error", errorStr});
+                                if (certInfo) {
+                                    EP_LOG_WARN_CTX(
+                                            "CRL verification issue bypassed",
+                                            {"error", errorStr},
+                                            {"cert_info", *certInfo});
+                                } else {
+                                    EP_LOG_WARN_CTX(
+                                            "CRL verification issue bypassed",
+                                            {"error", errorStr});
+                                }
                             }
-                        } else {
-                            if (certInfo) {
-                                EP_LOG_WARN_CTX(
-                                        "CRL verification issue bypassed",
-                                        {"error", errorStr},
-                                        {"cert_info", *certInfo});
-                            } else {
-                                EP_LOG_WARN_CTX(
-                                        "CRL verification issue bypassed",
-                                        {"error", errorStr});
-                            }
-                        }
-                    });
+                        });
+            }
         }
     }
     connection->connect();

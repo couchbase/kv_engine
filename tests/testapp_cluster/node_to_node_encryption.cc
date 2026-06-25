@@ -9,9 +9,9 @@
  */
 
 // Integration tests for node-to-node TLS certificate enforcement during
-// snapshot downloads (MB-72054). Each test configures the destination node's
-// TLS settings (via ifconfig) and verifies that DownloadSnapshot reaches the
-// expected snapshot-status state.
+// snapshot downloads (MB-72054). Each test sets the CRL configuration
+// directly in download_properties.tls->crl_config and verifies that
+// DownloadSnapshot reaches the expected snapshot-status state.
 //
 // Certificate relationships used by these tests:
 //   node1.cert  — server cert for the source node (active vbucket)
@@ -48,37 +48,8 @@ protected:
         // After failure tests the destination vbucket stays dead and no
         // snapshot is active on the source (TLS handshake fails before
         // PrepareSnapshot is issued), so there is nothing to release.
-        // Reset the destination TLS to a clean state (Disabled CRL) so the
-        // next test starts from a consistent configuration.
-        try {
-            configure_destination_tls("Disabled", {});
-        } catch (...) {
-        }
-    }
-
-    // Configure the destination node's TLS, including the node-to-node CRL
-    // policy and the list of CRL files used for outbound connections.
-    void configure_destination_tls(const std::string& node_to_node_policy,
-                                   const std::vector<std::string>& crl_files) {
-        destination_node->ifconfig(
-                "tls",
-                {{"private key", OBJECT_ROOT "/tests/cert/servers/node1.key"},
-                 {"certificate chain",
-                  OBJECT_ROOT "/tests/cert/servers/chain.cert"},
-                 {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
-                 {"minimum version", "TLS 1.2"},
-                 {"cipher list",
-                  {{"TLS 1.2", "HIGH"},
-                   {"TLS 1.3",
-                    "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_"
-                    "SHA256:TLS_AES_128_GCM_SHA256:TLS_AES_128_CCM_8_"
-                    "SHA256:TLS_AES_128_CCM_SHA256"}}},
-                 {"cipher order", true},
-                 {"client cert auth", "disabled"},
-                 {"crl_policies",
-                  {{"node_to_node", node_to_node_policy},
-                   {"client_auth", "Disabled"}}},
-                 {"crl_files", crl_files}});
+        // Clear the CRL config so the next test starts from a consistent state.
+        download_properties.tls->crl_config = std::nullopt;
     }
 
     void populate_docs_on_source() {
@@ -192,7 +163,8 @@ void NodeToNodeEncryptionTest::SetUpTestCase() {
 TEST_F(NodeToNodeEncryptionTest, CrlRequire_RevokedServerCert) {
     const std::string revokedCrl =
             OBJECT_ROOT "/tests/cert/crl/intermediate_ca_jane_revoked.crl";
-    configure_destination_tls("Require", {revokedCrl});
+    download_properties.tls->crl_config = CrlConfiguration{
+            {CrlPolicy::Require, CrlPolicy::Disabled}, {revokedCrl}, false};
 
     populate_docs_on_source();
     initiate_download();
@@ -211,7 +183,8 @@ TEST_F(NodeToNodeEncryptionTest, CrlRequire_RevokedServerCert) {
 TEST_F(NodeToNodeEncryptionTest, CrlStrict_RevokedServerCert) {
     const std::string revokedCrl =
             OBJECT_ROOT "/tests/cert/crl/intermediate_ca_jane_revoked.crl";
-    configure_destination_tls("Strict", {revokedCrl});
+    download_properties.tls->crl_config = CrlConfiguration{
+            {CrlPolicy::Strict, CrlPolicy::Disabled}, {revokedCrl}, false};
 
     populate_docs_on_source();
     initiate_download();
@@ -230,7 +203,8 @@ TEST_F(NodeToNodeEncryptionTest, CrlStrict_RevokedServerCert) {
 TEST_F(NodeToNodeEncryptionTest, CrlPermissive_RevokedServerCert) {
     const std::string revokedCrl =
             OBJECT_ROOT "/tests/cert/crl/intermediate_ca_jane_revoked.crl";
-    configure_destination_tls("Permissive", {revokedCrl});
+    download_properties.tls->crl_config = CrlConfiguration{
+            {CrlPolicy::Permissive, CrlPolicy::Disabled}, {revokedCrl}, false};
 
     populate_docs_on_source();
     initiate_download();
@@ -248,7 +222,8 @@ TEST_F(NodeToNodeEncryptionTest, CrlPermissive_RevokedServerCert) {
 // CRL for the server certificate's issuer (UNABLE_TO_GET_CRL). "Require"
 // treats a missing CRL as a hard error, so the connection is rejected.
 TEST_F(NodeToNodeEncryptionTest, CrlRequire_NoCrlFiles) {
-    configure_destination_tls("Require", {});
+    download_properties.tls->crl_config = CrlConfiguration{
+            {CrlPolicy::Require, CrlPolicy::Disabled}, {}, false};
 
     populate_docs_on_source();
     initiate_download();

@@ -53,14 +53,16 @@ enum class CrlPolicyScope {
 struct CrlPolicyPerScope {
     CrlPolicy nodeToNode{CrlPolicy::Disabled};
     CrlPolicy clientAuth{CrlPolicy::Disabled};
+    bool operator==(const CrlPolicyPerScope&) const = default;
 };
 
 void to_json(nlohmann::json& json, const CrlPolicyPerScope& scope);
 void from_json(const nlohmann::json& json, CrlPolicyPerScope& scope);
 
-/// All CRL-related settings needed to configure a node-to-node TLS connection.
-struct NodeToNodeCrlConfig {
-    CrlPolicy policy{CrlPolicy::Disabled};
-    std::vector<std::string> crl_files;
-    bool crl_check_intermediate{false};
+/// A holder structure for all CRL-related settings
+struct CrlConfiguration {
+    CrlPolicyPerScope policies;
+    std::vector<std::string> files;
+    bool check_intermediate{false};
+    bool operator==(const CrlConfiguration&) const = default;
 };

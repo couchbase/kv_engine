@@ -50,6 +50,12 @@ void to_json(nlohmann::json& json, const DownloadProperties::Tls& tls) {
             {"ca_store", tls.ca_store},
             {"ssl_peer_verify", tls.ssl_peer_verify},
             {"passphrase", cb::base64::encode(tls.passphrase)}};
+    if (tls.crl_config.has_value()) {
+        const auto& value = *tls.crl_config;
+        json["crl_policies"] = value.policies;
+        json["crl_check_intermediate"] = value.check_intermediate;
+        json["crl_files"] = value.files;
+    }
 }
 
 void from_json(const nlohmann::json& json, DownloadProperties& prop) {
@@ -90,6 +96,20 @@ void from_json(const nlohmann::json& json, DownloadProperties::Tls& tls) {
     tls.ssl_peer_verify = json.value("ssl_peer_verify", true);
     if (json.contains("passphrase")) {
         tls.passphrase = cb::base64::decode(json.value("passphrase", ""));
+    }
+    if (json.contains("crl_policies") ||
+        json.contains("crl_check_intermediate") || json.contains("crl_files")) {
+        CrlConfiguration crlConfig;
+        if (json.contains("crl_policies")) {
+            crlConfig.policies = json["crl_policies"].get<CrlPolicyPerScope>();
+        }
+        if (json.contains("crl_check_intermediate")) {
+            crlConfig.check_intermediate = json["crl_check_intermediate"];
+        }
+        if (json.contains("crl_files")) {
+            crlConfig.files = json["crl_files"].get<std::vector<std::string>>();
+        }
+        tls.crl_config = std::move(crlConfig);
     }
 }
 

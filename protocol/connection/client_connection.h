@@ -464,17 +464,22 @@ public:
      * Set the CRL configuration and issue callback for outbound TLS
      * connections. Both must be configured before connect() is called.
      *
-     * @param config   CRL policy, file paths, and intermediate-CA check flag.
+     * @param policy           CRL enforcement policy.
+     * @param files            PEM-encoded CRL file paths.
+     * @param check_intermediate Whether intermediate CA certificates are also
+     *                           checked against the CRL.
      * @param callback Invoked for each CRL verification issue encountered
      *                 during the TLS handshake; receives (rejected, errorStr,
      *                 certInfo).
      */
     void setCrlConfiguration(
-            NodeToNodeCrlConfig config,
+            CrlPolicy policy,
+            std::vector<std::string> files,
+            bool check_intermediate,
             cb::openssl::CrlPolicyVerificationIssueCallback callback) {
-        crl_policy = config.policy;
-        crl_files = std::move(config.crl_files);
-        crl_check_intermediate = config.crl_check_intermediate;
+        crl_policy = policy;
+        crl_files = std::move(files);
+        crl_check_intermediate = check_intermediate;
         crlPolicyVerificationIssueCallback = std::move(callback);
     }
 

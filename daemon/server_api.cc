@@ -130,13 +130,6 @@ struct ServerCoreApi : public ServerCoreIface {
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return Settings::instance().getSnapshotDownloadFadvise();
     }
-
-    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const override {
-        if (networkInterfaceManager) {
-            return networkInterfaceManager->getNodeToNodeCrlConfig();
-        }
-        return {};
-    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

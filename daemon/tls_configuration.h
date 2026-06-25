@@ -47,16 +47,6 @@ public:
     /// @throws std::invalid_argument if it fails to meet the criterias
     static void validate(const nlohmann::json& spec);
 
-    /**
-     * Return the CRL policy and the list of PEM-encoded CRL file paths
-     * configured for node-to-node TLS connections.
-     *
-     * @return A pair of (CrlPolicy, list of CRL file paths).
-     */
-    NodeToNodeCrlConfig getNodeToNodeCrlConfig() const {
-        return {crl_policies.nodeToNode, crl_files, crl_check_intermediate};
-    }
-
 protected:
     /// Create the OpenSSL Server context structure
     cb::openssl::unique_ssl_ctx_ptr createServerContext(

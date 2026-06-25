@@ -154,11 +154,4 @@ struct ServerCoreIface {
 
     /// Get the IO hint to use for files written as part of snapshot downloads.
     virtual cb::io::IoHint getSnapshotDownloadFadvise() const = 0;
-
-    /**
-     * Return the CRL configuration for node-to-node TLS connections,
-     * including the policy, CRL file paths, and whether intermediate CA
-     * certificates are also checked against a CRL.
-     */
-    virtual NodeToNodeCrlConfig getNodeToNodeCrlConfig() const = 0;
 };

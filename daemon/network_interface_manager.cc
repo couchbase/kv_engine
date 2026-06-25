@@ -559,12 +559,3 @@ uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
 std::size_t NetworkInterfaceManager::getNumberOfDaemonConnections() const {
     return ServerSocket::getNumInstances();
 }
-
-NodeToNodeCrlConfig NetworkInterfaceManager::getNodeToNodeCrlConfig() const {
-    return tlsConfiguration.withRLock([](auto& config) -> NodeToNodeCrlConfig {
-        if (config) {
-            return config->getNodeToNodeCrlConfig();
-        }
-        return {};
-    });
-}
