@@ -978,6 +978,15 @@ public:
         return tokenAuthDataById.erase(id) > 0;
     }
 
+    /// Called when the settings changed. Invalidate the cache
+    static void onSocketSendBufferSizeChange() {
+        sndbuf_hint = 0;
+    }
+    /// Called when the settings changed. Invalidate the cache
+    static void onSocketRecvBufferSizeChange() {
+        rcvbuf_hint = 0;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,

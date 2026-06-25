@@ -394,6 +394,14 @@ static void settings_init() {
                 magma::Magma::SetDataOnlyCompactionRateLimitEnabled(
                         s.getMagmaEnableCompactionDataonlyRateLimiting());
             });
+    settings.addChangeListener("max_so_sndbuf_size",
+                               [](const auto&, auto&) -> void {
+                                   Connection::onSocketSendBufferSizeChange();
+                               });
+    settings.addChangeListener("max_so_rcvbuf_size",
+                               [](const auto&, auto&) -> void {
+                                   Connection::onSocketRecvBufferSizeChange();
+                               });
 }
 
 /**

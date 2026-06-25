@@ -1540,6 +1540,7 @@ protected:
     /// limits this value. On MacOS and Linux one would need to make OS
     /// level tuning to change this; so we'll just keep on using the
     /// insane large number and use the operating systems max value.
+    /// Set to 0 to let the kernel auto-tune
     std::atomic<uint32_t> max_so_sndbuf_size{
 #ifdef WIN32
             1_MiB
@@ -1548,18 +1549,12 @@ protected:
 #endif
     };
 
-    /// The maximum size we want to try to set SO_RCVBUF to. For windows
-    /// the default is 1MB as there is no operating system tunable which
-    /// limits this value. On MacOS and Linux one would need to make OS
-    /// level tuning to change this; so we'll just keep on using the
-    /// insane large number and use the operating systems max value.
-    std::atomic<uint32_t> max_so_rcvbuf_size{
-#ifdef WIN32
-            1_MiB
-#else
-            256_MiB
-#endif
-    };
+    /// The maximum size we want to try to set SO_RCVBUF to. Setting
+    /// this to 0 (the default) disables explicit buffer tuning and lets
+    /// the kernel's TCP auto-tuning algorithm manage the receive buffer
+    /// size. When set to a non-zero value, this limits the maximum
+    /// receive buffer size that will be attempted during optimization.
+    std::atomic<uint32_t> max_so_rcvbuf_size{0};
 
     /// ssl client authentication
     cb::x509::ClientCertMapper client_cert_mapper;

@@ -960,28 +960,19 @@ void Connection::updateBlockedSendQueue(
 void Connection::setType(Type value) {
     type = value;
 
-    if (isNodeSupervisor() && type != Type::Normal) {
-        // Force a large receive buffer on system (ns_server) connections.
-        // Setting SO_RCVBUF also explicitly disables TCP auto-tuning for that
-        // socket, giving us more predictable throughput. This was motivated
-        // by a Fusion issue where DCP producers stalled: beam.smp on the
-        // receiving node was blocked sending to its local memcached
-        // process, the DCP producer's TCP send buffer was full, yet
-        // memcached did not report a large receive queue — only small
-        // chunks of data were transferred at a time. Manually forcing a
-        // larger receive buffer via mcctl restored normal data flow. We
-        // restrict this to node supervisor's DCP streams to avoid the memory
-        // overhead on the potentially thousands of regular client connections.
-        maximize_tcp_rcvbuf();
-
-        if (type == Type::Consumer) {
-            setPriority(ConnectionPriority::High);
-            max_reqs_per_event *= 1.25;
-        }
+    if (isNodeSupervisor() && type != Type::Normal && type == Type::Consumer) {
+        setPriority(ConnectionPriority::High);
+        max_reqs_per_event *= 1.25;
     }
 }
 
 std::optional<int> Connection::maximize_tcp_buffer(int option, int hint) {
+    int max = option == SO_SNDBUF ? Settings::instance().getMaxSoSndbufSize()
+                                  : Settings::instance().getMaxSoRcvbufSize();
+    if (max == 0) {
+        return std::nullopt;
+    }
+
     if (hint != 0) {
         int value = hint;
         if (cb::net::setSocketOption(
@@ -1006,8 +997,6 @@ std::optional<int> Connection::maximize_tcp_buffer(int option, int hint) {
 
     /// Binary-search for the real maximum (up to our allowed max)
     int min = old_size;
-    int max = option == SO_SNDBUF ? Settings::instance().getMaxSoSndbufSize()
-                                  : Settings::instance().getMaxSoRcvbufSize();
 
     while (min <= max) {
         int avg = ((unsigned int)(min + max)) / 2;
@@ -1267,6 +1256,7 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
     user = std::move(ui);
     if (!reauthentication) {
         maximize_tcp_sndbuf();
+        maximize_tcp_rcvbuf();
 
 #ifdef __linux__
         if (!listening_port->system) {
