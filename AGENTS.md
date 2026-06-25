@@ -95,6 +95,10 @@ Guidelines:
 - If in doubt, full coding standards are defined by
   `docs/CodingStandards.rst`.
 - Always build (see building hints and testing hints) before running tests!
+- Use Doxygen style for all code comments, using `/** ... */` block comment
+  style exclusively (not `///` or `/*!`). The first sentence of the comment
+  acts as the brief description (do not use the `@brief` tag explicitly).
+  Use tags such as `@param`, `@return`, and `@throws`.
 
 ## New C++ File Headers
 Whenever you create a new C++ file (e.g., `.cc`, or `.h`), you must prepend the exact copyright header specified below.
