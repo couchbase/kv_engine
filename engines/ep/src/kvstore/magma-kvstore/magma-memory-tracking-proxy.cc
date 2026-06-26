@@ -757,9 +757,9 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
     if (status) {
         json["snapshot_pending_bytes"] = stats.FusionPendingUploadBytes;
         json["sync_session_completed_bytes"] =
-                stats.FusionFSStats.SyncSessionTotalBytes;
-        json["sync_session_total_bytes"] =
                 stats.FusionFSStats.SyncSessionCompletedBytes;
+        json["sync_session_total_bytes"] =
+                stats.FusionFSStats.SyncSessionTotalBytes;
         json["logstore_data_size"] = stats.FusionFSStats.LogStoreDataSize;
         json["logstore_garbage_size"] = stats.FusionFSStats.LogStoreGarbageSize;
         json["logstore_fragmentation_ratio"] =
