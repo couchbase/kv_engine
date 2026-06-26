@@ -42,6 +42,21 @@
 
 using cb::mcbp::Status;
 
+static bool contains_stream_id(const cb::mcbp::Request& request) {
+    bool stream_id_found = false;
+    request.parseFrameExtras(
+            [&stream_id_found](cb::mcbp::request::FrameInfoId id,
+                               cb::const_byte_buffer) -> bool {
+                if (id == cb::mcbp::request::FrameInfoId::DcpStreamId) {
+                    stream_id_found = true;
+                    return false;
+                }
+                return true;
+            });
+
+    return stream_id_found;
+}
+
 static bool is_valid_xattr_blob(Cookie& cookie,
                                 const cb::mcbp::Request& request) {
     if (!cb::mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
@@ -517,6 +532,12 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
         return Status::NotSupported;
     }
 
+    if (cookie.getConnection().getType() == Connection::Type::Consumer &&
+        contains_stream_id(cookie.getRequest())) {
+        cookie.setErrorContext("Internal consumer does not support stream-id");
+        return Status::Einval;
+    }
+
     using cb::mcbp::ClientOpcode;
     const auto opcode = cookie.getRequest().getClientOpcode();
     if (opcode == ClientOpcode::DcpOpen) {
@@ -783,6 +804,7 @@ static Status dcp_stream_end_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
+
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -931,13 +953,18 @@ static Status dcp_cache_transfer_validator(Cookie& cookie) {
 }
 
 static Status dcp_cache_transfer_end_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        0);
+    const auto status = McbpValidator::verify_header(cookie,
+                                                     0,
+                                                     ExpectedKeyLen::Zero,
+                                                     ExpectedValueLen::Zero,
+                                                     ExpectedCas::NotSet,
+                                                     GeneratesDocKey::No,
+                                                     0);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    return verify_common_dcp_restrictions(cookie);
 }
 
 /// @return true if the datatype is valid for a deletion
