@@ -512,6 +512,44 @@ TEST_P(RangeScanTest, ValueScan) {
             drainScan(id, false, 2, userKeys).records); // 2 items per continue
 }
 
+TEST_P(RangeScanTest, RandomSampleBoundaryKeys) {
+    std::vector<std::string> boundaryKeys = {
+            std::string("\0", 1),
+            "\xFE",
+            "\xFFz",
+            std::string(MaxCollectionsLogicalKeyLen, '\xFF')};
+    MutationInfo mInfo;
+    for (const auto& key : boundaryKeys) {
+        Document doc;
+        doc.info.id =
+                std::string{StoredDocKey{key, CollectionID{collectionId}}};
+        doc.value = "value";
+        mInfo = userConnection->mutate(doc, Vbid(0), MutationType::Set);
+    }
+
+    std::unordered_set<std::string> expectedKeys(userKeys);
+    expectedKeys.insert(otherKeys.begin(), otherKeys.end());
+    expectedKeys.insert(sequential.begin(), sequential.end());
+    expectedKeys.insert("final");
+    expectedKeys.insert(boundaryKeys.begin(), boundaryKeys.end());
+
+    // samples = item count, to ensure the whole collection is returned
+    config["key_only"] = true;
+    config.erase("range");
+    config["sampling"] = {{"samples", expectedKeys.size()}, {"seed", 0}};
+    config["snapshot_requirements"]["seqno"] = mInfo.seqno;
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    auto resp = userConnection->execute(create);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
+
+    EXPECT_EQ(expectedKeys.size(),
+              drainScan(id, true, 2, expectedKeys)
+                      .records); // item-limit shouldn't matter here
+}
+
 // Set the buffer to be 0 and check that each key is sent in a single mcbp
 // response (frames).
 void RangeScanTest::smallBufferTest(size_t itemLimit,

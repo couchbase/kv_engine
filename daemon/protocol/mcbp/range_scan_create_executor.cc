@@ -181,8 +181,8 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
     }
 
     // Define the complete range, which may get overridden
-    std::string start{"\0", 1};
-    std::string end{"\xFF"};
+    std::string start;
+    std::string end(MaxCollectionsKeyLen, '\xFF');
     cb::rangescan::KeyType startType = cb::rangescan::KeyType::Inclusive;
     cb::rangescan::KeyType endType = cb::rangescan::KeyType::Inclusive;
     if (range) {
