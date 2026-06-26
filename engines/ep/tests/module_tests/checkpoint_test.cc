@@ -2218,6 +2218,64 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
     EXPECT_EQ(0, manager.getMemOverheadIndex());
 }
 
+// MB-56644 follow-up: ItemExpel must also be resilient to the other rollback
+// flavour - KVBucket::resetVBucket(), which drops the VBucket, creates a fresh
+// one and migrates the cursors into the new CM via takeAndResetCursors().
+// Unlike clear() this leaves the old CM's CheckpointList (and so its front
+// checkpoint) untouched, so the MB-56644 front-of-list guard does not fire.
+TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketReset) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    // Note: We need at least 2 mutations for triggering ItemExpel, as we can't
+    // expel items pointed from cursors
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    ASSERT_EQ(2, vb.getHighSeqno());
+    ASSERT_EQ(4, manager.getNumOpenChkItems());
+
+    // Move the cursor, allow ItemExpel
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    ASSERT_EQ(1, manager.getNumCursors()); // persistence
+
+    // The destination CM that KVBucket::resetVBucket() would create for the
+    // brand new VBucket.
+    auto newManager = std::make_unique<MockCheckpointManager>(
+            engine->getEpStats(),
+            vb,
+            engine->getCheckpointConfig(),
+            0,
+            0 /*lastSnapStart*/,
+            0 /*lastSnapEnd*/,
+            0 /*maxVisible*/,
+            0 /*maxPrepareSeqno*/,
+            nullptr /*persistence callback*/);
+
+    // ItemExpel plants the expel-cursor in the checkpoint under processing and
+    // releases the CM::lock. The CM::expelHook executes in that window; here we
+    // simulate resetVBucket()/takeAndResetCursors() draining this CM's cursors
+    // into the new VBucket's CM.
+    // Before the fix this triggers a crash when ItemExpel resumes: either the
+    // Expects on the expel-cursor (the cursor had been migrated to newManager)
+    // or std::terminate from ~ExtractItemsResult removing a cursor that is no
+    // longer in this CM.
+    manager.expelHook = [&manager, &newManager]() {
+        newManager->takeAndResetCursors(manager);
+    };
+
+    manager.expelUnreferencedCheckpointItems();
+
+    // The transient expel-cursor was left behind in this CM (not migrated) and
+    // then released by ItemExpel, so this CM has no cursors left.
+    EXPECT_EQ(0, manager.getNumCursors());
+    // The new CM received only the real (persistence) cursor and did NOT
+    // inherit a stale expel-cursor that would trip its next expel run.
+    EXPECT_EQ(1, newManager->getNumOfCursors());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, ReRegister) {
     ASSERT_EQ(1, manager->getNumOfCursors());
