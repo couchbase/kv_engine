@@ -34,6 +34,8 @@ add_library(mcd_util STATIC
             logtags.cc
             logtags.h
             serverless_config.cc
+            slow_operation.cc
+            slow_operation.h
             stat_group.cc
             string_utilities.cc
             string_utilities.h
@@ -108,6 +110,7 @@ cb_add_test_executable(utilities_testapp
         config_parser_test.cc
         crl_policy_test.cc
         dek_file_utilities_test.cc
+        slow_operation_test.cc
         stat_group_test.cc
         string_utilities_test.cc
         throttle_utilities_test.cc
