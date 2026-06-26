@@ -2752,6 +2752,126 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
     EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
 }
 
+// Test class for MB-72321: flow-control double-count on would_block retry.
+// Uses full eviction so that setWithMeta returns would_block when a key has
+// been evicted from memory and a BGFetch is required to honour preserveTtl.
+class FlowControlFullEvictionTest : public FlowControlTestBase {
+protected:
+    void SetUp() override {
+        config_string =
+                "dcp_consumer_flow_control_enabled=true;"
+                "item_eviction_policy=full_eviction";
+        FlowControlTestBase::SetUp();
+    }
+};
+
+// Regression test for MB-72321.
+// Verifies that when a DCP mutation triggers a BGFetch (would_block on the
+// first attempt) the flow-control bytes are counted exactly once — not twice —
+// when the operation is retried after the BGFetch completes.
+//
+// Mechanism: in full-eviction mode, setWithMeta with preserveTtl=true on a
+// non-resident key returns NeedBgFetch → would_block because it must read the
+// existing item from disk to copy its TTL.  This exercises exactly the code
+// path fixed by MB-72321 — DcpConsumer::dispatchMessage() must call
+// ufc.release() before propagating would_block so the UpdateFlowControl
+// destructor in the calling scope is a no-op.
+//
+// Before the fix dispatchMessage() propagated would_block without calling
+// ufc.release(), so the destructor incremented freedBytes on the first exit.
+// On the BGFetch retry a fresh UpdateFlowControl was created and its
+// destructor incremented freedBytes again, double-counting the message bytes
+// and triggering a producer-side underflow assertion.
+TEST_F(FlowControlFullEvictionTest,
+       FlowControlBytesNotDoubleCountedOnWouldBlock) {
+    // Store an item on the active vbucket, persist it, and evict it from
+    // memory so the key is non-resident when the DCP mutation arrives.
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    const auto key = makeStoredDocKey("mykey");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, key);
+
+    // Transition to replica so the PassiveStream's permittedVBStates
+    // ({replica, pending}) accepts the incoming mutation.
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
+
+    const std::string connName = "test_fc_would_block";
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, connName);
+    ASSERT_TRUE(consumer->public_flowControl().isEnabled());
+
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, consumer);
+
+    uint32_t opaque = 0;
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      opaque, vbid, cb::mcbp::DcpAddStreamFlag::None));
+    // opaqueCounter starts at 0; the first ++opaqueCounter inside doAddStream
+    // gives new_opaque = 1 which becomes the stream's opaque.
+    opaque = 1;
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       10 /*end*/,
+                                       DcpSnapshotMarkerFlag::Memory,
+                                       {} /*HCS*/,
+                                       {} /*HPS*/,
+                                       {} /*maxVisibleSeq*/,
+                                       {} /*purgeSeqno*/));
+
+    const size_t freedBytesBefore =
+            consumer->public_flowControl().getFreedBytes();
+
+    // Build a DCP mutation with preserveTtl=true.  In full-eviction mode with
+    // a non-resident key, processSetInner detects it needs the on-disk item to
+    // copy its TTL and returns NeedBgFetch → would_block.
+    const std::string value = "value";
+    const size_t msgBytes =
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
+
+    auto makeItem = [&]() {
+        auto qi = makeCommittedItem(key, value, vbid);
+        qi->setBySeqno(2);
+        qi->setPreserveTtl(true);
+        return qi;
+    };
+
+    // First attempt: setWithMeta schedules a BGFetch and returns would_block.
+    auto rc = consumer->public_processMutationOrPrepare(
+            vbid, opaque, key, makeItem(), msgBytes);
+    ASSERT_EQ(cb::engine_errc::would_block, rc);
+
+    // After would_block the UpdateFlowControl bytes must have been released so
+    // that the destructor in the calling scope is a no-op.
+    // Before the fix, dispatchMessage() returned without calling ufc.release(),
+    // so the destructor incremented freedBytes here (first half of the
+    // double-count).
+    EXPECT_EQ(freedBytesBefore, consumer->public_flowControl().getFreedBytes())
+            << "flow-control bytes must not be incremented on would_block";
+
+    // Fetch the item from disk so the retry can proceed.
+    runBGFetcherTask();
+
+    // Second attempt (retry): the item is now in memory, the mutation succeeds.
+    rc = consumer->public_processMutationOrPrepare(
+            vbid, opaque, key, makeItem(), msgBytes);
+    ASSERT_EQ(cb::engine_errc::success, rc);
+
+    // After the successful retry the freed bytes must be incremented exactly
+    // once.  Before the fix they were incremented twice (once on the first
+    // exit, once here), causing a producer-side underflow assertion.
+    EXPECT_EQ(freedBytesBefore + msgBytes,
+              consumer->public_flowControl().getFreedBytes())
+            << "flow-control bytes must be incremented after successful "
+               "mutation";
+
+    connMap.removeConn(cookie);
+}
+
 struct PrintToStringCombinedNameXattrOnOff {
     std::string operator()(
             const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&

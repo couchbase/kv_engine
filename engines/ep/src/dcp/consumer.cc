@@ -1668,6 +1668,16 @@ cb::engine_errc DcpConsumer::dispatchMessage(UpdateFlowControl& ufc,
         return cb::engine_errc::success;
     }
 
+    if (err == cb::engine_errc::would_block) {
+        // A BGFetch is needed (the key was evicted from memory). The executor
+        // will suspend and retry this packet after the BGFetch completes.
+        // Release the flow-control bytes now so the retry's UpdateFlowControl
+        // counts them exactly once; without this the destructor in the calling
+        // scope fires on first exit AND again on retry — double-counting.
+        ufc.release();
+        return cb::engine_errc::would_block;
+    }
+
     return err;
 }
 
