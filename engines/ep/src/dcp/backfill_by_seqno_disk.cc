@@ -321,7 +321,9 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
             scanCtx.maxVisibleSeqno,
             scanCtx.purgeSeqno,
             historyScan ? SnapshotType::NoHistoryPrecedingHistory
-                        : SnapshotType::NoHistory);
+                        : SnapshotType::NoHistory,
+            ActiveStream::PersistedSnapshotInfo{scanCtx.persistedSnapshotType,
+                                                scanCtx.persistedSnapEnd});
 }
 
 // This function is used for backfills where the stream is configured as a
@@ -396,7 +398,10 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.persistedPreparedSeqno,
                                        scanCtx.maxVisibleSeqno,
                                        0,
-                                       SnapshotType::NoHistory);
+                                       SnapshotType::NoHistory,
+                                       ActiveStream::PersistedSnapshotInfo{
+                                               scanCtx.persistedSnapshotType,
+                                               scanCtx.persistedSnapEnd});
     }
 
     // Need to figure out the maxSeqno/maxVisibleSeqno for calling
@@ -478,14 +483,18 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     if (gv.getStatus() == cb::engine_errc::success) {
         if (gv.item->isCommitted()) {
             // Step 3. If this is a committed item, done.
-            return stream.markDiskSnapshot(startSeqno,
-                                           stats.highSeqno,
-                                           {},
-                                           {},
-                                           {},
-                                           stats.highSeqno,
-                                           0,
-                                           SnapshotType::NoHistory);
+            return stream.markDiskSnapshot(
+                    startSeqno,
+                    stats.highSeqno,
+                    {},
+                    {},
+                    {},
+                    stats.highSeqno,
+                    0,
+                    SnapshotType::NoHistory,
+                    ActiveStream::PersistedSnapshotInfo{
+                            scanCtx.persistedSnapshotType,
+                            scanCtx.persistedSnapEnd});
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
         OBJ_LOG_WARN_CTX(
@@ -604,7 +613,10 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        {},
                                        cb.maxVisibleSeqno,
                                        0,
-                                       SnapshotType::NoHistory);
+                                       SnapshotType::NoHistory,
+                                       ActiveStream::PersistedSnapshotInfo{
+                                               scanCtx.persistedSnapshotType,
+                                               scanCtx.persistedSnapEnd});
     }
     endStreamIfNeeded();
     // Found nothing committed at all

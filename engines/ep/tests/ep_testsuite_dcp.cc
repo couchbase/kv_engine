@@ -5202,7 +5202,13 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 300;
-    ctx.exp_markers = 1;
+    // MB-71914: on persistent, the backfill+memory merge is suppressed for
+    // Memory-type snapshots, so the disk backfill (1-200) and the in-memory
+    // checkpoint (201-300) are sent as two separate snapshot markers.
+    // On ephemeral, the memory backfill scans the full SeqList range (1-300)
+    // in one shot (passing nullopt for persistedSnapshot), so one marker covers
+    // all items.
+    ctx.exp_markers = isEphemeralBucket(h) ? 1 : 2;
 
     auto* cookie1 = testHarness->create_cookie(h);
     TestDcpConsumer tdc("unittest1", cookie1, h);
@@ -5312,7 +5318,10 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 300;
-    ctx.exp_markers = 1;
+    // Same reasoning as test_dcp_replica_stream_all: on persistent, no merge
+    // for Memory-type snapshots (MB-71914) → 2 markers; on ephemeral, one
+    // backfill covers everything → 1 marker.
+    ctx.exp_markers = isEphemeralBucket(h) ? 1 : 2;
     ctx.exp_seqno_advanced = 0;
 
     auto* cookie1 = testHarness->create_cookie(h);
@@ -5458,7 +5467,13 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
     ctx.exp_markers = 1;
     ctx.exp_system_events = 1;
     ctx.exp_collection_ids.emplace_back(8);
-    ctx.exp_seqno_advanced = 1;
+    // MB-71914: on persistent, no merge for Memory-type checkpoints. The disk
+    // snapshot ends at seqno 201 (= lastReadSeqno), so
+    // isSeqnoGapAtEndOfSnapshot is false and no SeqnoAdvanced is sent. On
+    // ephemeral, the memory backfill scans all 301 items (nullopt path), so
+    // lastSentSnapEndSeqno=301 but lastReadSeqno=201 (last collection 0x8 item)
+    // → gap → 1 SeqnoAdvanced is still emitted.
+    ctx.exp_seqno_advanced = isEphemeralBucket(h) ? 1 : 0;
 
     auto* cookie1 = testHarness->create_cookie(h);
     TestDcpConsumer tdc("unittest1", cookie1, h);
@@ -5619,7 +5634,13 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 200;
-    ctx.exp_markers = 1;
+    // MB-71914: on persistent, no merge for Memory-type checkpoints. Disk
+    // backfill yields snapshot 0-201; memory phase sends a separate snapshot
+    // for 302-401 (collection 0x8 items). Items 202-301 (default collection)
+    // are filtered and produce no marker.
+    // On ephemeral, the memory backfill scans all 401 items in one shot, so
+    // one marker covers the full range.
+    ctx.exp_markers = isEphemeralBucket(h) ? 1 : 2;
     ctx.exp_system_events = 1;
     ctx.exp_collection_ids.emplace_back(8);
     ctx.exp_seqno_advanced = 0;

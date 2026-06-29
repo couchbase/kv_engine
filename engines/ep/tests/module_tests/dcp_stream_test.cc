@@ -10186,7 +10186,7 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
 
     ASSERT_EQ(1, vb->checkpointManager->getSnapshotInfo().range.getEnd());
     // Next extend the open-checkpoint and verify it is returned as the end of
-    // the range. DCP backfill will Merge and return a range 0, 2
+    // the range.
     vb->checkpointManager->extendOpenCheckpoint(2, 2);
     ASSERT_EQ(2, vb->checkpointManager->getSnapshotInfo().range.getEnd());
 
@@ -10204,11 +10204,13 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
 
     using namespace cb::mcbp;
 
-    // Step DCP from disk, backfill runs and creates a merged snapshot 0:2
+    // MB-71914: the persisted checkpoint is Memory-type (k1 was stored on an
+    // active vbucket), so the replica backfill+memory merge is suppressed.
+    // Disk backfill sends snapshot 0:1 only.
     notifyAndStepToCheckpoint(
             *producer, producers, ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    EXPECT_EQ(1, producers.last_snap_end_seqno);
     // Drain readyQ which will schedule in-memory processing
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(producers, ClientOpcode::DcpMutation));
@@ -10220,8 +10222,15 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     // Now along comes the actual seqno:2 mutation
     writeDocToReplica(vbid, makeStoredDocKey("k1"), 2, false);
 
-    // With MB-62847 this next step throws Monotonic exception.
-    notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
+    // MB-71914: with no merge lastSentSnapEndSeqno(1) < lastReadSeqno(2), so
+    // isReplicaSnapshotComplete=true and the memory phase sends a new snapshot
+    // marker before the mutation. Step past the marker first, then the
+    // mutation. The original MB-62847 bug is still prevented because
+    // set_vbucket_state does not trigger a SeqnoAdvanced.
+    notifyAndStepToCheckpoint(
+            *producer, producers, ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers, ClientOpcode::DcpMutation));
     destroy_mock_cookie(cookie);
 }
 

@@ -220,6 +220,13 @@ public:
         return filter.getRemotePurgeSeqno();
     }
 
+    /// Type and end-seqno of the last persisted snapshot, passed to
+    /// markDiskSnapshot() to drive the replica disk/memory merge decision.
+    struct PersistedSnapshotInfo {
+        CheckpointType type;
+        uint64_t snapEnd;
+    };
+
     /**
      * Queues a snapshot marker to be sent - only if there are items in
      * the backfill range which will be sent.
@@ -240,17 +247,24 @@ public:
      * event) item
      * @param purgeSeqno current purgeSeqno of the vbucket.
      * @param snapshotType see enum definition
+     * @param persistedSnapshot type and end seqno of the last persisted
+     *        snapshot, used to determine if replica merge should occur and as
+     *        the stable extend-to seqno for that merge. nullopt when the
+     *        checkpoint type is unknown (e.g. ephemeral memory backfill), which
+     *        suppresses the merge.
      * @return If the stream has queued a snapshot marker. If this is false, the
      *         stream determined none of the items in the backfill would be sent
      */
-    bool markDiskSnapshot(uint64_t startSeqno,
-                          uint64_t endSeqno,
-                          std::optional<uint64_t> highCompletedSeqno,
-                          std::optional<uint64_t> highPreparedSeqno,
-                          std::optional<uint64_t> persistedPreparedSeqno,
-                          uint64_t maxVisibleSeqno,
-                          uint64_t purgeSeqno,
-                          SnapshotType snapshotType);
+    bool markDiskSnapshot(
+            uint64_t startSeqno,
+            uint64_t endSeqno,
+            std::optional<uint64_t> highCompletedSeqno,
+            std::optional<uint64_t> highPreparedSeqno,
+            std::optional<uint64_t> persistedPreparedSeqno,
+            uint64_t maxVisibleSeqno,
+            uint64_t purgeSeqno,
+            SnapshotType snapshotType,
+            std::optional<PersistedSnapshotInfo> persistedSnapshotInfo);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'start' flag

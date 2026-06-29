@@ -2707,7 +2707,16 @@ public:
 void MB48010CollectionsDCPParamTest::SetUp() {
     CollectionsDcpParameterizedTest::SetUp();
 
-    // Test requires a replica vbucket so we do the merging of disk/memry
+    // The ephemeral memory backfill passes nullopt for persistedSnapshot,
+    // suppressing the replica disk/memory merge in markDiskSnapshot. These
+    // tests rely on the merge to extend the snapshot end from the disk scan
+    // range to the full Disk-checkpoint range, so they are not valid for
+    // ephemeral buckets.
+    if (ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    // Test requires a replica vbucket so the disk/memory snapshot merge fires.
     store->setVBucketState(vbid, vbucket_state_replica);
     VBucketPtr vb = store->getVBucket(vbid);
 
@@ -2718,7 +2727,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
             std::string_view{}) /*collections on, but no filter*/);
 
     // 1) Create a snapshot which we will populate as if DCP is sending messages
-    // This snapshot will cover 0 to 5
+    // This snapshot will cover 0 to 4
     // It begins by creating two collections and receiving one mutation
     // All of that is flushed and then expel is used to discard in-memory items
     vb->checkpointManager->createSnapshot(0, 4, 0, {}, CheckpointType::Disk, 4);
@@ -2744,49 +2753,9 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     // 2 collections written
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    if (ephemeral()) {
-        // Step the stream for the first two items, this is going to ensure that
-        // expel can run by having a cursor in the checkpoint (if we had none
-        // then we'd skip expel in favour of dropping the checkpoint).
-        // Process first checkpoint with vbucket states (nothing to send) memory
-        // snapshot
-        runCheckpointProcessor();
-        // Process second checkpoint process disk checkpoint with two system
-        // events
-        runCheckpointProcessor();
-        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-                      cb::engine_errc::success);
-        ASSERT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
-                              DcpSnapshotMarkerFlag::Disk));
-        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
-                      cb::engine_errc::success);
-        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
-                      cb::engine_errc::success);
-
-        // IMPORTANT: Run expel so that some flushed items are removed from
-        // memory The DCP stream has to run a backfill for the snapshot
-        // Need to call moveHelperCursorToCMEnd() twice so that we move to the
-        // cursor to the end of the second checkpoint
-        moveHelperCursorToCMEnd();
-        moveHelperCursorToCMEnd();
-        auto expel = vb->checkpointManager->expelUnreferencedCheckpointItems();
-        EXPECT_NE(0, expel.count);
-    } else {
-        // Destroys all, we don't want DCP until later (unless we're ephemeral
-        // and have to jump through some hoops to get a backfill stream
-        // going...)
-        // ensure ptr doesnt extend life of vb past the engine
-        vb.reset();
-        resetEngineAndWarmup();
-    }
-
-    if (ephemeral()) {
-        // Nuke the dcp stuff without restart - which would break the test for
-        // ephemeral as the items would go away.
-        teardown();
-        cookieC = create_mock_cookie();
-        cookieP = create_mock_cookie();
-    }
+    // Destroys all in-memory state; DCP will backfill from disk on restart.
+    vb.reset();
+    resetEngineAndWarmup();
 
     // Stream the dairy collection only
     createDcpObjects({{R"({"collections":["c"]})"}});
@@ -2794,8 +2763,9 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
-    // Now we drive the stream and finish the snapshot
-    // First chunk of data comes from backfilling
+    // Now we drive the stream and finish the snapshot.
+    // The disk backfill only scanned seqnos 1-2, but the persisted snapshot is
+    // Disk-type with snapEnd=5, so markDiskSnapshot merges and sends end=5.
     EXPECT_TRUE(vb0Stream->isBackfilling());
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
@@ -2905,6 +2875,105 @@ TEST_P(MB48010CollectionsDCPParamTest,
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
     EXPECT_EQ(4, producers->last_byseqno);
+}
+
+class MB71914MergeSnapshotTest : public SingleThreadedKVBucketTest {
+public:
+    void SetUp() override {
+        SingleThreadedKVBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    }
+};
+
+TEST_F(MB71914MergeSnapshotTest, MonotonicException) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Begin by receiving a memory snapshot for the range 1 to 3.
+    vb->checkpointManager->createSnapshot(
+            1, 3, 0, {}, CheckpointType::Memory, 3);
+
+    // Create the fruit collection (cid:9) at seqno:1.
+    vb->replicaBeginCollection(Collections::ManifestUid(1),
+                               {ScopeID::Default, 9},
+                               "fruit",
+                               {},
+                               Collections::Metered::No,
+                               CanDeduplicate::Yes,
+                               Collections::ManifestUid{},
+                               1);
+
+    // Flush seqno:1 to disk so the backfill picks it up, then expel it from
+    // the checkpoint so the backfill cannot also retrieve it from memory.
+    flush_vbucket_to_disk(vbid, 1);
+    vb->checkpointManager->expelUnreferencedCheckpointItems();
+
+    // Write seqno:2 (default collection) and flush it. Flushing advances the
+    // persistence cursor past seqno:2 so that the DCP cursor registered by
+    // markDiskSnapshot lands on the seqno:2 mutation item rather than on
+    // checkpoint_start.
+    writeDocToReplica(vbid, makeStoredDocKey("seq:2"), 2, false);
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Create DCP and run the backfill phase.
+    // DCP stream is filtering on default collection.
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    ASSERT_TRUE(producer);
+    createDcpStream(*producer, vbid, R"({"collections":["0"]})");
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers, false);
+
+    // The merge is suppressed because the persisted snapshot is Memory-type.
+    // Merging would inflate lastSentSnapEndSeqno to the checkpoint end (3),
+    // causing the memory phase to skip its snapshot marker (it would see the
+    // snapshot as still in-progress). Without a marker, seqno:3 would be
+    // delivered with snapEnd(3) == lastSentSnapEndSeqno(3), violating the
+    // strict-monotonic invariant — the bug fixed by MB-71914.
+    // With the merge suppressed, lastSentSnapEndSeqno stays at the actual disk
+    // end (2), and the memory phase correctly issues a fresh [3,3] marker.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    // seqno:1 (fruit collection creation event) is filtered by the
+    // default-only stream and skipped; seqno:2 is delivered.
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(2, producers.last_byseqno);
+
+    // Write seqno:3 (default), the last item of the original [1,3] snapshot.
+    writeDocToReplica(vbid, makeStoredDocKey("seq:3"), 3, false);
+
+    // Simulate an old-style producer sending a consecutive Memory snapshot
+    // without the Checkpoint flag: extendOpenCheckpoint silently raises the
+    // checkpoint end from 3 to 4 without inserting a checkpoint_start item.
+    // seqno:4 (fruit, cid:9) is written into the extended checkpoint.
+    vb->checkpointManager->extendOpenCheckpoint(4, 4);
+    writeDocToReplica(vbid, makeStoredDocKey("seq:4", 9), 4, false);
+
+    // Run the in-memory phase. seqno:3 (default) passes the filter; seqno:4
+    // (fruit) does not but advances newLastReadSeqno to 4. With the fix,
+    // lastSentSnapEndSeqno=2 so store(snapEnd=3) is valid (3 > 2) and seqno:3
+    // is delivered under a new snapshot marker [3,3] without a monotonic
+    // violation.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(3, producers.last_snap_start_seqno);
+    EXPECT_EQ(3, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // seqno:4 (fruit) is filtered; stream is idle.
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest,

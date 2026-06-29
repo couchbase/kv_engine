@@ -169,7 +169,10 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             // Backfill covers the full SeqList range.
             endSeqno = rangeItr.back();
 
-            // Send SnapMarker
+            // Send SnapMarker. Pass nullopt for the on-disk snapshot range
+            // because we don't know the full extent of the backfill (the end
+            // seqno) when the replica is producing a partially received
+            // snapshot, so we suppress the replica merge in markDiskSnapshot.
             bool markerSent = stream->markDiskSnapshot(
                     startSeqno,
                     endSeqno,
@@ -179,7 +182,8 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     rangeItr.getHighPreparedSeqno(),
                     rangeItr.getMaxVisibleSeqno(),
                     evb->getPurgeSeqno(),
-                    SnapshotType::NoHistory);
+                    SnapshotType::NoHistory,
+                    std::nullopt);
 
             if (markerSent) {
                 // @todo: This value may be an overestimate, as it includes

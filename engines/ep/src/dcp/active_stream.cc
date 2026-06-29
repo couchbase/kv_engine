@@ -319,7 +319,8 @@ bool ActiveStream::markDiskSnapshot(
         std::optional<uint64_t> persistedPreparedSeqno,
         uint64_t maxVisibleSeqno,
         uint64_t purgeSeqno,
-        SnapshotType snapshotType) {
+        SnapshotType snapshotType,
+        std::optional<PersistedSnapshotInfo> persistedSnapshotInfo) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -373,21 +374,23 @@ bool ActiveStream::markDiskSnapshot(
         }
         // An atomic read of vbucket state without acquiring the
         // reader lock for state should suffice here.
-        if (vb->getState() == vbucket_state_replica) {
-            if (endSeqno > diskEndSeqno) {
-                /* We possibly have items in the open checkpoint
-                   (incomplete snapshot) */
-                snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-                OBJ_LOG_INFO_CTX(
-                        *this,
-                        "Merging backfill and memory snapshot for a "
-                        "replica vbucket",
-                        {"backfill_start_seqno", diskStartSeqno},
-                        {"backfill_end_seqno", diskEndSeqno},
-                        {"new_snapshot_range",
-                         {{info.range.getStart(), info.range.getEnd()}}});
-                diskEndSeqno = info.range.getEnd();
-            }
+        // For replica vbuckets, extend diskEndSeqno to the persisted snapshot
+        // end when a backfill only covers part of an in-progress disk snapshot
+        // (e.g. rebalance). The remainder is delivered via the memory phase.
+        // Only merge for Disk snapshots: merging a Memory snapshot produces an
+        // incorrect lastSentSnapEndSeqno and causes a premature DCP snapshot in
+        // the memory phase under certain conditions, refer to MB-71914.
+        if (vb->getState() == vbucket_state_replica && persistedSnapshotInfo &&
+            persistedSnapshotInfo->type == CheckpointType::Disk &&
+            persistedSnapshotInfo->snapEnd > diskEndSeqno) {
+            OBJ_LOG_INFO_CTX(
+                    *this,
+                    "Merging backfill and memory snapshot for a "
+                    "replica vbucket",
+                    {"backfill_start_seqno", diskStartSeqno},
+                    {"backfill_end_seqno", diskEndSeqno},
+                    {"persisted_snap_end", persistedSnapshotInfo->snapEnd});
+            diskEndSeqno = persistedSnapshotInfo->snapEnd;
         }
 
         // If the stream supports SyncRep then send the HCS in the

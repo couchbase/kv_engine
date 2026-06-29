@@ -110,7 +110,9 @@ BySeqnoScanContext::BySeqnoScanContext(
       maxVisibleSeqno(vbucketState.maxVisibleSeqno),
       persistedCompletedSeqno(vbucketState.persistedCompletedSeqno),
       highPreparedSeqno(vbucketState.highPreparedSeqno),
-      persistedPreparedSeqno(vbucketState.persistedPreparedSeqno) {
+      persistedPreparedSeqno(vbucketState.persistedPreparedSeqno),
+      persistedSnapshotType(vbucketState.checkpointType),
+      persistedSnapEnd(vbucketState.lastSnapEnd) {
 }
 
 void BySeqnoScanContext::maybeLogFirstSeqno(BucketLogger& logger,

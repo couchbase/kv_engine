@@ -189,7 +189,9 @@ bool DCPBackfillDiskToStream::scanHistoryCreate(
                 ctx.persistedPreparedSeqno,
                 ctx.maxVisibleSeqno,
                 ctx.purgeSeqno,
-                historyScanCtx.getSnapshotType())) {
+                historyScanCtx.getSnapshotType(),
+                ActiveStream::PersistedSnapshotInfo{ctx.persistedSnapshotType,
+                                                    ctx.persistedSnapEnd})) {
         // Stream rejected the marker
         return false;
     }

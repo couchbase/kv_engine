@@ -556,6 +556,15 @@ public:
      */
     const uint64_t persistedPreparedSeqno;
 
+    // Type of the last persisted snapshot. Used by ActiveStream to gate the
+    // replica disk/memory merge: the merge must only fire for Disk snapshots
+    const CheckpointType persistedSnapshotType;
+
+    // End seqno of the last persisted snapshot. Used by ActiveStream as the
+    // stable extend-to seqno for the replica merge, avoiding a racey live
+    // checkpoint manager read.
+    const uint64_t persistedSnapEnd;
+
     /// trip wire so we only log the first call to maybeLogFirstSeqno, which
     /// should be the first seqno returned in the scan
     bool firstSeqnoLogged{false};
