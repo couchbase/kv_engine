@@ -1076,7 +1076,8 @@ TEST_P(STDcpTest, MB_45863) {
     EXPECT_EQ(cb::engine_errc::success, producer->closeStream(0, vbid));
 
     // Expect a stream end message, process this using two steps, the first will
-    // see 'too_big' and stash the response for the next call to step
+    // see 'too_big' and stash the response for the next call to step, returning
+    // would_block so the connection layer does not disconnect.
     class ForceStreamEndFailure : public MockDcpMessageProducers {
     public:
         cb::engine_errc stream_end(uint32_t opaque,
@@ -1086,7 +1087,7 @@ TEST_P(STDcpTest, MB_45863) {
             return cb::engine_errc::too_big;
         }
     } producers1;
-    EXPECT_EQ(cb::engine_errc::too_big, producer->step(false, producers1));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers1));
     EXPECT_TRUE(producer->findStream(vbid));
 
     // Now expect a stream end message to send, this would throw before fixing

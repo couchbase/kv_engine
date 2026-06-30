@@ -332,7 +332,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
      */
     producers.setMutationStatus(cb::engine_errc::too_big);
 
-    EXPECT_EQ(cb::engine_errc::too_big, producer->step(false, producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
 
     /* The number of items total bytes sent should remain the same */
     EXPECT_EQ(1, producer->getItemsSent());

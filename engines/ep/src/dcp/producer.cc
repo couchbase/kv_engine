@@ -1267,6 +1267,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
     const auto event = resp->getEvent();
     if (ret == cb::engine_errc::too_big) {
         rejectResp = std::move(resp);
+        ret = cb::engine_errc::would_block;
     } else if (ret == cb::engine_errc::success) {
         switch (event) {
         case DcpResponse::Event::Abort:
