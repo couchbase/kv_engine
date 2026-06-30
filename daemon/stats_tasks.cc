@@ -27,6 +27,7 @@
 #include <cblogger/logger.h>
 #include <dek/manager.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/statdef.h>
 
 #include <memory>
 
@@ -159,6 +160,20 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
         CBStatCollector collector(add_stat_callback, cookie);
         command_error =
                 server_stats(collector, cookie.getConnection().getBucket());
+    }
+
+    // Expose throttle limits under ep_* prefix manually since they are not
+    // in the engine configuration.
+    if ((key.empty() || key == "config") &&
+        command_error == cb::engine_errc::success) {
+        auto& bucket = cookie.getConnection().getBucket();
+        if (bucket.type != BucketType::NoBucket) {
+            CBStatCollector collector(add_stat_callback, cookie);
+            collector.addStat(cb::stats::StatDef("ep_throttle_reserved"),
+                              bucket.getThrottleReservedLimit());
+            collector.addStat(cb::stats::StatDef("ep_throttle_hard_limit"),
+                              bucket.getThrottleHardLimit());
+        }
     }
 }
 

@@ -158,3 +158,33 @@ TEST_P(BucketConfigTest, ValidateThrottleReservedGreaterThanHardLimit) {
               "throttle_hard_limit cannot be less than current "
               "throttle_reserved of 2001");
 }
+
+/// MB-72661: ns_server requires the throttle limits to be exposed under
+/// the ep_ prefix in cbstats.
+TEST_P(BucketConfigTest, ThrottleLimitsExposedToStats) {
+    const std::string bucketName = "throttle_stats_bucket";
+    mcd_env->getTestBucket().createBucket(
+            bucketName,
+            "throttle_reserved=1000;throttle_hard_limit=2000",
+            *adminConnection);
+    auto exitGuard = folly::makeGuard(
+            [&]() { adminConnection->deleteBucket(bucketName); });
+
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        // The "config" group is what ns_server reads; the "all" group (empty
+        // key) must expose them too so a cbstats dump remains consistent.
+        for (const auto* group : {"config", ""}) {
+            const nlohmann::json stats = conn.stats(group);
+            ASSERT_TRUE(stats.contains("ep_throttle_reserved"))
+                    << "ep_throttle_reserved missing from '" << group
+                    << "' stat group";
+            ASSERT_TRUE(stats.contains("ep_throttle_hard_limit"))
+                    << "ep_throttle_hard_limit missing from '" << group
+                    << "' stat group";
+            EXPECT_EQ(1000, stats["ep_throttle_reserved"].get<std::size_t>())
+                    << "in '" << group << "' stat group";
+            EXPECT_EQ(2000, stats["ep_throttle_hard_limit"].get<std::size_t>())
+                    << "in '" << group << "' stat group";
+        }
+    });
+}
