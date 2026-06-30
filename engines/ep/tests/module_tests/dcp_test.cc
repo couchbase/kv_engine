@@ -2726,6 +2726,26 @@ TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     EXPECT_EQ(1_GiB * ratio, consumer->getFlowControlBufSize());
 }
 
+TEST_F(FlowControlTest, Config_ConsumerBufferRatio_CappedToUint32Max) {
+    constexpr auto uint32Max = std::numeric_limits<uint32_t>::max();
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
+    auto& fcm = engine->getDcpFlowControlManager();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    engine->setMaxDataSize(4_GiB);
+    fcm.setDcpConsumerBufferRatio(0.5f);
+    EXPECT_EQ(size_t(2_GiB), consumer->getFlowControlBufSize());
+
+    engine->setMaxDataSize(8_GiB);
+    fcm.setDcpConsumerBufferRatio(0.5f);
+    EXPECT_EQ(uint32Max, consumer->getFlowControlBufSize());
+
+    engine->setMaxDataSize(10_GiB);
+    fcm.setDcpConsumerBufferRatio(0.5f);
+    EXPECT_EQ(uint32Max, consumer->getFlowControlBufSize());
+}
+
 TEST_F(FlowControlTest, Config_ConnBufferRatio_UpdateAtBucketQuotaChange) {
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
 

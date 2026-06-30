@@ -15,6 +15,8 @@
 #include "dcp/consumer.h"
 #include "ep_engine.h"
 
+#include <limits>
+
 DcpFlowControlManager::DcpFlowControlManager(
         const EventuallyPersistentEngine& engine)
     : engine(engine) {
@@ -30,11 +32,12 @@ void DcpFlowControlManager::updateConsumersBufferSize(
     }
 
     // Compute new per-consumer buffer size and resize buffer of all existing
-    // consumers - currently cannot use >4Gib so cap to that
+    // consumers, producer stores connection_buffer_size in a uint32_t, so cap
+    // to UINT32_MAX
     const auto bucketQuota = engine.getEpStats().getMaxDataSize();
     const size_t bufferSize = std::min(
             size_t((dcpConsumerBufferRatio * bucketQuota) / numConsumers),
-            4_GiB);
+            size_t{std::numeric_limits<uint32_t>::max()});
     for (auto* c : consumers) {
         c->setFlowControlBufSize(bufferSize);
     }
