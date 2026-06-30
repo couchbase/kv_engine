@@ -12,6 +12,7 @@
 #pragma once
 
 #include "blob.h"
+#include "bucket_logger.h"
 #include "configuration.h"
 #include "encryption_key_provider.h"
 #include "ep_engine_public.h"
@@ -19,6 +20,7 @@
 #include "ep_types.h"
 #include "kvstore/kvstore_iface.h"
 #include "memory_tracker.h"
+#include "objectregistry.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "vbucket_fwd.h"
@@ -692,6 +694,13 @@ public:
      */
     template <typename T>
     std::optional<T> getEngineSpecific(CookieIface& cookie) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (ObjectRegistry::getCurrentEngine() != this) {
+            EP_LOG_CRITICAL_RAW(
+                    "getEngineSpecific Not called with engine context");
+            std::abort();
+        }
+#endif
         auto* es = cookie.getEngineStorage();
         if (!es) {
             return {};
@@ -707,6 +716,13 @@ public:
      */
     template <typename T>
     std::optional<T> takeEngineSpecific(CookieIface& cookie) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (ObjectRegistry::getCurrentEngine() != this) {
+            EP_LOG_CRITICAL_RAW(
+                    "takeEngineSpecific Not called with engine context");
+            std::abort();
+        }
+#endif
         auto es = cookie.takeEngineStorage();
         if (!es) {
             return {};
@@ -720,6 +736,14 @@ public:
     void storeEngineSpecific(CookieIface& cookie, T&& value) {
         // TODO: We should be able to assert that getCurrentEngine() == this
         // here, but that is not always true in many of our tests
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (ObjectRegistry::getCurrentEngine() != this) {
+            EP_LOG_CRITICAL_RAW(
+                    "storeEngineSpecific Not called with engine context");
+            std::abort();
+        }
+#endif
+
         cb::unique_engine_storage_ptr p(
                 new EPEngineStorage<std::decay_t<T>>(std::forward<T>(value)));
         cookie.setEngineStorage(std::move(p));
