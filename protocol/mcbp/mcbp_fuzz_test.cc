@@ -7,8 +7,9 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "auditd/src/audit_descriptor_manager.h"
 #include <auditd/couchbase_audit_events.h>
+#include <auditd/src/audit_descriptor_manager.h>
+#include <daemon/bucket_manager.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
@@ -40,6 +41,7 @@
 class FuzzConnection : public Connection {
 public:
     explicit FuzzConnection(FrontEndThread& thr) : Connection(thr) {
+        BucketManager::instance().associateInitialBucket(*this);
     }
 
     void copyToOutputStream(std::string_view data) override {
@@ -155,6 +157,7 @@ McbpFuzzTest::McbpFuzzTest() {
     Settings::instance().setXattrEnabled(true);
     cb::rbac::initialize();
     initialize_audit();
+    BucketManager::instance();
     const auto path = std::filesystem::path(SOURCE_ROOT) / "protocol" / "mcbp" /
                       "mcbp_fuzz_test_rbac.json";
     cb::rbac::loadPrivilegeDatabase(path.generic_string());
