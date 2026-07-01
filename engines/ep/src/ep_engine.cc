@@ -7207,9 +7207,9 @@ void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
             }
 
             uint64_t highSeqno{0};
-            auto handle = vb->lockCollections();
 
             if (cid) {
+                auto handle = vb->lockCollections();
                 // The collection may not exist in any given vBucket.
                 // Check this instead of throwing and catching an
                 // exception.
@@ -7232,6 +7232,7 @@ void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
                     continue;
                 }
             } else if (sid) {
+                auto handle = vb->lockCollections();
                 // Get all collections in the scope and find the highest seqno
                 auto collectionsInScope = handle.getCollectionsForScope(*sid);
                 if (!collectionsInScope) {
