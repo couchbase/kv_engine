@@ -1361,8 +1361,7 @@ TEST_P(STItemPagerTest, isEligible) {
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(*vb);
-    auto initialCount = Item::initialFreqCount;
-    EXPECT_NE(initialCount, strategy.getThresholds(100.0, 0.0).first);
+    EXPECT_GT(strategy.getThresholds(100.0, 0.0).first, 0u);
     EXPECT_NE(255, strategy.getThresholds(100.0, 0.0).first);
 }
 
