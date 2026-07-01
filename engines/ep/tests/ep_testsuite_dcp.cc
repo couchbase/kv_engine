@@ -5998,10 +5998,10 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
 
     /* Run compaction */
     compact_db(h, Vbid(0), 2, high_seqno, 1);
-    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
-    checkeq(static_cast<int>(high_seqno - 1),
-            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
-            "purge_seqno didn't match expected value");
+    wait_for_stat_to_be(h,
+                        "vb_0:purge_seqno",
+                        static_cast<int>(high_seqno - 1),
+                        "vbucket-seqno");
 
     wait_for_stat_to_be_gte(h, "ep_items_expelled_from_checkpoints", 2);
 
@@ -6077,10 +6077,10 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
 
     /* Run compaction */
     compact_db(h, Vbid(0), 2, high_seqno, 1);
-    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
-    checkeq(static_cast<int>(high_seqno - 1),
-            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
-            "purge_seqno didn't match expected value");
+    wait_for_stat_to_be(h,
+                        "vb_0:purge_seqno",
+                        static_cast<int>(high_seqno - 1),
+                        "vbucket-seqno");
 
     wait_for_stat_to_be_gte(h, "ep_items_expelled_from_checkpoints", 2);
 
