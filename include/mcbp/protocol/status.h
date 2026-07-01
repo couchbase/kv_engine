@@ -86,6 +86,10 @@ enum class Status : uint16_t {
     /// checksum
     ChecksumMismatch = 0x27,
 
+    /// The requested expiry overflows the 32-bit time representation
+    /// used on the wire (see cb::engine_errc::expiry_overflow)
+    ExpiryOverflow = 0x28,
+
     // Start error codes for rate limits. Reserve segment [0x30, 0x4f]
 
     /// The tenant exceeded network ingress limit

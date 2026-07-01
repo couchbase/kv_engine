@@ -110,6 +110,37 @@ TEST_F(McTimeLimitTest, would_overflow) {
               mc_time_limit_expiry_time(0, 9223372036854775807s));
 }
 
+// MB-67576: demonstrate the overflow condition that ep_convert_to_expiry_time()
+// must guard against. When the system clock approaches 2^32 seconds since the
+// unix epoch (~Feb 2106), converting even a modest relative expiry to an
+// absolute time exceeds the uint32_t that KV can store/replicate. This test
+// exercises the production conversion via the explicit-epoch overloads so no
+// real clock manipulation is needed.
+TEST(McTimeOverflowTest, absolute_expiry_exceeds_u32_near_2106) {
+    using namespace std::chrono;
+
+    // A system epoch 10s shy of 2^32 (uptime held at 0).
+    const auto epoch = system_clock::time_point(
+            seconds(std::numeric_limits<uint32_t>::max() - 10));
+    constexpr seconds uptime{0};
+
+    // A 100s relative expiry (< 30 days, so treated as relative).
+    const auto relative = mc_time_convert_to_real_time(100, epoch, uptime);
+    EXPECT_EQ(100, relative);
+
+    // The absolute time is a 64-bit time_t and here overflows uint32_t: it is
+    // (2^32 - 10) + 100 == 2^32 + 90. A silent narrowing cast to the 32-bit
+    // stored expiry would wrap this far-future time back to ~90s past the unix
+    // epoch (1970), i.e. the distant past, instantly deleting the item.
+    const auto absolute = mc_time_convert_to_abs_time(relative, epoch);
+    EXPECT_GT(absolute,
+              static_cast<time_t>(std::numeric_limits<uint32_t>::max()))
+            << "expected the absolute expiry to overflow the 32-bit stored "
+               "expiry near 2106";
+    EXPECT_EQ(static_cast<time_t>(std::numeric_limits<uint32_t>::max()) + 90,
+              absolute);
+}
+
 using namespace std::chrono;
 using namespace std::chrono_literals;
 

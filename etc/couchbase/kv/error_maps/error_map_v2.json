@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 7,
+    "revision": 8,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -188,6 +188,15 @@
             "desc": "The calculated checksum of data does not match the expected checksum",
             "attrs": [
                 "special-handling"
+            ]
+        },
+        "28": {
+            "name": "EXPIRY_OVERFLOW",
+            "desc": "The requested expiry overflows the 32-bit time representation used on the wire",
+            "attrs": [
+                "item-only",
+                "system-constraint",
+                "no-retry"
             ]
         },
         "30": {

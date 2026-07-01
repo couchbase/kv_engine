@@ -174,6 +174,10 @@ enum class engine_errc {
     /// checksum
     checksum_mismatch,
 
+    /// The requested expiry cannot be represented in the 32-bit time
+    /// format used on the wire / on-disk.
+    expiry_overflow,
+
     /// Generic failue
     failed
 };

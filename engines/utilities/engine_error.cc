@@ -137,6 +137,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "encryption key not available";
     case engine_errc::checksum_mismatch:
         return "checksum mismatch";
+    case engine_errc::expiry_overflow:
+        return "expiry overflow";
     }
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

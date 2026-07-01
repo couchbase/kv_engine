@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memcached/types.h>
+#include <cstdint>
 #include <ctime>
 
 struct ServerCoreIface;
@@ -45,6 +46,10 @@ extern uint32_t ep_limit_expiry_time(uint32_t t, std::chrono::seconds limit);
  * @param mcbpExpTime The MCBP expiry time.
  * @return The 32-bit expiry time that should be stored in the Item/StoredValue
  *         etc...
+ * @throws cb::engine_error with cb::engine_errc::expiry_overflow if the
+ *         computed absolute expiry does not fit in 32 bits (system clock
+ *         at/beyond ~Feb 2106) - the caller must fail the operation rather than
+ *         store a bogus expiry.
  */
 uint32_t ep_convert_to_expiry_time(uint32_t mcbpExpTime);
 

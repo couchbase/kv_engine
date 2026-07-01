@@ -2340,6 +2340,9 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
     }
 
     try {
+        // MB-67576: if the computed absolute expiry does not fit the 32-bit
+        // stored expiry, ep_convert_to_expiry_time throws; fail the command
+        // rather than create a bogus expiry.
         auto* item = new Item(key,
                               flags,
                               ep_convert_to_expiry_time(exptime),
@@ -2352,6 +2355,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         stats.itemAllocSizeHisto.addValue(nbytes);
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, item, this);
+    } catch (const cb::engine_error& e) {
+        return cb::makeEngineErrorItemPair(e.engine_code());
     } catch (const std::bad_alloc&) {
         return cb::makeEngineErrorItemPair(memoryCondition());
     }
@@ -2451,8 +2456,17 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         const DocKeyView& key,
         Vbid vbucket,
         uint32_t exptime) {
-    GetValue gv(kvBucket->getAndUpdateTtl(
-            key, vbucket, &cookie, ep_convert_to_expiry_time(exptime)));
+    // MB-67576: if the computed absolute expiry does not fit the 32-bit
+    // stored expiry, ep_convert_to_expiry_time throws; fail the command rather
+    // than create a bogus expiry.
+    uint32_t expiryTime;
+    try {
+        expiryTime = ep_convert_to_expiry_time(exptime);
+    } catch (const cb::engine_error& e) {
+        return cb::makeEngineErrorItemPair(e.engine_code());
+    }
+
+    GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, &cookie, expiryTime));
 
     auto rv = gv.getStatus();
     if (rv == cb::engine_errc::success) {
@@ -6649,11 +6663,20 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     auto datatype = uint8_t(req.getDatatype());
     auto mutate_type = payload.getMutationType();
     auto flags = payload.getFlags();
-    auto exp = ep_convert_to_expiry_time(payload.getExpiration());
+    uint32_t exp = 0;
     uint64_t seqno;
     cb::engine_errc ret;
     if (mutate_type == ReturnMetaType::Set ||
         mutate_type == ReturnMetaType::Add) {
+        // MB-67576: if the computed absolute expiry does not fit the 32-bit
+        // stored expiry, ep_convert_to_expiry_time throws; fail the command
+        // rather than create a bogus expiry.
+        try {
+            exp = ep_convert_to_expiry_time(payload.getExpiration());
+        } catch (const cb::engine_error& e) {
+            return e.engine_code();
+        }
+
         auto value = req.getValueString();
         datatype = checkForDatatypeJson(cookie, datatype, value);
 
