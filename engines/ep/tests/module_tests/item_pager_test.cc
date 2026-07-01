@@ -1023,6 +1023,12 @@ void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
         vb->updateFromManifest(
                 std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
+        // Flush the collection-drop system events to disk now, so that any
+        // KV-store (e.g. magma) memory they require is already reflected in
+        // the memUsed baseline below.  Without this, runHighMemoryPager()
+        // flushes them internally, allocating extra store memory *after* the
+        // baseline is captured and causing the subsequent EXPECT_LE to fail.
+        flushDirectlyIfPersistent(vbid);
     }
 
     auto memUsed = engine->getEpStats().getPreciseTotalMemoryUsed();
