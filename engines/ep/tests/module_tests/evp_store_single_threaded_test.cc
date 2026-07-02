@@ -230,6 +230,49 @@ void SingleThreadedKVBucketTest::loadVBucketFromLocalSnapshot(
     EXPECT_EQ(newState, vb->getState());
 }
 
+SingleThreadedKVBucketTest::PreservedSnapshot
+SingleThreadedKVBucketTest::preserveSnapshot(EventuallyPersistentEngine& engine,
+                                             Vbid vbid) {
+    auto& cache =
+            dynamic_cast<EPBucket&>(*engine.getKVBucket()).getSnapshotCache();
+    auto manifest = cache.lookup(vbid);
+    if (!manifest) {
+        return {};
+    }
+    // Snapshot lives at <db>/snapshots/<uuid>
+    const auto source = cache.make_absolute("x", manifest->uuid).parent_path();
+    // Place the backup outside the snapshots directory so it isn't picked up by
+    // processSnapshots.
+    const auto backup = source.parent_path().parent_path() /
+                        (manifest->uuid + ".snapshot_backup");
+    std::error_code ec;
+    std::filesystem::remove_all(backup, ec);
+    std::filesystem::copy(
+            source, backup, std::filesystem::copy_options::recursive, ec);
+    EXPECT_FALSE(ec) << "preserveSnapshot copy failed: " << ec.message();
+    return {nlohmann::json(*manifest), source, backup};
+}
+
+void SingleThreadedKVBucketTest::restoreSnapshot(
+        EventuallyPersistentEngine& engine,
+        const PreservedSnapshot& preserved) {
+    if (preserved.manifest.empty()) {
+        return;
+    }
+    std::error_code ec;
+    std::filesystem::copy(preserved.backup,
+                          preserved.source,
+                          std::filesystem::copy_options::recursive,
+                          ec);
+    EXPECT_FALSE(ec) << "restoreSnapshot copy failed: " << ec.message();
+    std::filesystem::remove_all(preserved.backup, ec);
+
+    // Re-register in the cache; deleteVBucket detached the in-memory entry.
+    dynamic_cast<EPBucket&>(*engine.getKVBucket())
+            .getSnapshotCache()
+            .insert(cb::snapshot::Manifest{preserved.manifest});
+}
+
 void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
         EventuallyPersistentEngine* ep) {
     ep->getEpStats().isShutdown = true;

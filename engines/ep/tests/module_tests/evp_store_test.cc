@@ -3297,11 +3297,13 @@ StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
     EXPECT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(
                       *cookie, id, [&manifest](auto& m) { manifest = m; }));
-    const auto uuid = manifest.at("uuid").get<std::string>();
-    const auto snap = std::filesystem::path(test_dbname) / "snapshots" / uuid;
-    std::string couchFile = std::to_string(id.get()) + ".couch.1";
-    // couchstore file is hardlinked and will be modified
-    std::filesystem::copy(snap / couchFile, snap / "vb.tmp");
+
+    // Preserve the snapshot so it survives the deleteVBucket below (which now
+    // removes the vbucket's snapshot). This synthesises a node that has
+    // received a snapshot (via download) but has no live vbucket. Captured now,
+    // before the store/flush that follows modifies the hard-linked snapshot
+    // file, so the snapshot keeps its point-in-time contents.
+    auto preserved = preserveSnapshot(*engine, id);
 
     if (topology.empty()) {
         // Don't store again if prepare, will fail for sync write in progress
@@ -3319,8 +3321,7 @@ StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
         runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
     }
 
-    std::filesystem::remove(snap / couchFile);
-    std::filesystem::rename(snap / "vb.tmp", snap / couchFile);
+    restoreSnapshot(*engine, preserved);
     return docKey;
 }
 

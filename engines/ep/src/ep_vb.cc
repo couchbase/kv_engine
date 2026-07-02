@@ -962,12 +962,25 @@ uint64_t EPVBucket::getPersistedHighPreparedSeqno() const {
 
 void EPVBucket::setupDeferredDeletion(CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
-    auto revision = getShard()->getRWUnderlying()->prepareToDelete(getId());
-    EP_LOG_INFO("EPVBucket::setupDeferredDeletion({}) {}, revision:{}",
-                static_cast<const void*>(cookie),
-                getId(),
-                revision->getRevision());
-    deferredDeletionFileRevision = std::move(revision);
+    deferredDeletionFileRevision =
+            getShard()->getRWUnderlying()->prepareToDelete(getId());
+
+    // Ensure any snapshot for this vbucket is removed as part of deletion, so
+    // that a subsequent create of the same vbucket doesn't observe the stale
+    // snapshot. Detach the snapshot from the cache and save the uuid (which
+    // maybe nullopt if no snapshot was present).
+    auto& epBucket = dynamic_cast<EPBucket&>(*bucket);
+    deferredDeletionSnapshotUuid = epBucket.getSnapshotCache().detach(getId());
+
+    EP_LOG_INFO_CTX(
+            "EPVBucket::setupDeferredDeletion",
+            {"vb", getId()},
+            {"conn_id",
+             cookie ? fmt::format("{}", cookie->getConnectionId()) : "none"},
+            {"cookie", fmt::format("{}", static_cast<void*>(cookie))},
+            {"revision", deferredDeletionFileRevision->getRevision()},
+            {"snapshot_uuid", deferredDeletionSnapshotUuid.value_or("none")});
+
     setDeferredDeletion(true);
 }
 
@@ -1314,6 +1327,12 @@ void EPVBucket::clearCMAndResetDiskQueueStats(uint64_t seqno) {
 
 std::unique_ptr<KVStoreRevision> EPVBucket::takeDeferredDeletionFileRevision() {
     return std::move(deferredDeletionFileRevision);
+}
+
+std::optional<std::string> EPVBucket::takeDeferredDeletionSnapshotUuid() {
+    auto uuid = std::move(deferredDeletionSnapshotUuid);
+    deferredDeletionSnapshotUuid.reset();
+    return uuid;
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(

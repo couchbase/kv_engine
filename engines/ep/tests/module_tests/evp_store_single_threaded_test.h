@@ -26,6 +26,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json.hpp>
+#include <filesystem>
 #include <stdexcept>
 
 class CollectionsManifest;
@@ -336,6 +337,38 @@ protected:
                                       vbucket_state_t newState,
                                       const nlohmann::json& meta = {
                                               {"use_snapshot", "fbr"}});
+
+    /**
+     * A snapshot backed up by preserveSnapshot so it can be restored after a
+     * deleteVBucket (which removes the vbucket's snapshot).
+     */
+    struct PreservedSnapshot {
+        nlohmann::json manifest; ///< empty if no snapshot was present
+        std::filesystem::path
+                source; ///< live snapshot dir (<db>/snapshots/uuid)
+        std::filesystem::path backup; ///< backup copy location
+    };
+
+    /**
+     * Copy the current snapshot for vbid to a backup location so it can survive
+     * a subsequent deleteVBucket. Some tests synthesise the "snapshot present
+     * on a node with no vbucket" state (as produced by a snapshot download on a
+     * real destination node) by preparing/transferring a snapshot and then
+     * deleting the vbucket on the same node; deleteVBucket removes the
+     * snapshot, so it must be preserved and restored around the delete.
+     *
+     * Call before any activity that would modify the (hard-linked) snapshot
+     * files, so the backup captures the point-in-time contents.
+     */
+    PreservedSnapshot preserveSnapshot(EventuallyPersistentEngine& engine,
+                                       Vbid vbid);
+
+    /**
+     * Restore a snapshot previously captured by preserveSnapshot, both on disk
+     * and in the snapshot cache. No-op if nothing was preserved.
+     */
+    void restoreSnapshot(EventuallyPersistentEngine& engine,
+                         const PreservedSnapshot& preserved);
 
     void cancelAndPurgeTasks();
 

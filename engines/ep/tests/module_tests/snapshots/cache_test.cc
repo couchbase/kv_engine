@@ -100,3 +100,49 @@ TEST_F(CacheTest, ReleaseByUuid) {
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
     EXPECT_EQ(std::nullopt, cache.lookup(manifest.uuid));
 }
+
+TEST_F(CacheTest, Detach) {
+    auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
+        return doCreateSnapshot(directory, vb);
+    });
+    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
+
+    // detach removes the in-memory entry and returns the uuid, but leaves the
+    // files on disk.
+    auto uuid = cache.detach(Vbid{1});
+    ASSERT_TRUE(uuid.has_value());
+    EXPECT_EQ(manifest.uuid, *uuid);
+    EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
+
+    // No longer looked up by vb or uuid.
+    EXPECT_EQ(std::nullopt, cache.lookup(Vbid{1}));
+    EXPECT_EQ(std::nullopt, cache.lookup(manifest.uuid));
+
+    // A second detach for the same vb finds nothing.
+    EXPECT_EQ(std::nullopt, cache.detach(Vbid{1}));
+}
+
+TEST_F(CacheTest, DetachNoSnapshot) {
+    EXPECT_EQ(std::nullopt, cache.detach(Vbid{7}));
+}
+
+TEST_F(CacheTest, RemoveFromDisk) {
+    auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
+        return doCreateSnapshot(directory, vb);
+    });
+    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+
+    auto uuid = cache.detach(Vbid{1});
+    ASSERT_TRUE(uuid.has_value());
+    EXPECT_TRUE(exists(test_dir / "snapshots" / *uuid));
+
+    // removeFromDisk deletes the files for the (already detached) uuid.
+    EXPECT_EQ(cb::engine_errc::success, cache.removeFromDisk(*uuid));
+    EXPECT_FALSE(exists(test_dir / "snapshots" / *uuid));
+
+    // A uuid with nothing on disk reports failure (nothing removed), matching
+    // the existing Cache::remove contract.
+    EXPECT_EQ(cb::engine_errc::failed,
+              cache.removeFromDisk(::to_string(cb::uuid::random())));
+}

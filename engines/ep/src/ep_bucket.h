@@ -468,6 +468,11 @@ public:
             CookieIface& cookie,
             std::variant<Vbid, std::string_view> snapshotToRelease) override;
 
+    /// @return the snapshot cache owned by this bucket
+    cb::snapshot::Cache& getSnapshotCache() {
+        return snapshotCache;
+    }
+
     cb::engine_errc initialiseSnapshots();
 
     cb::engine_errc doSnapshotDebugStats(const StatCollector&,

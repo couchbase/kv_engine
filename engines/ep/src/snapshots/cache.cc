@@ -91,6 +91,23 @@ cb::engine_errc Cache::release(Vbid vbid) {
     });
 }
 
+std::optional<std::string> Cache::detach(Vbid vbid) {
+    return snapshots.withLock([vbid](auto& map) -> std::optional<std::string> {
+        for (const auto& [uuid, entry] : map) {
+            if (entry.manifest.vbid == vbid) {
+                auto victim = entry.manifest.uuid;
+                map.erase(victim);
+                return victim;
+            }
+        }
+        return std::nullopt;
+    });
+}
+
+cb::engine_errc Cache::removeFromDisk(std::string_view uuid) {
+    return remove(uuid);
+}
+
 void Cache::purge(std::chrono::seconds age) {
     snapshots.withLock([&age, this, time = time()](auto& map) {
         const auto limit = time - age;

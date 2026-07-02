@@ -10,10 +10,13 @@
  */
 
 #include "vbucketdeletiontask.h"
+#include "bucket_logger.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
 #include "kvshard.h"
 #include "kvstore/kvstore.h"
+#include "snapshots/cache.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/histogram.h>
@@ -82,7 +85,8 @@ VBucketMemoryAndDiskDeletionTask::VBucketMemoryAndDiskDeletionTask(
                                 static_cast<VBucket*>(vb),
                                 TaskId::VBucketMemoryAndDiskDeletionTask),
       shard(shard),
-      vbDeleteRevision(vb->takeDeferredDeletionFileRevision()) {
+      vbDeleteRevision(vb->takeDeferredDeletionFileRevision()),
+      snapshotUuid(vb->takeDeferredDeletionSnapshotUuid()) {
     description += " and disk";
 }
 
@@ -96,6 +100,23 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
     auto start = cb::time::steady_clock::now();
     shard.getRWUnderlying()->delVBucket(vbucket->getId(),
                                         std::move(vbDeleteRevision));
+
+    // Remove any snapshot that was detached from the cache as part of this
+    // vbucket's deletion (best-effort; the in-memory entry is already gone).
+    if (snapshotUuid) {
+        auto status = dynamic_cast<EPBucket&>(*engine->getKVBucket())
+                              .getSnapshotCache()
+                              .removeFromDisk(*snapshotUuid);
+        if (status != cb::engine_errc::success) {
+            EP_LOG_WARN_CTX(
+                    "VBucketMemoryAndDiskDeletionTask failed to remove "
+                    "snapshot",
+                    {"vb", vbucket->getId()},
+                    {"uuid", *snapshotUuid},
+                    {"status", status});
+        }
+    }
+
     auto elapsed = cb::time::steady_clock::now() - start;
     auto wallTime =
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed);

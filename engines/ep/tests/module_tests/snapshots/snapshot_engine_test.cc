@@ -273,6 +273,84 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
                       }));
 }
 
+TEST_P(SnapshotEngineTest, delete_vbucket_removes_snapshot) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    nlohmann::json manifest;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+    const std::string uuid = manifest["uuid"];
+
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
+    const auto& cache = mockEPBucket.public_getSnapshotCache();
+    const auto snapshotPath =
+            std::filesystem::path{test_dbname} / "snapshots" / uuid;
+
+    ASSERT_TRUE(cache.lookup(vbid));
+    ASSERT_TRUE(exists(snapshotPath));
+
+    // Delete the vbucket (sync path, no cookie).
+    ASSERT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid, nullptr));
+
+    // The in-memory snapshot entry is removed synchronously as part of
+    // deletion, closing the stale-lookup race before the deferred task runs.
+    EXPECT_FALSE(cache.lookup(vbid));
+    EXPECT_FALSE(cache.lookup(uuid));
+    // Files remain until the deferred deletion task runs.
+    EXPECT_TRUE(exists(snapshotPath));
+
+    // Run the deferred deletion task; it removes the vbucket disk files and the
+    // snapshot directory.
+    runNextTask(TaskType::AuxIO, "Removing (dead) vb:0 from memory and disk");
+    EXPECT_FALSE(exists(snapshotPath));
+
+    // Recreating the vbucket and preparing again yields a fresh snapshot with a
+    // new uuid (no stale reuse of the old snapshot).
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    nlohmann::json manifest2;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest2](auto& m) { manifest2 = m; }));
+    EXPECT_NE(uuid, manifest2["uuid"].get<std::string>());
+}
+
+TEST_P(SnapshotEngineTest, delete_vbucket_sync_removes_snapshot) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    nlohmann::json manifest;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+    const std::string uuid = manifest["uuid"];
+
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
+    const auto& cache = mockEPBucket.public_getSnapshotCache();
+    const auto snapshotPath =
+            std::filesystem::path{test_dbname} / "snapshots" / uuid;
+    ASSERT_TRUE(exists(snapshotPath));
+
+    // Delete via the engine sync=true path. The first call returns would_block
+    // (having synchronously set up deferred deletion, including detaching the
+    // snapshot), then completes once the deferred deletion task has run.
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = engine->deleteVBucket(*cookie, vbid, true);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        // The snapshot is detached from the cache synchronously as part of the
+        // (would_block) delete, before the deferred task runs.
+        EXPECT_FALSE(cache.lookup(vbid));
+        EXPECT_TRUE(exists(snapshotPath));
+        runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
+    }
+
+    EXPECT_FALSE(cache.lookup(vbid));
+    EXPECT_FALSE(exists(snapshotPath));
+}
+
 static std::string PrintToStringParamName(
         const ::testing::TestParamInfo<SnapshotEngineTest::ParamType>& info) {
     if (std::get<0>(info.param)) {

@@ -13,6 +13,9 @@
 
 #include "ep_task.h"
 
+#include <optional>
+#include <string>
+
 class EPVBucket;
 class KVStoreRevision;
 class KVShard;
@@ -89,4 +92,7 @@ public:
 protected:
     KVShard& shard;
     std::unique_ptr<KVStoreRevision> vbDeleteRevision;
+    /// The uuid of the snapshot (if any) whose files must be removed from disk
+    /// as part of this vbucket's deletion.
+    std::optional<std::string> snapshotUuid;
 };

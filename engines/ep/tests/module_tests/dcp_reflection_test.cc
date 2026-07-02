@@ -3160,6 +3160,11 @@ TEST_P(DCPCacheTransferNoNexus, commit_prepare_same_key) {
 
     transferSnapshot(Node0, Node1, manifest["uuid"].get<std::string>());
 
+    // Preserve the transferred snapshot so it survives the deleteVBucket below
+    // (which removes the vbucket's snapshot). This synthesises Node1 having
+    // received the snapshot with no live vbucket of its own.
+    auto preserved = preserveSnapshot(*engines[Node1], vbid);
+
     auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     for (;;) {
         const auto ret = engines[Node1]->deleteVBucket(*cookie, vbid, true);
@@ -3169,6 +3174,8 @@ TEST_P(DCPCacheTransferNoNexus, commit_prepare_same_key) {
         }
         runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
     }
+
+    restoreSnapshot(*engines[Node1], preserved);
 
     loadVBucketFromLocalSnapshot(*engines[Node1], vbid, vbucket_state_replica);
 

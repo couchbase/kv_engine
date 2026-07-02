@@ -138,6 +138,27 @@ public:
      */
     cb::engine_errc release(Vbid vbid);
 
+    /**
+     * Detach a snapshot for the VB from the in-memory cache without touching
+     * disk. This is used by the vbucket deletion path to synchronously stop
+     * any further lookups from returning the (soon to be stale) snapshot,
+     * whilst deferring the (disk) removal to a background task.
+     *
+     * @param vbid of snapshot to detach
+     * @return the uuid of the detached snapshot, or nullopt if none existed
+     */
+    std::optional<std::string> detach(Vbid vbid);
+
+    /**
+     * Remove a snapshot's files from disk by uuid. This is the disk-only
+     * counterpart to detach and is intended to be called from a background
+     * task after the in-memory entry has already been removed.
+     *
+     * @param uuid of the snapshot to remove from disk
+     * @return success if removed, failed if remove_all(path) failed.
+     */
+    cb::engine_errc removeFromDisk(std::string_view uuid);
+
     /// Remove all snapshots older than the provided age
     void purge(std::chrono::seconds age);
 

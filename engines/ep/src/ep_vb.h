@@ -15,6 +15,9 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
+#include <optional>
+#include <string>
+
 class BgFetcher;
 class EPBucket;
 class EventDrivenTimeoutTask;
@@ -177,6 +180,15 @@ public:
      * @return the file revision to be unlinked by the deferred deletion task
      */
     std::unique_ptr<KVStoreRevision> takeDeferredDeletionFileRevision();
+
+    /**
+     * Should only be called by the deletion task which ensures that all other
+     * references to this object are out of scope.
+     *
+     * @return the uuid of the snapshot (if any) to be removed from disk by the
+     *         deferred deletion task
+     */
+    std::optional<std::string> takeDeferredDeletionSnapshotUuid();
 
     /**
      * Schedule a VBucketMemoryAndDiskDeletionTask to delete this object.
@@ -546,6 +558,13 @@ private:
      * file revision we will unlink from disk.
      */
     std::unique_ptr<KVStoreRevision> deferredDeletionFileRevision;
+
+    /**
+     * When deferred deletion is enabled for this object we store the uuid of
+     * the snapshot (if any) that was detached from the snapshot cache so that
+     * the deletion task can remove its files from disk.
+     */
+    std::optional<std::string> deferredDeletionSnapshotUuid;
 
     /**
      * All of this VBucket's RangeScan objects are owned by this member
