@@ -38,7 +38,11 @@ class unsigned_leb128<
         typename std::enable_if<std::is_unsigned<T>::value>::type> {
 public:
     explicit unsigned_leb128(T in) {
-        while (in > 0) {
+        // Use do-while so encodedData[0] is always explicitly written,
+        // preventing false -Wmaybe-uninitialized warnings from GCC when
+        // the compiler inlines begin()/end() and loses track of the
+        // zero-initialization from the encodedData{} member initializer.
+        do {
             auto byte = gsl::narrow_cast<uint8_t>(in & 0x7full);
             in >>= 7;
 
@@ -51,7 +55,7 @@ public:
             } else {
                 encodedData[encodedSize - 1] = byte;
             }
-        }
+        } while (in > 0);
     }
 
     cb::const_byte_buffer get() const {
