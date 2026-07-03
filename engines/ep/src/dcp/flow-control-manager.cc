@@ -33,11 +33,19 @@ void DcpFlowControlManager::updateConsumersBufferSize(
 
     // Compute new per-consumer buffer size and resize buffer of all existing
     // consumers, producer stores connection_buffer_size in a uint32_t, so cap
-    // to UINT32_MAX
-    const auto bucketQuota = engine.getEpStats().getMaxDataSize();
-    const size_t bufferSize = std::min(
-            size_t((dcpConsumerBufferRatio * bucketQuota) / numConsumers),
-            size_t{std::numeric_limits<uint32_t>::max()});
+    // to UINT32_MAX.
+    // If an absolute override is configured (non-zero), use it directly and
+    // bypass the ratio/BucketQuota/numConsumers computation. The override is
+    // range-validated to [0, UINT32_MAX] by configuration.
+    const auto bufferSizeOverride =
+            engine.getConfiguration().getDcpFlowControlBufferSize();
+    const size_t bufferSize =
+            bufferSizeOverride != 0
+                    ? bufferSizeOverride
+                    : std::min(size_t((dcpConsumerBufferRatio *
+                                       engine.getEpStats().getMaxDataSize()) /
+                                      numConsumers),
+                               size_t{std::numeric_limits<uint32_t>::max()});
     for (auto* c : consumers) {
         c->setFlowControlBufSize(bufferSize);
     }
@@ -72,6 +80,10 @@ void DcpFlowControlManager::setDcpConsumerBufferRatio(float ratio) {
 
 float DcpFlowControlManager::getDcpConsumerBufferRatio() const {
     return dcpConsumerBufferRatio;
+}
+
+void DcpFlowControlManager::updateConsumersBufferSize() {
+    updateConsumersBufferSize(*consumers.wlock());
 }
 
 size_t DcpFlowControlManager::getNumConsumers() const {

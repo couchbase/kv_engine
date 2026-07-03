@@ -43,6 +43,13 @@ public:
 
     float getDcpConsumerBufferRatio() const;
 
+    /**
+     * Recompute and apply the flow control buffer size for all tracked
+     * consumers. Called when a configuration value that affects the buffer size
+     * (e.g. dcp_flow_control_buffer_size) is changed dynamically.
+     */
+    void updateConsumersBufferSize();
+
     size_t getNumConsumers() const;
 
 protected:

@@ -158,6 +158,7 @@ static const std::unordered_set<std::string_view> dcpParamSet{
         "dcp_active_stream_inline_checkpoint_item_limit",
         "dcp_backfill_in_progress_per_connection_limit",
         "dcp_consumer_buffer_ratio",
+        "dcp_flow_control_buffer_size",
         "connection_manager_interval",
         "connection_cleanup_interval",
         "dcp_enable_noop",

@@ -1152,6 +1152,13 @@ public:
     float getDcpConsumerBufferRatio() const;
 
     /**
+     * Recompute DCP consumer flow control buffer sizes, picking up the current
+     * dcp_flow_control_buffer_size configuration value. Called when that value
+     * is changed dynamically.
+     */
+    void updateDcpFlowControlBufferSize();
+
+    /**
      * Returns the quota sharing manager.
      */
     virtual QuotaSharingManager& getQuotaSharingManager();

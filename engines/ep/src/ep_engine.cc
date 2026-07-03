@@ -1839,6 +1839,8 @@ void EpEngineValueChangeListener::sizeValueChanged(std::string_view key,
         engine.setDcpBackfillByteLimit(value);
     } else if (key == "dcp_active_stream_inline_checkpoint_item_limit") {
         engine.setDcpActiveStreamInlineCheckpointItemLimit(value);
+    } else if (key == "dcp_flow_control_buffer_size") {
+        engine.updateDcpFlowControlBufferSize();
     }
 }
 
@@ -2197,6 +2199,10 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
 
     configuration.addValueChangedListener(
             "dcp_consumer_buffer_ratio",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    configuration.addValueChangedListener(
+            "dcp_flow_control_buffer_size",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     configuration.addValueChangedListener(
@@ -7877,6 +7883,12 @@ float EventuallyPersistentEngine::getDcpConsumerBufferRatio() const {
         return 0;
     }
     return dcpFlowControlManager->getDcpConsumerBufferRatio();
+}
+
+void EventuallyPersistentEngine::updateDcpFlowControlBufferSize() {
+    if (dcpFlowControlManager) {
+        dcpFlowControlManager->updateConsumersBufferSize();
+    }
 }
 
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
