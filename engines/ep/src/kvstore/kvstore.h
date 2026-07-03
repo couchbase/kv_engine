@@ -1057,8 +1057,14 @@ public:
     cb::engine_errc processSnapshots(const std::filesystem::path& path,
                                      cb::snapshot::Cache& cache) const override;
 
-    static cb::engine_errc processSnapshot(const std::filesystem::path& path,
-                                           cb::snapshot::Cache& cache);
+    /**
+     * Validate the snapshot in the given directory. On success returns the
+     * manifest (which may describe an Incomplete snapshot). On failure (missing
+     * or invalid manifest, checksum mismatch) removes the directory and returns
+     * nullopt.
+     */
+    static std::optional<cb::snapshot::Manifest> validateSnapshot(
+            const std::filesystem::path& path);
     static std::variant<cb::engine_errc, cb::snapshot::Manifest>
     getValidatedManifest(const std::filesystem::path& path);
 

@@ -886,9 +886,20 @@ cb::engine_errc KVStore::processSnapshots(const std::filesystem::path& path,
     }
 
     std::error_code ec;
+    // First pass: validate each candidate snapshot directory (removing any that
+    // are invalid) and group the survivors by the vbucket they describe.
+    std::unordered_map<Vbid,
+                       std::vector<std::pair<std::filesystem::path,
+                                             cb::snapshot::Manifest>>>
+            vbucketSnapshots;
     for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
         if (is_directory(entry.path(), ec)) {
-            processSnapshot(entry.path(), cache);
+            auto manifest = validateSnapshot(entry.path());
+            if (manifest) {
+                const auto vbid = manifest->vbid;
+                vbucketSnapshots[vbid].emplace_back(entry.path(),
+                                                    std::move(*manifest));
+            }
         } else {
             EP_LOG_WARN_CTX("processSnapshots path is not directory",
                             {"path", path},
@@ -903,6 +914,41 @@ cb::engine_errc KVStore::processSnapshots(const std::filesystem::path& path,
         }
     }
 
+    // Second pass: insert the snapshot into the cache, but only if the vbucket
+    // has exactly one snapshot on disk. If more than one is found we cannot
+    // know which is correct (e.g. a deleteVBucket cleanup task did not complete
+    // before a restart), so we discard them all and return to the no-snapshot
+    // state for that vbucket.
+    for (auto& [vbid, entries] : vbucketSnapshots) {
+        if (entries.size() > 1) {
+            EP_LOG_WARN_CTX(
+                    "processSnapshots found multiple snapshots for vbucket; "
+                    "removing all",
+                    {"vb", vbid},
+                    {"count", entries.size()});
+            for (const auto& [snapshotPath, manifest] : entries) {
+                remove_all(snapshotPath, ec);
+                if (ec) {
+                    EP_LOG_WARN_CTX(
+                            "processSnapshots failed remove_all of duplicate "
+                            "snapshot",
+                            {"vb", vbid},
+                            {"path", snapshotPath},
+                            {"error", ec.message()});
+                }
+            }
+            continue;
+        }
+
+        auto& [snapshotPath, manifest] = entries.front();
+        if (!cache.insert(std::move(manifest))) {
+            EP_LOG_WARN_CTX("processSnapshots failed cache.insert",
+                            {"vb", vbid},
+                            {"path", snapshotPath});
+            remove_all(snapshotPath, ec);
+        }
+    }
+
     if (ec) {
         EP_LOG_WARN_CTX("processSnapshots failed directory_iterator",
                         {"path", path},
@@ -913,45 +959,35 @@ cb::engine_errc KVStore::processSnapshots(const std::filesystem::path& path,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc KVStore::processSnapshot(const std::filesystem::path& path,
-                                         cb::snapshot::Cache& cache) {
+std::optional<cb::snapshot::Manifest> KVStore::validateSnapshot(
+        const std::filesystem::path& path) {
     auto removeSnapshot = folly::makeGuard([path]() {
         std::error_code ec;
         remove_all(path, ec);
         if (ec) {
-            EP_LOG_WARN_CTX("processSnapshot failed remove_all",
+            EP_LOG_WARN_CTX("validateSnapshot failed remove_all",
                             {"path", path},
                             {"error", ec.message()});
         } else {
-            EP_LOG_WARN_CTX("processSnapshot removed an invalid snapshot",
+            EP_LOG_WARN_CTX("validateSnapshot removed an invalid snapshot",
                             {"path", path});
         }
     });
 
     if (exists(path / "manifest.json")) {
-        std::variant<cb::engine_errc, cb::snapshot::Manifest> m;
         try {
-            m = getValidatedManifest(path);
-            if (std::holds_alternative<cb::engine_errc>(m)) {
-                return std::get<cb::engine_errc>(m);
+            auto m = getValidatedManifest(path);
+            if (std::holds_alternative<cb::snapshot::Manifest>(m)) {
+                removeSnapshot.dismiss();
+                return std::get<cb::snapshot::Manifest>(m);
             }
         } catch (const std::exception& e) {
-            EP_LOG_WARN_CTX("processSnapshot failed getValidatedManifest",
+            EP_LOG_WARN_CTX("validateSnapshot failed getValidatedManifest",
                             {"path", path},
                             {"error", e.what()});
-            return cb::engine_errc::failed;
         }
-
-        // attempt to push to cache
-        if (cache.insert(std::get<cb::snapshot::Manifest>(m))) {
-            removeSnapshot.dismiss();
-            return cb::engine_errc::success;
-        }
-        EP_LOG_WARN_CTX("processSnapshot failed cache.insert",
-                        {"uuid", std::get<cb::snapshot::Manifest>(m).uuid},
-                        {"path", path});
     }
-    return cb::engine_errc::failed;
+    return std::nullopt;
 }
 
 // Snapshots can be partial if download is interrupted. This function will

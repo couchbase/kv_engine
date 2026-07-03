@@ -98,6 +98,50 @@ TEST_P(SnapshotsTests, purge) {
     EXPECT_TRUE(cache.lookup(Vbid(1)));
 }
 
+TEST_P(SnapshotsTests, processSnapshotsInsertsSingle) {
+    const auto dir = snapshotdir / "snapshots";
+    create_directories(dir);
+    auto s1 = doPrepareSnapshot(dir, vbid, true);
+    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s1));
+    const auto uuid1 = std::get<cb::snapshot::Manifest>(s1).uuid;
+    ASSERT_TRUE(exists(dir / uuid1));
+
+    EXPECT_EQ(cb::engine_errc::success, kvstore->processSnapshots(dir, cache));
+
+    // The single snapshot is loaded into the cache and kept on disk.
+    auto m = cache.lookup(vbid);
+    ASSERT_TRUE(m);
+    EXPECT_EQ(uuid1, m->uuid);
+    EXPECT_TRUE(exists(dir / uuid1));
+}
+
+TEST_P(SnapshotsTests, processSnapshotsRemovesDuplicates) {
+    // Create two snapshots for the same vbucket on disk (bypassing the cache's
+    // one-per-vbucket dedup). This simulates an orphaned snapshot left behind
+    // by a deleteVBucket cleanup task that never ran, plus a freshly prepared
+    // one for the recreated vbucket. On restart we cannot know which is
+    // correct, so processSnapshots must discard both and return to the
+    // no-snapshot state.
+    const auto dir = snapshotdir / "snapshots";
+    create_directories(dir);
+    auto s1 = doPrepareSnapshot(dir, vbid, true);
+    auto s2 = doPrepareSnapshot(dir, vbid, true);
+    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s1));
+    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s2));
+    const auto uuid1 = std::get<cb::snapshot::Manifest>(s1).uuid;
+    const auto uuid2 = std::get<cb::snapshot::Manifest>(s2).uuid;
+    ASSERT_NE(uuid1, uuid2);
+    ASSERT_TRUE(exists(dir / uuid1));
+    ASSERT_TRUE(exists(dir / uuid2));
+
+    EXPECT_EQ(cb::engine_errc::success, kvstore->processSnapshots(dir, cache));
+
+    // Both snapshots removed from disk and nothing registered for the vbucket.
+    EXPECT_FALSE(cache.lookup(vbid));
+    EXPECT_FALSE(exists(dir / uuid1));
+    EXPECT_FALSE(exists(dir / uuid2));
+}
+
 /* NOLINTNEXTLINE(modernize-avoid-c-arrays) */
 #ifdef EP_USE_MAGMA
 #define TEST_VALUES ::testing::Values("couchdb", "magma")
