@@ -278,6 +278,9 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
 
             auto& kvBucket = *engine->getKVBucket();
             auto filter = createVBucketFilter(kvBucket, statesToEvictFrom);
+            if (!filter) {
+                continue;
+            }
             // Distribute the buckets so we have the required number of
             // visitors per bucket, each visitor scheduled as part of a
             // different CrossBucketVisitorAdapter.
