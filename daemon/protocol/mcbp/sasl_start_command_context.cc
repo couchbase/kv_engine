@@ -42,34 +42,36 @@ cb::engine_errc SaslStartCommandContext::initial() {
 
     state = State::HandleSaslAuthTaskResult;
 
-    ExecutorPool::get()->schedule(std::make_shared<
-                                  OneShotLimitedConcurrencyTask>(
-            TaskId::Core_SaslStartTask,
-            "SASL Start",
-            [this]() {
-                doSaslStart();
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_SaslStartTask,
+                    "SASL Start",
+                    [this]() {
+                        doSaslStart();
 
-                // If the user doesn't exist locally, we may try the external
-                // AUTH service
-                if (error == cb::sasl::Error::NO_USER &&
-                    Settings::instance().isExternalAuthServiceEnabled()) {
-                    connection.getSaslServerContext()->setDomain(
-                            cb::sasl::Domain::External);
-                    task = std::make_shared<SaslAuthTask>(
-                            cookie,
-                            *connection.getSaslServerContext(),
-                            mechanism,
-                            challenge);
-                    externalAuthManager->enqueueRequest(*task);
-                    externalAuthStartTime = std::chrono::steady_clock::now();
-                    return;
-                }
+                        // If the user doesn't exist locally, we may try the
+                        // external AUTH service
+                        if (error == cb::sasl::Error::NO_USER &&
+                            Settings::instance()
+                                    .isExternalAuthServiceEnabled()) {
+                            connection.getSaslServerContext()->setDomain(
+                                    cb::sasl::Domain::External);
+                            task = std::make_shared<SaslAuthTask>(
+                                    cookie,
+                                    *connection.getSaslServerContext(),
+                                    mechanism,
+                                    challenge);
+                            externalAuthStartTime =
+                                    std::chrono::steady_clock::now();
+                            externalAuthManager->enqueueRequest(*task);
+                            return;
+                        }
 
-                // We need to notify with success here to avoid having the
-                // framework report the error
-                cookie.notifyIoComplete(cb::engine_errc::success);
-            },
-            ConcurrencySemaphores::instance().authentication));
+                        // We need to notify with success here to avoid having
+                        // the framework report the error
+                        cookie.notifyIoComplete(cb::engine_errc::success);
+                    },
+                    ConcurrencySemaphores::instance().authentication));
 
     return cb::engine_errc::would_block;
 }
