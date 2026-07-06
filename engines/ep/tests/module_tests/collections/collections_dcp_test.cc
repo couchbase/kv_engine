@@ -31,21 +31,30 @@
 
 #include <utilities/test_manifest.h>
 
-CollectionsDcpTest::CollectionsDcpTest()
-    : cookieC(create_mock_cookie(engine.get())),
-      cookieP(create_mock_cookie(engine.get())) {
-    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(true);
-    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(true);
-    replicaVB = Vbid(1);
-}
-
 // Setup a producer/consumer ready for the test
 void CollectionsDcpTest::SetUp() {
     SingleThreadedKVBucketTest::SetUp();
     internalSetUp();
 }
 
+void CollectionsDcpTest::createCookies() {
+    if (cookieC) {
+        destroy_mock_cookie(cookieC);
+        cookieC = nullptr;
+    }
+    if (cookieP) {
+        destroy_mock_cookie(cookieP);
+        cookieP = nullptr;
+    }
+    cookieC = create_mock_cookie(engine.get());
+    cookieP = create_mock_cookie(engine.get());
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(true);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(true);
+}
+
 void CollectionsDcpTest::internalSetUp() {
+    createCookies();
+
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active);
     producers = std::make_unique<CollectionsDcpTestProducers>();
@@ -247,6 +256,8 @@ void CollectionsDcpTest::teardown() {
     mockConnMap.removeConn(cookieP);
     destroy_mock_cookie(cookieC);
     destroy_mock_cookie(cookieP);
+    cookieC = nullptr;
+    cookieP = nullptr;
     producer.reset();
     consumer.reset();
 }

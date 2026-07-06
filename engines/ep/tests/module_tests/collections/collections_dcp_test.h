@@ -25,12 +25,12 @@ class MockDcpProducer;
 
 class CollectionsDcpTest : virtual public SingleThreadedKVBucketTest {
 public:
-    CollectionsDcpTest();
-
     // Setup a producer/consumer ready for the test
     void SetUp() override;
 
     void internalSetUp();
+
+    void createCookies();
 
     /**
      * Moves the helperCursor to the end of the CheckpointList.
@@ -152,12 +152,12 @@ public:
     static std::string makeStreamRequestValue(
             std::initializer_list<CollectionID> collections);
 
-    CookieIface* cookieC;
-    CookieIface* cookieP;
+    CookieIface* cookieC = nullptr;
+    CookieIface* cookieP = nullptr;
     std::unique_ptr<CollectionsDcpTestProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;
-    Vbid replicaVB;
+    Vbid replicaVB = Vbid(1);
     bool syncReplication = false;
 
     // Most tests in this testsuite setup in-memory DCP streams and assume that

@@ -41,6 +41,8 @@ public:
     // Create producer without any streams.
     void SetUp() override {
         STParameterizedBucketTest::SetUp();
+        createCookies();
+
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
         producers = std::make_unique<CollectionsDcpTestProducers>();
