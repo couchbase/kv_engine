@@ -3289,7 +3289,7 @@ cb::engine_errc EPBucket::releaseSnapshot(
 cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector,
                                                std::string_view input) {
     const std::string_view stat_key = "snapshot-details ";
-    VBucketFilter filter;
+    std::set<Vbid> vbuckets;
     if (input.size() > stat_key.size()) {
         // input should be a vbid
         input.remove_prefix(stat_key.size());
@@ -3297,14 +3297,14 @@ cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector,
         if (!safe_strtous(input, vbucket_id)) {
             return cb::engine_errc::invalid_arguments;
         }
-        filter.addVBucket(Vbid(vbucket_id));
+        vbuckets.emplace(vbucket_id);
     } else {
         // Populate for all possible vbuckets.
         for (Vbid::id_type i = 0; i < vbMap.getSize(); i++) {
-            filter.addVBucket(Vbid(i));
+            vbuckets.emplace(i);
         }
     }
-
+    VBucketFilter filter = VBucketFilter::create(std::move(vbuckets));
 
     snapshotCache.addDebugStats(collector, filter);
     snapshotController.addStats(collector, filter);

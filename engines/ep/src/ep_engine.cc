@@ -7633,7 +7633,7 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
         const BucketStatCollector& collector;
     };
 
-    VBucketFilter filter;
+    std::optional<Vbid> vbid;
     if (statKey > "range-scans ") {
         // A vbucket-ID must follow
         auto id = statKey.substr(sizeof("range-scans ") - 1, statKey.size());
@@ -7653,8 +7653,10 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
         }
 
         // Stats only for one vbucket
-        filter.assign(std::set{Vbid(result)});
+        vbid = Vbid(result);
     }
+    VBucketFilter filter = vbid ? VBucketFilter::create(*vbid)
+                                : VBucketFilter::createMatchAll();
 
     StatVBucketVisitor svbv(filter, collector);
 

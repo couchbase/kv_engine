@@ -128,13 +128,13 @@ BENCHMARK_DEFINE_F(VBCBAdaptorBench, VBCBAdaptorCreation)
                         cfg.getItemEvictionAgePercentage(),
                         cfg.getItemEvictionFreqCounterAgeThreshold(),
                         &engine->getEpStats());
-        std::unique_ptr<PagingVisitor> pv =
-                std::make_unique<ItemPagingVisitor>(*engine->getKVBucket(),
-                                                    engine->getEpStats(),
-                                                    std::move(evictionStrategy),
-                                                    semaphore,
-                                                    false,
-                                                    VBucketFilter(vbids));
+        std::unique_ptr<PagingVisitor> pv = std::make_unique<ItemPagingVisitor>(
+                *engine->getKVBucket(),
+                engine->getEpStats(),
+                std::move(evictionStrategy),
+                semaphore,
+                false,
+                VBucketFilter::create(vbids));
         state.ResumeTiming();
 
         auto task = std::make_shared<VBCBAdaptor>(engine->getKVBucket(),

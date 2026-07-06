@@ -88,7 +88,7 @@ public:
     }
 
 protected:
-    VBucketFilter vBucketFilter;
+    VBucketFilter vBucketFilter = VBucketFilter::createMatchAll();
     cb::executor::Traceable* traceable{nullptr};
 };
 

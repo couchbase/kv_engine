@@ -281,17 +281,20 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
             if (!filter) {
                 continue;
             }
+            // The filter was created from the buckets vbuckets so it can't
+            // be a match-all filter.
+            Expects(!filter->isMatchAll());
             // Distribute the buckets so we have the required number of
             // visitors per bucket, each visitor scheduled as part of a
             // different CrossBucketVisitorAdapter.
-            if (filter->size() >= numConcurrentPagers) {
+            if (filter->getVBSet().size() >= numConcurrentPagers) {
                 filter = filter->slice(i, /* stride */ numConcurrentPagers);
-            } else if (i < filter->size()) {
+            } else if (i < filter->getVBSet().size()) {
                 // There is no way to slice the filter if it matches less than
                 // numConcurrentPagers vBuckets. Give each pager one vBucket.
                 auto vbidIt = filter->getVBSet().begin();
                 std::advance(vbidIt, i);
-                filter = VBucketFilter(std::set{*vbidIt});
+                filter = VBucketFilter::create(*vbidIt);
             } else {
                 continue;
             }

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -11,67 +10,89 @@
 
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/vbucket.h>
 
 #include <set>
 #include <vector>
 
 /**
- * Function object that returns true if the given vbucket is acceptable.
+ * Immutable function object that returns true if the given vbucket is
+ * acceptable.
+ *
+ * Filters are immutable after construction: the public API exposes no mutating
+ * methods. Construct a new filter instead of modifying an existing one.
+ *
+ * There are three distinct states:
+ *   match-all  (createMatchAll()): operator() returns true for every vbucket.
+ *   match-set  (create(...)): operator() returns true only for vbuckets in
+ *              the set.
+ *   match-none (match-set with an empty set): operator() always returns false.
+ *
+ * Use isMatchAll() to distinguish between match-all and match-set/match-none,
+ * rather than checking getVBSet().size(), which returns 0 for both match-all
+ * and match-none.
+ *
+ * split() and slice() require a match-set filter; calling them on a match-all
+ * filter is a precondition violation.
  */
 class VBucketFilter {
 public:
     /**
-     * Instiatiate a VBucketFilter that always returns true.
+     * Create a VBucketFilter that always returns true (match-all).
      */
-    VBucketFilter() : acceptable() {
+    static VBucketFilter createMatchAll() {
+        return {};
     }
 
     /**
-     * Instantiate a VBucketFilter that returns true for any of the
-     * given vbucket IDs.
+     * Create a VBucketFilter that returns true for any of the given vbucket
+     * IDs. Passing an empty collection creates a filter that matches no
+     * vbucket (match-none).
      */
-    explicit VBucketFilter(const std::vector<Vbid>& a)
-        : acceptable(a.begin(), a.end()) {
+    static VBucketFilter create(const std::vector<Vbid>& a) {
+        return VBucketFilter(a);
     }
 
-    explicit VBucketFilter(std::set<Vbid> s) : acceptable(std::move(s)) {
+    /**
+     * Create a VBucketFilter that returns true for any of the given vbucket
+     * IDs. Passing an empty collection creates a filter that matches no
+     * vbucket (match-none).
+     */
+    static VBucketFilter create(std::set<Vbid> s) {
+        return VBucketFilter(std::move(s));
     }
 
-    void assign(const std::set<Vbid>& a) {
-        acceptable = a;
+    /**
+     * Create a VBucketFilter that returns true for the provided vbucket
+     */
+    static VBucketFilter create(Vbid vb) {
+        return VBucketFilter(std::set{vb});
     }
 
     bool operator()(Vbid v) const {
-        return acceptable.empty() || acceptable.find(v) != acceptable.end();
+        return matchAll || acceptable.find(v) != acceptable.end();
     }
 
-    bool operator==(const VBucketFilter& other) const {
-        return acceptable == other.acceptable;
-    }
-    bool operator!=(const VBucketFilter& other) const {
-        return !(*this == other);
+    bool operator==(const VBucketFilter& other) const = default;
+
+    /**
+     * Returns true when this filter matches every vbucket (match-all state).
+     */
+    bool isMatchAll() const {
+        return matchAll;
     }
 
-    size_t size() const {
-        return acceptable.size();
-    }
-
-    bool empty() const {
-        return acceptable.empty();
-    }
-
-    void reset() {
-        acceptable.clear();
-    }
-
+    /**
+     * Returns the set of acceptable vbuckets.
+     * Returns an empty set for both match-all and match-none; use isMatchAll()
+     * to distinguish those cases. Use getVBSet().size() to count vbuckets in
+     * match-set mode.
+     */
     const std::set<Vbid>& getVBSet() const {
+        Expects(!matchAll &&
+                "A match-all filter does not have an underlying vbset");
         return acceptable;
-    }
-
-    bool addVBucket(Vbid vbucket) {
-        auto rv = acceptable.insert(vbucket);
-        return rv.second;
     }
 
     /**
@@ -81,29 +102,47 @@ public:
      * Each Vbid this filter matches will appear in exactly one of the resulting
      * filters. Vbids are round-robinned between the filters.
      *
-     *  VBucketFilter({1,2,3,4}).split(6);
+     *  VBucketFilter::create({1,2,3,4}).split(6);
      *
      * results in 4 filters:
      *
      *  {1}, {2}, {3}, {4}
      *
+     * Precondition: the filter must be in match-set mode (!isMatchAll()).
      */
     std::vector<VBucketFilter> split(size_t count) const;
 
     /**
      * Create a new filter by selecting every (start + i * stride) item.
      *
-     * VBucketFilter{0,1,2,3,4,5,6,7,8,9}.slice(2, 3) -> VBucketFilter{2,5,8}
+     * VBucketFilter::create({0,1,2,3,4,5,6,7,8,9}).slice(2, 3) -> {2,5,8}
+     *
+     * Precondition: the filter must be in match-set mode (!isMatchAll()).
      */
     VBucketFilter slice(size_t start, size_t stride = 1) const;
 
     /**
-     * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"
-     * to the specified output stream.
+     * Write the filter to @p out in human-readable form:
+     *   match-all:  "{ match-all }"
+     *   match-none: "{ empty }"
+     *   match-set:  "{ vb:N, vb:M, [vb:X,vb:Y], ... }"
+     *               (consecutive runs of 3+ vbuckets are compressed to ranges)
      */
     friend std::ostream& operator<<(std::ostream& out,
                                     const VBucketFilter& filter);
 
 private:
+    VBucketFilter() : matchAll(true) {
+    }
+
+    explicit VBucketFilter(const std::vector<Vbid>& a)
+        : matchAll(false), acceptable(a.begin(), a.end()) {
+    }
+
+    explicit VBucketFilter(std::set<Vbid> s)
+        : matchAll(false), acceptable(std::move(s)) {
+    }
+
+    bool matchAll;
     std::set<Vbid> acceptable;
 };

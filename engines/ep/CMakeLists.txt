@@ -395,6 +395,7 @@ ADD_LIBRARY(ep STATIC
             src/vb_adapters.cc
             src/vb_commit.cc
             src/vb_count_visitor.cc
+            src/vb_filter.cc
             src/vb_notifiable_task.cc
             src/vb_ready_queue.cc
             src/vb_ready_queue.h

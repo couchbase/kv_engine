@@ -233,7 +233,7 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, SingleVBucket)
                 std::move(evictionStrategy),
                 semaphore,
                 false,
-                VBucketFilter(std::vector<Vbid>{vbid}));
+                VBucketFilter::create(vbid));
         ObjectRegistry::onSwitchThread(engine.get());
 
         state.ResumeTiming();
@@ -283,7 +283,7 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, PagerIteration)
                 std::move(evictionStrategy),
                 semaphore,
                 false,
-                VBucketFilter(std::vector<Vbid>{vbid}));
+                VBucketFilter::create(vbid));
         ObjectRegistry::onSwitchThread(engine.get());
 
         state.ResumeTiming();
@@ -333,7 +333,7 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, NoopIterationWithTracing)
                 ItemEvictionStrategy::evict_nothing(),
                 semaphore,
                 false,
-                VBucketFilter(std::vector<Vbid>{vbid}));
+                VBucketFilter::create(vbid));
         pv->setTraceable(&tracer);
         ObjectRegistry::onSwitchThread(engine.get());
 

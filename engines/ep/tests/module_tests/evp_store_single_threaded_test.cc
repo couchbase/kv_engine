@@ -5982,7 +5982,7 @@ TEST_P(STParameterizedBucketTest,
                                          std::move(evictionStrategy),
                                          pagerSemaphore,
                                          false,
-                                         VBucketFilter());
+                                         VBucketFilter::createMatchAll());
         store->visit(visitor);
         visitor.complete();
     };

@@ -424,7 +424,7 @@ protected:
                 ItemEvictionStrategy::evict_everything(),
                 pagerSemaphore,
                 false,
-                VBucketFilter());
+                VBucketFilter::createMatchAll());
         mockVisitor->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     }
 
@@ -734,7 +734,7 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
                                            engine->getEpStats(),
                                            expirySemaphore,
                                            true,
-                                           VBucketFilter());
+                                           VBucketFilter::createMatchAll());
 
     auto pagingSemaphore = std::make_shared<cb::Semaphore>();
     MockItemPagingVisitor pagingVisitor(
@@ -743,7 +743,7 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
             ItemEvictionStrategy::evict_everything(),
             pagingSemaphore,
             true,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBucket(vbid);
@@ -852,7 +852,7 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     // Drop the lwn ensure memory usage is above it so paging proceeds.
     auto& config = engine->getConfiguration();
@@ -1352,12 +1352,13 @@ TEST_P(STItemPagerTest, isEligible) {
             nullptr /* epstats */);
     auto& strategy = *strategyPtr;
     std::unique_ptr<MockItemPagingVisitor> pv =
-            std::make_unique<MockItemPagingVisitor>(*engine->getKVBucket(),
-                                                    engine->getEpStats(),
-                                                    std::move(strategyPtr),
-                                                    pagerSemaphore,
-                                                    false,
-                                                    VBucketFilter());
+            std::make_unique<MockItemPagingVisitor>(
+                    *engine->getKVBucket(),
+                    engine->getEpStats(),
+                    std::move(strategyPtr),
+                    pagerSemaphore,
+                    false,
+                    VBucketFilter::createMatchAll());
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(*vb);
@@ -1385,7 +1386,7 @@ TEST_P(STItemPagerTest, decayByOne) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     flushVBucketToDiskIfPersistent(vbid);
@@ -1421,7 +1422,7 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica);
@@ -1830,7 +1831,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter(ephemeral() ? activeVBs : allVBs));
+            VBucketFilter::create(ephemeral() ? activeVBs : allVBs));
 
     using namespace testing;
     InSequence s;
@@ -1962,7 +1963,7 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter(vbids));
+            VBucketFilter::create(vbids));
 
     auto label = "Item pager";
     auto taskid = TaskId::ItemPagerVisitor;
@@ -2025,7 +2026,7 @@ TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
             ItemEvictionStrategy::evict_nothing(),
             pagerSemaphore,
             false,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     visitor.setCurrentBucket(vbucket);
 
@@ -2840,7 +2841,7 @@ TEST_P(STExpiryPagerTest, ProcessExpiredListBeforeVisitingHashTable) {
                                            engine->getEpStats(),
                                            expirySemaphore,
                                            true,
-                                           VBucketFilter());
+                                           VBucketFilter::createMatchAll());
     EXPECT_CALL(expiryVisitor, visitBucket(testing::_)).Times(3);
 
     // First run of expiry pager should accumulate expired items and pause after
@@ -3000,7 +3001,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
             ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             false,
-            VBucketFilter(allVBs));
+            VBucketFilter::create(allVBs));
 
     // now test that even with state changes, the comparator sorts the vbuckets
     // acceptably

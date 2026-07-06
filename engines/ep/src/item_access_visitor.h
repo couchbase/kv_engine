@@ -51,7 +51,7 @@ protected:
     bool cycleFile();
 
 private:
-    VBucketFilter vBucketFilter;
+    VBucketFilter vBucketFilter = VBucketFilter::createMatchAll();
 
     EPStats& stats;
     time_t startTime;

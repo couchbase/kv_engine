@@ -3598,11 +3598,12 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
 
-    auto pv = std::make_unique<MockExpiredPagingVisitor>(*engine->getKVBucket(),
-                                                         engine->getEpStats(),
-                                                         pagerSemaphore,
-                                                         false,
-                                                         VBucketFilter());
+    auto pv = std::make_unique<MockExpiredPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            pagerSemaphore,
+            false,
+            VBucketFilter::createMatchAll());
 
     {
         auto pending = vb->ht.findForUpdate(key).pending;

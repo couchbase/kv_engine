@@ -2568,7 +2568,7 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
             ItemEvictionStrategy::evict_everything(), // try evict everything
             pagerSemaphore,
             false,
-            VBucketFilter());
+            VBucketFilter::createMatchAll());
 
     // Drop the low watermark to ensure paging removes everything
     engine->getConfiguration().setMemLowWatPercent(0);

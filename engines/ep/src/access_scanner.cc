@@ -60,7 +60,7 @@ ItemAccessVisitor::ItemAccessVisitor(
       semaphoreGuard(std::move(guard)),
       items_to_scan(items_to_scan) {
     Expects(semaphoreGuard.valid());
-    setVBucketFilter(VBucketFilter(std::move(vbuckets)));
+    setVBucketFilter(VBucketFilter::create(std::move(vbuckets)));
     Expects(!conf.getAlogPath().empty() && "No filename set");
     name = conf.getAlogPath();
     name = name + "." + std::to_string(shardID);

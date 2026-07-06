@@ -54,7 +54,7 @@ ItemPager::ItemPager(size_t numConcurrentPagers,
 
 std::optional<VBucketFilter> ItemPager::createVBucketFilter(
         KVBucket& kvBucket, PermittedVBStates acceptedStates) {
-    VBucketFilter filter;
+    std::set<Vbid> vbids;
     for (auto state : {vbucket_state_active,
                        vbucket_state_pending,
                        vbucket_state_replica,
@@ -63,13 +63,13 @@ std::optional<VBucketFilter> ItemPager::createVBucketFilter(
             continue;
         }
         for (auto vbid : kvBucket.getVBucketsInState(state)) {
-            filter.addVBucket(vbid);
+            vbids.insert(vbid);
         }
     }
-    if (filter.empty()) {
+    if (vbids.empty()) {
         return {};
     }
-    return filter;
+    return VBucketFilter::create(std::move(vbids));
 }
 
 PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
@@ -329,7 +329,7 @@ public:
     }
 
     void visitBucket(VBucket& vb) override {
-        if (!filter.empty() && filter(vb.getId())) {
+        if (filter(vb.getId())) {
             totalEvictableMemory += vb.getPageableMemUsage();
         }
     }
@@ -528,10 +528,12 @@ bool ExpiredItemPager::run() {
         // pagerSemaphore->signal() to release it.
         ++stats.expiryPagerRuns;
 
-        VBucketFilter filter;
-        for (auto vbid : kvBucket->getVBuckets().getBuckets()) {
-            filter.addVBucket(vbid);
-        }
+        auto filter =
+                VBucketFilter::create(kvBucket->getVBuckets().getBuckets());
+        // Ensure that this isn't a match-all filter (given that we
+        // created it from a specific vector of vbuckets and the
+        // split/slice wouldn't work for such a set)
+        Expects(!filter.isMatchAll());
 
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
