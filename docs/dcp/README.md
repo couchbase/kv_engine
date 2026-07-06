@@ -14,10 +14,11 @@ The Database Change Protocol (DCP) a protocol used by Couchbase for moving large
 	* [Rollback](documentation/rollback.md)
 	* [Flow Control](documentation/flow-control.md)
 	* [Dead Connection Detection](documentation/dead-connections.md)
+	* [Cache Transfer](documentation/cache-transfer.md)
 * Developing Clients
 	* [Building a simple client](documentation/building-a-simple-client.md)
 	* [Handling rollbacks](documentation/building-a-simple-client.md#handling-a-rollback)
-	* Handling topology changes
+	* [Handling topology changes](documentation/handling-topology-changes.md)
 	* [Flow control best practices](documentation/flow-control.md#consumer-side-buffer-advertising)
 	* [Detecting dead connections](documentation/dead-connections.md)
 	* Setting connection priority

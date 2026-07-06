@@ -9,12 +9,14 @@ The typical scenario begins with the client requesting a stream. Upon success th
 
 ### Protocol Definitions
 
+* [**Abort**](commands/abort.md)
 * [**Add Stream**](commands/add-stream.md)
 * [**Buffer Acknowledgement**](commands/buffer-ack.md)
 * [**Cache Transfer**](commands/cache-transfer.md) (see also the
   [Cache Transfer overview](cache_transfer.md))
 * [**Cache Transfer End**](commands/cache-transfer-end.md)
 * [**Close Stream**](commands/close-stream.md)
+* [**Commit**](commands/commit.md)
 * [**Control**](commands/control.md)
 * [**Deletion**](commands/deletion.md)
 * [**Expiration**](commands/expiration.md)
@@ -28,6 +30,7 @@ The typical scenario begins with the client requesting a stream. Upon success th
 * [**Persist Sequence Number**](commands/persist_seqno.md)
 * [**Prepare**](commands/prepare.md)
 * [**Random Key**](commands/random_key.md)
+* [**Seqno Acknowledged**](commands/seqno-acknowledged.md)
 * [**Seqno Advanced**](commands/seqno-advanced.md)
 * [**Set VBucket State**](commands/set-vbucket-state.md)
 * [**Snapshot Marker**](commands/snapshot-marker.md)
