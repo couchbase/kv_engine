@@ -2877,7 +2877,7 @@ TEST_P(MB48010CollectionsDCPParamTest,
     EXPECT_EQ(4, producers->last_byseqno);
 }
 
-class MB71914MergeSnapshotTest : public SingleThreadedKVBucketTest {
+class MergeSnapshotTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
         SingleThreadedKVBucketTest::SetUp();
@@ -2885,7 +2885,7 @@ public:
     }
 };
 
-TEST_F(MB71914MergeSnapshotTest, MonotonicException) {
+TEST_F(MergeSnapshotTest, MB71914MonotonicException) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Begin by receiving a memory snapshot for the range 1 to 3.
@@ -2974,6 +2974,98 @@ TEST_F(MB71914MergeSnapshotTest, MonotonicException) {
     // seqno:4 (fruit) is filtered; stream is idle.
     EXPECT_EQ(cb::engine_errc::would_block,
               producer->stepWithBorderGuard(producers));
+}
+
+TEST_F(MergeSnapshotTest, MB72198DuplicateKeys) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Begin by receiving a memory snapshot for the range 1 to 3.
+    vb->checkpointManager->createSnapshot(
+            1, 3, 0, {}, CheckpointType::Memory, 3);
+
+    // 1. Create document at seqno:1
+    writeDocToReplica(vbid, makeStoredDocKey("seq:1"), 1, false);
+
+    // store to disk so DCP picks this up from a backfill.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Expel this item so DCP cannot pick it up from memory.
+    vb->checkpointManager->expelUnreferencedCheckpointItems();
+
+    // Now add seq:2
+    writeDocToReplica(vbid, makeStoredDocKey("seq:2"), 2, false);
+    // This ensures persistence cursor is not on this item and DCP register
+    // cursor will sit on this and not checkpoint_start
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Create DCP and run the backfill phase which will lead to merging
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    ASSERT_TRUE(producer);
+
+    // Now complete the current snapshot with seqno:3
+    writeDocToReplica(vbid, makeStoredDocKey("seq:3"), 3, false);
+    // extend checkpoint before backfill. I.e. we receive a memory one and
+    // extend
+    vb->checkpointManager->extendOpenCheckpoint(4, 4);
+    // duplicate key
+    writeDocToReplica(vbid, makeStoredDocKey("seq:1"), 4, false);
+
+    createDcpStream(*producer, vbid, "");
+
+    MockDcpMessageProducers producers;
+    notifyAndRunToCheckpoint(*producer, producers, false);
+
+    // The persisted snapshot is Memory-type, so per MB-71914 the disk/memory
+    // merge is suppressed, only merges between disk and memory snapshots are
+    // allowed.
+    // The backfill marker covers only the disk range [0,2] and the in-memory
+    // phase sends its own marker afterwards.
+    std::set<StoredDocKey> keys;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(1, producers.last_byseqno);
+    EXPECT_TRUE(keys.insert(producers.last_dockey).second)
+            << "Duplicate key found: " << producers.last_dockey.to_string();
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(2, producers.last_byseqno);
+    EXPECT_TRUE(keys.insert(producers.last_dockey).second)
+            << "Duplicate key found: " << producers.last_dockey.to_string();
+
+    // Run the in-memory phase, this will collect from checkpoint seqno:3 and
+    // seqno:4. seqno:4 (also key "seq:1") is a newer copy of the key already
+    // sent at seqno:1 in the backfill snapshot above.
+    // Since the two snapshots are not merged the consumer will receive seqno:4
+    // in a separate snapshot to seqno:1.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(3, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_TRUE(keys.insert(producers.last_dockey).second)
+            << "Duplicate key found: " << producers.last_dockey.to_string();
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+    // seqno:4 re-sends key "seq:1" (already sent at seqno:1), so this is
+    // expected to be a duplicate key across two snapshots.
+    EXPECT_FALSE(keys.insert(producers.last_dockey).second);
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
