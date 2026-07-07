@@ -3584,6 +3584,11 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     collector.addStat(Key::ep_mem_tracker_enabled,
                       EPStats::isMemoryTrackingEnabled());
 
+    collector.addStat(Key::ep_pageable_mem_high_watermark,
+                      kvBucket->getPageableMemHighWatermark());
+    collector.addStat(Key::ep_pageable_mem_low_watermark,
+                      kvBucket->getPageableMemLowWatermark());
+
     size_t numBgOps = epstats.bgNumOperations.load();
     if (numBgOps > 0) {
         collector.addStat(Key::ep_bg_num_samples, epstats.bgNumOperations);
