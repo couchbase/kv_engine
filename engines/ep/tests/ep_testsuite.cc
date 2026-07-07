@@ -6382,6 +6382,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:total_abs_drift_count",
               "vb_0:uuid",
               "vb_0:might_contain_xattrs",
+              "vb_0:takeover_backed_up",
               "vb_0:max_deleted_revid"}},
             {"vbucket-seqno",
              {"vb_0:abs_high_seqno",
