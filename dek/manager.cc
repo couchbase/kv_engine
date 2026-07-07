@@ -14,7 +14,6 @@
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 
 namespace cb::dek {
 

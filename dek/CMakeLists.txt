@@ -11,7 +11,6 @@ target_link_libraries(mcd_dek
         PRIVATE
         cbcrypto
         json_validator
-        mcd_util
         nlohmann_json::nlohmann_json)
 add_sanitizers(mcd_dek)
 kv_enable_pch(mcd_dek)
