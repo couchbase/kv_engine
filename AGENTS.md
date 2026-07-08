@@ -100,6 +100,16 @@ Guidelines:
   acts as the brief description (do not use the `@brief` tag explicitly).
   Use tags such as `@param`, `@return`, and `@throws`.
 
+Language: **CMake**
+
+Guidelines:
+
+- Use modern CMake style (target-based, avoid global properties)
+- Prefer `target_include_directories` and `target_link_libraries` for dependencies
+- Follow existing patterns in the repository for consistency
+- Avoid global variables and side effects in CMake scripts
+- The `CMake Best Practices<https://cliutils.gitlab.io/modern-cmake/>` are also a key part of our CMake style.
+
 ## New C++ File Headers
 Whenever you create a new C++ file (e.g., `.cc`, or `.h`), you must prepend the exact copyright header specified below.
 
