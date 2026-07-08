@@ -96,13 +96,17 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
                  "vb",
                  (vbucket->getId()).get());
     notifyAllPendingConnsFailed(false);
-
     auto start = cb::time::steady_clock::now();
-    shard.getRWUnderlying()->delVBucket(vbucket->getId(),
-                                        std::move(vbDeleteRevision));
 
     // Remove any snapshot that was detached from the cache as part of this
     // vbucket's deletion (best-effort; the in-memory entry is already gone).
+    //
+    // Order matters: remove the snapshot *before* deleting the vbucket file. If
+    // we crash mid-task the safe state to be left in is "vbucket file present,
+    // snapshot gone" - warmup will simply seed the vbucket and there is no
+    // orphaned snapshot. The reverse ("snapshot present, vbucket gone") is a
+    // confusing state, as the snapshot could become attached to a later
+    // recreation of the same vbucket.
     if (snapshotUuid) {
         auto status = dynamic_cast<EPBucket&>(*engine->getKVBucket())
                               .getSnapshotCache()
@@ -116,6 +120,9 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
                     {"status", status});
         }
     }
+
+    shard.getRWUnderlying()->delVBucket(vbucket->getId(),
+                                        std::move(vbDeleteRevision));
 
     auto elapsed = cb::time::steady_clock::now() - start;
     auto wallTime =
