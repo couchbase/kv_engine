@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 6,
+    "revision": 7,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -225,14 +225,6 @@
                 "rate-limit"
             ]
         },
-        "34": {
-            "name": "SCOPE_SIZE_LIMIT_EXCEEDED",
-            "desc": "The scope contains too much data",
-            "attrs": [
-                "item-only",
-                "rate-limit"
-            ]
-        },
         "35": {
             "name": "BUCKET_SIZE_LIMIT_EXCEEDED",
             "desc": "The bucket contains too much data",
@@ -349,13 +341,6 @@
             "desc": "Operation specified an unknown collection.",
             "attrs": [
                 "invalid-input"
-            ]
-        },
-        "89": {
-            "name": "NO_COLLECTIONS_MANIFEST",
-            "desc": "No collections manifest has been set.",
-            "attrs": [
-                "retry-later"
             ]
         },
         "8a": {
