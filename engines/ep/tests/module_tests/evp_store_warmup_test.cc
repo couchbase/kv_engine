@@ -3292,8 +3292,7 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     const auto epConfig = std::string(
                                   "alog_resident_ratio_threshold=100;"
                                   "alog_max_stored_items=10;alog_path=") +
-                          test_dbname + cb::io::DirectorySeparator +
-                          "access.log";
+                          test_dbname + "/access.log";
     {
         auto& config = engine->getConfiguration();
         // Check initial config state

@@ -2845,8 +2845,7 @@ public:
 // Coverage for MB-69134
 TEST_P(AccessLogKVBucketParamTest, NoLogsWhenNoVBucketsMapToShard) {
     ASSERT_EQ(store->getVBuckets().getNumShards(), 2);
-    engine->getConfiguration().setAlogPath(
-            test_dbname + cb::io::DirectorySeparator + "access.log");
+    engine->getConfiguration().setAlogPath(test_dbname + "/access.log");
     engine->getConfiguration().setAlogResidentRatioThreshold(100);
     auto as = std::make_unique<MockAccessScanner>(*(engine->getKVBucket()),
                                                   engine->getConfiguration(),

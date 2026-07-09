@@ -26,7 +26,7 @@ public:
         config_string +=
                 "alog_resident_ratio_threshold=100;alog_max_stored_items=10;"
                 "alog_path=" +
-                test_dbname + cb::io::DirectorySeparator + "access.log";
+                test_dbname + "/access.log";
 
         STParamPersistentBucketTest::SetUp();
         // Run warmup (empty) but this will ensure access scanner is runnable
@@ -158,7 +158,7 @@ static bool loadFn(Vbid vb, const std::set<StoredDocKey>& keys, void* arg) {
 // Test is checking MutationLogHarvester::apply with both
 // removeNonExistentKeys=true and removeNonExistentKeys=false
 TEST_F(MutationLogApplyTest, Apply) {
-    auto logName = test_dbname + cb::io::DirectorySeparator + "access.log";
+    auto logName = test_dbname + "/access.log";
     setVBucketStateAndRunPersistTask(vbid0, vbucket_state_active);
     setVBucketStateAndRunPersistTask(vbid1, vbucket_state_active);
     std::unordered_set<StoredDocKey> vb0Keys, vb1Keys;

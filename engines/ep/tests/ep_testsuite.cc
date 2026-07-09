@@ -3161,11 +3161,9 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
 
     // Create a unique access log path by combining with the db path.
     std::string dbname = get_str_stat(h, "ep_dbname");
-
-    const auto alog_path = std::string("alog_path=") + dbname +
-                           cb::io::DirectorySeparator + "access.log";
-    std::string newconfig =
-            std::string(testHarness->get_current_testcase()->cfg) + alog_path;
+    const auto newconfig = fmt::format("{}alog_path={}/access.log",
+                                       testHarness->get_current_testcase()->cfg,
+                                       dbname);
 
     testHarness->reload_engine(&h, newconfig, true, false);
 
