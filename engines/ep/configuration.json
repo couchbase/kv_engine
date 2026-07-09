@@ -238,12 +238,14 @@
             }
         },
         "bucket_quota_change_task_poll_interval": {
+            "added": "7.6.0",
             "default": "30",
             "descr": "Time in seconds between the BucketQuotaChangeTask polling memory usage to attempt to reduce the bucket quota",
             "dynamic": true,
             "type": "float"
         },
         "compaction_expire_from_start": {
+            "added": "7.1.0",
             "default": "true",
             "descr": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",
             "dynamic": true,
@@ -256,6 +258,7 @@
             "type": "bool"
         },
         "checkpoint_destruction_tasks": {
+            "added": "7.1.0",
             "default": "2",
             "descr": "Number of tasks responsible for destroying closed unreferenced checkpoints.",
             "dynamic": true,
@@ -267,6 +270,7 @@
             }
         },
         "checkpoint_memory_ratio": {
+            "added": "7.1.0",
             "default": "0.2",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",
             "long_description": "Provides the maximum percentage of the bucket's memory quota dedicated to checkpoints. When this ratio is hit, the system enters a temporary TempOOM phase and immediately triggers memory recovery to minimize the duration of TempOOM state. A checkpoint is a sequenced queue of mutations that acts as the single source of truth for both persistence and replication within a bucket. Persistence and replication consume from this queue independently, each progressing at its own pace without coordinating with the other. The checkpoint queue allow disk flusher and DCP consumers to read from the same data structure to ensure consistency. This value helps ensure efficient memory utilization.",
@@ -280,6 +284,7 @@
             }
         },
         "checkpoint_memory_recovery_upper_mark": {
+            "added": "7.1.0",
             "default": "0.9",
             "descr": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.",
             "dynamic": true,
@@ -292,6 +297,7 @@
             }
         },
         "checkpoint_memory_recovery_lower_mark": {
+            "added": "7.1.0",
             "default": "0.6",
             "descr": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.",
             "dynamic": true,
@@ -304,6 +310,7 @@
             }
         },
         "checkpoint_remover_task_count": {
+            "added": "7.1.0",
             "default": "1",
             "descr": "Number of concurrent tasks performing ItemExpel and CursorDrop/CheckpointRemoval",
             "dynamic": false,
@@ -315,6 +322,7 @@
             }
         },
         "checkpoint_max_size": {
+            "added": "7.1.0",
             "default": "0",
             "descr": "Max size (in bytes) of a single checkpoint. '0' for EPEngine auto-setup.",
             "dynamic": true,
@@ -333,6 +341,7 @@
             "type": "bool"
         },
         "compaction_expiry_fetch_inline" : {
+            "added": "7.1.4-MP2",
             "default": "true",
             "descr": "If compaction requires a bgfetch before attempting expiry to ensure it does not expire an older version of the document, true: fetch it in the compaction thread. false: queue a bgfetch for the bgfetcher task to complete",
             "dynamic": true,
@@ -352,6 +361,7 @@
             }
         },
         "compaction_max_concurrent_ratio": {
+            "added": "7.1.0",
             "default": "0.5",
             "descr" : "Maximum number of CompactVBucketTask tasks which can run concurrently, as a fraction of the possible Writer task concurrency. Note that a minimum of 1, and a maximum of N-1 CompactVBucketTasks will be run (where N is the possible Writer task concurrency), to ensure both forward progress for Compaction and Flushing.",
             "dynamic": true,
@@ -364,6 +374,7 @@
             }
         },
         "concurrent_pagers": {
+            "added": "7.1.0",
             "default": "2",
             "descr": "Number of eviction pager tasks to create when memory usage is high",
             "dynamic": false,
@@ -375,6 +386,7 @@
             }
         },
         "expiry_pager_concurrency": {
+            "added": "7.1.0",
             "default": "2",
             "descr": "Number of tasks which are created to scan for and delete expired items",
             "dynamic": false,
@@ -471,6 +483,7 @@
             }
         },
         "defragmenter_mode" : {
+            "added": "7.0.2",
             "default": "auto_pid",
             "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger.",
             "dynamic": true,
@@ -484,48 +497,56 @@
             }
         },
         "defragmenter_auto_lower_threshold" : {
+            "added": "7.0.2",
             "default": "0.07",
             "descr": "When mode is not static and scored fragmentation is above this value, a sleep time between defragmenter_auto_min_sleep and defragmenter_auto_max_sleep will be used",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_upper_threshold" : {
+            "added": "7.0.2",
             "default": "0.25",
             "descr": "When mode is auto_linear and scored fragmentation is above this value, the defragmenter will use defragmenter_auto_min_sleep",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_max_sleep" : {
+            "added": "7.0.2",
             "default": "10.0",
             "descr": "The maximum sleep that the auto controller can set",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_min_sleep" : {
+            "added": "7.0.2",
             "default": "0.6",
             "descr": "The minimum sleep that the auto controller can set",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_p" : {
+            "added": "7.0.2",
             "default": "52",
             "descr": "The p term for the PID controller",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_i" : {
+            "added": "7.0.2",
             "default": "0.0000197",
             "descr": "The i term for the PID controller",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_d" : {
+            "added": "7.0.2",
             "default": "0.0",
             "descr": "The d term for the PID controller",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_dt" : {
+            "added": "7.0.2",
             "default": "30000",
             "descr": "The dt (interval) term for the PID controller. Value represents milliseconds",
             "dynamic": true,
@@ -561,6 +582,7 @@
             }
         },
         "ephemeral_mem_recovery_enabled": {
+            "added": "8.0.0",
             "default": "true",
             "descr": "Whether ephemeral memory recovery task is enabled. If disabled, ItemPager will carry out memory recovery for AutoDelete buckets.",
             "dynamic": true,
@@ -570,6 +592,7 @@
             }
         },
         "ephemeral_mem_recovery_sleep_time": {
+            "added": "8.0.0",
             "default": "5000",
             "descr": "Duration in milliseconds the EphemeralMemRecovery task will sleep between periodic executions.",
             "dynamic": true,
@@ -663,6 +686,7 @@
             "type": "size_t"
         },
         "flush_batch_max_bytes": {
+            "added": "7.6.1",
             "default": "2147483648",
             "descr": "Max size (in bytes) of a single flush-batch passed to the KVStore for persistence.",
             "dynamic": true,
@@ -674,6 +698,7 @@
             }
         },
         "freq_counter_increment_factor": {
+            "added": "7.6.0",
             "default": "0.012",
             "descr": "The increment factor of the ProbabilisticCounter being used for the frequency counter. The default value of 0.012 is set such that it allows an 8-bit ProbabilisticCounter to mimic a uint16 counter. See the comment on the ProbabilisticCounter class for more information.",
             "dynamic": false,
@@ -709,12 +734,14 @@
             "type": "size_t"
         },
         "hlc_max_future_threshold_us": {
+            "added": "8.0.0",
             "default": "3900000000",
             "descr": "The acceptable μs threshold of drift at which we accept a new cas value.",
             "dynamic": true,
             "type": "size_t"
         },
         "hlc_invalid_strategy":  {
+            "added": "8.0.0",
             "default": "ignore",
             "descr": "Determines how the system handles operations with invalid CAS values. error: fails CAS values outside hlc_max_future_threshold. ignore: ignores CAS validation. replace: generates a new CAS for invalid values.",
             "dynamic": true,
@@ -728,6 +755,7 @@
             }
         },
         "dcp_hlc_invalid_strategy":  {
+            "added": "8.0.0",
             "default": "ignore",
             "descr": "Determines how DCP handles operations with invalid CAS values. error: fails CAS values outside hlc_max_future_threshold. ignore: ignores CAS validation. replace: generates a new CAS for invalid values.",
             "dynamic": true,
@@ -750,6 +778,7 @@
             "type": "size_t"
         },
         "ht_resize_algo": {
+            "added": "8.0.0",
             "default": "incremental",
             "descr": "The algorithm to use for resizing HashTable objects. `one_step` locks the entire HashTable and resizes in one step. `incremental` takes multiple steps to complete, allowing most operations to proceed concurrently.",
             "dynamic": true,
@@ -780,12 +809,14 @@
             }
         },
         "ht_size_decrease_delay" : {
+            "added": "8.0.0",
             "default": "60",
             "descr": "Delay in seconds before decreasing the size of a HashTable following a previous resize.",
             "dynamic": true,
             "type": "size_t"
         },
         "ht_temp_items_allowed_percent" : {
+            "added": "7.6.10",
             "default": "10",
             "description": "Number of temp items (as percentage of current hashtable size) to be kept in the hashtable. Used to determine if a temp item (for items not resident in memory or deleted items) should be delete immediately or can be left around until pager (expiry or item) cleans it up.",
             "dynamic": true,
@@ -859,6 +890,7 @@
             }
         },
         "item_eviction_strategy": {
+            "added": "7.6.0",
             "default": "upfront_mfu_only",
             "descr": "Strategy used by eviction to select items to evict. May be based solely on item hotness (upfront_mfu_only) or may learn the distribution of age and hotness (learning_age_and_mfu). In the case of learning_age_and_mfu, the initial item hotness value is always fixed regardless of the initial_mfu_percentile setting.",
             "dynamic": true,
@@ -871,6 +903,7 @@
             }
         },
         "item_eviction_initial_mfu_percentile": {
+            "added": "7.6.0",
             "default": "25",
             "descr": "Percentile of existing item MFU distribution to use to determine the MFU to give to new items (0 would insert new items with MFU equal to that of the coldest item present; 100 to that of hottest item present) for the upfront_mfu_only eviction strategy.",
             "dynamic": true,
@@ -883,6 +916,7 @@
             }
         },
         "item_eviction_initial_mfu_update_interval": {
+            "added": "7.6.0",
             "default": "1",
             "descr": "Time between updates of the initial MFU given to new items (seconds)",
             "dynamic": true,
@@ -928,6 +962,7 @@
             }
         },
         "connection_cleanup_interval": {
+            "added": "7.6.0",
             "default": "1",
             "descr": "How often connection manager task should release dead connections (in seconds).",
             "type": "float",
@@ -1015,6 +1050,7 @@
             "type": "size_t"
         },
         "max_num_flushers": {
+            "added": "7.1.0",
             "default": "0",
             "descr": "Maximum number of flusher objects (the number of concurrent flusher tasks we can run). 0 = auto-configure which means we use the same number as the number of shards (max_num_shards - for historic reasons). See also num_writer_threads.",
             "dynamic": false,
@@ -1042,12 +1078,14 @@
             }
         },
         "workload_monitor_enabled": {
+            "added": "7.2.8",
             "default": "false",
             "type": "bool",
             "dynamic": true,
             "desc": "True if the workload monitor is enabled. If false, the default workload pattern is used."
         },
         "workload_pattern_default": {
+            "added": "7.2.8",
             "default": "mixed",
             "descr": "Sets the default bucket workload pattern, used when the workload monitor is disabled. \"read_heavy\" limits the compaction concurrency. The remaining values are unused.",
             "dynamic": true,
@@ -1073,6 +1111,7 @@
             }
         },
         "nexus_primary_backend": {
+            "added": "7.1.0",
             "default": "couchdb",
             "descr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the primary variant.",
             "dynamic": false,
@@ -1088,6 +1127,7 @@
             }
         },
         "nexus_secondary_backend": {
+            "added": "7.1.0",
             "default": "magma",
             "descr": "If using the Nexus testing backend then this configuration parameter specifies which type of KVStore to create as the secondary variant.",
             "dynamic": false,
@@ -1103,6 +1143,7 @@
             }
         },
         "nexus_error_handling": {
+            "added": "7.1.0",
             "default": "throw",
             "descr": "If using the Nexus testing backend then this config parameter specifies how errors (discrepancies) between the primary and secondary backends are handled.",
             "dynamic": false,
@@ -1119,6 +1160,7 @@
             }
         },
         "nexus_implicit_compaction_enabled": {
+            "added": "7.1.0",
             "default": "true",
             "descr": "Should NexusKVStore enable implicit compaction?",
             "dynamic": false,
@@ -1128,6 +1170,7 @@
             }
         },
         "nexus_concurrent_flush_compaction_enabled": {
+            "added": "7.1.0",
             "default": "true",
             "descr": "Should NexusKVStore enable concurrent flushing and compaction?",
             "dynamic": false,
@@ -1137,6 +1180,7 @@
             }
         },
         "mem_high_wat_percent": {
+            "added": "8.0.0",
             "default": "0.85",
             "descr": "Ratio of the Bucket Quota at which to place the high watermark. This is the maximum desired memory usage. This value should be lower than mutation_mem_ratio to avoid no memory errors.",
             "long_description": "Provides the specific percentage of the total bucket memory quota that acts as the high watermark threshold. By default, the high watermark is set at 85% of the bucket's allocated memory. It represents the critical trigger point where the engine proactively initiates background memory management routines to evict data from RAM to disk until memory usage drops below the low watermark. This value is vital for identifying heavy memory pressure.",
@@ -1150,6 +1194,7 @@
             }
         },
         "mem_low_wat_percent": {
+            "added": "8.0.0",
             "default": "0.75",
             "descr": "Ratio of the Bucket Quota at which to place the low watermark. This is the point to which to reduce the memory usage of the bucket after hitting the high watermark.",
             "long_description": "Provides the specific percentage of the maximum bucket memory quota designated as the low watermark. By default it is set at 10% lower than the high watermark. It represents the target recovery threshold for the item pager, indicating the point at which continuous eviction from memory to disk ceases after a high watermark breach. This value ensures a healthy buffer of free memory.",
@@ -1163,6 +1208,7 @@
             }
         },
         "mutation_mem_ratio": {
+            "added": "7.6.0",
             "default": "0.93",
             "descr": "Ratio of the Bucket Quota that can be used before mutations return tmpOOMs",
             "long_description": "Provides the precise percentage of the maximum bucket memory quota beyond which the engine will begin to reject frontend mutations with temporary OOM errors.  It is set at a default of 93%. It represents a protective throttling threshold, indicating the system is nearing complete memory exhaustion and must temporarily block incoming writes. It is a dynamic value that can be modified. This value protects the node from allocating beyond the assigned bucket quota. It prevent crashes in the cases like high memory fragmentation where memcached memory usage is higher than logical allocation.",
@@ -1176,6 +1222,7 @@
             }
         },
         "not_locked_returns_tmpfail": {
+            "added": "7.6.5-MP2",
             "default": "false",
             "descr": "Controls which error code should be returned when attempting to unlock an item that is not locked. When value is true, the legacy temporary_failure is used instead of not_locked.",
             "dynamic": true,
@@ -1188,6 +1235,7 @@
             "type": "size_t"
         },
         "paging_visitor_pause_check_count": {
+            "added": "7.6.2",
             "default": "50",
             "descr": "Expected number of times the PagingVisitor will check the pause condition per vBucket",
             "dynamic": true,
@@ -1199,12 +1247,14 @@
             }
         },
         "expiry_visitor_items_only_duration_ms": {
+            "added": "8.0.0",
             "default": "50",
             "descr": "The time limit in milliseconds for processing items from the expired items list at the start of an expiry pager run. If the expired items list is not empty when the pager starts, it will only process items from this list for up to this duration before yielding.",
             "dynamic": true,
             "type": "size_t"
         },
         "expiry_visitor_expire_after_visit_duration_ms": {
+            "added": "8.0.0",
             "default": "25",
             "descr": "The time limit in milliseconds for processing expired items after visiting hash tables. After finding expired items during hash table traversal, the expiry pager will process them until this duration is reached before yielding.",
             "dynamic": true,
@@ -1239,6 +1289,7 @@
             "type": "size_t"
         },
         "dcp_backfill_run_duration_limit": {
+            "added": "8.0.0",
             "default": "300",
             "descr": "Maximum time (in ms) backfill task will run before yielding.",
             "dynamic": true,
@@ -1254,6 +1305,7 @@
             "type": "size_t"
         },
         "dcp_backfill_byte_drain_ratio": {
+            "added": "7.6.2",
             "default": "0.25",
             "descr": "What ratio of the dcp_backfill_byte_limit must be drained for un-pausing a paused backfill",
             "dynamic": false,
@@ -1266,18 +1318,21 @@
             }
         },
         "dcp_backfill_idle_protection_enabled": {
+            "added": "8.0.0",
             "default": "true",
             "descr": "When true, DCP backfills will be checked for progress. Any backfill which makes no progress for dcp_backfill_idle_limit_seconds will be subject to further checks. If the directory referenced by dbname is over dcp_backfill_idle_disk_threshold percent used and cancelling the backfill will free disk space, the scan cancels and the associated DCP stream will end with reason slow. This is ignored for emphemeral buckets",
             "dynamic": true,
             "type": "bool"
         },
         "dcp_backfill_idle_limit_seconds" : {
+            "added": "8.0.0",
             "default": "720",
             "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream. The default value is 2x of dcp_idle_timeout",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_backfill_idle_disk_threshold" : {
+            "added": "8.0.0",
             "default": "90.0",
             "descr": "The percentage of disk usage at which DCP backfills would be ended when no progress is made for dcp_backfill_idle_limit_seconds",
             "dynamic": true,
@@ -1297,6 +1352,7 @@
             "type": "size_t"
         },
         "dcp_backfill_in_progress_per_connection_limit": {
+            "added": "7.2.1",
             "default": "64",
             "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",
             "dynamic": true,
@@ -1338,18 +1394,21 @@
             "type": "size_t"
         },
         "dcp_checkpoint_dequeue_limit": {
+            "added": "8.0.0",
             "default": "std::numeric_limits<size_t>::max()",
             "descr": "The limit given to CheckpointManager::getNextItemsForDcp by ActiveStream",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_consumer_flow_control_enabled": {
+            "added": "7.6.0",
             "default": "true",
             "descr": "Whether DCP Consumer on this node enable flow control",
             "dynamic": false,
             "type": "bool"
         },
         "dcp_consumer_buffer_ratio": {
+            "added": "7.6.0",
             "default": "0.05",
             "descr": "Ratio of the BucketQuota that can be allocated by all DCP consumers for buffered messages",
             "type": "float",
@@ -1375,12 +1434,14 @@
             }
         },
         "dcp_consumer_flow_control_ack_ratio": {
+            "added": "7.6.0",
             "default": "0.2",
             "descr": "Ratio of freed bytes in the DCP Consumer buffer that triggers a BufferAck message to the Producer",
             "type": "float",
             "dynamic": false
         },
         "dcp_consumer_flow_control_ack_seconds": {
+            "added": "7.6.0",
             "default": "5",
             "descr": "Max seconds after which a Consumer acks all the remaining freed bytes, regardless of whether dcp_consumer_flow_control_ack_ratio has kicked-in or not",
             "type": "size_t",
@@ -1427,6 +1488,7 @@
             }
         },
         "dcp_oso_backfill": {
+            "added": "7.2.1",
             "default": "auto",
             "descr": "Whether DCP out-of-sequence-order backfill is enabled, for backfills which it is applicable. Enabled: always use OSO if possible. Disabled: never use OSO, fallback to seqno order. Auto: use OSO only if it is expected to be faster than seqno.",
             "dynamic": true,
@@ -1440,6 +1502,7 @@
             }
         },
         "dcp_oso_backfill_large_value_ratio": {
+            "added": "7.2.1",
             "default": "0.04",
             "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'large' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
             "dynamic": true,
@@ -1452,6 +1515,7 @@
             }
         },
         "dcp_oso_backfill_small_value_ratio": {
+            "added": "7.2.1",
             "default": "0.005",
             "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'small' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
             "dynamic": true,
@@ -1464,12 +1528,14 @@
             }
         },
         "dcp_oso_backfill_small_item_size_threshold": {
+            "added": "7.2.1",
             "default": "256",
             "descr": "When considering out-of-seqno order (OSO) DCP backfill for a collection, should the items in the collection be considered 'small' or 'large' and subsequently should backfill use 'dcp_oso_backfill_small_value_collection_ratio' or 'dcp_oso_backfill_large_value_collection_ratio' when deciding ot use OSO or not? Collections whoss mean on-disk value size is less than this parameter are considered 'small', otherwise they are considered 'large'",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_oso_max_collections_per_backfill": {
+            "added": "7.6.0",
             "default": "1",
             "descr": "This is the maximum number of collections that a DCP stream can be filtering to be eligible for OSO",
             "dynamic": true,
@@ -1497,12 +1563,14 @@
             "type": "size_t"
         },
         "dcp_producer_processor_run_duration_us": {
+            "added": "7.2.5-MP1",
             "default": "100000",
             "descr": "The approximate maximum runtime in microseconds for ActiveStreamCheckpointProcessorTask",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_producer_catch_exceptions": {
+            "added": "7.2.8",
             "default": {
                 "default": "true",
                 "dev-assert-enabled": "false"
@@ -1535,6 +1603,7 @@
             }
         },
         "magma_per_document_compression_enabled": {
+            "added": "7.6.0",
             "default": "true",
             "dynamic": true,
             "descr": "Apply Snappy compression to each document when persisted (magma only)",
@@ -1587,6 +1656,7 @@
             "type": "size_t"
         },
         "magma_min_checkpoint_interval": {
+            "added": "7.1.0",
             "default": "1",
             "dynamic": false,
             "descr": "Minimum interval between two checkpoints; in seconds. Prevents excessive creation of checkpoints.",
@@ -1627,6 +1697,7 @@
             }
         },
         "magma_mem_quota_low_watermark_ratio": {
+            "added": "7.1.0",
             "default": "0.2",
             "dynamic": false,
             "descr": "Fraction of memory quota used by magma as it's low water mark. Magma uses this low watermark to size it's write cache and block cache. This sizing includes bloom filters memory usage but bloom filter eviction is based on the memory quota",
@@ -1645,30 +1716,35 @@
             "type": "size_t"
         },
         "magma_enable_group_commit": {
+            "added": "7.1.0",
             "default": "false",
             "descr": "Group Commit allows transactions in magma to be grouped together to reduce the number of WAL fsyncs. When a transaction is ready to fsync, if there are new transactions waiting to start, we stall the transaction waiting to fsync until there are no more transactions waiting to start for a given magma instance.",
             "dynamic": false,
             "type": "bool"
         },
         "magma_group_commit_max_sync_wait_duration_ms": {
+            "added": "7.1.0",
             "default": "20",
             "descr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are transactions waiting and the oldest transaction has been waiting for magma_group_commit_max_sync_wait_duration ms or more, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start. Unit is milliseconds.",
             "dynamic": false,
             "type": "size_t"
         },
         "magma_group_commit_max_transaction_count": {
+            "added": "7.1.0",
             "default": "20",
             "descr": "When a transaction is about to stall because there are pending transactions waiting to start, if there already are magma_group_commit_max_transaction_count including the current transaction waiting, the current transaction will perform the fsync. When group commit is enabled and both magma_group_commit_max_sync_wait_duration and magma_group_commit_max_transaction_count are set to 0, transactions will stall until there are no more transactions waiting to start.",
             "dynamic": false,
             "type": "size_t"
         },
         "magma_sync_every_batch": {
+            "added": "7.1.0",
             "default": "false",
             "dynamic": false,
             "descr": "Couchstore generates a commit point at the end of every batch of items. During normal operation, Magma checkpoints are taken at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Each checkpoint generated in this way is a \"Sync\" checkpoint and isn't going to be useful for rollback as it only the latest checkpoint is a \"Sync\" checkpoiont. A \"Rollback\" checkpoint will be made instead if we set magma_checkpoint_interval to 0. The \"Rollback\" checkpoints are stored in the checkpoint queue as potential rollback points. Should be used for testing only!",
             "type": "bool"
         },
         "magma_min_value_block_size_threshold": {
+            "added": "7.6.0",
             "default": "(64 * 1024)",
             "dynamic": true,
             "descr": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for lesser memory consumption as it avoids many value copies. For example, magma block compression is turned off for them as compression requires an output buffer as large as the input buffer. This is fine since for such large docs, per document Snappy compression already should give good enough space savings. This setting should be >= SeqIndex data block size or else it won't take effect.",
@@ -1679,6 +1755,7 @@
             }
         },
         "magma_enable_memory_optimized_writes": {
+            "added": "7.6.0",
             "default": {
                 "on-prem": "false",
                 "serverless": "true"
@@ -1688,12 +1765,14 @@
             "type": "bool"
         },
         "magma_enable_wal": {
+            "added": "7.1.0",
             "default": "true",
             "dynamic": false,
             "descr": "WAL ensures Magma's atomicity, durability. Disabling it is useful in performance analysis.",
             "type": "bool"
         },
         "magma_seq_tree_data_block_size": {
+            "added": "7.2.0",
             "default": "4096",
             "dynamic": true,
             "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key, metadata and value for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them. If this is less than magma_min_value_block_size_threshold, Magma will internally auto configure the value block size to be as large as this.",
@@ -1710,6 +1789,7 @@
             }
         },
         "magma_seq_tree_index_block_size": {
+            "added": "7.2.0",
             "default": "4096",
             "dynamic": true,
             "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
@@ -1726,6 +1806,7 @@
             }
         },
         "magma_key_tree_data_block_size": {
+            "added": "7.2.0",
             "default": "4096",
             "dynamic": true,
             "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key and metadata for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
@@ -1742,6 +1823,7 @@
             }
         },
         "magma_key_tree_index_block_size": {
+            "added": "7.2.0",
             "default": "4096",
             "dynamic": true,
             "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
@@ -1823,6 +1905,7 @@
             "type": "float"
         },
         "magma_index_compression_algo": {
+            "added": "7.6.0",
             "default": "lz4",
             "descr": "Compression algorithm used by Magma which is used to compress blocks that don't contain documents ie. all index related blocks. Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level 1-22)",
             "dynamic": true,
@@ -1864,6 +1947,7 @@
             }
         },
         "magma_data_compression_algo": {
+            "added": "7.6.0",
             "default": "lz4",
             "descr": "Compression algorithm used by Magma to compress data blocks where documents are stored. Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level1-22)",
             "dynamic": true,
@@ -1971,12 +2055,14 @@
             }
         },
         "magma_fusion_logstore_uri": {
+            "added": "8.0.0",
             "default": "",
             "descr": "URI of the Fusion LogStore.",
             "dynamic": true,
             "type": "std::string"
         },
         "magma_fusion_logstore_fragmentation_threshold": {
+            "added": "8.0.0",
             "default": "0.5",
             "descr": "The threshold at which the fusion log store will perform garbage collection. This is a ratio between 0.0 and 1.0.",
             "dynamic": true,
@@ -1989,12 +2075,14 @@
             }
         },
         "magma_fusion_metadatastore_uri": {
+            "added": "8.0.0",
             "default": "",
             "descr": "URI of the Fusion MetadataStore.",
             "dynamic": true,
             "type": "std::string"
         },
         "magma_fusion_upload_interval": {
+            "added": "8.0.0",
             "default": "(60 * 10)",
             "descr": "The interval between kvstore syncs to fusion, in seconds.",
             "dynamic": true,
@@ -2035,12 +2123,14 @@
             "type": "size_t"
         },
         "continuous_backup_enabled": {
+            "added": "8.0.0",
             "default": "false",
             "descr": "True if continouous backup is enabled.",
             "dynamic": true,
             "type": "bool"
         },
         "continuous_backup_interval": {
+            "added": "8.0.0",
             "default": "120",
             "descr": "The continouous backup interval (in seconds).",
             "dynamic": true,
@@ -2053,12 +2143,14 @@
             }
         },
         "continuous_backup_path": {
+            "added": "8.0.0",
             "default": "../@continuous_backup/",
             "dynamic": false,
             "type": "std::string",
             "descr": "A relative path to the continuous backup directory for this bucket."
         },
         "range_scan_kv_store_scan_ratio": {
+            "added": "7.6.0",
             "default": "0.8",
             "dynamic": false,
             "descr": "The ratio for calculating how many RangeScans can exist, a ratio of total KVStore scans.",
@@ -2071,18 +2163,21 @@
             }
         },
         "range_scan_max_continue_tasks": {
+            "added": "7.6.0",
             "default": "0",
             "dynamic": true,
             "descr": "The maximum number of range scan tasks that can exist concurrently. Setting to 0 results in num_auxio_threads - 1 tasks",
             "type": "size_t"
         },
         "range_scan_max_lifetime": {
+            "added": "7.6.0",
             "default": "180",
             "dynamic": true,
             "descr": "The maximum lifetime in seconds for a range-scan. Scans that don't complete before this limit are cancelled",
             "type": "size_t"
         },
         "range_scan_read_buffer_send_size": {
+            "added": "7.6.0",
             "default": "8192",
             "dynamic": true,
             "descr": "The size of a buffer used to store data read during the I/O phase of a range-scan-continue. Once the buffer size is >= to this value the data is sent to the connection",
@@ -2101,6 +2196,7 @@
             "type": "bool"
         },
         "seqno_persistence_timeout": {
+            "added": "7.1.0",
             "default": "30",
             "descr": "Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed",
             "dynamic": true,
@@ -2119,6 +2215,7 @@
             "type": "size_t"
         },
         "durability_impossible_fallback": {
+            "added": "8.0.0",
             "default": "disabled",
             "descr": "Allows SyncWrites to be committed when there are no replicas available to acknowledge the writes (a scenario which otherwise results in DurabilityImpossible).",
             "dynamic": true,
@@ -2144,6 +2241,7 @@
             }
         },
         "cross_bucket_ht_quota_sharing": {
+            "added": "7.6.0",
           "default": {
             "on-prem": "false",
             "serverless": "false"
@@ -2171,18 +2269,21 @@
             "type" : "bool"
         },
         "couchstore_midpoint_rollback_optimisation": {
+            "added": "7.1.0",
             "default": "true",
             "dynamic": false,
             "descr": "Should we have to rollback more than half of the seqnos seen by this vBucket we will instead rollback to 0 and re-stream from the active if set to true",
             "type": "bool"
         },
         "vbucket_mapping_sanity_checking": {
+            "added": "7.1.0",
             "default": "false",
             "dynamic": true,
             "descr": "Are vBucket mappings (key -> vBucket) checked by the server? This is a sanity checking mode which crc32 hashes the key to ensure that the client is supplying the expected vBucket for each key.",
             "type": "bool"
         },
         "vbucket_mapping_sanity_checking_error_mode": {
+            "added": "7.1.0",
             "default": "log",
             "dynamic": true,
             "descr": "See vbucket_mapping_sanity_checking. This parameter governs how found errors are dealt with. Were we to recommend these sanity checks to a customer then a log or throw handling would likely be most appropriate, for in-house testing an abort on error is far more useful as it is immediately noticeable in test frameworks and provides the maximum amount of information.",
@@ -2196,6 +2297,7 @@
             }
         },
         "history_retention_seconds": {
+            "added": "7.2.0",
             "default": "0",
             "dynamic": true,
             "descr": "Seconds of history the bucket should aim to retain on disk.",
@@ -2206,6 +2308,7 @@
             }
         },
         "history_retention_bytes": {
+            "added": "7.2.0",
             "default": "0",
             "dynamic": true,
             "descr": "Max bytes of history a bucket should aim to retain on disk.",
@@ -2225,6 +2328,7 @@
             }
         },
         "warmup_backfill_scan_chunk_duration": {
+            "added": "7.0.5",
             "default": "100",
             "descr": "The duration (in ms) after which warmup's backfill scans will yield and re-schedule; allowing other tasks on the same threads to run.",
             "dynamic": false,
@@ -2235,6 +2339,7 @@
             "comment": "The value selected needs to balance throughput of the task itself, and scheduling latency of other tasks on thr same thread. Too high a value (or not yielding at all) means that backfill tasks monopolise the thread they are running on and hence prevent other reader tasks - such as populating vBucket map for other Buckets being warmed up (see MB-47267 / MB-52383). Too low a value and the throughput of the task itself is low and warmup takes a long time - for example functional testing showed that time-to-first-item during a scan may be 40ms on mid-low end disks. If we selected a value less than 40ms then only a single item will be read per scan; given the setup of the scan itself can be costly we want aim to read at least a few items per scan."
         },
         "warmup_backfill_task_shard_ratio": {
+            "added": "8.0.0",
             "default": "0.0",
             "descr": "Ratio controlling how many tasks that will be created in the KeyDump, LoadingKVPairs and LoadingData phases. This is a ratio using the number of shards as the denominator and least 1 task will be created per phase. A value of 0.0 will create tasks equal to the lower of #shards or #reader-threads, a value of 1.0 restores the orginal behaviour, 1 task per shard.",
             "dynamic": false,
@@ -2251,6 +2356,7 @@
             "comment": "This value controls the number of tasks for certain phases of warmup and can help control the impact of warmup on read latency at the cost of a longer warmup time."
         },
         "warmup_behavior": {
+            "added": "8.0.0",
             "default": "background",
             "dynamic": true,
             "descr": "Configure warmup. background aims to enable traffic and will perform the cache warmup in the background. blocking means that traffic will not be enabled until the cache has warmed-up. none means that traffic willbe enabled with an empty cache. use_config for testing skips any preset values.",
@@ -2265,6 +2371,7 @@
             }
         },
         "warmup_accesslog_load_duration": {
+            "added": "8.0.0",
             "default": "100",
             "descr": "The duration (in ms) after which warmup's LoadAccessLog phase will yield and re-schedule; allowing other tasks on the same thread pool to run.",
             "dynamic": false,
@@ -2274,6 +2381,7 @@
             }
         },
         "warmup_accesslog_load_batch_size": {
+            "added": "8.0.0",
             "default": "10",
             "descr": "AccessLog loading operates in batches of this size (dictates the max number of keys issued to the KVStore::getMulti function)",
             "dynamic": false,
@@ -2283,6 +2391,7 @@
             }
         },
         "primary_warmup_min_memory_threshold": {
+            "added": "8.0.0",
             "default": {
                 "on-prem": "0",
                 "serverless": "0"
@@ -2298,6 +2407,7 @@
             }
         },
         "primary_warmup_min_items_threshold": {
+            "added": "8.0.0",
             "default": {
                 "on-prem": "0",
                 "serverless": "0"
@@ -2313,6 +2423,7 @@
             }
         },
         "secondary_warmup_min_memory_threshold": {
+            "added": "8.0.0",
             "default": {
                 "on-prem": "100",
                 "serverless": "0"
@@ -2328,6 +2439,7 @@
             }
         },
         "secondary_warmup_min_items_threshold": {
+            "added": "8.0.0",
             "default": {
                 "on-prem": "100",
                 "serverless": "0"
