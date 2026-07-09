@@ -577,12 +577,54 @@ bool resolveMetricFamilyConflicts(
     return !anyConflicts;
 }
 
+/**
+ * Extract the default value for a config param as a string.
+ *
+ * The default may be a plain string, or a dict of deployment-specific values
+ * (e.g. {"on-prem": ..., "serverless": ...}). In the dict case the on-prem
+ * value is used (serverless is defunct), falling back to a "default" key.
+ * Returns an empty string if no usable default is present.
+ */
+std::string getConfigDefault(const nlohmann::json& configParam) {
+    auto itr = configParam.find("default");
+    if (itr == configParam.end()) {
+        return {};
+    }
+    const auto& def = *itr;
+    if (def.is_string()) {
+        return def.get<std::string>();
+    }
+    if (def.is_object()) {
+        if (auto onPrem = def.find("on-prem"); onPrem != def.end()) {
+            return onPrem->get<std::string>();
+        }
+        if (auto fallback = def.find("default"); fallback != def.end()) {
+            return fallback->get<std::string>();
+        }
+    }
+    return {};
+}
+
 void addConfigDocumentation(const Spec& spec,
                             std::string_view helpText,
                             std::string_view longDescription,
+                            std::string_view defaultValue,
                             nlohmann::json& documentation) {
     auto [statName, statDoc] = generateDocEntry(spec);
-    statDoc["help"] = helpText;
+    std::string help(helpText);
+    // Ensure the description ends with a full stop before appending the
+    // configuration-parameter sentence, so the two read cleanly.
+    if (!help.empty() && help.back() != '.') {
+        help += '.';
+    }
+    if (defaultValue.empty()) {
+        help += " Configuration parameter.";
+    } else {
+        help += fmt::format(
+                " Configuration parameter with a default value of {}.",
+                defaultValue);
+    }
+    statDoc["help"] = std::move(help);
 
     if (!longDescription.empty()) {
         statDoc["long_description"] = longDescription;
@@ -726,8 +768,12 @@ int main(int argc, char** argv) {
             auto description = configParam.value().value("descr", "");
             auto longDescription =
                     configParam.value().value("long_description", "");
-            addConfigDocumentation(
-                    spec, description, longDescription, documentation);
+            auto defaultValue = getConfigDefault(configParam.value());
+            addConfigDocumentation(spec,
+                                   description,
+                                   longDescription,
+                                   defaultValue,
+                                   documentation);
         }
     }
 
