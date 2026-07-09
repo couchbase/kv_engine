@@ -983,6 +983,13 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
  * to the cursor is set to nullptr.
  */
 TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
+    /* Disabling the auxIO thread pool as backfill completes
+     * intermittently in ephemeral bucket cases and a new cursor gets
+     * re-registered before the nullptr check for the stream cursor
+     * causing the nullptr expectation to fail intermittently
+     */
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{0});
+
     /* Add 2 items; we need this to keep stream in backfill state */
     const uint64_t numItems = 2;
     addItemsAndRemoveCheckpoint(numItems);
