@@ -3865,21 +3865,29 @@ cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
     }
 
     bool unencrypted = false;
-    auto deks = cb::crypto::findDeksInUse(
-            configuration.getDbname(),
-            [&unencrypted](const auto& path) {
-                if (!path.filename().string().starts_with("access.log")) {
-                    return false;
-                }
-                if (path.extension() == ".cef") {
-                    return true;
-                }
-                unencrypted = true;
-                return false;
-            },
-            [](auto message, const auto& ctx) {
-                LOG_WARNING_CTX(message, ctx);
-            });
+    std::unordered_set<std::string> deks;
+    std::filesystem::path alog_name = configuration.getAlogPath();
+    if (!alog_name.empty()) {
+        auto directory = alog_name.parent_path();
+        auto filename = alog_name.filename().string();
+        if (exists(directory)) {
+            deks = cb::crypto::findDeksInUse(
+                    directory,
+                    [&unencrypted, &filename](const auto& path) {
+                        if (!path.filename().string().starts_with(filename)) {
+                            return false;
+                        }
+                        if (path.extension() == ".cef") {
+                            return true;
+                        }
+                        unencrypted = true;
+                        return false;
+                    },
+                    [](auto message, const auto& ctx) {
+                        LOG_WARNING_CTX(message, ctx);
+                    });
+        }
+    }
     if (unencrypted) {
         deks.insert(cb::crypto::KeyDerivationKey::UnencryptedKeyId);
     }

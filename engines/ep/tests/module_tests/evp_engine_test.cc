@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -23,14 +22,18 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vb_visitors.h"
-#include <executor/cb3_taskqueue.h>
-
 #include <boost/algorithm/string/join.hpp>
+#include <cbcrypto/common.h>
+#include <cbcrypto/file_writer.h>
 #include <configuration_impl.h>
+#include <executor/cb3_taskqueue.h>
 #include <folly/synchronization/Baton.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -638,6 +641,112 @@ TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
 
     EXPECT_EQ(cb::engine_errc::success, engine->initialize(config, {}, {}, {}));
     cookie = create_mock_cookie(engine);
+}
+
+namespace {
+/**
+ * Create an encrypted file at the given path, using a freshly generated
+ * key.
+ *
+ * @param file the path of the file to create
+ * @return the id of the key used to encrypt the file
+ */
+std::string createEncryptedFile(const std::filesystem::path file) {
+    using namespace cb::crypto;
+    SharedKeyDerivationKey key = KeyDerivationKey::generate();
+    auto writer = FileWriter::create(key, file);
+    EXPECT_TRUE(writer->is_encrypted());
+    writer->flush();
+    writer.reset();
+    return key->id;
+}
+
+/**
+ * Fetch the "encryption-key-ids" stat and return its value, parsed as a
+ * set of key ids (the stat itself is an unordered JSON array).
+ */
+std::set<std::string> getEncryptionKeyIdsStat(
+        EventuallyPersistentEngine& engine, CookieIface& cookie) {
+    std::map<std::string, std::string> stats;
+    auto dummyAddStats = [&stats](std::string_view key,
+                                  std::string_view value,
+                                  const auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            engine.get_stats(cookie, "encryption-key-ids", {}, dummyAddStats));
+    auto json = nlohmann::json::parse(stats.at("encryption-key-ids"));
+    std::set<std::string> ret;
+    for (const auto& id : json) {
+        ret.insert(id.get<std::string>());
+    }
+    return ret;
+}
+} // namespace
+
+/**
+ * Before the fix, dbname was scanned unconditionally with a hard-coded
+ * "access.log" prefix - regardless of whether (or where) alog_path was
+ * configured. Verify that with no alog_path set, a "access.log.cef" file
+ * sitting directly in dbname is no longer picked up.
+ */
+TEST_P(EPEnginePersistentTest, EncryptionKeyIdsStatsNoAlogPathIgnoresDbname) {
+    auto keyId = createEncryptedFile(std::filesystem::path(test_dbname) /
+                                     "access.log.cef");
+
+    auto ids = getEncryptionKeyIdsStat(*engine, *cookie);
+    EXPECT_EQ(0, ids.count(keyId))
+            << "access.log.cef's key id should not be reported when "
+               "alog_path isn't configured";
+}
+
+/**
+ * alog_path is configured, but the directory it lives in doesn't exist.
+ * This should be handled gracefully (rather than throwing/crashing) and not
+ * change the reported set of key ids compared to no alog_path being set at
+ * all.
+ */
+TEST_P(EPEnginePersistentTest, EncryptionKeyIdsStatsAlogDirectoryMissing) {
+    auto baseline = getEncryptionKeyIdsStat(*engine, *cookie);
+
+    auto alogPath = std::filesystem::path(test_dbname) / "does_not_exist" /
+                    "access.log";
+    engine->getConfiguration().setAlogPath(alogPath.string());
+
+    EXPECT_EQ(baseline, getEncryptionKeyIdsStat(*engine, *cookie));
+}
+
+/**
+ * The access log directory and filename are deliberately chosen to differ
+ * from dbname and "access.log", to verify that both the directory and the
+ * filename used to look for DEKs are derived from the configured alog_path
+ * rather than being hard-coded.
+ */
+TEST_P(EPEnginePersistentTest,
+       EncryptionKeyIdsStatsPicksUpAlogPathDirectoryAndFilename) {
+    auto baseline = getEncryptionKeyIdsStat(*engine, *cookie);
+
+    auto alogDir = std::filesystem::path(test_dbname) / "logs" / "sub";
+    std::filesystem::create_directories(alogDir);
+    engine->getConfiguration().setAlogPath((alogDir / "myaccesslog").string());
+
+    {
+        // Matches the alog filename and looks unencrypted -> should be
+        // reported. Use its own scope to ensure it created and closed
+        std::ofstream(alogDir / "myaccesslog.0");
+    }
+    // Matches the alog filename and is actually encrypted -> its key id
+    // should be reported.
+    auto keyId = createEncryptedFile(alogDir / "myaccesslog.1.cef");
+    // Doesn't match the alog filename -> ignored entirely (if it were
+    // picked up, its key id would show up in the stat too).
+    createEncryptedFile(alogDir / "unrelated.0.cef");
+
+    auto expected = baseline;
+    expected.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    expected.insert(keyId);
+    EXPECT_EQ(expected, getEncryptionKeyIdsStat(*engine, *cookie));
 }
 
 INSTANTIATE_TEST_SUITE_P(
