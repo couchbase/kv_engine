@@ -57,10 +57,14 @@
  *     When the compat_version is after the public_since version, then
  *     the parameter is reported with visibility "public"; otherwise it is
  *     reported with visibility "internal".
+ * * "added" - the version that this parameter was added - this is used to
+ *     ensure a correct "added" version is passed to the generated statistics
+ *     documentation.
  */
 {
     "params": {
         "compat_version": {
+            "added": "8.1.0",
             "descr": "Compatibility version applied to the bucket, in the format \"major.minor\"",
             "default": "",
             "dynamic": true,
@@ -1228,6 +1232,7 @@
             "type": "std::string"
         },
         "dcp_active_stream_inline_checkpoint_item_limit": {
+            "added": "8.1.0",
             "default": "50",
             "descr": "When the number of items pending for an ActiveStream's cursor is less than or equal to this value, the stream will run checkpoint item extraction inline rather than scheduling the ActiveStreamCheckpointProcessorTask. This avoids task-scheduling latency for small numbers of items. Set to 0 to always schedule the task.",
             "dynamic": true,
@@ -1285,6 +1290,7 @@
             }
         },
         "dcp_backfill_antilag_interval": {
+            "added": "8.1.0",
             "default": "10000",
             "descr": "Send SeqnoAdvanced on the n-th filtered item. Disabled if set to 0.",
             "dynamic": true,
@@ -1297,30 +1303,35 @@
             "type": "size_t"
         },
         "dcp_cache_transfer_enabled": {
+            "added": "8.1.0",
             "default": "true",
             "descr": "Does the producer support a cache transfer?",
             "dynamic": true,
             "type": "bool"
         },
         "dcp_cache_transfer_high_memory_backoff_duration": {
+            "added": "8.1.0",
             "default": "0.01",
             "descr": "The duration in floating point seconds to snooze the CacheTransferTask when memory pressure is present and the task should back-off to avoid making memory usage worse (and wait for memory to reduce).",
             "dynamic": true,
             "type": "float"
         },
         "dcp_cache_transfer_max_batch_bytes": {
+            "added": "8.1.0",
             "default": "2*1024*1024",
             "descr": "Maximum batch size in bytes for batching cache transfer items. At least 1 item will included in a batch, so a value of 0 is always 1 item per batch.",
             "dynamic": true,
             "type": "size_t"
         },
         "dcp_cache_transfer_one_visit_per_step": {
+            "added": "8.1.0",
             "default": "false",
             "descr": "Set to false for simpler unit-testing. When true CacheTransferTask to visit the hash table many times per step, when false one item per task step",
             "dynamic": true,
             "type": "bool"
         },
         "dcp_cache_transfer_visit_duration_ms": {
+            "added": "8.1.0",
             "default": "25",
             "descr": "The upper bound in milliseconds for the CacheTransferTask hash table visitor",
             "dynamic": true,
@@ -1351,6 +1362,7 @@
             }
         },
         "dcp_flow_control_buffer_size": {
+            "added": "8.1.0",
             "default": "0",
             "descr": "If non-zero, overrides the computed per-consumer DCP flow control buffer size with this absolute value (bytes), bypassing the dcp_consumer_buffer_ratio/BucketQuota calculation. A value of 0 disables the override and restores the ratio-based sizing.",
             "type": "size_t",
@@ -1547,6 +1559,7 @@
             "type": "size_t"
         },
         "magma_max_base_level_size": {
+            "added": "8.1.0",
             "default": "1073741824",
             "dynamic": true,
             "descr": "Upper bound on the dynamic L0/L1 target size. The target scales with the bottom level; values above this are clamped.",
@@ -1557,6 +1570,7 @@
             }
         },
         "magma_max_num_level0_tables": {
+            "added": "8.1.0",
             "default": "16",
             "dynamic": true,
             "descr": "Maximum number of L0 tables in the magma LSM trees.",
@@ -1790,6 +1804,7 @@
             "type": "size_t"
         },
         "magma_max_level0_ttl": {
+            "added": "8.1.0",
             "default": "600",
             "dynamic": false,
             "descr": "Maximum time (in seconds) that data is kept in level 0 before it is merged.",
@@ -1890,6 +1905,7 @@
             }
         },
         "magma_compacteddata_compression_algo": {
+            "added": "8.1.0",
             "default": "lz4",
             "descr": "Compression algorithm used by Magma to compress data blocks after compaction (cold data). Format: 'algo' or 'algo:level' (e.g., 'zstd:9'). Supported algorithms: snappy, lz4, none, zstd (with optional level 1-22)",
             "dynamic": true,
@@ -1931,6 +1947,7 @@
             }
         },
         "magma_enable_index_block_autotuning": {
+            "added": "8.1.0",
             "default": "false",
             "descr": "Enable auto-tuning of index block size based on compression ratio.",
             "dynamic": true,
@@ -1942,6 +1959,7 @@
             }
         },
         "magma_enable_data_block_autotuning": {
+            "added": "8.1.0",
             "default": "false",
             "descr": "Enable auto-tuning of data block size based on compression ratio.",
             "dynamic": true,
@@ -1983,12 +2001,14 @@
             "type": "size_t"
         },
         "magma_fusion_max_upload_interval": {
+            "added": "8.1.0",
             "default": "64800",
             "descr": "Maximum interval after which an upload will be permitted irrespective of upload thresholds, in seconds. This will be set to the smaller of the current value and 25% of persistent_metadata_purge_age.",
             "dynamic": true,
             "type": "size_t"
         },
         "magma_fusion_max_log_cleaning_size_ratio": {
+            "added": "8.1.0",
             "default": "0.05",
             "descr": "Minimum log segment size after which logs will be split. The ratio is a percentage of used log data size.",
             "dynamic": true,
@@ -2001,12 +2021,14 @@
             }
         },
         "magma_fusion_max_log_size": {
+            "added": "8.1.0",
             "default": "(1024 * 1024 * 1024)",
             "descr": "Upper cap for the effective log size, in bytes.",
             "dynamic": true,
             "type": "size_t"
         },
         "magma_fusion_max_num_log_files": {
+            "added": "8.1.0",
             "default": "100",
             "descr": "Base cap for maximum number of log files.",
             "dynamic": true,
@@ -2326,6 +2348,7 @@
             "type": "bool"
         },
         "monitor_task_interval": {
+            "added": "8.1.0",
             "default": "1",
             "descr": "Schedule interval (in seconds) for the MonitorTask.",
             "dynamic": true,

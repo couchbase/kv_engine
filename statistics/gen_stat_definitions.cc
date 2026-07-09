@@ -733,6 +733,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Need a string for the nlohmann::json::value() function default.
+    const std::string configVersionAddedStr(configVersionAdded);
     for (const auto& configParam : config.at("params").items()) {
         // config params use only the key currently, no units or description
         std::vector<std::string> keys;
@@ -749,7 +751,10 @@ int main(int argc, char** argv) {
             Spec spec;
             spec.enumKey = "ep_" + key;
             spec.unit = "none";
-            spec.added = configVersionAdded;
+            // Use the param's optional "added" field if present, otherwise fall
+            // back to the default value
+            spec.added =
+                    configParam.value().value("added", configVersionAddedStr);
             // We don't have a stability field for our config params, so for now
             // we decide what it should be here.
             spec.stability =
