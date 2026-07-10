@@ -468,6 +468,9 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             throw;
         }
     }
+    // Notify the ns_server team if any "special" json items are added
+    // below. They would need to update their tests which detects field
+    // name collisions.
     json["id"] = audit_eventid;
     json["name"] = descr->getName();
     json["description"] = descr->getDescription();
