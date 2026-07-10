@@ -172,6 +172,11 @@ public:
         return false;
     }
 
+    bool canEvictCleanDeletedItems() const override {
+        // Deleted items are tombstones owned by the HTTombstonePurger.
+        return false;
+    }
+
     Flusher* getOneFlusher() override {
         // No flusher for ephemeral
         return nullptr;

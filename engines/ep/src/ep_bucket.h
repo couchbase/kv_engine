@@ -387,6 +387,10 @@ public:
         return true;
     }
 
+    bool canEvictCleanDeletedItems() const override {
+        return true;
+    }
+
     /**
      * Gets the BgFetcher for the corresponding vBucket. If there are multiple
      * BgFetchers assigned to this vBucket, the distributionKey is used to

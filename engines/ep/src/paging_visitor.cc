@@ -84,6 +84,28 @@ bool PagingVisitor::shouldVisit(const HashTable::HashBucketLock& lh,
         return false;
     }
 
+    // MB-68585: Remove clean, non-temp deleted items (persistent buckets
+    // only). Their delete is already persisted - deletedOnDiskCbk removed
+    // them from the HashTable when the delete was flushed, but SVs restored
+    // after that (e.g. subdoc AccessDeleted bgfetch) or marked clean during
+    // warmup would otherwise linger indefinitely. Skip logically-deleted
+    // (dropped-collection) SVs - the drop paths handle those with
+    // collections-aware accounting.
+    if (v.isDeleted() && !v.isTempItem() && !v.isDirty() &&
+        store.canEvictCleanDeletedItems() &&
+        !readHandle.isLogicallyDeleted(v.getKey(), v.getBySeqno())) {
+        // Copy the key first - on successful pageOut the SV is freed.
+        StoredDocKey key(v.getKey());
+        auto* sv = &v;
+        if (currentBucket->pageOut(vbStateLock, readHandle, lh, sv, false)) {
+            // Deleted keys must stay in the bloom filter in either eviction
+            // policy (as deletedOnDiskCbk does when removing a flushed
+            // delete).
+            currentBucket->addToFilter(key);
+        }
+        return false;
+    }
+
     return true;
 }
 

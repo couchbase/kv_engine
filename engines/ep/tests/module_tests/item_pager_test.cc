@@ -877,6 +877,79 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
     }
 }
 
+TEST_P(STItemPagerTest, CleanDeletedItemRemovedRegardlessOfEvictionStrategy) {
+    // MB-68585: A clean, non-temp deleted item (e.g. bgfetched back into the
+    // HashTable by a request for a deleted value) is removed by the item pager
+    // when visited, regardless of its MFU / the eviction strategy. Checked
+    // with a strategy which would otherwise evict nothing.
+
+    if (ephemeral()) {
+        // Ephemeral deletes remain in memory until the purge interval elapses,
+        // and there's no backing disk for the deletes to be bgfetched from.
+        GTEST_SKIP();
+    }
+    auto key = makeStoredDocKey("key");
+    // get a deleted item on disk
+    storeAndDeleteItem(vbid, key, "value");
+
+    auto vb = store->getVBucket(vbid);
+    auto& ht = vb->ht;
+
+    // request with GET_DELETED_VALUE - triggers a bgfetch of the item
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    auto gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+
+    runBGFetcherTask();
+
+    gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    // Setup complete - there is now a clean, non-temp deleted item in the HT
+    {
+        const auto* sv =
+                ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        ASSERT_TRUE(sv);
+        ASSERT_TRUE(sv->isDeleted());
+        ASSERT_FALSE(sv->isTempItem());
+        ASSERT_FALSE(sv->isDirty());
+    }
+
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+    pagerSemaphore->try_acquire(1);
+    auto pv = std::make_unique<MockItemPagingVisitor>(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            ItemEvictionStrategy::evict_nothing(),
+            pagerSemaphore,
+            false,
+            VBucketFilter::createMatchAll());
+
+    // Drop the lwm and ensure memory usage is above it so paging proceeds.
+    auto& config = engine->getConfiguration();
+    auto origLowWatermark = config.getMemLowWatPercent();
+    config.setMemLowWatPercent(0);
+
+    pv->visitBucket(*vb);
+
+    config.setMemLowWatPercent(origLowWatermark);
+
+    // Expect that the stored value has been removed, even though the eviction
+    // strategy would not evict anything.
+    {
+        const auto* sv =
+                ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        EXPECT_FALSE(sv);
+    }
+}
+
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
@@ -2629,6 +2702,13 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     EXPECT_EQ(cb::engine_errc::success, getKeyFn(key_0))
             << "Key without TTL should still exist.";
 
+    if (fullEviction()) {
+        // MB-68585: the expiry pager removed the deleted SV which the
+        // earlier bgfetch restored into the HashTable, so another bgfetch
+        // is needed.
+        EXPECT_EQ(cb::engine_errc::would_block, getKeyFn(key_1));
+        runBGFetcherTask();
+    }
     EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
@@ -2700,7 +2780,13 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 
     auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    EXPECT_EQ(err, store->get(key_1, vbid, cookie, options).getStatus())
+    // MB-68585: the expiry pager above removed the clean deleted SV from
+    // the HashTable, so persistent buckets require a bgfetch to read the
+    // deleted value.
+    const auto expectedGetStatus = persistent() ? cb::engine_errc::would_block
+                                                : cb::engine_errc::success;
+    EXPECT_EQ(expectedGetStatus,
+              store->get(key_1, vbid, cookie, options).getStatus())
             << "Key with TTL:10 should be removed.";
 
     // Verify that the xattr body still exists.
@@ -3553,6 +3639,36 @@ TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
     }
 }
 
+// MB-68585: In ephemeral buckets deleted items are tombstones owned by the
+// HTTombstonePurger; the expiry pager must leave them alone.
+TEST_P(STExpiryPagerTest, EphemeralDeletedItemNotCleanedUp) {
+    if (!ephemeral()) {
+        GTEST_SKIP();
+    }
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    delete_item(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isDeleted());
+    }
+
+    wakeUpExpiryPager();
+
+    // The tombstone survives the expiry pager; only the tombstone purger
+    // may remove it.
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_TRUE(htRes.committed);
+        EXPECT_TRUE(htRes.committed->isDeleted());
+    }
+}
+
 /**
  * Test fixture with bloom filter disabled.
  */
@@ -3675,6 +3791,93 @@ TEST_P(STNoBloomFilterExpiryPagerTest, TempDeletedCleanedUpNotExpired) {
     }
     // And proceed with the test
     testTempItemCleanUp(key, true);
+}
+
+// MB-68585: A clean, non-temp deleted item (e.g. restored into the HashTable
+// by a subdoc AccessDeleted bgfetch) is removed by the expiry pager, as
+// nothing else would remove it without memory pressure.
+TEST_P(STNoBloomFilterExpiryPagerTest, CleanDeletedItemCleanedUpNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    // Store and delete the item, persisting the delete - deletedOnDiskCbk
+    // removes the SV from the HT.
+    storeAndDeleteItem(vbid, key, "value");
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_FALSE(htRes.committed);
+        ASSERT_FALSE(htRes.pending);
+    }
+
+    // Fetch the full deleted document back into the HashTable (as subdoc
+    // AccessDeleted does).
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    runBGFetcherTask();
+    gv = store->get(key, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    // The restored SV is deleted, non-temp and clean.
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isDeleted());
+        ASSERT_FALSE(htRes.committed->isTempItem());
+        ASSERT_FALSE(htRes.committed->isDirty());
+    }
+    ASSERT_EQ(0, vb->getNumTempItems());
+
+    wakeUpExpiryPager();
+    auto& stats = engine->getEpStats();
+    // The item was removed, not expired.
+    EXPECT_EQ(0, stats.expired_pager);
+    EXPECT_EQ(0, vb->numExpiredItems);
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_FALSE(htRes.committed);
+        EXPECT_FALSE(htRes.pending);
+    }
+}
+
+// MB-68585: A dirty deleted item (delete not yet persisted) must not be
+// removed by the expiry pager; deletedOnDiskCbk removes it when the delete
+// is flushed.
+TEST_P(STNoBloomFilterExpiryPagerTest, DirtyDeletedItemNotCleanedUp) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    delete_item(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isDeleted());
+        ASSERT_TRUE(htRes.committed->isDirty());
+    }
+
+    wakeUpExpiryPager();
+    // Still in the HT - the delete has not been persisted yet.
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_TRUE(htRes.committed);
+        EXPECT_TRUE(htRes.committed->isDeleted());
+    }
+
+    // Once the delete is persisted, deletedOnDiskCbk removes the SV.
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_FALSE(htRes.committed);
+        EXPECT_FALSE(htRes.pending);
+    }
 }
 
 // TODO: Ideally all of these tests should run with or without jemalloc,

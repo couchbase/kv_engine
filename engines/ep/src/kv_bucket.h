@@ -695,6 +695,12 @@ public:
      */
     virtual bool canEvictFromReplicas() = 0;
 
+    /**
+     * Check if the pagers should remove clean, non-temp deleted items from
+     * the HashTable when visited.
+     */
+    virtual bool canEvictCleanDeletedItems() const = 0;
+
     TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno) override;
 
     void attemptToFreeMemory() override;
