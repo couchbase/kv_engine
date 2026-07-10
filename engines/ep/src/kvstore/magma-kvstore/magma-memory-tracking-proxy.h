@@ -272,7 +272,7 @@ public:
     void SetBackupInterval(std::chrono::minutes interval);
     magma::Status StartBackup(const magma::Magma::KVStoreID kvID,
                               const std::string& backupPath);
-    magma::Status StopBackup(const magma::Magma::KVStoreID kvID);
+    magma::Status StopBackup(const magma::Magma::KVStoreID kvID, bool hardLink);
 
     void EnableHistoryEviction();
     void DisableHistoryEviction();

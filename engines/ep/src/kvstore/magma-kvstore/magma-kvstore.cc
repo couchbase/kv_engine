@@ -1074,7 +1074,7 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
                 spdlog::level::info,
                 "Stopping continuous backup",
                 {{"vb", vbid}, {"vb_state", VBucket::toString(newState)}});
-        auto status = magma->StopBackup(vbid.get());
+        auto status = magma->StopBackup(vbid.get(), isBackupEnabled);
         if (!status) {
             logger->logWithContext(spdlog::level::warn,
                                    "Failed to stop continuous backup",
@@ -1531,10 +1531,10 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
 std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
     auto& backupStatus = continuousBackupStatus[getCacheSlot(vbid)];
     if (backupStatus == BackupStatus::Started) {
-        // Stopping the backup will force a backup to be created before the
-        // vBucket is deleted. This is necessary to support the case of
-        // restoring to just before bucket flush.
-        auto status = magma->StopBackup(vbid.get());
+        // We force a backup to be created before the vBucket is deleted. This
+        // is necessary to support the case of restoring to just before bucket
+        // flush.
+        auto status = magma->StopBackup(vbid.get(), true);
         if (!status) {
             // We should not treat the failure here as fatal, log and continue
             // with deleting the vbucket.

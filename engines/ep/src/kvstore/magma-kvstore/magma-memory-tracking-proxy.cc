@@ -703,9 +703,9 @@ magma::Status MagmaMemoryTrackingProxy::StartBackup(
 }
 
 magma::Status MagmaMemoryTrackingProxy::StopBackup(
-        const magma::Magma::KVStoreID kvID) {
+        const magma::Magma::KVStoreID kvID, bool generateBackup) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->StopBackup(kvID);
+    return magma->StopBackup(kvID, generateBackup);
 }
 
 void MagmaMemoryTrackingProxy::EnableHistoryEviction() {
