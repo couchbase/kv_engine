@@ -35,6 +35,7 @@
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/sysinfo.h>
 #include <sigar/sigar.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
@@ -560,6 +561,10 @@ static void stat_threads_emit_configured_and_actual(
                setting.getNumQuickNonIoThreads(),
                exPool.getNumQuickNonIO());
     emitThread("slowio", setting.getNumSlowIoThreads(), exPool.getNumSlowIO());
+
+    // The number of logical CPUs this process can use. Many of the pool
+    // sizes above are derived from this value.
+    emitter("num_cpus", fmt::format("{}", cb::get_available_cpu_count()));
 }
 
 static cb::engine_errc stat_threads_executor(const StatGroup&,

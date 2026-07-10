@@ -647,7 +647,8 @@ static void startExecutorPool() {
                  {"auxIO", pool->getNumAuxIO()},
                  {"nonIO", pool->getNumNonIO()},
                  {"quickNonIO", pool->getNumQuickNonIO()},
-                 {"slowIO", pool->getNumSlowIO()});
+                 {"slowIO", pool->getNumSlowIO()},
+                 {"cpus", cb::get_available_cpu_count()});
 
     // MB-47484 Set up the settings callback for the executor pool now that
     // it is up'n'running

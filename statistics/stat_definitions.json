@@ -3569,6 +3569,14 @@
         "unit": "none"
     },
     {
+        "key": "memcached_num_cpus",
+        "cbstat": "num_cpus",
+        "description": "The number of logical CPUs available to the process",
+        "added": "8.1.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
         "key": "vb_num",
         "unit": "none",
         "cbstat": "vb_{state}_num",

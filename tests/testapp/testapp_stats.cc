@@ -13,6 +13,7 @@
 #include <folly/portability/GMock.h>
 #include <memcached/stat_group.h>
 #include <platform/dirutils.h>
+#include <platform/sysinfo.h>
 #include <platform/timeutils.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <serverless/config.h>
@@ -920,7 +921,8 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_quicknonio_threads_configured", -1),
                     Pair("num_quicknonio_threads_actual", Gt(0)),
                     Pair("num_slowio_threads_configured", -1),
-                    Pair("num_slowio_threads_actual", Eq(4))));
+                    Pair("num_slowio_threads_actual", Eq(4)),
+                    Pair("num_cpus", Eq(cb::get_available_cpu_count()))));
 
     // 2. Reconfigure with a different number, check the stats update as
     // expected.
@@ -955,7 +957,8 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_quicknonio_threads_configured", -1),
                     Pair("num_quicknonio_threads_actual", Gt(0)),
                     Pair("num_slowio_threads_configured", -1),
-                    Pair("num_slowio_threads_actual", Gt(0))));
+                    Pair("num_slowio_threads_actual", Gt(0)),
+                    Pair("num_cpus", Gt(0))));
 }
 
 // Verify that the sum of all num_*_threads_actual values (excluding the
@@ -1005,6 +1008,7 @@ TEST_P(StatsTest, ThreadDetails) {
     EXPECT_TRUE(json.contains("num_quicknonio_threads_actual"));
     EXPECT_TRUE(json.contains("num_slowio_threads_configured"));
     EXPECT_TRUE(json.contains("num_slowio_threads_actual"));
+    EXPECT_TRUE(json.contains("num_cpus"));
     EXPECT_LT(10, json.size()) << "There should be some threads reported";
 }
 
