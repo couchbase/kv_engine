@@ -931,6 +931,67 @@ TEST_P(DcpCacheTransferTest, consumer_addStream_with_future_counts) {
                "memory";
 }
 
+/// Serialise one item in the DcpCacheTransfer wire format.
+static void appendWireItem(std::string& buffer,
+                           const StoredDocKey& key,
+                           std::string_view value,
+                           uint64_t seqno) {
+    const cb::mcbp::request::DcpCacheTransferPayload payload(
+            static_cast<uint16_t>(key.size()),
+            static_cast<uint32_t>(value.size()),
+            /*cas*/ seqno,
+            seqno,
+            /*revSeqno*/ 1,
+            /*flags*/ 0,
+            /*expiration*/ 0,
+            PROTOCOL_BINARY_RAW_BYTES,
+            /*cacheHint*/ 0);
+    const auto buf = payload.getBuffer();
+    buffer.append(buf.data(), buf.size());
+    buffer.append(reinterpret_cast<const char*>(key.data()), key.size());
+    buffer.append(value);
+}
+
+// ep_dcp_cache_transfer_read_bytes accounts every received item's wire size,
+// including partial progress when a batch fails part way through.
+TEST_P(DcpCacheTransferTest, rx_byte_counter) {
+    const auto replicaVB = Vbid(1);
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "test_producer->test_consumer");
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      /*opaque*/ 0, replicaVB, cb::mcbp::DcpAddStreamFlag{}));
+    const auto opaque = consumer->getVbucketStream(replicaVB)->getOpaque();
+
+    auto& counter = engine->getEpStats().cacheTransferBytesRead;
+    ASSERT_EQ(0, counter);
+
+    // Successful batch: the counter accounts every item.
+    std::string batch;
+    appendWireItem(batch, makeStoredDocKey("a"), "value-a", 1);
+    appendWireItem(batch, makeStoredDocKey("b"), "value-b", 2);
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->cache_transfer_rx(
+                      opaque,
+                      replicaVB,
+                      cb::mcbp::DcpCacheTransferBuffer(batch)));
+    EXPECT_EQ(batch.size(), counter);
+
+    // Error mid-batch: the first item is fine, the second is in an unknown
+    // collection. The partial progress (first item) must still be accounted.
+    std::string batch2;
+    appendWireItem(batch2, makeStoredDocKey("c"), "value-c", 3);
+    const auto firstItemBytes = batch2.size();
+    appendWireItem(batch2, StoredDocKey("d", CollectionID(0x99)), "value-d", 4);
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
+              consumer->cache_transfer_rx(
+                      opaque,
+                      replicaVB,
+                      cb::mcbp::DcpCacheTransferBuffer(batch2)));
+    EXPECT_EQ(batch.size() + firstItemBytes, counter);
+}
+
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as
 // we cannot transfer the linked list or system events...
 INSTANTIATE_TEST_SUITE_P(

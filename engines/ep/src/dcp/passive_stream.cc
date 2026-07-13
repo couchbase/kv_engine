@@ -23,6 +23,7 @@
 #include "kv_bucket.h"
 #include "vbucket.h"
 
+#include <folly/ScopeGuard.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/json_utilities.h>
 #include <memcached/dockey_view.h>
@@ -1496,6 +1497,14 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    // Accumulate the received bytes locally and flush to the global counter
+    // once per message rather than paying an atomic add per item. The guard
+    // ensures the error paths below still account partial progress.
+    size_t bytesRead = 0;
+    auto flushBytesRead = folly::makeGuard([this, &bytesRead]() {
+        engine->getEpStats().cacheTransferBytesRead += bytesRead;
+    });
+
     auto itr = items.begin();
     auto manifest = vb->lockCollections();
     while (itr != items.end()) {
@@ -1549,7 +1558,7 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         }
 
         // Add the key/meta/value bytes to our transfer metric.
-        engine->getEpStats().cacheTransferBytesRead += item.getSize();
+        bytesRead += item.getSize();
         ++itr;
     }
 
