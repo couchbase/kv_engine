@@ -31,6 +31,7 @@
 #include "dcp/dcpconnmap.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
+#include "ep_vb.h"
 #include "flusher.h"
 #include "kvstore/kvstore.h"
 #ifdef EP_USE_MAGMA
@@ -3238,8 +3239,14 @@ public:
      *
      * If topology is not empty, a prepare sync-write is written to the vb, else
      * a commited doc is written
+     *
+     * @param numItems total committed items to write (additional items are
+     *        written alongside the returned key for tests which need a larger
+     *        snapshot)
      */
-    StoredDocKey prepareForUseSnapshot(Vbid id, nlohmann::json topology = {});
+    StoredDocKey prepareForUseSnapshot(Vbid id,
+                                       nlohmann::json topology = {},
+                                       size_t numItems = 1);
 };
 
 class EPBucketTestCouchstoreFE : public EPBucketTestCouchstore {};
@@ -3283,13 +3290,16 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
 }
 
 StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
-        Vbid id, nlohmann::json topology) {
+        Vbid id, nlohmann::json topology, size_t numItems) {
     const auto docKey = makeStoredDocKey("key");
     setVBucketStateAndRunPersistTask(id, vbucket_state_active, topology);
     if (!topology.empty()) {
         store_pending_item(id, docKey, "valueA");
     } else {
         store_item(id, docKey, "valueA");
+    }
+    for (size_t ii = 1; ii < numItems; ++ii) {
+        store_item(id, makeStoredDocKey("key_" + std::to_string(ii)), "value");
     }
     flushVBucket(id);
 
@@ -3393,6 +3403,64 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotStraightToActive) {
     EXPECT_EQ(CreateVbucketMethod::FBR, vb->getCreationMethod());
 }
 
+// A vbucket loaded from a snapshot and eligible for a cache transfer has its
+// HashTable pre-sized from the snapshot's item count. Whilst the vbucket
+// reports !canSnapshotRebalanceContinue() (transfer expected or in-flight)
+// down-sizing is blocked, so the table holds that size until the transfer
+// completes or can no longer happen.
+TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotPresizesHashTable) {
+    prepareForUseSnapshot(vbid, {}, 100);
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb->shouldUseDcpCacheTransfer());
+    ASSERT_EQ(100, vb->getNumTotalItems());
+    ASSERT_FALSE(vb->canSnapshotRebalanceContinue());
+
+    // Pre-sized for the on-disk item count while the table is still empty.
+    ASSERT_EQ(0, vb->ht.getNumItems());
+    const auto presized = vb->ht.getSize();
+    EXPECT_GE(presized, 100);
+    EXPECT_GT(presized, engine->getConfiguration().getHtSize());
+
+    // Down-sizing of the empty table is blocked, even once the decrease
+    // delay has passed (zero delay here).
+    EXPECT_EQ(presized, vb->ht.getPreferredSize(std::chrono::seconds(0)));
+
+    // Any state change ends the transfer and unblocks down-sizing; the
+    // resizer may then shrink the table as normal.
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(
+                      vbid, vbucket_state_active, {}, TransferVB::No, cookie));
+    EXPECT_TRUE(vb->canSnapshotRebalanceContinue());
+    EXPECT_LT(vb->ht.getPreferredSize(std::chrono::seconds(0)), presized);
+    // Unblocking does not itself resize the table.
+    EXPECT_EQ(presized, vb->ht.getSize());
+}
+
+// With dcp_cache_transfer_ht_presize disabled the HashTable keeps its
+// configured size.
+TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotPresizeDisabled) {
+    engine->getConfiguration().setDcpCacheTransferHtPresize(false);
+    prepareForUseSnapshot(vbid, {}, 100);
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb->shouldUseDcpCacheTransfer());
+    EXPECT_EQ(engine->getConfiguration().getHtSize(), vb->ht.getSize());
+}
+
+// A snapshot loaded straight to active cannot receive a cache transfer, so
+// no pre-sizing occurs.
+TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshotToActiveNoPresize) {
+    prepareForUseSnapshot(vbid, {}, 100);
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_FALSE(vb->shouldUseDcpCacheTransfer());
+    EXPECT_EQ(engine->getConfiguration().getHtSize(), vb->ht.getSize());
+}
+
 TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
     auto docKey = prepareForUseSnapshot(vbid);
     loadVBucketFromLocalSnapshot(
@@ -3408,14 +3476,20 @@ TEST_P(EPBucketTestCouchstore, ExpectedNextState) {
     EXPECT_FALSE(vb->isNextState(vbucket_state_pending));
     EXPECT_FALSE(vb->isNextState(vbucket_state_dead));
 
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     if (isFullEviction()) {
         EXPECT_FALSE(vb->shouldUseDcpCacheTransfer());
+        // No transfer to a full-eviction replica, so no pre-sizing either.
+        EXPECT_EQ(0, epVb.calculateCacheTransferHTItemEstimate(nullptr));
         return;
     }
     // Value eviction will configure CacheTransfer as an all_keys (no value
     // transfer)
 
     EXPECT_TRUE(vb->shouldUseDcpCacheTransfer());
+    // A value-eviction replica still receives every key - sized as normal.
+    EXPECT_EQ(epVb.getNumTotalItems(),
+              epVb.calculateCacheTransferHTItemEstimate(nullptr));
     // Create a stream and validate the CTS configurationauto consumer =
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test-consumer");

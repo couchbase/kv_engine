@@ -835,6 +835,18 @@ public:
     size_t getPreferredSize(cb::time::steady_clock::duration delay = {}) const;
 
     /**
+     * Compute the size this table should have to store the given number of
+     * items at a load factor of ~1, e.g. for pre-sizing the table when the
+     * expected item count is known in advance (DCP cache transfer).
+     *
+     * @param numItems the expected number of items
+     * @return the smallest prime table size >= max(numItems, minimumSize()),
+     *         clamped to the largest supported size. Never less than the
+     *         current size (grow-only; shrinking is the resizer task's job).
+     */
+    size_t getPreferredSizeForItemCount(size_t numItems) const;
+
+    /**
      * Automatically resize to fit the current data.
      */
     NeedsRevisit resizeInOneStep() {

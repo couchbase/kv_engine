@@ -403,7 +403,9 @@ cb::engine_errc DcpConsumer::doAddStream(uint32_t opaque,
     vb->disableCacheTransfer();
 
     if (!cacheTransfer.has_value()) {
-        // No cache-transfer, advertise that rebalance can continue
+        // No cache-transfer, advertise that rebalance can continue. This also
+        // re-enables HashTable down-sizing (see the ht.minimumSize function
+        // set by VBucket).
         vb->setSnapshotRebalanceCanContinue();
     }
 

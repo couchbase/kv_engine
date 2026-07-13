@@ -329,7 +329,37 @@ void VBucketLoadingTask::loadCollectionStats() {
 void VBucketLoadingTask::loadItemCount() {
     auto& epVb = static_cast<EPVBucket&>(*loader.getVBucketPtr());
     epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
+    maybePresizeHashTable(epVb);
     transition(LoadingState::LoadPreparedSyncWrites);
+}
+
+void VBucketLoadingTask::maybePresizeHashTable(EPVBucket& epVb) {
+    if (!store.getEPEngine().getConfiguration().isDcpCacheTransferHtPresize() ||
+        !epVb.shouldUseDcpCacheTransfer()) {
+        return;
+    }
+
+    const auto estimate = epVb.calculateCacheTransferHTItemEstimate(&cookie);
+    const auto newSize = epVb.ht.getPreferredSizeForItemCount(estimate);
+    if (newSize <= epVb.ht.getSize()) {
+        return;
+    }
+
+    // The vbucket is not yet in the map and its HashTable is empty, so this
+    // resize allocates the larger table without rehashing anything and
+    // cannot contend with any other access. The table is then held at (or
+    // above) this size until the transfer completes or can no longer happen:
+    // whilst !canSnapshotRebalanceContinue() the ht.minimumSize function
+    // (see VBucket's constructor) blocks down-sizing of a table sized for
+    // items which are yet to arrive.
+    epVb.ht.resizeInOneStep(newSize);
+
+    EP_LOG_INFO_CTX("VBucketLoadingTask::maybePresizeHashTable",
+                    {"conn_id", cookie.getConnectionId()},
+                    {"vb", vbid},
+                    {"on_disk_items", epVb.getNumTotalItems()},
+                    {"estimated_items", estimate},
+                    {"ht_size", epVb.ht.getSize()});
 }
 
 void VBucketLoadingTask::loadPreparedSyncWrites() {

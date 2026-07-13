@@ -1372,6 +1372,13 @@
             "dynamic": true,
             "type": "float"
         },
+        "dcp_cache_transfer_ht_presize": {
+            "added": "8.1.0",
+            "default": "true",
+            "descr": "When true, a vbucket created from a snapshot (FBR/Fusion) that is eligible for a DCP cache transfer has its HashTable sized up-front from the snapshot's item count, avoiding repeated resizing while the transfer populates the table.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "dcp_cache_transfer_max_batch_bytes": {
             "added": "8.1.0",
             "default": "2*1024*1024",

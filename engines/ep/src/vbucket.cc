@@ -193,7 +193,17 @@ VBucket::VBucket(Vbid i,
                                                             maxVisibleSeqno,
                                                             maxPrepareSeqno,
                                                             flusherCb)) {
-    ht.minimumSize = [bucket]() { return bucket->getMinimumHashTableSize(); };
+    ht.minimumSize = [this]() {
+        if (!canSnapshotRebalanceContinue()) {
+            // A snapshot based rebalance is waiting on this vbucket, e.g. a
+            // DCP cache transfer is expected or in-flight and the HashTable
+            // may have been pre-sized for items which are yet to arrive.
+            // Block down-sizing by using the current size as the minimum.
+            return std::max(this->bucket->getMinimumHashTableSize(),
+                            ht.getSize());
+        }
+        return this->bucket->getMinimumHashTableSize();
+    };
     // There are tests where we just create vbuckets & bucket can be null -
     // get the value from the KVBucket only when it's not null.
     if (bucket) {
@@ -710,7 +720,8 @@ void VBucket::setState_UNLOCKED(
         disableCacheTransfer();
 
         // Any state change and this vbucket should no longer block a future
-        // rebalance
+        // rebalance. This also re-enables HashTable down-sizing (see the
+        // ht.minimumSize function set in the constructor).
         setSnapshotRebalanceCanContinue();
     }
 }

@@ -36,6 +36,12 @@ static size_t hashToBucket(uint32_t hash, size_t tableSize) {
     return hash % tableSize;
 }
 
+/// @return iterator to the smallest prime_size_table entry >= n, or end()
+static auto firstPrimeGE(size_t n) {
+    return std::ranges::find_if(prime_size_table,
+                                [n](auto prime) { return prime >= n; });
+}
+
 std::string to_string(MutationStatus status) {
     switch (status) {
     case MutationStatus::NotFound:
@@ -249,9 +255,7 @@ size_t HashTable::getPreferredSize(
     const size_t currSize = getSize();
 
     // Figure out where in the prime table we are.
-    const auto candidate = std::ranges::find_if(
-            prime_size_table,
-            [numItems](auto prime) { return prime >= numItems; });
+    const auto candidate = firstPrimeGE(numItems);
 
     size_t newSize;
 
@@ -283,6 +287,17 @@ size_t HashTable::getPreferredSize(
     }
 
     return newSize;
+}
+
+size_t HashTable::getPreferredSizeForItemCount(size_t numItems) const {
+    const auto required = std::max(numItems, minimumSize());
+    const auto candidate = firstPrimeGE(required);
+    const size_t newSize = (candidate == prime_size_table.end())
+                                   ? prime_size_table.back()
+                                   : *candidate;
+    // Grow-only: shrinking is the resizer task's job (subject to the
+    // decrease delay).
+    return std::max(newSize, getSize());
 }
 
 NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {

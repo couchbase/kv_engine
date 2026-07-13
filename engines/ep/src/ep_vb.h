@@ -396,6 +396,32 @@ public:
      */
     bool shouldUseDcpCacheTransfer() const override;
 
+    /**
+     * Estimate how many items a DCP cache transfer can place in this
+     * vbucket's HashTable, for pre-sizing the table before the transfer
+     * begins. Uses this vbucket's on-disk item count and expected next
+     * state (as given to the set-vbucket-state command).
+     *
+     * Whatever the eviction mode the estimate is bounded by the number of
+     * items this vbucket's share of free memory (quota/watermark rules) can
+     * admit, and the size of the table the estimate implies (one
+     * pointer-sized slot per item) must itself fit below the high watermark
+     * - else the estimate is 0 and no pre-sizing occurs. In particular the
+     * full-eviction on-disk count can be a large over-count of what
+     * transfers (only resident values are sent), and a value-eviction
+     * (all_keys) transfer sends every key but stalls on the replication
+     * throttle rather than exceeding memory.
+     *
+     * A vbucket expected to become a replica performs no cache transfer
+     * under full eviction (see shouldUseDcpCacheTransfer), so the estimate
+     * is 0 and the default table size is kept.
+     *
+     * @param cookie Cookie to get future vbucket counts from (may be null)
+     * @return The estimated item count (0 if nothing can be admitted)
+     */
+    size_t calculateCacheTransferHTItemEstimate(
+            const CookieIface* cookie) const;
+
     void disableCacheTransfer() override {
         canReceiveCacheTransfer = false;
     }

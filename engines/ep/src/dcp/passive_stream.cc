@@ -1590,6 +1590,8 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
 
     OBJ_LOG_INFO_CTX(
             *this, "PassiveStream::processCacheTransferEnd", {"vb", vb_});
+    // Transfer complete - rebalance can continue and HashTable down-sizing is
+    // re-enabled (see the ht.minimumSize function set by VBucket).
     vb->setSnapshotRebalanceCanContinue();
 
     return cb::engine_errc::success;

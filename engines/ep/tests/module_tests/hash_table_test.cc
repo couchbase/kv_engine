@@ -437,6 +437,37 @@ TEST_F(HashTableTest, ResizeDecreaseDelay) {
     EXPECT_EQ(13, ht.getPreferredSize(100s));
 }
 
+// Test sizing for an item count known in advance (used to pre-size the table
+// ahead of a DCP cache transfer).
+TEST_F(HashTableTest, PreferredSizeForItemCount) {
+    MockHashTable ht(global_stats,
+                     makeFactory(),
+                     7,
+                     3,
+                     0,
+                     defaultHtTempItemsAllowedPercent);
+    ASSERT_EQ(7, ht.getSize());
+
+    // Counts at or below the minimum size clamp to the minimum size.
+    EXPECT_EQ(7, ht.getPreferredSizeForItemCount(0));
+    EXPECT_EQ(7, ht.getPreferredSizeForItemCount(7));
+
+    // Otherwise the smallest prime >= count.
+    EXPECT_EQ(13, ht.getPreferredSizeForItemCount(8));
+    EXPECT_EQ(49157, ht.getPreferredSizeForItemCount(49157));
+    EXPECT_EQ(98299, ht.getPreferredSizeForItemCount(50000));
+
+    // Clamped to the largest supported size.
+    EXPECT_EQ(1610612741,
+              ht.getPreferredSizeForItemCount(
+                      std::numeric_limits<size_t>::max()));
+
+    // Grow-only: never suggests below the current size.
+    ASSERT_EQ(NeedsRevisit::No, ht.resizeInOneStep(97));
+    ASSERT_EQ(97, ht.getSize());
+    EXPECT_EQ(97, ht.getPreferredSizeForItemCount(8));
+}
+
 TEST_F(HashTableTest, ResizeDeferredByVisitor) {
     class Visitor : public HashTableVisitor {
     public:

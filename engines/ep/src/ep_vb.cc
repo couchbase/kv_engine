@@ -1864,3 +1864,51 @@ bool EPVBucket::shouldUseDcpCacheTransfer() const {
             creationMethod == CreateVbucketMethod::Fusion) &&
            canReceiveCacheTransfer;
 }
+
+size_t EPVBucket::calculateCacheTransferHTItemEstimate(
+        const CookieIface* cookie) const {
+    if (isNextState(vbucket_state_replica) &&
+        eviction == EvictionPolicy::Full) {
+        // A vbucket which will become a replica performs no cache transfer
+        // under full eviction (see shouldUseDcpCacheTransfer) - the default
+        // table size is fine. Value eviction still receives every key
+        // (key-only), so falls through to the normal sizing.
+        return 0;
+    }
+
+    // Whatever the eviction mode, be cautious about the HashTable size
+    // committed to ahead of the transfer. Predict the size of the table this
+    // estimate implies (one pointer-sized slot per item) and include it in
+    // the watermark check. When the prediction does not fit, do not pre-size at
+    // all - the transfer cannot make progress until memory recovers, and if it
+    // does the resizer task grows the table as normal.
+    const auto hwm = stats.mem_high_wat.load();
+    const auto memUsed = stats.getEstimatedTotalMemoryUsed();
+    if (memUsed >= hwm) {
+        return 0;
+    }
+
+    size_t htSlots = 0;
+    if (eviction == EvictionPolicy::Value) {
+        // Value eviction needs all keys - can we size to accomodate?
+        htSlots = getNumTotalItems();
+    } else {
+        // Full eviction only copies active and would try and copy everything,
+        // but gives up when memory is tight. Use either the share of memory for
+        // an active vbucket or the number of items.
+        // Here we are overestimating "share" as only considering a StoredValue
+        // of size per item
+        const auto share =
+                bucket->calculateCacheTransferMemory(hwm - memUsed, cookie) /
+                sizeof(StoredValue);
+
+        htSlots = std::min(getNumTotalItems(), share);
+    }
+
+    const auto predictedTableSize = htSlots * sizeof(StoredValue::UniquePtr);
+    if (memUsed + predictedTableSize >= hwm) {
+        return 0;
+    }
+
+    return htSlots;
+}

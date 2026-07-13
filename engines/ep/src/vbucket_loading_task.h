@@ -188,6 +188,16 @@ protected:
 
     void loadItemCount();
 
+    /**
+     * If the vbucket is eligible for a DCP cache transfer, size its (empty,
+     * not yet visible) HashTable up-front from the snapshot's item count so
+     * the transfer does not repeatedly resize a populated table. The chosen
+     * size is held until the transfer completes or can no longer happen -
+     * HashTable down-sizing is blocked whilst the vbucket reports
+     * !canSnapshotRebalanceContinue().
+     */
+    void maybePresizeHashTable(EPVBucket& epVb);
+
     void loadPreparedSyncWrites();
 
     /**

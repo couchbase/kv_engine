@@ -9,6 +9,7 @@
  */
 
 #include "dcp/response.h"
+#include "ep_vb.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "item.h"
@@ -990,6 +991,45 @@ TEST_P(DcpCacheTransferTest, rx_byte_counter) {
                       replicaVB,
                       cb::mcbp::DcpCacheTransferBuffer(batch2)));
     EXPECT_EQ(batch.size() + firstItemBytes, counter);
+}
+
+// The HashTable pre-size estimate is memory-cautious whatever the eviction
+// mode. Value eviction must accommodate every key so is all-or-nothing: the
+// predicted table for the full key count must fit below the high watermark.
+// Full eviction is additionally bounded by the vbucket's share of free
+// memory. (The full-eviction expected-replica case is covered by
+// EPBucketTestCouchstore.ExpectedNextState.)
+TEST_P(DcpCacheTransferTest, calculateCacheTransferHTItemEstimate) {
+    auto& epVb = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
+    auto& stats = engine->getEpStats();
+    const auto hwm = stats.mem_high_wat.load();
+    const auto originalItems = epVb.getNumTotalItems();
+
+    // An on-disk count no real vbucket would have.
+    constexpr size_t onDiskItemCount = size_t(1) << 40;
+    epVb.setNumTotalItems(onDiskItemCount);
+    const auto estimate = epVb.calculateCacheTransferHTItemEstimate(nullptr);
+    if (store->isFullEviction()) {
+        // Capped by the vbucket's share of free memory.
+        EXPECT_GT(estimate, 0);
+        EXPECT_LT(estimate, onDiskItemCount);
+    } else {
+        // Value eviction needs a table for every key, which cannot fit - no
+        // pre-sizing.
+        EXPECT_EQ(0, estimate);
+    }
+
+    // A count whose table fits is returned unchanged for both modes.
+    epVb.setNumTotalItems(100);
+    EXPECT_EQ(100, epVb.calculateCacheTransferHTItemEstimate(nullptr));
+
+    // No free memory (used >= high watermark): the predicted table cannot
+    // fit, no pre-sizing at all.
+    stats.mem_high_wat.store(1);
+    EXPECT_EQ(0, epVb.calculateCacheTransferHTItemEstimate(nullptr));
+    stats.mem_high_wat.store(hwm);
+
+    epVb.setNumTotalItems(originalItems);
 }
 
 // We only test persistent buckets. Ephemeral doesn't apply nor will it work as
