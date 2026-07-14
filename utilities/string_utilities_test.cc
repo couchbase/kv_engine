@@ -227,6 +227,17 @@ TEST(GetThreadPoolName, FullyNumeric) {
     EXPECT_EQ("", get_thread_pool_name("0"));
 }
 
+TEST(GetThreadPoolName, EmptyString) {
+    EXPECT_EQ("", get_thread_pool_name(""));
+}
+
+TEST(GetThreadPoolName, SeparatorImmediatelyBeforeDigit) {
+    // When the separator is the very first character, stripping it leaves
+    // an empty pool name rather than keeping the separator or the digit.
+    EXPECT_EQ("", get_thread_pool_name(":0"));
+    EXPECT_EQ("", get_thread_pool_name("_0"));
+}
+
 // =====================================================================
 // base64 round-trip
 // =====================================================================
