@@ -239,6 +239,12 @@ static const int ssl_ctx_memcached_connection_ex_data_index =
         SSL_CTX_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
 
 unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy) {
+    // If an explicit OSSL_LIB_CTX / provider (e.g. FIPS) is ever needed here,
+    // switch to SSL_CTX_new_ex(libctx, propq, method), e.g.:
+    //   OSSL_LIB_CTX* libctx = OSSL_LIB_CTX_new();
+    //   OSSL_PROVIDER_load(libctx, "fips");
+    //   unique_ssl_ctx_ptr ctx{
+    //           SSL_CTX_new_ex(libctx, nullptr, TLS_server_method())};
     unique_ssl_ctx_ptr ctx{SSL_CTX_new(TLS_server_method())};
     if (!ctx) {
         return {};
@@ -256,6 +262,12 @@ unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy) {
 }
 
 unique_ssl_ctx_ptr createClientSideSslContext(MemcachedConnection* connection) {
+    // If an explicit OSSL_LIB_CTX / provider (e.g. FIPS) is ever needed here,
+    // switch to SSL_CTX_new_ex(libctx, propq, method), e.g.:
+    //   OSSL_LIB_CTX* libctx = OSSL_LIB_CTX_new();
+    //   OSSL_PROVIDER_load(libctx, "fips");
+    //   unique_ssl_ctx_ptr ctx{
+    //           SSL_CTX_new_ex(libctx, nullptr, TLS_client_method())};
     unique_ssl_ctx_ptr ctx{SSL_CTX_new(TLS_client_method())};
     if (!ctx) {
         return {};
