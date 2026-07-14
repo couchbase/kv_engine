@@ -205,3 +205,66 @@ TEST(ConfigValueAsFloat, WithTrailingCharacters) {
     }
     EXPECT_TRUE(detected) << "Did not detect additional trailing characters";
 }
+
+// =====================================================================
+// filter: re-escaping of separators so the result round-trips through
+// tokenize() unchanged (a value containing an escaped ';' or a key
+// containing an escaped '=' must come back out re-escaped, otherwise
+// re-tokenizing the filtered string would split the field incorrectly).
+// =====================================================================
+
+TEST(ConfigFilter, EscapesSemicolonInValue) {
+    auto result =
+            filter(R"(k1=v1\;stillv1;k2=v2)", [](auto, auto) { return true; });
+    EXPECT_EQ(R"(k1=v1\;stillv1;k2=v2)", result);
+
+    std::vector<std::pair<std::string, std::string>> pairs;
+    tokenize(result, [&pairs](auto k, auto v) { pairs.emplace_back(k, v); });
+    ASSERT_EQ(2, pairs.size());
+    EXPECT_EQ("k1", pairs[0].first);
+    EXPECT_EQ("v1;stillv1", pairs[0].second);
+    EXPECT_EQ("k2", pairs[1].first);
+    EXPECT_EQ("v2", pairs[1].second);
+}
+
+TEST(ConfigFilter, EscapesEqualsInKey) {
+    auto result = filter(R"(k1\=part=value)", [](auto, auto) { return true; });
+    EXPECT_EQ(R"(k1\=part=value)", result);
+
+    std::string key;
+    std::string value;
+    tokenize(result, [&key, &value](auto k, auto v) {
+        key = std::string(k);
+        value = v;
+    });
+    EXPECT_EQ("k1=part", key);
+    EXPECT_EQ("value", value);
+}
+
+TEST(ConfigFilter, EscapesBackslashInValue) {
+    auto result = filter(R"(k1=a\\b)", [](auto, auto) { return true; });
+    EXPECT_EQ(R"(k1=a\\b)", result);
+
+    std::string value;
+    tokenize(result, [&value](auto, auto v) { value = v; });
+    EXPECT_EQ(R"(a\b)", value);
+}
+
+TEST(ConfigFilter, RoundTripsThroughMultipleTokenizeCalls) {
+    // Filtering with a callback that always keeps the entry must be a
+    // no-op on the parsed representation for values/keys containing
+    // escaped separators and backslashes.
+    auto original = R"(k1=v1\;more;k2=va\\l\=ue)"sv;
+
+    std::vector<std::pair<std::string, std::string>> before;
+    tokenize(original,
+             [&before](auto k, auto v) { before.emplace_back(k, v); });
+
+    auto filtered = filter(original, [](auto, auto) { return true; });
+    EXPECT_EQ(original, filtered);
+
+    std::vector<std::pair<std::string, std::string>> after;
+    tokenize(filtered, [&after](auto k, auto v) { after.emplace_back(k, v); });
+
+    EXPECT_EQ(before, after);
+}

@@ -166,6 +166,21 @@ void cb::config::tokenize(
     }
 }
 
+/// Re-escape the characters which next_field() treats as special ('\',
+/// '=' and ';') so that a key or value produced by tokenize() can be
+/// written back out and parsed again without corrupting field boundaries.
+static std::string escape_field(std::string_view field) {
+    std::string ret;
+    ret.reserve(field.size());
+    for (char c : field) {
+        if (c == '\\' || c == '=' || c == ';') {
+            ret.push_back('\\');
+        }
+        ret.push_back(c);
+    }
+    return ret;
+}
+
 std::string cb::config::filter(
         std::string_view input,
         const std::function<bool(std::string_view, std::string_view)>&
@@ -177,7 +192,7 @@ std::string cb::config::filter(
     }
     tokenize(input, [&ret, callback](auto k, auto v) {
         if (callback(k, v)) {
-            ret.append(fmt::format("{}={};", k, v));
+            ret.append(fmt::format("{}={};", escape_field(k), escape_field(v)));
         }
     });
 
