@@ -1507,6 +1507,11 @@ cb::engine_errc PassiveStream::processCacheTransfer(
 
     auto itr = items.begin();
     auto manifest = vb->lockCollections();
+    // The previously checked collection. The manifest read handle is held for
+    // the whole message, so a collection checked once cannot be dropped
+    // whilst iterating - a message of one collection needs a single exists()
+    // lookup.
+    std::optional<CollectionID> checkedCollection;
     while (itr != items.end()) {
         // mcbp_validators isn't iterating and checking the buffer - that
         // happens once here so we must fail on an error.
@@ -1523,14 +1528,18 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         DocKeyView key(item.getKey(), DocKeyEncodesCollectionId::Yes);
         // It would be really odd if the vbucket didn't know about this
         // collection.
-        if (!manifest.exists(key.getCollectionID())) {
-            OBJ_LOG_WARN_CTX(*this,
-                             "PassiveStream::processCacheTransfer: collection "
-                             "does not exist",
-                             {"vb", vb_},
-                             {"seqno", item.getBySeqno()},
-                             {"collection_id", key.getCollectionID()});
-            return cb::engine_errc::unknown_collection;
+        if (key.getCollectionID() != checkedCollection) {
+            if (!manifest.exists(key.getCollectionID())) {
+                OBJ_LOG_WARN_CTX(
+                        *this,
+                        "PassiveStream::processCacheTransfer: collection "
+                        "does not exist",
+                        {"vb", vb_},
+                        {"seqno", item.getBySeqno()},
+                        {"collection_id", key.getCollectionID()});
+                return cb::engine_errc::unknown_collection;
+            }
+            checkedCollection = key.getCollectionID();
         }
 
         // Add the key/meta and value
