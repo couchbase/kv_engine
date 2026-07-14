@@ -291,6 +291,33 @@ TEST(Base64, MissingValue) {
     EXPECT_EQ("", base64_decode_value("cb-content-base64-encoded:"));
 }
 
+TEST(Base64, EmptyQuotedValueThrows) {
+    // A bare pair of quotes with no content passes the size() < 2 check
+    // (size is exactly 2), gets both quotes stripped down to an empty
+    // view, and then fails the prefix match - a different error message
+    // than the "too short" cases covered by NoData.
+    try {
+        base64_decode_value(R"("")");
+        FAIL() << "Decode should fail for a bare pair of quotes";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ(
+                "base64_decode_value(): encoded value does not start with "
+                "magic",
+                e.what());
+    }
+}
+
+TEST(Base64, InvalidBase64PayloadThrows) {
+    // Malformed base64 content after a valid prefix propagates whatever
+    // cb::base64::decode() throws for invalid input.
+    try {
+        base64_decode_value(R"("cb-content-base64-encoded:!!!!")");
+        FAIL() << "Decode should fail for an invalid base64 payload";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("cb::base64::decode invalid input", e.what());
+    }
+}
+
 TEST(Base64, RoundTrip) {
     const std::string original = "Hello, World! \x01\x02\x03";
     EXPECT_EQ(original, base64_decode_value(base64_encode_value(original)));
