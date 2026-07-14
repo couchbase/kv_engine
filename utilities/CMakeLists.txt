@@ -111,6 +111,7 @@ cb_add_test_executable(utilities_testapp
         crl_policy_test.cc
         dek_file_utilities_test.cc
         openssl_utils_test.cc
+        durability_spec_test.cc
         slow_operation_test.cc
         stat_group_test.cc
         string_utilities_test.cc
