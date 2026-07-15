@@ -701,7 +701,9 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     auto fetchStartTime = cb::time::steady_clock::now();
 
     auto key = DiskDocKey(it);
-    auto gv = getROUnderlying(vb->getId())->get(key, vb->getId());
+
+    auto gv = getROUnderlying(vb->getId())
+                      ->get(key, vb->getId(), ValueFilter::KEYS_ONLY);
 
     bgfetch->value = &gv;
 
