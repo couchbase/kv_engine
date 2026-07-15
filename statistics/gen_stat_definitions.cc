@@ -163,6 +163,7 @@ struct Spec {
 
     bool cbstatEnabled = true;
     bool prometheusEnabled = true;
+    bool configurationParam = false;
     std::string stability = "committed";
     std::string added;
     std::string deprecated;
@@ -431,6 +432,10 @@ std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
 
     if (!spec.notes.empty()) {
         statDoc["notes"] = spec.notes;
+    }
+
+    if (spec.configurationParam) {
+        statDoc["config_param"] = true;
     }
 
     // work out the full name
@@ -751,6 +756,7 @@ int main(int argc, char** argv) {
             Spec spec;
             spec.enumKey = "ep_" + key;
             spec.unit = "none";
+            spec.configurationParam = true;
             // Use the param's optional "added" field if present, otherwise fall
             // back to the default value
             spec.added =
