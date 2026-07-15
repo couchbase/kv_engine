@@ -304,7 +304,8 @@ struct CompactionContext {
 
     bool shouldRefreshCollectionHighSeqnos() const;
 
-    void setCollectionHighSeqnos(std::unordered_map<CollectionID, uint64_t>&&);
+    void setCollectionHighSeqnos(
+            const std::unordered_map<CollectionID, uint64_t>&);
 
     void setCollectionHighSeqnosRefreshInterval(std::chrono::seconds value) {
         collectionHighSeqnos.refreshInterval = value;
@@ -368,7 +369,11 @@ private:
     /// purging a tombstone that is the highest seqno for its collection.
     struct {
         mutable std::shared_mutex mutex;
-        std::unordered_map<CollectionID, uint64_t> cache;
+        // Heap-allocated + ArenaMatchUniquePtr so the map and its nodes are
+        // freed in the domain they were allocated in: the context can be
+        // populated under Secondary (magma refresh paths) but torn down under
+        // Primary (EPBucket::compactInternal). MB-59966.
+        ArenaMatchUniquePtr<std::unordered_map<CollectionID, uint64_t>> cache;
         std::chrono::steady_clock::time_point lastRefreshTime;
         std::chrono::seconds refreshInterval{0};
     } collectionHighSeqnos;

@@ -52,8 +52,11 @@
 bool CompactionContext::isCollectionHighSeqno(CollectionID cid,
                                               uint64_t seqno) const {
     std::shared_lock lh(collectionHighSeqnos.mutex);
-    auto itr = collectionHighSeqnos.cache.find(cid);
-    return itr != collectionHighSeqnos.cache.end() && seqno >= itr->second;
+    if (!collectionHighSeqnos.cache) {
+        return false;
+    }
+    auto itr = collectionHighSeqnos.cache->find(cid);
+    return itr != collectionHighSeqnos.cache->end() && seqno >= itr->second;
 }
 
 bool CompactionContext::shouldRefreshCollectionHighSeqnos() const {
@@ -67,10 +70,18 @@ bool CompactionContext::shouldRefreshCollectionHighSeqnos() const {
 }
 
 void CompactionContext::setCollectionHighSeqnos(
-        std::unordered_map<CollectionID, uint64_t>&& value) {
+        const std::unordered_map<CollectionID, uint64_t>& value) {
     const auto now = std::chrono::steady_clock::now();
     std::unique_lock lh(collectionHighSeqnos.mutex);
-    collectionHighSeqnos.cache = std::move(value);
+    // Copy (not move) into the ArenaMatchUniquePtr: the map's bucket array and
+    // nodes are then allocated by this new-expression, under the same domain
+    // the deleter captures, so the whole container is freed against the arena
+    // it was allocated from - independent of where `value` was built. A move
+    // would instead adopt value's existing nodes (allocated elsewhere), making
+    // their domain a separate, non-local assumption. MB-59966.
+    collectionHighSeqnos.cache =
+            makeArenaMatchUniquePtr<std::unordered_map<CollectionID, uint64_t>>(
+                    value);
     collectionHighSeqnos.lastRefreshTime = now;
 }
 

@@ -406,7 +406,7 @@ void MagmaKVStore::MagmaCompactionCB::refreshCollectionHighSeqnos() {
             }
         }
     }
-    ctx->setCollectionHighSeqnos(std::move(collectionHighSeqnos));
+    ctx->setCollectionHighSeqnos(collectionHighSeqnos);
 }
 
 MagmaKVStoreTransactionContext::MagmaKVStoreTransactionContext(

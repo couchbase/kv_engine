@@ -1590,7 +1590,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                     }
                 }
             }
-            hook_ctx->setCollectionHighSeqnos(std::move(collectionHighSeqnos));
+            hook_ctx->setCollectionHighSeqnos(collectionHighSeqnos);
         }
 
         errCode = cb::couchstore::compact(
