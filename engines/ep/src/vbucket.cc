@@ -3985,6 +3985,12 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
         v.setCas(metadata.cas);
         v.setFlags(metadata.flags);
         v.setExptime(metadata.exptime);
+    } else {
+        // A client-initiated delete implicitly carries the flags from the live
+        // document into the tombstone, but DCP_DELETION has no flags field
+        // though so a replica persists the tombstone with flags==0
+        // zero the flags here so the active tombstone matches the replica
+        v.setFlags(0);
     }
 
     v.setRevSeqno(metadata.revSeqno);
@@ -4101,6 +4107,9 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
     bool onlyMarkDeleted =
             value && cb::mcbp::datatype::is_xattr(v.getDatatype());
     v.setRevSeqno(v.getRevSeqno() + 1);
+    // zero the flags so the active tombstone matches the replica
+    v.setFlags(0);
+
     auto [newSv, delStatus, notifyCtx] =
             softDeleteStoredValue(htRes.getHBL(),
                                   v,
