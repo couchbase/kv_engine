@@ -156,8 +156,9 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
           "Expected seqno to match");
     checkne(errorMetaPair.second.cas, it->getCas(),
           "Expected cas to be different");
-    checkeq(errorMetaPair.second.flags, it->getFlags(),
-          "Expected flags to match");
+    checkeq(uint32_t{0},
+            errorMetaPair.second.flags,
+            "Expected flags to be zeroed on the tombstone");
 
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -681,8 +682,9 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     checkeq(static_cast<uint64_t>(itm_meta.revSeqno), errorMetaPair.second.seqno,
             "Expected seqno to match");
     checkeq(itm_meta.cas, errorMetaPair.second.cas, "Expected cas to match");
-    checkeq(itm_meta.flags, errorMetaPair.second.flags,
-            "Expected flags to match");
+    checkeq(uint32_t{0},
+            errorMetaPair.second.flags,
+            "Expected flags to be zeroed on the tombstone");
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
@@ -737,8 +739,9 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
             errorMetaPair.second.seqno,
             "Expected seqno to match");
     checkeq(itm_meta.cas, errorMetaPair.second.cas, "Expected cas to match");
-    checkeq(itm_meta.flags, errorMetaPair.second.flags,
-            "Expected flags to match");
+    checkeq(uint32_t{0},
+            errorMetaPair.second.flags,
+            "Expected flags to be zeroed on the tombstone");
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);

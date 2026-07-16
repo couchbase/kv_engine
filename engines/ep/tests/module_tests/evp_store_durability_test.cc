@@ -970,6 +970,60 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(1, vb.opsDelete);
 }
 
+// a committed SyncDelete's tombstone must be stored with flags==0 as a
+// tombstone's flags cannot be replicated as DCP_DELETION does not carry any
+// flags; syncDelete prepare must be zeroed too so that no representation
+// of the delete carries any flags
+TEST_P(DurabilityEPBucketTest, SyncDeleteZeroesFlags) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+    auto key = makeStoredDocKey("key");
+
+    // Store a committed document carrying non-zero flags
+    auto committed = make_item(vbid, key, "value");
+    committed.setFlags(0xabcddcba);
+    ASSERT_EQ(cb::engine_errc::success, store->set(committed, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // SyncDelete it, prepare then commit
+    uint64_t cas = 0;
+    using namespace cb::durability;
+    auto reqs = Requirements(Level::Majority, {});
+    mutation_descr_t delInfo;
+    ASSERT_EQ(
+            cb::engine_errc::sync_write_pending,
+            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    {
+        std::shared_lock rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            delInfo.seqno,
+                            {},
+                            CommitType::Majority,
+                            vb.lockCollections(key)));
+    }
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // committed tombstone persisted on disk must have flags==0
+    auto* roStore = vb.getShard()->getROUnderlying();
+    auto gv = roStore->get(DiskDocKey(key), vbid);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+    ASSERT_TRUE(gv.item->isDeleted());
+    ASSERT_TRUE(gv.item->isCommitted());
+    EXPECT_EQ(0, gv.item->getFlags());
+
+    auto pgv = roStore->get(DiskDocKey(key, true), vbid);
+    ASSERT_EQ(cb::engine_errc::success, pgv.getStatus());
+    ASSERT_TRUE(pgv.item->isPending());
+    ASSERT_TRUE(pgv.item->isDeleted());
+    EXPECT_EQ(0, pgv.item->getFlags());
+}
+
 /// Test SyncDelete on top of SyncWrite
 TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     setVBucketStateAndRunPersistTask(

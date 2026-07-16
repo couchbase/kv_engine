@@ -142,7 +142,8 @@ public:
             }
             EXPECT_EQ(expectedMeta.cas, result.item->getCas());
             EXPECT_EQ(expectedMeta.revSeqno, result.item->getRevSeqno());
-            EXPECT_EQ(expectedMeta.flags, result.item->getFlags());
+            EXPECT_EQ(result.item->isDeleted() ? 0 : expectedMeta.flags,
+                      result.item->getFlags());
             EXPECT_EQ(expectedMeta.exptime, result.item->getExptime());
         }
     }
@@ -1525,7 +1526,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     EXPECT_TRUE(itm->isDeleted()) << "Not deleted " << *itm;
     // The meta-data should match the delete_with_meta
     EXPECT_EQ(itemMeta.cas, itm->getCas());
-    EXPECT_EQ(itemMeta.flags, itm->getFlags());
+    EXPECT_EQ(0, itm->getFlags());
     EXPECT_EQ(itemMeta.revSeqno, itm->getRevSeqno());
     EXPECT_EQ(itemMeta.exptime, itm->getExptime());
 
@@ -1672,7 +1673,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
     }
     EXPECT_EQ(itemMeta.cas, result.item->getCas());
     EXPECT_EQ(itemMeta.revSeqno, result.item->getRevSeqno());
-    EXPECT_EQ(itemMeta.flags, result.item->getFlags());
+    EXPECT_EQ(0, result.item->getFlags());
     EXPECT_NE(itemMeta.exptime, result.item->getExptime());
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),

@@ -2903,7 +2903,8 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
     EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
-    EXPECT_EQ(metadata.flags, item.item->getFlags());
+    // MB-62585: a tombstone's flags are zeroed as they cannot be replicated
+    EXPECT_EQ(0, item.item->getFlags());
     EXPECT_EQ(metadata.exptime, item.item->getExptime());
     EXPECT_EQ(metadata.cas, item.item->getCas());
     EXPECT_EQ(metadata.revSeqno, item.item->getRevSeqno());
@@ -3556,7 +3557,8 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
     EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
-    EXPECT_EQ(metadata.flags, gv.item->getFlags());
+    // MB-62585: a tombstone's flags are zeroed as they cannot be replicated
+    EXPECT_EQ(0, gv.item->getFlags());
     EXPECT_EQ(metadata.exptime, gv.item->getExptime());
     EXPECT_EQ(metadata.cas, gv.item->getCas());
     EXPECT_EQ(metadata.revSeqno, gv.item->getRevSeqno());

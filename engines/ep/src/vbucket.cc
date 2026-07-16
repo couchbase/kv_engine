@@ -1417,6 +1417,13 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         v.setExptime(qi->getDeleteTime());
     }
 
+    // DCP_DELETION carries no flags, so zero them on the active so it matches
+    // the replica
+    if (qi->shouldZeroFlags()) {
+        qi->setFlags(0);
+        v.setFlags(0);
+    }
+
     if (!mightContainXattrs() &&
         cb::mcbp::datatype::is_xattr(v.getDatatype())) {
         setMightContainXattrs();

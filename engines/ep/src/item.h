@@ -324,6 +324,37 @@ public:
     }
 
     /*
+     * DCP can't replicate a tombstone's flags, so a replica or a rebuilt
+     * node always holds the tombstone with flags==0. Any committed tombstone
+     * must therefore be stored with flags==0 on the active to stay consistent.
+     *
+     * syncDelete's prepare (pending_sync_write) is zeroed too even though
+     * DCP_PREPARE carries a flags field, the committed tombstone that follows
+     * has flags==0, so leaving flags on the prepare would make the prepare
+     * the only representation of the delete still carrying flags
+     */
+    bool shouldZeroFlags() const {
+        if (!isDeleted()) {
+            return false;
+        }
+        switch (op) {
+        case queue_op::mutation:
+        case queue_op::commit_sync_write:
+        case queue_op::pending_sync_write:
+            return true;
+        case queue_op::abort_sync_write:
+        case queue_op::empty:
+        case queue_op::checkpoint_start:
+        case queue_op::checkpoint_end:
+        case queue_op::set_vbucket_state:
+        case queue_op::system_event:
+            return false;
+        }
+        // Silence GCC warning
+        return false;
+    }
+
+    /*
      * Should this item be replicated by DCP?
      * @param supportsSyncReplication true if the DCP stream supports
      *        synchronous replication.
