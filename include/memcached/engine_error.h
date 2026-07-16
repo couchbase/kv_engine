@@ -178,6 +178,10 @@ enum class engine_errc {
     /// format used on the wire / on-disk.
     expiry_overflow,
 
+    /// The requested lock timeout cannot be represented in the 32-bit
+    /// time format used to store the lock expiry.
+    lock_expiry_overflow,
+
     /// Generic failue
     failed
 };

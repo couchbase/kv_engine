@@ -41,6 +41,7 @@ bool is_known(Status status) {
     case Status::NotInitialized:
     case Status::ChecksumMismatch:
     case Status::ExpiryOverflow:
+    case Status::LockExpiryOverflow:
     case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
@@ -141,6 +142,7 @@ bool isStatusSuccess(Status status) {
     case Status::NotInitialized:
     case Status::ChecksumMismatch:
     case Status::ExpiryOverflow:
+    case Status::LockExpiryOverflow:
     case Status::EncryptionKeyNotAvailable:
     case Status::RateLimitedNetworkIngress:
     case Status::RateLimitedNetworkEgress:
@@ -287,6 +289,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "ChecksumMismatch";
         case Status::ExpiryOverflow:
             return "ExpiryOverflow";
+        case Status::LockExpiryOverflow:
+            return "LockExpiryOverflow";
         case Status::EncryptionKeyNotAvailable:
             return "EncryptionKeyNotAvailable";
         case Status::RateLimitedNetworkIngress:
@@ -459,6 +463,9 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
                    "expected checksum";
         case Status::ExpiryOverflow:
             return "The requested expiry overflows the 32-bit time "
+                   "representation";
+        case Status::LockExpiryOverflow:
+            return "The requested lock timeout overflows the 32-bit time "
                    "representation";
         case Status::EncryptionKeyNotAvailable:
             return "Encryption key not available";

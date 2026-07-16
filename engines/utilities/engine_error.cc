@@ -139,6 +139,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "checksum mismatch";
     case engine_errc::expiry_overflow:
         return "expiry overflow";
+    case engine_errc::lock_expiry_overflow:
+        return "lock expiry overflow";
     }
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

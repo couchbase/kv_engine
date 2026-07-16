@@ -2003,6 +2003,7 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::encryption_key_not_available:
     case cb::engine_errc::checksum_mismatch:
     case cb::engine_errc::expiry_overflow:
+    case cb::engine_errc::lock_expiry_overflow:
         return false;
     }
     throw std::invalid_argument(

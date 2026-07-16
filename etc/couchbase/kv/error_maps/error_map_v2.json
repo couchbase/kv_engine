@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 8,
+    "revision": 9,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -193,6 +193,15 @@
         "28": {
             "name": "EXPIRY_OVERFLOW",
             "desc": "The requested expiry overflows the 32-bit time representation used on the wire",
+            "attrs": [
+                "item-only",
+                "system-constraint",
+                "no-retry"
+            ]
+        },
+        "29": {
+            "name": "LOCK_EXPIRY_OVERFLOW",
+            "desc": "The requested lock timeout overflows the 32-bit time representation used to store the lock expiry",
             "attrs": [
                 "item-only",
                 "system-constraint",

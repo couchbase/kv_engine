@@ -50,6 +50,7 @@
 #include <vbucket_bgfetch_item.h>
 #include <xattr/blob.h>
 #include <functional>
+#include <limits>
 #include <list>
 #include <set>
 #include <shared_mutex>
@@ -3291,15 +3292,14 @@ GetValue VBucket::getLocked(std::chrono::seconds lockTimeout,
             return GetValue(cb::engine_errc::would_block, true);
         }
 
-        // Narrowing note: For now narrow_cast and accept this has always been a
-        // "risk" against an overflow of the rel_time_t type. MB-67520 does not
-        // aim to add a new failure point into the code. Later MB-67776 could
-        // add explicit overflow checks and a cleaner failure path.
-        const auto lockUntil = gsl::narrow_cast<rel_time_t>(
-                currentUptimeSeconds + lockTimeout.count());
+        const auto lockUntil = static_cast<uint64_t>(currentUptimeSeconds) +
+                               lockTimeout.count();
+        if (lockUntil > std::numeric_limits<rel_time_t>::max()) {
+            return GetValue(cb::engine_errc::lock_expiry_overflow);
+        }
 
         // acquire lock and increment cas value
-        v->lock(lockUntil, nextHLCCas());
+        v->lock(gsl::narrow_cast<rel_time_t>(lockUntil), nextHLCCas());
 
         auto it = v->toItem(getId());
         it->setCas(v->getCasForWrite(currentUptimeSeconds));

@@ -90,6 +90,12 @@ enum class Status : uint16_t {
     /// used on the wire (see cb::engine_errc::expiry_overflow)
     ExpiryOverflow = 0x28,
 
+    /// The requested lock timeout overflows the 32-bit time
+    /// representation used to store the lock expiry (see
+    /// cb::engine_errc::lock_expiry_overflow). This is not a transient
+    /// condition; retrying will not help.
+    LockExpiryOverflow = 0x29,
+
     // Start error codes for rate limits. Reserve segment [0x30, 0x4f]
 
     /// The tenant exceeded network ingress limit

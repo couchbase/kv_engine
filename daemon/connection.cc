@@ -436,6 +436,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::cancelled:
     case cb::engine_errc::checksum_mismatch:
     case cb::engine_errc::expiry_overflow:
+    case cb::engine_errc::lock_expiry_overflow:
         break;
     }
 

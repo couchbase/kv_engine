@@ -62,7 +62,9 @@
 #include "../mock/mock_magma_kvstore.h"
 #endif
 
+#include "unit_test_server_core.h"
 #include <folly/Random.h>
+
 #include <folly/portability/GMock.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/cb_time.h>
@@ -74,6 +76,7 @@
 #include <xattr/utils.h>
 
 #include <chrono>
+#include <limits>
 #include <thread>
 
 KVBucketTest::KVBucketTest() : test_dbname(getProcessUniqueDatabaseName()) {
@@ -1668,6 +1671,65 @@ TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
     // Test
     auto gv = store->getLocked(key, vbid, std::chrono::seconds{10}, cookie);
     EXPECT_EQ(cb::engine_errc::sync_write_in_progress, gv.getStatus());
+}
+
+namespace {
+/**
+ * A UnitTestServerCore which reports a fixed uptime from get_current_time(),
+ * letting a test drive getLocked() as if the uptime clock were near its 32-bit
+ * (rel_time_t) limit without having to actually run for 136 years. All other
+ * behaviour is inherited from UnitTestServerCore.
+ */
+class FixedUptimeServerCore : public UnitTestServerCore {
+public:
+    explicit FixedUptimeServerCore(rel_time_t uptime) : uptime(uptime) {
+    }
+
+    rel_time_t get_current_time() override {
+        return uptime;
+    }
+
+private:
+    const rel_time_t uptime;
+};
+
+/// RAII: install a time-functions core for the current scope, restore on exit.
+class ScopedTimeCore {
+public:
+    explicit ScopedTimeCore(ServerCoreIface& core) {
+        initialize_time_functions(&core);
+    }
+    ~ScopedTimeCore() {
+        initialize_time_functions(get_mock_server_api()->core);
+    }
+};
+} // namespace
+
+TEST_P(KVBucketParamTest, GetLockedExpiryOverflowFailsGracefully) {
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+
+    // Drive the uptime clock to 5s below rel_time_t::max so that adding the 15s
+    // lock timeout overflows the 32-bit lock expiry.
+    FixedUptimeServerCore overflowCore(std::numeric_limits<rel_time_t>::max() -
+                                       5);
+    ScopedTimeCore guard(overflowCore);
+
+    auto gv = store->getLocked(key, vbid, std::chrono::seconds{15}, cookie);
+    EXPECT_EQ(cb::engine_errc::lock_expiry_overflow, gv.getStatus());
+}
+
+// Complement: with a normal uptime the lock expiry fits rel_time_t and
+// getLocked succeeds (guards against the overflow check being over-eager).
+TEST_P(KVBucketParamTest, GetLockedExpiryNoOverflowSucceeds) {
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+
+    FixedUptimeServerCore normalCore(1000);
+    ScopedTimeCore guard(normalCore);
+
+    auto gv = store->getLocked(key, vbid, std::chrono::seconds{15}, cookie);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 
 // Test that unlock correctly returns ESyncWriteInProgress if targetted at

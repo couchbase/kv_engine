@@ -90,6 +90,7 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
     case cb::engine_errc::encryption_key_not_available:
     case engine_errc::checksum_mismatch:
     case engine_errc::expiry_overflow:
+    case engine_errc::lock_expiry_overflow:
         throw std::runtime_error(
                 "cb::rangescan::getHandlingStatus unexpected status:" +
                 to_string(status));
