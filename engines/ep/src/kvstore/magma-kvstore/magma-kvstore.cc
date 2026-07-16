@@ -35,6 +35,7 @@
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
 #include <folly/ScopeGuard.h>
+#include <libmagma/storage_format_version.h>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/unit_test_mode.h>
@@ -1204,7 +1205,8 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          StorageProperties::HistoryRetentionAvailable::Yes,
                          StorageProperties::ContinuousBackupAvailable::Yes,
                          StorageProperties::BloomFilterAvailable::Yes,
-                         StorageProperties::Fusion::Yes);
+                         StorageProperties::Fusion::Yes,
+                         magma::GetStorageFormatVersion());
     return rv;
 }
 

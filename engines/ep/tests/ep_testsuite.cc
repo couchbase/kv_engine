@@ -7095,7 +7095,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         auto& eng_stats = statsKeys.at("");
 
         eng_stats.insert(eng_stats.end(),
-                         {"ep_db_data_size",
+                         {"ep_db_max_format_version",
+                          "ep_db_data_size",
                           "ep_db_file_size",
                           "ep_db_prepare_size",
                           "ep_db_tombstones",
@@ -7148,6 +7149,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                         "vb_0:prepare_size",
                                         "vb_0:history_disk_size",
                                         "vb_0:history_start_timestamp"};
+        statsKeys["diskinfo version"] = {"ep_db_max_format_version"};
 
         // Add stats which are only available for persistent buckets:
         std::initializer_list<std::string_view> persistence_stats = {

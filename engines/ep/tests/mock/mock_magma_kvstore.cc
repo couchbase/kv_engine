@@ -13,6 +13,7 @@
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "kvstore/magma-kvstore/magma-memory-tracking-proxy.h"
 #include "mock_magma_filesystem.h"
+#include <libmagma/storage_format_version.h>
 
 MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config,
                                    const MockMagmaFileSystem& fs)
@@ -24,7 +25,8 @@ MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config,
                         StorageProperties::HistoryRetentionAvailable::Yes,
                         StorageProperties::ContinuousBackupAvailable::Yes,
                         StorageProperties::BloomFilterAvailable::Yes,
-                        StorageProperties::Fusion::Yes) {
+                        StorageProperties::Fusion::Yes,
+                        magma::GetStorageFormatVersion()) {
 }
 
 KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(

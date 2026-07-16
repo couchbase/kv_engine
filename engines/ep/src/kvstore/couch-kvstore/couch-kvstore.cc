@@ -2126,15 +2126,18 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
 }
 
 StorageProperties CouchKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::ByIdScan::Yes,
-                         StorageProperties::AutomaticDeduplication::No,
-                         StorageProperties::PrepareCounting::Yes,
-                         StorageProperties::CompactionStaleItemCallbacks::No,
-                         StorageProperties::HistoryRetentionAvailable::No,
-                         StorageProperties::ContinuousBackupAvailable::No,
-                         StorageProperties::BloomFilterAvailable::No,
-                         StorageProperties::Fusion::No);
-    return rv;
+    return {StorageProperties::ByIdScan::Yes,
+            StorageProperties::AutomaticDeduplication::No,
+            StorageProperties::PrepareCounting::Yes,
+            StorageProperties::CompactionStaleItemCallbacks::No,
+            StorageProperties::HistoryRetentionAvailable::No,
+            StorageProperties::ContinuousBackupAvailable::No,
+            StorageProperties::BloomFilterAvailable::No,
+            StorageProperties::Fusion::No,
+            // Couchstore does not expose a "max supported version" API; V14 is
+            // the newest version in its public Header::Version enum and must be
+            // updated if couchstore introduces a newer disk format version.
+            static_cast<uint32_t>(cb::couchstore::Header::Version::V14)};
 }
 
 std::variant<cb::engine_errc, std::unordered_set<std::string>>

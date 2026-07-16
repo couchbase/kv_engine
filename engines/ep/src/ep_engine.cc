@@ -3581,6 +3581,12 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
         collector.addStat(Key::ep_bucket_priority, "LOW");
     }
 
+    if (getConfiguration().getBucketTypeString() == "persistent") {
+        collector.addStat(
+                Key::ep_db_max_format_version,
+                kvBucket->getStorageProperties().getMaxDiskFormatVersion());
+    }
+
     collector.addStat(Key::ep_mem_tracker_enabled,
                       EPStats::isMemoryTrackingEnabled());
 
@@ -5149,17 +5155,27 @@ cb::engine_errc EventuallyPersistentEngine::doFailoversStats(
 
 cb::engine_errc EventuallyPersistentEngine::doDiskinfoStats(
         CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
-    const std::string statKey(key.data(), key.size());
-    if (key.size() == 8) {
+    constexpr size_t diskinfoLen = 8;
+    if (key.size() == diskinfoLen) {
         CBStatCollector collector{add_stat, cookie};
         auto bucketC = collector.forBucket(getName());
         return kvBucket->getFileStats(bucketC);
     }
-    if ((key.size() == 15) &&
-        (statKey.compare(std::string("diskinfo").length() + 1,
-                         std::string("detail").length(),
-                         "detail") == 0)) {
+    if (key.size() <= diskinfoLen + 1) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    const auto subKey = key.substr(diskinfoLen + 1);
+    if (subKey == "detail") {
         return kvBucket->getPerVBucketDiskStats(cookie, add_stat);
+    }
+    if (subKey == "version") {
+        CBStatCollector collector{add_stat, cookie};
+        auto bucketC = collector.forBucket(getName());
+        bucketC.addStat(
+                cb::stats::Key::ep_db_max_format_version,
+                kvBucket->getStorageProperties().getMaxDiskFormatVersion());
+        return cb::engine_errc::success;
     }
 
     return cb::engine_errc::invalid_arguments;

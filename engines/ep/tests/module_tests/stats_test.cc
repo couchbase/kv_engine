@@ -653,6 +653,23 @@ TEST_F(StatTest, StringStats) {
     engine->doEngineStats(bucketC, nullptr);
 }
 
+TEST_F(StatTest, DbFormatVersion) {
+    // Confirm the storage engine's max supported disk format version is
+    // exposed. The default test bucket is couchstore, whose max supported
+    // version is the newest value in the public Header::Version enum.
+    const uint32_t expected = 14;
+
+    auto vals = get_stat();
+    ASSERT_NE(vals.end(), vals.find("ep_db_max_format_version"));
+    EXPECT_EQ(expected, std::stoul(vals["ep_db_max_format_version"]));
+
+    // Also exposed via "diskinfo version".
+    auto diskinfoVals = get_stat("diskinfo version");
+    ASSERT_NE(diskinfoVals.end(),
+              diskinfoVals.find("ep_db_max_format_version"));
+    EXPECT_EQ(expected, std::stoul(diskinfoVals["ep_db_max_format_version"]));
+}
+
 TEST_F(StatTest, WarmupState) {
     // Confirm the warmup state is correctly exposed as a one-hot metric
     //  kv_ep_warmup_status{bucket="default",state="Initialize"} 0.000000

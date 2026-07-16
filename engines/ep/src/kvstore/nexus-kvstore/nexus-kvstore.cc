@@ -579,7 +579,10 @@ StorageProperties NexusKVStore::getStorageProperties() const {
             canRetainHistory,
             StorageProperties::ContinuousBackupAvailable::No,
             hasBloomFilter,
-            StorageProperties::Fusion::No};
+            StorageProperties::Fusion::No,
+            // As with compactionStaleItemCallbacks, report the primary's
+            // disk format version
+            primaryProperties.getMaxDiskFormatVersion()};
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

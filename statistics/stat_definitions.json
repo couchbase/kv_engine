@@ -2252,7 +2252,12 @@
         "description": "Number of Table Bytes that have been backed up",
         "added": "8.1.0"
     },
-
+    {
+        "key": "ep_db_max_format_version",
+        "unit": "none",
+        "description": "Maximum disk format version supported by the bucket's storage engine",
+        "added": "8.1.0"
+    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",

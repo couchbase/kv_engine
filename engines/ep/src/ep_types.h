@@ -430,7 +430,8 @@ public:
                       HistoryRetentionAvailable historyRetentionAvailable,
                       ContinuousBackupAvailable continuousBackupAvailable,
                       BloomFilterAvailable bloomFilterAvailable,
-                      Fusion fusion)
+                      Fusion fusion,
+                      uint32_t maxDiskFormatVersion)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
           prepareCounting(prepareCounting),
@@ -438,7 +439,8 @@ public:
           historyRetentionAvailable(historyRetentionAvailable),
           continuousBackupAvailable(continuousBackupAvailable),
           bloomFilterAvailable(bloomFilterAvailable),
-          fusion(fusion) {
+          fusion(fusion),
+          maxDiskFormatVersion(maxDiskFormatVersion) {
     }
 
     bool hasByIdScan() const {
@@ -474,6 +476,10 @@ public:
         return fusion == Fusion::Yes;
     }
 
+    uint32_t getMaxDiskFormatVersion() const {
+        return maxDiskFormatVersion;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
@@ -483,6 +489,8 @@ private:
     ContinuousBackupAvailable continuousBackupAvailable;
     BloomFilterAvailable bloomFilterAvailable;
     Fusion fusion;
+    /// The maximum disk format version supported by the storage engine.
+    uint32_t maxDiskFormatVersion;
 };
 
 // The type of the snapshot
