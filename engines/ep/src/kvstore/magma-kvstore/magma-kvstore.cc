@@ -1283,8 +1283,13 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
 
     auto start = cb::time::steady_clock::now();
 
-    Status status = magma->Get(
-            vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice);
+    Status status;
+    if (filter == ValueFilter::KEYS_ONLY) {
+        status = magma->GetMeta(vbid.get(), keySlice, idxBuf, metaSlice);
+    } else {
+        status = magma->Get(
+                vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice);
+    }
 
     if (!status) {
         logger->warn("MagmaKVStore::getWithHeader {} key:{} status:{}",

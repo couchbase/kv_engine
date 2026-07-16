@@ -254,6 +254,15 @@ magma::Status MagmaMemoryTrackingProxy::Get(const magma::Magma::KVStoreID kvID,
             kvID, key, idxBuf.getBuffer(), seqBuf.getBuffer(), meta, value);
 }
 
+magma::Status MagmaMemoryTrackingProxy::GetMeta(
+        const magma::Magma::KVStoreID kvID,
+        const magma::Slice& key,
+        DomainAwareFetchBuffer& idxBuf,
+        magma::Slice& meta) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetMeta(kvID, key, idxBuf.getBuffer(), meta);
+}
+
 bool MagmaMemoryTrackingProxy::KeyMayExist(const magma::Magma::KVStoreID kvID,
                                            const magma::Slice& key) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

@@ -145,6 +145,10 @@ public:
                       DomainAwareFetchBuffer& seqBuf,
                       magma::Slice& meta,
                       magma::Slice& value);
+    magma::Status GetMeta(const magma::Magma::KVStoreID kvID,
+                          const magma::Slice& key,
+                          DomainAwareFetchBuffer& idxBuf,
+                          magma::Slice& meta);
     bool KeyMayExist(const magma::Magma::KVStoreID kvID,
                      const magma::Slice& key);
     size_t GetDiskSizeOverhead(magma::Magma::Snapshot&);
