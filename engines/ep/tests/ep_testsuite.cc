@@ -5023,7 +5023,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
             "Expected 2 del rm ops");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
+    checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
     checkne(uint32_t{0}, last_meta.exptime, "Invalid result for expiration");
     checkne(expiry, last_meta.exptime, "Invalid result for expiration");
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");

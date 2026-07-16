@@ -156,9 +156,8 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
           "Expected seqno to match");
     checkne(errorMetaPair.second.cas, it->getCas(),
           "Expected cas to be different");
-    checkeq(uint32_t{0},
-            errorMetaPair.second.flags,
-            "Expected flags to be zeroed on the tombstone");
+    checkeq(errorMetaPair.second.flags, it->getFlags(),
+          "Expected flags to match");
 
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
