@@ -142,7 +142,7 @@ public:
 
     std::shared_ptr<ConnHandler> findByName(const std::string& name);
 
-    bool isConnections() override;
+    bool isConnections() const override;
 
     /**
      * Call a function on each DCP connection.

@@ -102,7 +102,7 @@ std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
 }
 
 bool DcpConnMap::isPassiveStreamConnected(Vbid vbucket) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
@@ -199,8 +199,9 @@ void DcpConnMap::shutdownAllConnections() {
     // We do this so we don't hold the write lock of the map when calling
     // notifyPaused() on producer streams, as that would create a lock
     // cycle between the lock, worker thread lock and releaseLock.
-    auto mapCopy =
-            connStore->getCookieToConnectionMapHandle()->copyCookieToConn();
+    auto mapCopy = std::as_const(*connStore)
+                           .getCookieToConnectionMapHandle()
+                           ->copyCookieToConn();
 
     closeStreams(mapCopy);
     cancelTasks(mapCopy);
@@ -211,7 +212,7 @@ void DcpConnMap::vbucketStateChanged(
         vbucket_state_t state,
         bool closeInboundStreams,
         std::unique_lock<folly::SharedMutex>* vbstateLock) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
@@ -225,7 +226,7 @@ void DcpConnMap::vbucketStateChanged(
 }
 
 void DcpConnMap::closeStreamsDueToRollback(Vbid vbucket) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
@@ -353,7 +354,8 @@ void DcpConnMap::notifyConnections() {
     std::list<std::shared_ptr<ConnHandler>> toNotify;
     {
         // Collect the list of connections that need to be signaled.
-        auto handle = connStore->getCookieToConnectionMapHandle();
+        auto handle =
+                std::as_const(*connStore).getCookieToConnectionMapHandle();
         for (const auto& cookieToConn : *handle) {
             const auto& conn = cookieToConn.second;
             if (conn && (conn->isPaused() || conn->doDisconnect())) {
@@ -412,7 +414,7 @@ void DcpConnMap::seqnoAckVBPassiveStream(Vbid vbid, int64_t seqno) {
 }
 
 void DcpConnMap::notifyBackfillManagerTasks() {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
@@ -454,7 +456,7 @@ void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(
 }
 
 void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         cookieToConn.second->setIdleTimeout(std::chrono::seconds(newValue));
     }
@@ -462,7 +464,7 @@ void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
 
 void DcpConnMap::consumerAllowSanitizeValueInDeletionConfigChanged(
         bool newValue) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* consumer = dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (consumer) {
@@ -472,7 +474,7 @@ void DcpConnMap::consumerAllowSanitizeValueInDeletionConfigChanged(
 }
 
 std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         // If the connection is NOT about to be disconnected
         // and the names match
@@ -484,12 +486,12 @@ std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
     return nullptr;
 }
 
-bool DcpConnMap::isConnections() {
-    return !connStore->getCookieToConnectionMapHandle()->empty();
+bool DcpConnMap::isConnections() const {
+    return !std::as_const(*connStore).getCookieToConnectionMapHandle()->empty();
 }
 
 void DcpConnMap::setBackfillByteLimit(size_t bytes) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {
@@ -499,7 +501,7 @@ void DcpConnMap::setBackfillByteLimit(size_t bytes) {
 }
 
 void DcpConnMap::setInlineCheckpointItemLimit(size_t limit) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
+    auto handle = std::as_const(*connStore).getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (producer) {

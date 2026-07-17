@@ -54,7 +54,7 @@ public:
     /**
      * Returns true if there are existing connections.
      */
-    virtual bool isConnections() = 0;
+    virtual bool isConnections() const = 0;
 
     /**
      * Adds the given connection to the set of connections associated
