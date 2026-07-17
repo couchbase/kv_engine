@@ -393,7 +393,11 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
       engine(engine),
       availableBytes(filter.getCacheTransferFreeMemory()),
       filter(std::move(filter)),
-      request(req) {
+      request(req),
+      batchMaxSize(
+              engine.getConfiguration().getDcpCacheTransferMaxBatchBytes()),
+      batchMaxItems(
+              engine.getConfiguration().getDcpCacheTransferMaxBatchItems()) {
     Expects(p);
 
     if (this->filter.isCacheTransferAllKeys() &&
@@ -762,8 +766,10 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
         return false;
     }
 
-    // Check if adding this item would exceed buffer and we have items to flush
-    if (!itemsBuffer.empty() && (bufferedSize + wireSize > getBatchMaxSize())) {
+    // Check if adding this item would exceed the batch byte or item limit and
+    // we have items to flush
+    if (!itemsBuffer.empty() && (bufferedSize + wireSize > batchMaxSize ||
+                                 itemsBuffer.size() >= batchMaxItems)) {
         flushBufferLocked(lh);
     }
 
@@ -809,10 +815,6 @@ void CacheTransferStream::flushBufferLocked(
 
     // Reset buffer state (itemsBuffer is now empty after move)
     bufferedSize = 0;
-}
-
-size_t CacheTransferStream::getBatchMaxSize() const {
-    return engine.getConfiguration().getDcpCacheTransferMaxBatchBytes();
 }
 
 size_t CacheTransferStream::getBufferedSize() const {

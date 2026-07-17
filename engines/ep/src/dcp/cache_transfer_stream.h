@@ -256,13 +256,15 @@ protected:
      */
     void flushBufferLocked(const std::lock_guard<std::mutex>&);
 
-    /**
-     * Get the maximum buffer size for batching cache transfer items. A value of
-     * 0 means one item per batch and is used in some tests.
-     *
-     * @return The buffer size in bytes.
-     */
-    size_t getBatchMaxSize() const;
+    /// Maximum buffer size in bytes for batching cache transfer items. A value
+    /// of 0 means one item per batch. Initialised from configuration at
+    /// construction.
+    const size_t batchMaxSize{0};
+
+    /// Maximum number of items for batching cache transfer items. A value of 0
+    /// means one item per batch. Initialised from configuration at
+    /// construction.
+    const size_t batchMaxItems{0};
 
     /// Container for batching items.
     std::vector<cb::ItemWithCacheHint> itemsBuffer;

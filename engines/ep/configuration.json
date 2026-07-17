@@ -1381,8 +1381,15 @@
         },
         "dcp_cache_transfer_max_batch_bytes": {
             "added": "8.1.0",
-            "default": "2*1024*1024",
-            "descr": "Maximum batch size in bytes for batching cache transfer items. At least 1 item will included in a batch, so a value of 0 is always 1 item per batch.",
+            "default": "10*1024",
+            "descr": "Maximum batch size in bytes when batching cache transfer items. A batch is limited by this or dcp_cache_transfer_max_batch_items, whichever is reached first. At least 1 item will included in a batch, so a value of 0 is always 1 item per batch.",
+            "dynamic": true,
+            "type": "size_t"
+        },
+        "dcp_cache_transfer_max_batch_items": {
+            "added": "8.1.0",
+            "default": "50",
+            "descr": "Maximum number of items when batching cache transfer items. A batch is limited by this or dcp_cache_transfer_max_batch_bytes, whichever is reached first. At least 1 item will included in a batch, so a value of 0 is always 1 item per batch.",
             "dynamic": true,
             "type": "size_t"
         },
