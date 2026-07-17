@@ -812,6 +812,44 @@ public:
         // Have all the objects, activate vBucket zero so we can store data.
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     }
+
+protected:
+    // Store a TTL'd document with user and system xattrs, persist it and
+    // evict it so the value is no longer resident.
+    void storeAndEvictXattrDoc(const StoredDocKey& key) {
+        store_item(vbid,
+                   key,
+                   createXattrValue("body"),
+                   ep_convert_to_expiry_time(5),
+                   {cb::engine_errc::success},
+                   PROTOCOL_BINARY_DATATYPE_XATTR);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        evict_key(vbid, key);
+    }
+
+    // Fetch the key's tombstone and verify that the system xattr (_sync)
+    // has been preserved and the user xattrs have been pruned.
+    void verifySystemXattrsInTombstone(const StoredDocKey& key) {
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        const auto options =
+                static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+        auto gv = store->get(key, vbid, cookie, options);
+        if (gv.getStatus() == cb::engine_errc::would_block) {
+            runBGFetcherTask();
+            gv = store->get(key, vbid, cookie, options);
+        }
+        ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+        EXPECT_TRUE(gv.item->isDeleted());
+        ASSERT_NE(0, gv.item->getNBytes()) << "Tombstone lost its xattr value";
+
+        cb::xattr::Blob blob(
+                {const_cast<char*>(gv.item->getData()), gv.item->getNBytes()},
+                false);
+        EXPECT_EQ(0, blob.get("user").size());
+        EXPECT_EQ(0, blob.get("meta").size());
+        EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
+    }
 };
 
 #ifdef EP_USE_MAGMA
@@ -1912,6 +1950,128 @@ TEST_P(KVBucketParamTest, MB_25948) {
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
     EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
+}
+
+// System xattrs must survive in the tombstone when an evicted (non-resident)
+// xattr document is expired by front-end access (ExpireBy::Access), matching
+// the Pager/Compactor expiry paths (MB-25931).
+//
+// Under full-eviction the document is fully removed from the HashTable, so
+// the access triggers a BGFetch and expiry runs with the value resident.
+// Under value-eviction the metadata remains in the HashTable but the value
+// must equally be BGFetched before the expiry can be processed, else the
+// system xattrs would be lost (handlePreExpiry cannot prune a non-resident
+// value).
+TEST_P(KVBucketParamTest, AccessExpiryPreservesSystemXattrsNonResident) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    storeAndEvictXattrDoc(key);
+
+    // Move time forward so the document is expired.
+    TimeTraveller docBrown(10);
+
+    // Front-end access drives the expiry (ExpireBy::Access).
+    const auto options =
+            static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES);
+    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
+    auto gv = doGet();
+    if (gv.getStatus() == cb::engine_errc::would_block) {
+        // The value must be BGFetched before the expiry can be processed.
+        runBGFetcherTask();
+        gv = doGet();
+    }
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    EXPECT_EQ(1, engine->getEpStats().expired_access);
+
+    verifySystemXattrsInTombstone(key);
+}
+
+// As AccessExpiryPreservesSystemXattrsNonResident, but with the expiry
+// driven by getAndUpdateTtl (GAT).
+TEST_P(KVBucketParamTest, AccessExpiryGatPreservesSystemXattrs) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    storeAndEvictXattrDoc(key);
+
+    TimeTraveller docBrown(10);
+
+    auto doGat = [&]() { return store->getAndUpdateTtl(key, vbid, cookie, 0); };
+    auto gv = doGat();
+    if (gv.getStatus() == cb::engine_errc::would_block) {
+        runBGFetcherTask();
+        gv = doGat();
+    }
+    // The expired document must not be resurrected by the touch.
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    EXPECT_EQ(1, engine->getEpStats().expired_access);
+
+    verifySystemXattrsInTombstone(key);
+}
+
+// As AccessExpiryPreservesSystemXattrsNonResident, but with the expiry
+// driven by a front-end delete.
+TEST_P(KVBucketParamTest, AccessExpiryDeletePreservesSystemXattrs) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    storeAndEvictXattrDoc(key);
+
+    TimeTraveller docBrown(10);
+
+    auto doDelete = [&]() {
+        uint64_t cas = 0;
+        mutation_descr_t mutInfo;
+        return store->deleteItem(
+                key, cas, vbid, cookie, {}, /*itemMeta*/ nullptr, mutInfo);
+    };
+    auto rv = doDelete();
+    // Full-eviction requires two BGFetches: deleteItem first fetches just the
+    // metadata (temp item), and only then can it see that the value is also
+    // needed for processing the expiry. Value-eviction fetches just the value.
+    for (int fetches = 0; rv == cb::engine_errc::would_block && fetches < 3;
+         fetches++) {
+        runBGFetcherTask();
+        rv = doDelete();
+    }
+    // The document had already expired, so the delete finds nothing.
+    EXPECT_EQ(cb::engine_errc::no_such_key, rv);
+    EXPECT_EQ(1, engine->getEpStats().expired_access);
+
+    verifySystemXattrsInTombstone(key);
+}
+
+// As AccessExpiryPreservesSystemXattrsNonResident, but with the expiry
+// driven by getLocked.
+TEST_P(KVBucketParamTest, AccessExpiryGetLockedPreservesSystemXattrs) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    storeAndEvictXattrDoc(key);
+
+    TimeTraveller docBrown(10);
+
+    auto doGetLocked = [&]() {
+        return store->getLocked(key, vbid, std::chrono::seconds{10}, cookie);
+    };
+    auto gv = doGetLocked();
+    if (gv.getStatus() == cb::engine_errc::would_block) {
+        runBGFetcherTask();
+        gv = doGetLocked();
+    }
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    EXPECT_EQ(1, engine->getEpStats().expired_access);
+
+    verifySystemXattrsInTombstone(key);
 }
 
 /**

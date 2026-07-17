@@ -1518,7 +1518,16 @@ HashTable::FindResult VBucket::fetchValidValue(
     const auto cmAvailable =
             bucket && !KVBucket::isCheckpointMemoryStateFull(
                               bucket->verifyCheckpointMemoryState());
-    if (getState() == vbucket_state_active && cHandle.valid() && cmAvailable) {
+    // If the value has been evicted but the datatype indicates xattrs, the
+    // value must be fetched before the expiry can be processed, so that any
+    // system xattrs are preserved in the tombstone (handlePreExpiry is a
+    // no-op for non-resident values). Skip processing here - callers
+    // schedule a bgfetch and the expiry is processed on the retry once the
+    // value is resident again.
+    const auto valueRequiredForExpiry =
+            !v->isResident() && cb::mcbp::datatype::is_xattr(v->getDatatype());
+    if (cmAvailable && !valueRequiredForExpiry && cHandle.valid() &&
+        getState() == vbucket_state_active) {
         handlePreExpiry(res.getHBL(), *v);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, v, notifyCtx) =
@@ -1580,6 +1589,18 @@ VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
     // Expired - but queueDirty only allowed on active VB and only if the item's
     // collection is alive
     if (cHandle.valid()) {
+        if (!sv->isResident() &&
+            cb::mcbp::datatype::is_xattr(sv->getDatatype())) {
+            // The value must be fetched before the expiry can be processed,
+            // so that any system xattrs are preserved in the tombstone
+            // (handlePreExpiry is a no-op for non-resident values). Return
+            // the still-alive item; the callers' non-resident handling
+            // bgfetches it and the expiry is processed on the retry once the
+            // value is resident again.
+            return {FetchForWriteResult::Status::OkFound,
+                    sv,
+                    std::move(res.getHBL())};
+        }
         handlePreExpiry(res.getHBL(), *sv);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, sv, notifyCtx) =
@@ -2349,6 +2370,18 @@ cb::engine_errc VBucket::deleteItem(
         auto* v = htRes.selectSVToModify(durability.has_value());
 
         if (htRes.committed->isExpired(ep_real_time())) {
+            if (!htRes.committed->isResident() &&
+                cb::mcbp::datatype::is_xattr(htRes.committed->getDatatype())) {
+                // The value must be fetched before the expiry can be
+                // processed, so that any system xattrs are preserved in the
+                // tombstone (see fetchValueForWrite). The expiry is processed
+                // when the operation is retried.
+                return bgFetch(std::move(hbl),
+                               cHandle.getKey(),
+                               *htRes.committed,
+                               cookie,
+                               engine);
+            }
             handlePreExpiry(htRes.getHBL(), *v);
             std::tie(delrv, v, notifyCtx) =
                     processExpiredItem(htRes, cHandle, ExpireBy::Access);
@@ -2981,6 +3014,25 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
             return GetValue(cb::engine_errc::sync_write_re_commit_in_progress);
         }
 
+        // Expired, but the expiry hasn't been processed because the
+        // non-resident value is needed to preserve system xattrs in the
+        // tombstone (see fetchValidValue). Fetch the value; the expiry is
+        // processed when the operation is retried.
+        if (!metadataOnly && !v->isResident() && !v->isDeleted() &&
+            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
+            getState() == vbucket_state_active &&
+            v->isExpired(ep_real_time()) &&
+            !cHandle.isLogicallyDeleted(v->getBySeqno())) {
+            const auto queueBgFetch =
+                    (bgFetchRequired) ? QueueBgFetch::Yes : QueueBgFetch::No;
+            return getInternalNonResident(std::move(res.lock),
+                                          cHandle.getKey(),
+                                          cookie,
+                                          engine,
+                                          queueBgFetch,
+                                          *v);
+        }
+
         // 1 If SV is deleted or expired and user didn't request deleted items
         // 2 (or) If collection says this key is gone.
         // then return ENOENT.
@@ -3169,6 +3221,18 @@ cb::engine_errc VBucket::getKeyStats(
                            &cookie,
                            engine,
                            true);
+        }
+        // Expired, but the expiry hasn't been processed because the
+        // non-resident value is needed to preserve system xattrs in the
+        // tombstone (see fetchValidValue). Fetch the value; the expiry is
+        // processed when the operation is retried.
+        if (!v->isResident() && !v->isDeleted() &&
+            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
+            getState() == vbucket_state_active &&
+            v->isExpired(ep_real_time()) &&
+            !cHandle.isLogicallyDeleted(v->getBySeqno())) {
+            return bgFetch(
+                    std::move(res.lock), cHandle.getKey(), *v, &cookie, engine);
         }
         kstats.logically_deleted =
                 v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno());

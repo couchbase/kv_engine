@@ -979,7 +979,10 @@ public:
      * deleted or expired item is found then returns nullptr, unless
      * WantsDeleted is Yes.
      * If an expired item is found then will enqueue a delete to clean up the
-     * item if the collection handle is valid.
+     * item if the collection handle is valid, unless the value is needed to
+     * process the expiry but has been evicted (datatype has xattrs which must
+     * be preserved in the tombstone) - then the item is returned as-is and
+     * the callers' non-resident handling bgfetches it.
      *
      * @param vbStateLock A lock on the state of the vbucket
      * @param wantsDeleted
@@ -1041,7 +1044,10 @@ public:
      * for details.
      *
      * If an expired item is found then will enqueue a delete to clean up the
-     * item if the collection handle is valid.
+     * item if the collection handle is valid, unless the value is needed to
+     * process the expiry but has been evicted (datatype has xattrs which must
+     * be preserved in the tombstone) - then the still-alive item is returned
+     * as-is (OkFound) and the callers' non-resident handling bgfetches it.
      *
      * @param cHandle Collections readhandle (caching mode) for this key.
      * @param wantsDeleted If Yes then deleted items will be returned,

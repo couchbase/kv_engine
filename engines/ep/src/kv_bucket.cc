@@ -1992,6 +1992,14 @@ cb::engine_errc KVBucket::unlockKey(const DocKeyView& key,
             vb->ht.cleanupIfTemporaryItem(res.lock, *v);
             return cb::engine_errc::no_such_key;
         }
+        if (v->isExpired(ep_real_time())) {
+            // Expired, but the expiry hasn't been processed yet as that
+            // requires fetching the non-resident value (to preserve any
+            // system xattrs in the tombstone). Logically the item is gone;
+            // no need to fetch it here, the expiry is processed by the
+            // pager/compactor or the next access to the value.
+            return cb::engine_errc::no_such_key;
+        }
         if (v->isLocked(currentTime)) {
             if (v->getCasForWrite(currentTime) == cas) {
                 v->unlock();
