@@ -3391,6 +3391,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
         addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         addStat("might_contain_xattrs", mightContainXattrs(), add_stat, c);
+        addStat("takeover_backed_up", isTakeoverBackedUp(), add_stat, c);
         addStat("max_deleted_revid", ht.getMaxDeletedRevSeqno(), add_stat, c);
 
         // We can read a number of durability stats in one lock acquistion
