@@ -41,5 +41,33 @@ if (CB_UNITY_BUILD)
             dockey_fuzz_test.cc
             fuzz_test_helpers.cc
     )
+else()
+    # These sources aren't compiled into ep-engine_ep_unit_tests in this
+    # configuration (see above), which means tools relying on
+    # compile_commands.json (e.g. clang-tidy, clangd) have no compile flags
+    # for them and fail with bogus "file not found" errors for angle-bracket
+    # includes. Compile them into an unused OBJECT library, with the same
+    # dependencies ep-engine_ep_unit_tests would've given them, purely so
+    # they get a valid compile_commands.json entry.
+    add_library(ep-engine_ep_unit_tests_fuzz_tests OBJECT EXCLUDE_FROM_ALL
+            active_stream_fuzz_test.cc
+            passive_stream_fuzz_test.cc
+            dockey_fuzz_test.cc
+            fuzz_test_helpers.cc
+    )
+    target_include_directories(ep-engine_ep_unit_tests_fuzz_tests PRIVATE
+            ${Couchstore_SOURCE_DIR}
+            ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
+    target_link_libraries(ep-engine_ep_unit_tests_fuzz_tests PRIVATE
+            ep
+            mock_dcp
+            ep_mocks
+            GTest::gtest
+            GTest::gmock
+            mcd_test_util
+            mock_server
+            phosphor
+            mcd_fuzzing
+            ${EP_STORAGE_LIBS})
 endif()
 
