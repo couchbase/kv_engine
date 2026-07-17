@@ -7664,6 +7664,24 @@ void SingleThreadedActiveStreamTest::pushStreamToTakeoverBackupPhase() {
 TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase) {
     pushStreamToTakeoverBackupPhase();
 
+    // Reads the takeover_backed_up flag as exposed via the vbucket-details
+    // stats (VBucket::_addStats, VBucketStatsDetailLevel::Full).
+    auto readTakeoverBackedUpStat = [this]() {
+        nlohmann::json stats;
+        const AddStatFn addStat = [&stats](auto key, auto value, auto&) {
+            stats[std::string(key)] = std::string(value);
+        };
+        store->getVBucket(vbid)->addStats(
+                VBucketStatsDetailLevel::Full, addStat, *cookie);
+        return stats
+                .at("vb_" + std::to_string(vbid.get()) + ":takeover_backed_up")
+                .get<std::string>();
+    };
+
+    // The stream's TakeoverSend phase has pushed the vbucket into a
+    // takeover-backup state, which must be reflected in the vbucket stats.
+    EXPECT_EQ("true", readTakeoverBackedUpStat());
+
     // At TakeoverSend the stream has sent a SetVBState(pending) message to the
     // peer. Now the stream is in TakeoverWait, waiting for the SetVBState ACK
     // from the peer.
@@ -7687,6 +7705,7 @@ TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase) {
     // VBucket::takeover_backed_up flag cleared as the vbucket has transitioned
     // to !active
     EXPECT_FALSE(vb.isTakeoverBackedUp());
+    EXPECT_EQ("false", readTakeoverBackedUpStat());
 
     // Ensure that at least 1sec has past since takeoverStart. The stream might
     // miss to set the VBucket::takeover_backed_up flag in the subsequent
@@ -7709,6 +7728,7 @@ TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase) {
     EXPECT_TRUE(stream->isTakeoverWait());
     // VBucket::takeover_backed_up flag set again
     EXPECT_TRUE(vb.isTakeoverBackedUp());
+    EXPECT_EQ("true", readTakeoverBackedUpStat());
 
     // Now the stream received the ACK
     stream->setVBucketStateAckRecieved(*producer);
@@ -7719,6 +7739,7 @@ TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase) {
     // takeover procedure. Before MB-66609 we miss to do that and we leave the
     // vbucket in a endless takeover-backup state.
     EXPECT_FALSE(vb.isTakeoverBackedUp());
+    EXPECT_EQ("false", readTakeoverBackedUpStat());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, TakeoverBackupPhase_EarlyStreamEnd) {
