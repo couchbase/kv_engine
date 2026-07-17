@@ -1219,6 +1219,20 @@ bool Connection::executeCommandsCallback() {
         }
 
         if (state == State::immediate_close) {
+            {
+                auto array = nlohmann::json::array();
+                for (const auto& c : cookies) {
+                    if (c && (!c->empty() || isDCP())) {
+                        array.push_back(c->to_json());
+                    }
+                }
+                if (!array.empty()) {
+                    LOG_INFO_CTX("Aborting commands during client shutdown",
+                                 {"conn_id", getId()},
+                                 {"cookie", std::move(array)});
+                }
+            }
+
             if (isDCP()) {
                 thread.removeThrottleableDcpConnection(*this);
             }
