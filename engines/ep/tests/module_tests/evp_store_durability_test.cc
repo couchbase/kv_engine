@@ -3040,9 +3040,9 @@ TEST_P(DurabilityBucketTest, BlockSyncWritesIfMoreThan2Replicas) {
               store->replace(*pre3, cookie));
 }
 
-class FailOnExpiryCallback : public Callback<Item&, time_t&> {
+class FailOnExpiryCallback : public Callback<Item&, const time_t&> {
 public:
-    void callback(Item& item, time_t& time) override {
+    void callback(Item& item, const time_t& time) override {
         FAIL() << "Item was expired, nothing should be eligible for expiry";
     }
 };

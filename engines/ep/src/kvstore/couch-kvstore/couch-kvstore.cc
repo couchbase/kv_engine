@@ -1108,12 +1108,7 @@ static int time_purge_hook(Db& d,
             return COUCHSTORE_COMPACT_KEEP_ITEM;
         }
 
-        time_t timeToExpireFrom;
-        if (ctx.timeToExpireFrom) {
-            timeToExpireFrom = ctx.timeToExpireFrom.value();
-        } else {
-            timeToExpireFrom = ep_real_time();
-        }
+        const time_t timeToExpireFrom = ctx.timeToExpireFrom;
 
         if (exptime && exptime < timeToExpireFrom && metadata->isCommit()) {
             int ret;

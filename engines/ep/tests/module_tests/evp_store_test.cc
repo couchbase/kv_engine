@@ -3620,7 +3620,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Define a callback that will call "cb" before the expiry callback
-    class ExpiryCb : public Callback<Item&, time_t&> {
+    class ExpiryCb : public Callback<Item&, const time_t&> {
     public:
         explicit ExpiryCb(ExpiredItemsCBPtr realExpiryCallback,
                           std::function<void()> callback)
@@ -3628,7 +3628,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
               realExpiryCallback(std::move(realExpiryCallback)) {
         }
 
-        void callback(Item& item, time_t& time) override {
+        void callback(Item& item, const time_t& time) override {
             cb();
             realExpiryCallback->callback(item, time);
         }

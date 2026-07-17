@@ -203,12 +203,12 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
     return true;
 }
 
-class ExpiredItemsCallback : public Callback<Item&, time_t&> {
+class ExpiredItemsCallback : public Callback<Item&, const time_t&> {
 public:
     explicit ExpiredItemsCallback(KVBucket& store) : epstore(store) {
     }
 
-    void callback(Item& item, time_t& startTime) override {
+    void callback(Item& item, const time_t& startTime) override {
         epstore.processExpiredItem(item, startTime, ExpireBy::Compactor);
     }
 
@@ -1427,18 +1427,13 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
                 ep_real_time() - configuration.getPersistentMetadataPurgeAge();
     }
 
-    std::optional<time_t> expireFrom;
-    if (configuration.isCompactionExpireFromStart()) {
-        expireFrom = ep_real_time();
-    }
-
     auto vb = getVBucket(vbid);
     if (!vb) {
         return nullptr;
     }
 
     auto ctx = std::make_shared<CompactionContext>(
-            std::move(vb), config, purgeSeqno, expireFrom);
+            std::move(vb), config, purgeSeqno, ep_real_time());
 
     ctx->obsolete_keys = config.obsolete_keys;
 

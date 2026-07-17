@@ -67,7 +67,7 @@ enum class GetMetaOnly { Yes, No };
 
 using BloomFilterCBPtr =
         std::shared_ptr<Callback<Vbid&, const DocKeyView&, bool&>>;
-using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
+using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, const time_t&>>;
 
 /**
  * Generic information about a KVStore file
@@ -279,7 +279,7 @@ struct CompactionContext {
     CompactionContext(VBucketPtr vb,
                       CompactionConfig config,
                       uint64_t purgeSeq,
-                      std::optional<time_t> timeToExpireFrom = {})
+                      time_t timeToExpireFrom = ep_real_time())
         : compactConfig(std::move(config)),
           timeToExpireFrom(timeToExpireFrom),
           purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)),
@@ -330,8 +330,9 @@ struct CompactionContext {
     /// The SyncRepl HCS, can purge any prepares before the HCS.
     uint64_t highCompletedSeqno = 0;
 
-    /// Time from which we expire items (if set). Otherwise current time is used
-    std::optional<time_t> timeToExpireFrom = {};
+    /// Time from which we expire items, captured at the start of compaction so
+    /// that all items expire from a single consistent point
+    time_t timeToExpireFrom = 0;
 
     /**
      * Function to call if the (in-memory) VBucket purge seqno might need to be

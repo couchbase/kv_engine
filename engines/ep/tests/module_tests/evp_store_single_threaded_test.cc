@@ -6729,12 +6729,12 @@ void STParamPersistentBucketTest::testCancelCompaction(
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    class ExpiryCb : public Callback<Item&, time_t&> {
+    class ExpiryCb : public Callback<Item&, const time_t&> {
     public:
         explicit ExpiryCb(std::function<void()> cb) : cb(std::move(cb)) {
         }
 
-        void callback(Item& item, time_t& time) override {
+        void callback(Item& item, const time_t& time) override {
             cb();
         }
 

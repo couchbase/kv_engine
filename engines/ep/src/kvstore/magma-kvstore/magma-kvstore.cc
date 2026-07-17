@@ -630,12 +630,7 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
             }
         }
 
-        time_t timeToExpireFrom;
-        if (cbCtx.ctx->timeToExpireFrom) {
-            timeToExpireFrom = cbCtx.ctx->timeToExpireFrom.value();
-        } else {
-            timeToExpireFrom = ep_real_time();
-        }
+        const time_t timeToExpireFrom = cbCtx.ctx->timeToExpireFrom;
 
         if (exptime && exptime < timeToExpireFrom &&
             !magmakv::isPrepared(keySlice, docMeta)) {

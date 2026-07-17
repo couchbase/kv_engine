@@ -1081,13 +1081,14 @@ bool NexusKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
  * Expiry callback variant that stores a set of callback invocations and
  * (if supplied) forwards the callback on to the real expiry callback
  */
-class NexusExpiryCB : public Callback<Item&, time_t&> {
+class NexusExpiryCB : public Callback<Item&, const time_t&> {
 public:
-    explicit NexusExpiryCB(std::shared_ptr<Callback<Item&, time_t&>> cb = {})
+    explicit NexusExpiryCB(
+            std::shared_ptr<Callback<Item&, const time_t&>> cb = {})
         : cb(std::move(cb)) {
     }
 
-    void callback(Item& it, time_t& startTime) override {
+    void callback(Item& it, const time_t& startTime) override {
         // Time is not interesting here
         callbacks.emplace(it.getKey(), it.getBySeqno());
         if (cb) {
@@ -1096,7 +1097,7 @@ public:
     }
 
     std::unordered_map<DiskDocKey, int64_t> callbacks;
-    std::shared_ptr<Callback<Item&, time_t&>> cb;
+    std::shared_ptr<Callback<Item&, const time_t&>> cb;
 };
 
 struct NexusCompactionContext {
