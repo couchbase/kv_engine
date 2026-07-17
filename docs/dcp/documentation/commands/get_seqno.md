@@ -35,7 +35,7 @@ The `vbucket_state` is one of:
 
 ### Binary Implementation
 
-#### Get All vBucket Sequence Numbers Binary Request
+#### Get All vBucket Sequence Numbers Binary Request (all alive vbuckets)
 
     Byte/     0       |       1       |       2       |       3       |
        /              |               |               |               |
@@ -63,7 +63,7 @@ The `vbucket_state` is one of:
     Extra length (4)    : 0x00                (0)
     Data type    (5)    : 0x00                (Field not used)
     VBucket      (6,7)  : 0x0000              (Field not used)
-    Total body   (8-11) : 0x00000000          (4)
+    Total body   (8-11) : 0x00000000          (0)
     Opaque       (12-15): 0xdeadbeef          (3735928559)
     CAS          (16-23): 0x0000000000000000  (Field not used)
 
@@ -76,9 +76,9 @@ The `vbucket_state` is one of:
       +---------------+---------------+---------------+---------------+
      0| 0x80          | 0x48          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     4| 0x01          | 0x00          | 0x00          | 0x00          |
+     4| 0x04          | 0x00          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     8| 0x00          | 0x00          | 0x00          | 0x00          |
+     8| 0x00          | 0x00          | 0x00          | 0x04          |
       +---------------+---------------+---------------+---------------+
     12| 0xde          | 0xad          | 0xbe          | 0xef          |
       +---------------+---------------+---------------+---------------+
@@ -95,15 +95,15 @@ The `vbucket_state` is one of:
     Magic        (0)    : 0x80                (Request)
     Opcode       (1)    : 0x48                (Get All vBucket Sequence Numbers)
     Key length   (2,3)  : 0x0000              (0)
-    Extra length (4)    : 0x01                (1)
+    Extra length (4)    : 0x04                (4)
     Data type    (5)    : 0x00                (Field not used)
     VBucket      (6,7)  : 0x0000              (Field not used)
-    Total body   (8-11) : 0x00000000          (4)
-    Opaque       (12-15): 0xdeadbeef          (3735928559)
+    Total body   (8-11) : 0x00000004          (4)
+    Opaque       (12-15): 0xdeadbeef          (4735928559)
     CAS          (16-23): 0x0000000000000000  (Field not used)
-      vb state   (24-27): 0x02                (replica)
+      vb state   (24-27): 0x00000002          (replica)
 
-#### Get All vBucket Sequence Numbers Binary Request (restricted to a certain collection for vBuckets in any state)
+#### Get All vBucket Sequence Numbers Binary Request (restricted to a certain collection for vBuckets in any alive state)
 
     Byte/     0       |       1       |       2       |       3       |
        /              |               |               |               |
@@ -111,9 +111,9 @@ The `vbucket_state` is one of:
       +---------------+---------------+---------------+---------------+
      0| 0x80          | 0x48          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     4| 0x01          | 0x00          | 0x00          | 0x00          |
+     4| 0x08          | 0x00          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     8| 0x00          | 0x00          | 0x00          | 0x00          |
+     8| 0x00          | 0x00          | 0x00          | 0x08          |
       +---------------+---------------+---------------+---------------+
     12| 0xde          | 0xad          | 0xbe          | 0xef          |
       +---------------+---------------+---------------+---------------+
@@ -131,13 +131,13 @@ The `vbucket_state` is one of:
     Magic           (0)    : 0x80                (Request)
     Opcode          (1)    : 0x48                (Get All vBucket Sequence Numbers)
     Key length      (2,3)  : 0x0000              (0)
-    Extra length    (4)    : 0x01                (1)
+    Extra length    (4)    : 0x08                (8)
     Data type       (5)    : 0x00                (Field not used)
     VBucket         (6,7)  : 0x0000              (Field not used)
-    Total body      (8-11) : 0x00000000          (4)
+    Total body      (8-11) : 0x00000008          (8)
     Opaque          (12-15): 0xdeadbeef          (3735928559)
     CAS             (16-23): 0x0000000000000000  (Field not used)
-      vb state      (24-27): 0x00                (any alive state)
+      vb state      (24-27): 0x00000000          (any alive state)
       collection id (28-31): 0xcafef00d          (3405705229)
 
 #### Get All vBucket Sequence Numbers Binary Request (restricted to a certain state and a certain collection)
@@ -148,9 +148,9 @@ The `vbucket_state` is one of:
       +---------------+---------------+---------------+---------------+
      0| 0x80          | 0x48          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     4| 0x01          | 0x00          | 0x00          | 0x00          |
+     4| 0x08          | 0x00          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-     8| 0x00          | 0x00          | 0x00          | 0x00          |
+     8| 0x00          | 0x00          | 0x00          | 0x08          |
       +---------------+---------------+---------------+---------------+
     12| 0xde          | 0xad          | 0xbe          | 0xef          |
       +---------------+---------------+---------------+---------------+
@@ -168,13 +168,13 @@ The `vbucket_state` is one of:
     Magic           (0)    : 0x80                (Request)
     Opcode          (1)    : 0x48                (Get All vBucket Sequence Numbers)
     Key length      (2,3)  : 0x0000              (0)
-    Extra length    (4)    : 0x01                (1)
+    Extra length    (4)    : 0x08                (8)
     Data type       (5)    : 0x00                (Field not used)
     VBucket         (6,7)  : 0x0000              (Field not used)
-    Total body      (8-11) : 0x00000000          (4)
+    Total body      (8-11) : 0x00000080          (8)
     Opaque          (12-15): 0xdeadbeef          (3735928559)
     CAS             (16-23): 0x0000000000000000  (Field not used)
-      vb state      (24-27): 0x02                (replica)
+      vb state      (24-27): 0x00000002          (replica)
       collection id (28-31): 0xcafef00d          (3405705229)
 
 #### Get All vBucket Sequence Numbers Binary Response
