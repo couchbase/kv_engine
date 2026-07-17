@@ -77,6 +77,14 @@ bool Flusher::canTransition(State from, State to) const {
         return from != State::Stopped;
     }
 
+    // Pausing an already-paused flusher (or resuming an already-running
+    // one) is idempotent, not an error - important for multi-shard buckets
+    // where EPBucket::pauseFlusher()/resumeFlusher() require every shard to
+    // reach the target state.
+    if (from == to && (to == State::Running || to == State::Paused)) {
+        return true;
+    }
+
     switch (from) {
     case State::Initializing:
         return (to == State::Running || to == State::Paused);
@@ -120,6 +128,10 @@ bool Flusher::transitionState(State to) {
         from = _state.load();
         if (!canTransition(from, to)) {
             return false;
+        }
+        if (from == to) {
+            // No-op transition, nothing to log or update.
+            return true;
         }
         // The transition is valid, continue to update _state provided
         // it hasn't changed since we last checked.
