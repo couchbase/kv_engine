@@ -86,3 +86,5 @@ target_link_libraries(statistics
                 spdlog::spdlog
                 prometheus-cpp::pull
                 )
+
+add_subdirectory(tests/mock)

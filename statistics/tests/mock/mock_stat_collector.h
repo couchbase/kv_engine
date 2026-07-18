@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2020-Present Couchbase, Inc.
  *
@@ -11,6 +10,7 @@
 
 #pragma once
 
+#include <fmt/format.h>
 #include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <statistics/collector.h>
