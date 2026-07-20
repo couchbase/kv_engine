@@ -4408,7 +4408,8 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
     }
     ctx->highCompletedSeqno = readState.state.persistedCompletedSeqno;
 
-    ctx->setCollectionHighSeqnosRefreshInterval(60s);
+    ctx->setCollectionHighSeqnosRefreshInterval(
+            configuration.getMagmaCollectionHighSeqnoRefreshInterval());
 
     logger->debug(
             "MagmaKVStore::makeImplicitCompactionContext {} purge_before_ts:{} "

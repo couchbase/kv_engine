@@ -515,6 +515,23 @@ TEST_P(STParamMagmaBucketTest, MagmaMaxNumLevel0Tables) {
     EXPECT_EQ(8, config.getMagmaMaxNumLevel0Tables());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaCollectionHighSeqnoRefreshInterval) {
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+
+    // Precondition: the value we set below must differ from the current one,
+    // else the post-set check could pass without the set taking effect.
+    ASSERT_NE(30, config.getMagmaCollectionHighSeqnoRefreshInterval().count());
+
+    std::string msg;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam(
+                    "magma_collection_high_seqno_refresh_interval", "30", msg));
+
+    EXPECT_EQ(30, config.getMagmaCollectionHighSeqnoRefreshInterval().count());
+}
+
 TEST_P(STParamMagmaBucketTest, MagmaSeqTreeDataBlocksSize) {
     std::string msg;
     ASSERT_EQ(cb::engine_errc::success,

@@ -285,6 +285,14 @@ public:
 
     void setContinousBackupInterval(std::chrono::seconds interval);
 
+    std::chrono::seconds getMagmaCollectionHighSeqnoRefreshInterval() const {
+        return magmaCollectionHighSeqnoRefreshInterval;
+    }
+
+    void setMagmaCollectionHighSeqnoRefreshInterval(std::chrono::seconds val) {
+        magmaCollectionHighSeqnoRefreshInterval = val;
+    }
+
     /**
      * @returns the path for continuous backup files for the bucket
      */
@@ -622,6 +630,9 @@ private:
     std::atomic<bool> continuousBackupEnabled{false};
     std::atomic<std::chrono::seconds> continuousBackupInterval{
             std::chrono::seconds(120)};
+
+    std::atomic<std::chrono::seconds> magmaCollectionHighSeqnoRefreshInterval{
+            std::chrono::seconds(60)};
 
     /// The path for continuous backup files for this bucket.
     std::filesystem::path continuousBackupPath;

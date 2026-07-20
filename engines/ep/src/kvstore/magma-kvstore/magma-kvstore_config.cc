@@ -56,6 +56,9 @@ public:
             config.setMagmaMaxNumLevel0Tables(value);
         } else if (key == "continuous_backup_interval") {
             config.setContinousBackupInterval(std::chrono::seconds(value));
+        } else if (key == "magma_collection_high_seqno_refresh_interval") {
+            config.setMagmaCollectionHighSeqnoRefreshInterval(
+                    std::chrono::seconds(value));
         } else if (key == "magma_fusion_upload_interval") {
             config.setFusionUploadInterval(std::chrono::seconds(value));
         } else if (key == "magma_fusion_max_upload_interval") {
@@ -288,6 +291,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             continuousBackupInterval.load());
     config.addValueChangedListener(
             "continuous_backup_interval",
+            std::make_unique<ConfigChangeListener>(*this));
+
+    magmaCollectionHighSeqnoRefreshInterval = std::chrono::seconds(
+            config.getMagmaCollectionHighSeqnoRefreshInterval());
+    config.addValueChangedListener(
+            "magma_collection_high_seqno_refresh_interval",
             std::make_unique<ConfigChangeListener>(*this));
 
     std::filesystem::path dbName = config.getDbname();

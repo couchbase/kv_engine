@@ -138,6 +138,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "magma_fragmentation_percentage",
         "magma_max_base_level_size",
         "magma_max_num_level0_tables",
+        "magma_collection_high_seqno_refresh_interval",
         "magma_mem_quota_ratio",
         "magma_enable_block_cache",
         "magma_seq_tree_data_block_size",

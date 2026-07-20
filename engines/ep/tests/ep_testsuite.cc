@@ -7186,6 +7186,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_fragmentation_percentage",
                           "ep_magma_max_base_level_size",
                           "ep_magma_max_num_level0_tables",
+                          "ep_magma_collection_high_seqno_refresh_interval",
                           "ep_magma_mem_quota_ratio",
                           "ep_magma_seq_tree_data_block_size",
                           "ep_magma_min_value_block_size_threshold",

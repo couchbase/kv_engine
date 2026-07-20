@@ -1656,6 +1656,17 @@
                 "backend": "magma"
             }
         },
+        "magma_collection_high_seqno_refresh_interval": {
+            "added": "8.1.0",
+            "default": "60",
+            "dynamic": true,
+            "descr": "Interval (in seconds) at which the cached per-collection persisted high seqnos are refreshed during a magma implicit compaction; 0 disables the periodic refresh.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "magma_checkpoint_interval": {
             "default": "120",
             "dynamic": false,
