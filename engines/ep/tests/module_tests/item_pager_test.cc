@@ -2127,12 +2127,20 @@ TEST_P(STItemPagerTest, EligibleForEvictionAndExpiration) {
 
     for (auto& sv : cb::testing::sv::createAll(makeStoredDocKey("key"))) {
         const auto now = gsl::narrow<uint32_t>(ep_real_time());
-        // We do not expire deleted or temp items.
-        bool expectToExpire =
+        // We do not expire deleted or temp items. Expired items are removed
+        // from the eviction candidates by the pager regardless of datatype.
+        bool expiryHandled =
                 !sv->isDeleted() && !sv->isTempItem() && sv->isExpired(now);
+        // An XATTR item with no resident value cannot actually be expired by
+        // the pager: preserving system xattrs needs the value, and the pager
+        // does not perform a synchronous disk fetch on the NonIO thread. Such
+        // items are left in place for compaction to expire.
+        bool emptyXattr = cb::mcbp::datatype::is_xattr(sv->getDatatype()) &&
+                          sv->valuelen() == 0;
+        bool expectToExpire = expiryHandled && !emptyXattr;
         // We cannot evict and expire. We cannot evict dirty SVs.
         bool expectToEvict =
-                !expectToExpire && !sv->isDirty() &&
+                !expiryHandled && !sv->isDirty() &&
                 (!sv->isLocked(now) || (sv->isLocked(now) && sv->isResident()));
         // Under value eviction, we can only evict the value.
         // Deletes can also be removed entirely.
@@ -2170,12 +2178,19 @@ TEST_P(STItemPagerTest, ItemPagerCannotRemoveKeyDuringWarmup) {
 
     for (auto& sv : cb::testing::sv::createAll(makeStoredDocKey("key"))) {
         // We do not expire deleted or temp items.
-        bool expectToExpire = !sv->isDeleted() && !sv->isTempItem() &&
-                              sv->isExpired(ep_real_time());
+        bool expiryHandled = !sv->isDeleted() && !sv->isTempItem() &&
+                             sv->isExpired(ep_real_time());
+        // As in EligibleForEvictionAndExpiration: an XATTR item with no
+        // resident value cannot be expired by the pager (its value is needed
+        // to preserve system xattrs and is not fetched on the NonIO thread) -
+        // it is left for compaction to expire.
+        bool emptyXattr = cb::mcbp::datatype::is_xattr(sv->getDatatype()) &&
+                          sv->valuelen() == 0;
+        bool expectToExpire = expiryHandled && !emptyXattr;
         // We cannot evict and expire. We cannot evict dirty SVs.
         // We cannot evict non-resident items under full-eviction (metadata).
         bool expectToEvict =
-                !expectToExpire && !sv->isDirty() && sv->isResident();
+                !expiryHandled && !sv->isDirty() && sv->isResident();
         // Under value eviction, we can only evict the value.
         // Deletes can also be removed entirely.
         if (store->getItemEvictionPolicy() == EvictionPolicy::Value) {
@@ -3255,12 +3270,14 @@ public:
     }
 };
 
-// Test that when a xattr value is ejected, we can still expire it. Previous
-// to the fix we crash because the item has no value in memory.
+// Test that an evicted (non-resident) xattr item can be expired without a
+// crash. Previous to MB-25931 we crashed because the item has no value in
+// memory. The expiry pager no longer fetches the value on the NonIO thread -
+// it leaves the item for compaction to expire, which has the value in hand.
 //
-// (Not applicable to full-eviction as relies on in-memory expiry pager
-//  expiring a non-resident item; with full-eviction the item is completely
-//  evicted and hence ExpiryPager won't find it.)
+// (Not applicable to full-eviction as relies on the item's metadata remaining
+// resident; with full-eviction a non-resident item is completely evicted from
+// the HashTable.)
 TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     std::string value = createXattrValue("body");
     auto key = makeStoredDocKey("key_1");
@@ -3282,8 +3299,18 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
 
     TimeTraveller docBrown(15);
 
+    // The expiry pager must not fetch the evicted value on the NonIO thread, so
+    // it leaves the non-resident XATTR item in place rather than expiring it.
     wakeUpExpiryPager();
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems())
+            << "Expiry pager must not expire an evicted XATTR item";
+
+    // Compaction owns expiry of evicted XATTR items; it expires the item with
+    // the value in hand and must not crash doing so (the original MB-25931).
+    ASSERT_TRUE(runCompaction(vbid));
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
+    EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
+            << "Compaction should have expired the item";
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
@@ -3392,14 +3419,24 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     ASSERT_EQ(1, engine->getVBucket(vbid)->getNumItems());
     ASSERT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
 
+    // The expiry pager must not fetch the evicted value on the NonIO thread, so
+    // it leaves the non-resident XATTR item in place rather than expiring it.
     wakeUpExpiryPager();
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems())
+            << "Expiry pager must not expire an evicted XATTR item";
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getNumNonResidentItems());
+
+    // Compaction owns expiry of evicted XATTR items; it expires the item
+    // (reading the value on the AuxIO compaction thread) and preserves the
+    // system xattrs in the tombstone.
+    ASSERT_TRUE(runCompaction(vbid));
 
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
-            << "Should have 0 items after running expiry pager";
+            << "Should have 0 items after compaction expiry";
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumNonResidentItems())
-            << "Should have 0 non-resident items after running expiry pager";
+            << "Should have 0 non-resident items after compaction expiry";
 
     // Check our item has been deleted and the xattrs pruned
     auto options = static_cast<get_options_t>(

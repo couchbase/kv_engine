@@ -671,7 +671,14 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     // MB-25931: Empty XATTR items need their value before we can call
     // pre_expiry. These occur because the value has been evicted.
     if (cb::mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
+        if (source != ExpireBy::Compactor) {
+            return; // Don't fetch document on a NonIO thread
+        }
         getValue(it);
+        if (it.getNBytes() == 0 &&
+            cb::mcbp::datatype::is_xattr(it.getDataType())) {
+            return;
+        }
     }
 
     // Process positive seqnos (ignoring special *temp* items) and only those
