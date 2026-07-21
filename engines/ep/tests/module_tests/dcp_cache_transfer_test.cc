@@ -17,6 +17,7 @@
 #include "mcbp/protocol/request.h"
 #include "memcached/engine_error.h"
 #include "programs/engine_testapp/mock_cookie.h"
+#include "stored-value.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
@@ -26,9 +27,11 @@
 #include <gtest/gtest.h>
 #include <utilities/test_manifest.h>
 #include <algorithm>
+#include <functional>
 
 using namespace cb::mcbp;
 
+#include <unordered_map>
 #include <unordered_set>
 
 class DcpCacheTransferTest : public STParameterizedBucketTest {
@@ -103,6 +106,17 @@ public:
      * @param allKeys Whether to use all_keys mode
      */
     void testBackfillThresholdBehavior(bool allKeys);
+
+    /**
+     * Shared body for the "HashTable resize during paused CacheTransfer visit"
+     * tests. Runs the visitor once so it pauses, invokes @p attemptResize
+     * which must observe that the resize is deferred (the task holds a
+     * shared visit hold), drains the visitor asserting no double visits, then
+     * resizes to @p resizeTargetSize once the task has released its hold.
+     */
+    void testResizeBetweenVisitsDoesNotRevisit(
+            std::function<void(VBucket&)> attemptResize,
+            size_t resizeTargetSize);
 
     std::unordered_set<Item> expectedItems;
 };
@@ -649,6 +663,128 @@ TEST_P(DcpCacheTransferTest, all_keys_means_all_keys) {
               producer->stepAndExpect(producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers.last_end_status);
+}
+
+// Shared implementation for the resize-between-visits tests.
+//
+// Without the visit-hold fix, a HashTable resize that happens between
+// two CacheTransferTask runs would invalidate the Position saved by
+// pauseResumeVisit (the saved ht_size no longer matches the table's size)
+// and items already visited in the first run would be visited a second time
+// after the resize.
+//
+// With the fix, the task holds a long-lived shared visit hold across all its
+// run() calls. While that hold is held, both the one-step and
+// incremental resize entry points return NeedsRevisit::YesLater - the resize
+// is deferred. This test asserts:
+//   1. The mid-visit resize attempt is rejected (size unchanged).
+//   2. The visitor still completes and no item is visited twice.
+//   3. After the task ends and releases the hold, a resize succeeds.
+//
+// The test is parameterised on the mid-test resize action so we cover both
+// one-step and incremental paths.
+void DcpCacheTransferTest::testResizeBetweenVisitsDoesNotRevisit(
+        std::function<void(VBucket&)> attemptResize, size_t resizeTargetSize) {
+    // Force the visitor to pause after every chain so we can deterministically
+    // pause iteration mid-way.
+    engine->getConfiguration().setDcpCacheTransferOneVisitPerStep(true);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Start the HashTable at size=1 so every item lives in bucket 0 (lock 0).
+    // The first task run will visit the whole chain (VisitCompleteChain::Yes
+    // for all_keys) and then pause. resizeInOneStep here is fine - the bug
+    // only concerns resizes that happen *during* a paused visit.
+    vb->ht.resizeInOneStep(1);
+    ASSERT_EQ(1, vb->ht.getSize());
+
+    // Add multiple items so that after the upcoming resize the keys would
+    // spread across buckets owned by locks > 0 - those are the buckets that
+    // pauseResumeVisit would sweep again on resume if the resize were
+    // permitted to proceed.
+    for (int i = 2; i <= 10; ++i) {
+        store_item(Vbid(0),
+                   makeStoredDocKey("k" + std::to_string(i)),
+                   std::to_string(i));
+    }
+    // SetUp() already inserted key "1".
+    const size_t totalItems = 10;
+    ASSERT_EQ(totalItems, vb->ht.getNumItems());
+
+    auto stream = createStream(*producer,
+                               1,
+                               Vbid(0),
+                               vb->getHighSeqno(),
+                               vb->getHighSeqno(),
+                               R"({"cts":{"all_keys":true}})");
+
+    // Count how many times each key is passed to maybeQueueItem (i.e. visited).
+    std::unordered_map<std::string, int> visitCounts;
+    stream->preQueueCallback = [&visitCounts](const StoredValue& sv) {
+        ++visitCounts[sv.getKey().to_string()];
+    };
+
+    // Run 1: visits the entire bucket-0 chain (every item) then pauses. The
+    // task acquires its visit hold on this first run and holds it
+    // across all subsequent runs until the stream ends.
+    runCacheTransferTask();
+    ASSERT_EQ(totalItems, visitCounts.size());
+    for (const auto& [key, count] : visitCounts) {
+        ASSERT_EQ(1, count)
+                << "key '" << key << "' visited >1 times during initial run";
+    }
+
+    // Attempt a resize while the task is paused. With the visit hold in
+    // place the resize entry point must defer (NeedsRevisit::YesLater) - the
+    // lambda asserts that - and the table size must be unchanged.
+    attemptResize(*vb);
+    EXPECT_EQ(1, vb->ht.getSize())
+            << "Resize must be blocked while CacheTransferTask holds its "
+               "visit hold";
+
+    // Drain remaining task runs until the stream ends. Bound the loop to keep
+    // a misbehaviour from hanging the test.
+    int iters = 0;
+    while (stream->isActive() && iters++ < 200) {
+        runCacheTransferTask();
+    }
+    EXPECT_FALSE(stream->isActive())
+            << "Stream did not end within " << iters << " task runs";
+
+    // No item should have been visited more than once.
+    for (const auto& [key, count] : visitCounts) {
+        EXPECT_EQ(1, count) << "key '" << key << "' visited " << count
+                            << " times during cache transfer";
+    }
+
+    // The visit hold is released now that the task has terminated, so a
+    // resize must now succeed.
+    EXPECT_EQ(NeedsRevisit::No, vb->ht.resizeInOneStep(resizeTargetSize));
+    EXPECT_EQ(resizeTargetSize, vb->ht.getSize());
+}
+
+// One-step resize attempted between visits. Exercises
+// HashTable::resizeInOneStep behind the visit-hold gate.
+TEST_P(DcpCacheTransferTest, resize_between_visits_resizeInOneStep) {
+    testResizeBetweenVisitsDoesNotRevisit(
+            [](VBucket& vb) {
+                EXPECT_EQ(NeedsRevisit::YesLater, vb.ht.resizeInOneStep(47));
+            },
+            47);
+}
+
+// Incremental resize attempted between visits. This is the realistic
+// production path: HashtableResizerTask drives beginIncrementalResize when
+// ht_resize_algo=incremental (the default). The task's visit hold must
+// prevent the incremental resize from starting.
+TEST_P(DcpCacheTransferTest, resize_between_visits_beginIncrementalResize) {
+    testResizeBetweenVisitsDoesNotRevisit(
+            [](VBucket& vb) {
+                EXPECT_EQ(NeedsRevisit::YesLater,
+                          vb.ht.beginIncrementalResize(47));
+            },
+            47);
 }
 
 // A key-only transfer could be simulated...

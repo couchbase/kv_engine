@@ -23,6 +23,7 @@
 
 #include <array>
 #include <functional>
+#include <shared_mutex>
 
 class AbstractStoredValueFactory;
 struct DocKeyView;
@@ -1431,6 +1432,17 @@ public:
             HashTableVisitor& visitor,
             const Position& start_pos,
             VisitCompleteChain visitCompleteChain = VisitCompleteChain::No);
+
+    /**
+     * Try to acquire a shared "visiting lock" that keeps the HashTable layout
+     * stable (blocks resize) for as long as the returned lock is held.
+     *
+     * This is intended for pause/resume visitors (e.g. DCP cache transfer)
+     * that save a HashTable::Position and resume across multiple, separate
+     * calls: holding this lock for the whole visit guarantees no resize occurs
+     * between calls, so the saved Position remains exactly valid.
+     */
+    std::shared_lock<cb::NonBlockingSharedMutex> tryAcquireVisitingLock();
 
     /**
      * Return a position at the end of the hashtable. Has similar semantics

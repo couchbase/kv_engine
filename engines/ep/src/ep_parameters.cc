@@ -184,6 +184,7 @@ static const std::unordered_set<std::string_view> dcpParamSet{
         "dcp_cache_transfer_one_visit_per_step",
         "dcp_cache_transfer_visit_duration_ms",
         "dcp_cache_transfer_high_memory_backoff_duration",
+        "dcp_cache_transfer_resize_backoff_duration",
         "dcp_cache_transfer_max_batch_bytes",
         "dcp_cache_transfer_max_batch_items",
 };

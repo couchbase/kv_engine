@@ -506,6 +506,49 @@ TEST_F(HashTableTest, ResizeDeferredByVisitor) {
     EXPECT_EQ(7, ht.getSize());
 }
 
+TEST_F(HashTableTest, tryAcquireVisitingLock) {
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 3,
+                 3,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
+    auto keys = generateKeys(8);
+    storeMany(ht, keys);
+
+    // On an idle table the hold is granted, and while it is held resize is
+    // deferred and the table size is unchanged.
+    {
+        auto hold = ht.tryAcquireVisitingLock();
+        ASSERT_TRUE(hold.owns_lock());
+        EXPECT_EQ(NeedsRevisit::YesLater, ht.resizeInOneStep(97));
+        EXPECT_EQ(3, ht.getSize());
+    }
+
+    // Hold released: resize now succeeds.
+    EXPECT_EQ(NeedsRevisit::No, ht.resizeInOneStep(97));
+    EXPECT_EQ(97, ht.getSize());
+
+    // Deadlock-avoidance guard: while an incremental resize is in progress the
+    // unique lock is released between steps, but resizeInProgress is still
+    // Incremental. Acquiring the hold here would freeze that resize, so the
+    // hold must be refused (non-owning).
+    ASSERT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(193));
+    ASSERT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    {
+        auto hold = ht.tryAcquireVisitingLock();
+        EXPECT_FALSE(hold.owns_lock())
+                << "visit hold must be refused while a resize is in progress";
+    }
+
+    // Because the hold was refused, the incremental resize can run to
+    // completion rather than deadlocking.
+    while (ht.continueIncrementalResize() != NeedsRevisit::No) {
+    }
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    EXPECT_EQ(193, ht.getSize());
+}
+
 class PauseResumeVisitTest
     : public HashTableTest,
       public ::testing::WithParamInterface<HashTable::VisitCompleteChain> {

@@ -29,6 +29,7 @@
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 
 /**
  * A visting implementation which will calls into the
@@ -149,9 +150,26 @@ private:
     double maybeLogHighMemoryPressure(CacheTransferStream& stream,
                                       std::string_view msg);
 
+    /**
+     * Release the visiting lock  held across runs and signal the task should
+     * not be rescheduled. Called from run() at each point the transfer is
+     * finished.
+     * @return false (the run() "do not reschedule" value)
+     */
+    bool releaseVisitLockAndStop();
+
     const Vbid vbid;
     const bool isAllKeys;
 
+    // We require the HashTable visitor lock to keep the HashTable layout
+    // stable between runs, ensuring resizing doesn't move items (which could
+    // mean skipping items). To ensure that the visitingLock is valid at all
+    // times we also hold a reference to the VBucket (visitingVb). The vbucket
+    // cannot be destroyed whilst this task exists.
+    // The order of members here is also critical, on destruction visitingVb
+    // must be destroyed *after* visitingLock.
+    VBucketPtr visitingVb;
+    std::shared_lock<cb::NonBlockingSharedMutex> visitingLock;
     CacheTransferHashTableVisitor visitor;
     HashTable::Position position;
     const std::string descriptionDetail;
@@ -250,13 +268,30 @@ void CacheTransferHashTableVisitor::maybeLogForLongHashTableChain() {
     }
 }
 
+bool CacheTransferTask::releaseVisitLockAndStop() {
+    // Transfer is finished: drop the visiting lock, allowing HashTable resize
+    // to resume now rather than waiting for task destruction.
+    visitingLock = {};
+    // we keep visitingVb alive and allow task destruction to release it last
+    // ensuring any internal VBucket things we may reference are relinquished
+    // first
+    return false;
+}
+
 // Run visits the single vbucket the CacheTransferStream is associated with
 bool CacheTransferTask::run() {
     Expects(engine);
-    auto vb = engine->getVBucket(vbid);
+    // Fetch the VBucket once and hold the reference for the whole transfer.
+    // While the HashTable visiting lock (and the saved Position) are held we
+    // must keep the VBucket alive so its HashTable is not destroyed and its
+    // layout stays stable.
+    if (!visitingVb) {
+        visitingVb = engine->getVBucket(vbid);
+    }
+    auto* vb = visitingVb.get();
     if (!vb || !visitor.setUpHashTableVisit(*vb)) {
         // No VB or no viable stream, stop running.
-        return false;
+        return releaseVisitLockAndStop();
     }
 
     // Yield an all_keys transfer when memory usage is over the backfill
@@ -276,11 +311,23 @@ bool CacheTransferTask::run() {
                          {"vb", vbid});
         stream.cancelTransfer();
         // stop running the task
-        return false;
+        return releaseVisitLockAndStop();
     }
 
     // Ensure we always teardown the hash table visit (drops stream reference)
     auto guard = folly::makeGuard([this] { visitor.tearDownHashTableVisit(); });
+
+    // Acquire (once) a visiting lock that keeps the HashTable layout stable for
+    // the whole transfer. This ensures we don't miss keys due to a resize that
+    // interleaves with the transfer,
+    if (!visitingLock.owns_lock()) {
+        visitingLock = vb->ht.tryAcquireVisitingLock();
+        if (!visitingLock.owns_lock()) {
+            snooze(engine->getConfiguration()
+                           .getDcpCacheTransferResizeBackoffDuration());
+            return true;
+        }
+    }
 
     // Visit the vbucket from the last position.
     position = vb->ht.pauseResumeVisit(
@@ -341,7 +388,7 @@ bool CacheTransferTask::run() {
                  {"total_bytes_queued", stream.getTotalBytesQueued()}});
 
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
-        return false;
+        return releaseVisitLockAndStop();
     }
 
     if (visitor.getStatus() == CacheTransferStream::Status::OOM) {
@@ -354,7 +401,8 @@ bool CacheTransferTask::run() {
         snooze(0.0);
     }
 
-    return notifyAndGetRescheduleValue(true);
+    // Reschedule if requested; otherwise release resources and stop.
+    return notifyAndGetRescheduleValue(true) || releaseVisitLockAndStop();
 }
 
 double CacheTransferTask::maybeLogHighMemoryPressure(

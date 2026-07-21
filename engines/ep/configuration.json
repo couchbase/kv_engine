@@ -1393,6 +1393,13 @@
             "dynamic": true,
             "type": "bool"
         },
+        "dcp_cache_transfer_resize_backoff_duration": {
+            "added": "8.1.0",
+            "default": "0.01",
+            "descr": "The duration in floating point seconds to snooze the CacheTransferTask when it cannot acquire the HashTable visit lock (lock required to inhibit resizing).",
+            "dynamic": true,
+            "type": "float"
+        },
         "dcp_cache_transfer_visit_duration_ms": {
             "added": "8.1.0",
             "default": "25",

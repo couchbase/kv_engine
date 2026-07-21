@@ -1699,6 +1699,17 @@ HashTable::Position HashTable::pauseResumeVisit(
     return {WhichTable::Primary, size, lock, hash_bucket};
 }
 
+std::shared_lock<cb::NonBlockingSharedMutex>
+HashTable::tryAcquireVisitingLock() {
+    std::shared_lock lh(visitorMutex, std::try_to_lock);
+    // An incremental resize releases the unique lock between steps, so also
+    // check no resize is in progress - else we could freeze it.
+    if (!lh.owns_lock() || getResizeInProgress() != ResizeAlgo::None) {
+        return {};
+    }
+    return lh;
+}
+
 HashTable::Position HashTable::endPosition() const  {
     const auto size = getSize();
     return {WhichTable::Primary, size, mutexes.size(), size};
