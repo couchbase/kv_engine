@@ -67,8 +67,14 @@ public:
     BinprotResponse compactDb() {
         BinprotResponse response;
         adminConnection->executeInBucket(bucketName, [&response](auto& conn) {
+            // COMPACT_DB runs as a background task; the reply is only sent once
+            // it completes. On a heavily loaded TSan CI host the task can sit
+            // queued long enough to exceed the read timeout, after which the
+            // late reply desyncs the connection. Use a generous timeout to make
+            // that far less likely (executeInBucket recovers if it still
+            // fires).
             response = conn.execute(BinprotCompactDbCommand{},
-                                    std::chrono::seconds{30});
+                                    std::chrono::seconds{60});
         });
         return response;
     }
