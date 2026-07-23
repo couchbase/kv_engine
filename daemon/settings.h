@@ -1351,6 +1351,14 @@ public:
         notify_changed("dcp_snapshot_marker_purge_seqno_enabled");
     }
 
+    /// Get the number of moves per node to use for file-based backfill, never 0
+    size_t getFileBasedBackfillMovesPerNode() const {
+        return file_based_backfill_moves_per_node.load(
+                std::memory_order_acquire);
+    }
+
+    void setFileBasedBackfillMovesPerNode(size_t val);
+
     bool isSyncWritesReturnCommittedSeqno() const {
         return sync_writes_return_committed_seqno.load(
                 std::memory_order_acquire);
@@ -1800,6 +1808,10 @@ protected:
     /// Whether to send the Purge Seqno in Snapshot Marker.
     std::atomic<bool> dcp_snapshot_marker_purge_seqno_enabled{true};
 
+    /// The maximum number of concurrent file-based (FBR) backfill vbucket
+    /// moves per node during rebalance.
+    std::atomic<size_t> file_based_backfill_moves_per_node{4};
+
     /// If true, the seqno returned in the response of a successful SyncWrite
     /// is the commit seqno; if false (legacy behaviour), the prepare seqno is
     /// returned.
@@ -1974,6 +1986,7 @@ public:
         bool dcp_consumer_max_marker_version = false;
         bool dcp_snapshot_marker_hps_enabled = false;
         bool dcp_snapshot_marker_purge_seqno_enabled = false;
+        bool file_based_backfill_moves_per_node = false;
         bool sync_writes_return_committed_seqno = false;
         bool magma_blind_write_optimisation_enabled = false;
         bool magma_max_default_storage_threads = false;

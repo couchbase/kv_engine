@@ -62,6 +62,7 @@
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
 #include <utilities/magma_support.h>
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -345,6 +346,13 @@ static void settings_init() {
                         s.getMaxConcurrentAuthentications());
             });
 
+    settings.addChangeListener(
+            "file_based_backfill_moves_per_node", [](const auto&, auto& s) {
+                ConcurrencySemaphores::instance()
+                        .read_vbucket_chunk.setCapacity(
+                                s.getFileBasedBackfillMovesPerNode());
+            });
+
     settings.addChangeListener("fusion_migration_rate_limit",
                                [](const auto&, auto& s) {
                                    magma::Magma::SetFusionMigrationRateLimit(
@@ -621,6 +629,26 @@ updateMagmaThreadPool() {
     };
 };
 
+/**
+ * Compute the desired SlowIO thread count.
+ *
+ * The SlowIO pool runs file-based backfill (vbucket transfer) tasks, so it
+ * must be large enough for the configured number of concurrent file-based
+ * backfill moves per node. We take the max of the explicitly configured
+ * num_slowio_threads and file_based_backfill_moves_per_node.
+ *
+ * num_slowio_threads defaults to -1 (SlowIoThreadCount::Default), which loses
+ * to any non-negative moves value, so by default the pool is sized purely from
+ * file_based_backfill_moves_per_node. An operator may still request a larger
+ * explicit num_slowio_threads and that will be honoured.
+ */
+static ThreadPoolConfig::SlowIoThreadCount getSlowIoThreadCount(
+        const Settings& settings) {
+    return ThreadPoolConfig::SlowIoThreadCount(std::max(
+            settings.getNumSlowIoThreads(),
+            static_cast<int>(settings.getFileBasedBackfillMovesPerNode())));
+}
+
 static void startExecutorPool() {
     auto& settings = Settings::instance();
 
@@ -633,7 +661,7 @@ static void startExecutorPool() {
             ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()),
             ThreadPoolConfig::QuickNonIoThreadCount(
                     settings.getNumQuickNonIoThreads()),
-            ThreadPoolConfig::SlowIoThreadCount(settings.getNumSlowIoThreads()),
+            getSlowIoThreadCount(settings),
             ThreadPoolConfig::IOThreadsPerCore(
                     settings.getNumIOThreadsPerCore()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
@@ -701,9 +729,16 @@ static void startExecutorPool() {
             });
     settings.addChangeListener(
             "num_slowio_threads", [](const std::string&, Settings& s) -> void {
-                auto val = static_cast<ThreadPoolConfig::SlowIoThreadCount>(
-                        s.getNumAuxIoThreads());
-                ExecutorPool::get()->setNumSlowIO(val);
+                ExecutorPool::get()->setNumSlowIO(getSlowIoThreadCount(s));
+            });
+    // file_based_backfill_moves_per_node also sizes the SlowIO pool (see
+    // getSlowIoThreadCount). A separate listener for read_vbucket_chunk is
+    // registered in settings_init(); this one must live here as it needs the
+    // ExecutorPool to exist.
+    settings.addChangeListener(
+            "file_based_backfill_moves_per_node",
+            [](const std::string&, Settings& s) -> void {
+                ExecutorPool::get()->setNumSlowIO(getSlowIoThreadCount(s));
             });
     settings.addChangeListener(
             "num_io_thread_per_core", [](const std::string&, Settings& s) {

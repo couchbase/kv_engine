@@ -10,7 +10,14 @@
 
 #include "concurrency_semaphores.h"
 
-ConcurrencySemaphores::ConcurrencySemaphores() = default;
+#include "settings.h"
+
+ConcurrencySemaphores::ConcurrencySemaphores() {
+    // Size the read_vbucket_chunk semaphore from the configured number of
+    // file-based backfill moves per node.
+    read_vbucket_chunk.setCapacity(
+            Settings::instance().getFileBasedBackfillMovesPerNode());
+}
 
 ConcurrencySemaphores& ConcurrencySemaphores::instance() {
     static ConcurrencySemaphores inst;

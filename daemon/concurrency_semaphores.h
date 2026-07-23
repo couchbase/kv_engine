@@ -47,9 +47,14 @@ public:
     ///    (which could result in keys being removed)
     /// 2. we don't want multiple snapshots to be created in parallel
     cb::AwaitableSemaphore encryption_and_snapshot_management{1};
-    /// We don't want to be able to run too many tasks to read chunks
-    /// off disk in parallel (each task may read up to 50MB of data)
-    cb::AwaitableSemaphore read_vbucket_chunk{4};
+    /// We don't want to be able to run too many tasks to read chunks off disk
+    /// in parallel (each task may read up to file_fragment_max_chunk_size bytes
+    /// of data). The capacity is sized from the
+    /// file_based_backfill_moves_per_node setting (in the constructor) so that
+    /// it tracks the number of concurrent file-based backfill moves the node
+    /// performs. It is kept in sync at runtime by a change listener registered
+    /// in settings_init().
+    cb::AwaitableSemaphore read_vbucket_chunk{1};
     /// Used for limiting the number of IO tasks that can run for Fusion
     /// management (eg Mount, Unmount, Stat).
     cb::AwaitableSemaphore fusion_management{4};

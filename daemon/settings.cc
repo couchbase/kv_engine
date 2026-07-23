@@ -552,6 +552,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setDcpSnapshotMarkerHPSEnabled(value.get<bool>());
         } else if (key == "dcp_snapshot_marker_purge_seqno_enabled"sv) {
             setDcpSnapshotMarkerPurgeSeqnoEnabled(value.get<bool>());
+        } else if (key == "file_based_backfill_moves_per_node"sv) {
+            setFileBasedBackfillMovesPerNode(value.get<size_t>());
         } else if (key == "sync_writes_return_committed_seqno"sv) {
             setSyncWritesReturnCommittedSeqno(value.get<bool>());
         } else if (key == "magma_blind_write_optimisation_enabled"sv) {
@@ -726,6 +728,8 @@ nlohmann::json Settings::to_json() const {
     json["dcp_snapshot_marker_hps_enabled"] = isDcpSnapshotMarkerHPSEnabled();
     json["dcp_snapshot_marker_purge_seqno_enabled"] =
             isDcpSnapshotMarkerPurgeSeqnoEnabled();
+    json["file_based_backfill_moves_per_node"] =
+            getFileBasedBackfillMovesPerNode();
 
     // Fusion
     json["fusion_migration_rate_limit"] = getFusionMigrationRateLimit();
@@ -1610,6 +1614,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.file_based_backfill_moves_per_node) {
+        const auto newValue = other.getFileBasedBackfillMovesPerNode();
+        const auto current = getFileBasedBackfillMovesPerNode();
+        if (newValue != current) {
+            LOG_INFO_CTX("Change file_based_backfill_moves_per_node",
+                         {"from", current},
+                         {"to", newValue});
+            setFileBasedBackfillMovesPerNode(newValue);
+        }
+    }
+
     if (other.has.subdoc_multi_max_paths) {
         if (other.getSubdocMultiMaxPaths() != getSubdocMultiMaxPaths()) {
             LOG_INFO_CTX("Change subdoc_multi_max_paths",
@@ -1922,4 +1937,16 @@ void Settings::setSnapshotDownloadThrottleBytes(size_t bytes) {
     snapshot_download_throttle_bytes.store(bytes, std::memory_order_release);
     has.snapshot_download_throttle_bytes = true;
     notify_changed("snapshot_download_throttle_bytes");
+}
+
+void Settings::setFileBasedBackfillMovesPerNode(size_t val) {
+    // 0 would result in no semaphores, so ignore that.
+    if (val == 0) {
+        LOG_WARNING_RAW(
+                "Ignoring changing file_based_backfill_moves_per_node to 0");
+        return;
+    }
+    file_based_backfill_moves_per_node.store(val, std::memory_order_release);
+    has.file_based_backfill_moves_per_node = true;
+    notify_changed("file_based_backfill_moves_per_node");
 }
