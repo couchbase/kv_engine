@@ -59,7 +59,8 @@ void to_json(nlohmann::json& json, const Manifest& manifest) {
     json = {{"uuid", manifest.uuid},
             {"vbid", manifest.vbid.get()},
             {"files", manifest.files},
-            {"deks", manifest.deks}};
+            {"deks", manifest.deks},
+            {"vbucket_uuid", manifest.vbucketUuid}};
     if (!manifest.backend.empty()) {
         json["storage"] = {{"backend", manifest.backend}};
         if (manifest.diskFormatVersion != 0) {
@@ -79,8 +80,14 @@ void from_json(const nlohmann::json& json, Manifest& manifest) {
                 "from_json: vbid must be present as a number");
     }
 
+    if (!json.contains("vbucket_uuid") || !json["vbucket_uuid"].is_string()) {
+        throw std::invalid_argument(
+                "from_json: vbucket_uuid must be present as string");
+    }
+
     manifest.uuid = json["uuid"].get<std::string>();
     manifest.vbid = Vbid(json["vbid"].get<uint16_t>());
+    manifest.vbucketUuid = json["vbucket_uuid"].get<std::string>();
     if (json.contains("files")) {
         manifest.files = json["files"].get<std::vector<FileInfo>>();
     }
@@ -123,6 +130,10 @@ void Manifest::addDebugStats(const StatCollector& collector) const {
                                   "vb_{}:disk_format_version", vbid.get())},
                           diskFormatVersion);
     }
+
+    collector.addStat(
+            std::string_view{fmt::format("vb_{}:vbucket_uuid", vbid.get())},
+            vbucketUuid);
     for (const auto& file : files) {
         file.addDebugStats(fmt::format("vb_{}", vbid.get()), collector);
     }

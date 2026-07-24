@@ -823,10 +823,11 @@ doPrepareSnapshotImpl(KVStore& kvs,
                       const std::filesystem::path& path,
                       Vbid vbid,
                       std::string_view uuid,
+                      std::string_view vbucketUuid,
                       const cb::snapshot::DiskFormatConstraint& constraint) {
     ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
             cookie, cb::tracing::Code::PrepareSnapshot);
-    return kvs.prepareSnapshotImpl(path, vbid, uuid, constraint);
+    return kvs.prepareSnapshotImpl(path, vbid, uuid, vbucketUuid, constraint);
 }
 
 static void prepareSnapshotChecksums(CookieIface& cookie,
@@ -848,6 +849,7 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
         const std::filesystem::path& path,
         Vbid vbid,
         const cb::snapshot::DiskFormatConstraint& constraint,
+        const std::string& vbucketUuid,
         bool generateChecksums) {
     auto uuid = ::to_string(cb::uuid::random());
     const auto snapshotPath = path / uuid;
@@ -871,9 +873,11 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
         }
     });
 
-    // Call implementation to get backend specifc snapshot prepared
+    // Call implementation to get backend specifc snapshot prepared. The
+    // vbucket's creation UUID is passed down so the manifest records it (used
+    // by warmup to match a snapshot to its vbucket).
     auto prepared = doPrepareSnapshotImpl(
-            *this, cookie, snapshotPath, vbid, uuid, constraint);
+            *this, cookie, snapshotPath, vbid, uuid, vbucketUuid, constraint);
     if (!prepared.has_value()) {
         return prepared;
     }
@@ -966,10 +970,13 @@ cb::engine_errc KVStore::processSnapshots(const std::filesystem::path& path,
 
         auto& [snapshotPath, manifest] = entries.front();
         if (!cache.insert(std::move(manifest))) {
-            EP_LOG_WARN_CTX("processSnapshots failed cache.insert",
+            // insert() is keyed by (random) snapshot uuid and only fails when
+            // that uuid is already cached - i.e. this exact snapshot has
+            // already been loaded (e.g. processSnapshots ran earlier). Keep the
+            // disk/cache, but log we're calling twice (only seen in tests)
+            EP_LOG_WARN_CTX("processSnapshots: snapshot already cached",
                             {"vb", vbid},
                             {"path", snapshotPath});
-            remove_all(snapshotPath, ec);
         }
     }
 

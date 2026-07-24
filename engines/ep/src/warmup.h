@@ -585,6 +585,13 @@ private:
     void populateVBucketMap(uint16_t shardId);
 
     /**
+     * Load valid snapshots into the bucket's snapshot cache and discard any
+     * whose recorded uuid no longer matches the current vbucket's uuid
+     * (VBucket::getVbucketUuid).
+     */
+    void processSnapshots();
+
+    /**
      * Checks for the existance of an access log file for each shard:
      * - Checks if traffic should be enabled (i.e. enough data already
      *   loaded) - if true transitions to State::Done

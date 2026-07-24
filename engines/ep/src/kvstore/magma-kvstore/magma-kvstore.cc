@@ -5099,6 +5099,7 @@ MagmaKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
         std::string_view uuid,
+        std::string_view vbucketUuid,
         const cb::snapshot::DiskFormatConstraint& constraint) {
     // Magma doesn't expose the actual version of the on-disk data, so the
     // maximum version this node supports is used as the snapshot's version
@@ -5123,7 +5124,7 @@ MagmaKVStore::prepareSnapshotImpl(
     }
 
     const auto& cloneManifest = std::get<magma::CloneManifest>(res);
-    cb::snapshot::Manifest manifest(vb, uuid);
+    cb::snapshot::Manifest manifest(vb, uuid, vbucketUuid);
     manifest.backend = localFormat.backend;
     manifest.diskFormatVersion = localFormat.maxVersion;
     std::size_t fileid = 1;

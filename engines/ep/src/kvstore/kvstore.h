@@ -1107,6 +1107,7 @@ public:
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
             const cb::snapshot::DiskFormatConstraint& constraint,
+            const std::string& vbucketUuid,
             bool generateChecksums) override;
 
     cb::engine_errc processSnapshots(const std::filesystem::path& path,

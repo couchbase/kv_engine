@@ -16,7 +16,8 @@
 bool vbucket_transition_state::needsToBePersisted(
         const vbucket_transition_state& transition) const {
     return state != transition.state || failovers != transition.failovers ||
-           replicationTopology != transition.replicationTopology;
+           replicationTopology != transition.replicationTopology ||
+           vbucketUuid != transition.vbucketUuid;
 }
 
 void vbucket_transition_state::toItem(Item& item) const {
@@ -52,6 +53,7 @@ bool vbucket_transition_state::operator==(
     rv = rv && (failovers == other.failovers);
     rv = rv && (replicationTopology == other.replicationTopology);
     rv = rv && (state == other.state);
+    rv = rv && (vbucketUuid == other.vbucketUuid);
     return rv;
 }
 
@@ -263,6 +265,9 @@ void to_json(nlohmann::json& json, const vbucket_transition_state& state) {
     if (!state.replicationTopology.empty()) {
         json["replication_topology"] = state.replicationTopology;
     }
+    if (!state.vbucketUuid.empty()) {
+        json["vbucket_uuid"] = state.vbucketUuid;
+    }
 }
 
 void from_json(const nlohmann::json& j, vbucket_transition_state& state) {
@@ -277,6 +282,12 @@ void from_json(const nlohmann::json& j, vbucket_transition_state& state) {
     auto topologyIt = j.find("replication_topology");
     if (topologyIt != j.end()) {
         state.replicationTopology = *topologyIt;
+    }
+
+    // Note: added later; absent for vbuckets created before this field existed.
+    auto uuidIt = j.find("vbucket_uuid");
+    if (uuidIt != j.end()) {
+        state.vbucketUuid = uuidIt->get<std::string>();
     }
 }
 

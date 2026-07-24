@@ -216,6 +216,7 @@ public:
             std::unique_ptr<FailoverTable> table,
             std::unique_ptr<Collections::VB::Manifest> manifest,
             CreateVbucketMethod creationMethod,
+            std::string uuid,
             vbucket_state_t initState,
             int64_t lastSeqno,
             uint64_t lastSnapStart,
@@ -480,7 +481,21 @@ public:
         return snapshotCache;
     }
 
+    /// Load any snapshots found on disk into the snapshot cache. Safe to call
+    /// whenever snapshots need (re)loading; does not validate them against live
+    /// vbuckets (see discardOrphanedSnapshots).
     cb::engine_errc initialiseSnapshots();
+
+    /// Discard cached snapshots that are orphaned - i.e. a snapshot exists for
+    /// a vbid this node has a live vbucket for, but the creation UUIDs differ.
+    /// Called during warmup after the vbMap is populated.
+    void discardOrphanedSnapshots();
+
+    /// Delete every snapshot found on disk (best-effort), without loading any
+    /// into the cache. Used when the bucket starts without warmup: no vbuckets
+    /// will be recovered, so any snapshot is unusable and must be thrown away.
+    /// @return success, or failed if the snapshots directory could not be read.
+    cb::engine_errc deleteSnapshots();
 
     cb::engine_errc doSnapshotDebugStats(const StatCollector&,
                                          std::string_view) override;

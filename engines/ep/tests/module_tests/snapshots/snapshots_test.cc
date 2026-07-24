@@ -49,10 +49,15 @@ public:
     auto doPrepareSnapshot(const std::filesystem::path& directory,
                            Vbid vbid,
                            bool generateChecksums,
-                           cb::snapshot::DiskFormatConstraint constraint = {}) {
+                           cb::snapshot::DiskFormatConstraint constraint = {},
+                           std::string vbucketUuid = "test-vbucket-uuid") {
         MockCookie cookie;
-        return kvstore->prepareSnapshot(
-                cookie, directory, vbid, constraint, generateChecksums);
+        return kvstore->prepareSnapshot(cookie,
+                                        directory,
+                                        vbid,
+                                        constraint,
+                                        vbucketUuid,
+                                        generateChecksums);
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};

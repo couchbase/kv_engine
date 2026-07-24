@@ -201,7 +201,8 @@ public:
             const nlohmann::json* replTopology = {},
             std::optional<vbucket_state_t> expectedNextState = std::nullopt,
             uint64_t maxVisibleSeqno = 0,
-            uint64_t maxPrepareSeqno = 0);
+            uint64_t maxPrepareSeqno = 0,
+            std::string vbucketUuid = {});
 
     virtual ~VBucket();
 
@@ -541,6 +542,11 @@ public:
     vbucket_state_t getInitialState() { return initialState; }
 
     vbucket_transition_state getTransitionState() const;
+
+    /// @return the vbucket's creation UUID
+    const std::string& getVbucketUuid() const {
+        return vbucketUuid;
+    }
 
     /**
      * @return the replication topology set for this VBucket
@@ -1937,6 +1943,11 @@ public:
     void failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine);
 
     std::unique_ptr<FailoverTable> failovers;
+
+    // An identifier for this vbucket for better snapshot management. This is to
+    // ensure that a vbucket which is created can be differentiated from one
+    // which was create/delete/created
+    const std::string vbucketUuid;
 
     std::atomic<size_t>  opsCreate;
     std::atomic<size_t>  opsDelete;

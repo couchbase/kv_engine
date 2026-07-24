@@ -32,6 +32,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
+#include "vb_commit.h"
 #include "vb_visitors.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
@@ -661,6 +662,53 @@ TEST_F(WarmupTest, SetVBState) {
     resetEngineAndWarmup();
 
     EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+}
+
+// MB-64963: offline upgrade. A vbucket whose persisted state predates the
+// vbucket_uuid field must, on warmup, have a UUID generated AND persisted, so
+// that it is stable across subsequent restarts (and usable for snapshot
+// validation).
+TEST_F(WarmupTest, OfflineUpgradeGeneratesAndPersistsVbucketUuid) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Simulate a pre-feature on-disk state: rewrite the persisted vbucket state
+    // with an empty vbucket_uuid (to_json omits the field when empty - exactly
+    // as an older release would have written it).
+    auto* kvstore = store->getRWUnderlying(vbid);
+    auto tampered = *kvstore->getCachedVBucketState(vbid);
+    ASSERT_FALSE(tampered.transition.vbucketUuid.empty());
+    tampered.transition.vbucketUuid.clear();
+    Collections::VB::Manifest manifest{
+            std::make_shared<Collections::Manager>()};
+    VB::Commit commit{manifest};
+    commit.proposedVBState = tampered;
+    ASSERT_TRUE(kvstore->snapshotVBucket(vbid, commit));
+    ASSERT_TRUE(kvstore->getCachedVBucketState(vbid)
+                        ->transition.vbucketUuid.empty());
+
+    // Warm up from the pre-feature state.
+    resetEngineAndWarmup();
+
+    std::string generated;
+    { // VBucketPtr scope - must not outlive the next resetEngineAndWarmup(),
+      // which frees the engine (and its EPStats) the VBucket references.
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        generated = vb->getVbucketUuid();
+        EXPECT_FALSE(generated.empty())
+                << "warmup should generate a vbucket UUID when the persisted "
+                   "state has none";
+    }
+
+    // The generated UUID must have been persisted during warmup...
+    EXPECT_EQ(generated,
+              store->getRWUnderlying(vbid)
+                      ->getCachedVBucketState(vbid)
+                      ->transition.vbucketUuid);
+
+    // ...and therefore be stable across a further restart.
+    resetEngineAndWarmup();
+    EXPECT_EQ(generated, store->getVBucket(vbid)->getVbucketUuid());
 }
 
 TEST_F(WarmupTest, TwoStateChangesAtSameSeqno) {

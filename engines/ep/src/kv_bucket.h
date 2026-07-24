@@ -788,6 +788,7 @@ public:
                            std::unique_ptr<FailoverTable> table,
                            std::unique_ptr<Collections::VB::Manifest> manifest,
                            CreateVbucketMethod creationMethod,
+                           std::string uuid = {},
                            vbucket_state_t initState = vbucket_state_dead,
                            int64_t lastSeqno = 0,
                            uint64_t lastSnapStart = 0,

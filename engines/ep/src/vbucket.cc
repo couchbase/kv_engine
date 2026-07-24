@@ -45,6 +45,7 @@
 #include <memcached/protocol_binary.h>
 #include <platform/atomic.h>
 #include <platform/optional.h>
+#include <platform/uuid.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <vbucket_bgfetch_item.h>
@@ -122,7 +123,8 @@ VBucket::VBucket(Vbid i,
                  const nlohmann::json* replTopology,
                  std::optional<vbucket_state_t> expectedNextState,
                  uint64_t maxVisibleSeqno,
-                 uint64_t maxPrepareSeqno)
+                 uint64_t maxPrepareSeqno,
+                 std::string vbUuid)
     : ht(
               st,
               std::move(valFact),
@@ -139,6 +141,12 @@ VBucket::VBucket(Vbid i,
                   return this->isEligibleForEviction(lh, v);
               }),
       failovers(std::move(table)),
+      // Upgrade or "new" vbucket (vbUuid is empty) we want to initialise
+      // the "uuid" which is used to quickly identify a vbucket (used in FBR
+      // snapshot management). Warmup will create a vbucket and use the value it
+      // finds in the vbucket metadata.
+      vbucketUuid(vbUuid.empty() ? ::to_string(cb::uuid::random())
+                                 : std::move(vbUuid)),
       opsCreate(0),
       opsDelete(0),
       opsGet(0),
@@ -244,7 +252,8 @@ VBucket::VBucket(Vbid i,
             {"topology", getReplicationTopology()},
             {"next_state",
              expectedNextState ? VBucket::toString(*expectedNextState)
-                               : "unknown"});
+                               : "unknown"},
+            {"vbucket_uuid", vbucketUuid});
 }
 
 VBucket::~VBucket() {
@@ -733,7 +742,7 @@ vbucket_transition_state VBucket::getTransitionState() const {
         topology = nlohmann::json::parse(getReplicationTopology());
     }
 
-    return {failovers->getJSON(), topology, getState()};
+    return {failovers->getJSON(), topology, getState(), vbucketUuid};
 }
 
 std::string VBucket::getReplicationTopology() const {
@@ -3468,6 +3477,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         addStat("pending_writes", dirtyQueuePendingWrites.load(), add_stat, c);
 
         addStat("uuid", failovers->getLatestUUID(), add_stat, c);
+        addStat("vbucket_uuid", getVbucketUuid(), add_stat, c);
         addStat("purge_seqno", getPurgeSeqno(), add_stat, c);
         addBloomFilterStats(add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);

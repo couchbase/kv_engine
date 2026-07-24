@@ -399,8 +399,14 @@ bool EPBucket::initialize() {
         return false;
     }
 
-    if (initialiseSnapshots() != cb::engine_errc::success) {
-        return false;
+    if (!engine.getConfiguration().isWarmup()) {
+        // Warmup disabled would mean we don't load VBuckets. It is not safe
+        // to reload the snapshot cache because snapshots could be orphaned -
+        // drop all snapshots in this case.
+        if (deleteSnapshots() != cb::engine_errc::success) {
+            EP_LOG_CRITICAL_RAW(
+                    "EPBucket::initialize: Error in deleteSnapshots");
+        }
     }
 
     return true;
@@ -1842,6 +1848,7 @@ VBucketPtr EPBucket::makeVBucket(
         std::unique_ptr<FailoverTable> table,
         std::unique_ptr<Collections::VB::Manifest> manifest,
         CreateVbucketMethod creationMethod,
+        std::string uuid,
         vbucket_state_t initState,
         int64_t lastSeqno,
         uint64_t lastSnapStart,
@@ -1876,6 +1883,7 @@ VBucketPtr EPBucket::makeVBucket(
                           eviction_policy,
                           std::move(manifest),
                           creationMethod,
+                          uuid,
                           this,
                           initState,
                           purgeSeqno,
@@ -3212,15 +3220,17 @@ cb::engine_errc EPBucket::prepareSnapshot(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    auto vbucketUuid = vb->getVbucketUuid();
     auto rv = snapshotCache.prepare(
             vbid,
-            [this, &cookie, &constraint](const std::filesystem::path& path,
-                                         Vbid vb) {
+            [this, &cookie, &constraint, vbucketUuid](
+                    const std::filesystem::path& path, Vbid vb) {
                 return getRWUnderlying(vb)->prepareSnapshot(
                         cookie,
                         path,
                         vb,
                         constraint,
+                        vbucketUuid,
                         shouldPrepareSnapshotGenerateChecksums());
             });
     if (!rv.has_value()) {
@@ -3644,11 +3654,71 @@ cb::engine_errc EPBucket::initialiseSnapshots() {
     const auto status =
             getOneROUnderlying()->processSnapshots(path, snapshotCache);
     if (status != cb::engine_errc::success) {
-        EP_LOG_WARN_CTX("EPBucket::initialize: processSnapshots failed.",
-                        {"path", path},
-                        {"status", status});
+        EP_LOG_WARN_CTX(
+                "EPBucket::initialiseSnapshots: processSnapshots failed",
+                {"path", path},
+                {"status", status});
     }
     return status;
+}
+
+void EPBucket::discardOrphanedSnapshots() {
+    // Called during warmup once the vbMap has been populated.
+    //
+    // If a snapshot has a corresponding VBucket, it must logically be the same
+    // VBucket, i.e. not just a matching vbid, but a matching creation uuid.
+    // Discard any which mismatch as they could have been orphaned during a
+    // restart (e.g. a delete request didn't complete before a crash).
+    for (auto vbid : vbMap.getBuckets()) {
+        auto manifest = snapshotCache.lookup(vbid);
+        if (!manifest) {
+            continue;
+        }
+        auto vb = getVBucket(vbid);
+        if (!vb) {
+            // No vb is a sane state. This is assumed to mean the snapshot is
+            // downloading/downloaded in preparation for becoming a VBucket.
+            // Orchestrator must decide the fate of this snapshot not us.
+            continue;
+        }
+        if (manifest->vbucketUuid != vb->getVbucketUuid()) {
+            EP_LOG_WARN_CTX(
+                    "EPBucket::discardOrphanedSnapshots: discarding snapshot "
+                    "whose vbucket UUID does not match the vbucket's",
+                    {"vb", vbid},
+                    {"uuid", manifest->uuid},
+                    {"snapshot_vbucket_uuid", manifest->vbucketUuid},
+                    {"vbucket_uuid", vb->getVbucketUuid()});
+            snapshotCache.release(vbid);
+        }
+    }
+}
+
+// Function unconditionally deletes all snapshots
+cb::engine_errc EPBucket::deleteSnapshots() {
+    const auto path =
+            std::filesystem::path{getConfiguration().getDbname()} / "snapshots";
+    if (!exists(path)) {
+        return cb::engine_errc::success;
+    }
+
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
+        std::error_code removeEc;
+        remove_all(entry.path(), removeEc);
+        if (removeEc) {
+            EP_LOG_WARN_CTX("EPBucket::deleteSnapshots: failed to remove",
+                            {"path", entry.path()},
+                            {"error", removeEc.message()});
+        }
+    }
+    if (ec) {
+        EP_LOG_WARN_CTX("EPBucket::deleteSnapshots: failed to read directory",
+                        {"path", path},
+                        {"error", ec.message()});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
 }
 
 std::filesystem::space_info EPBucket::getCachedDiskSpaceInfo() {

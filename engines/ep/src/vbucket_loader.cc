@@ -75,12 +75,14 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
         const auto* topology = vbs.transition.replicationTopology.empty()
                                        ? nullptr
                                        : &vbs.transition.replicationTopology;
+
         vb = store.makeVBucket(vbid,
                                vbs.transition.state,
                                shard,
                                std::move(table),
                                std::move(manifest),
                                creationMethod,
+                               std::move(vbs.transition.vbucketUuid),
                                vbs.transition.state,
                                vbs.highSeqno,
                                vbs.lastSnapStart,

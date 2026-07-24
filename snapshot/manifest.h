@@ -62,6 +62,10 @@ struct Manifest {
 
     Manifest(Vbid vbid, std::string_view uuid) : vbid(vbid), uuid(uuid) {
     }
+
+    Manifest(Vbid vbid, std::string_view uuid, std::string_view vbucketUuid)
+        : vbid(vbid), uuid(uuid), vbucketUuid(vbucketUuid) {
+    }
     /// The vbucket this snapshot belongs to
     Vbid vbid;
     /// The uuid of the snapshot used to separate two different snapshots
@@ -74,6 +78,10 @@ struct Manifest {
     /// the downloading node to determine if it can use the snapshot.
     /// 0 means unknown (not recorded by the backend).
     uint32_t diskFormatVersion = 0;
+    /// The creation UUID of the vbucket at the time the snapshot was prepared
+    /// (see vbucket_transition_state::vbucketUuid). Used during warmup to
+    /// confirm the snapshot belongs to the current incarnation of the vbucket.
+    std::string vbucketUuid;
     /// A vector of files containing the database files in the snapshot
     std::vector<FileInfo> files;
     /// A vector of files containing the data encryption keys used within the

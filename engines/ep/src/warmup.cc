@@ -1601,12 +1601,12 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         // It's now safe for us to start the flushers.
         store.startFlusher();
 
-        // Can now drop the shared_ptrs from Warmup
-        // warmedUpVbuckets.lock()->clear();
+        // Snapshots can now be compared with VBuckets and loaded
+        processSnapshots();
 
-        // Once we have populated the VBMap we can release operations that are
-        // waiting for the VBuckets to of been loaded E.g. setVBState
-        // and GetFailoverLog
+        // Now that all shards have completed vbucket loading, and the map is
+        // populated with all known vbuckets calling notifyWaitingCookies will
+        // unblock waiting operations. E.g. setVbState or GetFailoverLog
         notifyWaitingCookies(cb::engine_errc::success);
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
@@ -1624,6 +1624,18 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
                     getName(),
                     cb::time2text(std::chrono::nanoseconds(metadata.load())));
     }
+}
+
+void Warmup::processSnapshots() {
+    const auto result = store.initialiseSnapshots();
+    if (result != cb::engine_errc::success) {
+        EP_LOG_WARN_CTX("Warmup::processSnapshots failed",
+                        {"name", getName()},
+                        {"status", result});
+    }
+    // Now the vbuckets are warmed, discard any snapshot orphaned by a previous
+    // restart (a snapshot for a vbid whose live vbucket has a different uuid).
+    store.discardOrphanedSnapshots();
 }
 
 void Warmup::scheduleShardedTasks(WarmupState::State phase) {

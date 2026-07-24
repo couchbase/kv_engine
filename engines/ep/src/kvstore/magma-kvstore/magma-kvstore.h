@@ -742,6 +742,7 @@ public:
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
             std::string_view uuid,
+            std::string_view vbucketUuid,
             const cb::snapshot::DiskFormatConstraint& constraint) override;
 
     cb::snapshot::DiskFormatConstraint getSnapshotDiskFormatConstraint()

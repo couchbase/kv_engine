@@ -198,6 +198,8 @@ public:
      * @param constraint The disk format supported by the requesting node.
      *        The snapshot must not be created if its files use a disk
      *        format the requester can't use (not_supported is returned)
+     * @param vbucketUuid The creation UUID of the vbucket, recorded in the
+     *        manifest so warmup can match the snapshot to its vbucket
      * @param generateChecksums Whether to generate checksums for the snapshot
      * (can be expensive at large scale)
      * @return Manifest for success or status code for failure
@@ -207,6 +209,7 @@ public:
                     const std::filesystem::path& snapshotDirectory,
                     Vbid vb,
                     const cb::snapshot::DiskFormatConstraint& constraint,
+                    const std::string& vbucketUuid,
                     bool generateChecksums) {
         return std::unexpected(cb::engine_errc::not_supported);
     }
@@ -958,6 +961,8 @@ public:
      * @param snapshotDirectory the destination directory for the snapshot
      * @param vb The vbucket to create the snapshot for
      * @param uuid The uuid of the snapshot
+     * @param vbucketUuid The creation UUID of the vbucket, recorded in the
+     *        manifest so warmup can match the snapshot to its vbucket
      * @param constraint The disk format supported by the requesting node.
      *        The snapshot must not be created if its files use a disk
      *        format the requester can't use (not_supported is returned)
@@ -967,6 +972,7 @@ public:
     prepareSnapshotImpl(const std::filesystem::path& snapshotDirectory,
                         Vbid vb,
                         std::string_view uuid,
+                        std::string_view vbucketUuid,
                         const cb::snapshot::DiskFormatConstraint& constraint) {
         return std::unexpected(cb::engine_errc::not_supported);
     }

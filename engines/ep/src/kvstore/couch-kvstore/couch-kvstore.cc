@@ -2142,6 +2142,7 @@ CouchKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
         std::string_view uuid,
+        std::string_view vbucketUuid,
         const cb::snapshot::DiskFormatConstraint& constraint) {
     DbHolder db(*this);
     couchstore_error_t err = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
@@ -2166,7 +2167,7 @@ CouchKVStore::prepareSnapshotImpl(
         return std::unexpected(cb::engine_errc::not_supported);
     }
 
-    cb::snapshot::Manifest manifest{vb, uuid};
+    cb::snapshot::Manifest manifest{vb, uuid, vbucketUuid};
     manifest.backend = localFormat.backend;
     manifest.diskFormatVersion = diskVersion;
 

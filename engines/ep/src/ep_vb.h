@@ -50,6 +50,7 @@ public:
               EvictionPolicy evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,
               CreateVbucketMethod creationMethod,
+              std::string uuid = {},
               KVBucket* bucket = nullptr,
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,

@@ -49,6 +49,13 @@ struct vbucket_transition_state {
     nlohmann::json replicationTopology;
 
     vbucket_state_t state = vbucket_state_dead;
+
+    /**
+     * An identifier for this vbucket for better snapshot management. This is
+     * to ensure that a vbucket which is created can be differentiated from
+     * one which was create/delete/created
+     */
+    std::string vbucketUuid;
 };
 
 /**

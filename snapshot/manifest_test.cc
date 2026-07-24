@@ -33,10 +33,12 @@ TEST(Manifest, Conversion) {
     }
   ],
   "uuid": "UUID",
-  "vbid": 1
+  "vbid": 1,
+  "vbucket_uuid": "VB-UUID"
 })"_json;
 
     Manifest manifest{Vbid{1}, "UUID"};
+    manifest.vbucketUuid = "VB-UUID";
     manifest.files.emplace_back("/foo/bar", 1234, 0, "deadbeef");
     manifest.deks.emplace_back("/foo/dek", 1234, 0);
     nlohmann::json json = manifest;
@@ -63,10 +65,12 @@ TEST(Manifest, ConversionWithStorage) {
     "version": 14
   },
   "uuid": "UUID",
-  "vbid": 1
+  "vbid": 1,
+  "vbucket_uuid": "VB-UUID"
 })"_json;
 
     Manifest manifest{Vbid{1}, "UUID"};
+    manifest.vbucketUuid = "VB-UUID";
     manifest.files.emplace_back("/foo/bar", 1234, 0, "deadbeef");
     manifest.backend = "couchstore";
     manifest.diskFormatVersion = 14;
@@ -92,7 +96,8 @@ TEST(Manifest, ParseWithoutStorage) {
   "deks": [],
   "files": [],
   "uuid": "UUID",
-  "vbid": 1
+  "vbid": 1,
+  "vbucket_uuid": "VB-UUID"
 })"_json;
     Manifest parsed = json;
     EXPECT_TRUE(parsed.backend.empty());
@@ -105,7 +110,8 @@ TEST(Manifest, ParseInvalidStorage) {
   "deks": [],
   "files": [],
   "uuid": "UUID",
-  "vbid": 1
+  "vbid": 1,
+  "vbucket_uuid": "VB-UUID"
 })"_json;
     json["storage"] = "couchstore";
     EXPECT_THROW(Manifest{json}, std::invalid_argument);
