@@ -23,6 +23,7 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 
@@ -167,6 +168,43 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     return gsl::narrow_cast<int>(password.size());
 }
 
+/// Check if the certificate contains a SAN Email entry ending with
+/// "@internal.couchbase.com".
+static bool hasInternalCouchbaseSanEmail(X509* cert) {
+    static const std::string suffix = "@internal.couchbase.com";
+    if (!cert) {
+        return false;
+    }
+
+    auto* names = reinterpret_cast<GENERAL_NAMES*>(
+            X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
+    if (!names) {
+        return false;
+    }
+
+    bool found = false;
+    for (int index = 0; index < sk_GENERAL_NAME_num(names); ++index) {
+        GENERAL_NAME* entry = sk_GENERAL_NAME_value(names, index);
+        if (!entry || entry->type != GEN_EMAIL) {
+            continue;
+        }
+
+        unsigned char* utf8 = nullptr;
+        int len = ASN1_STRING_to_UTF8(&utf8, entry->d.rfc822Name);
+        if (len < 0) {
+            continue;
+        }
+        std::string_view email(reinterpret_cast<char const*>(utf8), len);
+        found = email.ends_with(suffix);
+        OPENSSL_free(utf8);
+        if (found) {
+            break;
+        }
+    }
+    GENERAL_NAMES_free(names);
+    return found;
+}
+
 static int my_custom_verify_callback(int preverify_ok,
                                      X509_STORE_CTX* x509_ctx) {
     const SSL* ssl = reinterpret_cast<SSL*>(X509_STORE_CTX_get_ex_data(
@@ -178,8 +216,19 @@ static int my_custom_verify_callback(int preverify_ok,
         return 0;
     }
 
-    const auto activePolicy = cb::openssl::getCrlPolicy(SSL_get_SSL_CTX(ssl));
+    const auto [clientPolicy, node2nodePolicy] =
+            cb::openssl::getCrlPolicy(SSL_get_SSL_CTX(ssl));
     const auto fd = SSL_get_fd(ssl);
+
+    auto activePolicy = clientPolicy;
+    if (clientPolicy != node2nodePolicy &&
+        hasInternalCouchbaseSanEmail(X509_STORE_CTX_get0_cert(x509_ctx))) {
+        // Use the leaf/peer certificate (not X509_STORE_CTX_get_current_cert,
+        // which changes as verification walks the chain) so the same policy is
+        // applied consistently to every certificate in the chain for this
+        // connection.
+        activePolicy = node2nodePolicy;
+    }
 
     return cb::openssl::crlPolicyVerifyCallback(
             preverify_ok,
@@ -208,7 +257,8 @@ static int my_custom_verify_callback(int preverify_ok,
 
 cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         const nlohmann::json& spec) {
-    auto ret = cb::openssl::createServerSideSslContext(crl_policies.clientAuth);
+    auto ret = cb::openssl::createServerSideSslContext(crl_policies.clientAuth,
+                                                       crl_policies.nodeToNode);
     auto* server_ctx = ret.get();
     if (!server_ctx) {
         throw CreateSslContextException(
@@ -292,7 +342,8 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     SSL_CTX_set_default_passwd_cb_userdata(server_ctx, nullptr);
     set_ssl_ctx_ciphers(server_ctx, cipher_list, cipher_suites);
 
-    if (crl_policies.clientAuth != CrlPolicy::Disabled) {
+    if (crl_policies.clientAuth != CrlPolicy::Disabled ||
+        crl_policies.nodeToNode != CrlPolicy::Disabled) {
         // Apply CRL check flags to the X509_STORE so OpenSSL enforces CRL
         // verification during chain validation. These are store flags, not
         // SSL verify mode bits — the two must not be mixed.

@@ -275,7 +275,8 @@ static const int ssl_ctx_crl_policy_ex_data_index =
 static const int ssl_ctx_memcached_connection_ex_data_index =
         SSL_CTX_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
 
-unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy) {
+unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy clientAuthPolicy,
+                                              CrlPolicy nodeToNodePolicy) {
     // If an explicit OSSL_LIB_CTX / provider (e.g. FIPS) is ever needed here,
     // switch to SSL_CTX_new_ex(libctx, propq, method), e.g.:
     //   OSSL_LIB_CTX* libctx = OSSL_LIB_CTX_new();
@@ -287,9 +288,12 @@ unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy) {
         return {};
     }
 
+    const auto packed =
+            (uint64_t(static_cast<uint32_t>(clientAuthPolicy)) << 32) |
+            uint64_t(static_cast<uint32_t>(nodeToNodePolicy));
     if (!SSL_CTX_set_ex_data(ctx.get(),
                              ssl_ctx_crl_policy_ex_data_index,
-                             (void*)(intptr_t)policy)) {
+                             (void*)(intptr_t)packed)) {
         throw CreateSslContextException(
                 "Failed to store policy to the context object",
                 "SSL_CTX_set_ex_data",
@@ -321,10 +325,15 @@ unique_ssl_ctx_ptr createClientSideSslContext(MemcachedConnection* connection) {
     return ctx;
 }
 
-CrlPolicy getCrlPolicy(SSL_CTX* ctx) {
+std::pair<CrlPolicy, CrlPolicy> getCrlPolicy(SSL_CTX* ctx) {
     Expects(ctx);
     void* data = SSL_CTX_get_ex_data(ctx, ssl_ctx_crl_policy_ex_data_index);
-    return static_cast<CrlPolicy>(reinterpret_cast<intptr_t>(data));
+    const auto packed = static_cast<uint64_t>(reinterpret_cast<intptr_t>(data));
+    const auto clientAuthPolicy =
+            static_cast<CrlPolicy>(static_cast<uint32_t>(packed >> 32));
+    const auto nodeToNodePolicy =
+            static_cast<CrlPolicy>(static_cast<uint32_t>(packed));
+    return {clientAuthPolicy, nodeToNodePolicy};
 }
 
 MemcachedConnection* getMemcachedConnection(SSL_CTX* ctx) {

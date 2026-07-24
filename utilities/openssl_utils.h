@@ -22,6 +22,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 enum class CrlPolicy;
 class MemcachedConnection;
@@ -137,14 +138,21 @@ int crlPolicyVerifyCallback(
         const CrlPolicyVerificationIssueCallback& errorCallback);
 
 /**
- * Create a server-side SSL_CTX and store @p policy in its ex_data slot so
- * that it can be retrieved later via getCrlPolicy().
+ * Create a server-side SSL_CTX and store @p clientAuthPolicy and
+ * @p nodeToNodePolicy in its ex_data slot so that they can be retrieved
+ * later via getCrlPolicy(). Both policies are packed into a single 64 bit
+ * value (clientAuthPolicy in the upper 32 bits, nodeToNodePolicy in the
+ * lower 32 bits) and stored as that ex_data entry.
  *
- * @param policy The CRL policy to associate with the context.
+ * @param clientAuthPolicy The CRL policy to enforce for client-certificate
+ *                         authentication.
+ * @param nodeToNodePolicy The CRL policy to enforce for node-to-node
+ *                         connections.
  * @return A new SSL_CTX, or an empty pointer if SSL_CTX_new fails.
  * @throws CreateSslContextException if the ex_data cannot be stored.
  */
-unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy);
+unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy clientAuthPolicy,
+                                              CrlPolicy nodeToNodePolicy);
 
 /**
  * Create a client-side SSL_CTX and store @p connection in its ex_data slot
@@ -158,12 +166,15 @@ unique_ssl_ctx_ptr createServerSideSslContext(CrlPolicy policy);
 unique_ssl_ctx_ptr createClientSideSslContext(MemcachedConnection* connection);
 
 /**
- * Retrieve the CRL policy stored in @p ctx by createSslContext(CrlPolicy).
+ * Retrieve the CRL policies stored in @p ctx by
+ * createServerSideSslContext(CrlPolicy, CrlPolicy).
  *
- * @param ctx A non-null SSL_CTX created by createSslContext(CrlPolicy).
- * @return The CRL policy associated with the context.
+ * @param ctx A non-null SSL_CTX created by
+ *            createServerSideSslContext(CrlPolicy, CrlPolicy).
+ * @return A pair of {clientAuthPolicy, nodeToNodePolicy} associated with the
+ *         context.
  */
-CrlPolicy getCrlPolicy(SSL_CTX* ctx);
+std::pair<CrlPolicy, CrlPolicy> getCrlPolicy(SSL_CTX* ctx);
 
 /**
  * Retrieve the MemcachedConnection pointer stored in @p ctx by

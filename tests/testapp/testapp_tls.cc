@@ -992,3 +992,72 @@ TEST_P(TlsTests, CrlFileVersions_MultipleInSingleFile) {
 
     std::filesystem::remove(tmpFile);
 }
+
+// The following two tests verify that the correct per-scope CRL policy is
+// selected based on whether the peer certificate carries a SAN Email ending
+// with "@internal.couchbase.com" (see hasInternalCouchbaseSanEmail() in
+// tls_configuration.cc). The two policies are configured as opposite
+// extremes with no CRL loaded at all, so the outcome (accepted vs rejected)
+// unambiguously identifies which policy got applied:
+//   * node_to_node = Require: a missing CRL is a hard failure
+//   * client_auth  = Disabled: CRL checking is skipped entirely
+//
+// "internal.cert" (tests/cert/clients/internal.cert) has a SAN Email of
+// "internal@internal.couchbase.com" and must therefore be checked against
+// the node_to_node policy, while "trond.cert" has no SAN Email and must be
+// checked against the client_auth policy. Both are signed directly by the
+// root CA, so no "CA file" override is required.
+
+// A cert with the internal SAN Email must be rejected: it is judged against
+// the node_to_node (Require) policy, and Require treats a missing CRL as a
+// hard failure.
+TEST_P(TlsTests, CrlPolicySelection_InternalSanEmailUsesNodeToNodePolicy) {
+    reconfigure_client_cert_auth("enabled", "", "", " ");
+    tls["client cert auth"] = "enabled";
+    tls["crl_policies"] = {{"node_to_node", "Require"},
+                           {"client_auth", "Disabled"}};
+    tls["crl_files"] = std::vector<std::string>{};
+    reloadConfig();
+
+    setClientCertData(*connection, "internal");
+    try {
+        connection->reconnect();
+        connection->setFeature(cb::mcbp::Feature::JSON, true);
+        FAIL() << "Expected TLS handshake to fail: a certificate with the "
+                  "internal SAN Email should be checked against the "
+                  "node_to_node (Require) policy";
+    } catch (const std::exception&) {
+    }
+
+    EXPECT_EQ(getTlsCertVerificationProblems(),
+              initialCertVerificationProblems + 1);
+    waitForAuditEvent(
+            MEMCACHED_AUDIT_TLS_CLIENT_DISCONNECTED___CERTIFICATE_REJECTED_BY_CRL_POLICY,
+            [](const nlohmann::json& entry) {
+                const std::string reason = X509_verify_cert_error_string(
+                        X509_V_ERR_UNABLE_TO_GET_CRL);
+                if (entry.value("reason", "") != reason) {
+                    throw std::runtime_error(fmt::format(
+                            "Unexpected reason. Expected: \"{}\". Audit "
+                            "event: {}",
+                            reason,
+                            entry.dump()));
+                }
+            });
+}
+
+// A cert without the internal SAN Email must be accepted: it is judged
+// against the client_auth (Disabled) policy, which ignores the missing CRL
+// entirely.
+TEST_P(TlsTests, CrlPolicySelection_RegularCertUsesClientAuthPolicy) {
+    reconfigure_client_cert_auth("enabled", "", "", " ");
+    tls["client cert auth"] = "enabled";
+    tls["crl_policies"] = {{"node_to_node", "Require"},
+                           {"client_auth", "Disabled"}};
+    tls["crl_files"] = std::vector<std::string>{};
+    reloadConfig();
+
+    setClientCertData(*connection, "trond");
+    connection->reconnect();
+    connection->setFeature(cb::mcbp::Feature::JSON, true);
+}
