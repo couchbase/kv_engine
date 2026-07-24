@@ -64,14 +64,14 @@ nlohmann::json getOpenSslError() {
     return ret;
 }
 
-void loadCrlFromMemory(X509_STORE* store, std::string_view pem) {
+void loadCrlFromMemory(X509_STORE* store, std::string_view data) {
     Expects(store && "Store must be set");
-    if (pem.empty()) {
-        throw std::runtime_error("PEM data must not be empty");
+    if (data.empty()) {
+        throw std::runtime_error("CRL data must not be empty");
     }
 
     unique_bio_ptr bio(
-            BIO_new_mem_buf(pem.data(), static_cast<int>(pem.size())));
+            BIO_new_mem_buf(data.data(), static_cast<int>(data.size())));
     if (!bio) {
         throw CreateSslContextException("Failed to create memory BIO.",
                                         "BIO_new_mem_buf",
@@ -86,17 +86,54 @@ void loadCrlFromMemory(X509_STORE* store, std::string_view pem) {
         X509_CRL* rawCrl =
                 PEM_read_bio_X509_CRL(bio.get(), nullptr, nullptr, nullptr);
         if (!rawCrl) {
-            // Check if we hit the natural EOF or if it's an actual parsing
-            // break
+            // PEM_R_NO_START_LINE is raised both when we've consumed all
+            // concatenated PEM blocks (natural EOF) and when the buffer
+            // never contained any PEM markers at all, so it can only be
+            // treated as EOF once at least one block has already been
+            // loaded.
             unsigned long err = ERR_peek_last_error();
-            if (ERR_GET_LIB(err) == ERR_LIB_PEM &&
-                ERR_GET_REASON(err) == PEM_R_NO_START_LINE) {
+            bool noStartLine = ERR_GET_LIB(err) == ERR_LIB_PEM &&
+                               ERR_GET_REASON(err) == PEM_R_NO_START_LINE;
+
+            if (noStartLine && loadedAtLeastOne) {
                 ERR_clear_error(); // Clean up expected EOF flag
                 break;
             }
-            throw CreateSslContextException("Failed to parse CRL from PEM data",
-                                            "PEM_read_bio_X509_CRL",
-                                            getOpenSslError());
+
+            if (loadedAtLeastOne) {
+                // We already loaded at least one PEM CRL from this buffer,
+                // so this is genuine corruption further down the stream (not
+                // a case of the whole buffer being DER-encoded instead).
+                throw CreateSslContextException(
+                        "Failed to parse CRL from PEM data",
+                        "PEM_read_bio_X509_CRL",
+                        getOpenSslError());
+            }
+
+            // Nothing has been parsed yet, so the buffer may hold a single
+            // DER-encoded CRL rather than PEM. Rewind and try that before
+            // giving up.
+            ERR_clear_error();
+            if (BIO_reset(bio.get()) != 1) {
+                throw CreateSslContextException("Failed to rewind memory BIO",
+                                                "BIO_reset",
+                                                getOpenSslError());
+            }
+            unique_x509_crl_ptr derCrl(d2i_X509_CRL_bio(bio.get(), nullptr));
+            if (!derCrl) {
+                // Not parseable as PEM or DER; fall through to the generic
+                // "no CRL loaded" error below.
+                ERR_clear_error();
+                break;
+            }
+            if (X509_STORE_add_crl(store, derCrl.get()) != 1) {
+                throw CreateSslContextException(
+                        "Failed to add parsed CRL to store cache",
+                        "X509_STORE_add_crl",
+                        getOpenSslError());
+            }
+            loadedAtLeastOne = true;
+            break;
         }
 
         unique_x509_crl_ptr crl(rawCrl);

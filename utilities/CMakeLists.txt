@@ -110,6 +110,7 @@ cb_add_test_executable(utilities_testapp
         config_parser_test.cc
         crl_policy_test.cc
         dek_file_utilities_test.cc
+        openssl_utils_test.cc
         slow_operation_test.cc
         stat_group_test.cc
         string_utilities_test.cc
@@ -120,6 +121,7 @@ cb_enable_unity_build(utilities_testapp)
 target_link_libraries(utilities_testapp PRIVATE
                       mcd_util
                       platform
+                      OpenSSL::SSL
                       GTest::gtest
                       GTest::gtest_main
                       GTest::gmock)

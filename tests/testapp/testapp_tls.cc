@@ -295,7 +295,7 @@ TEST_P(TlsTests, CrlFileVersions_EmptyFile) {
     auto rsp = tryReloadConfig();
     std::filesystem::remove(tmpFile);
     ASSERT_FALSE(rsp.isSuccess());
-    EXPECT_EQ("PEM data must not be empty", rsp.getErrorContext());
+    EXPECT_EQ("CRL data must not be empty", rsp.getErrorContext());
 }
 
 TEST_P(TlsTests, CrlFileVersions_InvalidPem) {

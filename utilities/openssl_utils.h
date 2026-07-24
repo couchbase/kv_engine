@@ -88,16 +88,18 @@ protected:
 nlohmann::json getOpenSslError();
 
 /**
- * Loads one or more CRLs in PEM format from a memory buffer into an
- * X509_STORE. PEM data may contain multiple concatenated CRL blocks; all
- * are loaded.
+ * Loads one or more CRLs from a memory buffer into an X509_STORE. The
+ * buffer may be either PEM or DER encoded:
+ *  - PEM data may contain multiple concatenated CRL blocks; all are loaded.
+ *  - DER data must contain exactly one CRL (DER has no concatenation
+ *    format), and is only attempted if the buffer does not parse as PEM.
  *
  * @param store The target X509_STORE to populate.
- * @param pem PEM-encoded CRL data.
- * @throws std::runtime_error if pem is empty or contains no parseable CRL.
+ * @param data PEM- or DER-encoded CRL data.
+ * @throws std::runtime_error if data is empty or contains no parseable CRL.
  * @throws CreateSslContextException on an OpenSSL parsing or insertion error.
  */
-void loadCrlFromMemory(X509_STORE* store, std::string_view pem);
+void loadCrlFromMemory(X509_STORE* store, std::string_view data);
 
 /**
  * Callback invoked by crlPolicyVerifyCallback whenever a CRL-related
