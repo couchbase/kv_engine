@@ -175,8 +175,7 @@ endif()
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
         ${Couchstore_SOURCE_DIR}
-        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include
-        ${Platform_SOURCE_DIR}/cblogger)
+        ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
 
 target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         ep
@@ -188,6 +187,7 @@ target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         mock_server
         platform_cb_malloc_arena
         phosphor
+        cblogger_test_fixture
         ${EP_STORAGE_LIBS})
 if (NUMA_FOUND)
     target_link_libraries(ep-engine_ep_unit_tests PRIVATE ${NUMA_LIBRARIES})
