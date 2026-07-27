@@ -211,6 +211,7 @@
         "key": "ep_diskqueue_items",
         "unit": "none",
         "description": "Total items in disk queue",
+        "long_description": "Provides the total number of items currently waiting in the disk queue to be written to persistent storage across all vBuckets in the bucket. Every mutation queued for persistence contributes to this count until the flusher writes it to disk and removes it from the queue. A consistently high or growing value indicates a backlog of unpersisted mutations, which can signal disk I/O bottlenecks, insufficient writer thread capacity, or a write rate exceeding disk throughput.",
         "added": "7.0.0"
     },
     {
@@ -567,6 +568,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Number of times temporary OOMs happened while processing operations",
+        "long_description": "Provides the count of temporary out-of-memory errors, incremented when a memory allocation attempt fails while the bucket is still below its memory quota. Unlike a hard OOM, this failure is temporary because background tasks are triggered to reclaim memory automatically. On persistent buckets, memory recovery relies on evicting items, but only 'clean' items (already persisted to disk) are eligible for eviction. Dirty items awaiting persistence cannot be evicted. This ties eviction effectiveness to the disk write queue (ep_diskqueue_items). If the incoming mutation rate exceeds disk write bandwidth, the temporary OOMs may persist or increase despite background recovery running. A high or rising value indicates memory usage is approaching the quota; if it correlates with a growing disk write queue, disk throughput may be the limiting factor rather than memory reclamation itself.",
         "added": "7.0.0"
     },
     {
@@ -579,6 +581,7 @@
         "key": "ep_bg_fetched",
         "unit": "none",
         "description": "Number of items fetched from disk",
+        "long_description": "Provides the cumulative count of items retrieved from disk for a bucket because they were not resident in memory. When a client requests an item that has been evicted or was never loaded, the reader threads perform a background fetch to load it from storage before the request can complete. A high or rapidly increasing value indicates frequent cache misses, suggesting the working set exceeds available memory and read latency may be degraded.",
         "type": "counter",
         "added": "7.0.0"
     },
@@ -2255,6 +2258,7 @@
         "key": "ep_db_file_size",
         "unit": "bytes",
         "description": "Total size of the db files",
+        "long_description": "Provides the total on-disk footprint of a bucket's database files, i.e. the actual bytes consumed on the filesystem. Unlike ep_db_data_size, which reports only valid/live document data, this metric also includes stale or deleted data awaiting compaction, internal file overhead and metadata, and any fragmentation or free space within the files. A growing gap between this value and ep_db_data_size indicates rising fragmentation, and a persistently high or increasing value may signal that compaction needs to run more frequently.",
         "added": "7.0.0"
     },
     {
@@ -3615,6 +3619,7 @@
             "family": "vb_perc_mem_resident"
         },
         "description": "Percentage of items which are resident in memory",
+        "long_description": "Provides the percentage of items for a vBucket that are currently resident in memory, as opposed to having been evicted and existing only on disk. A value close to 100% means most items are cached in RAM, typically resulting in faster reads. A lower value indicates many items have been evicted under memory pressure and exist only on disk, meaning reads for those items require a slower background fetch operation.",
         "added": "7.0.0"
     },
     {
@@ -3665,6 +3670,7 @@
             "family": "vb_checkpoint_memory"
         },
         "description": "Total memory in checkpoints, sum of kv_vb__checkpoint_memory_overhead_bytes and kv_vb_checkpoint_memory_queue_bytes",
+        "long_description": "Provides the total memory currently allocated to checkpoints for a vBucket, broken down by vBucket state (active, replica, pending). Checkpoints are the unified queue structure that coordinates between persistence and DCP replication, so this memory holds items awaiting both disk flush and streaming to replicas. It is the basis for memory reclamation: once the aggregate across all checkpoints exceeds the checkpoint_memory_ratio threshold, the checkpoint remover task runs to free memory and avoid a temporary out-of-memory condition.",
         "added": "7.0.0"
     },
     {
@@ -4214,6 +4220,7 @@
             "family": "vb_auto_delete_count"
         },
         "description": "Cumulative count of documents auto-deleted due to NRU ejection (Ephemeral Buckets only)",
+        "long_description": "Provides the cumulative count of documents automatically deleted from a vBucket due to Not-Recently-Used (NRU) ejection. This applies only to Ephemeral buckets, which hold all data in memory and cannot persist to disk. When memory pressure occurs, documents that have not been accessed recently are permanently removed to free space, rather than being ejected to disk as would happen in a persistent bucket. A rising value indicates the bucket is actively losing data under memory pressure.",
         "added": "7.0.0"
     },
     {
