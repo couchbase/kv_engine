@@ -10,8 +10,9 @@
 
 #include "stdin_check.h"
 #include <fmt/format.h>
-#include <platform/platform_thread.h>
+#include <folly/system/ThreadName.h>
 #include <cstdio>
+#include <thread>
 
 #ifndef WIN32
 #include <sys/poll.h>
@@ -159,7 +160,15 @@ void start_stdin_listener(std::function<void()> function) {
     // buffer and poll won't return until new data arrives)
     setbuf(stdin, nullptr);
     exit_function = std::move(function);
-    auto thr = create_thread([]() { check_stdin_thread(); }, "mc:check_stdin");
+    // Don't register this thread with phosphor as it may cause problems
+    // during shutdown. This thread isn't creating any phosphor trace
+    // elements anyway so it won't be a problem.
+    auto thr = std::thread{[]() {
+        if (folly::canSetCurrentThreadName()) {
+            folly::setThreadName("mc:check_stdin");
+        }
+        check_stdin_thread();
+    }};
     thr.detach();
 }
 
