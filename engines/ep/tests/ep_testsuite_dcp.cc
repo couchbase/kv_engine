@@ -1182,6 +1182,30 @@ static void dcp_thread_func(void* args) {
     uint32_t stream_opaque =
             get_int_stat(ctx->h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
+    // Anchor the DCP seqnos we send to vb0's *current* high-seqno rather than a
+    // fixed ctx->items base. This is what keeps the test deterministic despite
+    // the compaction race:
+    //
+    //   - The background compaction may expire items while vb0 is briefly still
+    //     active, which advances the high-seqno by an unpredictable amount.
+    //   - A replica passive stream initialises its last_seqno to the vBucket's
+    //     high-seqno when the stream is added (DcpConsumer::doAddStream), and
+    //     it rejects any snapshot marker whose range is <= last_seqno with
+    //     out_of_range (PassiveStream::messageReceived).
+    //   - If we sent fixed seqnos (ctx->items + i) they could land behind that
+    //     compaction-advanced high-seqno, giving an intermittent out_of_range.
+    //
+    // By now vb0 is a replica, so its high-seqno is frozen (expiry is gated to
+    // active vBuckets and interlocked with setState, MB-16357), and no DCP
+    // mutations have been sent yet. So this read equals the stream's
+    // last_seqno, and basing every marker/mutation on highSeqno + i guarantees
+    // they are always strictly ahead of last_seqno. out_of_range can then only
+    // mean a real regression - not a lost race. NOTE: this relies on the
+    // vbucket being switched to replica *before* the stream is added (see
+    // above); reordering that would reintroduce the flakiness.
+    const uint64_t highSeqno =
+            get_ull_stat(ctx->h, "vb_0:high_seqno", "vbucket-seqno");
+
     for (int i = 1; i <= ctx->items; i++) {
         std::stringstream ss;
         ss << "kamakeey-" << i;
@@ -1192,8 +1216,8 @@ static void dcp_thread_func(void* args) {
                 ctx->dcp->snapshot_marker(*cookie,
                                           stream_opaque,
                                           Vbid(0),
-                                          ctx->items + i,
-                                          ctx->items + i,
+                                          highSeqno + i,
+                                          highSeqno + i,
                                           DcpSnapshotMarkerFlag::Disk,
                                           0 /*HCS*/,
                                           0 /*HPS*/,
@@ -1212,8 +1236,8 @@ static void dcp_thread_func(void* args) {
                                    i * 3, // cas
                                    Vbid(0),
                                    0, // flags
-                                   i + ctx->items, // by_seqno
-                                   i + ctx->items, // rev_seqno
+                                   highSeqno + i, // by_seqno
+                                   highSeqno + i, // rev_seqno
                                    0, // exptime
                                    0, // locktime
                                    INITIAL_NRU_VALUE),
