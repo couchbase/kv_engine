@@ -149,7 +149,7 @@ gtest_discover_tests(memcached_testapp
     ONE_CTEST_PER_SUITE
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
-               ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+               ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
 
 gtest_discover_tests(memcached_testapp
         EXTRA_ARGS -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}

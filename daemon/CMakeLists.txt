@@ -244,7 +244,7 @@ gtest_discover_tests(memcached_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX memcached_unit_tests.
         ONE_CTEST_PER_SUITE
-        ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+        PROPERTIES ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
 
 if (NOT WIN32)
     cb_add_test_executable(stdin_check_test_runner stdin_check_test_runner.cc stdin_check.cc)
@@ -266,5 +266,5 @@ if (NOT WIN32)
             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
             TEST_PREFIX stdin_check_test.
             ONE_CTEST_PER_SUITE
-            ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+            PROPERTIES ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
 endif ()

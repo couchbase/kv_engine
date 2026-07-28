@@ -250,7 +250,7 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT ${default_timeout_seconds}
                    ${timeout_signal}
-                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${ALL_SANITIZERS_ENV}]==]")
+                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
 gtest_discover_tests(ep-engine_ep_unit_tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX ep-engine_ep_unit_tests.
@@ -259,7 +259,7 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT ${slow_test_timeout_seconds}
                    ${timeout_signal}
-                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${ALL_SANITIZERS_ENV}]==]")
+                   ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
 IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
     # Create a set of tests for magma which are filtered such that only the
     # magma variants should run
@@ -272,7 +272,7 @@ IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
             POST_SUITE_FILTER *agma
             DISCOVERY_TIMEOUT 60
             PROPERTIES TIMEOUT 300
-                       ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+                       ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
 ENDIF()
 
 add_ep_testsuite(ep_testsuite ep_testsuite.cc)
