@@ -85,6 +85,12 @@ public:
      */
     magma::Status newCheckpoint(Vbid vbid);
 
+    /**
+     * Stop magma's background (implicit) compaction for the given vBucket.
+     * Pair with resumeImplicitCompaction() to re-enable.
+     */
+    void stopBGCompaction(Vbid vbid);
+
     void setCompactionStatusHook(std::function<void(magma::Status&)> hook) {
         compactionStatusHook = hook;
     }
