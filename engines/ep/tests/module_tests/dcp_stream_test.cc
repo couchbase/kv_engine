@@ -908,6 +908,13 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     uint64_t numItems = 2;
     addItemsAndRemoveCheckpoint(static_cast<int>(numItems));
 
+    /* setup_dcp_stream() below synchronously schedules the backfill task
+       (via stream->setActive()). Ensure no AuxIO thread is available to
+       pick it up yet, otherwise it could race ahead - using the still
+       default (much larger) buffer size - and complete the whole backfill
+       before setBackfillBufferSize(1) below takes effect. */
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{0});
+
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
 
@@ -918,7 +925,8 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     ASSERT_TRUE(stream->isBackfilling());
     ASSERT_EQ(stream->getNumBackfillPauses(), 0);
 
-    /* We want the backfill task to run in a background thread */
+    /* Only now that the small buffer size is in place do we let the
+       backfill task run in a background thread */
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     /* Backfill can only read 1 as its buffer will become full after that */
