@@ -125,8 +125,10 @@ cb::engine_errc BucketConfigCommandContext::execute() {
                                               ParameterVisibility::Internal));
                     }
                 } catch (const std::exception& e) {
-                    validation.emplace(key,
-                                       ParameterError::invalidValue(e.what()));
+                    validation.emplace(
+                            key,
+                            std::unexpected(
+                                    ParameterError::invalidValue(e.what())));
                 }
             }
         } catch (const std::exception& e) {

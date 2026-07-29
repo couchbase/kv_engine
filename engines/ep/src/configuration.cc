@@ -717,7 +717,7 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
     for (const auto& [key, value] : parameters) {
         auto it = attributes.find(key);
         if (it == attributes.end()) {
-            result.emplace(key, ParameterError::unsupported());
+            result.emplace(key, std::unexpected(ParameterError::unsupported()));
             continue;
         }
 
@@ -728,7 +728,9 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
             std::visit([this, key](auto&& val) { setParameter(key, val); },
                        newValue);
         } catch (const std::exception& e) {
-            result.emplace(key, ParameterError::invalidValue(e.what()));
+            result.emplace(
+                    key,
+                    std::unexpected(ParameterError::invalidValue(e.what())));
             failed = true;
             continue;
         }
@@ -749,12 +751,12 @@ std::pair<ParameterValidationMap, bool> Configuration::setParametersInternal(
         if (it != attributes.end()) {
             if (!requirementsMet(*it->second)) {
                 auto reason = describeUnmetRequirements(*it->second);
-                result.at(key) = ParameterError::invalidValue(
+                result.at(key) = std::unexpected(ParameterError::invalidValue(
                         reason.empty()
                                 ? std::string("Parameter requirements not met")
                                 : fmt::format(
                                           "Parameter requirements not met: {}",
-                                          reason));
+                                          reason)));
                 failed = true;
             }
         }

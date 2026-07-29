@@ -13,9 +13,9 @@
 #include "define_yes_no_enum.h"
 
 #include <nlohmann/json.hpp>
+#include <expected>
 #include <string>
 #include <unordered_map>
-#include <variant>
 
 /**
  * Encodes the type of error, which we return to ns_server.
@@ -87,7 +87,7 @@ using ParameterMap = std::unordered_map<std::string, std::string>;
 /**
  * The result of validating a parameter.
  */
-using ParameterValidationResult = std::variant<ParameterInfo, ParameterError>;
+using ParameterValidationResult = std::expected<ParameterInfo, ParameterError>;
 
 void to_json(nlohmann::json& j, const ParameterValidationResult& result);
 

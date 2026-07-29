@@ -50,12 +50,16 @@ void to_json(nlohmann::json& json, const ParameterError& error) {
 }
 
 void to_json(nlohmann::json& json, const ParameterValidationResult& result) {
-    std::visit([&json](auto&& arg) { json = arg; }, result);
+    if (result.has_value()) {
+        json = *result;
+    } else {
+        json = result.error();
+    }
 }
 
 bool hasErrors(const ParameterValidationMap& validation) {
     for (const auto& [key, result] : validation) {
-        if (std::holds_alternative<ParameterError>(result)) {
+        if (!result.has_value()) {
             return true;
         }
     }
@@ -64,9 +68,8 @@ bool hasErrors(const ParameterValidationMap& validation) {
 
 bool requiresRestart(const ParameterValidationMap& validation) {
     for (const auto& [key, result] : validation) {
-        if (std::holds_alternative<ParameterInfo>(result) &&
-            std::get<ParameterInfo>(result).requiresRestart ==
-                    RequiresRestart::Yes) {
+        if (result.has_value() &&
+            result->requiresRestart == RequiresRestart::Yes) {
             return true;
         }
     }
