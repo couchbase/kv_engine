@@ -14,10 +14,10 @@
 #include <memcached/engine_error.h>
 #include <platform/cb_time.h>
 #include <snapshot/manifest.h>
+#include <expected>
 #include <iostream>
 #include <optional>
 #include <string>
-#include <variant>
 
 class VBucketFilter;
 
@@ -86,9 +86,9 @@ public:
      * @returns the failure reason if the operation failed
      *          the created manifest upon success
      */
-    std::variant<cb::engine_errc, Manifest> prepare(
+    std::expected<Manifest, cb::engine_errc> prepare(
             Vbid vb,
-            const std::function<std::variant<cb::engine_errc, Manifest>(
+            const std::function<std::expected<Manifest, cb::engine_errc>(
                     const std::filesystem::path&, Vbid)>& executor);
 
     /**
@@ -104,9 +104,9 @@ public:
      * @returns the failure reason if the operation failed
      *          the created manifest upon success
      */
-    std::variant<cb::engine_errc, Manifest> download(
+    std::expected<Manifest, cb::engine_errc> download(
             Vbid vbid,
-            const std::function<std::variant<cb::engine_errc, Manifest>()>&
+            const std::function<std::expected<Manifest, cb::engine_errc>()>&
                     fetch_manifest,
             const std::function<cb::engine_errc(const std::filesystem::path&,
                                                 const Manifest&)>&
@@ -172,9 +172,9 @@ protected:
     /// remove a snapshot with uuid from disk
     cb::engine_errc remove(std::string_view uuid) const;
 
-    std::variant<cb::engine_errc, Manifest> lookupOrFetch(
+    std::expected<Manifest, cb::engine_errc> lookupOrFetch(
             Vbid vbid,
-            const std::function<std::variant<cb::engine_errc, Manifest>()>&
+            const std::function<std::expected<Manifest, cb::engine_errc>()>&
                     fetch_manifest);
 
     /// The location of the snapshots

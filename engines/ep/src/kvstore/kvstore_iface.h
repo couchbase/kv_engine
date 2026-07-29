@@ -24,6 +24,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
 #include <snapshot/manifest.h>
+#include <expected>
 #include <variant>
 
 class ByIdScanContext;
@@ -197,12 +198,12 @@ public:
      * (can be expensive at large scale)
      * @return Manifest for success or status code for failure
      */
-    virtual std::variant<cb::engine_errc, cb::snapshot::Manifest>
+    virtual std::expected<cb::snapshot::Manifest, cb::engine_errc>
     prepareSnapshot(CookieIface& cookie,
                     const std::filesystem::path& snapshotDirectory,
                     Vbid vb,
                     bool generateChecksums) {
-        return cb::engine_errc::not_supported;
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 
     virtual cb::engine_errc processSnapshots(
@@ -942,11 +943,11 @@ public:
      * @param uuid The uuid of the snapshot
      * @return Manifest for success or status code for failure
      */
-    virtual std::variant<cb::engine_errc, cb::snapshot::Manifest>
+    virtual std::expected<cb::snapshot::Manifest, cb::engine_errc>
     prepareSnapshotImpl(const std::filesystem::path& snapshotDirectory,
                         Vbid vb,
                         std::string_view uuid) {
-        return cb::engine_errc::not_supported;
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 };
 

@@ -128,9 +128,9 @@ void Cache::purge(std::chrono::seconds age) {
     });
 }
 
-std::variant<cb::engine_errc, Manifest> Cache::prepare(
+std::expected<Manifest, cb::engine_errc> Cache::prepare(
         Vbid vbid,
-        const std::function<std::variant<cb::engine_errc, Manifest>(
+        const std::function<std::expected<Manifest, cb::engine_errc>(
                 const std::filesystem::path&, Vbid)>& prepare) {
     auto existing = lookup(vbid);
     if (existing.has_value()) {
@@ -138,36 +138,36 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
     }
 
     auto prepared = prepare(path, vbid);
-    if (std::holds_alternative<cb::engine_errc>(prepared)) {
+    if (!prepared.has_value()) {
         return prepared;
     }
 
     // Save the manfiest
-    const auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
+    const auto& manifest = *prepared;
     if (!snapshots.withLock([manifest, time = time()](auto& map) {
             return map.try_emplace(manifest.uuid, Entry(manifest, time)).second;
         })) {
         EP_LOG_WARN_CTX("Cache::prepare try_emplace failed",
                         {{"uuid", manifest.uuid}});
         (void)remove(manifest.uuid);
-        return cb::engine_errc::key_already_exists;
+        return std::unexpected(cb::engine_errc::key_already_exists);
     }
     return prepared;
 }
 
-std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
+std::expected<Manifest, cb::engine_errc> Cache::lookupOrFetch(
         Vbid vbid,
-        const std::function<std::variant<cb::engine_errc, Manifest>()>&
+        const std::function<std::expected<Manifest, cb::engine_errc>()>&
                 fetch_manifest) {
     auto existing = lookup(vbid);
     if (existing.has_value()) {
         return *existing;
     }
     auto rv = fetch_manifest();
-    if (std::holds_alternative<cb::engine_errc>(rv)) {
+    if (!rv.has_value()) {
         return rv;
     }
-    const auto& manifest = std::get<Manifest>(rv);
+    const auto& manifest = *rv;
 
     EP_LOG_INFO_CTX("Downloaded snapshot manifest",
                     {"vb", vbid},
@@ -187,7 +187,7 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
                         {"vb", vbid},
                         {"error", ec.message()},
                         {"path", manifestPath});
-        return cb::engine_errc::failed;
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     // At this point we have a snapshot dir and manifest.json, we can
@@ -197,23 +197,23 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
     return rv;
 }
 
-std::variant<cb::engine_errc, Manifest> Cache::download(
+std::expected<Manifest, cb::engine_errc> Cache::download(
         Vbid vbid,
-        const std::function<std::variant<cb::engine_errc, Manifest>()>&
+        const std::function<std::expected<Manifest, cb::engine_errc>()>&
                 fetch_manifest,
         const std::function<cb::engine_errc(const std::filesystem::path&,
                                             const Manifest&)>& download_files) {
     auto fetched = lookupOrFetch(vbid, fetch_manifest);
-    if (std::holds_alternative<cb::engine_errc>(fetched)) {
+    if (!fetched.has_value()) {
         return fetched;
     }
-    const auto& manifest = std::get<Manifest>(fetched);
+    const auto& manifest = *fetched;
 
     auto rv = download_files(path / manifest.uuid, manifest);
     if (rv != engine_errc::success) {
         std::error_code ec;
         remove_all(path / manifest.uuid, ec);
-        return rv;
+        return std::unexpected(rv);
     }
 
     if (!snapshots.withLock([&manifest, time = time()](auto& map) {
@@ -221,7 +221,7 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         })) {
         EP_LOG_WARN_CTX("Cache::download try_emplace failed",
                         {{"uuid", manifest.uuid}});
-        return cb::engine_errc::key_already_exists;
+        return std::unexpected(cb::engine_errc::key_already_exists);
     }
 
     return manifest;

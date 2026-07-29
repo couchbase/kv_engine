@@ -5085,7 +5085,7 @@ FusionUploaderState MagmaKVStore::getFusionUploaderState(Vbid vbid) const {
     return fusionUploaderManager.getUploaderState(vbid);
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest>
+std::expected<cb::snapshot::Manifest, cb::engine_errc>
 MagmaKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
@@ -5098,7 +5098,7 @@ MagmaKVStore::prepareSnapshotImpl(
                         {"vb", vb},
                         {"uuid", uuid},
                         {"status", std::get<Status>(res).String()});
-        return cb::engine_errc::failed;
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     const auto& cloneManifest = std::get<magma::CloneManifest>(res);

@@ -107,7 +107,7 @@ void DownloadSnapshotTask::createConnection() {
     connection->selectBucket(properties.bucket);
 }
 
-std::variant<cb::engine_errc, Manifest>
+std::expected<Manifest, cb::engine_errc>
 DownloadSnapshotTask::doDownloadManifest() {
     listener->stateChanged(DownloadSnapshotTaskState::PrepareSnapshot);
     BinprotGenericCommand prepare(cb::mcbp::ClientOpcode::PrepareSnapshot);
@@ -125,7 +125,7 @@ DownloadSnapshotTask::doDownloadManifest() {
             listener->failed(fmt::format("Failed to prepare snapshot: {}: {}",
                                          rsp.getStatus(),
                                          rsp.getDataView()));
-            return cb::engine_errc::failed;
+            return std::unexpected(cb::engine_errc::failed);
         }
         json = rsp.getDataJson();
     } catch (const std::exception& e) {
@@ -135,7 +135,7 @@ DownloadSnapshotTask::doDownloadManifest() {
                         {"vb", vbid},
                         {"peer", connection->getPeername()},
                         {"error", e.what()});
-        return cb::engine_errc::failed;
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     try {
@@ -149,7 +149,7 @@ DownloadSnapshotTask::doDownloadManifest() {
                         {"json", json},
                         {"error", e.what()});
     }
-    return cb::engine_errc::failed;
+    return std::unexpected(cb::engine_errc::failed);
 }
 
 size_t DownloadSnapshotTask::getChecksumLength() {
@@ -218,7 +218,7 @@ bool DownloadSnapshotTask::run() {
                 [this](const auto& dir, auto& manifest) {
                     return doDownloadFiles(dir, manifest);
                 });
-        if (std::holds_alternative<Manifest>(rv)) {
+        if (rv.has_value()) {
             listener->stateChanged(DownloadSnapshotTaskState::Finished);
         }
     } catch (const std::exception& e) {

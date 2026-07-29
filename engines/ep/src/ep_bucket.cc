@@ -3199,15 +3199,15 @@ cb::engine_errc EPBucket::prepareSnapshot(
                         vb,
                         shouldPrepareSnapshotGenerateChecksums());
             });
-    if (std::holds_alternative<cb::engine_errc>(rv)) {
+    if (!rv.has_value()) {
         EP_LOG_WARN_CTX("EPBucket::prepareSnapshot failed",
                         {"conn_id", cookie.getConnectionId()},
                         {"vb", vbid},
-                        {"error", std::get<cb::engine_errc>(rv)});
-        return std::get<cb::engine_errc>(rv);
+                        {"error", rv.error()});
+        return rv.error();
     }
 
-    callback(std::get<cb::snapshot::Manifest>(rv));
+    callback(*rv);
     return cb::engine_errc::success;
 }
 

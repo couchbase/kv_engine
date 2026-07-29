@@ -35,6 +35,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <expected>
 #include <map>
 #include <string_view>
 #include <unordered_map>
@@ -1089,7 +1090,7 @@ public:
         return cb::engine_errc::not_supported;
     }
 
-    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
+    std::expected<cb::snapshot::Manifest, cb::engine_errc> prepareSnapshot(
             CookieIface& cookie,
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
@@ -1106,7 +1107,7 @@ public:
      */
     static std::optional<cb::snapshot::Manifest> validateSnapshot(
             const std::filesystem::path& path);
-    static std::variant<cb::engine_errc, cb::snapshot::Manifest>
+    static std::expected<cb::snapshot::Manifest, cb::engine_errc>
     getValidatedManifest(const std::filesystem::path& path);
 
     /**

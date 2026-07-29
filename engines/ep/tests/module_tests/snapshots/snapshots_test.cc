@@ -62,8 +62,8 @@ TEST_P(SnapshotsTests, prepare) {
     auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
         return doPrepareSnapshot(dir, vb, true);
     });
-    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    EXPECT_TRUE(rv.has_value());
+    auto manifest = *rv;
     EXPECT_FALSE(manifest.uuid.empty());
     EXPECT_FALSE(manifest.files.empty());
     for (const auto& file : manifest.files) {
@@ -79,12 +79,12 @@ TEST_P(SnapshotsTests, purge) {
     auto rv = cache.prepare(Vbid(0), [this](const auto& dir, auto vb) {
         return cb::snapshot::Manifest{Vbid(0), "vb0"};
     });
-    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
+    EXPECT_TRUE(rv.has_value());
 
     rv = cache.prepare(Vbid(1), [this](const auto& dir, auto vb) {
         return cb::snapshot::Manifest{Vbid(1), "vb1"};
     });
-    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
+    EXPECT_TRUE(rv.has_value());
 
     // move time 10s and touch one snapshot
     time += std::chrono::seconds(10);
@@ -102,8 +102,8 @@ TEST_P(SnapshotsTests, processSnapshotsInsertsSingle) {
     const auto dir = snapshotdir / "snapshots";
     create_directories(dir);
     auto s1 = doPrepareSnapshot(dir, vbid, true);
-    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s1));
-    const auto uuid1 = std::get<cb::snapshot::Manifest>(s1).uuid;
+    ASSERT_TRUE(s1.has_value());
+    const auto uuid1 = s1->uuid;
     ASSERT_TRUE(exists(dir / uuid1));
 
     EXPECT_EQ(cb::engine_errc::success, kvstore->processSnapshots(dir, cache));
@@ -126,10 +126,10 @@ TEST_P(SnapshotsTests, processSnapshotsRemovesDuplicates) {
     create_directories(dir);
     auto s1 = doPrepareSnapshot(dir, vbid, true);
     auto s2 = doPrepareSnapshot(dir, vbid, true);
-    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s1));
-    ASSERT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(s2));
-    const auto uuid1 = std::get<cb::snapshot::Manifest>(s1).uuid;
-    const auto uuid2 = std::get<cb::snapshot::Manifest>(s2).uuid;
+    ASSERT_TRUE(s1.has_value());
+    ASSERT_TRUE(s2.has_value());
+    const auto uuid1 = s1->uuid;
+    const auto uuid2 = s2->uuid;
     ASSERT_NE(uuid1, uuid2);
     ASSERT_TRUE(exists(dir / uuid1));
     ASSERT_TRUE(exists(dir / uuid2));

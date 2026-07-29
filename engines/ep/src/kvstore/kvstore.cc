@@ -806,7 +806,7 @@ static cb::engine_errc prepareSnapshotCreatePath(
     return cb::engine_errc::success;
 }
 
-static std::variant<cb::engine_errc, cb::snapshot::Manifest>
+static std::expected<cb::snapshot::Manifest, cb::engine_errc>
 doPrepareSnapshotImpl(KVStore& kvs,
                       CookieIface& cookie,
                       const std::filesystem::path& path,
@@ -831,7 +831,7 @@ static void prepareSnapshotChecksums(CookieIface& cookie,
     }
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
+std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
         CookieIface& cookie,
         const std::filesystem::path& path,
         Vbid vbid,
@@ -840,7 +840,7 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     const auto snapshotPath = path / uuid;
     const auto status = prepareSnapshotCreatePath(cookie, snapshotPath, vbid);
     if (status != cb::engine_errc::success) {
-        return status;
+        return std::unexpected(status);
     }
 
     // Create a guard to clean-up on failure.
@@ -861,10 +861,10 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     // Call implementation to get backend specifc snapshot prepared
     auto prepared =
             doPrepareSnapshotImpl(*this, cookie, snapshotPath, vbid, uuid);
-    if (std::holds_alternative<cb::engine_errc>(prepared)) {
-        return std::get<cb::engine_errc>(prepared);
+    if (!prepared.has_value()) {
+        return prepared;
     }
-    auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
+    auto& manifest = *prepared;
 
     if (generateChecksums) {
         // Add checksums for all files in the snapshot
@@ -881,7 +881,7 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
                         {"vb", vbid},
                         {"error", ec.message()},
                         {"path", manifestPath});
-        return cb::engine_errc::failed;
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     // Success - remove the clean-up guard and return the manifest
@@ -988,9 +988,9 @@ std::optional<cb::snapshot::Manifest> KVStore::validateSnapshot(
     if (exists(path / "manifest.json")) {
         try {
             auto m = getValidatedManifest(path);
-            if (std::holds_alternative<cb::snapshot::Manifest>(m)) {
+            if (m.has_value()) {
                 removeSnapshot.dismiss();
-                return std::get<cb::snapshot::Manifest>(m);
+                return *m;
             }
         } catch (const std::exception& e) {
             EP_LOG_WARN_CTX("validateSnapshot failed getValidatedManifest",
@@ -1058,7 +1058,7 @@ cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
     return cb::engine_errc::no_such_key;
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest>
+std::expected<cb::snapshot::Manifest, cb::engine_errc>
 KVStore::getValidatedManifest(const std::filesystem::path& path) {
     cb::snapshot::Manifest m =
             nlohmann::json::parse(cb::io::loadFile(path / "manifest.json"));
@@ -1068,7 +1068,7 @@ KVStore::getValidatedManifest(const std::filesystem::path& path) {
         auto status = checkSnapshotFile(path, m.uuid, file, "FILE");
         if (status == cb::engine_errc::checksum_mismatch) {
             // Corrupt
-            return status;
+            return std::unexpected(status);
         }
         if (status != cb::engine_errc::success) {
             // ! success is an Incomplete file issue (Absent/Truncated)
@@ -1080,7 +1080,7 @@ KVStore::getValidatedManifest(const std::filesystem::path& path) {
         auto status = checkSnapshotFile(path, m.uuid, file, "DEK");
         if (status == cb::engine_errc::checksum_mismatch) {
             // Corrupt
-            return status;
+            return std::unexpected(status);
         }
         if (status != cb::engine_errc::success) {
             // Incomplete file issue.

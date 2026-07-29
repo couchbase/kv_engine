@@ -25,7 +25,7 @@ public:
     }
 
 protected:
-    std::variant<cb::engine_errc, cb::snapshot::Manifest> doCreateSnapshot(
+    std::expected<cb::snapshot::Manifest, cb::engine_errc> doCreateSnapshot(
             const std::filesystem::path& directory, Vbid vb) {
         // Generate a path/uuid for the snapshot
         auto uuid = ::to_string(cb::uuid::random());
@@ -49,16 +49,16 @@ protected:
 
 TEST_F(CacheTest, PrepareFailed) {
     const auto rv = cache.prepare(Vbid{0}, [this](const auto&, auto) {
-        return cb::engine_errc::not_supported;
+        return std::unexpected(cb::engine_errc::not_supported);
     });
-    EXPECT_EQ(cb::engine_errc::not_supported, std::get<cb::engine_errc>(rv));
+    EXPECT_EQ(cb::engine_errc::not_supported, rv.error());
 }
 
 TEST_F(CacheTest, Prepare) {
     auto rv = cache.prepare(Vbid{0}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    auto manifest = *rv;
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
     for (const auto& file : manifest.files) {
         EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid / file.path));
@@ -82,7 +82,7 @@ TEST_F(CacheTest, ReleaseByVb) {
     auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    auto manifest = *rv;
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
 
     cache.release(Vbid{1});
@@ -94,7 +94,7 @@ TEST_F(CacheTest, ReleaseByUuid) {
     auto rv = cache.prepare(Vbid{0}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    auto manifest = *rv;
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
     cache.release(manifest.uuid);
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
@@ -105,7 +105,7 @@ TEST_F(CacheTest, Detach) {
     auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    auto manifest = *rv;
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
 
     // detach removes the in-memory entry and returns the uuid, but leaves the
@@ -131,7 +131,7 @@ TEST_F(CacheTest, RemoveFromDisk) {
     auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<cb::snapshot::Manifest>(rv);
+    auto manifest = *rv;
 
     auto uuid = cache.detach(Vbid{1});
     ASSERT_TRUE(uuid.has_value());

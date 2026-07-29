@@ -2140,7 +2140,7 @@ CouchKVStore::getEncryptionKeyIds() const {
     return vbucketEncryptionKeysManager.getKeys();
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest>
+std::expected<cb::snapshot::Manifest, cb::engine_errc>
 CouchKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
@@ -2154,7 +2154,7 @@ CouchKVStore::prepareSnapshotImpl(
                      vb,
                      db.getFilename(),
                      COUCHSTORE_OPEN_FLAG_RDONLY);
-        return cb::engine_errc::failed;
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     cb::snapshot::Manifest manifest{vb, uuid};

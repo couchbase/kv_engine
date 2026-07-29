@@ -16,7 +16,7 @@
 #include <protocol/connection/client_connection.h>
 #include <snapshot/download_properties.h>
 #include <snapshot/manifest.h>
-#include <variant>
+#include <expected>
 
 namespace cb {
 enum class engine_errc;
@@ -48,7 +48,7 @@ public:
     }
 
 protected:
-    std::variant<cb::engine_errc, Manifest> doDownloadManifest();
+    std::expected<Manifest, cb::engine_errc> doDownloadManifest();
     cb::engine_errc doDownloadFiles(std::filesystem::path dir,
                                     const Manifest& manifest);
 

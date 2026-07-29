@@ -27,6 +27,7 @@
 #include <spdlog/common.h>
 
 #include <deque>
+#include <expected>
 #include <map>
 #include <memory>
 #include <queue>
@@ -306,7 +307,7 @@ public:
     getEncryptionKeyIds() const override;
 
     /// Create a snapshot in the provided directory for the provided vbucket
-    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
+    std::expected<cb::snapshot::Manifest, cb::engine_errc> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
             std::string_view uuid) override;

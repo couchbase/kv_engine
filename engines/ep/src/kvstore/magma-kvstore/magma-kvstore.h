@@ -23,6 +23,7 @@
 #include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 
+#include <expected>
 #include <filesystem>
 #include <map>
 #include <queue>
@@ -737,7 +738,7 @@ public:
     void setMagmaFusionMaxNumLogFiles(size_t value);
     size_t getMagmaFusionMaxNumLogFiles() const;
 
-    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
+    std::expected<cb::snapshot::Manifest, cb::engine_errc> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
             std::string_view uuid) override;
