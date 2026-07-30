@@ -815,6 +815,7 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
                 msg = "Not my vbucket";
                 return cb::engine_errc::not_my_vbucket;
             }
+            return cb::engine_errc::success;
         }
     } catch (std::exception& e) {
         msg = e.what();
