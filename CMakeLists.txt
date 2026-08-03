@@ -204,7 +204,7 @@ add_subdirectory(cluster_framework)
 add_subdirectory(fuzzing)
 
 add_subdirectory(tests)
-enable_code_coverage_report()
+enable_code_coverage_report(EXTRA_GCOVR_ARGS --gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file)
 
 add_subdirectory(programs)
 
