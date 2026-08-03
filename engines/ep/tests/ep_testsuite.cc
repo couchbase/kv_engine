@@ -1762,7 +1762,6 @@ static enum test_result test_multi_vb_compactions_with_workload(
             ++count;
         }
     }
-    wait_for_stat_to_be(h, "ep_workload_pattern", std::string{"read_heavy"});
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
@@ -9149,7 +9148,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_multi_vb_compactions_with_workload,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "workload_pattern_default=read_heavy",
                  prepare,
                  cleanup),
         TestCase("test async vbucket destroy",
