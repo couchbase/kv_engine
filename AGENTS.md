@@ -78,6 +78,15 @@ Guidelines:
   safety and clarity
 - Structured bindings, `std::optional`, `std::variant`, `constexpr`, and other
   modern features are acceptable
+- Prefer `std::expected` over a `std::variant<T, Error>` (or similar ad-hoc
+  encoding) when a function can fail with an informative error. `std::expected`
+  is the idiomatic, standard-library way to express "value or error" in
+  modern C++ (C++23) — it makes the success/failure contract explicit in the
+  return type, avoids the boilerplate of visiting a variant to distinguish
+  the value case from the error case, and composes naturally with
+  `and_then`/`or_else`/`transform`. Only fall back to exceptions or
+  `std::optional` where the surrounding code's existing error-handling style
+  makes that the better fit.
 - Use designated initializers introduced in C++20
 - Don't use C-style arrays, use `std::array` or `std::vector` instead
 - Don't use single character variable names
