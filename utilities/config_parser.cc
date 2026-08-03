@@ -7,7 +7,7 @@
  * licenses/BSD-3-Clause-Sun-Microsystems.txt
  */
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/config_parser.h>
 #include <platform/cb_malloc.h>

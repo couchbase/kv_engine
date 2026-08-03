@@ -166,6 +166,14 @@ time_t mc_time_convert_to_abs_time(rel_time_t rel_time) {
             rel_time, cb::time::UptimeClock::instance().getEpoch());
 }
 
+// fmt::localtime was removed in fmt 12; cb_localtime_r() is the
+// thread-safe, cross-platform equivalent already provided by platform.
+static std::tm to_local_tm(time_t time) {
+    std::tm tm{};
+    cb_localtime_r(&time, &tm);
+    return tm;
+}
+
 static void mc_gather_timing_samples() {
     BucketManager::instance().forEach([](Bucket& bucket) {
         bucket.timings.sample();
@@ -342,16 +350,16 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
                     "tickDuration:{}). Adjusting epoch from {:%FT%T%z} to "
                     "{:%FT%T%z}. Next check when uptime reaches:{}. "
                     "warnings:{}",
-                    fmt::localtime(system_clock::to_time_t(systemTimeEstimate)),
+                    to_local_tm(system_clock::to_time_t(systemTimeEstimate)),
                     newUptime,
                     epoch.load(),
-                    fmt::localtime(system_clock::to_time_t(systemTime)),
+                    to_local_tm(system_clock::to_time_t(systemTime)),
                     systemClockTolerance,
                     difference,
                     duration_cast<Duration>(tickDuration),
-                    fmt::localtime(system_clock::to_time_t(
+                    to_local_tm(system_clock::to_time_t(
                             time_point<system_clock>(epoch.load()))),
-                    fmt::localtime(system_clock::to_time_t(
+                    to_local_tm(system_clock::to_time_t(
                             time_point<system_clock>(newEpoch))),
                     nextSystemTimeCheck,
                     systemClockCheckWarnings);

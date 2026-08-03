@@ -17,7 +17,7 @@
 #include <fmt/std.h> // support for additional types in std::
 
 template <typename T>
-concept Formattable = fmt::has_formatter<T, fmt::format_context>::value;
+concept Formattable = fmt::is_formattable<T>::value;
 
 /**
  * Bridge between fmt::format and absl::Format.
