@@ -7364,8 +7364,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_fusion_num_file_extents",
                           "ep_fusion_num_files",
                           "ep_fusion_total_file_size",
-                          "ep_fusion_sync_session_total_bytes",
-                          "ep_fusion_sync_session_completed_bytes",
                           "ep_fusion_migration_total_bytes",
                           "ep_fusion_migration_completed_bytes",
                           "ep_fusion_log_store_pending_delete_size"});

@@ -55,10 +55,8 @@ Example response for `fusion uploader`:
 ```
 {
   "vb_0": {
-    "uploader_state": "enabled",
-    "sync_session_completed_bytes": 100,
-    "sync_session_total_bytes": 1000,
-    "sync_snapshot_pending_bytes": 100
+    "state": "enabled",
+    "snapshot_pending_bytes": 100,
     "term": 2,
   },
   "vb_1": ...

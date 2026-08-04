@@ -2138,20 +2138,6 @@
         "added": "8.0.0"
     },
     {
-        "key": "ep_fusion_sync_session_total_bytes",
-        "unit": "bytes",
-        "type": "gauge",
-        "description": "Total number of bytes in the sync session.",
-        "added": "8.0.0"
-    },
-    {
-        "key": "ep_fusion_sync_session_completed_bytes",
-        "unit": "bytes",
-        "type": "gauge",
-        "description": "Total number of bytes completed in the sync session.",
-        "added": "8.0.0"
-    },
-    {
         "key": "ep_fusion_migration_total_bytes",
         "unit": "bytes",
         "type": "gauge",

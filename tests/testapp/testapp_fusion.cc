@@ -517,12 +517,6 @@ TEST_P(FusionTest, Stat_Uploader) {
     ASSERT_TRUE(json["term"].is_number_integer());
     EXPECT_EQ(0, json["term"]);
 
-    ASSERT_TRUE(json.contains("sync_session_completed_bytes"));
-    ASSERT_TRUE(json["sync_session_completed_bytes"].is_number_integer());
-    EXPECT_EQ(0, json["sync_session_completed_bytes"]);
-    ASSERT_TRUE(json.contains("sync_session_total_bytes"));
-    ASSERT_TRUE(json["sync_session_total_bytes"].is_number_integer());
-    EXPECT_EQ(0, json["sync_session_total_bytes"]);
     ASSERT_TRUE(json.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(json["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, json["snapshot_pending_bytes"]);
@@ -557,12 +551,6 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_0["term"].is_number_integer());
     EXPECT_EQ(0, vb_0["term"]);
 
-    ASSERT_TRUE(vb_0.contains("sync_session_completed_bytes"));
-    ASSERT_TRUE(vb_0["sync_session_completed_bytes"].is_number_integer());
-    EXPECT_EQ(0, vb_0["sync_session_completed_bytes"]);
-    ASSERT_TRUE(vb_0.contains("sync_session_total_bytes"));
-    ASSERT_TRUE(vb_0["sync_session_total_bytes"].is_number_integer());
-    EXPECT_EQ(0, vb_0["sync_session_total_bytes"]);
     ASSERT_TRUE(vb_0.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_0["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_0["snapshot_pending_bytes"]);
@@ -587,12 +575,6 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_1["term"].is_number_integer());
     EXPECT_EQ(0, vb_1["term"]);
 
-    ASSERT_TRUE(vb_1.contains("sync_session_completed_bytes"));
-    ASSERT_TRUE(vb_1["sync_session_completed_bytes"].is_number_integer());
-    EXPECT_EQ(0, vb_1["sync_session_completed_bytes"]);
-    ASSERT_TRUE(vb_1.contains("sync_session_total_bytes"));
-    ASSERT_TRUE(vb_1["sync_session_total_bytes"].is_number_integer());
-    EXPECT_EQ(0, vb_1["sync_session_total_bytes"]);
     ASSERT_TRUE(vb_1.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_1["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_1["snapshot_pending_bytes"]);
