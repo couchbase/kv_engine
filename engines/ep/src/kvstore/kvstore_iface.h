@@ -23,6 +23,7 @@
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
+#include <snapshot/disk_format_constraint.h>
 #include <snapshot/manifest.h>
 #include <expected>
 #include <variant>
@@ -194,6 +195,9 @@ public:
      * @param cookie The cookie requesting the snapshot
      * @param snapshotDirectory the destination directory for the snapshot
      * @param vb The vbucket to create the snapshot for
+     * @param constraint The disk format supported by the requesting node.
+     *        The snapshot must not be created if its files use a disk
+     *        format the requester can't use (not_supported is returned)
      * @param generateChecksums Whether to generate checksums for the snapshot
      * (can be expensive at large scale)
      * @return Manifest for success or status code for failure
@@ -202,8 +206,21 @@ public:
     prepareSnapshot(CookieIface& cookie,
                     const std::filesystem::path& snapshotDirectory,
                     Vbid vb,
+                    const cb::snapshot::DiskFormatConstraint& constraint,
                     bool generateChecksums) {
         return std::unexpected(cb::engine_errc::not_supported);
+    }
+
+    /**
+     * Return the disk format constraint describing the storage backend and
+     * the maximum disk format version this KVStore supports. Sent in
+     * PrepareSnapshot requests when downloading a snapshot from another node
+     * so that node can refuse to create a snapshot this node can't use.
+     * A version of 0 means unknown and disables the version check.
+     */
+    virtual cb::snapshot::DiskFormatConstraint getSnapshotDiskFormatConstraint()
+            const {
+        return {};
     }
 
     virtual cb::engine_errc processSnapshots(
@@ -941,12 +958,16 @@ public:
      * @param snapshotDirectory the destination directory for the snapshot
      * @param vb The vbucket to create the snapshot for
      * @param uuid The uuid of the snapshot
+     * @param constraint The disk format supported by the requesting node.
+     *        The snapshot must not be created if its files use a disk
+     *        format the requester can't use (not_supported is returned)
      * @return Manifest for success or status code for failure
      */
     virtual std::expected<cb::snapshot::Manifest, cb::engine_errc>
     prepareSnapshotImpl(const std::filesystem::path& snapshotDirectory,
                         Vbid vb,
-                        std::string_view uuid) {
+                        std::string_view uuid,
+                        const cb::snapshot::DiskFormatConstraint& constraint) {
         return std::unexpected(cb::engine_errc::not_supported);
     }
 };

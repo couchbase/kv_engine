@@ -741,7 +741,11 @@ public:
     std::expected<cb::snapshot::Manifest, cb::engine_errc> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
-            std::string_view uuid) override;
+            std::string_view uuid,
+            const cb::snapshot::DiskFormatConstraint& constraint) override;
+
+    cb::snapshot::DiskFormatConstraint getSnapshotDiskFormatConstraint()
+            const override;
 
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.

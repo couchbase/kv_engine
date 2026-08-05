@@ -287,6 +287,7 @@ public:
     cb::engine_errc prepare_snapshot(
             CookieIface& cookie,
             Vbid vbid,
+            const cb::snapshot::DiskFormatConstraint& constraint,
             const std::function<void(const nlohmann::json&)>& callback)
             override;
     cb::engine_errc download_snapshot(CookieIface& cookie,
@@ -1527,8 +1528,9 @@ cb::engine_errc EWB_Engine::set_active_encryption_keys(
 cb::engine_errc EWB_Engine::prepare_snapshot(
         CookieIface& cookie,
         Vbid vbid,
+        const cb::snapshot::DiskFormatConstraint& constraint,
         const std::function<void(const nlohmann::json&)>& callback) {
-    return real_engine->prepare_snapshot(cookie, vbid, callback);
+    return real_engine->prepare_snapshot(cookie, vbid, constraint, callback);
 }
 cb::engine_errc EWB_Engine::download_snapshot(CookieIface& cookie,
                                               Vbid vbid,

@@ -67,6 +67,13 @@ struct Manifest {
     /// The uuid of the snapshot used to separate two different snapshots
     /// for the same vbucket from eachother
     std::string uuid;
+    /// The storage backend which produced the files in the snapshot
+    /// (e.g. "couchstore" or "magma"). Empty if not recorded.
+    std::string backend;
+    /// The on-disk format version of the files in the snapshot. Used by
+    /// the downloading node to determine if it can use the snapshot.
+    /// 0 means unknown (not recorded by the backend).
+    uint32_t diskFormatVersion = 0;
     /// A vector of files containing the database files in the snapshot
     std::vector<FileInfo> files;
     /// A vector of files containing the data encryption keys used within the

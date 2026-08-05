@@ -7826,6 +7826,7 @@ EventuallyPersistentEngine::set_active_encryption_keys(
 cb::engine_errc EventuallyPersistentEngine::prepare_snapshot(
         CookieIface& cookie,
         Vbid vbid,
+        const cb::snapshot::DiskFormatConstraint& constraint,
         const std::function<void(const nlohmann::json&)>& callback) {
     std::function<void(const nlohmann::json&)> non_alloc =
             [&callback](const auto& json) {
@@ -7835,7 +7836,8 @@ cb::engine_errc EventuallyPersistentEngine::prepare_snapshot(
 
     auto engine = acquireEngine(this);
     try {
-        return engine->getKVBucket()->prepareSnapshot(cookie, vbid, non_alloc);
+        return engine->getKVBucket()->prepareSnapshot(
+                cookie, vbid, constraint, non_alloc);
     } catch (const std::exception& e) {
         EP_LOG_WARN_CTX("Failed to prepare snapshot",
                         {"conn_id", cookie.getConnectionId()},

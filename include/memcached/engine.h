@@ -25,6 +25,10 @@
 #include <utility>
 #include <variant>
 
+namespace cb::snapshot {
+struct DiskFormatConstraint;
+}
+
 namespace cb {
 struct EngineErrorGetCollectionIDResult;
 struct EngineErrorGetScopeIDResult;
@@ -1037,12 +1041,16 @@ struct EngineIface {
      *
      * @param cookie the cookie requesting the snapshot to be created
      * @param vbid the vbucket to snaphot
+     * @param constraint the disk format supported by the requesting node;
+     *        the snapshot must not be created if its files use a disk
+     *        format the requester can't use (not_supported is returned)
      * @param callback a callback which is called with the snapshot manifest
      * @return error code for the operation
      */
     [[nodiscard]] virtual cb::engine_errc prepare_snapshot(
             CookieIface& cookie,
             Vbid vbid,
+            const cb::snapshot::DiskFormatConstraint& constraint,
             const std::function<void(const nlohmann::json&)>& callback) {
         return cb::engine_errc::not_supported;
     }

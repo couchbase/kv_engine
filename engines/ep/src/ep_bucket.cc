@@ -49,6 +49,7 @@
 #include <memcached/util.h>
 #include <platform/split_string.h>
 #include <platform/timeutils.h>
+#include <snapshot/disk_format_constraint.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
@@ -3181,6 +3182,7 @@ bool EPBucket::shouldPrepareSnapshotGenerateChecksums() const {
 cb::engine_errc EPBucket::prepareSnapshot(
         CookieIface& cookie,
         Vbid vbid,
+        const cb::snapshot::DiskFormatConstraint& constraint,
         const std::function<void(const nlohmann::json&)>& callback) {
     auto vb = getLockedVBucket(vbid);
     if (!vb) {
@@ -3192,11 +3194,14 @@ cb::engine_errc EPBucket::prepareSnapshot(
     }
 
     auto rv = snapshotCache.prepare(
-            vbid, [this, &cookie](const std::filesystem::path& path, Vbid vb) {
+            vbid,
+            [this, &cookie, &constraint](const std::filesystem::path& path,
+                                         Vbid vb) {
                 return getRWUnderlying(vb)->prepareSnapshot(
                         cookie,
                         path,
                         vb,
+                        constraint,
                         shouldPrepareSnapshotGenerateChecksums());
             });
     if (!rv.has_value()) {
@@ -3207,7 +3212,24 @@ cb::engine_errc EPBucket::prepareSnapshot(
         return rv.error();
     }
 
-    callback(*rv);
+    // The KVStore checks the constraint before creating a new snapshot,
+    // but the cache may have returned a pre-existing snapshot created for
+    // a different requester; check that its recorded disk format may be
+    // used by this requester. Keep the snapshot around on failure; it is
+    // still valid for a more capable requester (and gets purged by the
+    // cache aging otherwise).
+    const auto& manifest = *rv;
+    if (nlohmann::json failure; !constraint.validate(
+                manifest.backend, manifest.diskFormatVersion, failure)) {
+        EP_LOG_WARN_CTX("EPBucket::prepareSnapshot unsupported disk format",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"vb", vbid},
+                        {"error", failure});
+        cookie.setErrorContext(failure.dump());
+        return cb::engine_errc::not_supported;
+    }
+
+    callback(manifest);
     return cb::engine_errc::success;
 }
 

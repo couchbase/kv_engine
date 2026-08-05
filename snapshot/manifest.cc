@@ -60,6 +60,12 @@ void to_json(nlohmann::json& json, const Manifest& manifest) {
             {"vbid", manifest.vbid.get()},
             {"files", manifest.files},
             {"deks", manifest.deks}};
+    if (!manifest.backend.empty()) {
+        json["storage"] = {{"backend", manifest.backend}};
+        if (manifest.diskFormatVersion != 0) {
+            json["storage"]["version"] = manifest.diskFormatVersion;
+        }
+    }
 }
 
 void from_json(const nlohmann::json& json, Manifest& manifest) {
@@ -81,6 +87,26 @@ void from_json(const nlohmann::json& json, Manifest& manifest) {
     if (json.contains("deks")) {
         manifest.deks = json["deks"].get<std::vector<FileInfo>>();
     }
+    // "storage" is optional; manifests created before it was introduced
+    // don't contain it (backend stays empty and version stays 0 = unknown)
+    if (json.contains("storage")) {
+        const auto& storage = json["storage"];
+        if (!storage.is_object() || !storage.contains("backend") ||
+            !storage["backend"].is_string()) {
+            throw std::invalid_argument(
+                    "from_json: storage must be an object containing backend "
+                    "as string");
+        }
+        manifest.backend = storage["backend"].get<std::string>();
+        if (storage.contains("version")) {
+            if (!storage["version"].is_number_unsigned()) {
+                throw std::invalid_argument(
+                        "from_json: storage.version must be an unsigned "
+                        "number");
+            }
+            manifest.diskFormatVersion = storage["version"].get<uint32_t>();
+        }
+    }
 }
 
 Manifest::Manifest(const nlohmann::json& json) {
@@ -89,6 +115,14 @@ Manifest::Manifest(const nlohmann::json& json) {
 
 void Manifest::addDebugStats(const StatCollector& collector) const {
     addUuidStat(collector);
+    if (!backend.empty()) {
+        collector.addStat(
+                std::string_view{fmt::format("vb_{}:backend", vbid.get())},
+                backend);
+        collector.addStat(std::string_view{fmt::format(
+                                  "vb_{}:disk_format_version", vbid.get())},
+                          diskFormatVersion);
+    }
     for (const auto& file : files) {
         file.addDebugStats(fmt::format("vb_{}", vbid.get()), collector);
     }

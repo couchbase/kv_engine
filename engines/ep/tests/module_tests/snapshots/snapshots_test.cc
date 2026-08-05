@@ -15,6 +15,7 @@
 #include "snapshots/cache.h"
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
+#include <snapshot/disk_format_constraint.h>
 
 #include <filesystem>
 
@@ -47,10 +48,11 @@ public:
 
     auto doPrepareSnapshot(const std::filesystem::path& directory,
                            Vbid vbid,
-                           bool generateChecksums) {
+                           bool generateChecksums,
+                           cb::snapshot::DiskFormatConstraint constraint = {}) {
         MockCookie cookie;
         return kvstore->prepareSnapshot(
-                cookie, directory, vbid, generateChecksums);
+                cookie, directory, vbid, constraint, generateChecksums);
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
@@ -71,6 +73,56 @@ TEST_P(SnapshotsTests, prepare) {
         EXPECT_EQ(file_size(cache.make_absolute(file.path, manifest.uuid)),
                   file.size);
     }
+}
+
+/// The manifest must record the storage backend and (for couchstore) the
+/// disk format version of the snapshot files
+TEST_P(SnapshotsTests, prepareRecordsDiskFormat) {
+    auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
+        return doPrepareSnapshot(dir, vb, true);
+    });
+    ASSERT_TRUE(rv.has_value());
+    const auto manifest = *rv;
+    const auto constraint = kvstore->getSnapshotDiskFormatConstraint();
+    EXPECT_EQ(constraint.backend, manifest.backend);
+    if (isCouchstore()) {
+        EXPECT_EQ("couchstore", manifest.backend);
+        EXPECT_NE(0, manifest.diskFormatVersion);
+        EXPECT_LE(manifest.diskFormatVersion, constraint.maxVersion);
+    } else {
+        EXPECT_EQ("magma", manifest.backend);
+    }
+}
+
+/// A snapshot must not be created for a requester which does not support
+/// the disk format version of the snapshot files
+TEST_P(SnapshotsTests, prepareUnsupportedDiskFormatVersion) {
+    if (!isCouchstore()) {
+        // magma reports a storage format version of 1, and a maxVersion of 0
+        // means "unknown" (the check is skipped), so no constraint can be low
+        // enough to reject a magma snapshot on version grounds. Testable once
+        // magma's storage format version is bumped.
+        GTEST_SKIP();
+    }
+    auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
+        // Version 1 predates all disk format versions in use
+        return doPrepareSnapshot(dir, vb, true, {"couchstore", 1});
+    });
+    ASSERT_FALSE(rv.has_value());
+    EXPECT_EQ(cb::engine_errc::not_supported, rv.error());
+    EXPECT_FALSE(cache.lookup(vbid));
+}
+
+/// A snapshot must not be created for a requester using a different
+/// storage backend
+TEST_P(SnapshotsTests, prepareWrongBackend) {
+    auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
+        const auto other = isCouchstore() ? "magma" : "couchstore";
+        return doPrepareSnapshot(dir, vb, true, {other, 0});
+    });
+    ASSERT_FALSE(rv.has_value());
+    EXPECT_EQ(cb::engine_errc::not_supported, rv.error());
+    EXPECT_FALSE(cache.lookup(vbid));
 }
 
 TEST_P(SnapshotsTests, purge) {

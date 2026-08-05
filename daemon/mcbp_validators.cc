@@ -2777,13 +2777,29 @@ static Status get_file_fragment_validator(Cookie& cookie) {
 }
 
 static Status prepare_snapshot_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto& request = cookie.getHeader();
+    if (!cb::mcbp::datatype::is_json(request.getDatatype())) {
+        cookie.setErrorContext("Datatype must be JSON");
+        return Status::Einval;
+    }
+
+    if (!cookie.isValidJson(request.getValueString())) {
+        cookie.setErrorContext("Provided value is not JSON");
+        return Status::Einval;
+    }
+
+    return Status::Success;
 }
 
 static Status release_snapshot_validator(Cookie& cookie) {

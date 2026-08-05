@@ -372,6 +372,7 @@ public:
     [[nodiscard]] cb::engine_errc prepare_snapshot(
             CookieIface& cookie,
             Vbid vbid,
+            const cb::snapshot::DiskFormatConstraint& constraint,
             const std::function<void(const nlohmann::json&)>& callback)
             override;
     [[nodiscard]] cb::engine_errc download_snapshot(

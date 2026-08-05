@@ -5085,7 +5085,19 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc>
 MagmaKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
-        std::string_view uuid) {
+        std::string_view uuid,
+        const cb::snapshot::DiskFormatConstraint& constraint) {
+    // Magma doesn't expose the actual version of the on-disk data, so the
+    // maximum version this node supports is used as the snapshot's version
+    const auto localFormat = getSnapshotDiskFormatConstraint();
+    if (nlohmann::json failure; !constraint.validate(
+                localFormat.backend, localFormat.maxVersion, failure)) {
+        logger->warnWithContext(
+                "MagmaKVStore::prepareSnapshotImpl unsupported disk format",
+                {{"vb", vb}, {"uuid", uuid}, {"error", failure}});
+        return std::unexpected(cb::engine_errc::not_supported);
+    }
+
     magma->SyncKVStore(Magma::KVStoreID(vb.get()), false);
     const auto res = magma->Clone(snapshotDirectory.string(),
                                   Magma::KVStoreID(vb.get()));
@@ -5099,6 +5111,8 @@ MagmaKVStore::prepareSnapshotImpl(
 
     const auto& cloneManifest = std::get<magma::CloneManifest>(res);
     cb::snapshot::Manifest manifest(vb, uuid);
+    manifest.backend = localFormat.backend;
+    manifest.diskFormatVersion = localFormat.maxVersion;
     std::size_t fileid = 1;
     for (const auto& file : cloneManifest.Files) {
         manifest.files.emplace_back(file.FilePath, file.Size, fileid++);
@@ -5122,4 +5136,9 @@ MagmaKVStore::prepareSnapshotImpl(
     }
 
     return manifest;
+}
+
+cb::snapshot::DiskFormatConstraint
+MagmaKVStore::getSnapshotDiskFormatConstraint() const {
+    return {"magma", magma::GetStorageFormatVersion()};
 }

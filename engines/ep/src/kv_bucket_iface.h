@@ -949,6 +949,7 @@ public:
     [[nodiscard]] virtual cb::engine_errc prepareSnapshot(
             CookieIface& cookie,
             Vbid vbid,
+            const cb::snapshot::DiskFormatConstraint& constraint,
             const std::function<void(const nlohmann::json&)>& callback) {
         return cb::engine_errc::not_supported;
     }

@@ -1094,6 +1094,7 @@ public:
             CookieIface& cookie,
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
+            const cb::snapshot::DiskFormatConstraint& constraint,
             bool generateChecksums) override;
 
     cb::engine_errc processSnapshots(const std::filesystem::path& path,

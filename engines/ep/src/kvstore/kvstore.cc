@@ -811,10 +811,11 @@ doPrepareSnapshotImpl(KVStore& kvs,
                       CookieIface& cookie,
                       const std::filesystem::path& path,
                       Vbid vbid,
-                      std::string_view uuid) {
+                      std::string_view uuid,
+                      const cb::snapshot::DiskFormatConstraint& constraint) {
     ScopeTimer1<TracerStopwatch<cb::tracing::Code>> timer(
             cookie, cb::tracing::Code::PrepareSnapshot);
-    return kvs.prepareSnapshotImpl(path, vbid, uuid);
+    return kvs.prepareSnapshotImpl(path, vbid, uuid, constraint);
 }
 
 static void prepareSnapshotChecksums(CookieIface& cookie,
@@ -835,6 +836,7 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
         CookieIface& cookie,
         const std::filesystem::path& path,
         Vbid vbid,
+        const cb::snapshot::DiskFormatConstraint& constraint,
         bool generateChecksums) {
     auto uuid = ::to_string(cb::uuid::random());
     const auto snapshotPath = path / uuid;
@@ -859,8 +861,8 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
     });
 
     // Call implementation to get backend specifc snapshot prepared
-    auto prepared =
-            doPrepareSnapshotImpl(*this, cookie, snapshotPath, vbid, uuid);
+    auto prepared = doPrepareSnapshotImpl(
+            *this, cookie, snapshotPath, vbid, uuid, constraint);
     if (!prepared.has_value()) {
         return prepared;
     }

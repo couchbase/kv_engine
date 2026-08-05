@@ -36,6 +36,7 @@
 #include "warmup.h"
 #include <folly/portability/GTest.h>
 #include <platform/semaphore.h>
+#include <snapshot/disk_format_constraint.h>
 #include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
 
@@ -668,6 +669,11 @@ TEST_F(StatTest, DbFormatVersion) {
     ASSERT_NE(diskinfoVals.end(),
               diskinfoVals.find("ep_db_max_format_version"));
     EXPECT_EQ(expected, std::stoul(diskinfoVals["ep_db_max_format_version"]));
+
+    auto constraint =
+            store->getROUnderlying(vbid)->getSnapshotDiskFormatConstraint();
+    EXPECT_EQ("couchstore", constraint.backend);
+    EXPECT_EQ(expected, constraint.maxVersion);
 }
 
 TEST_F(StatTest, WarmupState) {

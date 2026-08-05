@@ -2280,6 +2280,14 @@ BinprotGetMetaCommand::BinprotGetMetaCommand(std::string key,
     setExtras(extras);
 }
 
+BinprotPrepareSnapshotCommand::BinprotPrepareSnapshotCommand(
+        Vbid vbucket, const nlohmann::json& diskFormatConstraint)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::PrepareSnapshot) {
+    setVBucket(vbucket);
+    setValue(nlohmann::json{{"storage", diskFormatConstraint}}.dump());
+    setDatatype(cb::mcbp::Datatype::JSON);
+}
+
 GetMetaPayload BinprotGetMetaResponse::getMetaPayload() const {
     Expects(isSuccess());
 

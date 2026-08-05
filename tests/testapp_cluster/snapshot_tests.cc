@@ -25,6 +25,7 @@
 #include <platform/timeutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <snapshot/disk_format_constraint.h>
 #include <snapshot/download_properties.h>
 #include <snapshot/manifest.h>
 #include <tests/testapp/testapp_subdoc_common.h>
@@ -59,6 +60,17 @@ protected:
     // Perform all steps to copy the snapshot from source to destination, with
     // the specified throttle rate (in bytes per second).
     void copy_snapshot(size_t throttleRate);
+
+    /// The name of the storage backend used by the running cluster, as
+    /// reported in a snapshot manifest / expected in a PrepareSnapshot
+    /// disk format constraint (differs from BucketPersistenceBackend's
+    /// JSON name "couchdb" used when creating the bucket)
+    static std::string ownBackendName() {
+        return cluster->getBucketPersistenceBackend() ==
+                               cb::test::BucketPersistenceBackend::Magma
+                       ? "magma"
+                       : "couchstore";
+    }
 
     void populate_docs_on_source() {
         // Create some documents so that we know we can verify something once
@@ -450,8 +462,10 @@ TEST_P(SnapshotClusterTest, PrepareSnapshot) {
     });
 
     populate_docs_on_source();
-    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
-    prepare.setVBucket(Vbid{0});
+    BinprotPrepareSnapshotCommand prepare(
+            Vbid{0},
+            nlohmann::json(
+                    cb::snapshot::DiskFormatConstraint{ownBackendName(), 14}));
     auto rsp = source_node->execute(prepare);
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     // Must be able to construct a Manifest from the response
@@ -459,6 +473,92 @@ TEST_P(SnapshotClusterTest, PrepareSnapshot) {
     rsp = source_node->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid});
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+/// The PrepareSnapshot request requires a JSON payload with the disk
+/// format supported by the requesting node
+TEST_P(SnapshotClusterTest, PrepareSnapshotNoPayload) {
+    populate_docs_on_source();
+    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
+    prepare.setVBucket(Vbid{0});
+    auto rsp = source_node->execute(prepare);
+    EXPECT_EQ(Status::Einval, rsp.getStatus());
+}
+
+/// The PrepareSnapshot payload must contain the "storage" field with the
+/// disk format constraint
+TEST_P(SnapshotClusterTest, PrepareSnapshotMissingStorage) {
+    populate_docs_on_source();
+    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
+    prepare.setVBucket(Vbid{0});
+    prepare.setValue(
+            nlohmann::json{{"backend", ownBackendName()}, {"max_version", 14}}
+                    .dump());
+    prepare.setDatatype(cb::mcbp::Datatype::JSON);
+    auto rsp = source_node->execute(prepare);
+    EXPECT_EQ(Status::Einval, rsp.getStatus());
+}
+
+/// PrepareSnapshot must fail (and not create or leave behind a snapshot)
+/// if the requester can't use the disk format of the snapshot files
+TEST_P(SnapshotClusterTest, PrepareSnapshotUnsupportedDiskFormat) {
+    populate_docs_on_source();
+
+    const std::string ownBackend = ownBackendName();
+    const bool isMagma = ownBackend == "magma";
+    const std::string otherBackend = isMagma ? "couchstore" : "magma";
+
+    // Create (and cache) a snapshot with a permissive constraint
+    BinprotPrepareSnapshotCommand prepare(
+            Vbid{0},
+            nlohmann::json(cb::snapshot::DiskFormatConstraint{ownBackend, 14}));
+    auto rsp = source_node->execute(prepare);
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};
+    EXPECT_EQ(ownBackend, manifest.backend);
+    EXPECT_NE(0, manifest.diskFormatVersion);
+    EXPECT_LE(manifest.diskFormatVersion, (isMagma ? 1 : 14));
+    if (!isMagma) {
+        // The cached snapshot may not be returned to a requester which does
+        // not support its disk format version. V1 predates the couchstore
+        // versions in use but magma is on V1 so can't be tested.
+        // @todo enable magma when it moves to V2 or later.
+        rsp = source_node->execute(BinprotPrepareSnapshotCommand{
+                Vbid{0},
+                nlohmann::json(
+                        cb::snapshot::DiskFormatConstraint{ownBackend, 1})});
+        EXPECT_EQ(Status::NotSupported, rsp.getStatus());
+    }
+
+    // Nor to a requester using a different backend
+    rsp = source_node->execute(BinprotPrepareSnapshotCommand{
+            Vbid{0},
+            nlohmann::json(
+                    cb::snapshot::DiskFormatConstraint{otherBackend, 0})});
+    EXPECT_EQ(Status::NotSupported, rsp.getStatus());
+
+    rsp = source_node->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // With no cached snapshot the request must be refused before a new
+    // snapshot is created
+    rsp = source_node->execute(BinprotPrepareSnapshotCommand{
+            Vbid{0},
+            nlohmann::json(
+                    cb::snapshot::DiskFormatConstraint{otherBackend, 0})});
+    EXPECT_EQ(Status::NotSupported, rsp.getStatus());
+
+    std::string key;
+    std::string value;
+    source_node->stats(
+            [&key, &value](auto k, auto v) {
+                key = k;
+                value = v;
+            },
+            "snapshot-status 0");
+    EXPECT_EQ("vb_0:status", key);
+    EXPECT_EQ("none", value);
 }
 
 class GetFileFragmentTestSink : public cb::io::Sink {
@@ -485,8 +585,10 @@ TEST_P(SnapshotClusterTest, GetFileFragment) {
     });
 
     populate_docs_on_source();
-    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
-    prepare.setVBucket(Vbid{0});
+    BinprotPrepareSnapshotCommand prepare(
+            Vbid{0},
+            nlohmann::json(
+                    cb::snapshot::DiskFormatConstraint{ownBackendName(), 14}));
     auto rsp = source_node->execute(prepare);
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};
@@ -526,8 +628,10 @@ TEST_P(SnapshotClusterTest, GetFileFragmentWithChecksum) {
     });
 
     populate_docs_on_source();
-    BinprotGenericCommand prepare(ClientOpcode::PrepareSnapshot);
-    prepare.setVBucket(Vbid{0});
+    BinprotPrepareSnapshotCommand prepare(
+            Vbid{0},
+            nlohmann::json(
+                    cb::snapshot::DiskFormatConstraint{ownBackendName(), 14}));
     auto rsp = source_node->execute(prepare);
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     cb::snapshot::Manifest manifest{nlohmann::json::parse(rsp.getDataView())};

@@ -1,10 +1,12 @@
 add_library(snapshot STATIC
+        disk_format_constraint.cc
+        disk_format_constraint.h
         download_properties.cc
         download_properties.h
         file_downloader.cc
         file_downloader.h
-        manifest.h
         manifest.cc
+        manifest.h
         snapshot_downloader.cc
         snapshot_downloader.h
 )
@@ -18,6 +20,7 @@ target_link_libraries(snapshot PUBLIC
 add_sanitizers(snapshot)
 
 cb_add_test_executable(snapshot_tests
+        disk_format_constraint_test.cc
         download_properties_test.cc
         file_downloader_test.cc
         manifest_test.cc)

@@ -923,7 +923,7 @@ private:
 class BinprotGetFailoverLogCommand : public BinprotGenericCommand {
 public:
     BinprotGetFailoverLogCommand()
-        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetFailoverLog){};
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetFailoverLog) {};
 };
 
 class BinprotSetParamCommand : public BinprotGenericCommand {
@@ -1308,4 +1308,17 @@ public:
         : BinprotResponse(std::move(other)) {
     }
     GetMetaPayload getMetaPayload() const;
+};
+
+/**
+ * Request the server to prepare a snapshot for the given vbucket.
+ * diskFormatConstraint describes the disk format supported by the
+ * requesting node (e.g. {"backend": "couchstore", "max_version": 14});
+ * the command wraps it in the request value as {"storage": <constraint>}.
+ */
+class BinprotPrepareSnapshotCommand : public BinprotGenericCommand {
+public:
+    BinprotPrepareSnapshotCommand() = delete;
+    BinprotPrepareSnapshotCommand(Vbid vbucket,
+                                  const nlohmann::json& diskFormatConstraint);
 };

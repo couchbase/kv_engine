@@ -2129,10 +2129,7 @@ StorageProperties CouchKVStore::getStorageProperties() const {
             StorageProperties::ContinuousBackupAvailable::No,
             StorageProperties::BloomFilterAvailable::No,
             StorageProperties::Fusion::No,
-            // Couchstore does not expose a "max supported version" API; V14 is
-            // the newest version in its public Header::Version enum and must be
-            // updated if couchstore introduces a newer disk format version.
-            static_cast<uint32_t>(cb::couchstore::Header::Version::V14)};
+            cb::couchstore::getFileFormatVersion()};
 }
 
 std::variant<cb::engine_errc, std::unordered_set<std::string>>
@@ -2144,7 +2141,8 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc>
 CouchKVStore::prepareSnapshotImpl(
         const std::filesystem::path& snapshotDirectory,
         Vbid vb,
-        std::string_view uuid) {
+        std::string_view uuid,
+        const cb::snapshot::DiskFormatConstraint& constraint) {
     DbHolder db(*this);
     couchstore_error_t err = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (err != COUCHSTORE_SUCCESS) {
@@ -2157,7 +2155,20 @@ CouchKVStore::prepareSnapshotImpl(
         return std::unexpected(cb::engine_errc::failed);
     }
 
+    const auto localFormat = getSnapshotDiskFormatConstraint();
+    const auto diskVersion = static_cast<uint32_t>(
+            cb::couchstore::getHeader(*db.getDb()).version);
+    if (nlohmann::json failure;
+        !constraint.validate(localFormat.backend, diskVersion, failure)) {
+        logger.warnWithContext(
+                "CouchKVStore::prepareSnapshotImpl unsupported disk format",
+                {{"vb", vb}, {"uuid", uuid}, {"error", failure}});
+        return std::unexpected(cb::engine_errc::not_supported);
+    }
+
     cb::snapshot::Manifest manifest{vb, uuid};
+    manifest.backend = localFormat.backend;
+    manifest.diskFormatVersion = diskVersion;
 
     std::size_t fileid = 1;
     std::filesystem::path path = db.getFilename();
@@ -2179,6 +2190,11 @@ CouchKVStore::prepareSnapshotImpl(
     }
 
     return manifest;
+}
+
+cb::snapshot::DiskFormatConstraint
+CouchKVStore::getSnapshotDiskFormatConstraint() const {
+    return {"couchstore", cb::couchstore::getFileFormatVersion()};
 }
 
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {

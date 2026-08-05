@@ -12,11 +12,13 @@
 
 #include <bucket_logger.h>
 #include <ep_engine.h>
+#include <kv_bucket.h>
 #include <memcached/server_core_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <snapshot/disk_format_constraint.h>
 #include <snapshot/download_properties.h>
 #include <snapshot/manifest.h>
 #include <snapshot/snapshot_downloader.h>
@@ -110,8 +112,12 @@ void DownloadSnapshotTask::createConnection() {
 std::expected<Manifest, cb::engine_errc>
 DownloadSnapshotTask::doDownloadManifest() {
     listener->stateChanged(DownloadSnapshotTaskState::PrepareSnapshot);
-    BinprotGenericCommand prepare(cb::mcbp::ClientOpcode::PrepareSnapshot);
-    prepare.setVBucket(vbid);
+    // Tell the source node which disk format we support so that it can
+    // refuse to create a snapshot we can't use
+    const auto constraint = engine->getKVBucket()
+                                    ->getRWUnderlying(vbid)
+                                    ->getSnapshotDiskFormatConstraint();
+    BinprotPrepareSnapshotCommand prepare(vbid, constraint);
     nlohmann::json json;
     try {
         auto rsp = connection->execute(prepare);
@@ -125,6 +131,9 @@ DownloadSnapshotTask::doDownloadManifest() {
             listener->failed(fmt::format("Failed to prepare snapshot: {}: {}",
                                          rsp.getStatus(),
                                          rsp.getDataView()));
+            if (rsp.getStatus() == cb::mcbp::Status::NotSupported) {
+                return std::unexpected(cb::engine_errc::not_supported);
+            }
             return std::unexpected(cb::engine_errc::failed);
         }
         json = rsp.getDataJson();
@@ -165,6 +174,25 @@ size_t DownloadSnapshotTask::getChecksumLength() {
 
 cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
         std::filesystem::path dir, const Manifest& manifest) {
+    // The source node refuses to create a snapshot we can't use, but the
+    // manifest may be a locally cached one from before a restart (or
+    // downgrade); verify that we support its disk format before
+    // downloading any files.
+    const auto constraint = engine->getKVBucket()
+                                    ->getRWUnderlying(vbid)
+                                    ->getSnapshotDiskFormatConstraint();
+    if (nlohmann::json failure; !constraint.validate(
+                manifest.backend, manifest.diskFormatVersion, failure)) {
+        listener->failed("Snapshot disk format is not supported: " +
+                         failure.dump());
+        EP_LOG_WARN_CTX(
+                "DownloadSnapshotTask::doDownloadFiles() unsupported disk "
+                "format",
+                {"vb", vbid},
+                {"error", failure});
+        return cb::engine_errc::not_supported;
+    }
+
     listener->setManifest(manifest);
     listener->stateChanged(DownloadSnapshotTaskState::DownloadFiles);
 
@@ -220,6 +248,10 @@ bool DownloadSnapshotTask::run() {
                 });
         if (rv.has_value()) {
             listener->stateChanged(DownloadSnapshotTaskState::Finished);
+        } else if (rv.error() == cb::engine_errc::not_supported) {
+            // An incompatible snapshot is useless on this node; make sure
+            // no cached copy of it sticks around
+            manager.release(vbid);
         }
     } catch (const std::exception& e) {
         listener->failed(fmt::format("Received exception: {}", e.what()));

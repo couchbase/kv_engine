@@ -3187,7 +3187,7 @@ TEST_P(DCPCacheTransferNoNexus, commit_prepare_same_key) {
     nlohmann::json manifest;
     ASSERT_EQ(cb::engine_errc::success,
               engines[Node0]->prepare_snapshot(
-                      *cookie, vbid, [&manifest](const nlohmann::json& m) {
+                      *cookie, vbid, {}, [&manifest](const nlohmann::json& m) {
                           manifest = m;
                       }));
     ASSERT_TRUE(manifest.contains("uuid"));

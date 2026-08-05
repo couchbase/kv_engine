@@ -17,6 +17,7 @@
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 #include <memcached/engine.h>
+#include <snapshot/disk_format_constraint.h>
 
 PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)
     : BackgroundThreadCommandContext(
@@ -26,7 +27,8 @@ PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)
                       cookie.getRequest().getVBucket().to_string(),
               ConcurrencySemaphores::instance()
                       .encryption_and_snapshot_management),
-      vb(cookie.getRequest().getVBucket()) {
+      vb(cookie.getRequest().getVBucket()),
+      value(cookie.getRequest().getValueString()) {
 }
 
 cb::engine_errc PrepareSnapshotContext::execute() {
@@ -49,9 +51,22 @@ cb::engine_errc PrepareSnapshotContext::execute() {
 }
 
 cb::engine_errc PrepareSnapshotContext::doCreateSnapshot() {
+    cb::snapshot::DiskFormatConstraint constraint;
+    try {
+        const auto json = nlohmann::json::parse(value);
+        if (!json.contains("storage") || !json["storage"].is_object()) {
+            throw std::invalid_argument("storage must be present as an object");
+        }
+        constraint = json["storage"];
+    } catch (const std::exception& e) {
+        cookie.setErrorContext(
+                fmt::format("Invalid disk format constraint: {}", e.what()));
+        return cb::engine_errc::invalid_arguments;
+    }
+
     auto& engine = connection.getBucket().getEngine();
     return engine.prepare_snapshot(
-            cookie, vb, [this](const nlohmann::json& json) {
+            cookie, vb, constraint, [this](const nlohmann::json& json) {
                 response = json.dump();
             });
 }

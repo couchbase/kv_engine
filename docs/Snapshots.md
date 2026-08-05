@@ -4,6 +4,29 @@ The prepare command is used to prepare the server for a snapshot for the
 requested vbucket. The server will respond with a snapshot manifest that can
 be used to download the snapshot from the server.
 
+The value field of the packet contains a JSON object describing the disk
+format supported by the requesting node:
+
+* `storage` - An object with the following fields:
+  * `backend` - The storage backend used by the requesting node
+    (`couchstore` or `magma`).
+  * `max_version` - (optional) The maximum disk format version supported by
+    the requesting node. When omitted (or 0) no version restriction is
+    applied.
+
+Example:
+
+    {
+      "storage": {
+        "backend": "couchstore",
+        "max_version": 14
+      }
+    }
+
+If the files of the snapshot would use a storage backend or a disk format
+version the requesting node can't use, the server replies with a status code
+of NotSupported and does not create a snapshot.
+
 If the server owns vbucket 0 and the snapshot was successfully created,
 the server replies with a status code success, datatype JSON and the [snapshot
 manifest](#snapshot-manifest) in the payload.
@@ -92,6 +115,11 @@ The snapshot manifest is a JSON object that contains the following fields:
 
 * `uuid` - The UUID of the snapshot.
 * `vbid` - The vbucket ID of the snapshot.
+* `storage` - (optional) An object describing the disk format of the files
+  in the snapshot:
+  * `backend` - The storage backend which produced the files (`couchstore`
+    or `magma`).
+  * `version` - (optional) The on-disk format version of the files.
 * `deks` - An array of DEKs used to encrypt the files in the snapshot.
 * `files` - An array of files in the snapshot. Each file is represented by a
   JSON object with the following fields:
@@ -112,6 +140,10 @@ Example
            "size": "16489"
         }
       ],
+      "storage": {
+        "backend": "couchstore",
+        "version": 14
+      },
       "uuid": "f7970e20-ca1b-4059-8542-3196e93f6927",
       "vbid": 0
     }

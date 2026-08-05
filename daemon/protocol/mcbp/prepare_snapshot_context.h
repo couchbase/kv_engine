@@ -47,4 +47,5 @@ protected:
 private:
     cb::engine_errc doCreateSnapshot();
     const Vbid vb;
+    const std::string value;
 };
