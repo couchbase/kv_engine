@@ -17,6 +17,44 @@
 
 namespace Collections::VB {
 
+ReadHandle::ReadHandle(const Manifest* m, Manifest::mutex_type& lock)
+    : readLock(lock), manifest(m) {
+}
+
+CachingReadHandle::CachingReadHandle(const Manifest* m,
+                                     Manifest::mutex_type& lock,
+                                     DocKeyView key,
+                                     Manifest::AllowSystemKeys tag)
+    : ReadHandle(m, lock), itr(m->getManifestEntry(key, tag)), key(key) {
+}
+
+CachingReadHandle::CachingReadHandle(const Manifest* m,
+                                     Manifest::mutex_type& lock,
+                                     DocKeyView key)
+    : ReadHandle(m, lock), itr(m->getManifestEntry(key)), key(key) {
+}
+
+StatsReadHandle::StatsReadHandle(const Manifest* m,
+                                 Manifest::mutex_type& lock,
+                                 CollectionID cid)
+    : ReadHandle(m, lock), itr(m->getManifestIterator(cid)) {
+}
+
+WriteHandle::WriteHandle(Manifest& m,
+                         VBucketStateLockRef vbStateLock,
+                         Manifest::mutex_type& lock)
+    : vbStateLock(vbStateLock), writeLock(lock), manifest(m) {
+}
+
+WriteHandle::WriteHandle(
+        Manifest& m,
+        VBucketStateLockRef vbStateLock,
+        folly::upgrade_lock<Manifest::mutex_type>&& upgradeHolder)
+    : vbStateLock(vbStateLock),
+      writeLock(folly::transition_lock<std::unique_lock>(upgradeHolder)),
+      manifest(m) {
+}
+
 Metered ReadHandle::isMetered(CollectionID cid) const {
     return manifest->getManifestEntry(cid).isMetered();
 }

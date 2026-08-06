@@ -39,9 +39,7 @@ public:
      */
     ReadHandle() = default;
 
-    ReadHandle(const Manifest* m, Manifest::mutex_type& lock)
-        : readLock(lock), manifest(m) {
-    }
+    ReadHandle(const Manifest* m, Manifest::mutex_type& lock);
 
     ReadHandle(ReadHandle&& rhs)
         : readLock(std::move(rhs.readLock)), manifest(rhs.manifest) {
@@ -322,15 +320,11 @@ public:
     CachingReadHandle(const Manifest* m,
                       Manifest::mutex_type& lock,
                       DocKeyView key,
-                      Manifest::AllowSystemKeys tag)
-        : ReadHandle(m, lock), itr(m->getManifestEntry(key, tag)), key(key) {
-    }
+                      Manifest::AllowSystemKeys tag);
 
     CachingReadHandle(const Manifest* m,
                       Manifest::mutex_type& lock,
-                      DocKeyView key)
-        : ReadHandle(m, lock), itr(m->getManifestEntry(key)), key(key) {
-    }
+                      DocKeyView key);
 
     /**
      * @return true if the key used in construction is associated with a
@@ -575,9 +569,7 @@ class StatsReadHandle : private ReadHandle {
 public:
     StatsReadHandle(const Manifest* m,
                     Manifest::mutex_type& lock,
-                    CollectionID cid)
-        : ReadHandle(m, lock), itr(m->getManifestIterator(cid)) {
-    }
+                    CollectionID cid);
 
     PersistedStats getPersistedStats() const;
     uint64_t getHighSeqno() const;
@@ -667,9 +659,7 @@ public:
     WriteHandle(Manifest& m,
                 // NOLINTNEXTLINE(modernize-pass-by-value)
                 VBucketStateLockRef vbStateLock,
-                Manifest::mutex_type& lock)
-        : vbStateLock(vbStateLock), writeLock(lock), manifest(m) {
-    }
+                Manifest::mutex_type& lock);
 
     WriteHandle(WriteHandle&& rhs)
         : vbStateLock(rhs.vbStateLock),
@@ -680,11 +670,7 @@ public:
     WriteHandle(Manifest& m,
                 // NOLINTNEXTLINE(modernize-pass-by-value)
                 VBucketStateLockRef vbStateLock,
-                folly::upgrade_lock<Manifest::mutex_type>&& upgradeHolder)
-        : vbStateLock(vbStateLock),
-          writeLock(folly::transition_lock<std::unique_lock>(upgradeHolder)),
-          manifest(m) {
-    }
+                folly::upgrade_lock<Manifest::mutex_type>&& upgradeHolder);
 
     /**
      * Create a collection for a replica VB, this is for receiving
