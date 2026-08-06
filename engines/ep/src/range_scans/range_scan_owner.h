@@ -86,13 +86,9 @@ public:
     void addStats(const StatCollector& collector) const;
 
 protected:
-    size_t getReadyQueueSize() const {
-        return rangeScans.rlock()->size();
-    }
+    size_t getReadyQueueSize() const;
 
-    size_t getTaskQueueSize() const {
-        return continueTasks.rlock()->size();
-    }
+    size_t getTaskQueueSize() const;
 
     std::atomic<size_t> concurrentTaskLimit;
 

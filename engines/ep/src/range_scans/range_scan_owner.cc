@@ -100,6 +100,14 @@ std::shared_ptr<RangeScan> ReadyRangeScans::takeNextScan(size_t taskId) {
     return scan;
 }
 
+size_t ReadyRangeScans::getReadyQueueSize() const {
+    return rangeScans.rlock()->size();
+}
+
+size_t ReadyRangeScans::getTaskQueueSize() const {
+    return continueTasks.rlock()->size();
+}
+
 void ReadyRangeScans::addStats(const StatCollector& collector) const {
     collector.addStat("concurrent_task_limit", concurrentTaskLimit);
     collector.addStat("tasks_size", getTaskQueueSize());
