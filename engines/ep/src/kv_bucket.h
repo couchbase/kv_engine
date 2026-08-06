@@ -588,9 +588,7 @@ public:
     void setAccessScannerSleeptime(size_t val, bool useStartTime) override;
     void resetAccessScannerStartTime() override;
 
-    void resetAccessScannerTasktime() override {
-        accessScanner.wlock()->lastTaskRuntime = cb::time::steady_clock::now();
-    }
+    void resetAccessScannerTasktime() override;
 
     void enableItemCompressor();
 
@@ -739,9 +737,7 @@ public:
         compactionMaxConcurrency = to;
     }
 
-    bool isAccessScannerEnabled() override {
-        return accessScanner.rlock()->enabled;
-    }
+    bool isAccessScannerEnabled() override;
 
     bool isExpPagerEnabled() override;
 

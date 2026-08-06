@@ -2481,6 +2481,14 @@ void KVBucket::resetAccessScannerStartTime() {
     }
 }
 
+void KVBucket::resetAccessScannerTasktime() {
+    accessScanner.wlock()->lastTaskRuntime = cb::time::steady_clock::now();
+}
+
+bool KVBucket::isAccessScannerEnabled() {
+    return accessScanner.rlock()->enabled;
+}
+
 void KVBucket::enableItemCompressor() {
     itemCompressorTask = std::make_shared<ItemCompressorTask>(engine, stats);
     ExecutorPool::get()->schedule(itemCompressorTask);
