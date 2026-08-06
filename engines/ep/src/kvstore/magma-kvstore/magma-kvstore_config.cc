@@ -392,10 +392,18 @@ void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {
     store->setMagmaFusionLogstoreFragmentationThreshold(value);
 }
 
+std::string MagmaKVStoreConfig::getFusionLogstoreURI() const {
+    return *fusionLogstoreURI.rlock();
+}
+
 void MagmaKVStoreConfig::setFusionLogstoreURI(std::string_view uri) {
     Expects(store);
     fusionLogstoreURI = std::string{uri};
     store->setFusionLogStoreURI(uri);
+}
+
+std::string MagmaKVStoreConfig::getFusionMetadatastoreURI() const {
+    return *fusionMetadatastoreURI.rlock();
 }
 
 void MagmaKVStoreConfig::setFusionMetadatastoreURI(std::string_view uri) {

@@ -321,15 +321,11 @@ public:
                historyRetentionTime.load().count() > 0;
     }
 
-    std::string getFusionLogstoreURI() const {
-        return *fusionLogstoreURI.rlock();
-    }
+    std::string getFusionLogstoreURI() const;
 
     void setFusionLogstoreURI(std::string_view uri);
 
-    std::string getFusionMetadatastoreURI() const {
-        return *fusionMetadatastoreURI.rlock();
-    }
+    std::string getFusionMetadatastoreURI() const;
 
     void setFusionMetadatastoreURI(std::string_view uri);
 
