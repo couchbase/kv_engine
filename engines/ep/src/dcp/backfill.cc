@@ -22,6 +22,10 @@ static AtomicMonotonic<uint64_t> backfillUID{0};
 DCPBackfill::DCPBackfill(Vbid vbid) : vbid(vbid), uid(++backfillUID) {
 }
 
+DCPBackfill::State DCPBackfill::getState() const {
+    return *state.rlock();
+}
+
 backfill_status_t DCPBackfill::run() {
     runStart = cb::time::steady_clock::now();
     auto lockedState = state.wlock();

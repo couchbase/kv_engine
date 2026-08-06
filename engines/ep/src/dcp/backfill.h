@@ -146,9 +146,7 @@ public:
     /// States of a backfill
     enum class State { Create = 0, Scan, ScanHistory, Done };
 
-    State getState() const {
-        return *state.rlock();
-    };
+    State getState() const;
 
     uint64_t getUID() const override {
         return uid;
