@@ -573,6 +573,17 @@ void KVStore::delSystemEvent(TransactionContext& txnCtx,
                              const queued_item item) {
     del(txnCtx, item);
 }
+
+void KVStore::setMakeCompactionContextCallback(
+        MakeCompactionContextCallback cb) {
+    makeCompactionContextCallback = std::move(cb);
+}
+
+MakeCompactionContextCallback KVStore::getMakeCompactionContextCallback()
+        const {
+    return makeCompactionContextCallback.copy();
+}
+
 std::string format_as(const FlushStateDeletion& fsd) {
     switch (fsd) {
     case FlushStateDeletion::Delete:

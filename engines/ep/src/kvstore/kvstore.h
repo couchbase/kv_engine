@@ -996,13 +996,9 @@ public:
     void delSystemEvent(TransactionContext& txnCtx, const queued_item) override;
 
     void setMakeCompactionContextCallback(
-            MakeCompactionContextCallback cb) override {
-        makeCompactionContextCallback = std::move(cb);
-    }
+            MakeCompactionContextCallback cb) override;
 
-    MakeCompactionContextCallback getMakeCompactionContextCallback() const {
-        return makeCompactionContextCallback.copy();
-    }
+    MakeCompactionContextCallback getMakeCompactionContextCallback() const;
 
     void setPreFlushHook(std::function<void()> hook) override {
         preFlushHook = hook;
