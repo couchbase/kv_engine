@@ -149,11 +149,7 @@ public:
      *
      * @param ifc the interface to add
      */
-    void addInterface(const NetworkInterface& ifc) {
-        interfaces.wlock()->push_back(ifc);
-        has.interfaces = true;
-        notify_changed("interfaces");
-    }
+    void addInterface(const NetworkInterface& ifc);
 
     /**
      * Get vector containing all of the interfaces the system should
@@ -161,9 +157,7 @@ public:
      *
      * @return the vector of interfaces
      */
-    std::vector<NetworkInterface> getInterfaces() const {
-        return std::vector<NetworkInterface>{*interfaces.rlock()};
-    }
+    std::vector<NetworkInterface> getInterfaces() const;
 
     /**
      * Should we use standard input listener?
@@ -859,9 +853,7 @@ public:
         notify_changed("collections_enabled");
     }
 
-    std::string getOpcodeAttributesOverride() const {
-        return std::string{*opcode_attributes_override.rlock()};
-    }
+    std::string getOpcodeAttributesOverride() const;
 
     void setOpcodeAttributesOverride(const std::string& value);
 
@@ -875,15 +867,9 @@ public:
         notify_changed("tracing_enabled");
     }
 
-    void setScramshaFallbackSalt(const std::string& value) {
-        scramsha_fallback_salt.wlock()->assign(value);
-        has.scramsha_fallback_salt = true;
-        notify_changed("scramsha_fallback_salt");
-    }
+    void setScramshaFallbackSalt(const std::string& value);
 
-    std::string getScramshaFallbackSalt() const {
-        return std::string{*scramsha_fallback_salt.rlock()};
-    }
+    std::string getScramshaFallbackSalt() const;
 
     void setScramshaFallbackIterationCount(int count) {
         scramsha_fallback_iteration_count.store(count,
@@ -1038,15 +1024,9 @@ public:
 
     void setNumIOThreadsPerCore(int val);
 
-    std::pair<in_port_t, sa_family_t> getPrometheusConfig() {
-        return *prometheus_config.rlock();
-    }
+    std::pair<in_port_t, sa_family_t> getPrometheusConfig();
 
-    void setPrometheusConfig(std::pair<in_port_t, sa_family_t> config) {
-        prometheus_config = std::move(config);
-        has.prometheus_config = true;
-        notify_changed("prometheus_config");
-    }
+    void setPrometheusConfig(std::pair<in_port_t, sa_family_t> config);
 
     int getNumStorageThreads() const {
         return num_storage_threads.load(std::memory_order_acquire);
@@ -1068,15 +1048,9 @@ public:
         notify_changed("not_locked_returns_tmpfail");
     }
 
-    void setPhosphorConfig(std::string value) {
-        phosphor_config = std::move(value);
-        has.phosphor_config = true;
-        notify_changed("phosphor_config");
-    }
+    void setPhosphorConfig(std::string value);
 
-    std::string getPhosphorConfig() const {
-        return std::string{*phosphor_config.rlock()};
-    }
+    std::string getPhosphorConfig() const;
 
     bool isLocalhostInterfaceAllowed() const {
         return allow_localhost_interface.load(std::memory_order_acquire);
@@ -1159,9 +1133,7 @@ public:
 
     void setDcpDisconnectWhenStuckTimeout(std::chrono::seconds val);
 
-    std::string getDcpDisconnectWhenStuckNameRegex() const {
-        return dcp_disconnect_when_stuck_name_regex.copy();
-    }
+    std::string getDcpDisconnectWhenStuckNameRegex() const;
 
     // Set from the JSON value, which is base64 encoded
     void setDcpDisconnectWhenStuckNameRegexFromBase64(const std::string& val);

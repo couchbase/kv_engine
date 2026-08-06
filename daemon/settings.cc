@@ -124,6 +124,10 @@ void Settings::setDcpDisconnectWhenStuckNameRegex(std::string val) {
     notify_changed("dcp_disconnect_when_stuck_name_regex");
 }
 
+std::string Settings::getDcpDisconnectWhenStuckNameRegex() const {
+    return dcp_disconnect_when_stuck_name_regex.copy();
+}
+
 template <typename T>
 static std::chrono::microseconds getTimeFromJson(const nlohmann::json& value,
                                                  const std::string_view key) {
@@ -777,6 +781,20 @@ nlohmann::json Settings::to_json() const {
     return json;
 }
 
+void Settings::addInterface(const NetworkInterface& ifc) {
+    interfaces.wlock()->push_back(ifc);
+    has.interfaces = true;
+    notify_changed("interfaces");
+}
+
+std::vector<NetworkInterface> Settings::getInterfaces() const {
+    return std::vector<NetworkInterface>{*interfaces.rlock()};
+}
+
+std::string Settings::getOpcodeAttributesOverride() const {
+    return std::string{*opcode_attributes_override.rlock()};
+}
+
 void Settings::setOpcodeAttributesOverride(const std::string& value) {
     if (!value.empty()) {
         // Verify the content...
@@ -786,6 +804,36 @@ void Settings::setOpcodeAttributesOverride(const std::string& value) {
     opcode_attributes_override.wlock()->assign(value);
     has.opcode_attributes_override = true;
     notify_changed("opcode_attributes_override");
+}
+
+void Settings::setScramshaFallbackSalt(const std::string& value) {
+    scramsha_fallback_salt.wlock()->assign(value);
+    has.scramsha_fallback_salt = true;
+    notify_changed("scramsha_fallback_salt");
+}
+
+std::string Settings::getScramshaFallbackSalt() const {
+    return std::string{*scramsha_fallback_salt.rlock()};
+}
+
+std::pair<in_port_t, sa_family_t> Settings::getPrometheusConfig() {
+    return *prometheus_config.rlock();
+}
+
+void Settings::setPrometheusConfig(std::pair<in_port_t, sa_family_t> config) {
+    prometheus_config = std::move(config);
+    has.prometheus_config = true;
+    notify_changed("prometheus_config");
+}
+
+void Settings::setPhosphorConfig(std::string value) {
+    phosphor_config = std::move(value);
+    has.phosphor_config = true;
+    notify_changed("phosphor_config");
+}
+
+std::string Settings::getPhosphorConfig() const {
+    return std::string{*phosphor_config.rlock()};
 }
 
 void Settings::setNumIOThreadsPerCore(int val) {
