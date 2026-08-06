@@ -107,9 +107,7 @@ public:
 
     void shutdownAllConnections();
 
-    bool isDeadConnectionsEmpty() override {
-        return deadConnections.rlock()->empty();
-    }
+    bool isDeadConnectionsEmpty() override;
 
     /**
      * Handles the slow stream with the specified name.

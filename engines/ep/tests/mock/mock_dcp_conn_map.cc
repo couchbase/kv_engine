@@ -34,6 +34,10 @@ bool MockDcpConnMap::removeConn(CookieIface* cookie) {
     return true;
 }
 
+size_t MockDcpConnMap::getNumberOfDeadConnections() {
+    return deadConnections.rlock()->size();
+}
+
 bool MockDcpConnMap::doesVbConnExist(Vbid vbid, const std::string& name) {
     return connStore->doesVbConnExist(vbid, name);
 }

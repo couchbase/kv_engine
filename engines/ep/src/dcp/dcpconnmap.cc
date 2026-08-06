@@ -338,6 +338,10 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
     }
 }
 
+bool DcpConnMap::isDeadConnectionsEmpty() {
+    return deadConnections.rlock()->empty();
+}
+
 void DcpConnMap::manageConnections() {
     std::list<std::shared_ptr<ConnHandler>> release;
     deadConnections.wlock()->swap(release);

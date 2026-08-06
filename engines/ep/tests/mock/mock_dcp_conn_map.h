@@ -23,9 +23,7 @@ public:
         : DcpConnMap(theEngine) {
     }
 
-    size_t getNumberOfDeadConnections() {
-        return deadConnections.rlock()->size();
-    }
+    size_t getNumberOfDeadConnections();
 
     void initialize() {
         // We do not schedule any ConnManager task.
