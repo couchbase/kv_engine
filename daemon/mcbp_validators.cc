@@ -14,7 +14,6 @@
 #include "cookie.h"
 #include "enginemap.h"
 #include "front_end_thread.h"
-#include "memcached.h"
 #include "network_interface_description.h"
 #include "settings.h"
 #include "subdocument_validators.h"
@@ -28,6 +27,7 @@
 #include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/storeddockey.h>
 #include <memcached/unit_test_mode.h>
@@ -116,7 +116,7 @@ bool McbpValidator::is_document_key_valid(Cookie& cookie) {
 
     // The maximum length depends on the collection-ID
     const auto maxLen = ((leb.first == CollectionID::Default)
-                                 ? KEY_MAX_LENGTH
+                                 ? cb::limits::MaxKeyLength
                                  : MaxCollectionsLogicalKeyLen);
     bool rv = leb.second.size() <= maxLen;
     if (!rv) {
@@ -373,7 +373,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
     case ExpectedKeyLen::Any:
         const auto maxKeyLen = connection.isCollectionsSupported()
                                        ? MaxCollectionsKeyLen
-                                       : KEY_MAX_LENGTH;
+                                       : cb::limits::MaxKeyLength;
 
         if (header.getKeylen() > maxKeyLen) {
             cookie.setErrorContext("Key length exceeds " +

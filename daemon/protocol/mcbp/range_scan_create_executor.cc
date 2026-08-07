@@ -14,9 +14,9 @@
 #include "memcached/engine_error.h"
 
 #include <daemon/cookie.h>
-#include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
 #include <mcbp/protocol/request.h>
+#include <memcached/limits.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/range_scan_optional_configuration.h>
@@ -125,7 +125,7 @@ static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
 }
 
 static bool isValidKey(const std::string& key) {
-    return key.size() <= KEY_MAX_LENGTH;
+    return key.size() <= cb::limits::MaxKeyLength;
 }
 
 /**

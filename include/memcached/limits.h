@@ -28,6 +28,9 @@ constexpr std::size_t PrivilegedBytes = 1_MiB;
 /// The maximum length of a username
 constexpr std::size_t MaxUsernameLength = 128;
 
+/// The maximum length of a document key
+constexpr std::size_t MaxKeyLength = 250;
+
 /// We specify a finite number of times to retry; to prevent the event that
 /// we are fighting with another client for the correct CAS value for an
 /// arbitrary amount of time (and to defend against possible bugs in our

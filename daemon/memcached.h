@@ -20,9 +20,6 @@
  * structures and function prototypes.
  */
 
-/** Maximum length of a key. */
-#define KEY_MAX_LENGTH 250
-
 /// Safely closes a server socket.
 void close_server_socket(SOCKET sfd);
 /// Safely closes a client socket.
