@@ -12,6 +12,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <memcached/collections.h>
 
 void collections_get_scope_id_executor(Cookie& cookie) {

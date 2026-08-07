@@ -12,7 +12,6 @@
 #include "cluster_config.h"
 #include "datatype_filter.h"
 #include "resource_allocation_domain.h"
-#include "sendbuffer.h"
 #include "stats.h"
 
 #include <cbsasl/server.h>

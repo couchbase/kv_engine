@@ -13,6 +13,7 @@
 #include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>

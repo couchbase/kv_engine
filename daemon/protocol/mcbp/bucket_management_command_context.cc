@@ -16,6 +16,7 @@
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 #include <daemon/yielding_limited_concurrency_task.h>
 #include <executor/executorpool.h>

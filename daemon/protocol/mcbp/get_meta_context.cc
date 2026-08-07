@@ -14,6 +14,7 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
+#include <daemon/sendbuffer.h>
 
 GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),

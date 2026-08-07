@@ -12,6 +12,7 @@
 #pragma once
 
 #include <daemon/connection.h>
+#include <daemon/sendbuffer.h>
 #include <stdexcept>
 
 struct FrontEndThread;

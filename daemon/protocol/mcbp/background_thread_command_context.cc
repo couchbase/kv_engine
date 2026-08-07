@@ -13,6 +13,7 @@
 #include <daemon/connection.h>
 #include <daemon/log_macros.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
+#include <daemon/sendbuffer.h>
 #include <executor/executorpool.h>
 
 BackgroundThreadCommandContext::BackgroundThreadCommandContext(

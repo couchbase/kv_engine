@@ -13,6 +13,7 @@
 #include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
+#include <daemon/sendbuffer.h>
 
 EngineParamCategory SetParamCommandContext::getParamCategory(Cookie& cookie) {
     const auto& req = cookie.getRequest();

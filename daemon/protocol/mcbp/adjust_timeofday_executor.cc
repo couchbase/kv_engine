@@ -14,6 +14,7 @@
 
 #include <daemon/cookie.h>
 #include <daemon/mc_time.h>
+#include <daemon/sendbuffer.h>
 #include <memcached/protocol_binary.h>
 
 #include <platform/platform_time.h>

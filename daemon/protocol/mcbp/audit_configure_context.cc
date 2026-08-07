@@ -11,6 +11,7 @@
 
 #include <cblogger/logger.h>
 #include <daemon/mcaudit.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 
 cb::engine_errc AuditConfigureCommandContext::configuring() {

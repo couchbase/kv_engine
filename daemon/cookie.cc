@@ -22,6 +22,7 @@
 #include "mcbp_validators.h"
 #include "memcached.h"
 #include "resource_allocation_domain.h"
+#include "sendbuffer.h"
 #include "settings.h"
 #include "token_auth_data.h"
 #include "tracing.h"

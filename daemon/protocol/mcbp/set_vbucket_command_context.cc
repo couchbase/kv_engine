@@ -10,6 +10,8 @@
 
 #include "set_vbucket_command_context.h"
 #include "engine_wrapper.h"
+
+#include <daemon/sendbuffer.h>
 #include <nlohmann/json.hpp>
 
 static vbucket_state_t getState(const Cookie& cookie) {

@@ -9,6 +9,7 @@
  */
 #include "dcp_add_failover_log.h"
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <mcbp/protocol/datatype.h>
 
 /** Callback from the engine adding the response */

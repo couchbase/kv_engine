@@ -15,6 +15,7 @@
 
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
+#include <daemon/sendbuffer.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>

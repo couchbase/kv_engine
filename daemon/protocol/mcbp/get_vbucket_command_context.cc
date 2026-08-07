@@ -11,6 +11,8 @@
 #include "get_vbucket_command_context.h"
 #include "engine_wrapper.h"
 
+#include <daemon/sendbuffer.h>
+
 GetVbucketCommandContext::GetVbucketCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie) {
 }

@@ -16,6 +16,7 @@
 #include "single_state_steppable_context.h"
 
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 
 SingleStateCommandContext::SingleStateCommandContext(
         Cookie& cookie,

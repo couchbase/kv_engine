@@ -16,6 +16,7 @@
 #include <daemon/connection.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
+#include <daemon/sendbuffer.h>
 #include <executor/executorpool.h>
 #include <folly/io/IOBuf.h>
 #include <mcbp/protocol/framebuilder.h>

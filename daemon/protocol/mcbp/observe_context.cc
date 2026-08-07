@@ -17,6 +17,7 @@
 #include "observe_context.h"
 #include "engine_wrapper.h"
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 
 ObserveCommandContext::ObserveCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie) {

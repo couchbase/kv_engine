@@ -13,6 +13,7 @@
 #include <cblogger/logger.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
+#include <daemon/sendbuffer.h>
 #include <mcbp/codec/with_meta_options.h>
 #include <mcbp/protocol/datatype.h>
 #include <memcached/protocol_binary.h>

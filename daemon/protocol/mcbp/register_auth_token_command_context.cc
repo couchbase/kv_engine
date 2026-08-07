@@ -13,6 +13,7 @@
 
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 
 RegisterAuthTokenCommandContext::RegisterAuthTokenCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie) {

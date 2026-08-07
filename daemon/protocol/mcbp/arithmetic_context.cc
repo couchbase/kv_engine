@@ -13,6 +13,7 @@
 #include "item_dissector.h"
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <memcached/util.h>

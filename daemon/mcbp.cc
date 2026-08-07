@@ -10,6 +10,7 @@
 #include "mcbp.h"
 #include "connection.h"
 #include "cookie.h"
+#include "sendbuffer.h"
 
 static void mcbp_response_handler(std::string_view key,
                                   std::string_view extras,

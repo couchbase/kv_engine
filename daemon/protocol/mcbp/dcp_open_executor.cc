@@ -14,6 +14,7 @@
 #include <cblogger/logger.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
+#include <daemon/sendbuffer.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_open_executor(Cookie& cookie) {

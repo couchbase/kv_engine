@@ -14,6 +14,7 @@
 #include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
+#include <daemon/sendbuffer.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <mcbp/protocol/request.h>
 

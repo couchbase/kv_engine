@@ -15,6 +15,7 @@
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <folly/portability/Fcntl.h>

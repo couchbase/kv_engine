@@ -11,6 +11,7 @@
 #include "executors.h"
 
 #include "utilities.h"
+#include <daemon/sendbuffer.h>
 #include <memcached/protocol_binary.h>
 
 void handle_executor_status(Cookie& cookie, cb::engine_errc status) {

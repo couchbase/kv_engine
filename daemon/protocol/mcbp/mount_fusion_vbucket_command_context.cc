@@ -11,6 +11,7 @@
 #include "mount_fusion_vbucket_command_context.h"
 
 #include <daemon/connection.h>
+#include <daemon/sendbuffer.h>
 #include <utilities/fusion_utilities.h>
 
 MountFusionVbucketCommandContext::MountFusionVbucketCommandContext(

@@ -12,6 +12,7 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
+#include <daemon/sendbuffer.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
 

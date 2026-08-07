@@ -13,6 +13,7 @@
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 
 std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
     if (!connection.isAuthenticated()) {

@@ -69,6 +69,7 @@
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
 #include "protocol/mcbp/unmount_fusion_vbucket_command_context.h"
+#include "sendbuffer.h"
 #include "settings.h"
 #include "subdocument.h"
 

@@ -16,6 +16,7 @@
 
 #include <cblogger/logger.h>
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_stream_req_executor(Cookie& cookie) {

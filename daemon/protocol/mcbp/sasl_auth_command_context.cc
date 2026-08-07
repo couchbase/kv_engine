@@ -16,6 +16,7 @@
 #include <daemon/connection.h>
 #include <daemon/mcaudit.h>
 #include <daemon/sasl_auth_task.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <platform/string_utilities.h>

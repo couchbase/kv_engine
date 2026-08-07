@@ -11,6 +11,7 @@
 #include "engine_wrapper.h"
 #include "item_dissector.h"
 #include <daemon/cookie.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <xattr/blob.h>

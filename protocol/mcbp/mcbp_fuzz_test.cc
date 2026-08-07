@@ -15,6 +15,7 @@
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
+#include <daemon/sendbuffer.h>
 #include <daemon/settings.h>
 #include <fuzztest/fuzztest.h>
 #include <mcbp/protocol/header.h>
