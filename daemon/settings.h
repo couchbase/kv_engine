@@ -15,7 +15,7 @@
 #include <cblogger/logger_config.h>
 
 #include <gsl/gsl-lite.hpp>
-#include <memcached/engine.h>
+#include <memcached/thread_pool_config.h>
 #include <platform/io_hint.h>
 #include <platform/timeutils.h>
 #include <relaxed_atomic.h>
