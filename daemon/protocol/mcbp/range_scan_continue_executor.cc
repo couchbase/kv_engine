@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2022-Present Couchbase, Inc.
  *
@@ -14,10 +13,8 @@
 
 #include <daemon/cookie.h>
 #include <mcbp/protocol/request.h>
-#include <memcached/protocol_binary.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
-#include <memcached/range_scan_optional_configuration.h>
 #include <memcached/range_scan_status.h>
 
 void range_scan_continue_executor(Cookie& cookie) {

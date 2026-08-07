@@ -14,7 +14,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/memcached.h>
 #include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>

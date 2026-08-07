@@ -11,7 +11,6 @@
 
 #include "steppable_command_context.h"
 #include <daemon/cookie.h>
-#include <daemon/stats.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/engine.h>
 

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,7 +10,7 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
-#include "utilities.h"
+#include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_commit_executor(Cookie& cookie) {

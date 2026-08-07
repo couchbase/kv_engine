@@ -15,8 +15,6 @@
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <executor/globaltask.h>
-#include <utilities/fusion_utilities.h>
-#include <utilities/magma_support.h>
 
 CreateFusionNamespaceCommandContext::CreateFusionNamespaceCommandContext(
         Cookie& cookie)

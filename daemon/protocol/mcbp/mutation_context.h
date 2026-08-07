@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -14,7 +13,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-#include <platform/compress.h>
 #include <xattr/blob.h>
 
 /**

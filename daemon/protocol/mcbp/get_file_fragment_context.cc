@@ -21,7 +21,6 @@
 #include <folly/portability/Unistd.h>
 #include <memcached/engine.h>
 #include <platform/crc32c.h>
-#include <platform/dirutils.h>
 #include <platform/strerror.h>
 
 #include <algorithm>

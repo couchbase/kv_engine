@@ -18,7 +18,6 @@
 #include <daemon/cookie.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/front_end_thread.h>
-#include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/nobucket_taskable.h>
@@ -26,9 +25,7 @@
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <executor/executorpool.h>
-#include <gsl/gsl-lite.hpp>
 #include <mcbp/codec/stats_codec.h>
-#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/stat_group.h>
 #include <nlohmann/json.hpp>

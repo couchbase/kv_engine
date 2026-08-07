@@ -11,7 +11,6 @@
 
 #include "engine_wrapper.h"
 #include "item_dissector.h"
-#include <daemon/buckets.h>
 #include <daemon/mcaudit.h>
 #include <daemon/sendbuffer.h>
 #include <daemon/thread_stats.h>

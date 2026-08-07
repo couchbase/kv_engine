@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,7 +9,6 @@
  */
 #include "dcp_add_failover_log.h"
 #include <daemon/cookie.h>
-#include <daemon/mcbp.h>
 #include <mcbp/protocol/datatype.h>
 
 /** Callback from the engine adding the response */

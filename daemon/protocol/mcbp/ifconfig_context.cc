@@ -10,9 +10,8 @@
 #include "ifconfig_context.h"
 
 #include <daemon/concurrency_semaphores.h>
-#include <daemon/connection.h>
-#include <daemon/memcached.h>
 #include <daemon/network_interface_manager.h>
+#include <executor/globaltask.h>
 
 IfconfigCommandContext::IfconfigCommandContext(Cookie& cookie)
     : BackgroundThreadCommandContext(

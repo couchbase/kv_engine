@@ -15,7 +15,6 @@
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
 #include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>

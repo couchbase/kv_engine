@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -13,7 +12,6 @@
 #include "no_success_response_steppable_context.h"
 
 #include <memcached/protocol_binary.h>
-#include <xattr/blob.h>
 
 static cb::engine_errc dcp_expiration(Cookie& cookie) {
     const auto& connection = cookie.getConnection();

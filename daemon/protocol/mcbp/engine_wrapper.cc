@@ -14,12 +14,9 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <mcbp/protocol/request.h>
-#include <memcached/collections.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
-#include <memcached/range_scan_optional_configuration.h>
 #include <platform/json_log_conversions.h>
-#include <utilities/logtags.h>
 #include <utility>
 
 using namespace std::string_literals;

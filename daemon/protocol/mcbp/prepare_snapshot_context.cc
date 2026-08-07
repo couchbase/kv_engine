@@ -14,9 +14,9 @@
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
-#include <executor/executorpool.h>
+#include <executor/globaltask.h>
 #include <memcached/engine.h>
+#include <nlohmann/json.hpp>
 #include <snapshot/disk_format_constraint.h>
 
 PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)

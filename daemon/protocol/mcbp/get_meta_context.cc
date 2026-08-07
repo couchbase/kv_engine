@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -15,8 +14,6 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
-#include <xattr/utils.h>
 
 GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),

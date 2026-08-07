@@ -11,13 +11,11 @@
 #include "set_active_encryption_keys_context.h"
 
 #include <cbcrypto/key_store.h>
+#include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
-#include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
 #include <dek/manager.h>
-#include <executor/executorpool.h>
-#include <filesystem>
+#include <executor/globaltask.h>
 #include <vector>
 
 using namespace cb::dek;

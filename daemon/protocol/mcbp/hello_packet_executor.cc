@@ -9,18 +9,15 @@
  */
 
 #include "executors.h"
-#include "platform/json_log.h"
 
 #include <cblogger/logger.h>
+#include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/settings.h>
-#include <memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
-
-#include <daemon/buckets.h>
 #include <mcbp/protocol/status.h>
+#include <nlohmann/json.hpp>
+#include <platform/json_log.h>
 #include <serverless/config.h>
-
 #include <set>
 #include <span>
 

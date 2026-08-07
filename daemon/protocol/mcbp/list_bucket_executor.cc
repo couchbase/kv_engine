@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -14,8 +13,6 @@
 #include <daemon/bucket_manager.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/memcached.h>
-#include <utilities/engine_errc_2_mcbp.h>
 
 std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
     if (!connection.isAuthenticated()) {

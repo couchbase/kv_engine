@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -16,7 +15,6 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
 
 static cb::engine_errc do_dcp_mutation(Cookie& cookie) {
     const auto& req = cookie.getRequest();

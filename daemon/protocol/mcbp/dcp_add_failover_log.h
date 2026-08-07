@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -11,7 +10,6 @@
 #pragma once
 
 #include <memcached/engine_error.h>
-#include <memcached/types.h>
 #include <memcached/vbucket.h>
 #include <vector>
 

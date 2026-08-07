@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -15,7 +14,6 @@
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
-#include <xattr/blob.h>
 
 static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();

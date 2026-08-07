@@ -11,10 +11,10 @@
 #include "sasl_refresh_command_context.h"
 
 #include <cblogger/logger.h>
-#include <cbsasl/mechanism.h>
+#include <cbsasl/server.h>
 #include <daemon/concurrency_semaphores.h>
-#include <daemon/connection.h>
 #include <daemon/settings.h>
+#include <executor/globaltask.h>
 
 SaslRefreshCommandContext::SaslRefreshCommandContext(Cookie& cookie)
     : BackgroundThreadCommandContext(

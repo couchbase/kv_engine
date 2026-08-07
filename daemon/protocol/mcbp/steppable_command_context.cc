@@ -11,13 +11,10 @@
 #include "executors.h"
 
 #include <cblogger/logger.h>
-#include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
-#include <daemon/memcached.h>
 #include <daemon/thread_stats.h>
-#include <platform/histogram.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {

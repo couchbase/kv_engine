@@ -13,8 +13,8 @@
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
-#include <daemon/memcached.h>
 #include <daemon/settings.h>
+#include <executor/globaltask.h>
 
 cb::engine_errc RbacReloadCommandContext::execute() {
     try {

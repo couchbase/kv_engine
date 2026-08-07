@@ -12,7 +12,7 @@
 
 #include <cblogger/logger.h>
 #include <daemon/concurrency_semaphores.h>
-#include <daemon/connection.h>
+#include <executor/globaltask.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 

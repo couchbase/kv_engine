@@ -10,7 +10,6 @@
 #pragma once
 
 #include "steppable_command_context.h"
-#include <mcbp/protocol/datatype.h>
 #include <functional>
 
 /**

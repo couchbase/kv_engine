@@ -10,17 +10,14 @@
 
 #include "prune_encryption_keys_context.h"
 
-#include <cbcrypto/encrypted_file_header.h>
 #include <cbcrypto/file_utilities.h>
 #include <cbcrypto/key_store.h>
-#include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/mcaudit.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
 #include <dek/manager.h>
-#include <executor/executorpool.h>
-#include <platform/dirutils.h>
+#include <executor/globaltask.h>
 
 PruneEncryptionKeysContext::PruneEncryptionKeysContext(Cookie& cookie)
     : BackgroundThreadCommandContext(

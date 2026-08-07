@@ -10,8 +10,6 @@
 #pragma once
 
 #include "background_thread_command_context.h"
-#include <folly/Synchronized.h>
-#include <atomic>
 
 namespace cb::mcbp {
 enum class Status : uint16_t;

@@ -10,7 +10,6 @@
 #pragma once
 
 #include "background_thread_command_context.h"
-#include "steppable_command_context.h"
 
 /**
  * The SetActiveEncryptionKeysContext is a state machine used by the memcached

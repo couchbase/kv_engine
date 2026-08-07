@@ -11,9 +11,6 @@
 #pragma once
 
 #include "background_thread_command_context.h"
-#include "steppable_command_context.h"
-#include <folly/Synchronized.h>
-#include <nlohmann/json.hpp>
 
 /**
  * Implementation of the "OpenVbSnapshot" command.

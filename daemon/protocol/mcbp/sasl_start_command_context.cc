@@ -15,7 +15,6 @@
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
-#include <daemon/memcached.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>

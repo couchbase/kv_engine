@@ -12,9 +12,7 @@
 #include "engine_wrapper.h"
 #include <cblogger/logger.h>
 #include <daemon/buckets.h>
-#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <memcached/engine.h>
 
 EngineParamCategory SetParamCommandContext::getParamCategory(Cookie& cookie) {
     const auto& req = cookie.getRequest();

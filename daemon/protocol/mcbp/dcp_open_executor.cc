@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -16,7 +15,6 @@
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
 #include <memcached/protocol_binary.h>
-#include <string>
 
 void dcp_open_executor(Cookie& cookie) {
     using cb::mcbp::DcpOpenFlag;

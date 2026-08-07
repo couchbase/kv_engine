@@ -10,7 +10,6 @@
 #include "sync_fusion_logstore_command_context.h"
 
 #include <cblogger/logger.h>
-#include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <memcached/engine.h>

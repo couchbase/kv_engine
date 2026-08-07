@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,11 +9,9 @@
  */
 #include "audit_configure_context.h"
 
-#include "daemon/mcaudit.h"
-
 #include <cblogger/logger.h>
+#include <daemon/mcaudit.h>
 #include <daemon/settings.h>
-#include <memcached/audit_interface.h>
 
 cb::engine_errc AuditConfigureCommandContext::configuring() {
     // We always want to move into the next state after calling the

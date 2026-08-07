@@ -11,23 +11,17 @@
 #include "mutate_with_meta_context.h"
 #include "engine_wrapper.h"
 #include <cblogger/logger.h>
-#include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
-#include <daemon/memcached.h>
 #include <mcbp/codec/with_meta_options.h>
 #include <mcbp/protocol/datatype.h>
-#include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
-#include <utilities/json_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-
-#include <charconv>
 
 using cb::mcbp::request::MutateWithMetaCommand;
 

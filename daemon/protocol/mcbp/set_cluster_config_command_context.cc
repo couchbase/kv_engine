@@ -9,11 +9,8 @@
  */
 
 #include "set_cluster_config_command_context.h"
-#include "daemon/buckets.h"
-#include "mcbp/protocol/framebuilder.h"
 
 #include <cblogger/logger.h>
-#include <cbsasl/mechanism.h>
 #include <daemon/bucket_manager.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
@@ -21,6 +18,7 @@
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 #include <folly/io/IOBuf.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/compress.h>
 
 using cb::mcbp::request::SetClusterConfigPayload;

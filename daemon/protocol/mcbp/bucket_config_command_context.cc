@@ -10,16 +10,14 @@
 
 #include "bucket_config_command_context.h"
 
-#include "daemon/concurrency_semaphores.h"
-#include "daemon/enginemap.h"
-#include "mcbp/engine_wrapper.h"
-#include "memcached/bucket_type.h"
-#include "memcached/configuration_iface.h"
-#include <cblogger/logger.h>
 #include <daemon/buckets.h>
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
+#include <daemon/enginemap.h>
 #include <fmt/format.h>
+#include <memcached/bucket_type.h>
 #include <memcached/config_parser.h>
+#include <memcached/configuration_iface.h>
 #include <optional>
 
 static std::optional<std::size_t> get_parameter_value(
