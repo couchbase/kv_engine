@@ -12,7 +12,6 @@
 #include <fmt/format.h>
 #include <folly/portability/GMock.h>
 #include <memcached/limits.h>
-#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 #include <utilities/json_utilities.h>

@@ -13,7 +13,6 @@
  * memcached process
  */
 #include <memcached/protocol_binary.h>
-#include <platform/cb_malloc.h>
 #include <platform/interrupt.h>
 #include <platform/strerror.h>
 #include <platform/terminal_color.h>

@@ -8,8 +8,6 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <platform/cb_malloc.h>
-
 #include "../mock/mock_basic_ll.h"
 #include "../mock/mock_function_helper.h"
 #include "hash_table.h"

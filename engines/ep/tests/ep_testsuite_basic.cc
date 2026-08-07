@@ -20,7 +20,6 @@
 #include <ep_time.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/types.h>
-#include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_thread.h>

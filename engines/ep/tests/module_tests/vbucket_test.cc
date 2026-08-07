@@ -32,7 +32,6 @@
 
 #include <folly/portability/GMock.h>
 #include <nlohmann/json.hpp>
-#include <platform/cb_malloc.h>
 #include <memory>
 
 using namespace std::string_literals;

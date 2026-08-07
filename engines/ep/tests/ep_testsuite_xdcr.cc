@@ -17,7 +17,6 @@
 #include "hlc.h"
 #include <ep_time.h>
 #include <executor/executorpool.h>
-#include <platform/cb_malloc.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

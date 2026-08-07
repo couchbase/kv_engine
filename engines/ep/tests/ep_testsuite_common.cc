@@ -19,7 +19,6 @@
 #include "mock/mock_dcp.h"
 
 #include <memcached/dcp.h>
-#include <platform/cb_malloc.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <iostream>

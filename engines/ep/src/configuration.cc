@@ -16,7 +16,6 @@
 #include <folly/Synchronized.h>
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
-#include <platform/cb_malloc.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <memory>

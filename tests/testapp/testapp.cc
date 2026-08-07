@@ -22,7 +22,6 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/backtrace.h>
-#include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>

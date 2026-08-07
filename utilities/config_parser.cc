@@ -10,7 +10,6 @@
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/config_parser.h>
-#include <platform/cb_malloc.h>
 #include <platform/string_utilities.h>
 #include <algorithm>
 #include <cctype>

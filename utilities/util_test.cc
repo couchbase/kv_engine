@@ -11,7 +11,6 @@
  * Unit tests for util.c
  */
 
-#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 
 #include <memcached/util.h>

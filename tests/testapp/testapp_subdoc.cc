@@ -20,7 +20,6 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h> // for memcached_protocol_errcode_2_text()
 #include <nlohmann/json.hpp>
-#include <platform/cb_malloc.h>
 #include <platform/socket.h>
 #include <protocol/mcbp/ewb_encode.h>
 

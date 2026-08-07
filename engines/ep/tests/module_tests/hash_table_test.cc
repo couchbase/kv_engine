@@ -26,7 +26,6 @@
 #include <boost/dynamic_bitset.hpp>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
-#include <platform/cb_malloc.h>
 
 #include <algorithm>
 #include <chrono>
