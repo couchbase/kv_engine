@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,7 +9,7 @@
  */
 #pragma once
 
-#include "../../memcached.h"
+class Cookie;
 
 /**
  * Implementation of the method responsible for handle the incoming

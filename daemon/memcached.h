@@ -23,11 +23,6 @@
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
-class Bucket;
-class Cookie;
-struct HighResolutionThreadStats;
-struct LowResolutionThreadStats;
-
 /// Safely closes a server socket.
 void close_server_socket(SOCKET sfd);
 /// Safely closes a client socket.
