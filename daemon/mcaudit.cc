@@ -14,7 +14,6 @@
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
-#include "memcached.h"
 #include "settings.h"
 #include <cblogger/logger.h>
 

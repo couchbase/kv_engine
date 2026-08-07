@@ -14,7 +14,6 @@
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
-#include "memcached.h"
 
 #include <daemon/cookie.h>
 #include <platform/socket.h>

@@ -12,7 +12,6 @@
 #include "steppable_command_context.h"
 
 #include <daemon/cookie.h>
-#include <daemon/memcached.h>
 
 /**
  * BucketManagementCommandContext is responsible for handling the

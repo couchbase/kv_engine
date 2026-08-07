@@ -16,7 +16,6 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
-#include "memcached.h"
 #include "settings.h"
 #include "top_keys_controller.h"
 #include "tracing.h"

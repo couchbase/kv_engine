@@ -20,7 +20,6 @@
 #include "front_end_thread.h"
 #include "mcaudit.h"
 #include "mcbp/codec/stats_codec.h"
-#include "memcached.h"
 #include "memcached/engine_error.h"
 #include "nobucket_taskable.h"
 

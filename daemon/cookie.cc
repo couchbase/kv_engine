@@ -20,7 +20,6 @@
 #include "mcaudit.h"
 #include "mcbp_executors.h"
 #include "mcbp_validators.h"
-#include "memcached.h"
 #include "resource_allocation_domain.h"
 #include "sendbuffer.h"
 #include "settings.h"

@@ -16,7 +16,6 @@
 #include <cblogger/logger.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <daemon/memcached.h>
 #include <daemon/nobucket_taskable.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>

@@ -11,7 +11,6 @@
 #pragma once
 
 #include "steppable_command_context.h"
-#include <daemon/memcached.h>
 #include <memcached/engine.h>
 
 class ItemDissector;

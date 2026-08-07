@@ -11,7 +11,6 @@
 #include "bucket_destroyer.h"
 #include "buckets.h"
 #include "front_end_thread.h"
-#include "memcached.h"
 #include "tests/mcbp/mcbp_mock_connection.h"
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>

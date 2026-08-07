@@ -14,7 +14,6 @@
 #include "enginemap.h"
 #include "engines/nobucket/nobucket_public.h"
 #include "front_end_thread.h"
-#include "memcached.h"
 #include "tests/mcbp/mcbp_mock_connection.h"
 #include "utilities/testing_hook.h"
 #include <folly/portability/GTest.h>

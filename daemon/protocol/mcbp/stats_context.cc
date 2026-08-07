@@ -19,7 +19,6 @@
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
-#include <daemon/memcached.h>
 #include <daemon/nobucket_taskable.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>

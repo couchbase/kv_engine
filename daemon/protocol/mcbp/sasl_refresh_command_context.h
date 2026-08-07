@@ -11,8 +11,6 @@
 
 #include "background_thread_command_context.h"
 
-#include <daemon/memcached.h>
-
 /**
  * SaslRefreshCommandContext is responsible for handling the
  * isasl refresh command. Due to the fact that the task involves file IO

@@ -12,7 +12,6 @@
 #include <cblogger/logger.h>
 #include <daemon/cmdline.h>
 #include <daemon/concurrency_semaphores.h>
-#include <daemon/memcached.h>
 #include <daemon/network_interface_description.h>
 #include <daemon/network_interface_manager.h>
 #include <daemon/settings.h>

@@ -13,7 +13,6 @@
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
-#include "memcached.h"
 #include "resource_allocation_domain.h"
 #include "settings.h"
 #include "thread_stats.h"
@@ -24,6 +23,7 @@
 #include <memcached/engine.h>
 #include <platform/json_log_conversions.h>
 #include <serverless/config.h>
+#include <statistics/cardinality.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/throttle_utilities.h>
 

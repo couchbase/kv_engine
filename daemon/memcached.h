@@ -9,16 +9,7 @@
  */
 #pragma once
 
-#include <memcached/engine_error.h>
 #include <platform/socket.h>
-#include <vector>
-
-#include <statistics/prometheus.h>
-
-/** \file
- * The main memcached header holding commonly used data
- * structures and function prototypes.
- */
 
 /// Safely closes a server socket.
 void close_server_socket(SOCKET sfd);

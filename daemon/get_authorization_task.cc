@@ -13,7 +13,6 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "log_macros.h"
-#include "memcached.h"
 #include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
 

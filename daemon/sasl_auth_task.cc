@@ -12,7 +12,6 @@
 #include "connection.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
-#include "memcached.h"
 #include "settings.h"
 #include <cblogger/logger.h>
 #include <cbsasl/server.h>
