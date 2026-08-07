@@ -14,9 +14,6 @@
 #include <memcached/dockey_view.h>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/fmt/fmt.h>
-#include <iomanip>
-#include <iostream>
 
 CollectionsManifest::CollectionsManifest() {
     add(ScopeEntry::defaultS);

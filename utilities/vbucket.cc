@@ -11,7 +11,7 @@
 
 #include <memcached/vbucket.h>
 #include <nlohmann/json.hpp>
-#include <spdlog/fmt/ostr.h>
+#include <ostream>
 
 std::ostream& operator<<(std::ostream& os, const Vbid& d) {
     return os << d.to_string();

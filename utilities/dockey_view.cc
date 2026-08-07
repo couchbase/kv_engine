@@ -9,13 +9,12 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/format.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey_view.h>
 #include <memcached/systemevent.h>
 #include <platform/socket.h>
-#include <spdlog/fmt/fmt.h>
 #include <cctype>
-#include <ostream>
 #include <sstream>
 #include <string_view>
 

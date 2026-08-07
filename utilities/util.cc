@@ -11,7 +11,6 @@
 #include <cctype>
 #include <cerrno>
 #include <cstdlib>
-#include <cstring>
 #include <stdexcept>
 #include <string>
 

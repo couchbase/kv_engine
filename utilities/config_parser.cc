@@ -11,10 +11,8 @@
 #include <gsl/gsl-lite.hpp>
 #include <memcached/config_parser.h>
 #include <platform/string_utilities.h>
-#include <algorithm>
 #include <cctype>
 #include <cstring>
-#include <iterator>
 
 std::string cb::config::internal::next_field(std::string_view& src, char stop) {
     auto trim_tail = [](std::string& str, std::size_t minimum) {

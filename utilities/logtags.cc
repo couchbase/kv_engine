@@ -11,7 +11,7 @@
 
 #include "logtags.h"
 
-#include <spdlog/fmt/ostr.h>
+#include <ostream>
 
 namespace cb {
 std::ostream& operator<<(std::ostream& os, const cb::UserDataView& d) {

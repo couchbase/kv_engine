@@ -11,9 +11,11 @@
 
 #include "crl_policy.h"
 
-#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
+#include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 
 namespace cb::openssl {

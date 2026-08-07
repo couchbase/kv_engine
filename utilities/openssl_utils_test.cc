@@ -13,7 +13,6 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
 #include <memory>
 #include <stdexcept>
 #include <string>

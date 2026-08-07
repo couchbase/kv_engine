@@ -13,14 +13,13 @@
 
 #include <cblogger/logger.h>
 #include <cblogger/logger_config.h>
+#include <fcntl.h>
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #ifdef WIN32
-#include <fcntl.h>
 #include <io.h>
 #include <sys/stat.h>
 #else
-#include <sys/fcntl.h>
 #include <unistd.h>
 #endif
 namespace cb::breakpad {

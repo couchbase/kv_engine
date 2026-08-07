@@ -11,10 +11,7 @@
  * Unit tests for util.c
  */
 
-#include <platform/dirutils.h>
-
 #include <memcached/util.h>
-#include <memcached/config_parser.h>
 #include "string_utilities.h"
 
 #include <folly/portability/GMock.h>
