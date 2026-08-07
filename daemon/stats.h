@@ -132,6 +132,15 @@ cb::engine_errc server_prometheus_stats_high(
 cb::engine_errc server_prometheus_metering(
         const PrometheusStatCollector& collector);
 
+/**
+ * MB-12470 requests an easy way to see when (some of) the statistics
+ * counters were reset. This functions grabs the current time and tries
+ * to format it to the current timezone by using ctime_r/s (which adds
+ * a newline at the end for some obscure reason which we'll need to
+ * strip off).
+ */
+void setStatsResetTime();
+
 std::string getStatsResetTime();
 
 class Cookie;

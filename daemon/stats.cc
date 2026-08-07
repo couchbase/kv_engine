@@ -12,17 +12,22 @@
 
 #include "bucket_manager.h"
 #include "buckets.h"
+#include "connection.h"
+#include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "network_interface_manager.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "sdk_connection_manager.h"
 #include "server_lifecycle.h"
 #include "settings.h"
+#include "thread_stats.h"
 #include <cblogger/logger.h>
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
+#include <folly/Synchronized.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>
@@ -33,7 +38,42 @@
 #include <statistics/prometheus_collector.h>
 #include <utilities/magma_support.h>
 #include <utilities/string_utilities.h>
+#include <array>
+#include <ctime>
+#include <mutex>
 #include <string_view>
+
+static folly::Synchronized<std::string, std::mutex> reset_stats_time;
+
+void setStatsResetTime() {
+    time_t now = time(nullptr);
+    std::array<char, 80> reset_time;
+#ifdef WIN32
+    ctime_s(reset_time.data(), reset_time.size(), &now);
+#else
+    ctime_r(&now, reset_time.data());
+#endif
+    char* ptr = strchr(reset_time.data(), '\n');
+    if (ptr) {
+        *ptr = '\0';
+    }
+    reset_stats_time.lock()->assign(reset_time.data());
+}
+
+std::string getStatsResetTime() {
+    return *reset_stats_time.lock();
+}
+
+void stats_reset(Cookie& cookie) {
+    setStatsResetTime();
+    global_statistics.total_conns.reset();
+    global_statistics.rejected_conns.reset();
+    reset_high_resolution_thread_stats(
+            cookie.getConnection().getBucket().high_resolution_stats);
+    reset_low_resolution_thread_stats(
+            cookie.getConnection().getBucket().low_resolution_stats);
+    bucket_reset_stats(cookie);
+}
 
 // add global stats
 static void server_global_stats(const StatCollector& collector) {

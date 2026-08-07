@@ -69,7 +69,6 @@
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 #include <filesystem>
 #include <memory>
 #include <thread>
@@ -115,33 +114,6 @@ void stop_memcached_main_base() {
     }
 }
 
-static folly::Synchronized<std::string, std::mutex> reset_stats_time;
-/**
- * MB-12470 requests an easy way to see when (some of) the statistics
- * counters were reset. This functions grabs the current time and tries
- * to format it to the current timezone by using ctime_r/s (which adds
- * a newline at the end for some obscure reason which we'll need to
- * strip off).
- */
-static void setStatsResetTime() {
-    time_t now = time(nullptr);
-    std::array<char, 80> reset_time;
-#ifdef WIN32
-    ctime_s(reset_time.data(), reset_time.size(), &now);
-#else
-    ctime_r(&now, reset_time.data());
-#endif
-    char* ptr = strchr(reset_time.data(), '\n');
-    if (ptr) {
-        *ptr = '\0';
-    }
-    reset_stats_time.lock()->assign(reset_time.data());
-}
-
-std::string getStatsResetTime() {
-    return *reset_stats_time.lock();
-}
-
 static void populate_log_level() {
     const auto val = Settings::instance().getLogLevel();
 
@@ -178,17 +150,6 @@ static bool prometheus_auth_callback(const std::string& user,
     } catch (const cb::rbac::Exception&) {
         return false;
     }
-}
-
-void stats_reset(Cookie& cookie) {
-    setStatsResetTime();
-    global_statistics.total_conns.reset();
-    global_statistics.rejected_conns.reset();
-    reset_high_resolution_thread_stats(
-            cookie.getConnection().getBucket().high_resolution_stats);
-    reset_low_resolution_thread_stats(
-            cookie.getConnection().getBucket().low_resolution_stats);
-    bucket_reset_stats(cookie);
 }
 
 static size_t get_number_of_worker_threads() {
