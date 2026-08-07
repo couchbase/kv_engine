@@ -11,7 +11,7 @@
 
 #include "connection.h"
 
-#include "memcached.h"
+#include "front_end_thread.h"
 #include <cblogger/logger.h>
 #include <platform/json_log_conversions.h>
 

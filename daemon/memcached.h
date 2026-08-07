@@ -11,7 +11,6 @@
 
 #include <memcached/engine_error.h>
 #include <platform/socket.h>
-#include <functional>
 #include <vector>
 
 #include <statistics/prometheus.h>
@@ -26,19 +25,8 @@
 
 class Bucket;
 class Cookie;
-class Connection;
 struct HighResolutionThreadStats;
 struct LowResolutionThreadStats;
-
-/*
- * Functions such as the libevent-related calls that need to do cross-thread
- * communication in multithreaded mode (rather than actually doing the work
- * in the current thread) are called via "dispatch_" frontends, which are
- * also #define-d to directly call the underlying code in singlethreaded mode.
- */
-void worker_threads_init();
-
-void threads_shutdown();
 
 /// Safely closes a server socket.
 void close_server_socket(SOCKET sfd);
@@ -57,8 +45,3 @@ struct ServerApi;
 ServerApi* get_server_api();
 
 void shutdown_server();
-
-/// Iterate over all of the connections and call the provided callback in
-/// the context of the front end thread it is bound to. This means
-/// that the function cannot be called in one of the front end context
-void iterate_all_connections(std::function<void(Connection&)> callback);

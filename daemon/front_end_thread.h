@@ -272,6 +272,21 @@ protected:
     std::deque<std::reference_wrapper<Connection>> connectionsInitiatedShutdown;
 };
 
+/*
+ * Functions such as the libevent-related calls that need to do cross-thread
+ * communication in multithreaded mode (rather than actually doing the work
+ * in the current thread) are called via "dispatch_" frontends, which are
+ * also #define-d to directly call the underlying code in singlethreaded mode.
+ */
+void worker_threads_init();
+
+void threads_shutdown();
+
+/// Iterate over all of the connections and call the provided callback in
+/// the context of the front end thread it is bound to. This means
+/// that the function cannot be called in one of the front end context
+void iterate_all_connections(std::function<void(Connection&)> callback);
+
 class Hdr1sfMicroSecHistogram;
 
 extern std::vector<Hdr1sfMicroSecHistogram> scheduler_info;

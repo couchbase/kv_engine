@@ -9,6 +9,7 @@
 #include "network_interface_manager.h"
 
 #include "connection.h"
+#include "front_end_thread.h"
 #include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"

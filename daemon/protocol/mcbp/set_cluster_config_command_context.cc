@@ -17,6 +17,7 @@
 #include <daemon/bucket_manager.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 #include <folly/io/IOBuf.h>
