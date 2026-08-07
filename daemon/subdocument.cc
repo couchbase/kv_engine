@@ -25,6 +25,7 @@
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/durability_spec.h>
+#include <memcached/limits.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
 #include <platform/json_log_conversions.h>

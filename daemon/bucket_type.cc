@@ -9,8 +9,7 @@
  */
 
 #include <memcached/bucket_type.h>
-#include <platform/dirutils.h>
-
+#include <filesystem>
 #include <string_view>
 
 std::string to_string(BucketType type) {

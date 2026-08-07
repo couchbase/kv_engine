@@ -16,7 +16,6 @@
 #include "ioctl.h"
 #include "mc_time.h"
 #include "mcaudit.h"
-#include "mcbp.h"
 #include "mcbp_privileges.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"

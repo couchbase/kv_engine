@@ -16,11 +16,7 @@
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
 #include <folly/io/IOBuf.h>
-#include <memcached/engine.h>
-#include <cstddef>
-#include <iomanip>
 #include <memory>
-#include <unordered_map>
 
 /**
  * The MemoryBackedBuffer may be used for a "copy on write" context

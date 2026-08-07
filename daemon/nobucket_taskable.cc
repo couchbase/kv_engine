@@ -13,7 +13,6 @@
 #include "stats.h"
 #include <cblogger/logger.h>
 #include <platform/json_log_conversions.h>
-#include <platform/timeutils.h>
 
 const std::string& NoBucketTaskable::getName() const {
     return name;

@@ -13,7 +13,6 @@
 #include "environment.h"
 #include "log_macros.h"
 #include "ssl_utils.h"
-#include <fmt/chrono.h>
 #include <mcbp/mcbp.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>

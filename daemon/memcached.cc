@@ -24,7 +24,6 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "mcbp_executors.h"
-#include "network_interface.h"
 #include "network_interface_manager_thread.h"
 #include "nobucket_taskable.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -39,8 +38,6 @@
 #include <cbsasl/mechanism.h>
 #include <dek/manager.h>
 #include <executor/executorpool.h>
-#include <fmt/chrono.h>
-#include <fmt/format.h>
 #include <folly/Chrono.h>
 #include <folly/CpuId.h>
 #include <folly/io/async/EventBase.h>
@@ -56,7 +53,6 @@
 #include <platform/interrupt.h>
 #include <platform/json_log_conversions.h>
 #include <platform/process_monitor.h>
-#include <platform/scope_timer.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 #include <platform/timeutils.h>

@@ -18,7 +18,6 @@
 #include <platform/corestore.h>
 #include <array>
 #include <mutex>
-#include <string>
 
 #define MAX_NUM_OPCODES 0x100
 

@@ -10,7 +10,6 @@
 #pragma once
 
 #include <memcached/audit_interface.h>
-#include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json.hpp>

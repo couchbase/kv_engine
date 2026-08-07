@@ -11,7 +11,6 @@
 
 #include "front_end_thread.h"
 #include "protocol/mcbp/engine_wrapper.h"
-#include "settings.h"
 #include "subdocument_parser.h"
 #include "thread_stats.h"
 #include <cblogger/logger.h>

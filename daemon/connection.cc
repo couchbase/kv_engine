@@ -42,11 +42,8 @@
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
-#include <platform/string_hex.h>
 #include <platform/timeutils.h>
-#include <serverless/config.h>
 #include <utilities/debug_variable.h>
-#include <utilities/logtags.h>
 
 #include <exception>
 #include <string_view>

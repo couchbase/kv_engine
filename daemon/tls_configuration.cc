@@ -16,7 +16,6 @@
 #include "ssl_utils.h"
 #include "stats.h"
 
-#include <cbcrypto/digest.h>
 #include <cblogger/logger.h>
 #include <nlohmann/json.hpp>
 #include <openssl/bio.h>
@@ -26,6 +25,7 @@
 #include <openssl/x509v3.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
+#include <stdexcept>
 
 using cb::openssl::CreateSslContextException;
 using cb::openssl::getOpenSslError;

@@ -11,7 +11,6 @@
 #include "ioctl.h"
 
 #include "bucket_manager.h"
-#include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
@@ -27,30 +26,8 @@
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/split_string.h>
-#include <platform/strerror.h>
 #include <serverless/config.h>
 #include <algorithm>
-
-/*
- * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
- */
-
-/**
- * Function interface for ioctl_get callbacks
- */
-using GetCallbackFunc =
-        std::function<cb::engine_errc(Cookie& cookie,
-                                      const StrToStrMap& arguments,
-                                      std::string& value,
-                                      cb::mcbp::Datatype& datatype)>;
-
-/**
- * Function interface for ioctl_set callbacks
- */
-using SetCallbackFunc =
-        std::function<cb::engine_errc(Cookie& cookie,
-                                      const StrToStrMap& arguments,
-                                      const std::string& value)>;
 
 /**
  * Callback for calling allocator specific memory release

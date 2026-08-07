@@ -20,8 +20,6 @@
 #include <mcbp/protocol/status.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine.h>
-#include <memcached/limits.h>
-#include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
 #include <condition_variable>
 #include <deque>

@@ -14,7 +14,6 @@
 #include "external_auth_manager_thread.h"
 #include "log_macros.h"
 #include <platform/json_log_conversions.h>
-#include <platform/timeutils.h>
 
 void GetAuthorizationTask::logIfSlowResponse() const {
     auto duration = std::chrono::steady_clock::now() - getStartTime();

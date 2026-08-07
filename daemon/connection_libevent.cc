@@ -14,7 +14,6 @@
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "mcaudit.h"
-#include "platform/backtrace.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "tracing.h"

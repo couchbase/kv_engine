@@ -30,7 +30,6 @@
 #include <chrono>
 #include <deque>
 #include <memory>
-#include <queue>
 #include <string>
 
 class Bucket;

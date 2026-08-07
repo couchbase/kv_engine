@@ -10,9 +10,7 @@
 
 #pragma once
 
-#include <array>
 #include <atomic>
-#include <functional>
 
 /**
  * The SloppyGauge is just a hack used in the prototype for

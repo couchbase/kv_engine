@@ -13,7 +13,6 @@
 #include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
 #include <openssl/ossl_typ.h>
-#include <stdexcept>
 #include <string>
 #include <vector>
 

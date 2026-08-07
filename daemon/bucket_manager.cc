@@ -18,7 +18,6 @@
 #include "mcaudit.h"
 #include "server_api.h"
 #include "settings.h"
-#include "thread_stats.h"
 #include <cblogger/logger.h>
 #include <memcached/config_parser.h>
 #include <platform/base64.h>

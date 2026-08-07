@@ -14,17 +14,14 @@
 #include "network_interface.h"
 #include <cblogger/logger_config.h>
 
+#include <folly/Synchronized.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/thread_pool_config.h>
 #include <platform/io_hint.h>
-#include <platform/timeutils.h>
 #include <relaxed_atomic.h>
 #include <utilities/breakpad_settings.h>
 
-#include <folly/Synchronized.h>
-
 #include <atomic>
-#include <cstdarg>
 #include <deque>
 #include <functional>
 #include <map>

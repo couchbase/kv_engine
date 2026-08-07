@@ -11,7 +11,6 @@
 #include "bucket_destroyer.h"
 #include "bucket_manager.h"
 #include "buckets.h"
-#include "enginemap.h"
 #include "engines/nobucket/nobucket_public.h"
 #include "front_end_thread.h"
 #include "tests/mcbp/mcbp_mock_connection.h"

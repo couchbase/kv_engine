@@ -21,7 +21,6 @@
 #include "settings.h"
 #include "socket_lifecycle.h"
 #include "stats.h"
-#include "thread_stats.h"
 #include "tracing.h"
 #include <hdrhistogram/hdrhistogram.h>
 #include <json/syntax_validator.h>
@@ -38,7 +37,6 @@
 #include <condition_variable>
 #include <cstdlib>
 #include <mutex>
-#include <queue>
 
 void ClientConnectionDetails::onConnect() {
     ++current_connections;

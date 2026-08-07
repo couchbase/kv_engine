@@ -18,7 +18,6 @@
 #include "settings.h"
 #include "subdocument_validators.h"
 #include "tls_configuration.h"
-#include "xattr/utils.h"
 
 #include <cbcrypto/key_store.h>
 #include <cblogger/logger.h>

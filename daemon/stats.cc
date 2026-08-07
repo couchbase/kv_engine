@@ -25,7 +25,6 @@
 #include "settings.h"
 #include "thread_stats.h"
 #include <cblogger/logger.h>
-#include <fmt/chrono.h>
 #include <folly/Chrono.h>
 #include <folly/Synchronized.h>
 #include <platform/cb_arena_malloc.h>

@@ -29,7 +29,6 @@
 #include <cblogger/logger.h>
 #include <folly/io/IOBuf.h>
 #include <mcbp/mcbp.h>
-#include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
@@ -39,11 +38,8 @@
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
-#include <serverless/config.h>
 #include <utilities/clustermap_utils.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <utilities/logtags.h>
-#include <cctype>
 #include <chrono>
 
 nlohmann::json Cookie::to_json() const {

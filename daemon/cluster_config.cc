@@ -10,11 +10,7 @@
  */
 #include "cluster_config.h"
 
-#include <subdoc/operations.h>
-
 #include <nlohmann/json.hpp>
-#include <cstdlib>
-#include <stdexcept>
 
 nlohmann::json ClustermapVersion::to_json() const {
     return {{"epoch", epoch}, {"revno", revno}};

@@ -12,7 +12,6 @@
 #include "connection.h"
 #include "cookie.h"
 #include "front_end_thread.h"
-#include "log_macros.h"
 #include "resource_allocation_domain.h"
 #include "settings.h"
 #include "thread_stats.h"

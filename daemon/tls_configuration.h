@@ -12,7 +12,6 @@
 #include <nlohmann/json.hpp>
 #include <utilities/crl_policy.h>
 #include <utilities/openssl_utils.h>
-#include <stdexcept>
 #include <string>
 
 class TlsConfiguration {
