@@ -14,7 +14,6 @@
 #include "resource_allocation_domain.h"
 #include "sendbuffer.h"
 #include "stats.h"
-#include "token_auth_data.h"
 
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -41,6 +40,7 @@ class ListeningPort;
 struct EngineIface;
 struct FrontEndThread;
 class SendBuffer;
+class TokenAuthData;
 
 namespace cb::mcbp {
 class Header;
@@ -974,9 +974,7 @@ public:
             std::optional<std::chrono::system_clock::time_point> begin,
             std::optional<std::chrono::system_clock::time_point> end);
 
-    bool removeTokenAuthDataById(const uint16_t id) {
-        return tokenAuthDataById.erase(id) > 0;
-    }
+    bool removeTokenAuthDataById(const uint16_t id);
 
     /// Called when the settings changed. Invalidate the cache
     static void onSocketSendBufferSizeChange() {

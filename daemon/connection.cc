@@ -25,6 +25,7 @@
 #include "settings.h"
 #include "ssl_utils.h"
 #include "thread_stats.h"
+#include "token_auth_data.h"
 #include "tracing.h"
 #include <cblogger/logger.h>
 #include <gsl/gsl-lite.hpp>
@@ -1410,6 +1411,10 @@ void Connection::upsertTokenAuthDataById(
         std::optional<std::chrono::system_clock::time_point> end) {
     tokenAuthDataById[id] = std::make_unique<TokenAuthData>(
             std::move(user_), std::move(entry), begin, end);
+}
+
+bool Connection::removeTokenAuthDataById(const uint16_t id) {
+    return tokenAuthDataById.erase(id) > 0;
 }
 
 Connection::Connection(SOCKET sfd,

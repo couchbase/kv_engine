@@ -23,6 +23,7 @@
 #include "memcached.h"
 #include "resource_allocation_domain.h"
 #include "settings.h"
+#include "token_auth_data.h"
 #include "tracing.h"
 
 #include <cblogger/logger.h>
