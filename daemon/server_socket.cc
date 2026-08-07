@@ -12,10 +12,10 @@
 
 #include "front_end_thread.h"
 #include "listening_port.h"
-#include "memcached.h"
 #include "network_interface_manager.h"
 #include "server_lifecycle.h"
 #include "settings.h"
+#include "socket_lifecycle.h"
 #include "stats.h"
 
 #include <cblogger/logger.h>

@@ -8,7 +8,6 @@
  * licenses/BSD-3-Clause-Sun-Microsystems.txt and
  * licenses/BSD-3-Clause-Danga-Interactive.txt
  */
-#include "memcached.h"
 #include "bucket_manager.h"
 #include "buckets.h"
 #include "cmdline.h"
@@ -31,6 +30,7 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "server_lifecycle.h"
 #include "settings.h"
+#include "socket_lifecycle.h"
 #include "stats.h"
 #include "stdin_check.h"
 #include "tracing.h"
