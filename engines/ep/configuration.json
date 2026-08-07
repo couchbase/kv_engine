@@ -2163,14 +2163,14 @@
         },
         "continuous_backup_interval": {
             "added": "8.0.0",
-            "default": "120",
-            "descr": "The continouous backup interval (in seconds).",
+            "default": "2",
+            "descr": "The continouous backup interval (in minutes).",
             "dynamic": true,
             "type": "size_t",
             "validator": {
                 "range": {
-                    "min": 120,
-                    "max": 2147483647
+                    "min": 2,
+                    "max": 60
                 }
             }
         },

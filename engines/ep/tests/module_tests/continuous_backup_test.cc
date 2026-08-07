@@ -30,7 +30,7 @@ public:
     void SetUp() override {
         config_string +=
                 "continuous_backup_enabled=true;"
-                "continuous_backup_interval=1000;"
+                "continuous_backup_interval=30;"
                 // Ensure the path is within the unit test
                 "continuous_backup_path=@continuous_backup;"
                 "history_retention_seconds=2000";
@@ -87,13 +87,13 @@ TEST_P(ContinousBackupTest, Config) {
     auto& config = dynamic_cast<const MagmaKVStoreConfig&>(store.getConfig());
 
     EXPECT_EQ(config.isContinousBackupEnabled(), true);
-    EXPECT_EQ(config.getContinousBackupInterval(), 1000s);
+    EXPECT_EQ(config.getContinousBackupInterval(), 30min);
 
     engine->getConfiguration().setContinuousBackupEnabled(false);
-    engine->getConfiguration().setContinuousBackupInterval(123);
+    engine->getConfiguration().setContinuousBackupInterval(2);
 
     EXPECT_EQ(config.isContinousBackupEnabled(), false);
-    EXPECT_EQ(config.getContinousBackupInterval(), 123s);
+    EXPECT_EQ(config.getContinousBackupInterval(), 2min);
 }
 
 TEST_P(ContinousBackupTest, PathConfig) {

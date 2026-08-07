@@ -641,7 +641,7 @@ public:
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override;
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override;
 
-    void setContinuousBackupInterval(std::chrono::seconds interval);
+    void setContinuousBackupInterval(std::chrono::minutes interval);
 
     /// Overload for testing.
     std::pair<magma::Status, std::string> onContinuousBackupCallback(

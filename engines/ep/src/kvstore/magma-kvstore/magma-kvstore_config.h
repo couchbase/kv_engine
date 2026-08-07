@@ -279,11 +279,11 @@ public:
         continuousBackupEnabled = enabled;
     }
 
-    std::chrono::seconds getContinousBackupInterval() const {
+    std::chrono::minutes getContinousBackupInterval() const {
         return continuousBackupInterval;
     }
 
-    void setContinousBackupInterval(std::chrono::seconds interval);
+    void setContinousBackupInterval(std::chrono::minutes interval);
 
     std::chrono::seconds getMagmaCollectionHighSeqnoRefreshInterval() const {
         return magmaCollectionHighSeqnoRefreshInterval;
@@ -624,8 +624,8 @@ private:
     std::atomic<bool> perDocumentCompressionEnabled;
 
     std::atomic<bool> continuousBackupEnabled{false};
-    std::atomic<std::chrono::seconds> continuousBackupInterval{
-            std::chrono::seconds(120)};
+    std::atomic<std::chrono::minutes> continuousBackupInterval{
+            std::chrono::minutes(2)};
 
     std::atomic<std::chrono::seconds> magmaCollectionHighSeqnoRefreshInterval{
             std::chrono::seconds(60)};

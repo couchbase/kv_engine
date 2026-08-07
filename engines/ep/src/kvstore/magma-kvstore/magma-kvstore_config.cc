@@ -55,7 +55,7 @@ public:
         } else if (key == "magma_max_num_level0_tables") {
             config.setMagmaMaxNumLevel0Tables(value);
         } else if (key == "continuous_backup_interval") {
-            config.setContinousBackupInterval(std::chrono::seconds(value));
+            config.setContinousBackupInterval(std::chrono::minutes(value));
         } else if (key == "magma_collection_high_seqno_refresh_interval") {
             config.setMagmaCollectionHighSeqnoRefreshInterval(
                     std::chrono::seconds(value));
@@ -286,9 +286,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
 
     continuousBackupInterval =
-            std::chrono::seconds(config.getContinuousBackupInterval());
-    magmaCfg.BackupInterval = std::chrono::duration_cast<std::chrono::minutes>(
-            continuousBackupInterval.load());
+            std::chrono::minutes(config.getContinuousBackupInterval());
+    magmaCfg.BackupInterval = continuousBackupInterval.load();
     config.addValueChangedListener(
             "continuous_backup_interval",
             std::make_unique<ConfigChangeListener>(*this));
@@ -555,7 +554,7 @@ void MagmaKVStoreConfig::updateCompressionConfig() {
 }
 
 void MagmaKVStoreConfig::setContinousBackupInterval(
-        std::chrono::seconds interval) {
+        std::chrono::minutes interval) {
     Expects(store);
     continuousBackupInterval = interval;
     store->setContinuousBackupInterval(interval);

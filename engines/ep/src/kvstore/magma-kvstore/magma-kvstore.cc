@@ -4715,9 +4715,8 @@ bool MagmaKVStore::isContinuousBackupStarted(Vbid vbid) {
     return continuousBackupStatus[getCacheSlot(vbid)] == BackupStatus::Started;
 }
 
-void MagmaKVStore::setContinuousBackupInterval(std::chrono::seconds interval) {
-    magma->SetBackupInterval(
-            std::chrono::duration_cast<std::chrono::minutes>(interval));
+void MagmaKVStore::setContinuousBackupInterval(std::chrono::minutes interval) {
+    magma->SetBackupInterval(interval);
 }
 
 std::filesystem::path MagmaKVStore::getContinuousBackupPath(
