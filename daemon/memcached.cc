@@ -29,6 +29,7 @@
 #include "network_interface_manager_thread.h"
 #include "nobucket_taskable.h"
 #include "protocol/mcbp/engine_wrapper.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include "stats.h"
 #include "stdin_check.h"

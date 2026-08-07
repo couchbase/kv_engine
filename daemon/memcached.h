@@ -32,16 +32,3 @@ struct LowResolutionThreadStats;
 void close_server_socket(SOCKET sfd);
 /// Safely closes a client socket.
 void close_client_socket(SOCKET sfd);
-
-const char* get_server_version();
-bool is_memcached_shutting_down();
-void stop_memcached_main_base();
-
-/**
- * Connection-related functions
- */
-
-struct ServerApi;
-ServerApi* get_server_api();
-
-void shutdown_server();

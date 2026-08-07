@@ -9,7 +9,7 @@
  */
 #include "cmdline.h"
 #include "config_parse.h"
-#include "memcached.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 
 #include <dek/manager.h>

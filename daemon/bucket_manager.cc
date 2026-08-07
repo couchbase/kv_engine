@@ -16,7 +16,7 @@
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "mcaudit.h"
-#include "memcached.h"
+#include "server_api.h"
 #include "settings.h"
 #include "thread_stats.h"
 #include <cblogger/logger.h>

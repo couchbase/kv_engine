@@ -8,11 +8,12 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "server_api.h"
+
 #include "bucket_manager.h"
 #include "buckets.h"
 #include "environment.h"
 #include "mc_time.h"
-#include "memcached.h"
 #include "network_interface_manager.h"
 #include "settings.h"
 #include <executor/executorpool.h>
@@ -155,11 +156,6 @@ protected:
     ServerBucketApi bucket_api;
 };
 
-/**
- * Callback the engines may call to get the public server interface
- * @return pointer to a structure containing the interface. The client should
- *         know the layout and perform the proper casts.
- */
 ServerApi* get_server_api() {
     static ServerApiImpl rv;
     return &rv;

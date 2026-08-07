@@ -70,6 +70,7 @@
 #include "protocol/mcbp/unknown_packet_command_context.h"
 #include "protocol/mcbp/unmount_fusion_vbucket_command_context.h"
 #include "sendbuffer.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include "subdocument.h"
 

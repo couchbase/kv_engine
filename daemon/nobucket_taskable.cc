@@ -9,7 +9,7 @@
  */
 
 #include "nobucket_taskable.h"
-#include "memcached.h"
+#include "server_lifecycle.h"
 #include "stats.h"
 #include <cblogger/logger.h>
 #include <platform/json_log_conversions.h>

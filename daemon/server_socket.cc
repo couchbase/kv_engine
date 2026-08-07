@@ -14,6 +14,7 @@
 #include "listening_port.h"
 #include "memcached.h"
 #include "network_interface_manager.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include "stats.h"
 

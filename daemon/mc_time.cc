@@ -35,7 +35,7 @@
 
 #include "bucket_manager.h"
 #include "buckets.h"
-#include "memcached.h"
+#include "server_lifecycle.h"
 
 #include <cblogger/logger.h>
 #include <fmt/chrono.h>

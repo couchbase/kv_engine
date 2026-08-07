@@ -16,9 +16,9 @@
 #include "front_end_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
-#include "memcached.h"
 #include "network_interface_manager.h"
 #include "sdk_connection_manager.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include <cblogger/logger.h>
 #include <fmt/chrono.h>

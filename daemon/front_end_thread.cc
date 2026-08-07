@@ -18,6 +18,7 @@
 #include "log_macros.h"
 #include "mcaudit.h"
 #include "memcached.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include "stats.h"
 #include "thread_stats.h"

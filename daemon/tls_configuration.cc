@@ -10,8 +10,8 @@
 #include "tls_configuration.h"
 
 #include "mcaudit.h"
-#include "memcached.h"
 #include "network_interface_manager.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include "ssl_utils.h"
 #include "stats.h"
