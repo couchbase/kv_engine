@@ -11,7 +11,6 @@
 #pragma once
 
 #include "protocol/mcbp/command_context.h"
-#include <folly/io/IOBuf.h>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/cookie_iface.h>
