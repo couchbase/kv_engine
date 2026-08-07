@@ -16,7 +16,7 @@
 #include "testapp_client_test.h"
 
 #include <memcached/dockey_view.h>
-#include <algorithm>
+#include <memcached/types.h>
 
 class RbacTest : public TestappClientTest {};
 

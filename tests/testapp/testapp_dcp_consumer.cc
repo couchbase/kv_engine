@@ -10,6 +10,7 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
+#include <memcached/types.h>
 #include <xattr/utils.h>
 
 enum class OutOfMem { Yes, No };

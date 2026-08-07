@@ -10,12 +10,7 @@
 
 #pragma once
 
-#include "testapp.h"
-
 #include "testapp_client_test.h"
-#include <mcbp/codec/frameinfo.h>
-#include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <string>
 
 class AuditTest : public TestappClientTest {

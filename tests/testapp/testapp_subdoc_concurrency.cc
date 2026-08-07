@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "testapp_client_test.h"
+#include "testapp.h"
 
 /// Tests how a single worker handles multiple "concurrent" connections
 /// performing operations.

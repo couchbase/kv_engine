@@ -12,9 +12,9 @@
 #include "testapp_client_test.h"
 #include "utilities/test_manifest.h"
 
-#include <boost/stacktrace/detail/frame_decl.hpp>
 #include <folly/ScopeGuard.h>
 #include <mcbp/codec/frameinfo.h>
+#include <memcached/types.h>
 #include <nlohmann/json.hpp>
 #include <protocol/mcbp/ewb_encode.h>
 

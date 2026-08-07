@@ -14,10 +14,8 @@
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/framebuilder.h>
-#include <memcached/util.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
-#include <atomic>
 #include <cstring>
 #include <string>
 #include <vector>

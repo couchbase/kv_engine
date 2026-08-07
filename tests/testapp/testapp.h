@@ -15,9 +15,7 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/types.h>
 #include <nlohmann/json.hpp>
-#include <platform/platform_thread.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_connection_map.h>
 #include <protocol/connection/client_mcbp_commands.h>

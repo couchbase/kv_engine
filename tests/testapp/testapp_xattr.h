@@ -11,7 +11,6 @@
 #pragma once
 
 #include "testapp_client_test.h"
-#include "xattr/blob.h"
 
 /**
  * Text fixture for XAttr tests which do not want to have an initial document

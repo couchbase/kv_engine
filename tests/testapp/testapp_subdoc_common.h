@@ -17,9 +17,8 @@
 
 #include "testapp.h"
 
-#include "subdoc_encoder.h"
-
-#include <memory>
+struct SubdocMultiLookupCmd;
+struct SubdocMultiMutationCmd;
 
 // Properties of a particular subdoc statistic set.
 struct SubdocStatTraits {

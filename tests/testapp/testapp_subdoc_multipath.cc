@@ -14,6 +14,7 @@
  */
 
 #include "testapp_subdoc_common.h"
+#include "subdoc_encoder.h"
 
 #include <daemon/settings.h>
 #include <nlohmann/json.hpp>

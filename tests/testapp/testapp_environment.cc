@@ -29,7 +29,6 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <thread>
 
 std::string TestBucket::mergeConfigString(const std::string& next) {
     if (next.empty()) {

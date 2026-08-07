@@ -9,15 +9,11 @@
  */
 #include "testapp_client_test.h"
 
-#include <fmt/format.h>
 #include <folly/portability/GMock.h>
 #include <memcached/limits.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
-#include <utilities/json_utilities.h>
-#include <algorithm>
 #include <atomic>
-#include <mutex>
 #include <thread>
 
 class BucketTest : public TestappClientTest {

@@ -7,7 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "testapp_client_test.h"
+#include "testapp.h"
 
 static constexpr int USER_CONNECTIONS = 15;
 static constexpr int SYSTEM_CONNECTIONS = 10;

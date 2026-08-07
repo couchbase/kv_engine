@@ -14,7 +14,10 @@
  */
 
 #include "testapp_subdoc_common.h"
+#include "subdoc_encoder.h"
 #include "testapp_binprot.h"
+
+#include <mcbp/protocol/datatype.h>
 
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << cb::mcbp::ClientOpcode(obj.getOp())

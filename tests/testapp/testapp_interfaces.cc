@@ -9,7 +9,6 @@
  */
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <gmock/gmock-matchers.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 

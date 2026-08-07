@@ -9,11 +9,8 @@
  */
 
 #include "testapp.h"
-#include <evutil.h>
 #include <folly/io/async/AsyncSocketException.h>
 #include <folly/portability/GTest.h>
-#include <platform/dirutils.h>
-#include <platform/process_monitor.h>
 #include <filesystem>
 #include <string>
 

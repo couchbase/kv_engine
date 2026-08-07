@@ -10,7 +10,6 @@
 #include "testapp.h"
 #include "testapp_binprot.h"
 
-#include <cbsasl/client.h>
 #include <dek/manager.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
@@ -34,7 +33,6 @@
 #include <chrono>
 #include <csignal>
 #include <filesystem>
-#include <fstream>
 
 std::unique_ptr<McdEnvironment> mcd_env;
 

@@ -13,7 +13,6 @@
 
 #include <include/memcached/protocol_binary.h>
 #include <mcbp/codec/frameinfo.h>
-#include <algorithm>
 
 /// Tests to verify that we're able to preserve the TTL for mutation
 /// commands when the "Preserve TTL" frame info is present.

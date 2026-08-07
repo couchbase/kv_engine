@@ -10,9 +10,6 @@
  */
 
 #include "testapp.h"
-#include "testapp_client_test.h"
-
-#include <algorithm>
 
 /**
  * The maximum number of character the core preserves for the

@@ -13,7 +13,6 @@
 #include <fmt/format.h>
 #include <memcached/config_parser.h>
 #include <nlohmann/json.hpp>
-#include <platform/random.h>
 #include <platform/uuid.h>
 
 class EncryptionTest : public TestappClientTest {

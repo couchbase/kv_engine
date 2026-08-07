@@ -9,7 +9,6 @@
  */
 #include "testapp_client_test.h"
 
-#include <gmock/gmock.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
 #include <utilities/magma_support.h>

@@ -22,10 +22,10 @@
  */
 
 #include "testapp_subdoc_common.h"
+#include "subdoc_encoder.h"
 
 #include <daemon/settings.h>
 #include <folly/Portability.h>
-#include <unordered_map>
 
 class SubdocPerfTest : public SubdocTestappTest {
 protected:

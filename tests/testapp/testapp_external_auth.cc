@@ -16,6 +16,7 @@
 #include <auditd/couchbase_audit_events.h>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <platform/dirutils.h>
 #include <memory>
 
 class TestappAuthProvider : public AuthProvider {

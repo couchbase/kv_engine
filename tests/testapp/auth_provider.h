@@ -12,9 +12,8 @@
 #pragma once
 
 #include <cbsasl/error.h>
-#include <memcached/engine_error.h>
-#include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
 #include <utility>
 
 namespace cb::mcbp {

@@ -8,9 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "testapp_xattr.h"
+#include "testapp_client_test.h"
 #include <platform/compress.h>
-#include <thread>
 
 class ClusterConfigTest : public TestappXattrClientTest {
 protected:

@@ -9,8 +9,6 @@
  */
 #include "testapp_binprot.h"
 #include "testapp.h"
-#include <mcbp/protocol/framebuilder.h>
-#include <memcached/util.h>
 
 static void mcbp_validate_response_header(const cb::mcbp::Response& response,
                                           cb::mcbp::ClientOpcode cmd,

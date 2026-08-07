@@ -9,9 +9,6 @@
  */
 #include "testapp_client_test.h"
 #include "testapp_environment.h"
-#include <protocol/mcbp/ewb_encode.h>
-#include <cctype>
-#include <limits>
 #include <thread>
 
 using namespace std::string_literals;

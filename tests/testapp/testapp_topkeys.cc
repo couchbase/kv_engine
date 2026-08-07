@@ -15,7 +15,6 @@
 #include "utilities/test_manifest.h"
 
 #include <fmt/format.h>
-#include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 #include <platform/uuid.h>
 

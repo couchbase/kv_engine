@@ -9,7 +9,13 @@
  */
 #pragma once
 
-#include <memcached/protocol_binary.h>
+#include <cstdint>
+
+namespace cb::mcbp {
+class Response;
+enum class ClientOpcode : uint8_t;
+enum class Status : uint16_t;
+} // namespace cb::mcbp
 
 /// Validate the specified response header against the expected cmd and status.
 void mcbp_validate_response_header(cb::mcbp::Response& response,

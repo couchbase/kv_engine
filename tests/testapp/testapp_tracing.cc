@@ -10,7 +10,6 @@
  */
 
 #include <chrono>
-#include <iostream>
 
 #include "testapp.h"
 

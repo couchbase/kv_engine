@@ -12,11 +12,9 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <evutil.h>
+#include <event2/util.h>
 #include <mcbp/codec/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
-#include <algorithm>
-#include <filesystem>
 
 class RegressionTest : public TestappClientTest {
 protected:

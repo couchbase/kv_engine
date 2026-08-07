@@ -15,7 +15,6 @@
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
-#include <algorithm>
 
 /**
  * The CmdTimerTest operates on 3 buckets: "@no bucket", "default" and

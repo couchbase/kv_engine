@@ -12,7 +12,7 @@
 #include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
 #include <platform/random.h>
-#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 void TestappClientTest::SetUpTestCase() {
     TestappTest::SetUpTestCase();

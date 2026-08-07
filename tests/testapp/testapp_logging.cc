@@ -11,7 +11,7 @@
 #include "testapp.h"
 
 #include <folly/portability/GTest.h>
-#include <spdlog/spdlog.h>
+#include <spdlog/common.h>
 
 class LoggingTest : public TestappTest,
                     public ::testing::WithParamInterface<int> {

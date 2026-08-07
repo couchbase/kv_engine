@@ -9,18 +9,14 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "testapp_client_test.h"
 #include "testapp_subdoc_common.h"
-#include <gsl/gsl-lite.hpp>
 #include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
 
 #include <memcached/protocol_binary.h>
-#include <memcached/util.h> // for memcached_protocol_errcode_2_text()
 #include <nlohmann/json.hpp>
-#include <platform/socket.h>
 #include <protocol/mcbp/ewb_encode.h>
 
 /*

@@ -13,11 +13,7 @@
 #include "testapp_client_test.h"
 
 #include <auditd/couchbase_audit_events.h>
-#include <cbcrypto/digest.h>
 #include <folly/portability/GMock.h>
-#include <openssl/opensslv.h>
-#include <protocol/mcbp/ewb_encode.h>
-#include <algorithm>
 #include <filesystem>
 
 class TlsTests : public TestappClientTest {

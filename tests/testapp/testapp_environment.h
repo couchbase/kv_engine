@@ -23,14 +23,6 @@
 class MemcachedConnection;
 enum class BucketType : uint8_t;
 
-namespace cb::mcbp {
-enum class ClientOpcode : uint8_t;
-}
-
-namespace cb::sasl::pwdb {
-class MutablePasswordDatabase;
-}
-
 /**
  * The test bucket which tests are being run against.
  */

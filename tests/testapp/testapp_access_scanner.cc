@@ -9,11 +9,7 @@
  */
 #include "testapp_client_test.h"
 
-#include <cbcrypto/file_reader.h>
 #include <fmt/format.h>
-#include <nlohmann/json.hpp>
-#include <platform/random.h>
-#include <platform/uuid.h>
 
 class AccessScannerTest : public TestappClientTest {
 public:

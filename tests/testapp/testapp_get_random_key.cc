@@ -14,7 +14,6 @@
 #include "xattr/utils.h"
 
 #include <nlohmann/json.hpp>
-#include <algorithm>
 
 /**
  * Class to test GetRandomDocument. We want it to be a single test suite

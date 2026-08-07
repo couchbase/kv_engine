@@ -14,9 +14,6 @@
 #include "cbsasl/client.h"
 #include "cbsasl/error.h"
 
-#include <algorithm>
-#include <filesystem>
-
 using namespace std::string_literals;
 
 class SaslTest : public TestappClientTest {

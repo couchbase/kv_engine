@@ -12,8 +12,6 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <algorithm>
-
 class RemoveTest : public TestappXattrClientTest {
 protected:
     void verify_MB_22553();
