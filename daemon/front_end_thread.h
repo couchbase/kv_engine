@@ -11,7 +11,6 @@
 #pragma once
 
 #include "auditd/src/audit_event_filter.h"
-#include "connection.h"
 #include "top_keys.h"
 
 #include <folly/Synchronized.h>
