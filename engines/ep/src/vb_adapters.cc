@@ -110,7 +110,7 @@ bool VBCBAdaptor::run() {
             if (++numDeferred >= vbucketsToVisit.size()) {
                 // If all visits have returned Later, no progress has been made.
                 // Snooze and re-attempt later, as we might be blocked.
-                snooze(0);
+                snooze(std::chrono::milliseconds{100});
                 return true;
             }
             break;
