@@ -558,6 +558,34 @@ TEST_F(DefaultDefragmenterTaskTest, autoCalculateSleep_PID_thresholds) {
                       .sleepTime.count());
 }
 
+// Directly exercises EPStats::getScoredFragmentation, the shared scoring used
+// by both the DefragmenterTask (sleep control) and the MonitorTask (published
+// stat).
+TEST(EPStatsScoredFragmentationTest, WeightingAndGuards) {
+    EPStats stats;
+
+    // Guard: high-water 0 (freshly constructed) returns 0 (no divide-by-zero).
+    EXPECT_EQ(0.0f,
+              stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+
+    // Guard: zero resident returns 0.
+    stats.setHighWaterMark(1000);
+    EXPECT_EQ(0.0f, stats.getScoredFragmentation(cb::FragmentationStats{0, 0}));
+
+    // RSS below high-water: score = fragRatio * (rss / highWater).
+    // allocated=500, resident=650 -> fragRatio=150/650, weight=650/1000;
+    // the product simplifies to 150/1000 = 0.15.
+    EXPECT_FLOAT_EQ(
+            0.15f,
+            stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+
+    // RSS at/above high-water: weight is capped at 1.0, so score = fragRatio.
+    stats.setHighWaterMark(600);
+    EXPECT_FLOAT_EQ(
+            150.0f / 650.0f,
+            stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+}
+
 INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         DefragmenterTest,
