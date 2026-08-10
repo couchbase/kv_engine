@@ -1480,8 +1480,9 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         return;
     }
     std::shared_lock visitorLH(visitorMutex, std::defer_lock);
-    while (getResizeInProgress() != ResizeAlgo::None || !visitorLH.try_lock()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    if (!visitorLH.try_lock() || getResizeInProgress() != ResizeAlgo::None) {
+        // The depth visitor is used for stats which are best-effort.
+        return;
     }
 
     size_t currSize = getSize();

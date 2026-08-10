@@ -12,6 +12,8 @@
 #pragma once
 
 #include "ep_task.h"
+#include <atomic>
+#include <memory>
 #include <string>
 
 class KVBucketIface;
@@ -22,7 +24,6 @@ class KVBucketIface;
  */
 class HashtableResizerTask : public EpTask {
 public:
-
     HashtableResizerTask(KVBucketIface& s, double sleepTime);
 
     bool run() override;
@@ -42,4 +43,5 @@ public:
 
 private:
     KVBucketIface& store;
+    const std::shared_ptr<std::atomic_bool> resizingInProgress;
 };
