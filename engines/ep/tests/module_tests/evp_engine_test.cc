@@ -17,6 +17,7 @@
 #include "ep_engine.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "monitor_task.h"
 #include "objectregistry.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -888,6 +889,22 @@ TEST_P(MonitorTaskTest, Interval) {
                       "monitor_task_interval", std::to_string(0), msg));
     // Check unchanged
     EXPECT_EQ(defaultInterval + 1, bucket.getMonitorTaskInterval().count());
+}
+
+TEST_P(MonitorTaskTest, PublishesFragmentationStats) {
+    auto& stats = engine->getEpStats();
+
+    // Run the task body directly so the check does not depend on executor
+    // timing. Assertions are range-based, so a concurrent scheduled run of the
+    // same task cannot make them flaky.
+    MonitorTask task(*engine, std::chrono::seconds(1));
+    task.run();
+
+    // residentBytes is populated from the bucket arena.
+    EXPECT_GT(stats.residentBytes.load(), 0u);
+    // scoredFragmentation is a ratio in [0, 1).
+    EXPECT_GE(stats.scoredFragmentation.load(), 0.0);
+    EXPECT_LT(stats.scoredFragmentation.load(), 1.0);
 }
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,

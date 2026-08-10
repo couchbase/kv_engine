@@ -22,10 +22,13 @@ bool MonitorTask::run() {
             engine->getArenaMallocClient());
     auto& stats = engine->getEpStats();
     stats.residentBytes = fragStats.getResidentBytes();
+    stats.scoredFragmentation = stats.getScoredFragmentation(fragStats);
 
-    EP_LOG_DEBUG_CTX("MonitorTask:",
-                     {"interval", interval.load()},
-                     {"rss", stats.residentBytes});
+    EP_LOG_DEBUG_CTX(
+            "MonitorTask:",
+            {"interval", interval.load()},
+            {"rss", stats.residentBytes.load()},
+            {"scored_fragmentation", stats.scoredFragmentation.load()});
 
     // Sleep for "interval" and reschedule
     snooze(interval.load());

@@ -73,6 +73,19 @@ size_t EPStats::getPreciseTotalMemoryUsed() const {
     return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
 }
 
+float EPStats::getScoredFragmentation(
+        const cb::FragmentationStats& fragStats) const {
+    const auto highWater = mem_high_wat.load();
+    if (highWater == 0 || fragStats.getResidentBytes() == 0) {
+        return 0.0f;
+    }
+    const auto rss = fragStats.getResidentBytes() > highWater
+                             ? highWater
+                             : fragStats.getResidentBytes();
+    return fragStats.getFragmentationRatio() *
+           (double(rss) / double(highWater));
+}
+
 size_t EPStats::getCurrentSize() const {
     int64_t result = 0;
     for (const auto& core : coreLocal) {

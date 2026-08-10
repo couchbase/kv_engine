@@ -156,35 +156,6 @@ protected:
      */
     virtual float stepPid(float pv);
 
-    /**
-     * The auto controller modes do not use raw fragmentation, but a 'scored'
-     * value that is weighted by the ratio of RSS/high-water mark.
-     *
-     * This is done because bucket fragmentation alone is not a great guide for
-     * how aggressive we would want to defragment the hash-table. For example
-     * an empty or very low utilised bucket, can easily reach high fragmentation
-     * percentages, yet running the defragmenter at high frequency has little
-     * effect. Using the RSS/high-water mark ratio means helps to guide our
-     * defragmentation sleep changes only when:
-     * 1) There are items to defragment
-     * 2) When the bucket is actually using a good chunk of its quota
-     *
-     * The current implementation of this returns the following example values:
-     * Here we consider allocated:=500 and rss:=650, this gives a fragmentation
-     * ratio of 0.23.
-     *
-     * Then with a high-water mark of n this function returns:
-     *    n    | score
-     *    600  | 0.23 (note this case, rss exceeds n, we fix weight to 1).
-     *    1000 | 0.1495
-     *    2000 | 0.074
-     *    3000 | 0.0498
-     *    5000 | 0.0299
-     *
-     * @return the scored fragmentation
-     */
-    float getScoredFragmentation(const cb::FragmentationStats& fragStats) const;
-
     // Minimum age (measured in defragmenter task passes) that a document
     // must be to be considered for defragmentation.
     uint8_t getAgeThreshold() const;
