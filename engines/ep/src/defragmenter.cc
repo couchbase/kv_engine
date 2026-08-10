@@ -256,19 +256,9 @@ DefragmentVisitor& DefragmenterTask::getDefragVisitor() {
     return dynamic_cast<DefragmentVisitor&>(prAdapter->getHTVisitor());
 }
 
-float DefragmenterTask::getScoredFragmentation(
-        const cb::FragmentationStats& fragStats) const {
-    const auto highWater = stats.mem_high_wat.load();
-    auto rss = fragStats.getResidentBytes() > highWater
-                       ? highWater
-                       : fragStats.getResidentBytes();
-    return fragStats.getFragmentationRatio() *
-           (double(rss) / double(highWater));
-}
-
 DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
         const cb::FragmentationStats& fragStats) {
-    auto score = getScoredFragmentation(fragStats);
+    auto score = stats.getScoredFragmentation(fragStats);
     bool runDefragger = true;
 
     const auto& conf = engine->getConfiguration();
@@ -305,7 +295,7 @@ DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
 
 DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID(
         const cb::FragmentationStats& fragStats) {
-    auto score = getScoredFragmentation(fragStats);
+    auto score = stats.getScoredFragmentation(fragStats);
     const auto& conf = engine->getConfiguration();
     auto maxSleep = conf.getDefragmenterAutoMaxSleep();
     auto minSleep = conf.getDefragmenterAutoMinSleep();
