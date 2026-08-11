@@ -45,15 +45,16 @@ All changes must be submitted via:
 
        `repo start name-of-topic-branch`
 
-3. Make atomic, focused commits
-4. Always create suitable unit tests
-5. Run local build and tests
-6. Sync with upstream and rebase the change. If `repo` is available:
+3. Make code changes and run `git clang-format` to fix any formatting errors before committing
+4. Make atomic, focused commits
+5. Always create suitable unit tests
+6. Run local build and tests
+7. Sync with upstream and rebase the change. If `repo` is available:
 
        repo sync .
        repo rebase .
 
-7. Push to Gerrit (substitute master for correct branch when working on named
+8. Push to Gerrit (substitute master for correct branch when working on named
    branches):
 
        git push gerrit HEAD:refs/for/master
@@ -62,8 +63,9 @@ All changes must be submitted via:
 
        repo upload --cbr .
 
-8. CI validation runs automatically on jenkins servers that are monitoring for
-   new code pushed to gerrit. 8. Review feedback is asynchronous
+9. CI validation runs automatically on jenkins servers that are monitoring for
+   new code pushed to gerrit.
+10. Review feedback is asynchronous
 
 ---
 
@@ -97,6 +99,7 @@ Guidelines:
 - It is acceptable to use older constructs if required for consistency with the
   existing code in that area
 - Avoid unnecessary large-scale modernization in unrelated code
+- Run `git clang-format` to format changed lines and fix any formatting errors before committing
 - Maintain cross-platform compatibility
 - New source files must use the current year in the banner comment.
 - The `C++ Core Guidelines<http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines>`
