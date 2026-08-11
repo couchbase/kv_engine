@@ -18,19 +18,24 @@
  * The XATTR key limitations:
  * <ul>
  *   <li>An XATTR consists of a key/value pair.</li>
- *   <li>The XATTR key (X-Key) is a Modified UTF-8 string up to 16 bytes in
+ *   <li>The XATTR key (X-Key) is a Modified UTF-8 string up to 15 bytes in
  *       length.</li>
  *   <li>X-Keys starting with the following characters are reserved and
  *       cannot be used:
  *       <ul>
- *          <li>ispunct(), excluding underscore</li>
+ *          <li>ispunct(), excluding underscore and dollar sign</li>
  *          <li>iscntrl()</li>
  *       </ul>
  *   <li>X-Keys starting with a leading underscore ('_', 0x5F) are considered
  *       system XATTRs and can only be accessed if the client holds the
- *       SYSTEM_XATTR read / write privilege.</li>
- *   <li>X-keys starting with a leading dollar sign ('$', 0x25) are considered
- *       virtual xattrs</li>
+ *       SYSTEM_XATTR read / write privilege. Must be at least 2 bytes.</li>
+ *   <li>X-keys starting with a leading dollar sign ('$', 0x24) are considered
+ *       virtual xattrs. Must be at least 2 bytes.</li>
+ *   <li>The path-specific metacharacters '.' and '[' may not appear
+ *       anywhere in an X-Key; the first one encountered always terminates
+ *       the key. Unlike document body paths, X-Keys do not support
+ *       backtick-escaping of these characters. ']' has no special meaning
+ *       here and may appear literally in an X-Key.</li>
  * </ul>
  *
  * @param path The path to check

@@ -10,20 +10,30 @@ https://docs.google.com/document/d/18UVa5j8KyufnLLy29VObbWRtoBn9vs8pcxttuMt6rz8
 ## XATTR Features
 
 1. An XATTR consists of a key/value pair.
-2. The XATTR key (X-Key) is a Modified UTF-8 string up to 16 bytes in length.
+2. The XATTR key (X-Key) is a Modified UTF-8 string up to 15 bytes in length.
     * X-Keys starting with the following characters are reserved and cannot be
       used:
-        1. `ispunct()`, excluding underscore (!"#$%&'()*+,-./:;<=>?@[\]^`{|}~)
+        1. `ispunct()`, excluding underscore and dollar sign
+           (!"#%&'()*+,-./:;<=>?@[\]^`{|}~)
         2. `iscntrl()`
     * X-Keys starting with a leading underscore ('_', 0x5F) are considered
       system XATTRs and can only be accessed if the client holds the
-      `SYSTEM_XATTR` read / write privilege.
+      `SYSTEM_XATTR` read / write privilege. A system XATTR key must be at
+      least 2 bytes (i.e. `_` alone is not a valid key).
     * X-Keys starting with a leading dollar sign (‘$’, 0x24) are considered
       virtual XATTRs and can only be accessed if the client holds the
-      `XATTR_READ` privilege.
+      `XATTR_READ` privilege. A virtual XATTR key must be at least 2 bytes
+      (i.e. `$` alone is not a valid key).
     * X-Keys not starting with a leading underscore (and not starting with a
       reserved symbol) are user XATTRs and may be changed by clients with the
       `XATTR_WRITE` privilege.
+    * The path-specific metacharacters `.` and `[` (see SubDocument.md) may
+      not appear anywhere in an X-Key; whichever of them occurs first always
+      terminates the key and begins the (optional) JSON sub-path into the
+      XATTR value. Unlike document body paths, X-Keys do not support
+      backtick-escaping of these characters, so an X-Key can never itself
+      contain a literal `.` or `[`. `]` has no special meaning while
+      scanning for the end of the key and may appear literally in an X-Key.
 3. An XATTR value (X-Value) is a JSON value, as defined by http://www.json.org
 4. A Virtual Attributes (VATTR) is an attribute which isn’t directly stored
    within the document, but may reflect other properties related to the

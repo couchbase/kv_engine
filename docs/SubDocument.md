@@ -89,6 +89,12 @@ To escape a *path-meta-character*, enclose the portion to escape
 within a set of backticks (`\``). To place a *literal* backtick, specify two
 backticks.
 
+Note that this escaping mechanism applies to paths (and path components)
+within the document body. When the `XATTR_PATH` flag is set, the *first*
+component of the path is the XATTR key (X-Key), which does not support
+backtick-escaping of path-meta-characters; see `docs/ExtendedAttributes.md`
+for the X-Key naming rules.
+
 In the document
 
     {
