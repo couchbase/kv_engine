@@ -15,11 +15,27 @@
 #include "kv_bucket.h"
 #include <utilities/math_utilities.h>
 
+bool StrictQuotaMemoryTracker::isFragmentationCritical() const {
+    if (!engine.getKVBucket()->isFragmentationBackpressureEnabled()) {
+        return false; // feature disabled
+    }
+    const auto& config = engine.getConfiguration();
+    const auto& stats = engine.getEpStats();
+    // RSS over the bucket quota because of fragmentation. High fragmentation
+    // while RSS is under quota is not a survival case, so require both. Reuse
+    // the defragmenter's upper threshold as the "fragmentation is high" mark.
+    return stats.residentBytes.load() > stats.getMaxDataSize() &&
+           stats.scoredFragmentation.load() >=
+                   config.getDefragmenterAutoUpperThreshold();
+}
+
 bool StrictQuotaMemoryTracker::isBelowMutationMemoryQuota(
         size_t pendingBytes) const {
-    return engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
-           cb::fractionOf(engine.getEpStats().getMaxDataSize(),
-                          engine.getKVBucket()->getMutationMemRatio());
+    const bool belowAllocated =
+            engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
+            cb::fractionOf(engine.getEpStats().getMaxDataSize(),
+                           engine.getKVBucket()->getMutationMemRatio());
+    return belowAllocated && !isFragmentationCritical();
 }
 
 bool StrictQuotaMemoryTracker::isBelowMemoryQuota(size_t pendingBytes) const {
@@ -29,9 +45,11 @@ bool StrictQuotaMemoryTracker::isBelowMemoryQuota(size_t pendingBytes) const {
 
 bool StrictQuotaMemoryTracker::isBelowBackfillThreshold(
         size_t pendingBytes) const {
-    return engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
-           cb::fractionOf(engine.getEpStats().getMaxDataSize(),
-                          engine.getKVBucket()->getBackfillMemoryThreshold());
+    const bool belowAllocated =
+            engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
+            cb::fractionOf(engine.getEpStats().getMaxDataSize(),
+                           engine.getKVBucket()->getBackfillMemoryThreshold());
+    return belowAllocated && !isFragmentationCritical();
 }
 
 bool StrictQuotaMemoryTracker::needsToFreeMemory() const {
