@@ -82,8 +82,41 @@ struct DatabaseContext {
     folly::Synchronized<std::unique_ptr<PrivilegeDatabase>> db;
 };
 
-/// We keep one context for the local scope, and one for the external
-std::array<DatabaseContext, 2> contexts;
+static int to_index(Domain domain);
+
+class PrivilegeDatabaseManager {
+public:
+    static PrivilegeDatabaseManager& instance() {
+        static PrivilegeDatabaseManager mgr;
+        return mgr;
+    }
+
+    DatabaseContext& getContext(Domain domain) {
+        return contexts[to_index(domain)];
+    }
+
+    [[nodiscard]] uint32_t getCurrentGeneration(Domain domain) const {
+        return contexts[to_index(domain)].current_generation.load();
+    }
+
+    void initialize() {
+        contexts[to_index(Domain::Local)].db =
+                std::make_unique<PrivilegeDatabase>(nlohmann::json{},
+                                                    Domain::Local);
+        contexts[to_index(Domain::External)].db =
+                std::make_unique<PrivilegeDatabase>(nlohmann::json{},
+                                                    Domain::External);
+    }
+
+    void destroy() {
+        contexts[to_index(Domain::Local)].db.wlock()->reset();
+        contexts[to_index(Domain::External)].db.wlock()->reset();
+    }
+
+private:
+    /// We keep one context for the local scope, and one for the external
+    std::array<DatabaseContext, 2> contexts;
+};
 
 static std::vector<std::string> privilegeMask2Vector(
         const PrivilegeMask& mask) {
@@ -397,7 +430,9 @@ nlohmann::json UserEntry::to_json(Domain domain) const {
 }
 
 PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json, Domain domain)
-    : generation(contexts[to_index(domain)].create_generation.operator++()) {
+    : generation(PrivilegeDatabaseManager::instance()
+                         .getContext(domain)
+                         .create_generation.operator++()) {
     for (auto it = json.begin(); it != json.end(); ++it) {
         const std::string& username = it.key();
         userdb.emplace(username, UserEntry(username, it.value(), domain));
@@ -509,7 +544,8 @@ bool PrivilegeContext::isStale() const {
     }
     // Compare the generation counter with the current generation
     // for the domain
-    return generation != contexts[to_index(domain)].current_generation;
+    return generation !=
+           PrivilegeDatabaseManager::instance().getCurrentGeneration(domain);
 }
 
 PrivilegeAccess PrivilegeContext::check(Privilege privilege,
@@ -611,7 +647,7 @@ void PrivilegeContext::setBucketPrivilegeBits(bool value) {
 
 std::expected<PrivilegeContext, Error> createContext(
         const UserIdent& user, const std::string& bucket) {
-    auto& ctx = contexts[to_index(user.domain)];
+    auto& ctx = PrivilegeDatabaseManager::instance().getContext(user.domain);
     return (*ctx.db.rlock())->createContext(user.name, user.domain, bucket);
 }
 
@@ -649,7 +685,7 @@ void createPrivilegeDatabase(std::string_view content) {
                             UserDataView{content}));
     }
 
-    auto& ctx = contexts[to_index(Domain::Local)];
+    auto& ctx = PrivilegeDatabaseManager::instance().getContext(Domain::Local);
 
     auto locked = ctx.db.wlock();
     // Handle race conditions
@@ -660,18 +696,11 @@ void createPrivilegeDatabase(std::string_view content) {
 }
 
 void initialize() {
-    // Create an empty database to avoid having to add checks
-    // if it exists or not...
-    contexts[to_index(Domain::Local)].db = std::make_unique<PrivilegeDatabase>(
-            nlohmann::json{}, Domain::Local);
-    contexts[to_index(Domain::External)].db =
-            std::make_unique<PrivilegeDatabase>(nlohmann::json{},
-                                                Domain::External);
+    PrivilegeDatabaseManager::instance().initialize();
 }
 
 void destroy() {
-    contexts[to_index(Domain::Local)].db.wlock()->reset();
-    contexts[to_index(Domain::External)].db.wlock()->reset();
+    PrivilegeDatabaseManager::instance().destroy();
 }
 
 bool mayAccessBucket(const UserIdent& user, const std::string& bucket) {
@@ -702,7 +731,8 @@ void updateExternalUser(const std::string_view descr) {
                 fmt::format("updateExternalUser: {}", e.what()));
     }
 
-    auto& ctx = contexts[to_index(Domain::External)];
+    auto& ctx =
+            PrivilegeDatabaseManager::instance().getContext(Domain::External);
 
     auto locked = ctx.db.wlock();
     auto next = (*locked)->updateUser(username, Domain::External, *entry);
@@ -715,13 +745,14 @@ void updateExternalUser(const std::string_view descr) {
 }
 
 nlohmann::json to_json(Domain domain) {
-    auto& ctx = contexts[to_index(domain)];
+    auto& ctx = PrivilegeDatabaseManager::instance().getContext(domain);
     return (*ctx.db.rlock())->to_json(domain);
 }
 
 std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
         const std::string& user) {
-    auto& ctx = contexts[to_index(Domain::External)];
+    auto& ctx =
+            PrivilegeDatabaseManager::instance().getContext(Domain::External);
     auto res = (*ctx.db.rlock())->lookup(user);
     if (res) {
         return (*res)->getTimestamp();
