@@ -9,6 +9,7 @@
  */
 
 #include "dek_file_utilities.h"
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 
@@ -92,6 +93,8 @@ TEST_F(DekFileUtilTest, copyKeyFile) {
     touch(root / "foo.key.5");
 
     std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
+    auto guard =
+            folly::makeGuard([&target] { cb::io::remove_with_retry(target); });
     auto path = cb::dek::util::copyKeyFile("foo", root, target);
 
     EXPECT_EQ((target / "foo.key.5").string(), path.string());
@@ -100,12 +103,16 @@ TEST_F(DekFileUtilTest, copyKeyFile) {
 
 TEST_F(DekFileUtilTest, copyKeyFileNoSuchFile) {
     std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
+    auto guard =
+            folly::makeGuard([&target] { cb::io::remove_with_retry(target); });
     EXPECT_THROW(cb::dek::util::copyKeyFile("foo", root, target),
                  std::runtime_error);
 }
 
 TEST_F(DekFileUtilTest, copyKeyFileNoSuchDirectory) {
     std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
+    auto guard =
+            folly::makeGuard([&target] { cb::io::remove_with_retry(target); });
     std::filesystem::path nonexistentDir =
             "/tmp/this_directory_does_not_exist_12345";
     ASSERT_FALSE(exists(nonexistentDir));
@@ -118,9 +125,10 @@ TEST_F(DekFileUtilTest, copyKeyFileCreateDestinationDirectory) {
     touch(root / "foo.key.2");
     touch(root / "foo.key.3");
 
-    auto base = std::filesystem::path{cb::io::mkdtemp(
-                        "DekFileUtilTestCreateDest")} /
-                "subdir1" / "subdir2";
+    auto tempDir = cb::io::mkdtemp("DekFileUtilTestCreateDest");
+    auto guard = folly::makeGuard(
+            [&tempDir] { cb::io::remove_with_retry(tempDir); });
+    auto base = std::filesystem::path{tempDir} / "subdir1" / "subdir2";
     // Directory doesn't exist initially
     ASSERT_FALSE(exists(base));
 
