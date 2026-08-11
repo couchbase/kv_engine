@@ -11,7 +11,20 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/rbac.h>
+#include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json.hpp>
+
+namespace cb::rbac {
+/// Expose the protected "internal" flag so tests can verify how it was
+/// derived from the username.
+class MockUserEntry : public UserEntry {
+public:
+    using UserEntry::UserEntry;
+    [[nodiscard]] bool isInternal() const {
+        return internal;
+    }
+};
+} // namespace cb::rbac
 
 TEST(UserEntryTest, ParseLegalConfigOldFormat) {
     nlohmann::json json;
@@ -103,6 +116,18 @@ TEST(UserEntryTest, InternalUsersMustBeLocal) {
         FAIL() << "Internal users must be locally defined";
     } catch (const std::runtime_error&) {
     }
+}
+
+TEST(UserEntryTest, EmptyUsernameIsNotInternal) {
+    // UserEntry::UserEntry() used to call username.front() without first
+    // checking that the username was non-empty, relying on the
+    // implementation-defined behaviour of std::string::front() on an empty
+    // string. Verify an empty username is handled the same way
+    // UserIdent::is_internal() treats it: never internal.
+    nlohmann::json json;
+    json[""]["domain"] = "local";
+    cb::rbac::MockUserEntry ue("", *json.begin(), cb::rbac::Domain::Local);
+    EXPECT_FALSE(ue.isInternal());
 }
 
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {

@@ -351,7 +351,7 @@ UserEntry::UserEntry(const std::string& username,
                      Domain expectedDomain)
     : timestamp(std::chrono::steady_clock::now()) {
     // All system internal users is prefixed with @
-    internal = username.front() == '@';
+    internal = UserIdent::is_internal(username);
 
     // Domain must be present so that we know where it comes from
     {
