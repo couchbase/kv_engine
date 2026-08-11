@@ -137,14 +137,11 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     json["trond"]["domain"] = "external";
     cb::rbac::PrivilegeDatabase db(json, cb::rbac::Domain::External);
 
-    // Looking up an existing user should not throw an exception
-    (void)db.lookup("trond");
-    try {
-        (void)db.lookup("foo");
-        FAIL() << "Trying to fetch a nonexisting user should throw exception";
-    } catch (const cb::rbac::NoSuchUserException& exception) {
-        EXPECT_STRCASEEQ("foo", exception.what());
-    }
+    // Looking up an existing user should return a value
+    EXPECT_TRUE(db.lookup("trond").has_value());
+    auto fooRes = db.lookup("foo");
+    ASSERT_FALSE(fooRes.has_value());
+    EXPECT_EQ(cb::rbac::Error::NoSuchUser, fooRes.error());
 }
 
 TEST(PrivilegeDatabaseTest, GenerationCounter) {

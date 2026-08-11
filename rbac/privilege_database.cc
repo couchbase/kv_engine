@@ -449,13 +449,17 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
     return ret;
 }
 
-PrivilegeContext PrivilegeDatabase::createContext(
+std::expected<PrivilegeContext, Error> PrivilegeDatabase::createContext(
         const std::string& user,
         Domain domain,
         const std::string& bucket) const {
-    const auto& ue = lookup(user);
+    auto userRes = lookup(user);
+    if (!userRes) {
+        return std::unexpected(userRes.error());
+    }
+    const auto& ue = **userRes;
     if (bucket.empty()) {
-        return {generation, domain, ue.getPrivileges(), {}};
+        return PrivilegeContext{generation, domain, ue.getPrivileges(), {}};
     }
 
     // Add the bucket specific privileges
@@ -464,11 +468,12 @@ PrivilegeContext PrivilegeDatabase::createContext(
         // No explicit match.. Is there a wildcard entry
         iter = ue.getBuckets().find("*");
         if (iter == ue.getBuckets().cend()) {
-            throw NoSuchBucketException(bucket.c_str());
+            return std::unexpected(Error::NoSuchBucket);
         }
     }
 
-    return {generation, domain, ue.getPrivileges(), iter->second};
+    return PrivilegeContext{
+            generation, domain, ue.getPrivileges(), iter->second};
 }
 
 nlohmann::json PrivilegeDatabase::to_json(Domain domain) const {
@@ -480,13 +485,14 @@ nlohmann::json PrivilegeDatabase::to_json(Domain domain) const {
     return ret;
 }
 
-const UserEntry& PrivilegeDatabase::lookup(const std::string& user) const {
+std::expected<const UserEntry*, Error> PrivilegeDatabase::lookup(
+        const std::string& user) const {
     auto iter = userdb.find(user);
     if (iter == userdb.cend()) {
-        throw NoSuchUserException(user.c_str());
+        return std::unexpected(Error::NoSuchUser);
     }
 
-    return iter->second;
+    return &iter->second;
 }
 
 void PrivilegeContext::dropPrivilege(Privilege privilege) {
@@ -603,8 +609,8 @@ void PrivilegeContext::setBucketPrivilegeBits(bool value) {
     }
 }
 
-PrivilegeContext createContext(const UserIdent& user,
-                               const std::string& bucket) {
+std::expected<PrivilegeContext, Error> createContext(
+        const UserIdent& user, const std::string& bucket) {
     auto& ctx = contexts[to_index(user.domain)];
     return (*ctx.db.rlock())->createContext(user.name, user.domain, bucket);
 }
@@ -669,14 +675,7 @@ void destroy() {
 }
 
 bool mayAccessBucket(const UserIdent& user, const std::string& bucket) {
-    try {
-        createContext(user, bucket);
-        return true;
-    } catch (const Exception&) {
-        // The user do not have access to the bucket
-    }
-
-    return false;
+    return createContext(user, bucket).has_value();
 }
 
 void updateExternalUser(const std::string_view descr) {
@@ -723,12 +722,11 @@ nlohmann::json to_json(Domain domain) {
 std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
         const std::string& user) {
     auto& ctx = contexts[to_index(Domain::External)];
-    try {
-        auto ue = (*ctx.db.rlock())->lookup(user);
-        return {ue.getTimestamp()};
-    } catch (const NoSuchUserException&) {
-        return {};
+    auto res = (*ctx.db.rlock())->lookup(user);
+    if (res) {
+        return (*res)->getTimestamp();
     }
+    return {};
 }
 
 void to_json(nlohmann::json& json, const PrivilegeContext& ctx) {

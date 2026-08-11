@@ -59,9 +59,8 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     } else {
         // Authentication successful, but it still has to be defined in
         // our system
-        try {
-            (void)createContext(serverContext.getUser(), {});
-        } catch (const cb::rbac::NoSuchUserException&) {
+        auto res = createContext(serverContext.getUser(), {});
+        if (!res) {
             LOG_WARNING_CTX(
                     "User is not defined as a user in Couchbase",
                     {"conn_id", connection.getId()},

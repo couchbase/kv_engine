@@ -31,13 +31,14 @@ static bool check_access(Connection& connection,
                          const cb::rbac::UserIdent& ui,
                          const Bucket& bucket,
                          cb::rbac::Privilege requiredPrivilege) {
-    cb::rbac::PrivilegeContext context{ui.domain};
+    std::expected<cb::rbac::PrivilegeContext, cb::rbac::Error> contextRes{
+            cb::rbac::PrivilegeContext{ui.domain}};
     if (ui == connection.getUser()) {
-        context = connection.createContext(bucket.name);
+        contextRes = connection.createContext(bucket.name);
     } else {
-        context = createContext(ui, std::string{bucket.name});
+        contextRes = createContext(ui, std::string{bucket.name});
     }
-    if (context.check(requiredPrivilege).failed()) {
+    if (!contextRes || contextRes->check(requiredPrivilege).failed()) {
         return false;
     }
     return true;
@@ -71,28 +72,23 @@ static std::optional<Hdr1sfMicroSecHistogram> get_timings(Cookie& cookie,
         }
     } else {
         // Check to see if we've got access to the bucket
-        try {
-            if (!check_access(connection,
-                              connection.getUser(),
-                              bucket,
-                              requiredPrivilege)) {
-                // The user don't have access
-                return {};
-            }
+        if (!check_access(connection,
+                          connection.getUser(),
+                          bucket,
+                          requiredPrivilege)) {
+            // The user don't have access
+            return {};
+        }
 
-            // If we have an effective user (and we didn't inherit the simple
-            // stat privilege) we need to create a privilege context and
-            // check for the priv
-            if (cookie.getEffectiveUser() &&
-                !cookie.hasImposedUserExtraPrivilege(requiredPrivilege) &&
-                !check_access(connection,
-                              *cookie.getEffectiveUser(),
-                              bucket,
-                              requiredPrivilege)) {
-                return {};
-            }
-        } catch (const cb::rbac::Exception&) {
-            // We don't have access to that bucket
+        // If we have an effective user (and we didn't inherit the simple
+        // stat privilege) we need to create a privilege context and
+        // check for the priv
+        if (cookie.getEffectiveUser() &&
+            !cookie.hasImposedUserExtraPrivilege(requiredPrivilege) &&
+            !check_access(connection,
+                          *cookie.getEffectiveUser(),
+                          bucket,
+                          requiredPrivilege)) {
             return {};
         }
     }

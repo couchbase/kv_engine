@@ -43,19 +43,19 @@ static void check_privilege(PrivilegeContext& context,
 
 static void BucketLevel(benchmark::State& state) {
     UserIdent user("bucket", Domain::Local);
-    auto context = createContext(user, "bucket");
+    auto context = *createContext(user, "bucket");
     check_privilege(context, state);
 }
 
 static void ScopeLevel(benchmark::State& state) {
     UserIdent user("scope", Domain::Local);
-    auto context = createContext(user, "bucket");
+    auto context = *createContext(user, "bucket");
     check_privilege(context, state);
 }
 
 static void CollectionLevel(benchmark::State& state) {
     UserIdent user("collection", Domain::Local);
-    auto context = createContext(user, "bucket");
+    auto context = *createContext(user, "bucket");
     check_privilege(context, state);
 }
 

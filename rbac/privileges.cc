@@ -10,6 +10,7 @@
 
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
+#include <memcached/rbac/privilege_database.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json.hpp>
 #include <array>
@@ -207,6 +208,22 @@ std::string_view format_as(const PrivilegeAccess::Status& status) {
 std::ostream& operator<<(std::ostream& os,
                          const PrivilegeAccess::Status& status) {
     os << format_as(status);
+    return os;
+}
+
+std::string_view format_as(Error error) {
+    using namespace std::string_view_literals;
+    switch (error) {
+    case Error::NoSuchUser:
+        return "NoSuchUser"sv;
+    case Error::NoSuchBucket:
+        return "NoSuchBucket"sv;
+    }
+    Expects(false && "Unknown cb::rbac::Error");
+}
+
+std::ostream& operator<<(std::ostream& os, Error error) {
+    os << format_as(error);
     return os;
 }
 

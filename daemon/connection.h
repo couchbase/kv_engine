@@ -938,9 +938,10 @@ public:
      * Create a privilege context for the current user
      *
      * @param bucket the bucket (empty indicates "no bucket") to access
-     * @return The privilege context to use
+     * @return The privilege context to use or Error
      */
-    cb::rbac::PrivilegeContext createContext(std::string_view bucket) const;
+    std::expected<cb::rbac::PrivilegeContext, cb::rbac::Error> createContext(
+            std::string_view bucket) const;
 
     /// Get the time point for when the current timeslice ends (cookies
     /// should try to yield execution after this point)

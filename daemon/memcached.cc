@@ -135,17 +135,16 @@ static bool prometheus_auth_callback(const std::string& user,
         cb::sasl::Error::OK) {
         return false;
     }
-    try {
-        auto ctx = cb::rbac::createContext({user, cb::rbac::Domain::Local},
-                                           "" /* no bucket */);
-        return ctx
-                .check(cb::rbac::Privilege::Stats,
-                       std::nullopt /* no scope */,
-                       std::nullopt /* no collection */)
-                .success();
-    } catch (const cb::rbac::Exception&) {
+    auto ctx = cb::rbac::createContext({user, cb::rbac::Domain::Local},
+                                       "" /* no bucket */);
+    if (!ctx) {
         return false;
     }
+    return ctx
+            ->check(cb::rbac::Privilege::Stats,
+                    std::nullopt /* no scope */,
+                    std::nullopt /* no collection */)
+            .success();
 }
 
 static size_t get_number_of_worker_threads() {

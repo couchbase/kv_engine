@@ -313,19 +313,22 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
             return privilegeContext;
         }
 
-        try {
+        auto ctxRes = createContext(getBucket().name);
+        if (ctxRes) {
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    createContext(getBucket().name));
-        } catch (const cb::rbac::NoSuchBucketException&) {
+                    std::move(*ctxRes));
+        } else if (ctxRes.error() == cb::rbac::Error::NoSuchBucket) {
             // Remove all access to the bucket
+            auto fallback = createContext({});
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    createContext({}));
+                    fallback ? std::move(*fallback)
+                             : cb::rbac::PrivilegeContext{getUser().domain});
             LOG_INFO_CTX("RBAC: No access to bucket",
                          {"conn_id", getId()},
                          {"description", getDescription()},
                          {"bucket", getBucket().name},
                          {"privileges", privilegeContext->to_string()});
-        } catch (const cb::rbac::NoSuchUserException&) {
+        } else if (ctxRes.error() == cb::rbac::Error::NoSuchUser) {
             // Remove all access to the bucket
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     cb::rbac::PrivilegeContext{getUser().domain});
@@ -489,19 +492,20 @@ void Connection::setBucketIndex(std::shared_ptr<Bucket> bucketptr,
 
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.
-    try {
-        if (isAuthenticated()) {
-            // The user have logged in, so we should create a context
-            // representing the users context in the desired bucket.
+    if (isAuthenticated()) {
+        // The user have logged in, so we should create a context
+        // representing the users context in the desired bucket.
+        auto res = createContext(selected_bucket->name);
+        if (res) {
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    createContext(selected_bucket->name));
+                    std::move(*res));
         } else {
-            // The user has not authenticated. Assign an empty profile which
-            // won't give you any privileges.
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     cb::rbac::PrivilegeContext{getUser().domain});
         }
-    } catch (const cb::rbac::Exception&) {
+    } else {
+        // The user has not authenticated. Assign an empty profile which
+        // won't give you any privileges.
         privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                 cb::rbac::PrivilegeContext{getUser().domain});
     }
@@ -1292,12 +1296,15 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
 
     updateDescription();
     droppedPrivileges.reset();
-    try {
+    auto ctxRes = createContext(getBucket().name);
+    if (ctxRes) {
         privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                createContext(getBucket().name));
-    } catch (const std::exception&) {
-        privilegeContext =
-                std::make_shared<cb::rbac::PrivilegeContext>(createContext({}));
+                std::move(*ctxRes));
+    } else {
+        auto fallback = createContext({});
+        privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                fallback ? std::move(*fallback)
+                         : cb::rbac::PrivilegeContext{getUser().domain});
     }
     updatePrivilegeContext();
     thread.onConnectionAuthenticated(*this);
@@ -1323,25 +1330,24 @@ bool Connection::isTlsEnabled() const {
 
 bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                                          std::string_view cipherName) {
-    try {
-        cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
-                                  cb::sasl::Domain::Local};
-        // This isn't using JWT and shouldn't have a privilege context
-        // provided in the request
-        auto context = cb::rbac::createContext(ident, {});
-        setAuthenticated(ident);
-        audit_auth_success(*this);
-        LOG_INFO_CTX("Client authenticated via X.509 certificate",
-                     {"conn_id", getId()},
-                     {"peer", getPeername()},
-                     {"cipher", cipherName},
-                     {"user", ident.getSanitizedName()});
-        // External users authenticated by using X.509 certificates should not
-        // be able to use SASL to change its identity.
-        saslAuthEnabled = getUser().is_internal();
-    } catch (const cb::rbac::NoSuchUserException&) {
+    cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
+                              cb::sasl::Domain::Local};
+    // This isn't using JWT and shouldn't have a privilege context
+    // provided in the request
+    auto contextRes = cb::rbac::createContext(ident, {});
+    if (!contextRes) {
         return false;
     }
+    setAuthenticated(ident);
+    audit_auth_success(*this);
+    LOG_INFO_CTX("Client authenticated via X.509 certificate",
+                 {"conn_id", getId()},
+                 {"peer", getPeername()},
+                 {"cipher", cipherName},
+                 {"user", ident.getSanitizedName()});
+    // External users authenticated by using X.509 certificates should not
+    // be able to use SASL to change its identity.
+    saslAuthEnabled = getUser().is_internal();
     return true;
 }
 
@@ -2831,23 +2837,19 @@ bool Connection::mayAccessBucket(std::string_view bucket) const {
     }
 
     if (tokenAuthData) {
-        try {
-            (void)createContext(bucket);
-            return true;
-        } catch (const std::exception&) {
-            return false;
-        }
+        return createContext(bucket).has_value();
     }
     return cb::rbac::mayAccessBucket(getUser(), std::string{bucket});
 }
 
-cb::rbac::PrivilegeContext Connection::createContext(
-        std::string_view bucket) const {
+std::expected<cb::rbac::PrivilegeContext, cb::rbac::Error>
+Connection::createContext(std::string_view bucket) const {
     Expects(isAuthenticated());
     if (tokenAuthData) {
         std::string name(bucket);
         if (bucket.empty()) {
-            return {0,
+            return cb::rbac::PrivilegeContext{
+                    0,
                     user->domain,
                     tokenAuthData->getUserEntry().getPrivileges(),
                     {},
@@ -2859,11 +2861,12 @@ cb::rbac::PrivilegeContext Connection::createContext(
             // No explicit match... Is there a wildcard entry
             iter = tokenAuthData->getUserEntry().getBuckets().find("*");
             if (iter == tokenAuthData->getUserEntry().getBuckets().cend()) {
-                throw cb::rbac::NoSuchBucketException(name.c_str());
+                return std::unexpected(cb::rbac::Error::NoSuchBucket);
             }
         }
 
-        return {0,
+        return cb::rbac::PrivilegeContext{
+                0,
                 user->domain,
                 tokenAuthData->getUserEntry().getPrivileges(),
                 iter->second,

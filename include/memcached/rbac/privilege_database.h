@@ -21,6 +21,7 @@
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -30,6 +31,17 @@
 #include <vector>
 
 namespace cb::rbac {
+
+enum class Error {
+    NoSuchUser,
+    NoSuchBucket,
+};
+
+/// Get the textual representation of a cb::rbac::Error
+std::string_view format_as(Error error);
+
+/// Stream operator for cb::rbac::Error to allow GTest to print it properly
+std::ostream& operator<<(std::ostream& os, Error error);
 
 using Domain = cb::sasl::Domain;
 
@@ -469,36 +481,6 @@ protected:
 };
 
 /**
- * Base class for exceptions thrown by the cb::rbac module in
- * case you want to handle all of them with the same catch block.
- */
-class Exception : public std::runtime_error {
-protected:
-    explicit Exception(const char* msg) : std::runtime_error(msg) {
-    }
-};
-
-/**
- * An exception class representing that the user doesn't exist in the
- * PrivilegeDatabase.
- */
-class NoSuchUserException : public Exception {
-public:
-    explicit NoSuchUserException(const char* msg) : Exception(msg) {
-    }
-};
-
-/**
- * An exception class representing that the bucket doesn't exist in the
- * PrivilegeDatabase.
- */
-class NoSuchBucketException : public Exception {
-public:
-    explicit NoSuchBucketException(const char* msg) : Exception(msg) {
-    }
-};
-
-/**
  * The PrivilegeDatabase is a container for all of the RBAC configuration
  * of the system.
  */
@@ -519,10 +501,10 @@ public:
      * Try to look up a user in the privilege database
      *
      * @param user The name of the user to look up
-     * @return The user entry for that user
-     * @throws cb::rbac::NoSuchUserException if the user doesn't exist
+     * @return Pointer to user entry if found, or Error::NoSuchUser
      */
-    [[nodiscard]] const UserEntry& lookup(const std::string& user) const;
+    [[nodiscard]] std::expected<const UserEntry*, Error> lookup(
+            const std::string& user) const;
 
     /**
      * Create a new PrivilegeContext for the specified user in the specified
@@ -531,12 +513,10 @@ public:
      * @param user The name of the user
      * @param bucket The name of the bucket (may be "" if you're not
      *               connecting to a bucket (aka the no bucket)).
-     * @return The privilege context representing the user in that bucket
-     * @throws cb::rbac::NoSuchUserException if the user doesn't exist
-     * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
-     *                                         to that bucket.
+     * @return The privilege context representing the user in that bucket, or
+     * Error
      */
-    [[nodiscard]] PrivilegeContext createContext(
+    [[nodiscard]] std::expected<PrivilegeContext, Error> createContext(
             const std::string& user,
             Domain domain,
             const std::string& bucket) const;
@@ -566,13 +546,10 @@ protected:
  * @param user The user to look up
  * @param bucket The name of the bucket (may be "" if you're not
  *               connecting to a bucket (aka the no bucket)).
- * @return The privilege context representing the user in that bucket
- * @throws cb::rbac::NoSuchUserException if the user doesn't exist
- * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
- *                                         to that bucket.
+ * @return The privilege context representing the user in that bucket, or Error
  */
-PrivilegeContext createContext(const UserIdent& user,
-                               const std::string& bucket);
+std::expected<PrivilegeContext, Error> createContext(const UserIdent& user,
+                                                     const std::string& bucket);
 
 /**
  * Load the named file and install it as the current privilege database
