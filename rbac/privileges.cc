@@ -140,8 +140,7 @@ private:
         privileges[static_cast<std::size_t>(priv)] = std::move(meta);
     }
 
-    std::array<PrivilegeMeta,
-               static_cast<std::size_t>(Privilege::RangeScan) + 1>
+    std::array<PrivilegeMeta, static_cast<std::size_t>(Privilege::Count)>
             privileges;
     std::unordered_map<std::string_view, Privilege> nameToPrivilegeMap;
 };

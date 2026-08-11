@@ -76,12 +76,9 @@ struct UserIdent {
 void to_json(nlohmann::json& json, const UserIdent& ui);
 
 /**
- * An array containing all of the possible privileges we've got. It is
- * tightly coupled with the Privilege enum class, and when entries is
- * added to the Privilege enum class the size of the mask needs to
- * be updated.
+ * An array containing all of the possible privileges we've got.
  */
-using PrivilegeMask = std::bitset<size_t(Privilege::RangeScan) + 1>;
+using PrivilegeMask = std::bitset<static_cast<size_t>(Privilege::Count)>;
 
 /// The in-memory representation of a collection
 class Collection {

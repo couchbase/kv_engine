@@ -149,8 +149,8 @@ enum class Privilege {
     /// keys/values
     RangeScan,
 
-    // Let RangeScan be the last privilege in the file, as its value is
-    // used to size bitsets inside the RBAC module.
+    /// Sentinel count of privileges used for array and bitset sizing
+    Count,
 };
 void to_json(nlohmann::json& json, const Privilege& privilege);
 
