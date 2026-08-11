@@ -10,15 +10,16 @@
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
-#include <gsl/gsl-lite.hpp>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/logtags.h>
 #include <atomic>
+#include <charconv>
 #include <fstream>
 #include <memory>
 #include <string>
+#include <string_view>
 
 std::size_t std::hash<cb::rbac::UserIdent>::operator()(
         cb::rbac::UserIdent const& user) const noexcept {
@@ -28,6 +29,20 @@ std::size_t std::hash<cb::rbac::UserIdent>::operator()(
 }
 
 namespace cb::rbac {
+
+static uint32_t parseHexUint32(std::string_view str, const char* errorMsg) {
+    std::string_view digits = str;
+    if (digits.starts_with("0x") || digits.starts_with("0X")) {
+        digits.remove_prefix(2);
+    }
+    uint32_t val = 0;
+    const auto [ptr, ec] = std::from_chars(
+            digits.data(), digits.data() + digits.size(), val, 16);
+    if (ec != std::errc{} || ptr != digits.data() + digits.size()) {
+        throw std::invalid_argument(errorMsg);
+    }
+    return val;
+}
 
 void to_json(nlohmann::json& json, const UserIdent& ui) {
     json = nlohmann::json{{"user", ui.name}, {"domain", ui.domain}};
@@ -163,13 +178,9 @@ Scope::Scope(const nlohmann::json& json) {
     iter = json.find("collections");
     if (iter != json.end()) {
         for (auto it = iter->begin(); it != iter->end(); ++it) {
-            size_t pos = 0;
-            const auto cid =
-                    gsl::narrow<uint32_t>(std::stoul(it.key(), &pos, 16));
-            if (it.key().length() != pos) {
-                throw std::invalid_argument(
-                        "Scope::Scope(): Extra characters present for CID");
-            }
+            const auto cid = parseHexUint32(
+                    it.key(),
+                    "Scope::Scope(): Extra characters present for CID");
             collections.emplace(cid, Collection(it.value()));
         }
     }
@@ -245,14 +256,9 @@ Bucket::Bucket(const nlohmann::json& json) {
         iter = json.find("scopes");
         if (iter != json.end()) {
             for (auto it = iter->begin(); it != iter->end(); ++it) {
-                size_t pos = 0;
-                const auto sid =
-                        gsl::narrow<uint32_t>(std::stoul(it.key(), &pos, 16));
-                if (it.key().length() != pos) {
-                    throw std::invalid_argument(
-                            "Bucket::Bucket(): Extra characters present for "
-                            "SID");
-                }
+                const auto sid = parseHexUint32(
+                        it.key(),
+                        "Bucket::Bucket(): Extra characters present for SID");
                 scopes.emplace(sid, Scope(it.value()));
             }
         }
