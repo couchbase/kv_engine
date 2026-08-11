@@ -10,22 +10,21 @@
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
+#include <folly/hash/Hash.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/logtags.h>
 #include <atomic>
 #include <charconv>
-#include <fstream>
 #include <memory>
 #include <string>
 #include <string_view>
 
 std::size_t std::hash<cb::rbac::UserIdent>::operator()(
         cb::rbac::UserIdent const& user) const noexcept {
-    std::size_t h1 = std::hash<std::string>{}(user.name);
-    std::size_t h2 = std::hash<uint8_t>{}(static_cast<uint8_t>(user.domain));
-    return h1 ^ (h2 << 1);
+    return folly::hash::hash_combine(user.name,
+                                     static_cast<uint8_t>(user.domain));
 }
 
 namespace cb::rbac {

@@ -130,6 +130,17 @@ TEST(UserEntryTest, EmptyUsernameIsNotInternal) {
     EXPECT_FALSE(ue.isInternal());
 }
 
+TEST(UserIdentTest, HashFunction) {
+    cb::rbac::UserIdent u1{"trond", cb::rbac::Domain::Local};
+    cb::rbac::UserIdent u2{"trond", cb::rbac::Domain::External};
+    cb::rbac::UserIdent u3{"alice", cb::rbac::Domain::Local};
+
+    std::hash<cb::rbac::UserIdent> hasher;
+    EXPECT_EQ(hasher(u1), hasher(u1));
+    EXPECT_NE(hasher(u1), hasher(u2));
+    EXPECT_NE(hasher(u1), hasher(u3));
+}
+
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"Audit"};
