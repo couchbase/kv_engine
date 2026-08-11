@@ -1297,4 +1297,50 @@ TEST(BucketTest, Serialization_NoScopes) {
     EXPECT_EQ(bucket1.getPrivileges(), bucket2.getPrivileges());
 }
 
+/// updateExternalUser() parses caller-provided JSON and (before the fix
+/// this test guards) assumed it was always a single-user object without
+/// validating that shape, which let a payload like "{}" dereference the
+/// end() iterator of an empty JSON object (undefined behaviour) instead of
+/// failing cleanly.
+class UpdateExternalUserTest : public ::testing::Test {
+public:
+    void SetUp() override {
+        initialize();
+    }
+    void TearDown() override {
+        destroy();
+    }
+};
+
+TEST_F(UpdateExternalUserTest, ValidSingleUserIsAdded) {
+    updateExternalUser(
+            R"({"trond":{"domain":"external","privileges":["Read"]}})");
+    EXPECT_TRUE(to_json(Domain::External).contains("trond"));
+}
+
+TEST_F(UpdateExternalUserTest, EmptyObjectThrows) {
+    EXPECT_THROW(updateExternalUser("{}"), std::runtime_error);
+}
+
+TEST_F(UpdateExternalUserTest, MultipleUsersThrows) {
+    EXPECT_THROW(updateExternalUser(R"({"trond":{"domain":"external"},
+                                        "jones":{"domain":"external"}})"),
+                 std::runtime_error);
+}
+
+TEST_F(UpdateExternalUserTest, NonObjectThrows) {
+    EXPECT_THROW(updateExternalUser("[1,2,3]"), std::runtime_error);
+}
+
+TEST_F(UpdateExternalUserTest, InvalidJsonThrows) {
+    EXPECT_THROW(updateExternalUser("not json"), std::runtime_error);
+}
+
+TEST_F(UpdateExternalUserTest, InvalidUserEntryThrows) {
+    // "buckets" must be an object, not an array
+    EXPECT_THROW(updateExternalUser(
+                         R"({"trond":{"domain":"external","buckets":[]}})"),
+                 std::runtime_error);
+}
+
 } // namespace cb::rbac

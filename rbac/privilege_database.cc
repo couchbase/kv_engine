@@ -682,14 +682,31 @@ bool mayAccessBucket(const UserIdent& user, const std::string& bucket) {
 void updateExternalUser(const std::string_view descr) {
     // Parse the JSON and create the UserEntry object before grabbing
     // the write lock!
-    auto json = nlohmann::json::parse(descr);
-    const std::string username = json.begin().key();
-    UserEntry entry(username, json[username], Domain::External);
+    std::string username;
+    std::unique_ptr<UserEntry> entry;
+    try {
+        auto json = nlohmann::json::parse(descr);
+        if (!json.is_object() || json.size() != 1) {
+            throw std::invalid_argument(
+                    "updateExternalUser: Payload must contain exactly one "
+                    "user");
+        }
+        auto it = json.begin();
+        username = it.key();
+        entry = std::make_unique<UserEntry>(
+                username, it.value(), Domain::External);
+    } catch (const nlohmann::json::exception& e) {
+        throw std::runtime_error(fmt::format(
+                "updateExternalUser: Failed to parse JSON: {}", e.what()));
+    } catch (const std::logic_error& e) {
+        throw std::runtime_error(
+                fmt::format("updateExternalUser: {}", e.what()));
+    }
 
     auto& ctx = contexts[to_index(Domain::External)];
 
     auto locked = ctx.db.wlock();
-    auto next = (*locked)->updateUser(username, Domain::External, entry);
+    auto next = (*locked)->updateUser(username, Domain::External, *entry);
     if (next) {
         // I changed the database. Update the context gen counter and
         // swap the databases
