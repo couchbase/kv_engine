@@ -15,6 +15,7 @@
 #include <array>
 #include <bitset>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace cb::rbac {
 
@@ -69,10 +70,9 @@ public:
     }
 
     Privilege lookup(std::string_view str) const {
-        for (std::size_t ii = 0; ii < privileges.size(); ++ii) {
-            if (privileges[ii].name == str) {
-                return static_cast<Privilege>(ii);
-            }
+        const auto iter = nameToPrivilegeMap.find(str);
+        if (iter != nameToPrivilegeMap.end()) {
+            return iter->second;
         }
         throw std::invalid_argument(
                 fmt::format("to_privilege: Unknown privilege: {}", str));
@@ -135,12 +135,14 @@ private:
     }
 
     void setup(Privilege priv, PrivilegeMeta meta) {
+        nameToPrivilegeMap.emplace(meta.name, priv);
         privileges[static_cast<std::size_t>(priv)] = std::move(meta);
     }
 
     std::array<PrivilegeMeta,
                static_cast<std::size_t>(Privilege::RangeScan) + 1>
             privileges;
+    std::unordered_map<std::string_view, Privilege> nameToPrivilegeMap;
 };
 
 /// The one and only instance
