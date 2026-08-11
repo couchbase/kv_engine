@@ -572,6 +572,14 @@
         "added": "7.0.0"
     },
     {
+        "key": "ep_fragmentation_tmp_ooms",
+        "unit": "none",
+        "type": "counter",
+        "description": "Number of temporary OOMs caused by the RSS/fragmentation memory back-pressure",
+        "long_description": "A subset of ep_tmp_oom_errors: temporary out-of-memory errors returned because the bucket's resident memory (RSS) exceeded its quota due to fragmentation, while allocated (logical) memory was still under quota. Non-zero only when fragmentation_backpressure_enabled is true. A rising value indicates the RSS/fragmentation back-pressure is rejecting mutations to keep the process within quota while the defragmenter recovers.",
+        "added": "8.5.0"
+    },
+    {
         "key": "ep_mem_tracker_enabled",
         "unit": "none",
         "description": "True if memory usage tracker is enabled",

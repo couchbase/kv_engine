@@ -30,6 +30,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "durability_min_level",
         "durability_impossible_fallback",
         "mutation_mem_ratio",
+        "fragmentation_backpressure_enabled",
         "exp_pager_enabled",
         "exp_pager_stime",
         "exp_pager_initial_run_time",

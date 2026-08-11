@@ -2736,8 +2736,15 @@ cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
     getKVBucket()->wakeUpCheckpointMemRecoveryTask();
 
     if (memoryTracker->isBelowMemoryQuota()) {
-        // Still below bucket_quota - treat as temporary failure.
-        ++stats.tmp_oom_errors;
+        // Still below bucket_quota - treat as temporary failure. Attribute it
+        // to the RSS/fragmentation back-pressure when that is what is holding
+        // us over quota (incr bumps tmp_oom_errors too), else count a plain
+        // temp-OOM.
+        if (memoryTracker->isFragmentationCritical()) {
+            stats.incrFragmentationTmpOoms();
+        } else {
+            ++stats.tmp_oom_errors;
+        }
         return cb::engine_errc::temporary_failure;
     }
     // Already over bucket quota - make this a hard error.
@@ -3428,6 +3435,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     collector.addStat(Key::ep_oom_errors, stats.oom_errors);
     collector.addStat(Key::ep_tmp_oom_errors, stats.tmp_oom_errors);
+    collector.addStat(Key::ep_fragmentation_tmp_ooms,
+                      stats.getFragmentationTmpOoms());
     collector.addStat(Key::ep_bg_fetched, epstats.bg_fetched);
     collector.addStat(Key::ep_bg_fetched_compaction,
                       epstats.bg_fetched_compaction);
@@ -3757,6 +3766,10 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat(
             "ep_tmp_oom_errors", stats.tmp_oom_errors, add_stat, cookie);
+    add_casted_stat("ep_fragmentation_tmp_ooms",
+                    stats.getFragmentationTmpOoms(),
+                    add_stat,
+                    cookie);
 
     add_casted_stat("ep_blob_num", stats.getNumBlob(), add_stat, cookie);
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)

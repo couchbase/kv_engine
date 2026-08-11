@@ -54,6 +54,14 @@ public:
      */
     virtual bool needsToFreeMemory() const = 0;
 
+    /**
+     * @return true if RSS is over the bucket quota AND scored fragmentation is
+     * at/above defragmenter_auto_upper_threshold, i.e. RSS/fragmentation
+     * memory back-pressure should engage.
+     * Always false when fragmentation_backpressure_enabled is false.
+     */
+    virtual bool isFragmentationCritical() const = 0;
+
     virtual ~MemoryTracker() = default;
 };
 
@@ -67,6 +75,7 @@ public:
     bool isBelowMemoryQuota(size_t pendingBytes) const override;
     bool isBelowBackfillThreshold(size_t pendingBytes) const override;
     bool needsToFreeMemory() const override;
+    bool isFragmentationCritical() const override;
 
 private:
     EventuallyPersistentEngine& engine;

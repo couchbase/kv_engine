@@ -173,6 +173,8 @@ public:
             store.setCompactionExpiryFetchInline(value);
         } else if (key == "continuous_backup_enabled") {
             store.setContinuousBackupEnabled(value);
+        } else if (key == "fragmentation_backpressure_enabled") {
+            store.setFragmentationBackpressureEnabled(value);
         }
     }
 
@@ -359,6 +361,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setMutationMemRatio(config.getMutationMemRatio());
     config.addValueChangedListener(
             "mutation_mem_ratio",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setFragmentationBackpressureEnabled(
+            config.isFragmentationBackpressureEnabled());
+    config.addValueChangedListener(
+            "fragmentation_backpressure_enabled",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     double backfill_threshold = static_cast<double>
@@ -3493,6 +3501,14 @@ float KVBucket::getMutationMemRatio() const {
 
 void KVBucket::setMutationMemRatio(float ratio) {
     mutationMemRatio = ratio;
+}
+
+bool KVBucket::isFragmentationBackpressureEnabled() const {
+    return fragmentationBackpressureEnabled;
+}
+
+void KVBucket::setFragmentationBackpressureEnabled(bool enabled) {
+    fragmentationBackpressureEnabled = enabled;
 }
 
 void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds seconds) {

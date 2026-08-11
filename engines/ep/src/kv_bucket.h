@@ -1165,6 +1165,12 @@ public:
      */
     void setMutationMemRatio(float ratio);
 
+    /// @return whether RSS/fragmentation memory back-pressure is enabled.
+    bool isFragmentationBackpressureEnabled() const;
+
+    /// Enable/disable RSS/fragmentation memory back-pressure.
+    void setFragmentationBackpressureEnabled(bool enabled);
+
     /**
      * Notify frontend of a new item added to the replication queue for the
      * given vbucket.
@@ -1708,6 +1714,12 @@ protected:
     /// Memory usage level (ratio of Bucket Quota) where we start rejecting
     /// (TEMP_OOM) frontend mutations
     std::atomic<float> mutationMemRatio;
+
+    /// Whether RSS/fragmentation memory back-pressure is enabled. When on and
+    /// RSS is over the bucket quota with scored fragmentation at/above
+    /// defragmenter_auto_upper_threshold, mutations temp-OOM and backfill
+    /// pauses.
+    std::atomic<bool> fragmentationBackpressureEnabled{false};
 
     /**
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.

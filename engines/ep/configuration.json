@@ -690,6 +690,13 @@
                 }
             }
         },
+        "fragmentation_backpressure_enabled": {
+            "added": "8.5.0",
+            "default": "false",
+            "descr": "If true, memory back-pressure (temp-OOM of mutations, DCP backfill pause) also engages when RSS is over the bucket quota and scored fragmentation is at/above defragmenter_auto_upper_threshold. See EPStats::getScoredFragmentation.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "freq_counter_increment_factor": {
             "added": "7.6.0",
             "default": "0.012",

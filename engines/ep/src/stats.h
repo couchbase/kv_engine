@@ -710,6 +710,20 @@ public:
     /// getScoredFragmentation().
     cb::RelaxedAtomic<float> scoredFragmentation = 0.0;
 
+    /// Record a temporary-OOM rejection caused by the RSS/fragmentation
+    /// back-pressure. Bumps both the generic tmp_oom_errors counter and the
+    /// fragmentation-specific subset, so the two can never diverge.
+    void incrFragmentationTmpOoms() {
+        ++tmp_oom_errors;
+        ++fragmentationTmpOoms;
+    }
+
+    /// @return the number of temp-OOM rejections attributed to the
+    /// RSS/fragmentation back-pressure (a subset of tmp_oom_errors).
+    size_t getFragmentationTmpOoms() const {
+        return fragmentationTmpOoms;
+    }
+
 protected:
     /**
      * If a quota change is in progress, returns the desired quota, else returns
@@ -719,6 +733,11 @@ protected:
 
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
+
+    //! Subset of tmp_oom_errors attributed to the RSS/fragmentation
+    //! back-pressure. Only mutable via incrFragmentationTmpOoms() (which
+    //! also bumps tmp_oom_errors), so it stays in lockstep with it.
+    std::atomic<size_t> fragmentationTmpOoms = 0;
 
     friend class EPStatsIntrospector;
 };

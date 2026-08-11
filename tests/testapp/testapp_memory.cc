@@ -9,10 +9,13 @@
  */
 #include "testapp_client_test.h"
 
+#include <folly/Portability.h>
 #include <folly/ScopeGuard.h>
 #include <folly/portability/GMock.h>
+#include <platform/timeutils.h>
 
 #include <cstdlib>
+#include <iostream>
 #include <iterator>
 #include <sstream>
 #include <string>
@@ -187,162 +190,237 @@ static size_t regionsPerSlab(const std::string& allocatorStatsDump,
     return 0;
 }
 
-// Baseline for MB-55537: verifies the *current* (pre-fix) behaviour that a
-// fragmenting workload drives the bucket's resident bytes far above its
-// allocated bytes, with nothing to mitigate it. Once the RSS/fragmentation
-// back-pressure lands this test will be updated to assert the mitigated
-// behaviour instead.
+// MB-55537: reproduce a bucket whose resident (RSS) exceeds its quota because
+// of external jemalloc fragmentation while allocated (mem_used) stays under
+// quota, then verify the RSS/fragmentation back-pressure rejects a mutation
+// with a temporary failure.
+//
+// Mechanism -- two size classes, so freed regions in the first are not refilled
+// by the second (that is what lets resident climb above the working set while
+// allocated stays low):
+//   1. Fill a class-A working set up to ~0.7x quota (dense).
+//   2. Delete all but one survivor per A slab (delete stride = the bin's
+//      regions-per-slab, nregs): each slab keeps a live region and stays
+//      resident while its other regions become holes, so allocated drops while
+//      resident holds.
+//   3. Fill class-B (a different bin, so it cannot refill A's holes) until
+//      resident is comfortably over the quota.
+//   4. Do the same survivor-per-slab delete on B (its own nregs), dropping
+//      allocated further while resident holds.
+// End state: allocated < quota < resident, ~55-60% fragmentation measure on
+// local test run -- the real MB-55537 condition (the gate only needs 25%).
+// Throughout, allocated is kept under ~3/4 quota so mem_used stays below the
+// high water mark and the value_only item pager never ejects the values we are
+// pinning. The bucket quota is set to 100 MB to keep the run as quick as
+// possible.
+//
+// The defragmenter is parked (static mode, huge interval) during the build so
+// it does not compact A's sparse slabs, but left enabled so the gate's guard
+// holds.
 TEST_P(MemTrackingBucketTest, HighFragmentation) {
-    auto& conn = getConnection();
-    conn.authenticate("@admin");
-    conn.selectBucket(bucketName);
+    adminConnection->selectBucket(bucketName);
 
-    // WHAT: reproduce the MB-55537 condition where a bucket's resident (RSS)
-    // sits well above its allocated (mem_used) because of external jemalloc
-    // fragmentation. WHY: this is the pre-fix baseline the RSS/fragmentation
-    // back-pressure will later be shown to mitigate. HOW: fill one size-class'
-    // slabs, then delete all but one survivor per slab -- each slab keeps a
-    // live region so it stays resident, while allocated collapses:
-    //
-    //   one slab, nregs=8 regions of `sz` bytes, fully packed:
-    //     +----+----+----+----+----+----+----+----+
-    //     | A  | B  | C  | D  | E  | F  | G  | H  |   resident = 1 slab
-    //     +----+----+----+----+----+----+----+----+   allocated = 8*sz
-    //
-    //   after deleting all but survivor A (delete stride = nregs):
-    //     +----+----+----+----+----+----+----+----+
-    //     | A  | .  | .  | .  | .  | .  | .  | .  |   resident = 1 slab (same)
-    //     +----+----+----+----+----+----+----+----+   allocated = 1*sz
-    //
-    //   A alone pins the whole slab resident, so resident holds while allocated
-    //   drops ~nregs-fold. Across many slabs resident/allocated approaches
-    //   nregs.
-    //
-    // We target resident/allocated > 2x. The feature engages at fragmentation
-    // ratio 0.25, i.e. resident/allocated ~= 1.33, so 2x is comfortably above
-    // what the fix reacts to while staying reliably reachable over the wire.
-    constexpr auto targetRatio = 2.0;
+    const auto setParam = [](std::string_view key, std::string_view value) {
+        adminConnection->execute(BinprotSetParamCommand{
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                std::string(key),
+                std::string(value)});
+    };
+    const auto resident = [] {
+        return getStat<uint64_t>(
+                *adminConnection, "", "ep_arena_memory_resident");
+    };
+    const auto allocated = [] {
+        return getStat<uint64_t>(
+                *adminConnection, "", "ep_arena_memory_allocated");
+    };
 
-    // --- Step 1: pick the value and learn the target bin's regions-per-slab.
-    // A large (~1KB) value matters: every item also carries a StoredValue, and
-    // every deleted item a tombstone, which are NOT fragmented but count in
-    // both resident and allocated. A tiny value lets that fixed per-item
-    // overhead dominate and dilutes the ratio; a large value makes the
-    // fragmentable Blob dominate. The stored Blob is value + a small header, so
-    // we query the bin for value.size()+64 to land on the bin the Blob actually
-    // uses. That bin's regions-per-slab (nregs) is both the fragmentation
-    // ceiling and the delete stride (keep 1 of every nregs => one survivor per
-    // slab). The test client is not jemalloc-backed, so we read nregs from the
-    // server's stats dump.
-    const std::string value(1024, 'x');
-    const auto allocatorStats =
-            conn.stats("allocator")["allocator"].get<std::string>();
-    const auto nregs = regionsPerSlab(allocatorStats, value.size() + 64);
-    ASSERT_GT(nregs, 0u)
-            << "Could not parse regions-per-slab from allocator stats";
-    // The ratio ceiling is ~nregs, so the bin must pack more than kTargetRatio
-    // regions per slab for the target to be reachable at all.
-    ASSERT_GT(nregs, targetRatio)
-            << "bin packs " << nregs << " regions/slab, below target ratio";
-
-    // --- Step 2: snapshot the baseline and compute how much to grow the arena.
-    // We cannot measure the real ratio while loading (it only appears after the
-    // deletes), and we must NOT delete-then-store (new stores refill the freed
-    // regions and un-fragment the slabs). So we load until resident reaches a
-    // precomputed target, then fragment in one pass. Derivation: after
-    // fragmenting, allocated ~= baseline + resident/nregs, so
-    // resident/allocated > R needs resident > R*baseline / (1 - R/nregs). The
-    // 3x is margin for tombstones and imperfect survivor placement (see Step
-    // 4).
-    const auto baseAllocated =
-            getStat<uint64_t>(conn, "", "ep_arena_memory_allocated");
-    const auto baseResident =
-            getStat<uint64_t>(conn, "", "ep_arena_memory_resident");
-    const uint64_t targetResident =
-            baseResident +
-            static_cast<uint64_t>(3.0 * targetRatio * baseAllocated /
-                                  (1.0 - targetRatio / nregs));
-
-    // --- Step 3: grow the arena by storing whole slabs' worth of items until
-    // resident hits the target. No deletes here (see Step 2). maxItems bounds
-    // the test so a pathological bin fails fast instead of looping forever.
-    constexpr size_t maxItems = 100000;
-    const size_t batch = 20 * nregs; // whole slabs per batch
-    size_t stored = 0;
-    while (getStat<uint64_t>(conn, "", "ep_arena_memory_resident") <
-                   targetResident &&
-           stored < maxItems) {
-        const size_t end = stored + batch;
-        for (; stored < end; ++stored) {
-            conn.store("key_" + std::to_string(stored), Vbid(0), value);
-        }
-    }
-    ASSERT_LT(stored, maxItems)
-            << "could not grow resident to " << targetResident;
-
-    // --- Step 4: fragment in a single pass -- delete all but one survivor per
-    // slab. Items were stored sequentially, so deleting every index that is not
-    // a multiple of nregs keeps indices 0, nregs, 2*nregs, ... ~one survivor
-    // per slab. (Placement is approximate over the wire -- the client can't see
-    // Blob addresses -- which is what the 3x growth margin in Step 2 covers.)
-    // The lone survivor pins each slab resident while its freed neighbours drop
-    // allocated.
-    uint64_t lastSeqno = 0;
-    for (size_t i = 0; i < stored; ++i) {
-        if (i % nregs != 0) {
-            lastSeqno = conn.remove("key_" + std::to_string(i), Vbid(0)).seqno;
-        }
-    }
-
-    // --- Step 5: actually free the deleted Blobs. A remove does not free the
-    // Blob immediately -- it is still referenced by the persistence/DCP
-    // checkpoint queue. Persist past the last delete so the items are no longer
-    // pinned by the open checkpoint, then squeeze checkpoint_memory_ratio to
-    // force checkpoint removal; only then are the Blobs released and allocated
-    // drops. This runs on a background task, hence the poll in Step 6.
-    conn.waitForSeqnoToPersist(Vbid(0), lastSeqno);
-
-    // Cache the current ratio and restore it on exit (via the guard) so
-    // squeezing it here does not leak into later tests sharing the bucket, even
-    // if an assertion below returns early.
+    // checkpoint_memory_ratio is a Checkpoint-category param, so it must be set
+    // with Type::Checkpoint.
+    // lowerCheckpointMemRatio drops it to trigger checkpoint memory recovery
+    // (async) and free the deleted Blobs; cache the original and restore it on
+    // exit so it does not leak into later tests.
+    const auto lowerCheckpointMemRatio = [] {
+        const auto resp = adminConnection->execute(BinprotSetParamCommand{
+                cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+                "checkpoint_memory_ratio",
+                "0.01"});
+        EXPECT_TRUE(resp.isSuccess())
+                << "failed to set checkpoint_memory_ratio: "
+                << to_string(resp.getStatus());
+    };
     const auto originalCheckpointMemRatio =
-            getStat<float>(conn, "", "ep_checkpoint_memory_ratio");
+            getStat<float>(*adminConnection, "", "ep_checkpoint_memory_ratio");
     const auto restoreCheckpointMemRatio =
-            folly::makeGuard([&conn, originalCheckpointMemRatio] {
-                conn.execute(BinprotSetParamCommand{
+            folly::makeGuard([originalCheckpointMemRatio] {
+                adminConnection->execute(BinprotSetParamCommand{
                         cb::mcbp::request::SetParamPayload::Type::Checkpoint,
                         "checkpoint_memory_ratio",
                         std::to_string(originalCheckpointMemRatio)});
             });
-    const auto setRatioResp = conn.execute(BinprotSetParamCommand{
-            cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-            "checkpoint_memory_ratio",
-            "0.01"});
-    ASSERT_TRUE(setRatioResp.isSuccess())
-            << "failed to set checkpoint_memory_ratio: "
-            << to_string(setRatioResp.getStatus());
 
-    // --- Step 6: wait for the async release, then assert the fragmentation.
-    // resident stays high (slabs pinned by survivors) while allocated falls, so
-    // the ratio climbs past the target. Poll until it does, or fail on timeout.
-    const auto deadline =
-            std::chrono::steady_clock::now() + std::chrono::seconds{10};
-    uint64_t allocated = 0;
-    uint64_t resident = 0;
-    do {
-        allocated = getStat<uint64_t>(conn, "", "ep_arena_memory_allocated");
-        resident = getStat<uint64_t>(conn, "", "ep_arena_memory_resident");
-        if (resident > allocated * targetRatio) {
-            break;
+    // Park the defragmenter: enabled (so the gate's guard holds) but never
+    // runs, so it does not compact the fragmentation we are about to build.
+    setParam("defragmenter_mode", "static");
+    setParam("defragmenter_interval", "999999");
+
+    // Use a fixed 100 MB quota so the test does not depend on any -c max_size
+    // and stays quick (less to load). The change is applied asynchronously.
+    constexpr auto quota = 100 * 1024 * 1024;
+    setParam("max_size", std::to_string(quota));
+    cb::waitForPredicate([] {
+        return getStat<uint64_t>(*adminConnection, "", "ep_max_size") == quota;
+    });
+
+    // Dump the memory state after each macro step so the run is easy to follow
+    // (DEBUG builds only). kv_size is Blob memory held in the HashTable;
+    // non_resident/value_ejects reveal whether item values are being ejected.
+    const auto logDebugState = [&]([[maybe_unused]] std::string_view stage) {
+        if constexpr (folly::kIsDebug) {
+            const auto stat = [](const char* key) {
+                return getStat<uint64_t>(*adminConnection, "", key);
+            };
+            const auto r = resident();
+            const auto a = allocated();
+            std::cout << "[ HighFragmentation ] " << stage
+                      << ": quota=" << quota << " resident=" << r
+                      << " allocated=" << a << " frag="
+                      << (r > a ? 100.0 * double(r - a) / double(r) : 0.0)
+                      << "%"
+                      << " rss/alloc=" << (a ? double(r) / double(a) : 0.0)
+                      << " items=" << stat("curr_items")
+                      << " mem_used=" << stat("mem_used")
+                      << " kv_size=" << stat("ep_kv_size")
+                      << " non_resident=" << stat("ep_num_non_resident")
+                      << " value_ejects=" << stat("ep_num_value_ejects")
+                      << " high_wat=" << stat("ep_mem_high_wat") << std::endl;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds{100});
-    } while (std::chrono::steady_clock::now() < deadline);
+    };
+    logDebugState("start");
 
-    // Current (pre-fix) behaviour: nothing mitigates the fragmentation.
-    EXPECT_GT(resident, allocated * targetRatio)
-            << "resident=" << resident << " allocated=" << allocated
-            << " ratio=" << (allocated ? double(resident) / allocated : 0)
-            << " nregs=" << nregs << " stored=" << stored;
+    const std::string valueA(1024, 'a');
+    const std::string valueB(4096, 'b');
+    constexpr size_t chunk = 1000; // stores between stat checks
+
+    // Phase 1: dense class-A working set up to ~0.7x quota. Stays under quota,
+    // so the load itself does not temp-OOM. The loop terminates because
+    // allocated grows monotonically (no ejection below the high water mark) and
+    // the quota bounds it.
+    size_t aCount = 0;
+    while (allocated() < quota * 7 / 10) {
+        for (size_t i = 0; i < chunk; ++i, ++aCount) {
+            adminConnection->store(
+                    "A_" + std::to_string(aCount), Vbid(0), valueA);
+        }
+    }
+    logDebugState("after load A");
+
+    // Phase 2: delete all but one survivor per A slab, so each slab keeps a
+    // live region and stays resident while its other regions become holes --
+    // allocated drops while resident holds. Items were stored sequentially, so
+    // the delete stride is the bin's regions-per-slab (nregs): keeping indices
+    // 0, nregs, 2*nregs, ... leaves ~one survivor per slab. nregs is read from
+    // the server's jemalloc dump for the bin the ~1KB Blob lands in (value + a
+    // small header); the test client is not jemalloc-backed, hence the
+    // server-side query.
+    //
+    //   one slab, nregs=8 regions of `sz` bytes, fully packed:
+    //     +----+----+----+----+----+----+----+----+
+    //     | A0 | A1 | A2 | A3 | A4 | A5 | A6 | A7 |  resident: 1 slab
+    //     +----+----+----+----+----+----+----+----+  allocated: 8*sz
+    //
+    //   after deleting all but survivor A0 (stride = nregs):
+    //     +----+----+----+----+----+----+----+----+
+    //     | A0 | .  | .  | .  | .  | .  | .  | .  |  resident: 1 slab (same)
+    //     +----+----+----+----+----+----+----+----+  allocated: 1*sz
+    //
+    //   A0 alone pins the whole slab resident, so resident holds while
+    //   allocated drops ~nregs-fold; across many slabs resident/allocated
+    //   approaches nregs.
+    // The +64 is a Blob-header allowance. value.size() (1024) is itself a size-
+    // class boundary, but the stored Blob is value + a ~9-byte header, so it
+    // lands in the NEXT class (1280; 5120 for the 4KB B). Adding the header
+    // bumps the query past the boundary so we read that next class's nregs, not
+    // the value's.
+    const auto nregsA = regionsPerSlab(
+            adminConnection->stats("allocator")["allocator"].get<std::string>(),
+            valueA.size() + 64);
+    ASSERT_GT(nregsA, 0u) << "could not parse regions-per-slab for the A bin";
+    uint64_t lastSeqno = 0;
+    for (size_t i = 0; i < aCount; ++i) {
+        if (i % nregsA != 0) {
+            lastSeqno =
+                    adminConnection->remove("A_" + std::to_string(i), Vbid(0))
+                            .seqno;
+        }
+    }
+    adminConnection->waitForSeqnoToPersist(Vbid(0), lastSeqno);
+    lowerCheckpointMemRatio();
+    logDebugState("after delete A");
+
+    // Phase 3: fill class-B (a different bin, so it cannot refill A's holes)
+    // until resident is comfortably over the quota. Bound by allocated < 3/4
+    // quota so mem_used (~1.1x allocated) stays under the high water mark and
+    // the value_only item pager never fires -- an ejection here would free the
+    // Blobs and destroy the fragmentation we are building.
+    size_t bCount = 0;
+    while (resident() <= quota * 11 / 10 && allocated() < quota * 3 / 4) {
+        for (size_t i = 0; i < chunk; ++i, ++bCount) {
+            adminConnection->store(
+                    "B_" + std::to_string(bCount), Vbid(0), valueB);
+        }
+    }
+    logDebugState("after load B");
+
+    // Phase 4: the same survivor-per-slab delete for B, using B's own
+    // regions-per- slab (a different bin from A, so a different nregs),
+    // dropping allocated further while resident holds. B is small (mem_used
+    // stayed under the high water mark, so no ejection), so this handful of
+    // deletes cannot temp-OOM. +64: Blob-header allowance, as in phase 2 --
+    // lands B in its next class (5120).
+    const auto nregsB = regionsPerSlab(
+            adminConnection->stats("allocator")["allocator"].get<std::string>(),
+            valueB.size() + 64);
+    ASSERT_GT(nregsB, 0u) << "could not parse regions-per-slab for the B bin";
+    lastSeqno = 0;
+    for (size_t i = 0; i < bCount; ++i) {
+        if (i % nregsB != 0) {
+            lastSeqno =
+                    adminConnection->remove("B_" + std::to_string(i), Vbid(0))
+                            .seqno;
+        }
+    }
+    adminConnection->waitForSeqnoToPersist(Vbid(0), lastSeqno);
+    lowerCheckpointMemRatio();
+    logDebugState("after delete B");
+
+    const auto rss = resident();
+    const auto alloc = allocated();
+    ASSERT_GT(rss, quota) << "did not reach RSS>quota; rss=" << rss
+                          << " alloc=" << alloc << " quota=" << quota;
+    ASSERT_LT(alloc, quota)
+            << "allocated over quota (would be a normal temp-OOM); rss=" << rss
+            << " alloc=" << alloc << " quota=" << quota;
+
+    // Enable the feature. The gate activates once the MonitorTask publishes the
+    // current (high) fragmentation, one interval (~1s) away, so poll the probe
+    // until it is rejected rather than sleeping for a fixed time.
+    setParam("fragmentation_backpressure_enabled", "true");
+    adminConnection->setAutoRetryTmpfail(false);
+    const auto probeRejected = [&] {
+        BinprotMutationCommand probe;
+        probe.setKey("frag_backpressure_probe");
+        probe.setMutationType(MutationType::Set);
+        probe.setValue(std::vector<uint8_t>(valueA.begin(), valueA.end()));
+        probe.setVBucket(Vbid(0));
+        return adminConnection->execute(probe).getStatus() ==
+               cb::mcbp::Status::Etmpfail;
+    };
+    // Deterministic once published: RSS > quota with high fragmentation and
+    // allocated < quota, so the mutation is rejected by the back-pressure (not
+    // a normal over-quota temp-OOM).
+    cb::waitForPredicate(probeRejected);
+    adminConnection->setAutoRetryTmpfail(true);
 }
 
 #endif // HAVE_JEMALLOC
