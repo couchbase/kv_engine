@@ -166,6 +166,31 @@ TEST(UserEntryTest, ConcurrentTimestampUpdate) {
     writer.join();
 }
 
+TEST(UserEntryTest, EqualityComparesBucketContentNotIdentity) {
+    // UserEntry::operator==() used to compare the "buckets" map with the
+    // unordered_map's default operator==(). As buckets are stored as
+    // shared_ptr<const Bucket>, that compared pointer identity rather than
+    // the pointed-to Bucket, so two UserEntry instances parsed from
+    // identical JSON (and therefore holding distinct Bucket allocations)
+    // never compared equal.
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"Audit"};
+    json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
+    json["trond"]["domain"] = "external";
+
+    cb::rbac::UserEntry a("trond", *json.begin(), cb::rbac::Domain::External);
+    cb::rbac::UserEntry b("trond", *json.begin(), cb::rbac::Domain::External);
+
+    // Precondition for this test to be meaningful: the two entries must
+    // hold distinct Bucket allocations.
+    ASSERT_NE(a.getBuckets().at("bucket1"), b.getBuckets().at("bucket1"));
+    EXPECT_EQ(a, b);
+
+    json["trond"]["buckets"]["bucket1"] = {"Read"};
+    cb::rbac::UserEntry c("trond", *json.begin(), cb::rbac::Domain::External);
+    EXPECT_NE(a, c);
+}
+
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"Audit"};

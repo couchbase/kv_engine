@@ -15,6 +15,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/logtags.h>
+#include <algorithm>
 #include <atomic>
 #include <charconv>
 #include <memory>
@@ -384,8 +385,33 @@ PrivilegeAccess Bucket::checkForPrivilegeAtLeastInOneCollection(
 }
 
 bool UserEntry::operator==(const UserEntry& other) const {
-    return (internal == other.internal &&
-            privilegeMask == other.privilegeMask && buckets == other.buckets);
+    // timestamp_ns is intentionally excluded here; it is just the
+    // last-refreshed time and not part of a user's effective privileges.
+    // Comparing it would defeat the no-op update optimization in
+    // PrivilegeDatabase::updateUser().
+    if (internal != other.internal || privilegeMask != other.privilegeMask ||
+        buckets.size() != other.buckets.size()) {
+        return false;
+    }
+
+    // buckets is a map of shared_ptr<const Bucket>, and shared_ptr::operator==
+    // compares pointer identity rather than the pointed to Bucket, so we
+    // can't just use the unordered_map's operator==. Dereference and compare
+    // the Bucket contents instead.
+    return std::ranges::all_of(buckets, [&other](const auto& entry) {
+        const auto iter = other.buckets.find(entry.first);
+        if (iter == other.buckets.end()) {
+            return false;
+        }
+        const auto& a = entry.second;
+        const auto& b = iter->second;
+        // Covers both being null, or the same allocation, without
+        // dereferencing.
+        if (a == b) {
+            return true;
+        }
+        return a && b && *a == *b;
+    });
 }
 
 UserEntry::UserEntry(const std::string& username,
