@@ -233,7 +233,7 @@ nlohmann::json Scope::to_json() const {
     auto ret =
             nlohmann::json{{"privileges", privilegeMask2Vector(privilegeMask)}};
     for (auto& e : collections) {
-        ret["collections"][std::to_string(e.first)] = e.second;
+        ret["collections"][fmt::format("0x{:x}", e.first)] = e.second;
     }
     return ret;
 }
@@ -325,7 +325,7 @@ nlohmann::json Bucket::to_json() const {
     auto ret =
             nlohmann::json{{"privileges", privilegeMask2Vector(privilegeMask)}};
     for (auto& e : scopes) {
-        ret["scopes"][std::to_string(e.first)] = e.second;
+        ret["scopes"][fmt::format("0x{:x}", e.first)] = e.second;
     }
     return ret;
 }

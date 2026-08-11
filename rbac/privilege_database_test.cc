@@ -120,6 +120,9 @@ public:
     bool doesCollectionPrivilegeExists() const {
         return collectionPrivilegeExists;
     }
+    const auto& getScopes() const {
+        return scopes;
+    }
 };
 
 TEST(BucketTest, ParseLegalConfigWithScopes) {
@@ -1239,15 +1242,19 @@ TEST(ScopeTest, Serialization_NoCollections) {
 
 TEST(ScopeTest, Serialization_EmptyScopeWithCollections) {
     nlohmann::json json1 = R"({
-        "collections": {"0x10": {"privileges": ["Read"]}}
+        "collections": {"0x32a": {"privileges": ["Read"]}}
     })"_json;
     MockScope scope1(json1);
     auto json2 = scope1.to_json();
 
-    // Round-trip - empty scope privileges should be preserved
+    // Round-trip - empty scope privileges and exact collection IDs (0x32a =
+    // 810) should be preserved
     MockScope scope2(json2);
     EXPECT_TRUE(scope1.getPrivileges().none());
     EXPECT_TRUE(scope2.getPrivileges().none());
+    ASSERT_EQ(1, scope2.getCollections().size());
+    EXPECT_NE(scope2.getCollections().end(),
+              scope2.getCollections().find(0x32a));
 }
 
 TEST(BucketTest, Serialization_RoundTrip) {
@@ -1268,9 +1275,11 @@ TEST(BucketTest, Serialization_RoundTrip) {
     EXPECT_TRUE(json2.contains("privileges"));
     EXPECT_TRUE(json2.contains("scopes"));
 
-    // Round-trip test
+    // Round-trip test - scope ID 0x10 (16) should be preserved exactly
     MockBucket bucket2(json2);
     EXPECT_EQ(bucket1.getPrivileges(), bucket2.getPrivileges());
+    ASSERT_EQ(1, bucket2.getScopes().size());
+    EXPECT_NE(bucket2.getScopes().end(), bucket2.getScopes().find(0x10));
 }
 
 TEST(BucketTest, Serialization_ArrayFormat) {
