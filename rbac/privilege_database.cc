@@ -100,12 +100,22 @@ public:
     }
 
     void initialize() {
-        contexts[to_index(Domain::Local)].db =
-                std::make_unique<PrivilegeDatabase>(nlohmann::json{},
-                                                    Domain::Local);
-        contexts[to_index(Domain::External)].db =
-                std::make_unique<PrivilegeDatabase>(nlohmann::json{},
-                                                    Domain::External);
+        auto& local = contexts[to_index(Domain::Local)];
+        auto localDb = std::make_unique<PrivilegeDatabase>(nlohmann::json{},
+                                                           Domain::Local);
+        // Seed current_generation to match the database we're installing;
+        // otherwise every PrivilegeContext created before the first
+        // createPrivilegeDatabase() call would report itself as stale (the
+        // database's own generation counter starts at 1, but
+        // current_generation defaults to 0).
+        local.current_generation = localDb->generation;
+        local.db = std::move(localDb);
+
+        auto& external = contexts[to_index(Domain::External)];
+        auto externalDb = std::make_unique<PrivilegeDatabase>(nlohmann::json{},
+                                                              Domain::External);
+        external.current_generation = externalDb->generation;
+        external.db = std::move(externalDb);
     }
 
     void destroy() {

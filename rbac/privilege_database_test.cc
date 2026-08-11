@@ -1297,6 +1297,26 @@ TEST(BucketTest, Serialization_NoScopes) {
     EXPECT_EQ(bucket1.getPrivileges(), bucket2.getPrivileges());
 }
 
+class InitializeTest : public ::testing::Test {
+public:
+    void TearDown() override {
+        destroy();
+    }
+};
+
+TEST_F(InitializeTest, FreshContextIsNotStale) {
+    // initialize() installs a new (empty) PrivilegeDatabase which is
+    // assigned generation 1. Before the fix this test guards,
+    // current_generation was left at its default of 0, so every
+    // PrivilegeContext created before the first
+    // createPrivilegeDatabase()/updateExternalUser() call reported
+    // itself as stale even though nothing had changed since startup.
+    initialize();
+    auto ctx = createContext(UserIdent{"@internal", Domain::Local}, "");
+    ASSERT_TRUE(ctx.has_value());
+    EXPECT_FALSE(ctx->isStale());
+}
+
 /// updateExternalUser() parses caller-provided JSON and (before the fix
 /// this test guards) assumed it was always a single-user object without
 /// validating that shape, which let a payload like "{}" dereference the
