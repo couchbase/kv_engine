@@ -18,6 +18,7 @@
 #include <memcached/dockey_view.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json_fwd.hpp>
+#include <atomic>
 #include <bitset>
 #include <chrono>
 #include <cstdint>
@@ -259,6 +260,44 @@ void to_json(nlohmann::json& json, const Bucket& bucket);
  */
 class UserEntry {
 public:
+    UserEntry(const UserEntry& other)
+        : timestamp_ns(other.timestamp_ns.load(std::memory_order_relaxed)),
+          buckets(other.buckets),
+          privilegeMask(other.privilegeMask),
+          internal(other.internal) {
+    }
+
+    UserEntry& operator=(const UserEntry& other) {
+        if (this != &other) {
+            timestamp_ns.store(
+                    other.timestamp_ns.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+            buckets = other.buckets;
+            privilegeMask = other.privilegeMask;
+            internal = other.internal;
+        }
+        return *this;
+    }
+
+    UserEntry(UserEntry&& other) noexcept
+        : timestamp_ns(other.timestamp_ns.load(std::memory_order_relaxed)),
+          buckets(std::move(other.buckets)),
+          privilegeMask(std::move(other.privilegeMask)),
+          internal(other.internal) {
+    }
+
+    UserEntry& operator=(UserEntry&& other) noexcept {
+        if (this != &other) {
+            timestamp_ns.store(
+                    other.timestamp_ns.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+            buckets = std::move(other.buckets);
+            privilegeMask = std::move(other.privilegeMask);
+            internal = other.internal;
+        }
+        return *this;
+    }
+
     [[nodiscard]] bool operator==(const UserEntry& other) const;
 
     /**
@@ -301,7 +340,8 @@ public:
      * Get the timestamp for the last time we updated the user entry
      */
     [[nodiscard]] std::chrono::steady_clock::time_point getTimestamp() const {
-        return timestamp;
+        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds(
+                timestamp_ns.load(std::memory_order_relaxed))};
     }
 
     /**
@@ -317,11 +357,12 @@ public:
      * to log in.
      */
     void setTimestamp(std::chrono::steady_clock::time_point ts) const {
-        timestamp = ts;
+        timestamp_ns.store(ts.time_since_epoch().count(),
+                           std::memory_order_relaxed);
     }
 
 protected:
-    mutable std::chrono::steady_clock::time_point timestamp;
+    mutable std::atomic<int64_t> timestamp_ns{0};
     std::unordered_map<std::string, std::shared_ptr<const Bucket>> buckets;
     PrivilegeMask privilegeMask;
     bool internal;

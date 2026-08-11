@@ -391,7 +391,8 @@ bool UserEntry::operator==(const UserEntry& other) const {
 UserEntry::UserEntry(const std::string& username,
                      const nlohmann::json& json,
                      Domain expectedDomain)
-    : timestamp(std::chrono::steady_clock::now()) {
+    : timestamp_ns(
+              std::chrono::steady_clock::now().time_since_epoch().count()) {
     // All system internal users is prefixed with @
     internal = UserIdent::is_internal(username);
 

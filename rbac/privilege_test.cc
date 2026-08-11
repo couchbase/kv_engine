@@ -13,6 +13,7 @@
 #include <memcached/rbac.h>
 #include <memcached/rbac/privilege_database.h>
 #include <nlohmann/json.hpp>
+#include <thread>
 
 namespace cb::rbac {
 /// Expose the protected "internal" flag so tests can verify how it was
@@ -139,6 +140,30 @@ TEST(UserIdentTest, HashFunction) {
     EXPECT_EQ(hasher(u1), hasher(u1));
     EXPECT_NE(hasher(u1), hasher(u2));
     EXPECT_NE(hasher(u1), hasher(u3));
+}
+
+TEST(UserEntryTest, ConcurrentTimestampUpdate) {
+    nlohmann::json json;
+    json["trond"]["domain"] = "local";
+    cb::rbac::UserEntry ue("trond", *json.begin(), cb::rbac::Domain::Local);
+
+    std::atomic<bool> running{true};
+    std::thread writer([&]() {
+        while (running) {
+            ue.setTimestamp(std::chrono::steady_clock::now());
+        }
+    });
+
+    std::thread reader([&]() {
+        for (int ii = 0; ii < 10000; ++ii) {
+            auto ts = ue.getTimestamp();
+            EXPECT_GT(ts.time_since_epoch().count(), 0);
+        }
+    });
+
+    reader.join();
+    running = false;
+    writer.join();
 }
 
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
