@@ -3359,6 +3359,15 @@ cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector,
 
 cb::engine_errc EPBucket::doSnapshotStatus(const StatCollector& collector,
                                            std::string_view input) {
+    // While warmup is loading snapshots into the cache it transiently holds
+    // entries that discardOrphanedSnapshots has not yet removed. Until that
+    // completes, tmp-fail callers so they don't observe the pre-validation
+    // state. Buckets without a warmup (nothing loaded from disk) expose the
+    // cache immediately.
+    if (warmupTask && !snapshotCacheValidated.load()) {
+        return cb::engine_errc::temporary_failure;
+    }
+
     const std::string_view stat_key = "snapshot-status ";
 
     // Configure for 1 vbid or all known vbuckets
@@ -3692,6 +3701,9 @@ void EPBucket::discardOrphanedSnapshots() {
             snapshotCache.release(vbid);
         }
     }
+
+    // The cache now reflects only valid snapshots and is safe to expose.
+    snapshotCacheValidated.store(true);
 }
 
 // Function unconditionally deletes all snapshots

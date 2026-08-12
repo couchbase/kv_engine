@@ -106,6 +106,41 @@ TEST_P(SnapshotEngineTest, prepare_snapshot) {
                                }));
 }
 
+// doSnapshotStatus must tmp-fail while a warmup is validating the snapshot
+// cache (snapshots loaded but orphans not yet discarded), then succeed once
+// validated. A bucket without a warmup exposes the cache immediately (covered
+// by prepare_snapshot above).
+TEST_P(SnapshotEngineTest, snapshot_status_tmpfail_until_warmup_validated) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    nlohmann::json m;
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, {}, [&m](auto& mm) { m = mm; }));
+
+    // Restart with a warmup created but not yet run.
+    if (isEncrypted()) {
+        resetEngineAndEnableWarmup({}, false, getEncryptionKeys());
+    } else {
+        resetEngineAndEnableWarmup();
+    }
+
+    // Warmup exists but has not validated the cache yet - status tmp-fails.
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->getStats(
+                      *cookie, "snapshot-status 0", {}, [](auto, auto, auto&) {
+                          FAIL() << "no stat should be produced while "
+                                    "tmp-failing";
+                      }));
+
+    runReadersUntilWarmedUp();
+
+    // Validated - status is now produced.
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getStats(
+                      *cookie, "snapshot-status 0", {}, [](auto, auto, auto&) {
+                      }));
+}
+
 TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     nlohmann::json preWarmupManifest;

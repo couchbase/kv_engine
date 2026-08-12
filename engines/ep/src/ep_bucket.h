@@ -794,6 +794,14 @@ protected:
     /// for this bucket
     cb::snapshot::Cache snapshotCache;
 
+    /// Set true once warmup has validated the snapshot cache (loaded snapshots
+    /// via initialiseSnapshots then removed orphans via
+    /// discardOrphanedSnapshots). doSnapshotStatus tmp-fails while a warmup
+    /// exists but has not yet reached this point, so callers don't observe the
+    /// transient pre-validation state. Irrelevant when there is no warmup
+    /// (nothing is loaded from disk).
+    std::atomic<bool> snapshotCacheValidated{false};
+
     /// The snapshot controller responsible for keeping track of snapshot
     /// download tasks for this bucket
     cb::snapshot::DownloadSnapshotController snapshotController;
