@@ -381,6 +381,9 @@ public:
         req.setExtlen(sizeof(cb::mcbp::request::SetParamPayload));
         req.setKeylen(2);
         req.setBodylen(req.getExtlen() + req.getKeylen() + 2);
+        auto* payload = reinterpret_cast<cb::mcbp::request::SetParamPayload*>(
+                blob + sizeof(request));
+        payload->setParamType(cb::mcbp::request::SetParamPayload::Type::Flush);
     }
 
 protected:

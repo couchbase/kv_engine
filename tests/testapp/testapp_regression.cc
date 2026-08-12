@@ -813,6 +813,28 @@ TEST_P(RegressionTest, MB70169_testcase_5) {
     runSetWithMetaRegressionTest(emeta);
 }
 
+/// MB-73274: The SetParam validator computed whether the param_type field
+/// was valid, but never rejected the request when it wasn't - it fell
+/// through and returned success, letting the invalid value reach the
+/// engine layer.
+TEST_P(RegressionTest, MB73274_SetParamInvalidParamType) {
+    using cb::mcbp::request::SetParamPayload;
+
+    // 0 is not a valid SetParamPayload::Type (they start at 1)
+    SetParamPayload payload;
+    payload.setParamType(static_cast<SetParamPayload::Type>(0));
+    const auto extras = payload.getBuffer();
+
+    BinprotGenericCommand cmd{
+            cb::mcbp::ClientOpcode::SetParam, "some_param", "some_value"};
+    cmd.setExtras(std::vector<uint8_t>{extras.begin(), extras.end()});
+
+    const auto rsp = adminConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+    EXPECT_EQ(R"({"error":{"context":"Invalid param type specified"}})",
+              rsp.getDataView());
+}
+
 /// Same as testcase 5 in reverse order
 TEST_P(RegressionTest, MB70169_testcase_6) {
     std::vector<uint8_t> emeta = {0x01,

@@ -2564,6 +2564,7 @@ static Status set_param_validator(Cookie& cookie) {
             cookie.getRequest().getCommandSpecifics<SetParamPayload>();
     if (!payload.validate()) {
         cookie.setErrorContext("Invalid param type specified");
+        return Status::Einval;
     }
 
     if (payload.getParamType() == SetParamPayload::Type::Replication) {
