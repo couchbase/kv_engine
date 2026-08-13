@@ -308,7 +308,9 @@ public:
         hlc.setMaxHLC(cas);
     }
 
-    void setOrForceMaxCasAndTrackDrift(uint64_t cas);
+    void setMaxCasAndTrackDrift(uint64_t cas) {
+        hlc.setMaxHLCAndTrackDrift(cas);
+    }
 
     void forceMaxCas(uint64_t cas);
 
