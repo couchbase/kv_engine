@@ -478,7 +478,7 @@
         "defragmenter_mode" : {
             "added": "7.0.2",
             "default": "auto_pid",
-            "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger.",
+            "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger. In any mode, including static, the sleep is reduced to defragmenter_auto_min_sleep while RSS/fragmentation back-pressure is critical, so fragmentation is recovered quickly.",
             "dynamic": true,
             "type": "std::string",
             "validator": {

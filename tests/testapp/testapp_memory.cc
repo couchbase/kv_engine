@@ -214,9 +214,12 @@ static size_t regionsPerSlab(const std::string& allocatorStatsDump,
 // pinning. The bucket quota is set to 100 MB to keep the run as quick as
 // possible.
 //
-// The defragmenter is parked (static mode, huge interval) during the build so
-// it does not compact A's sparse slabs, but left enabled so the gate's guard
-// holds.
+// The defragmenter is disabled during the build (so it does not compact A's
+// sparse slabs) and stays disabled while we assert the back-pressure gate
+// (phase 1): recovery is driven by the same switch as the gate, so leaving it
+// able to run would let it pull RSS back under quota before we observe the
+// temp-OOM. It is re-enabled to assert recovery (phase 2). The gate does not
+// depend on the defragmenter being enabled, only on the published RSS/frag.
 TEST_P(MemTrackingBucketTest, HighFragmentation) {
     adminConnection->selectBucket(bucketName);
 
@@ -259,10 +262,15 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                         std::to_string(originalCheckpointMemRatio)});
             });
 
-    // Park the defragmenter: enabled (so the gate's guard holds) but never
-    // runs, so it does not compact the fragmentation we are about to build.
-    setParam("defragmenter_mode", "static");
-    setParam("defragmenter_interval", "999999");
+    // Disable the defragmenter while we build fragmentation and assert the
+    // back-pressure gate (phase 1). This does two things: it does not compact
+    // the fragmentation we build, and it keeps recovery from running. Recovery
+    // is driven by the same fragmentation_backpressure_enabled switch, so if it
+    // ran it would pull RSS back under quota before we could observe the temp-
+    // OOM. The gate itself does not depend on the defragmenter being enabled --
+    // only on the MonitorTask-published RSS/fragmentation. It is re-enabled
+    // below to assert recovery (phase 2).
+    setParam("defragmenter_enabled", "false");
 
     // Use a fixed 100 MB quota so the test does not depend on any -c max_size
     // and stays quick (less to load). The change is applied asynchronously.
@@ -402,9 +410,27 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
             << "allocated over quota (would be a normal temp-OOM); rss=" << rss
             << " alloc=" << alloc << " quota=" << quota;
 
-    // Enable the feature. The gate activates once the MonitorTask publishes the
-    // current (high) fragmentation, one interval (~1s) away, so poll the probe
-    // until it is rejected rather than sleeping for a fixed time.
+    // Baseline the defragmenter's moved counter before recovery runs. The
+    // defragmenter is disabled and our survivors are freshly stored (age 0), so
+    // nothing has moved them. During recovery this counter rises: the task is
+    // woken and, running in aggressive mode (age thresholds 0), relocates even
+    // the age-0 survivors that the default age threshold (1) would skip.
+    const auto defragMovedBefore = getStat<uint64_t>(
+            *adminConnection, "", "ep_defragmenter_num_moved");
+
+    // The configured min sleep. Recovery collapses the defragmenter's sleep to
+    // this, which we assert below as the direct "aggressive scheduling" signal.
+    const auto minSleep = getStat<float>(
+            *adminConnection, "", "ep_defragmenter_auto_min_sleep");
+
+    // Phase 1: back-pressure. Enable the feature; the defragmenter is still
+    // disabled, so recovery cannot run and RSS stays put. The gate reads the
+    // MonitorTask-published RSS/fragmentation, which lags the build by up to
+    // one monitor interval, so poll until the probe is rejected rather than
+    // probing once. With recovery disabled there is no race -- once the monitor
+    // publishes the over-quota RSS the gate stays critical and the probe stays
+    // rejected. This is back-pressure: RSS > quota with high fragmentation and
+    // allocated < quota, so it is not a normal over-quota temp-OOM.
     setParam("fragmentation_backpressure_enabled", "true");
     adminConnection->setAutoRetryTmpfail(false);
     const auto probeRejected = [&] {
@@ -416,10 +442,39 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
         return adminConnection->execute(probe).getStatus() ==
                cb::mcbp::Status::Etmpfail;
     };
-    // Deterministic once published: RSS > quota with high fragmentation and
-    // allocated < quota, so the mutation is rejected by the back-pressure (not
-    // a normal over-quota temp-OOM).
     cb::waitForPredicate(probeRejected);
+
+    // Phase 2: recovery. Enable the defragmenter. The MonitorTask, still seeing
+    // critical fragmentation, wakes it and it runs in aggressive mode (min
+    // sleep, age thresholds 0). First assert it is in that mode: its moved
+    // counter rises -- it only runs because it was woken, and only moves the
+    // age-0 survivors because the age threshold dropped to 0.
+    setParam("defragmenter_enabled", "true");
+    cb::waitForPredicate([defragMovedBefore] {
+        return getStat<uint64_t>(
+                       *adminConnection, "", "ep_defragmenter_num_moved") >
+               defragMovedBefore;
+    });
+
+    // Assert the aggressive scheduling directly: recovery collapses the sleep
+    // to the configured min. It is transient -- it reverts once recovery
+    // completes and RSS is back under quota. (The age-0 override is not yet
+    // observable; exposing the effective age thresholds as a stat and asserting
+    // them is a follow-up patch.)
+    cb::waitForPredicate([minSleep] {
+        return getStat<float>(*adminConnection,
+                              "",
+                              "ep_defragmenter_sleep_time") <= minSleep;
+    });
+
+    // The aggressive defrag compacts the scattered survivors and frees the
+    // sparse slabs, so RSS returns under quota.
+    cb::waitForPredicate([&] { return resident() <= quota; });
+
+    // Once the MonitorTask republishes the recovered RSS, the gate lifts and
+    // mutations are accepted again.
+    cb::waitForPredicate([&] { return !probeRejected(); });
+    logDebugState("after recovery");
     adminConnection->setAutoRetryTmpfail(true);
 }
 

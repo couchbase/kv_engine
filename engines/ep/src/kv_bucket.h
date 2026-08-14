@@ -731,6 +731,13 @@ public:
     void runDefragmenterTask() override;
 
     /**
+     * Wake the defragmenter task so it runs promptly, rather than waiting out
+     * its current sleep. Used by the MonitorTask to enter fragmentation
+     * RECOVERY at once.
+     */
+    void wakeUpDefragmenter();
+
+    /**
      * Gets the duration of time the defragmenter task was snoozed for during
      * the last run.
      */

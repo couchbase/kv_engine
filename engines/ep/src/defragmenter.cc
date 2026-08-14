@@ -15,6 +15,7 @@
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "memory_tracker.h"
 #include "stored-value.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
@@ -119,12 +120,17 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
     const auto start = cb::time::steady_clock::now();
     const auto deadline = start + getChunkDuration();
     visitor.setDeadline(deadline);
-    visitor.setBlobAgeThreshold(getAgeThreshold());
+    // While the RSS/fragmentation back-pressure is critical, move every item
+    // (age threshold 0) so slabs are compacted quickly; otherwise honour the
+    // configured age thresholds.
+    const bool recovery = engine->getMemoryTracker().isFragmentationCritical();
+    visitor.setBlobAgeThreshold(recovery ? uint8_t{0} : getAgeThreshold());
     // Only defragment StoredValues of persistent buckets because the
     // HashTable defrag method doesn't yet know how to maintain the
     // ephemeral seqno linked-list
     if (engine->getConfiguration().getBucketTypeString() == "persistent") {
-        visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
+        visitor.setStoredValueAgeThreshold(
+                recovery ? uint8_t{0} : getStoredValueAgeThreshold());
     }
     visitor.clearStats();
 
@@ -204,6 +210,15 @@ std::chrono::milliseconds DefragmenterTask::getCurrentSleepTime() const {
 DefragmenterTask::SleepTimeAndRunState
 DefragmenterTask::calculateSleepTimeAndRunState(
         const cb::FragmentationStats& fragStats) {
+    // While the RSS/fragmentation back-pressure is critical, override the
+    // configured mode: run now at the minimum sleep so RSS is compacted back
+    // under quota as fast as possible.
+    if (engine->getMemoryTracker().isFragmentationCritical()) {
+        return {std::chrono::duration<double>{
+                        engine->getConfiguration()
+                                .getDefragmenterAutoMinSleep()},
+                true};
+    }
     if (engine->getConfiguration().getDefragmenterModeString() ==
         "auto_linear") {
         return calculateSleepLinear(fragStats);

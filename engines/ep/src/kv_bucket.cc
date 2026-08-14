@@ -2804,6 +2804,12 @@ void KVBucket::runDefragmenterTask() {
     defragmenterTask->execute("");
 }
 
+void KVBucket::wakeUpDefragmenter() {
+    if (defragmenterTask) {
+        ExecutorPool::get()->wake(defragmenterTask->getId());
+    }
+}
+
 std::chrono::milliseconds KVBucket::getDefragmenterTaskSleepTime() const {
     if (!defragmenterTask) {
         return {};
