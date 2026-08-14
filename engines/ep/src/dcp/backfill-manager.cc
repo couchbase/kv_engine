@@ -16,12 +16,15 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+#include "ep_engine.h"
 #include "ep_task.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
 #include <executor/executorpool.h>
 
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/backtrace.h>
 
 #include <memory>
 #include <utility>
@@ -346,7 +349,7 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     lh.unlock();
-    backfill_status_t status = backfill->run();
+    backfill_status_t status = runBackfill(*backfill);
     lh.lock();
 
     scanBuffer.bytesRead = 0;
@@ -396,6 +399,45 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     return backfill_success;
+}
+
+backfill_status_t BackfillManager::runBackfill(DCPBackfillIface& backfill) {
+    try {
+        return backfill.run();
+    } catch (const std::exception& e) {
+        // Note: re-throws if configured to not catch exceptions.
+        handleBackfillException(backfill, e);
+    }
+    // A failed backfill must not run again - backfill_finished ensures the
+    // caller discards it (and updates the scan tracker).
+    return backfill_finished;
+}
+
+void BackfillManager::handleBackfillException(DCPBackfillIface& backfill,
+                                              const std::exception& error) {
+    cb::logger::Json ctx{{"name", name},
+                         {"backfill_uuid", backfill.getUID()},
+                         {"error", error.what()}};
+
+    if (const auto* backtrace = cb::getBacktrace(error)) {
+        auto callstack = cb::logger::Json::array();
+        print_backtrace_frames(*backtrace, [&callstack](const char* frame) {
+            callstack.emplace_back(frame);
+        });
+        ctx["backtrace"] = callstack;
+    }
+
+    EP_LOG_CRITICAL_CTX(
+            "BackfillManager::handleBackfillException: Caught exception",
+            std::move(ctx));
+
+    if (!kvBucket.getEPEngine()
+                 .getConfiguration()
+                 .isDcpProducerCatchExceptions()) {
+        throw;
+    }
+
+    backfill.fail();
 }
 
 void BackfillManager::movePendingToInitializing(

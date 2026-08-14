@@ -94,6 +94,13 @@ backfill_status_t DCPBackfill::scan(DCPBackfill::State state) {
     return scanHistory();
 }
 
+void DCPBackfill::fail() {
+    // The backfill must not run again. Assign the state directly rather than
+    // using validateTransition as the current state could already be Done -
+    // run() throws if it is called in State::Done.
+    *state.wlock() = State::Done;
+}
+
 void DCPBackfill::cancel() {
     if (*state.rlock() != State::Done) {
         EP_LOG_WARN_CTX(
