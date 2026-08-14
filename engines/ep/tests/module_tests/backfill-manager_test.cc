@@ -20,10 +20,12 @@ using ::testing::_;
 using ::testing::InSequence;
 using ::testing::NiceMock;
 using ::testing::Return;
+using ::testing::Throw;
 
 class GMockDCPBackfill : public DCPBackfillIface {
 public:
     MOCK_METHOD0(run, backfill_status_t());
+    MOCK_METHOD0(fail, void());
     MOCK_METHOD0(cancel, void());
     MOCK_METHOD1(setCreateMode, void(DCPBackfillCreateMode));
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
@@ -415,6 +417,96 @@ TEST_F(BackfillManagerTest, SnoozingQNotifiesTrackerOnDtor) {
 
     // Test: Destroy the backfill manager while backfill still in snoozingQ.
     backfillMgr.reset();
+}
+
+/**
+ * Check that if a Backfill throws when run, then BackfillManager fails (and
+ * discards) that Backfill - which sets its stream to dead - notifies the
+ * backfill tracker and keeps running.
+ */
+TEST_F(BackfillManagerTest, RunThrows) {
+    engine->getConfiguration().setDcpProducerCatchExceptions(true);
+
+    auto backfill = std::make_unique<GMockDCPBackfill>();
+
+    // The UID is logged when the exception is handled.
+    EXPECT_CALL(*backfill, getUID()).WillRepeatedly(Return(1));
+
+    // Configure expectations.
+    // (Note: must configure all GMockDCPBackfill expectations before
+    //  schedule() is called, as that takes ownership of the object).
+    {
+        InSequence s;
+        // Call to schedule() - allow the backfill into the initializingQ, which
+        // increments tracker's count.
+        EXPECT_CALL(backfillTracker, canCreateBackfill(_))
+                .WillOnce(Return(true))
+                .RetiresOnSaturation();
+
+        // Call to backfill() - the backfill throws...
+        EXPECT_CALL(*backfill, run())
+                .WillOnce(Throw(std::runtime_error("RunThrows")))
+                .RetiresOnSaturation();
+
+        // ... so it must be told it has failed (which sets its stream to
+        // dead) ...
+        EXPECT_CALL(*backfill, fail()).WillOnce(Return()).RetiresOnSaturation();
+
+        // ... and it must no longer be counted as a running backfill.
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
+                .WillOnce(Return())
+                .RetiresOnSaturation();
+    }
+
+    // Setup: schedule a single backfill.
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill)));
+
+    // Test: run the manager - the failed backfill should be discarded and the
+    // manager should remain runnable (returning success so the task is
+    // re-scheduled for any other backfills).
+    EXPECT_EQ(backfill_success, backfillMgr->backfill());
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
+
+    // No backfills remain, so the manager now finishes.
+    EXPECT_EQ(backfill_finished, backfillMgr->backfill());
+}
+
+/**
+ * Check that if dcp_producer_catch_exceptions is false then an exception thrown
+ * by a Backfill is re-thrown (and not handled) - as per ActiveStream.
+ */
+TEST_F(BackfillManagerTest, RunThrowsRethrown) {
+    engine->getConfiguration().setDcpProducerCatchExceptions(false);
+
+    auto backfill = std::make_unique<GMockDCPBackfill>();
+
+    // The UID is logged when the exception is handled.
+    EXPECT_CALL(*backfill, getUID()).WillRepeatedly(Return(1));
+
+    // Configure expectations.
+    // (Note: must configure all GMockDCPBackfill expectations before
+    //  schedule() is called, as that takes ownership of the object).
+    {
+        InSequence s;
+        EXPECT_CALL(backfillTracker, canCreateBackfill(_))
+                .WillOnce(Return(true))
+                .RetiresOnSaturation();
+
+        EXPECT_CALL(*backfill, run())
+                .WillOnce(Throw(std::runtime_error("RunThrowsRethrown")))
+                .RetiresOnSaturation();
+
+        // The backfill must _not_ be failed - the exception is re-thrown.
+        EXPECT_CALL(*backfill, fail()).Times(0).RetiresOnSaturation();
+    }
+
+    // Setup: schedule a single backfill.
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill)));
+
+    // Test: the exception should escape BackfillManager::backfill().
+    EXPECT_THROW(backfillMgr->backfill(), std::runtime_error);
 }
 
 TEST_F(BackfillManagerTest, BackfillBuffer) {

@@ -10,7 +10,7 @@
  */
 
 #include "dcp/backfill_to_stream.h"
-#include "dcp/active_stream.h"
+#include "dcp/active_stream_impl.h"
 
 DCPBackfillToStream::DCPBackfillToStream(std::shared_ptr<ActiveStream> s)
     : DCPBackfill(s->getVBucket()), streamPtr(s) {
@@ -19,4 +19,25 @@ DCPBackfillToStream::DCPBackfillToStream(std::shared_ptr<ActiveStream> s)
 bool DCPBackfillToStream::shouldCancel() const {
     auto stream = streamPtr.lock();
     return !stream || !stream->isActive();
+}
+
+void DCPBackfillToStream::fail() {
+    DCPBackfill::fail();
+
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        // The stream has already been deleted by the producer conn, nothing
+        // to inform.
+        return;
+    }
+
+    stream->log(spdlog::level::warn,
+                "{} DCPBackfillToStream::fail(): backfill uid:{} failed. "
+                "Setting stream to dead state and disconnecting the "
+                "connection.",
+                stream->getLogPrefix(),
+                getUID());
+    // As per ActiveStream::handleDcpProducerException, a failure here means
+    // the stream (and its connection) cannot be trusted to continue.
+    stream->setDeadAndDisconnect();
 }

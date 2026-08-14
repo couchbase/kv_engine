@@ -35,6 +35,12 @@ public:
      */
     bool shouldCancel() const override;
 
+    /**
+     * Implements DCPBackfillIface::fail
+     * Sets the associated stream to dead and disconnects its connection.
+     */
+    void fail() override;
+
 protected:
     /**
      * Ptr to the associated Active DCP stream. Backfill can be run for only

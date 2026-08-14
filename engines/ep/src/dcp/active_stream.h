@@ -168,6 +168,17 @@ public:
     void setDead(cb::mcbp::DcpStreamEndStatus status,
                  folly::SharedMutex::WriteHolder& vbstateLock);
 
+    /**
+     * Ends the stream (with DcpStreamEndStatus::Disconnected) and disconnects
+     * the associated producer connection - which closes the front-end
+     * connection and the remaining streams of that connection.
+     *
+     * This is used when an exception has been caught whilst processing this
+     * stream, either by the stream itself (see handleDcpProducerException) or
+     * by a backfill feeding it (see DCPBackfillToStream::fail).
+     */
+    void setDeadAndDisconnect();
+
     StreamState getState() const {
         return state_;
     }
