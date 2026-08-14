@@ -14,6 +14,7 @@
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "memory_tracker.h"
 
 #include <executor/executorpool.h>
 
@@ -23,6 +24,27 @@ bool MonitorTask::run() {
     auto& stats = engine->getEpStats();
     stats.residentBytes = fragStats.getResidentBytes();
     stats.scoredFragmentation = stats.getScoredFragmentation(fragStats);
+
+    // While the RSS/fragmentation back-pressure is critical the defragmenter
+    // must run at its aggressive cadence (min sleep, age thresholds 0).
+    // calculateSleepTimeAndRunState() checks isFragmentationCritical() before
+    // the mode switch, so every mode -- static included -- collapses its sleep
+    // to defragmenter_auto_min_sleep while it holds, not the configured
+    // interval. So we only need to kick it out of a longer sleep once: at the
+    // min it self-sustains that cadence, and re-waking it every tick would just
+    // fight it, so skip the wake when it already sleeps at (or below) the min.
+    // A disabled defragmenter never runs defrag(), so skip that too.
+    auto& config = engine->getConfiguration();
+    if (config.isDefragmenterEnabled() &&
+        engine->getMemoryTracker().isFragmentationCritical()) {
+        const auto minSleep =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::duration<double>{
+                                config.getDefragmenterAutoMinSleep()});
+        if (engine->getKVBucket()->getDefragmenterTaskSleepTime() > minSleep) {
+            engine->getKVBucket()->wakeUpDefragmenter();
+        }
+    }
 
     EP_LOG_DEBUG_CTX(
             "MonitorTask:",
