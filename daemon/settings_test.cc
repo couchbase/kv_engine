@@ -710,29 +710,6 @@ TEST_F(SettingsTest, DedupeNmvbMaps) {
     }
 }
 
-TEST_F(SettingsTest, XattrEnabled) {
-    nonBooleanValuesShouldFail("xattr_enabled");
-
-    nlohmann::json obj;
-    obj["xattr_enabled"] = true;
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isXattrEnabled());
-        EXPECT_TRUE(settings.has.xattr_enabled);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj["xattr_enabled"] = false;
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isXattrEnabled());
-        EXPECT_TRUE(settings.has.xattr_enabled);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, TracingEnabled) {
     nonBooleanValuesShouldFail("tracing_enabled");
 
@@ -1514,7 +1491,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
             {"max_send_queue_size", 2u},
             {"verbosity", 3u},
             {"datatype_snappy", false},
-            {"xattr_enabled", true},
             {"collections_enabled", false},
             {"tracing_enabled", false},
             {"clustermap_push_notifications_enabled", false},
@@ -1543,7 +1519,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
     EXPECT_EQ(2u * 1024u * 1024u, out["max_send_queue_size"]);
     EXPECT_EQ(3, out["verbosity"]);
     EXPECT_FALSE(out["datatype_snappy"].get<bool>());
-    EXPECT_TRUE(out["xattr_enabled"].get<bool>());
     EXPECT_FALSE(out["collections_enabled"].get<bool>());
     EXPECT_FALSE(out["tracing_enabled"].get<bool>());
     EXPECT_FALSE(out["clustermap_push_notifications_enabled"].get<bool>());
@@ -1604,7 +1579,6 @@ TEST_F(SettingsTest, ToJsonStableAcrossInstances) {
             {"max_connections", 60001u},
             {"system_connections", 5001u},
             {"verbosity", 2u},
-            {"xattr_enabled", true},
             {"num_reader_threads", 2u},
             {"tcp_keepalive_probes", 4u},
     };

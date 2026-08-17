@@ -1649,10 +1649,9 @@ void Connection::setPriority(ConnectionPriority priority_) {
 bool Connection::selectedBucketIsXattrEnabled() const {
     // The unit tests call this method with no bucket
     if (selected_bucket->type == BucketType::NoBucket) {
-        return Settings::instance().isXattrEnabled();
+        return true;
     }
-    return Settings::instance().isXattrEnabled() &&
-           getBucketEngine().isXattrEnabled();
+    return getBucketEngine().isXattrEnabled();
 }
 
 bool Connection::havePendingData() const {

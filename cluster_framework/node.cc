@@ -89,7 +89,6 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
               {"system_connections", 250},
               {"stdin_listener", false},
               {"datatype_snappy", true},
-              {"xattr_enabled", true},
               {"dedupe_nmvb_maps", false},
               {"active_external_users_push_interval", "30 m"},
               {"error_maps_dir", errmaps.generic_string()},

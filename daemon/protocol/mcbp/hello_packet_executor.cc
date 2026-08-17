@@ -280,11 +280,8 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case Feature::XATTR:
-            if (Settings::instance().isXattrEnabled() ||
-                connection.isInternal()) {
-                connection.enableDatatype(Feature::XATTR);
-                added = true;
-            }
+            connection.enableDatatype(Feature::XATTR);
+            added = true;
             break;
         case Feature::JSON:
             connection.enableDatatype(Feature::JSON);

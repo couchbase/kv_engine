@@ -664,26 +664,6 @@ public:
     }
 
     /**
-     * May clients enable the XATTR feature?
-     *
-     * @return true if xattrs may be used
-     */
-    bool isXattrEnabled() const {
-        return xattr_enabled.load();
-    }
-
-    /**
-     * Set if the server should allow the use of xattrs
-     *
-     * @param enable true if the system may use xattrs
-     */
-    void setXattrEnabled(bool enable) {
-        xattr_enabled.store(enable);
-        has.xattr_enabled = true;
-        notify_changed("xattr_enabled");
-    }
-
-    /**
      * Should TLS certificate verification problems be logged?
      *
      * @return true if problems should be logged
@@ -1685,9 +1665,6 @@ protected:
     /// Should we deduplicate the cluster maps from the Not My VBucket messages
     std::atomic_bool dedupe_nmvb_maps{false};
 
-    /// May xattrs be used or not
-    std::atomic_bool xattr_enabled{false};
-
     /// Should TLS certificate verification problems be logged
     std::atomic_bool log_tls_certificate_verification_problems{true};
 
@@ -1868,7 +1845,6 @@ public:
         bool ssl_sasl_mechanisms = false;
         bool dedupe_nmvb_maps = false;
         bool error_maps = false;
-        bool xattr_enabled = false;
         bool log_tls_certificate_verification_problems = false;
         bool snapshot_download_fadvise = false;
         bool collections_enabled = false;

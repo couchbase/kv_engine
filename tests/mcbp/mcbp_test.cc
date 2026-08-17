@@ -34,7 +34,6 @@ ValidatorTest::ValidatorTest(bool collectionsEnabled)
 }
 
 void ValidatorTest::SetUp() {
-    Settings::instance().setXattrEnabled(true);
     BucketManager::instance().associateInitialBucket(connection);
     connection.setCollectionsSupported(collectionsEnabled);
     memset(&request, 0, sizeof(request));

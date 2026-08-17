@@ -155,7 +155,6 @@ void McbpFuzzTest::fuzz(std::string_view data) {
 
 McbpFuzzTest::McbpFuzzTest() {
     cb::logger::createBlackholeLogger();
-    Settings::instance().setXattrEnabled(true);
     cb::rbac::initialize();
     initialize_audit();
     BucketManager::instance();

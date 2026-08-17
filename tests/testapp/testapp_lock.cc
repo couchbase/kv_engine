@@ -365,7 +365,7 @@ TEST_P(LockTest, SubdocMutateLockedDocument) {
     cmd.setKey(name);
     cmd.addMutation(ClientOpcode::SubdocDictUpsert,
                     PathFlag::None,
-                    "xattr_enabled",
+                    "datatype_snappy",
                     "false");
 
     auto resp =
@@ -392,7 +392,7 @@ TEST_P(LockTest, SubdocLookupLockedDocument) {
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("xattr_enabled", PathFlag::None);
+    cmd.addGet("datatype_snappy", PathFlag::None);
     auto resp = BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 

@@ -511,7 +511,6 @@ nlohmann::json TestappTest::generate_config() {
             {"stdin_listener", false},
             {"connection_trace_size", 30},
             {"datatype_snappy", true},
-            {"xattr_enabled", true},
             {"dedupe_nmvb_maps", false},
             {"active_external_users_push_interval", "30 m"},
             {"external_auth_slow_duration", "5 s"},
