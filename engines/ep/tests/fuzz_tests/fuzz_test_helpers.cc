@@ -36,7 +36,7 @@ std::string format_as(const CheckpointAction& action) {
     return j.dump();
 }
 
-std::string format_as(const std::vector<CheckpointAction>& actions) {
+std::string formatActions(const std::vector<CheckpointAction>& actions) {
     std::string result;
     result += fmt::format("CheckpointAction{{size={}}}\n", actions.size());
     for (const auto& action : actions) {

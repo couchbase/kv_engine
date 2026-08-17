@@ -50,6 +50,15 @@ struct CheckpointAction {
 std::string format_as(const CheckpointAction& action);
 
 /**
+ * Formats a list of checkpoint actions.
+ *
+ * @note Deliberately not named format_as. fmt/ranges.h already supplies a
+ * formatter for std::vector, and a format_as overload for the same type makes
+ * the choice of fmt::formatter specialization ambiguous as of fmt 12.
+ */
+std::string formatActions(const std::vector<CheckpointAction>& actions);
+
+/**
  * Creates a test manifest which contains the collections used in the fuzz
  * tests.
  */
