@@ -3466,7 +3466,7 @@ Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     return Status::UnknownCommand;
 }
 
-void McbpValidator::setup(ClientOpcode command, Status (*f)(Cookie&)) {
+void McbpValidator::setup(ClientOpcode command, ValidatorFn f) {
     validators[std::underlying_type_t<ClientOpcode>(command)] = f;
 }
 

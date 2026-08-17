@@ -18,7 +18,6 @@
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
 #include <array>
-#include <functional>
 
 class Cookie;
 
@@ -58,6 +57,8 @@ public:
                                 GeneratesDocKey generates_dockey,
                                 uint8_t expected_datatype_mask);
 
+    using ValidatorFn = Status (*)(Cookie&);
+
 protected:
     /**
      * Validate the key for operations which will create a DocKey
@@ -70,7 +71,7 @@ protected:
     /**
      * Installs a validator for the given command
      */
-    void setup(ClientOpcode command, Status (*f)(Cookie&));
+    void setup(ClientOpcode command, ValidatorFn f);
 
-    std::array<std::function<Status(Cookie&)>, 0x100> validators;
+    std::array<ValidatorFn, 0x100> validators{};
 };
