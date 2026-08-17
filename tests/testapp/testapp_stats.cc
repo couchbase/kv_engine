@@ -18,6 +18,7 @@
 #include <protocol/mcbp/ewb_encode.h>
 #include <serverless/config.h>
 #include <utilities/timing_histogram_printer.h>
+#include <algorithm>
 
 using namespace std::string_view_literals;
 
@@ -959,6 +960,46 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_slowio_threads_configured", -1),
                     Pair("num_slowio_threads_actual", Gt(0)),
                     Pair("num_cpus", Gt(0))));
+}
+
+/// MB-73343: Reconfiguring num_io_threads_per_core at runtime updated the
+/// stored setting, but the change listener responsible for propagating it
+/// to the ExecutorPool (and recalculating the AuxIO thread count) was
+/// registered under the wrong key ("num_io_thread_per_core" instead of
+/// "num_io_threads_per_core"), so notify_changed() never invoked it.
+TEST_P(StatsTest, MB73343_NumIOThreadsPerCoreReconfigure) {
+    auto getStat = [](const std::string& key) {
+        int value = -1;
+        adminConnection->stats(
+                [&key, &value](auto k, auto v) {
+                    if (k == key) {
+                        value = std::stoi(v);
+                    }
+                },
+                "threads");
+        return value;
+    };
+
+    const auto num_cpus = getStat("num_cpus");
+    ASSERT_LT(0, num_cpus);
+
+    // Use a coefficient other than the default (2) so that the expected
+    // AuxIO thread count changes (num_auxio_threads is left at its default
+    // "symbolic" value throughout, so it is always derived from num_cpus
+    // and the configured coefficient).
+    constexpr int newCoefficient = 1;
+    memcached_cfg["num_io_threads_per_core"] = newCoefficient;
+    reconfigure();
+
+    const auto expected = std::clamp(num_cpus * newCoefficient, 2, 128);
+    EXPECT_EQ(expected, getStat("num_auxio_threads_actual"));
+
+    // Restore to the default coefficient.
+    memcached_cfg["num_io_threads_per_core"] = 2;
+    reconfigure();
+
+    const auto expectedDefault = std::clamp(num_cpus * 2, 2, 128);
+    EXPECT_EQ(expectedDefault, getStat("num_auxio_threads_actual"));
 }
 
 // Verify that the sum of all num_*_threads_actual values (excluding the

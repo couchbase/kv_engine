@@ -699,7 +699,7 @@ static void startExecutorPool() {
                 ExecutorPool::get()->setNumSlowIO(getSlowIoThreadCount(s));
             });
     settings.addChangeListener(
-            "num_io_thread_per_core", [](const std::string&, Settings& s) {
+            "num_io_threads_per_core", [](const std::string&, Settings& s) {
                 // Update the ExecutorPool with the new coefficient, then
                 // recalculate the number of AuxIO threads.
                 auto* executorPool = ExecutorPool::get();
