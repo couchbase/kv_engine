@@ -3415,19 +3415,14 @@ Status create_fusion_namespace_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
-    const auto idx = std::underlying_type_t<ClientOpcode>(command);
-    if (validators[idx]) {
-        return validators[idx](cookie);
-    }
-    return Status::UnknownCommand;
-}
+static constexpr std::array<McbpValidator::ValidatorFn, 0x100>
+make_validator_table() {
+    using cb::mcbp::ClientOpcode;
+    std::array<McbpValidator::ValidatorFn, 0x100> table{};
+    auto setup = [&table](ClientOpcode command, McbpValidator::ValidatorFn f) {
+        table[std::underlying_type_t<ClientOpcode>(command)] = f;
+    };
 
-void McbpValidator::setup(ClientOpcode command, ValidatorFn f) {
-    validators[std::underlying_type_t<ClientOpcode>(command)] = f;
-}
-
-McbpValidator::McbpValidator() {
     setup(ClientOpcode::DcpOpen, dcp_open_validator);
     setup(ClientOpcode::DcpAddStream, dcp_add_stream_validator);
     setup(ClientOpcode::DcpCloseStream, dcp_close_stream_validator);
@@ -3533,45 +3528,23 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::Flush_Unsupported, not_supported_validator);
     setup(ClientOpcode::Flushq_Unsupported, not_supported_validator);
 
-    if (cb::serverless::isEnabled()) {
-        // No need to start allowing quiet commands in a serverless
-        // deployment
-        setup(ClientOpcode::Quitq, not_supported_validator);
-        setup(ClientOpcode::Getq, not_supported_validator);
-        setup(ClientOpcode::Getk, not_supported_validator);
-        setup(ClientOpcode::Getkq, not_supported_validator);
-        setup(ClientOpcode::Gatq, not_supported_validator);
-        setup(ClientOpcode::Deleteq, not_supported_validator);
-        setup(ClientOpcode::Incrementq, not_supported_validator);
-        setup(ClientOpcode::Decrementq, not_supported_validator);
-        setup(ClientOpcode::Setq, not_supported_validator);
-        setup(ClientOpcode::Addq, not_supported_validator);
-        setup(ClientOpcode::Replaceq, not_supported_validator);
-        setup(ClientOpcode::Appendq, not_supported_validator);
-        setup(ClientOpcode::Prependq, not_supported_validator);
-        setup(ClientOpcode::GetqMeta, not_supported_validator);
-        setup(ClientOpcode::SetqWithMeta, not_supported_validator);
-        setup(ClientOpcode::AddqWithMeta, not_supported_validator);
-        setup(ClientOpcode::DelqWithMeta, not_supported_validator);
-    } else {
-        setup(ClientOpcode::Quitq, quit_validator);
-        setup(ClientOpcode::Getq, get_validator);
-        setup(ClientOpcode::Getk, get_validator);
-        setup(ClientOpcode::Getkq, get_validator);
-        setup(ClientOpcode::Gatq, gat_validator);
-        setup(ClientOpcode::Deleteq, delete_validator);
-        setup(ClientOpcode::Incrementq, arithmetic_validator);
-        setup(ClientOpcode::Decrementq, arithmetic_validator);
-        setup(ClientOpcode::Setq, set_replace_validator);
-        setup(ClientOpcode::Addq, add_validator);
-        setup(ClientOpcode::Replaceq, set_replace_validator);
-        setup(ClientOpcode::Appendq, append_prepend_validator);
-        setup(ClientOpcode::Prependq, append_prepend_validator);
-        setup(ClientOpcode::GetqMeta, get_meta_validator);
-        setup(ClientOpcode::SetqWithMeta, mutate_with_meta_validator);
-        setup(ClientOpcode::AddqWithMeta, mutate_with_meta_validator);
-        setup(ClientOpcode::DelqWithMeta, mutate_with_meta_validator);
-    }
+    setup(ClientOpcode::Quitq, quit_validator);
+    setup(ClientOpcode::Getq, get_validator);
+    setup(ClientOpcode::Getk, get_validator);
+    setup(ClientOpcode::Getkq, get_validator);
+    setup(ClientOpcode::Gatq, gat_validator);
+    setup(ClientOpcode::Deleteq, delete_validator);
+    setup(ClientOpcode::Incrementq, arithmetic_validator);
+    setup(ClientOpcode::Decrementq, arithmetic_validator);
+    setup(ClientOpcode::Setq, set_replace_validator);
+    setup(ClientOpcode::Addq, add_validator);
+    setup(ClientOpcode::Replaceq, set_replace_validator);
+    setup(ClientOpcode::Appendq, append_prepend_validator);
+    setup(ClientOpcode::Prependq, append_prepend_validator);
+    setup(ClientOpcode::GetqMeta, get_meta_validator);
+    setup(ClientOpcode::SetqWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::AddqWithMeta, mutate_with_meta_validator);
+    setup(ClientOpcode::DelqWithMeta, mutate_with_meta_validator);
 
     setup(ClientOpcode::GetMeta, get_meta_validator);
     setup(ClientOpcode::SetWithMeta, mutate_with_meta_validator);
@@ -3685,4 +3658,55 @@ McbpValidator::McbpValidator() {
     setup(ClientOpcode::GetFusionNamespaces, get_fusion_namespaces_validator);
     setup(ClientOpcode::CreateFusionNamespace,
           create_fusion_namespace_validator);
+
+    return table;
+}
+
+static constexpr auto serverless_disabled_validator_table =
+        make_validator_table();
+
+static constexpr auto serverless_enabled_validator_table = []() {
+    using cb::mcbp::ClientOpcode;
+    auto table = make_validator_table();
+    auto disable = [&table](ClientOpcode command) {
+        table[std::underlying_type_t<ClientOpcode>(command)] =
+                not_supported_validator;
+    };
+    disable(ClientOpcode::Quitq);
+    disable(ClientOpcode::Getq);
+    disable(ClientOpcode::Getk);
+    disable(ClientOpcode::Getkq);
+    disable(ClientOpcode::Gatq);
+    disable(ClientOpcode::Deleteq);
+    disable(ClientOpcode::Incrementq);
+    disable(ClientOpcode::Decrementq);
+    disable(ClientOpcode::Setq);
+    disable(ClientOpcode::Addq);
+    disable(ClientOpcode::Replaceq);
+    disable(ClientOpcode::Appendq);
+    disable(ClientOpcode::Prependq);
+    disable(ClientOpcode::GetqMeta);
+    disable(ClientOpcode::SetqWithMeta);
+    disable(ClientOpcode::AddqWithMeta);
+    disable(ClientOpcode::DelqWithMeta);
+    return table;
+}();
+
+const std::array<McbpValidator::ValidatorFn, 0x100>&
+McbpValidator::getValidators() {
+    if (cb::serverless::isEnabled()) {
+        return serverless_enabled_validator_table;
+    }
+    return serverless_disabled_validator_table;
+}
+
+Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
+    const auto idx = std::underlying_type_t<ClientOpcode>(command);
+    if (validators[idx]) {
+        return validators[idx](cookie);
+    }
+    return Status::UnknownCommand;
+}
+
+McbpValidator::McbpValidator() : validators(getValidators()) {
 }

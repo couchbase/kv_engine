@@ -59,6 +59,8 @@ public:
 
     using ValidatorFn = Status (*)(Cookie&);
 
+    static const std::array<ValidatorFn, 0x100>& getValidators();
+
 protected:
     /**
      * Validate the key for operations which will create a DocKey
@@ -68,10 +70,5 @@ protected:
      */
     static bool is_document_key_valid(Cookie& cookie);
 
-    /**
-     * Installs a validator for the given command
-     */
-    void setup(ClientOpcode command, ValidatorFn f);
-
-    std::array<ValidatorFn, 0x100> validators{};
+    const std::array<ValidatorFn, 0x100>& validators;
 };
