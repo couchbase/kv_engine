@@ -656,6 +656,7 @@ void Cookie::reset() {
     write_thottling_factor = 1.0;
     resource_allocation_domain = ResourceAllocationDomain::None;
     impersonateWithTokenAuthDataId.reset();
+    throttled.store(false, std::memory_order_release);
 }
 
 void Cookie::setThrottled(bool val) {
