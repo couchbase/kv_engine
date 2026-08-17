@@ -2106,6 +2106,13 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_fusion_checkpoint_failures",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of times the log checkpoint failed.",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_fusion_num_logs_mounted",
         "unit": "count",
         "type": "counter",

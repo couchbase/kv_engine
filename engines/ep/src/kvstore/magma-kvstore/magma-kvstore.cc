@@ -4330,6 +4330,8 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats->FusionFSStats.NumLogStoreRemoteDeletes);
     fill("fusion_FileMapMemUsed", magmaStats->FusionFSStats.FileMapMemUsed);
     fill("fusion_NumSyncFailures", magmaStats->FusionFSStats.NumSyncFailures);
+    fill("fusion_NumCheckpointFailures",
+         magmaStats->FusionFSStats.NumCheckpointFailures);
     fill("fusion_NumMigrationFailures",
          magmaStats->FusionFSStats.NumMigrationFailures);
     fill("fusion_NumLogsMounted", magmaStats->FusionFSStats.NumLogsMounted);

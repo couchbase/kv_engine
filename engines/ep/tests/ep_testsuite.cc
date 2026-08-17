@@ -7360,6 +7360,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_fusion_file_map_mem_used",
                           "ep_fusion_sync_failures",
                           "ep_fusion_migration_failures",
+                          "ep_fusion_checkpoint_failures",
                           "ep_fusion_num_logs_mounted",
                           "ep_fusion_num_log_segments",
                           "ep_fusion_num_file_extents",
