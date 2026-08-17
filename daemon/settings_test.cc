@@ -569,29 +569,6 @@ TEST_F(SettingsTest, ConnectionTraceSize) {
     }
 }
 
-TEST_F(SettingsTest, DatatypeJson) {
-    nonBooleanValuesShouldFail("datatype_json");
-
-    nlohmann::json obj;
-    obj["datatype_json"] = true;
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isDatatypeJsonEnabled());
-        EXPECT_TRUE(settings.has.datatype_json);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj["datatype_json"] = false;
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isDatatypeJsonEnabled());
-        EXPECT_TRUE(settings.has.datatype_json);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, DatatypeSnappy) {
     nonBooleanValuesShouldFail("datatype_snappy");
 
@@ -1189,20 +1166,6 @@ TEST(SettingsUpdateTest, ConnectionIdleTimeIsDynamic) {
               settings.getConnectionIdleTime());
 }
 
-TEST(SettingsUpdateTest, DatatypeJsonIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setDatatypeJsonEnabled(true);
-    updated.setDatatypeJsonEnabled(settings.isDatatypeJsonEnabled());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // changing it should not work
-    updated.setDatatypeJsonEnabled(!settings.isDatatypeJsonEnabled());
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
 TEST(SettingsUpdateTest, DatatypeSnappyIsDynamic) {
     Settings updated;
     Settings settings;
@@ -1550,7 +1513,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
             {"max_packet_size", 30u},
             {"max_send_queue_size", 2u},
             {"verbosity", 3u},
-            {"datatype_json", true},
             {"datatype_snappy", false},
             {"xattr_enabled", true},
             {"collections_enabled", false},
@@ -1580,7 +1542,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
     EXPECT_EQ(30u * 1024u * 1024u, out["max_packet_size"]);
     EXPECT_EQ(2u * 1024u * 1024u, out["max_send_queue_size"]);
     EXPECT_EQ(3, out["verbosity"]);
-    EXPECT_TRUE(out["datatype_json"].get<bool>());
     EXPECT_FALSE(out["datatype_snappy"].get<bool>());
     EXPECT_TRUE(out["xattr_enabled"].get<bool>());
     EXPECT_FALSE(out["collections_enabled"].get<bool>());
@@ -1620,7 +1581,6 @@ TEST_F(SettingsTest, ToJsonExposesAllSections) {
                                  "threads",
                                  "num_reader_threads",
                                  "command_time_slice",
-                                 "datatype_json",
                                  "sasl_mechanisms",
                                  "client_cert_auth",
                                  "external_auth_service",
@@ -1644,7 +1604,6 @@ TEST_F(SettingsTest, ToJsonStableAcrossInstances) {
             {"max_connections", 60001u},
             {"system_connections", 5001u},
             {"verbosity", 2u},
-            {"datatype_json", true},
             {"xattr_enabled", true},
             {"num_reader_threads", 2u},
             {"tcp_keepalive_probes", 4u},

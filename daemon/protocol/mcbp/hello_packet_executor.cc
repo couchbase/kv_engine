@@ -287,10 +287,8 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
         case Feature::JSON:
-            if (Settings::instance().isDatatypeJsonEnabled()) {
-                connection.enableDatatype(Feature::JSON);
-                added = true;
-            }
+            connection.enableDatatype(Feature::JSON);
+            added = true;
             break;
         case Feature::SNAPPY:
             if (Settings::instance().isDatatypeSnappyEnabled()) {

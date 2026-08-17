@@ -218,8 +218,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setConnectionIdleTime(value.get<unsigned int>());
         } else if (key == "connection_trace_size"sv) {
             setConnectionTraceSize(value.get<std::size_t>());
-        } else if (key == "datatype_json"sv) {
-            setDatatypeJsonEnabled(value.get<bool>());
         } else if (key == "datatype_snappy"sv) {
             setDatatypeSnappyEnabled(value.get<bool>());
         } else if (key == "snapshot_download_fadvise"sv) {
@@ -666,7 +664,6 @@ nlohmann::json Settings::to_json() const {
     json["command_time_slice"] = dur(getCommandTimeSlice());
 
     // Protocol features
-    json["datatype_json"] = isDatatypeJsonEnabled();
     json["datatype_snappy"] = isDatatypeSnappyEnabled();
     json["dedupe_nmvb_maps"] = isDedupeNmvbMaps();
     json["xattr_enabled"] = isXattrEnabled();
@@ -862,12 +859,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.audit) {
         if (other.audit_file != audit_file) {
             throw std::invalid_argument("audit can't be changed dynamically");
-        }
-    }
-    if (other.has.datatype_json) {
-        if (other.datatype_json != datatype_json) {
-            throw std::invalid_argument(
-                    "datatype_json can't be changed dynamically");
         }
     }
     if (other.has.root) {

@@ -473,32 +473,12 @@ public:
     }
 
     /**
-     * Is PROTOCOL_BINARY_DATATYPE_JSON supported or not
-     *
-     * @return true if clients may use JSON support
-     */
-    bool isDatatypeJsonEnabled() const {
-        return datatype_json;
-    }
-
-    /**
      * Is PROTOCOL_BINARY_DATATYPE_SNAPPY supported or not
      *
      * @return true if clients may use snappy support
      */
     bool isDatatypeSnappyEnabled() const {
         return datatype_snappy;
-    }
-
-    /**
-     * Set if PROTOCOL_BINARY_DATATYPE_JSON support should be enabled or not
-     *
-     * @param enabled true if clients should be able to use json support
-     */
-    void setDatatypeJsonEnabled(bool enabled) {
-        datatype_json = enabled;
-        has.datatype_json = true;
-        notify_changed("datatype_json");
     }
 
     /**
@@ -1699,9 +1679,6 @@ protected:
     std::atomic<std::chrono::milliseconds> tcp_unauthenticated_user_timeout{
             std::chrono::seconds{5}};
 
-    /// is datatype json enabled?
-    bool datatype_json = true;
-
     /// is datatype snappy enabled?
     std::atomic_bool datatype_snappy{true};
 
@@ -1879,7 +1856,6 @@ public:
         bool verbose = false;
         bool connection_idle_time = false;
         bool connection_trace_size = false;
-        bool datatype_json = false;
         bool datatype_snappy = false;
         bool root = false;
         bool breakpad = false;
