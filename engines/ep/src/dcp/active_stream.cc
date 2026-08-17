@@ -585,100 +585,108 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         return false;
     }
 
-    backfillReceivedHook();
-    // Should the item replicate?
-    // Is the item accepted by the stream filter (e.g matching collection) ?
-    if (!shouldProcessItem(*item) || !filter.checkAndUpdate(*item)) {
-        // Skip this item, but continue backfill at next item.
-        return true;
-    }
-
-    queued_item qi(std::move(item));
-    // We need to send a mutation instead of a commit if this Item is a
-    // commit as we may have de-duped the preceding prepare and the replica
-    // needs to know what to commit.
-    auto resp = makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation);
-
-    bool buffersFull = false;
-    {
-        // Locked scope for ActiveStream state reads / writes. Note
-        // streamMutex is heavily contended - frontend thread must acquire
-        // it to consume data from ActiveStream::readyQ so try to minimise
-        // work under lock.
-        std::unique_lock<std::mutex> lh(streamMutex);
-
-        // isBackfilling reads ActiveStream::state hence requires
-        // streamMutex.
-        if (!isBackfilling()) {
-            // Stream no longer backfilling; return false to stop backfill
-            // task.
-            return false;
+    try {
+        backfillReceivedHook();
+        // Should the item replicate?
+        // Is the item accepted by the stream filter (e.g matching collection) ?
+        if (!shouldProcessItem(*item) || !filter.checkAndUpdate(*item)) {
+            // Skip this item, but continue backfill at next item.
+            return true;
         }
 
-        // Note: ActiveStream and Producer/BackfillManager buffer bytes
-        // counters need to be both updated under streamMutex. That's
-        // because the end-stream path uses stream counters for updating
-        // prod/bm counters, so they need to be consistent.
-        if (pendingDiskMarker) {
-            // There is a marker, move it to the readyQ
-            OBJ_LOG_INFO_CTX(
-                    *this,
-                    "ActiveStream::backfillReceived: Sending pending "
-                    "disk snapshot with start:{}, end:{}, flags:{}, "
-                    "hcs:{}, mvs:{}",
-                    {"seqno", *resp->getBySeqno()},
-                    {"snapshot",
-                     {pendingDiskMarker->getStartSeqno(),
-                      pendingDiskMarker->getEndSeqno()}},
-                    {"flags", pendingDiskMarker->getFlags()},
-                    {"high_completed_seqno",
-                     pendingDiskMarker->getHighCompletedSeqno()},
-                    {"max_visible_seqno",
-                     pendingDiskMarker->getMaxVisibleSeqno()},
-                    {"high_prepared_seqno",
-                     pendingDiskMarker->getHighPreparedSeqno()},
-                    {"purge_seqno", pendingDiskMarker->getPurgeSeqno()});
+        queued_item qi(std::move(item));
+        // We need to send a mutation instead of a commit if this Item is a
+        // commit as we may have de-duped the preceding prepare and the replica
+        // needs to know what to commit.
+        auto resp = makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation);
 
-            // Note: The presence of a pending disk marker means that we
-            // were at SnapshotType::NoHistoryPrecedingHistory before this
-            // point and now we have moved to SnapshotType::History. See
-            // detail in the SnapshotType enum.
-            if (mustAssignEndSeqno(SnapshotType::History,
-                                   pendingDiskMarker->getEndSeqno(),
-                                   lastSentSnapEndSeqno)) {
-                lastSentSnapEndSeqno.store(pendingDiskMarker->getEndSeqno(),
-                                           std::memory_order_relaxed);
+        bool buffersFull = false;
+        {
+            // Locked scope for ActiveStream state reads / writes. Note
+            // streamMutex is heavily contended - frontend thread must acquire
+            // it to consume data from ActiveStream::readyQ so try to minimise
+            // work under lock.
+            std::unique_lock<std::mutex> lh(streamMutex);
+
+            // isBackfilling reads ActiveStream::state hence requires
+            // streamMutex.
+            if (!isBackfilling()) {
+                // Stream no longer backfilling; return false to stop backfill
+                // task.
+                return false;
             }
-            pushToReadyQ(std::move(pendingDiskMarker));
+
+            // Note: ActiveStream and Producer/BackfillManager buffer bytes
+            // counters need to be both updated under streamMutex. That's
+            // because the end-stream path uses stream counters for updating
+            // prod/bm counters, so they need to be consistent.
+            if (pendingDiskMarker) {
+                // There is a marker, move it to the readyQ
+                OBJ_LOG_INFO_CTX(
+                        *this,
+                        "ActiveStream::backfillReceived: Sending pending "
+                        "disk snapshot with start:{}, end:{}, flags:{}, "
+                        "hcs:{}, mvs:{}",
+                        {"seqno", *resp->getBySeqno()},
+                        {"snapshot",
+                         {pendingDiskMarker->getStartSeqno(),
+                          pendingDiskMarker->getEndSeqno()}},
+                        {"flags", pendingDiskMarker->getFlags()},
+                        {"high_completed_seqno",
+                         pendingDiskMarker->getHighCompletedSeqno()},
+                        {"max_visible_seqno",
+                         pendingDiskMarker->getMaxVisibleSeqno()},
+                        {"high_prepared_seqno",
+                         pendingDiskMarker->getHighPreparedSeqno()},
+                        {"purge_seqno", pendingDiskMarker->getPurgeSeqno()});
+
+                // Note: The presence of a pending disk marker means that we
+                // were at SnapshotType::NoHistoryPrecedingHistory before this
+                // point and now we have moved to SnapshotType::History. See
+                // detail in the SnapshotType enum.
+                if (mustAssignEndSeqno(SnapshotType::History,
+                                       pendingDiskMarker->getEndSeqno(),
+                                       lastSentSnapEndSeqno)) {
+                    lastSentSnapEndSeqno.store(pendingDiskMarker->getEndSeqno(),
+                                               std::memory_order_relaxed);
+                }
+                pushToReadyQ(std::move(pendingDiskMarker));
+            }
+
+            // Passed all checks, item will be added to ready queue now.
+            const auto respSize = resp->getApproximateSize();
+            bufferedBackfill.bytes.fetch_add(respSize);
+            bufferedBackfill.items++;
+            lastBackfilledSeqno = std::max<uint64_t>(
+                    lastBackfilledSeqno, uint64_t(*resp->getBySeqno()));
+            pushToReadyQ(std::move(resp));
+
+            // Note: recordBackfillManagerBytesRead requires a valid backillMgr
+            // hence must occur after isBackfilling check (and hence must be in
+            // locked region) :(
+            buffersFull = !producer->recordBackfillManagerBytesRead(respSize);
         }
-
-        // Passed all checks, item will be added to ready queue now.
-        const auto respSize = resp->getApproximateSize();
-        bufferedBackfill.bytes.fetch_add(respSize);
-        bufferedBackfill.items++;
-        lastBackfilledSeqno = std::max<uint64_t>(lastBackfilledSeqno,
-                                                 uint64_t(*resp->getBySeqno()));
-        pushToReadyQ(std::move(resp));
-
-        // Note: recordBackfillManagerBytesRead requires a valid backillMgr
-        // hence must occur after isBackfilling check (and hence must be in
-        // locked region) :(
-        buffersFull = !producer->recordBackfillManagerBytesRead(respSize);
-    }
 
         // Note: The call locks on streamMutex, so this needs to be executed
         // without holding the lock.
-    notifyStreamReady(false /*force*/, producer.get());
+        notifyStreamReady(false /*force*/, producer.get());
 
-    if (backfill_source == BACKFILL_FROM_MEMORY) {
-        backfillItems.memory++;
-    } else {
-        backfillItems.disk++;
+        if (backfill_source == BACKFILL_FROM_MEMORY) {
+            backfillItems.memory++;
+        } else {
+            backfillItems.disk++;
+        }
+
+        // We have processed this item but now the backfill buffers are full.
+        // We need to inform the caller that this backfill has to yield.
+        return !buffersFull;
+    } catch (const std::exception& e) {
+        // Must catch exceptions here and return back through caller.
+        // couchstore for example will leak due to lack of modern memory
+        // management on the code that calls backfillReceived
+        handleDcpProducerException(e);
+        return false;
     }
-
-    // We have processed this item but now the backfill buffers are full.
-    // We need to inform the caller that this backfill has to yield.
-    return !buffersFull;
 }
 
 void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
