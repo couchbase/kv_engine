@@ -694,6 +694,9 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // We need to inform the caller that this backfill has to yield.
         return !buffersFull;
     } catch (const std::exception& e) {
+        // Must catch exceptions here and return back through caller.
+        // couchstore for example will leak due to lack of modern memory
+        // management on the code that calls backfillReceived
         handleDcpProducerException(e);
         return false;
     }
@@ -3212,5 +3215,17 @@ void ActiveStream::logWithContext(spdlog::level::level_enum severity,
             getGlobalBucketLogger()->logWithContext(
                     severity, msg, std::move(ctx));
         }
+    }
+}
+
+void ActiveStream::setDeadAndDisconnect() {
+    setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
+    // Disconnect the connection
+    auto producer = producerPtr.lock();
+    if (producer) {
+        producer->flagDisconnect();
+        // Notify producer to close front-end connection and
+        // remaining streams.
+        producer->scheduleNotify();
     }
 }
