@@ -2216,10 +2216,6 @@ static Status collections_set_manifest_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!Settings::instance().isCollectionsEnabled()) {
-        return Status::NotSupported;
-    }
-
     return Status::Success;
 }
 

@@ -788,28 +788,6 @@ public:
         return tcp_unauthenticated_user_timeout.load(std::memory_order_acquire);
     }
 
-    /**
-     * Collections prototype means certain work-in-progress parts of collections
-     * are enabled/disabled and also means DCP auto-enables collections for
-     * replication streams (as opposed to ns_server requesting it).
-     *
-     * @return true if the collections prototype should be enabled
-     */
-    bool isCollectionsEnabled() const {
-        return collections_enabled.load();
-    }
-
-    /**
-     * Set if the server should enable collection support
-     *
-     * @param enable true if the system should enable collections
-     */
-    void setCollectionsEnabled(bool enable) {
-        collections_enabled.store(enable);
-        has.collections_enabled = true;
-        notify_changed("collections_enabled");
-    }
-
     std::string getOpcodeAttributesOverride() const;
 
     void setOpcodeAttributesOverride(const std::string& value);
@@ -1672,9 +1650,6 @@ protected:
     std::atomic<cb::io::IoHint> snapshot_download_fadvise{
             cb::io::IoHint::Normal};
 
-    /// Should collections be enabled
-    std::atomic_bool collections_enabled{true};
-
     /// Is tracing enabled or not
     std::atomic_bool tracing_enabled{true};
 
@@ -1847,7 +1822,6 @@ public:
         bool error_maps = false;
         bool log_tls_certificate_verification_problems = false;
         bool snapshot_download_fadvise = false;
-        bool collections_enabled = false;
         bool opcode_attributes_override = false;
         bool tracing_enabled = false;
         bool stdin_listener = false;

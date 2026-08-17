@@ -1491,7 +1491,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
             {"max_send_queue_size", 2u},
             {"verbosity", 3u},
             {"datatype_snappy", false},
-            {"collections_enabled", false},
             {"tracing_enabled", false},
             {"clustermap_push_notifications_enabled", false},
             {"connection_idle_time", 600u},
@@ -1519,7 +1518,6 @@ TEST_F(SettingsTest, ToJsonReflectsInput) {
     EXPECT_EQ(2u * 1024u * 1024u, out["max_send_queue_size"]);
     EXPECT_EQ(3, out["verbosity"]);
     EXPECT_FALSE(out["datatype_snappy"].get<bool>());
-    EXPECT_FALSE(out["collections_enabled"].get<bool>());
     EXPECT_FALSE(out["tracing_enabled"].get<bool>());
     EXPECT_FALSE(out["clustermap_push_notifications_enabled"].get<bool>());
     EXPECT_EQ(600u, out["connection_idle_time"]);

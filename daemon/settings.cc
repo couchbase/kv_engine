@@ -285,8 +285,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "client_cert_auth"sv) {
             auto config = cb::x509::ClientCertConfig::create(value);
             reconfigureClientCertAuth(std::move(config));
-        } else if (key == "collections_enabled"sv) {
-            setCollectionsEnabled(value.get<bool>());
         } else if (key == "opcode_attributes_override"sv) {
             setOpcodeAttributesOverride(value.dump());
         } else if (key == "num_reader_threads"sv) {
@@ -666,7 +664,6 @@ nlohmann::json Settings::to_json() const {
     json["dedupe_nmvb_maps"] = isDedupeNmvbMaps();
     json["log_tls_certificate_verification_problems"] =
             isLogTlsCertificateVerificationProblems();
-    json["collections_enabled"] = isCollectionsEnabled();
     json["tracing_enabled"] = isTracingEnabled();
     json["stdin_listener"] = isStdinListenerEnabled();
     json["clustermap_push_notifications_enabled"] =
@@ -1195,14 +1192,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     {"to", other.isLogTlsCertificateVerificationProblems()});
             setLogTlsCertificateVerificationProblems(
                     other.isLogTlsCertificateVerificationProblems());
-        }
-    }
-
-    if (other.has.collections_enabled) {
-        if (other.collections_enabled != collections_enabled) {
-            LOG_INFO_CTX("Change collections_enabled",
-                         {"enabled", other.collections_enabled.load()});
-            setCollectionsEnabled(other.collections_enabled.load());
         }
     }
 
