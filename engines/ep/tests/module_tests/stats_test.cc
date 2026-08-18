@@ -1733,6 +1733,47 @@ TEST_F(StatTest, EngineMetricsAreUnique) {
     }
 }
 
+/**
+ * The three compaction purge counters share one metric family, distinguished by
+ * the "for" label. Check all three are exposed, as counters, and that they are
+ * in the high cardinality group only.
+ */
+TEST_F(StatTest, CompactionPurgedMetricFamily) {
+    using namespace cb::prometheus;
+    const std::string family{"ep_compaction_purged"};
+
+    std::unordered_map<std::string, prometheus::MetricFamily> highStats;
+    PrometheusStatCollector highCollector{highStats};
+    auto highBucketCollector = highCollector.forBucket("bucket");
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->get_prometheus_stats(highBucketCollector,
+                                           MetricGroup::High));
+
+    auto itr = highStats.find(family);
+    ASSERT_NE(highStats.end(), itr);
+    EXPECT_EQ(prometheus::MetricType::Counter, itr->second.type);
+
+    std::unordered_set<std::string> forLabels;
+    for (const auto& metric : itr->second.metric) {
+        for (const auto& label : metric.label) {
+            if (label.name == "for") {
+                forLabels.insert(label.value);
+            }
+        }
+    }
+    EXPECT_EQ((std::unordered_set<std::string>{
+                      "tombstones", "prepares", "collection_items"}),
+              forLabels);
+
+    std::unordered_map<std::string, prometheus::MetricFamily> lowStats;
+    PrometheusStatCollector lowCollector{lowStats};
+    auto lowBucketCollector = lowCollector.forBucket("bucket");
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->get_prometheus_stats(lowBucketCollector, MetricGroup::Low));
+    EXPECT_EQ(lowStats.end(), lowStats.find(family));
+}
+
 class CheckpointMemQuotaTest : public StatTest {
     void SetUp() override {
         config_string +=

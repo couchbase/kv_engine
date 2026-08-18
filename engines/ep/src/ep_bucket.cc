@@ -1477,6 +1477,13 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
                ctxRef.getVBucket()->isDeletionDeferred() ||
                cancelEWBCompactionTasks;
     };
+
+    ctx->accumulatePurgeStats = [&epStats](const CompactionStats& cstats) {
+        epStats.compactionTombstonesPurged += cstats.tombstonesPurged;
+        epStats.compactionPreparesPurged += cstats.preparesPurged;
+        epStats.compactionCollectionItemsPurged +=
+                cstats.collectionsItemsPurged;
+    };
     return ctx;
 }
 
@@ -1565,6 +1572,12 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         stats.compactionAborted++;
         break;
     case CompactDBStatus::Success:
+        // Only count an explicit compaction's purges once it completed;
+        // couchstore discards its output file on failure/abort, so nothing was
+        // actually dropped.
+        if (ctx->accumulatePurgeStats) {
+            ctx->accumulatePurgeStats(ctx->stats);
+        }
         break;
     }
 

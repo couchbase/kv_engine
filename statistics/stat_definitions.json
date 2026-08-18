@@ -710,6 +710,51 @@
         "added": "7.1.0"
     },
     {
+        "family": "ep_compaction_purged",
+        "unit": "count",
+        "description": "Number of items dropped by compaction",
+        "long_description": "Provides the cumulative number of items that compaction has dropped from disk, split by the reason they became eligible: tombstones (the metadata left behind by a deleted document, eligible once older than the bucket's metadata purge interval), completed SyncWrite prepares, and items whose collection was dropped. Persistent buckets only. A tombstone count that stays flat while documents are being deleted suggests compaction is not keeping up, or that the purge interval is too long - tombstones then accumulate and disk usage grows even though the documents themselves are gone."
+    },
+    {
+        "key": "ep_compaction_tombstones_purged",
+        "unit": "count",
+        "type": "counter",
+        "prometheus": {
+            "family": "ep_compaction_purged",
+            "labels": {
+                "for": "tombstones"
+            }
+        },
+        "description": "Cumulative number of tombstones dropped by compaction",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_compaction_prepares_purged",
+        "unit": "count",
+        "type": "counter",
+        "prometheus": {
+            "family": "ep_compaction_purged",
+            "labels": {
+                "for": "prepares"
+            }
+        },
+        "description": "Cumulative number of completed SyncWrite prepares dropped by compaction",
+        "added": "8.1.0"
+    },
+    {
+        "key": "ep_compaction_collection_items_purged",
+        "unit": "count",
+        "type": "counter",
+        "prometheus": {
+            "family": "ep_compaction_purged",
+            "labels": {
+                "for": "collection_items"
+            }
+        },
+        "description": "Cumulative number of items dropped by compaction because their collection was dropped",
+        "added": "8.1.0"
+    },
+    {
         "key": "ep_rollback_count",
         "unit": "none",
         "description": "Number of rollbacks on consumer",

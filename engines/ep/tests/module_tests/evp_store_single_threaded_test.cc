@@ -4800,6 +4800,43 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
 
+/**
+ * Check that the bucket level counter of tombstones dropped by compaction is
+ * updated, counts only the tombstones actually purged, and is cumulative rather
+ * than per-compaction.
+ */
+TEST_P(STParamPersistentBucketTest, CompactionTombstonesPurgedStat) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& epstats = engine->getEpStats();
+    const auto initial = epstats.compactionTombstonesPurged.load();
+
+    auto key1 = makeStoredDocKey("key1");
+    store_item(vbid, key1, "value");
+    flush_vbucket_to_disk(vbid);
+
+    delete_item(vbid, key1);
+    flush_vbucket_to_disk(vbid);
+
+    // A second, live item - the tombstone at the highest seqno is never purged.
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    // The tombstone is not yet older than the purge age, so nothing is dropped.
+    runCompaction(vbid, 3);
+    EXPECT_EQ(initial, epstats.compactionTombstonesPurged);
+
+    TimeTraveller tt(gsl::narrow_cast<int>(
+            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1));
+    runCompaction(vbid, 3);
+    ASSERT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(initial + 1, epstats.compactionTombstonesPurged);
+
+    // Nothing left to purge, so a further compaction must not move the counter.
+    runCompaction(vbid, 3);
+    EXPECT_EQ(initial + 1, epstats.compactionTombstonesPurged);
+}
+
 TEST_P(STParameterizedBucketTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();

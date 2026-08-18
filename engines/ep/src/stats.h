@@ -350,6 +350,12 @@ public:
     Counter compactionFailed;
     //! Number of times a compaction is aborted.
     Counter compactionAborted;
+    //! Number of tombstones dropped by compaction.
+    Counter compactionTombstonesPurged;
+    //! Number of completed prepares dropped by compaction.
+    Counter compactionPreparesPurged;
+    //! Number of items dropped by compaction as their collection was dropped.
+    Counter compactionCollectionItemsPurged;
 
     // Expiration stats. Note: These stats are not synchronous -
     // e.g. expired_pager can be incremented /before/ curr_items is

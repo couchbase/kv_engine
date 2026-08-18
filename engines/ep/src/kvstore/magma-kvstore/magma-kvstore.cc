@@ -358,6 +358,15 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
 
 MagmaKVStore::MagmaCompactionCB::~MagmaCompactionCB() {
     magmaKVStore.logger->debug("MagmaCompactionCB destructor");
+
+    // A null eraserContext means magma drove this compaction itself (see
+    // compactionCore) - implicit compaction has no completion callback, so this
+    // is the only place its purge counts can be reported. Explicit compactions
+    // share one CompactionContext across every MagmaCompactionCB magma creates
+    // for them, and report once from EPBucket::compactInternal instead.
+    if (!ctx->eraserContext && ctx->accumulatePurgeStats) {
+        ctx->accumulatePurgeStats(ctx->stats);
+    }
 }
 
 void MagmaKVStore::processCollectionPurgeDelta(MagmaDbStats& magmaDbStats,

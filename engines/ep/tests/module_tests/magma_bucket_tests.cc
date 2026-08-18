@@ -847,6 +847,58 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     EXPECT_TRUE(dc.empty());
 }
 
+/**
+ * Implicit (magma driven) compaction has no completion callback, so the purge
+ * counts it accumulates are only reported from ~MagmaCompactionCB. Check they
+ * reach the bucket level counter.
+ */
+TEST_P(STParamMagmaBucketTest, ImplicitCompactionTombstonesPurgedStat) {
+    auto& epstats = engine->getEpStats();
+    ASSERT_EQ(0, epstats.compactionTombstonesPurged);
+
+    // Creates one tombstone old enough to purge ("keyA") plus one too recent to
+    // purge ("keyB"), then drives an implicit compaction.
+    setupForImplicitCompactionTest([]() {});
+
+    EXPECT_EQ(1, epstats.compactionTombstonesPurged);
+}
+
+/**
+ * Explicit compaction of several dropped collections makes magma create a
+ * MagmaCompactionCB per CompactKVStore call, all sharing one CompactionContext.
+ * Check the purge counts are accumulated once for the compaction rather than
+ * once per callback.
+ */
+TEST_P(STParamMagmaBucketTest, ExplicitCompactionPurgeStatsCountedOnce) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    setCollections(cookie, cm.add(CollectionEntry::meat));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    ASSERT_TRUE(store_items(
+            3, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
+    ASSERT_TRUE(store_items(
+            2, vbid, StoredDocKey{"m", CollectionEntry::meat}, "value"));
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(5, vb->getNumTotalItems());
+
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto& epstats = engine->getEpStats();
+    ASSERT_EQ(0, epstats.compactionCollectionItemsPurged);
+
+    runCompaction(vbid);
+
+    // The 5 items of the two dropped collections, counted exactly once.
+    EXPECT_EQ(5, epstats.compactionCollectionItemsPurged);
+}
+
 TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
     replaceMagmaKVStore();
 

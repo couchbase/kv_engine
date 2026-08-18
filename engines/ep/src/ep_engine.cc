@@ -3596,6 +3596,12 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
         collector.addStat(
                 Key::ep_db_max_format_version,
                 kvBucket->getStorageProperties().getMaxDiskFormatVersion());
+        collector.addStat(Key::ep_compaction_tombstones_purged,
+                          epstats.compactionTombstonesPurged);
+        collector.addStat(Key::ep_compaction_prepares_purged,
+                          epstats.compactionPreparesPurged);
+        collector.addStat(Key::ep_compaction_collection_items_purged,
+                          epstats.compactionCollectionItemsPurged);
     }
 
     collector.addStat(Key::ep_mem_tracker_enabled,

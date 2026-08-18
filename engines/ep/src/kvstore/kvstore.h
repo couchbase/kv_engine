@@ -328,6 +328,22 @@ struct CompactionContext {
      */
     std::function<void(CompactionContext&)> completionCallback;
 
+    /**
+     * Called once when a compaction finishes, to accumulate the purge counts in
+     * CompactionStats into the bucket level stats.
+     *
+     * Unlike completionCallback this is also invoked for magma implicit
+     * compactions, which magma drives itself and which have no completion
+     * callback. It must therefore only touch bucket level counters, never
+     * VBucket state, and must not throw as it may be called from a destructor
+     * on a magma background thread.
+     *
+     * May be empty - contexts which are not created by EPBucket (e.g. the
+     * NexusKVStore secondary context, or those built directly by tests) have
+     * nowhere to report to, so call sites must check it first.
+     */
+    std::function<void(const CompactionStats&)> accumulatePurgeStats;
+
     /// The SyncRepl HCS, can purge any prepares before the HCS.
     uint64_t highCompletedSeqno = 0;
 
