@@ -96,6 +96,8 @@ in a read-heavy workload (and vice versa).
 
 To summarize the above, we have the following "properties" in play:
 
+* Throttle enabled: Enable/Disable throttling to allow to keep the current
+  configurations while allowing the feature to be enabled and disabled.
 * Node capacity: The total amount of resources available on the node (may be
   unlimited, which means no throttling is performed and how things worked 
   before)
@@ -209,48 +211,61 @@ in any corner case).
 
 ## Node properties
 
-The node properties may be set with the (privileged) command
-`SetNodeThrottleProperties` (0x2c) which takes a JSON document with the 
-following syntax:
+ns_server owns the node-level throttling configuration and pushes it
+to memcached as part of the memcached settings. An operator configures these
+via the (privileged) ns_server REST endpoint:
 
-    {
-      "capacity" : 25000, 
-      "default_throttle_hard_limit" : 5000,
-      "default_throttle_reserved_units" : 2500
-    }
+    POST /pools/default/settings/memcached/global
 
-"capacity" is the number of units per second.
+The relevant node properties are:
 
-"default_throttle_hard_limit" is the hard limit of number of units per second.
+* `node_capacity` — the total node capacity in units per second.
+* `throttle_enabled` — enable/disable throttling.
+* `read_unit_size` / `write_unit_size` — the byte size of a read/write unit
+  (4096 and 1024 by default).
 
-"default_throttle_reserved_units" is the number of units per second reserved
-for the bucket.
+For example:
 
-Note that default_throttle_hard_limit and default_throttle_reserved_units will
-only affect buckets created after their value is set.
-
-The "default" settings would be stored in
-`/etc/couchbase/kv/serverless/config.json`
+    curl -u Administrator:password -X POST \
+      http://<host>:8091/pools/default/settings/memcached/global \
+      -d 'throttle_enabled=true' \
+      -d 'node_capacity=25000'
 
 ## Bucket properties
 
-The per bucket properties may be set with the (privileged) command
-`SetBucketThrottleProperties` (0x2a) which takes the name of the
-bucket in the key field, and a JSON document with the following syntax:
+Each bucket has two throttle properties:
 
-    {
-      "reserved" : 100,
-      "hard_limit" : "unlimited"
-    }
+* `throttle_reserved` — the guaranteed resource usage in units per second
+  (the amount reserved for the bucket).
+* `throttle_hard_limit` — the maximum resource usage in units per second. If
+  set to "unlimited" the bucket is only throttled when there are no free
+  resources left on the node; otherwise the bucket is throttled once it reaches
+  this limit.
 
-"reserved" is the guaranteed resource usage (the amount is reserved)
+`throttle_reserved` must be less than or equal to `throttle_hard_limit`;
+memcached rejects an update that violates this with `invalid_arguments`.
 
-"Hard_limit" if present (and not set to "unlimited") the tenant will be
-throttled at this limit. If no hard limit is specified the tenant will only be 
-throttled unless there are no free resources on the server.
+### Setting the values
 
-The "default" settings would be stored in
-`/etc/couchbase/kv/serverless/config.json`
+ns_server exposes `throttleReserved` / `throttleHardLimit` as bucket parameters
+on the bucket create/update REST endpoints.
+
+memcached applies them via two paths:
+
+* **At bucket creation** — `BucketManager` parses `throttle_reserved` /
+  `throttle_hard_limit` from the create config string and applies them.
+  If either is absent it falls back to the node-level default 
+  (`default_throttle_reserved_units` / `default_throttle_hard_limit`)
+  from the memcached settings.
+* **At runtime** — a config change arrives as a `SetParam` command in the
+  `Config` category.
+
+For example, to set the hard limit of the `default` bucket to 100,000 units
+per second:
+
+    curl -X POST http://localhost:8091/pools/default/buckets/default \
+         -u Administrator:password \
+         -d 'throttleHardLimit=100000'
 
 ### Details
 
@@ -298,3 +313,45 @@ From a 1000ft this would looks something like:
   have their reserved minimum quota at the next second (this will hurt
   folks doing "single shot" connections; but on the other side that
   is also hurting kv by spending a lot of resources doing auth)
+
+## Stats
+
+memcached exposes a set of per-bucket counters that let you see how much a
+bucket is using and how often it is being held back. All of them are reset when
+the bucket's stats are reset.
+
+### Unit consumption
+
+* `ru_total` — total Read Units consumed by the bucket. One RU per
+  `read_unit_size` bytes (4 KiB by default) is consumed
+* `wu_total` — total Write Units consumed by the bucket. One WU per
+  `write_unit_size` bytes (1 KiB by default) is consumed
+
+`ru_total` and `wu_total` can simply be summed to get the bucket's total unit
+usage.
+
+By default a read unit is 4 KiB and a write unit is 1 KiB. This makes a write
+4x as heavy as a read. Read and write units are calculated as follows:
+
+    WU = ceil(SIZE/1024)
+    RU = ceil(SIZE/4096)
+
+### Throttling and rejections
+
+* `throttle_count_total` — the number of requests that have been throttled
+  (delayed) for the bucket. Incremented when a request is over the limit
+  and the connection is put on the throttled list to be retried shortly.
+* `reject_count_total` — the number of requests that have been rejected for the
+  bucket. Only incremented when the connection is in non-blocking throttling mode,
+  so instead of waiting, the request is failed outright and the client is given
+  a timestamp until the units are next refilled.
+
+### Wait times
+
+* `throttle_duration` — a histogram (in microseconds) of how long throttled
+  commands spent waiting in the throttled state. This tells you how often and
+  the added latency in it added. 
+  **Note**: A command may be held within the TCP queue while other commands are
+  throttled, meaning a command spending 10 seconds throttled could have spent
+  2 of those seconds throttled by KV while the other 8 it spent in the queue
+  before it was processed (seen) by KV.
