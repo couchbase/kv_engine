@@ -6822,8 +6822,8 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
                                                    request.getVBucket(),
                                                    count,
                                                    keysCollection);
-    ExecutorPool::get()->schedule(task);
-    storeEngineSpecific(cookie, std::move(task));
+    storeEngineSpecific(cookie, task);
+    ExecutorPool::get()->schedule(std::move(task));
     return cb::engine_errc::would_block;
 }
 
