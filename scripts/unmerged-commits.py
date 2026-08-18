@@ -64,11 +64,18 @@ sequences = {
         [('couchbase/morpheus', 'couchbase/master')],
         [('couchbase/trinity', 'couchbase/morpheus')],
 
+        # 8.0 release train (morpheus)
+        [('couchbase/8.0.1', 'couchbase/morpheus')],
+
         # 7.6 release train (trinity)
         [('couchbase/7.6.2', 'couchbase/trinity'),
          ('couchbase/7.6.3', 'couchbase/trinity'),
          ('couchbase/7.6.4', 'couchbase/trinity'),
-         ('couchbase/7.6.5', 'couchbase/trinity')]
+         ('couchbase/7.6.5', 'couchbase/trinity'),
+         ('couchbase/7.6.6', 'couchbase/trinity'),
+         ('couchbase/7.6.7', 'couchbase/trinity'),
+         ('couchbase/7.6.10', 'couchbase/trinity'),
+         ('couchbase/7.6.11', 'couchbase/trinity')]
     ],
 
     'phosphor': [
