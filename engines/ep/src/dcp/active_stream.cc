@@ -1721,6 +1721,12 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
     // that streaming from "pending|dead" is just illegal, so we should change
     // this.
 
+    // Set when the marker sent below advertises an end seqno above the last
+    // item pushed for the client - a SeqnoAdvanced is then required to
+    // terminate the snapshot. Declared out here as snapEnd is scoped to the
+    // block which sends the marker.
+    bool snapEndRequiresSeqnoAdvanced = false;
+
     const auto vb = engine->getVBucket(vb_);
     if (vb && (vb->getState() != vbucket_state_replica ||
                isReplicaSnapshotComplete)) {
@@ -1766,6 +1772,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         if (highNonVisibleSeqno.has_value() &&
             highNonVisibleSeqno.value() > snapEnd) {
             snapEnd = highNonVisibleSeqno.value();
+            snapEndRequiresSeqnoAdvanced = true;
         }
 
         auto flags = getMarkerFlags(meta);
@@ -1874,7 +1881,25 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         pushToReadyQ(std::move(item));
     }
 
-    if (isSeqnoAdvancedEnabled() && isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
+    // A SeqnoAdvanced is required whenever the marker just sent promises the
+    // client an end seqno which no message in this snapshot will deliver.
+    //
+    // snapEndRequiresSeqnoAdvanced covers the case where *this* call raised the
+    // end to highNonVisibleSeqno. It cannot be inferred from curChkSeqno:
+    // curChkSeqno is assigned for every non-meta item, including items which
+    // are neither replicable on this stream nor for the collections it
+    // subscribes to (e.g. a prepare in another collection). Any such item after
+    // the non-visible one pushes curChkSeqno beyond the marker end, so
+    // isSeqnoGapAtEndOfSnapshot()'s lastSentSnapEndSeqno == curChkSeqno test
+    // fails and the snapshot would never be terminated - leaving the client's
+    // snapshot incomplete and the stream with lastSentSnapEndSeqno above
+    // lastReadSeqno.
+    //
+    // isSeqnoGapAtEndOfSnapshot() is still needed as it covers a different
+    // scenario: a marker sent by an *earlier* call whose end seqno reaches into
+    // this batch of items (e.g. the replica disk/memory snapshot merge).
+    if (isSeqnoAdvancedEnabled() && (snapEndRequiresSeqnoAdvanced ||
+                                     isSeqnoGapAtEndOfSnapshot(curChkSeqno))) {
         queueSeqnoAdvanced();
     }
 }

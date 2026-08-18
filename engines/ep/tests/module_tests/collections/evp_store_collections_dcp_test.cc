@@ -4427,6 +4427,155 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     destroy_mock_cookie(cookieC2);
 }
 
+/**
+ * A snapshot marker whose end seqno was extended above the last item sent must
+ * always be terminated by a SeqnoAdvanced, so that an active vbucket's stream
+ * can never be left with lastSentSnapEndSeqno above lastReadSeqno.
+ *
+ * ActiveStream::processItemsInner tracks three seqnos under three different
+ * conditions:
+ *   curChkSeqno         - assigned for EVERY non-meta item, unconditionally,
+ *                         before any other check
+ *   newLastReadSeqno    - only items passing shouldProcessItem()
+ *   highNonVisibleSeqno - only items failing shouldProcessItem() but passing
+ *                         the collection filter
+ *
+ * ActiveStream::snapshot() extends the marker end up to highNonVisibleSeqno but
+ * stores the lower newLastReadSeqno into lastReadSeqno, so a SeqnoAdvanced is
+ * needed to reconcile the two. It must not be decided on curChkSeqno alone: a
+ * prepare in a collection the stream does NOT subscribe to fails
+ * shouldProcessItem() *and* the filter, so it advances curChkSeqno past the
+ * marker end, defeating isSeqnoGapAtEndOfSnapshot()'s
+ * lastSentSnapEndSeqno == curChkSeqno test.
+ *
+ * Without the SeqnoAdvanced the consumer's snapshot never completes, and a
+ * later cursor drop reschedules a backfill from lastReadSeqno + 1 - which
+ * collides with the previous marker's end and makes markDiskSnapshot throw.
+ */
+TEST_P(CollectionsDcpPersistentOnly, SeqnoAdvancedTerminatesExtendedSnapshot) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Topology is required for store_pending_item() to be accepted.
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // vegetable (cid 0xa) is streamed, fruit (cid 0x9) is not. Their two
+    // create-collection system events take seq:1 and seq:2.
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
+
+    // Stream vegetable only, starting after both system events so that the
+    // batch below is the first thing the stream processes. Note that
+    // sync-writes are deliberately NOT enabled on the producer: a filtered
+    // stream request with sync-writes is rejected (see
+    // MB_47009_deny_sync_writes), and it is that combination - collection
+    // filtering without sync-write support - which makes
+    // isSeqnoAdvancedEnabled() true.
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(
+                      cb::mcbp::DcpAddStreamFlag::None,
+                      1, // opaque
+                      vbid,
+                      2, // start_seqno
+                      ~0ull, // end_seqno
+                      vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid
+                      2, // snap_start_seqno
+                      2, // snap_end_seqno
+                      &rollbackSeqno,
+                      &CollectionsDcpTest::dcpAddFailoverLog,
+                      R"({"collections":["a"]})"));
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    // Everything requested is in the checkpoint manager, so no backfill.
+    ASSERT_TRUE(stream->isInMemory());
+
+    // The batch which opens the gap:
+    //   seq:3 committed vegetable  - passes both checks, is sent
+    //   seq:4 prepare   vegetable  - fails shouldProcessItem, passes filter
+    //                                => highNonVisibleSeqno = 4
+    //   seq:5 prepare   fruit      - fails shouldProcessItem AND the filter
+    //                                => advances curChkSeqno alone
+    store_item(vbid, StoredDocKey{"veg", CollectionEntry::vegetable}, "value");
+    store_pending_item(
+            vbid, StoredDocKey{"veg-pre", CollectionEntry::vegetable}, "value");
+    store_pending_item(
+            vbid, StoredDocKey{"fruit-pre", CollectionEntry::fruit}, "value");
+    ASSERT_EQ(5, vb->getHighSeqno());
+
+    notifyAndStepToCheckpoint();
+
+    // The marker end was extended from seq:3 up to highNonVisibleSeqno (seq:4).
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(4, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(3, producers->last_byseqno);
+
+    // The marker end (seq:4) is above the last item pushed (seq:3), so a
+    // SeqnoAdvanced terminates the snapshot - even though curChkSeqno has run
+    // on to seq:5 (the fruit prepare, which is neither replicable on this
+    // stream nor for a collection it subscribes to).
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(4, producers->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+
+    // The SeqnoAdvanced brought lastReadSeqno up to the marker end, so the
+    // stream is no longer left with lastSentSnapEndSeqno > lastReadSeqno.
+    EXPECT_EQ(4, stream->getLastReadSeqno());
+    EXPECT_EQ(4, stream->getLastSentSnapEndSeqno());
+    EXPECT_EQ(5, stream->getCurChkSeqno());
+
+    // Drop the cursor and remove the checkpoints so the reschedule must go to
+    // disk. This is the cursor-dropping seen in the field occurrence.
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    ASSERT_TRUE(stream->handleSlowStream());
+
+    // seq:6 a second committed vegetable item, stored after the cursor drop so
+    // that it can only be picked up by the rescheduled backfill. Without it the
+    // backfill would be skipped before reaching markDiskSnapshot, as
+    // DCPBackfillBySeqnoDisk::create() short-circuits when the filtered
+    // collection's high seqno on disk is below the backfill start.
+    store_item(vbid, StoredDocKey{"veg2", CollectionEntry::vegetable}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    vb->checkpointManager->clear();
+
+    // Driving the stream runs inMemoryPhase -> transitionState(Backfilling) ->
+    // scheduleBackfill_UNLOCKED, which picks
+    // backfillStart = lastReadSeqno + 1 = 5, one above the previous marker's
+    // end.
+    // Note: go via ActiveStream::next() rather than DcpProducer::step(), as
+    // handleSlowStream() does not put the stream on the producer's ready queue.
+    EXPECT_FALSE(stream->next(*producer));
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // The backfill now starts above the previous snapshot marker's end, so
+    // markDiskSnapshot emits a valid [5,6] marker rather than throwing on
+    // lastSentSnapStartSeqno <= lastSentSnapEndSeqno.
+    runBackfill();
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(5, producers->last_snap_start_seqno);
+    EXPECT_EQ(6, producers->last_snap_end_seqno);
+
+    // seq:5 is the fruit prepare so it is filtered out, but seq:6 reaches the
+    // marker end and no SeqnoAdvanced is needed to terminate this snapshot.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(6, producers->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    EXPECT_EQ(6, stream->getLastReadSeqno());
+    EXPECT_EQ(6, stream->getLastSentSnapEndSeqno());
+}
+
 TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     using namespace cb::mcbp;
     using namespace mcbp::systemevent;
