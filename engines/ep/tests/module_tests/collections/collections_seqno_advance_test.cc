@@ -388,6 +388,16 @@ TEST_P(CollectionsSeqnoAdvanced, oneForMe) {
     }
 }
 
+// Sequence of "mutation for me, prepare for me" pairs. The snapshot marker's
+// end is raised to the prepare's seqno, so a SeqnoAdvanced must terminate it
+// even when the batch continues with items that are not for this stream.
+TEST_P(CollectionsSeqnoAdvanced, mutationThenPrepareForMe) {
+    for (int i = 0; i < getInputSize(); i++) {
+        setupOneOperation(InputType::Mutation, ForStream::Yes);
+        setupOneOperation(InputType::Prepare, ForStream::Yes);
+    }
+}
+
 // If this test ends with CPEndStart it would trigger MB-49453
 TEST_P(CollectionsSeqnoAdvanced, prepareForMeMutationForMe) {
     for (int i = 0; i < getInputSize(); i++) {
