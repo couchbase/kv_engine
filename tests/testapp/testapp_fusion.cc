@@ -519,6 +519,9 @@ TEST_P(FusionTest, Stat_Uploader) {
     ASSERT_TRUE(json.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(json["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, json["snapshot_pending_bytes"]);
+    ASSERT_TRUE(json.contains("checkpoint_pending_bytes"));
+    ASSERT_TRUE(json["checkpoint_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, json["checkpoint_pending_bytes"]);
 }
 
 TEST_P(FusionTest, Stat_Uploader_Detail) {
@@ -553,6 +556,9 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_0.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_0["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_0["snapshot_pending_bytes"]);
+    ASSERT_TRUE(vb_0.contains("checkpoint_pending_bytes"));
+    ASSERT_TRUE(vb_0["checkpoint_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_0["checkpoint_pending_bytes"]);
     ASSERT_TRUE(vb_0.contains("logstore_data_size"));
     ASSERT_TRUE(vb_0["logstore_data_size"].is_number_integer());
     ASSERT_TRUE(vb_0.contains("logstore_garbage_size"));
@@ -577,6 +583,9 @@ TEST_P(FusionTest, Stat_Uploader_Detail) {
     ASSERT_TRUE(vb_1.contains("snapshot_pending_bytes"));
     ASSERT_TRUE(vb_1["snapshot_pending_bytes"].is_number_integer());
     EXPECT_EQ(0, vb_1["snapshot_pending_bytes"]);
+    ASSERT_TRUE(vb_1.contains("checkpoint_pending_bytes"));
+    ASSERT_TRUE(vb_1["checkpoint_pending_bytes"].is_number_integer());
+    EXPECT_EQ(0, vb_1["checkpoint_pending_bytes"]);
     ASSERT_TRUE(vb_1.contains("logstore_data_size"));
     ASSERT_TRUE(vb_1["logstore_data_size"].is_number_integer());
     ASSERT_TRUE(vb_1.contains("logstore_garbage_size"));

@@ -765,6 +765,7 @@ MagmaMemoryTrackingProxy::GetFusionUploaderStats(
     auto [status, stats] = magma->GetKVStoreStats(kvID);
     if (status) {
         json["snapshot_pending_bytes"] = stats.FusionPendingUploadBytes;
+        json["checkpoint_pending_bytes"] = stats.FusionPendingCheckpointBytes;
         json["logstore_data_size"] = stats.FusionFSStats.LogStoreDataSize;
         json["logstore_garbage_size"] = stats.FusionFSStats.LogStoreGarbageSize;
         json["logstore_fragmentation_ratio"] =

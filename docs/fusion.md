@@ -57,6 +57,7 @@ Example response for `fusion uploader`:
   "vb_0": {
     "state": "enabled",
     "snapshot_pending_bytes": 100,
+    "checkpoint_pending_bytes": 200,
     "term": 2,
   },
   "vb_1": ...

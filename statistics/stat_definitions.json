@@ -2095,6 +2095,13 @@
         "added": "8.5.0"
     },
     {
+        "key": "ep_fusion_pending_checkpoint_bytes",
+        "unit": "bytes",
+        "type": "gauge",
+        "description": "Total amount of data not yet covered by Fusion's latest checkpoint.",
+        "added": "8.5.0"
+    },
+    {
         "key": "ep_fusion_log_store_remote_puts",
         "unit": "count",
         "type": "counter",
