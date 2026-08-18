@@ -323,7 +323,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::AuditPut:
         case ClientOpcode::AuditConfigReload:
         case ClientOpcode::Shutdown:
-        case ClientOpcode::SetBucketThrottleProperties:
+        case ClientOpcode::SetBucketThrottleProperties_Unsupported:
         case ClientOpcode::Rget_Unsupported:
         case ClientOpcode::Rset_Unsupported:
         case ClientOpcode::Rsetq_Unsupported:

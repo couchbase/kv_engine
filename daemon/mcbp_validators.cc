@@ -36,7 +36,6 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/json_utilities.h>
-#include <utilities/throttle_utilities.h>
 #include <string_view>
 
 using cb::mcbp::Status;
@@ -1806,44 +1805,6 @@ static Status shutdown_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status set_bucket_throttle_properties_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::NonZero,
-                                               ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
-                                               PROTOCOL_BINARY_DATATYPE_JSON);
-
-    if (status != Status::Success) {
-        return status;
-    }
-
-    auto payload = cookie.getHeader().getValueString();
-    if (payload.size() > 1024) {
-        // we don't want to go off json parsing incredible json payloads.
-        // the document should be < 100 bytes...
-        cookie.setErrorContext("Unexpected payload");
-        return Status::Einval;
-    }
-
-    try {
-        const cb::throttle::SetThrottleLimitPayload limits =
-                nlohmann::json::parse(cookie.getHeader().getValueString());
-        if (limits.reserved > limits.hard_limit) {
-            cookie.setErrorContext("reserved can't exceed hard limit");
-            return Status::Einval;
-        }
-    } catch (const std::exception& exception) {
-        cookie.setErrorContext(fmt::format(
-                "Invalid payload for SetBucketThrottleProperties: {}",
-                exception.what()));
-        return Status::Einval;
-    }
-
-    return Status::Success;
-}
-
 static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     auto ret = McbpValidator::verify_header(
@@ -3525,8 +3486,8 @@ McbpValidator::McbpValidator() {
           set_active_encryption_key_validator);
     setup(ClientOpcode::PruneEncryptionKeys, prune_encryption_keys_validator);
     setup(ClientOpcode::RegisterAuthToken, register_auth_token_validator);
-    setup(ClientOpcode::SetBucketThrottleProperties,
-          set_bucket_throttle_properties_validator);
+    setup(ClientOpcode::SetBucketThrottleProperties_Unsupported,
+          not_supported_validator);
     setup(ClientOpcode::SetNodeThrottleProperties_Unsupported,
           not_supported_validator);
 

@@ -417,29 +417,6 @@ static void shutdown_executor(Cookie& cookie) {
     shutdown_server();
 }
 
-static void set_bucket_throttle_properties_executor(Cookie& cookie) {
-    std::string name(cookie.getRequestKey().getBuffer());
-    cb::throttle::SetThrottleLimitPayload limits =
-            nlohmann::json::parse(cookie.getHeader().getValueString());
-
-    bool found = false;
-    BucketManager::instance().forEach([&name, &found, &limits](
-                                              auto& bucket) -> bool {
-        if (bucket.name == name) {
-            bucket.setThrottleLimits(limits.reserved, limits.hard_limit);
-            found = true;
-            return false;
-        }
-        return true;
-    });
-
-    if (found) {
-        cookie.sendResponse(cb::mcbp::Status::Success);
-    } else {
-        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
-    }
-}
-
 static void set_node_throttle_properties_executor(Cookie& cookie) {
     const cb::throttle::SetNodeThrottleLimitPayload limits =
             nlohmann::json::parse(cookie.getHeader().getValueString());
@@ -981,8 +958,6 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::AuditConfigReload,
                   audit_config_reload_executor);
     setup_handler(cb::mcbp::ClientOpcode::Shutdown, shutdown_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
-                  set_bucket_throttle_properties_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
                   set_bucket_data_limit_exceeded_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties_Unsupported,

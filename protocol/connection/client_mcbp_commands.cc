@@ -2136,22 +2136,6 @@ BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
     return vbMap;
 }
 
-SetBucketThrottlePropertiesCommand::SetBucketThrottlePropertiesCommand(
-        std::string key_, nlohmann::json json)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
-                            std::move(key_)) {
-    document = std::move(json);
-    setDatatype(cb::mcbp::Datatype::JSON);
-}
-
-void SetBucketThrottlePropertiesCommand::encode(
-        std::vector<uint8_t>& buf) const {
-    auto payload = document.dump();
-    writeHeader(buf, payload.size(), 0);
-    buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), payload.begin(), payload.end());
-}
-
 SetBucketDataLimitExceededCommand::SetBucketDataLimitExceededCommand(
         std::string key_,cb::mcbp::Status status)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,

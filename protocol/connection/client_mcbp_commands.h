@@ -1214,15 +1214,6 @@ public:
     std::unordered_map<Vbid, uint64_t> getVbucketSeqnos() const;
 };
 
-class SetBucketThrottlePropertiesCommand : public BinprotGenericCommand {
-public:
-    SetBucketThrottlePropertiesCommand(std::string key_, nlohmann::json json);
-    void encode(std::vector<uint8_t>& buf) const override;
-
-protected:
-    nlohmann::json document;
-};
-
 class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {
 public:
     SetBucketDataLimitExceededCommand(std::string key_,

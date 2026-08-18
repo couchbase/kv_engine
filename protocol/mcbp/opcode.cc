@@ -374,7 +374,7 @@ public:
         setup(ClientOpcode::AuditConfigReload,
               {"AUDIT_CONFIG_RELOAD"sv, {Attribute::Supported}});
         setup(ClientOpcode::Shutdown, {"SHUTDOWN"sv, {Attribute::Supported}});
-        setup(ClientOpcode::SetBucketThrottleProperties,
+        setup(ClientOpcode::SetBucketThrottleProperties_Unsupported,
               {"SET_BUCKET_THROTTLE_PROPERTIES"sv,
                {Attribute::Supported, Attribute::Reorder}});
         setup(ClientOpcode::SetBucketDataLimitExceeded,

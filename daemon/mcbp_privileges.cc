@@ -177,7 +177,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::PruneEncryptionKeys,
           require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::RegisterAuthToken, require<Privilege::Impersonate>);
-    setup(ClientOpcode::SetBucketThrottleProperties,
+    setup(ClientOpcode::SetBucketThrottleProperties_Unsupported,
           require<Privilege::BucketThrottleManagement>);
     setup(ClientOpcode::SetBucketDataLimitExceeded,
           require<Privilege::BucketThrottleManagement>);

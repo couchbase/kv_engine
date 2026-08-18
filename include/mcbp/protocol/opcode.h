@@ -74,12 +74,15 @@ enum class ClientOpcode : uint8_t {
     /* Shutdown the server */
     Shutdown = 0x29,
 
-    SetBucketThrottleProperties = 0x2a,
+    // This opcode was never used and therefore can be re-used in the future
+    SetBucketThrottleProperties_Unsupported = 0x2a,
 
     /// Toggle bucket limit exceeded
     SetBucketDataLimitExceeded = 0x2b,
 
+    // This opcode was never used and therefore can be re-used in the future
     SetNodeThrottleProperties_Unsupported = 0x2c,
+
     SetActiveEncryptionKeys = 0x2d,
     PruneEncryptionKeys = 0x2e,
     RegisterAuthToken = 0x2f,

@@ -16,7 +16,6 @@
 #include <platform/uuid.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/throttle_utilities.h>
 #include <utility>
 
 namespace cb::test {
@@ -178,18 +177,31 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
 }
 
 void Bucket::setThrottleLimits(std::size_t reserved, std::size_t hard_limit) {
-    nlohmann::json doc =
-            cb::throttle::SetThrottleLimitPayload(reserved, hard_limit);
-    cluster.iterateNodes([this, &doc](const auto& node) {
+    using cb::mcbp::request::SetParamPayload;
+    cluster.iterateNodes([this, reserved, hard_limit](const auto& node) {
         auto conn = node.getConnection();
         conn->authenticate("@admin", "password");
-        auto rsp = conn->execute(SetBucketThrottlePropertiesCommand(name, doc));
-        if (!rsp.isSuccess()) {
-            throw ConnectionError(
-                    "Bucket::setThrottleLimits: Failed to set throttle limits "
-                    "on " + node.directory.filename().generic_string(),
-                    rsp);
-        }
+        conn->selectBucket(name);
+
+        // The server rejects reserved > hard_limit, so sequence the writes
+        // through reserved=0 to keep every intermediate state valid
+        // regardless of whether the limits grow or shrink.
+        auto setParam = [&conn, &node](std::string_view key, std::size_t val) {
+            auto rsp = conn->execute(
+                    BinprotSetParamCommand(SetParamPayload::Type::Config,
+                                           std::string(key),
+                                           std::to_string(val)));
+            if (!rsp.isSuccess()) {
+                throw ConnectionError(
+                        "Bucket::setThrottleLimits: Failed to set " +
+                                std::string(key) + " on " +
+                                node.directory.filename().generic_string(),
+                        rsp);
+            }
+        };
+        setParam("throttle_reserved", 0);
+        setParam("throttle_hard_limit", hard_limit);
+        setParam("throttle_reserved", reserved);
     });
 }
 
