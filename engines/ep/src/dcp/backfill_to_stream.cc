@@ -10,6 +10,7 @@
  */
 
 #include "dcp/backfill_to_stream.h"
+#include "bucket_logger.h"
 #include "configuration.h"
 #include "dcp/active_stream.h"
 
@@ -50,4 +51,24 @@ DCPBackfillToStream::getBackfillIdleLimitSeconds(const Configuration& config) {
     }
     // Return nothing disables the feature.
     return {};
+}
+
+void DCPBackfillToStream::fail() {
+    DCPBackfill::fail();
+
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        // The stream has already been deleted by the producer conn, nothing
+        // to inform.
+        return;
+    }
+
+    OBJ_LOG_CRITICAL_CTX(*stream,
+                         "DCPBackfillToStream::fail(): Setting stream to dead "
+                         "state and disconnecting the connection.",
+                         {"uuid", getUID()});
+
+    // As per ActiveStream::handleDcpProducerException, an exception here means
+    // the stream (and its connection) cannot be trusted to continue.
+    stream->setDeadAndDisconnect();
 }

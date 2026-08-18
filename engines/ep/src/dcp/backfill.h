@@ -59,6 +59,13 @@ struct DCPBackfillIface {
     virtual backfill_status_t run() = 0;
 
     /**
+     * Called when the backfill has failed and cannot make any further progress
+     * - e.g. run() threw an exception. The backfill will not be run again and
+     * will be destroyed after this call.
+     */
+    virtual void fail() = 0;
+
+    /**
      * Cancels the backfill
      */
     virtual void cancel() = 0;
@@ -109,6 +116,13 @@ public:
      * in State::Done.
      */
     backfill_status_t run() override;
+
+    /**
+     * Implements DCPBackfillIface::fail
+     * Logs the failure and moves the backfill to State::Done so that it cannot
+     * be run again (and a subsequent cancel() does not warn).
+     */
+    void fail() override;
 
     /**
      * Implements DCPBackfillIface::cancel

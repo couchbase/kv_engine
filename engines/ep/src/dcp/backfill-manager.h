@@ -123,6 +123,7 @@
 #include "rate_limited_logger.h"
 #include <memcached/engine_common.h>
 #include <memcached/types.h>
+#include <exception>
 #include <list>
 #include <mutex>
 
@@ -304,6 +305,38 @@ protected:
      * monopolise an AuxIO thread unfairly.
      */
     BackfillScanBuffer scanBuffer;
+
+    /**
+     * Run the given backfill, handling any exception it throws via
+     * handleBackfillException().
+     *
+     * Must be called with 'lock' released.
+     *
+     * @param backfill The backfill to run
+     * @return the status of the run; backfill_finished if the backfill threw
+     *         and has been failed, so the caller discards it.
+     * @throws the caught exception if the bucket is configured to not catch
+     *         exceptions (see handleBackfillException).
+     */
+    backfill_status_t runBackfill(DCPBackfillIface& backfill);
+
+    /**
+     * Handle an exception thrown by the given backfill.
+     *
+     * Logs the exception (and backtrace, if available) then, as per
+     * ActiveStream::handleDcpProducerException, either re-throws the exception
+     * (if dcp_producer_catch_exceptions is false) or informs the backfill it
+     * has failed - which sets the associated stream to dead.
+     *
+     * Must be called from within the exception handler (it may re-throw) and
+     * with 'lock' released, as failing the backfill ends up in
+     * ActiveStream::setDead which acquires stream/producer locks.
+     *
+     * @param backfill The backfill which threw
+     * @param error The exception thrown by the backfill
+     */
+    void handleBackfillException(DCPBackfillIface& backfill,
+                                 const std::exception& error);
 
     /**
      * Move Backfills which are pending to the New backfill queue while there

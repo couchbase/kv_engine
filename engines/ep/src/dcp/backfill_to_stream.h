@@ -56,6 +56,13 @@ public:
     static std::optional<std::chrono::seconds> getBackfillIdleLimitSeconds(
             const Configuration&);
 
+    /**
+     * Implements DCPBackfillIface::fail
+     * Sets the associated stream to dead with BackfillFail so that the client
+     * is informed the stream has ended.
+     */
+    void fail() override;
+
 protected:
     /**
      * Ptr to the associated Active DCP stream. Backfill can be run for only
