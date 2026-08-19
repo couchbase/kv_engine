@@ -70,15 +70,7 @@ bool DefragmenterTask::run() {
 }
 
 std::chrono::duration<double> DefragmenterTask::defrag() {
-    auto getFragmentationStats = [this]() {
-        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>>
-                timer(this, "defrag.getfragmentation");
-        return cb::ArenaMalloc::getFragmentationStats(
-                engine->getArenaMallocClient());
-    };
-    auto currentFragStats = getFragmentationStats();
-
-    auto sleepAndRun = calculateSleepTimeAndRunState(currentFragStats);
+    auto sleepAndRun = calculateSleepTimeAndRunState();
     if (!sleepAndRun.runDefragger) {
         return sleepAndRun.sleepTime;
     }
@@ -105,7 +97,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
         }
         ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-           << currentFragStats;
+           << *stats.fragStats.rlock();
         EP_LOG_DEBUG("{}", ss.str());
     }
 
@@ -170,9 +162,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
         ss << " Took " << duration.count() << " us."
            << " moved " << visitor.getDefragCount() << "/"
            << visitor.getVisitedCount() << " visited documents."
-           << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-           << cb::ArenaMalloc::getFragmentationStats(
-                      engine->getArenaMallocClient())
+           << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ". Sleeping for " << sleepAndRun.sleepTime.count() << " seconds.";
         EP_LOG_DEBUG("{}", ss.str());
     }
@@ -208,8 +198,7 @@ std::chrono::milliseconds DefragmenterTask::getCurrentSleepTime() const {
 }
 
 DefragmenterTask::SleepTimeAndRunState
-DefragmenterTask::calculateSleepTimeAndRunState(
-        const cb::FragmentationStats& fragStats) {
+DefragmenterTask::calculateSleepTimeAndRunState() {
     // While the RSS/fragmentation back-pressure is critical, override the
     // configured mode: run now at the minimum sleep so RSS is compacted back
     // under quota as fast as possible.
@@ -221,10 +210,10 @@ DefragmenterTask::calculateSleepTimeAndRunState(
     }
     if (engine->getConfiguration().getDefragmenterModeString() ==
         "auto_linear") {
-        return calculateSleepLinear(fragStats);
+        return calculateSleepLinear();
     }
     if (engine->getConfiguration().getDefragmenterModeString() == "auto_pid") {
-        return calculateSleepPID(fragStats);
+        return calculateSleepPID();
     }
     return {std::chrono::duration<double>{
                     engine->getConfiguration().getDefragmenterInterval()},
@@ -271,9 +260,9 @@ DefragmentVisitor& DefragmenterTask::getDefragVisitor() {
     return dynamic_cast<DefragmentVisitor&>(prAdapter->getHTVisitor());
 }
 
-DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
-        const cb::FragmentationStats& fragStats) {
-    auto score = stats.getScoredFragmentation(fragStats);
+DefragmenterTask::SleepTimeAndRunState
+DefragmenterTask::calculateSleepLinear() {
+    auto score = stats.getScoredFragmentation();
     bool runDefragger = true;
 
     const auto& conf = engine->getConfiguration();
@@ -308,9 +297,8 @@ DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
     return {std::chrono::duration<double>{rv}, runDefragger};
 }
 
-DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID(
-        const cb::FragmentationStats& fragStats) {
-    auto score = stats.getScoredFragmentation(fragStats);
+DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID() {
+    auto score = stats.getScoredFragmentation();
     const auto& conf = engine->getConfiguration();
     auto maxSleep = conf.getDefragmenterAutoMaxSleep();
     auto minSleep = conf.getDefragmenterAutoMinSleep();

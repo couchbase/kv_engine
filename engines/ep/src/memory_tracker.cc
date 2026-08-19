@@ -19,14 +19,24 @@ bool StrictQuotaMemoryTracker::isFragmentationCritical() const {
     if (!engine.getKVBucket()->isFragmentationBackpressureEnabled()) {
         return false; // feature disabled
     }
-    const auto& config = engine.getConfiguration();
-    const auto& stats = engine.getEpStats();
     // RSS over the bucket quota because of fragmentation. High fragmentation
     // while RSS is under quota is not a survival case, so require both. Reuse
     // the defragmenter's upper threshold as the "fragmentation is high" mark.
-    return stats.residentBytes.load() > stats.getMaxDataSize() &&
-           stats.scoredFragmentation.load() >=
-                   config.getDefragmenterAutoUpperThreshold();
+    // EPStats reads both from a single locked snapshot of its cached stats.
+    return engine.getEpStats().isRssOverQuotaAndFragmented(
+            engine.getConfiguration().getDefragmenterAutoUpperThreshold());
+}
+
+bool StrictQuotaMemoryTracker::isFragmentationCritical(
+        const cb::FragmentationStats& fragStats) const {
+    if (!engine.getKVBucket()->isFragmentationBackpressureEnabled()) {
+        return false; // feature disabled
+    }
+    // Evaluate the caller-supplied snapshot, avoiding a re-read of the cached
+    // fragStats under rlock.
+    return engine.getEpStats().isRssOverQuotaAndFragmented(
+            fragStats,
+            engine.getConfiguration().getDefragmenterAutoUpperThreshold());
 }
 
 bool StrictQuotaMemoryTracker::isBelowMutationMemoryQuota(

@@ -15,6 +15,10 @@
 class EventuallyPersistentEngine;
 class EPEngineGroup;
 
+namespace cb {
+class FragmentationStats;
+}
+
 /**
  * Interface used for OOM conditions and triggering memory reclamation.
  */
@@ -62,6 +66,16 @@ public:
      */
     virtual bool isFragmentationCritical() const = 0;
 
+    /**
+     * Overload that evaluates an already-obtained fragmentation snapshot rather
+     * than reading the EPStats-cached fragStats under rlock. Used by the
+     * MonitorTask, which already holds the freshly-queried snapshot it just
+     * cached, so it need not re-lock to read it back.
+     * @param fragStats the fragmentation snapshot to evaluate
+     */
+    virtual bool isFragmentationCritical(
+            const cb::FragmentationStats& fragStats) const = 0;
+
     virtual ~MemoryTracker() = default;
 };
 
@@ -76,6 +90,8 @@ public:
     bool isBelowBackfillThreshold(size_t pendingBytes) const override;
     bool needsToFreeMemory() const override;
     bool isFragmentationCritical() const override;
+    bool isFragmentationCritical(
+            const cb::FragmentationStats& fragStats) const override;
 
 private:
     EventuallyPersistentEngine& engine;
