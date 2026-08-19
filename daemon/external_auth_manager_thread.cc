@@ -94,7 +94,7 @@ void ExternalAuthManagerThread::run() {
             const auto nextPushSleepTime = activeUsersPushInterval.load() -
                                            (now - activeUsersLastSent);
 
-            if (!requestMap.empty()) {
+            if (!pendingRequests.empty()) {
                 auto nextTimeout = pendingRequests.begin()->first;
 
                 // Sleep until the next time dependent task is required to run
@@ -296,9 +296,12 @@ void ExternalAuthManagerThread::processResponseQueue() {
             requestMap.erase(iter);
             auto timeout =
                     task->getStartTime() + getExternalAuthRequestTimeout();
-            auto pendingRequestIter = pendingRequests.find(timeout);
-            if (pendingRequestIter != pendingRequests.end()) {
-                pendingRequests.erase(pendingRequestIter);
+            auto [begin, end] = pendingRequests.equal_range(timeout);
+            for (auto it = begin; it != end; ++it) {
+                if (it->second == entry->opaque) {
+                    pendingRequests.erase(it);
+                    break;
+                }
             }
 
             ++totalAuthRequestReceived;
@@ -312,8 +315,8 @@ void ExternalAuthManagerThread::processResponseQueue() {
 
 void ExternalAuthManagerThread::handleTimeoutRequest() {
     const auto now = std::chrono::steady_clock::now();
-    for (auto& [timeout, opaque] : pendingRequests) {
-        if (timeout <= now) {
+    for (auto iter = pendingRequests.begin(); iter != pendingRequests.end();) {
+        if (iter->first <= now) {
             // Time out response if we have not received a response after
             // externalAuthRequestTimeout duration
             // We need to fix this if we want to redistribute them over to
@@ -326,7 +329,8 @@ void ExternalAuthManagerThread::handleTimeoutRequest() {
             const std::string msg =
                     R"({"error":{"context":"No response from external auth service"}})";
             incommingResponse.emplace_back(
-                    std::make_unique<AuthResponse>(opaque, msg));
+                    std::make_unique<AuthResponse>(iter->second, msg));
+            iter = pendingRequests.erase(iter);
         } else {
             break;
         }
