@@ -4128,7 +4128,7 @@ void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
                       add_stat,
                       c);
     add_prefixed_stat(
-            prefix, "readIOAmp", histoStats.ReadIOAmpHisto, add_stat, c);
+            prefix, "readIOAmpCount", histoStats.ReadIOAmpHisto, add_stat, c);
     add_prefixed_stat(
             prefix, "getStatsTime", histoStats.GetStatsTimeHisto, add_stat, c);
     add_prefixed_stat(prefix,
