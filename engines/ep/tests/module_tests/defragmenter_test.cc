@@ -380,14 +380,18 @@ public:
                                   .getDefragmenterAutoPidDt()}) {
     }
 
+    // The sleep calc now reads the fragmentation the MonitorTask caches in
+    // EPStats, so publish the test's value there before delegating.
     DefragmenterTask::SleepTimeAndRunState public_calculateSleepPID(
             const cb::FragmentationStats& fragStats) {
-        return calculateSleepPID(fragStats);
+        *stats.fragStats.wlock() = fragStats;
+        return calculateSleepPID();
     }
 
     DefragmenterTask::SleepTimeAndRunState public_calculateSleepLinear(
             const cb::FragmentationStats& fragStats) {
-        return calculateSleepLinear(fragStats);
+        *stats.fragStats.wlock() = fragStats;
+        return calculateSleepLinear();
     }
 
     struct MockDefragmenterTaskClock {
@@ -565,25 +569,24 @@ TEST(EPStatsScoredFragmentationTest, WeightingAndGuards) {
     EPStats stats;
 
     // Guard: high-water 0 (freshly constructed) returns 0 (no divide-by-zero).
-    EXPECT_EQ(0.0f,
-              stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+    *stats.fragStats.wlock() = cb::FragmentationStats{500, 650};
+    EXPECT_EQ(0.0f, stats.getScoredFragmentation());
 
     // Guard: zero resident returns 0.
     stats.setHighWaterMark(1000);
-    EXPECT_EQ(0.0f, stats.getScoredFragmentation(cb::FragmentationStats{0, 0}));
+    *stats.fragStats.wlock() = cb::FragmentationStats{0, 0};
+    EXPECT_EQ(0.0f, stats.getScoredFragmentation());
 
     // RSS below high-water: score = fragRatio * (rss / highWater).
     // allocated=500, resident=650 -> fragRatio=150/650, weight=650/1000;
     // the product simplifies to 150/1000 = 0.15.
-    EXPECT_FLOAT_EQ(
-            0.15f,
-            stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+    *stats.fragStats.wlock() = cb::FragmentationStats{500, 650};
+    EXPECT_FLOAT_EQ(0.15f, stats.getScoredFragmentation());
 
     // RSS at/above high-water: weight is capped at 1.0, so score = fragRatio.
     stats.setHighWaterMark(600);
-    EXPECT_FLOAT_EQ(
-            150.0f / 650.0f,
-            stats.getScoredFragmentation(cb::FragmentationStats{500, 650}));
+    *stats.fragStats.wlock() = cb::FragmentationStats{500, 650};
+    EXPECT_FLOAT_EQ(150.0f / 650.0f, stats.getScoredFragmentation());
 }
 
 INSTANTIATE_TEST_SUITE_P(

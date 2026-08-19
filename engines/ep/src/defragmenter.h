@@ -123,31 +123,25 @@ protected:
     std::chrono::duration<double> defrag();
 
     /**
-     * Calculate the current defragmenter sleep time and run state.
-     * @param fragStats the bucket's current fragmentation state
+     * Calculate the current defragmenter sleep time and run state. Uses the
+     * fragmentation the MonitorTask cached in EPStats.
      * @return SleepTimeAndRunState based on mode and current fragmentation
      */
-    SleepTimeAndRunState calculateSleepTimeAndRunState(
-            const cb::FragmentationStats& fragStats);
+    SleepTimeAndRunState calculateSleepTimeAndRunState();
 
     /**
      * Calculate the sleep time using a mapping of fragmentation to the sleep
      * time.
-     * @param fragStats the bucket's current fragmentation state
      * @return SleepTimeAndRunState based on current fragmentation
      */
-    SleepTimeAndRunState calculateSleepLinear(
-            const cb::FragmentationStats& fragStats);
+    SleepTimeAndRunState calculateSleepLinear();
 
     /**
      * Calculate the sleep time using a PID controller that will reduce the
      * sleep time whilst fragmentation is above preferred minimum
-     * @param fragStats the bucket's current fragmentation state
      * @return SleepTimeAndRunState based on current fragmentation
      */
-
-    SleepTimeAndRunState calculateSleepPID(
-            const cb::FragmentationStats& fragStats);
+    SleepTimeAndRunState calculateSleepPID();
 
     /**
      *  steps the PID and allows for a test sub-class to override realtime
