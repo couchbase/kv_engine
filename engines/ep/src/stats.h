@@ -202,7 +202,40 @@ public:
      *
      * @return the scored fragmentation
      */
+    float getScoredFragmentation() const;
+
+    /**
+     * Overload that scores an already-obtained fragmentation snapshot instead
+     * of reading the cached fragStats under rlock. Used by the MonitorTask,
+     * which already holds the freshly-queried snapshot it just cached.
+     * @param fragStats the fragmentation snapshot to score
+     * @return the scored fragmentation
+     */
     float getScoredFragmentation(const cb::FragmentationStats& fragStats) const;
+
+    /**
+     * Whether the resident set is over the bucket quota AND scored
+     * fragmentation is at/above the given threshold, i.e. RSS is over quota
+     * because of fragmentation. Both are read from a single locked snapshot of
+     * fragStats, so the two conditions are evaluated consistently.
+     * @param scoreThreshold the scored-fragmentation threshold to compare
+     *                       against (defragmenter_auto_upper_threshold)
+     * @return true if RSS is over quota and fragmentation is at/above threshold
+     */
+    bool isRssOverQuotaAndFragmented(float scoreThreshold) const;
+
+    /**
+     * Overload that evaluates an already-obtained fragmentation snapshot
+     * instead of reading the cached fragStats under rlock. Used by the
+     * MonitorTask, which already holds the freshly-queried snapshot it just
+     * cached.
+     * @param fragStats the fragmentation snapshot to evaluate
+     * @param scoreThreshold the scored-fragmentation threshold to compare
+     *                       against (defragmenter_auto_upper_threshold)
+     * @return true if RSS is over quota and fragmentation is at/above threshold
+     */
+    bool isRssOverQuotaAndFragmented(const cb::FragmentationStats& fragStats,
+                                     float scoreThreshold) const;
 
     /// @returns total size of stored objects.
     size_t getCurrentSize() const;
@@ -704,13 +737,13 @@ public:
     // Used by stats logging infrastructure.
     std::unique_ptr<std::ostream> timingLog;
 
-    /// RSS of this bucket
-    cb::RelaxedAtomic<size_t> residentBytes = 0;
-
-    /// Scored fragmentation of this bucket: the fragmentation ratio weighted by
-    /// the RSS/high-water-mark ratio. Published by the MonitorTask; see
-    /// getScoredFragmentation().
-    cb::RelaxedAtomic<float> scoredFragmentation = 0.0;
+    /// The bucket's fragmentation (allocated/resident bytes), refreshed each
+    /// interval by the MonitorTask -- the single owner of the (expensive)
+    /// jemalloc query. Other consumers (the back-pressure gate, the
+    /// DefragmenterTask) read this cached value rather than querying jemalloc.
+    /// Score it via getScoredFragmentation().
+    folly::Synchronized<cb::FragmentationStats> fragStats{
+            cb::FragmentationStats{0, 0}};
 
     /// Record a temporary-OOM rejection caused by the RSS/fragmentation
     /// back-pressure. Bumps both the generic tmp_oom_errors counter and the

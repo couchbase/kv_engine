@@ -73,17 +73,45 @@ size_t EPStats::getPreciseTotalMemoryUsed() const {
     return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
 }
 
+// Scores an already-obtained fragmentation snapshot against a memory high
+// watermark. File-local so both getScoredFragmentation() and
+// isRssOverQuotaAndFragmented() share one copy of the math.
+static float scoreFragmentation(const cb::FragmentationStats& fs,
+                                size_t highWater) {
+    const auto resident = fs.getResidentBytes();
+    if (highWater == 0 || resident == 0) {
+        return 0.0f;
+    }
+    const auto rss = resident < highWater ? resident : highWater;
+    return fs.getFragmentationRatio() * (double(rss) / double(highWater));
+}
+
+float EPStats::getScoredFragmentation() const {
+    return getScoredFragmentation(*fragStats.rlock());
+}
+
 float EPStats::getScoredFragmentation(
         const cb::FragmentationStats& fragStats) const {
     const auto highWater = mem_high_wat.load();
-    if (highWater == 0 || fragStats.getResidentBytes() == 0) {
+    if (highWater == 0) {
         return 0.0f;
     }
-    const auto rss = fragStats.getResidentBytes() > highWater
-                             ? highWater
-                             : fragStats.getResidentBytes();
-    return fragStats.getFragmentationRatio() *
-           (double(rss) / double(highWater));
+    return scoreFragmentation(fragStats, highWater);
+}
+
+bool EPStats::isRssOverQuotaAndFragmented(float scoreThreshold) const {
+    // Read RSS and score the same snapshot under a single lock.
+    return isRssOverQuotaAndFragmented(*fragStats.rlock(), scoreThreshold);
+}
+
+bool EPStats::isRssOverQuotaAndFragmented(
+        const cb::FragmentationStats& fragStats, float scoreThreshold) const {
+    const auto highWater = mem_high_wat.load();
+    const auto maxDataSize = getMaxDataSize();
+    // RSS check first in the and-condition, so the score is only computed
+    // when RSS is over quota.
+    return fragStats.getResidentBytes() > maxDataSize &&
+           scoreFragmentation(fragStats, highWater) >= scoreThreshold;
 }
 
 size_t EPStats::getCurrentSize() const {

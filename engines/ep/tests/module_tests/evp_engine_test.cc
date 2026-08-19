@@ -900,11 +900,11 @@ TEST_P(MonitorTaskTest, PublishesFragmentationStats) {
     MonitorTask task(*engine, std::chrono::seconds(1));
     task.run();
 
-    // residentBytes is populated from the bucket arena.
-    EXPECT_GT(stats.residentBytes.load(), 0u);
+    // fragStats is populated from the bucket arena.
+    EXPECT_GT(stats.fragStats.rlock()->getResidentBytes(), 0u);
     // scoredFragmentation is a ratio in [0, 1).
-    EXPECT_GE(stats.scoredFragmentation.load(), 0.0);
-    EXPECT_LT(stats.scoredFragmentation.load(), 1.0);
+    EXPECT_GE(stats.getScoredFragmentation(), 0.0);
+    EXPECT_LT(stats.getScoredFragmentation(), 1.0);
 }
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,

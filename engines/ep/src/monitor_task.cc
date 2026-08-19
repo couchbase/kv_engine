@@ -19,11 +19,15 @@
 #include <executor/executorpool.h>
 
 bool MonitorTask::run() {
+    auto& stats = engine->getEpStats();
+    // The MonitorTask is the single owner of the (expensive) jemalloc query;
+    // cache the result in EPStats so the other consumers (the back-pressure
+    // gate and the DefragmenterTask) read it rather than querying jemalloc.
+    // Keep the snapshot in a local so this task reuses it below (the critical
+    // check and the debug log) instead of re-reading the cache under rlock.
     const auto fragStats = cb::ArenaMalloc::getFragmentationStats(
             engine->getArenaMallocClient());
-    auto& stats = engine->getEpStats();
-    stats.residentBytes = fragStats.getResidentBytes();
-    stats.scoredFragmentation = stats.getScoredFragmentation(fragStats);
+    *stats.fragStats.wlock() = fragStats;
 
     // While the RSS/fragmentation back-pressure is critical the defragmenter
     // must run at its aggressive cadence (min sleep, age thresholds 0).
@@ -36,7 +40,7 @@ bool MonitorTask::run() {
     // A disabled defragmenter never runs defrag(), so skip that too.
     auto& config = engine->getConfiguration();
     if (config.isDefragmenterEnabled() &&
-        engine->getMemoryTracker().isFragmentationCritical()) {
+        engine->getMemoryTracker().isFragmentationCritical(fragStats)) {
         const auto minSleep =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::duration<double>{
@@ -49,8 +53,8 @@ bool MonitorTask::run() {
     EP_LOG_DEBUG_CTX(
             "MonitorTask:",
             {"interval", interval.load()},
-            {"rss", stats.residentBytes.load()},
-            {"scored_fragmentation", stats.scoredFragmentation.load()});
+            {"rss", fragStats.getResidentBytes()},
+            {"scored_fragmentation", stats.getScoredFragmentation(fragStats)});
 
     // Sleep for "interval" and reschedule
     snooze(interval.load());
