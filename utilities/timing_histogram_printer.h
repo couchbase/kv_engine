@@ -18,14 +18,30 @@
  */
 class TimingHistogramPrinter {
 public:
+    enum class HistogramType {
+        TimeMicroseconds,
+        TimeSeconds,
+        Size,
+        Count,
+        Ratio,
+    };
+
     explicit TimingHistogramPrinter(const nlohmann::json& json);
     uint64_t getTotal() const;
     void dumpHistogram(std::string_view name, FILE* out = stdout);
     static void printLegend(FILE* out = stdout);
 
+    /**
+     * Deduce the histogram type from the stat key/name.
+     *
+     * @param name The stat key name
+     * @return The deduced HistogramType
+     */
+    static HistogramType getHistogramType(std::string_view name);
+
 protected:
     void dump(FILE* out,
-              std::string_view timeunit,
+              std::string_view unit,
               long double low,
               long double high,
               int64_t count,

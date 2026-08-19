@@ -11,14 +11,18 @@
 #include "timing_histogram_printer.h"
 #include "json_utilities.h"
 #include <fmt/format.h>
+#include <platform/byte_literals.h>
 
 static constexpr std::string_view legend = R"(Histogram Legend:
 [1. - 2.]3. (4.)    5.|
     1. All values in this bucket were recorded for a higher value than this.
     2. The maximum value inclusive that could have been recorded in this bucket.
-    3. The unit for the values of that (1.) and (2.) are in microseconds, milliseconds or seconds.
-    4. Percentile of recorded values to the histogram that has values <= the value at (2.).
-    5. The number of recorded values that were in the range (1.) to (2.) inclusive.
+    3. The unit for the values of that (1.) and (2.) are in microseconds,
+       milliseconds, seconds, bytes, or none for counts/ratios.
+    4. Percentile of recorded values to the histogram that has values <= the
+       value at (2.).
+    5. The number of recorded values that were in the range (1.) to (2.)
+       inclusive.
 
 )";
 
@@ -35,6 +39,32 @@ uint64_t TimingHistogramPrinter::getTotal() const {
     return total + overflowed;
 }
 
+TimingHistogramPrinter::HistogramType TimingHistogramPrinter::getHistogramType(
+        std::string_view name) {
+    const auto colon = name.rfind(':');
+    const auto baseName =
+            (colon != std::string_view::npos) ? name.substr(colon + 1) : name;
+
+    if (baseName.ends_with("Size") || baseName.ends_with("Seek") ||
+        baseName == "item_alloc_sizes") {
+        return HistogramType::Size;
+    }
+    if (baseName.ends_with("Count") || baseName == "bg_batch_size" ||
+        baseName == "ep_active_or_pending_eviction_values_evicted" ||
+        baseName == "ep_replica_eviction_values_evicted" ||
+        baseName == "ep_active_or_pending_eviction_values_snapshot" ||
+        baseName == "ep_replica_eviction_values_snapshot") {
+        return HistogramType::Count;
+    }
+    if (baseName.ends_with("Ratio")) {
+        return HistogramType::Ratio;
+    }
+    if (baseName == "paged_out_time") {
+        return HistogramType::TimeSeconds;
+    }
+    return HistogramType::TimeMicroseconds;
+}
+
 void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
     if (data.is_null()) {
         return;
@@ -43,7 +73,7 @@ void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
     fmt::print(out, "The following data is collected for \"{}\"\n", name);
 
     auto dataArray = data.get<std::vector<std::vector<nlohmann::json>>>();
-    for (auto item : dataArray) {
+    for (const auto& item : dataArray) {
         auto count = item[1].get<uint64_t>();
         if (count > maxCount) {
             maxCount = count;
@@ -53,53 +83,142 @@ void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
 
     // If no buckets have no recorded values do not try to render buckets
     if (maxCount > 0) {
-        // create double versions of sec, ms, us so we can print them to 2dp
+        const auto type = getHistogramType(name);
+
         using namespace std::chrono;
         using doubleMicroseconds = duration<long double, std::micro>;
         using doubleMilliseconds = duration<long double, std::milli>;
         using doubleSeconds = duration<long double>;
 
-        // loop though all the buckets in the json object and print them
-        // to std out
         uint64_t lastBuckLow = bucketsLow;
-        for (auto bucket : dataArray) {
-            // Get the current bucket's highest value it would track counts
-            // for
+        for (const auto& bucket : dataArray) {
             auto buckHigh = bucket[0].get<int64_t>();
-            // Get the counts for this bucket
             auto count = bucket[1].get<int64_t>();
-            // Get the percentile of counts that are <= buckHigh
             auto percentile = bucket[2].get<double>();
 
-            // Cast the high bucket width to us, ms and seconds so we
-            // can check which units we should be using for this bucket
-            auto buckHighUs = doubleMicroseconds(buckHigh);
-            auto buckHighMs = duration_cast<doubleMilliseconds>(buckHighUs);
-            auto buckHighS = duration_cast<doubleSeconds>(buckHighUs);
+            switch (type) {
+            case HistogramType::Count:
+                dump(out,
+                     "",
+                     static_cast<long double>(lastBuckLow),
+                     static_cast<long double>(buckHigh),
+                     count,
+                     percentile);
+                break;
+            case HistogramType::Ratio:
+                dump(out,
+                     "",
+                     static_cast<long double>(lastBuckLow) / 10.0L,
+                     static_cast<long double>(buckHigh) / 10.0L,
+                     count,
+                     percentile);
+                break;
+            case HistogramType::Size: {
+                constexpr auto KiB = static_cast<int64_t>(1_KiB);
+                constexpr auto MiB = static_cast<int64_t>(1_MiB);
+                constexpr auto GiB = static_cast<int64_t>(1_GiB);
+                constexpr auto TiB = static_cast<int64_t>(1_TiB);
 
-            if (buckHighS.count() > 1) {
-                auto low =
-                        duration_cast<doubleSeconds>(microseconds(lastBuckLow));
-                dump(out,
-                     "s",
-                     low.count(),
-                     buckHighS.count(),
-                     count,
-                     percentile);
-            } else if (buckHighMs.count() > 1) {
-                auto low = duration_cast<doubleMilliseconds>(
-                        doubleMicroseconds(lastBuckLow));
-                dump(out,
-                     "ms",
-                     low.count(),
-                     buckHighMs.count(),
-                     count,
-                     percentile);
-            } else {
-                dump(out, "us", lastBuckLow, buckHigh, count, percentile);
+                if (buckHigh >= TiB) {
+                    constexpr auto div = static_cast<long double>(TiB);
+                    dump(out,
+                         "TiB",
+                         lastBuckLow / div,
+                         buckHigh / div,
+                         count,
+                         percentile);
+                } else if (buckHigh >= GiB) {
+                    constexpr auto div = static_cast<long double>(GiB);
+                    dump(out,
+                         "GiB",
+                         lastBuckLow / div,
+                         buckHigh / div,
+                         count,
+                         percentile);
+                } else if (buckHigh >= MiB) {
+                    constexpr auto div = static_cast<long double>(MiB);
+                    dump(out,
+                         "MiB",
+                         lastBuckLow / div,
+                         buckHigh / div,
+                         count,
+                         percentile);
+                } else if (buckHigh >= KiB) {
+                    constexpr auto div = static_cast<long double>(KiB);
+                    dump(out,
+                         "KiB",
+                         lastBuckLow / div,
+                         buckHigh / div,
+                         count,
+                         percentile);
+                } else {
+                    dump(out, "B", lastBuckLow, buckHigh, count, percentile);
+                }
+                break;
+            }
+            case HistogramType::TimeSeconds: {
+                auto buckHighUs = doubleMicroseconds(buckHigh * 1'000'000.0L);
+                auto buckHighMs = duration_cast<doubleMilliseconds>(buckHighUs);
+                auto buckHighS = duration_cast<doubleSeconds>(buckHighUs);
+
+                if (buckHighS.count() > 1) {
+                    dump(out,
+                         "s",
+                         static_cast<long double>(lastBuckLow),
+                         static_cast<long double>(buckHigh),
+                         count,
+                         percentile);
+                } else if (buckHighMs.count() > 1) {
+                    auto low = duration_cast<doubleMilliseconds>(
+                            doubleSeconds(lastBuckLow));
+                    dump(out,
+                         "ms",
+                         low.count(),
+                         buckHighMs.count(),
+                         count,
+                         percentile);
+                } else {
+                    auto low = duration_cast<doubleMicroseconds>(
+                            doubleSeconds(lastBuckLow));
+                    dump(out,
+                         "us",
+                         low.count(),
+                         buckHighUs.count(),
+                         count,
+                         percentile);
+                }
+                break;
+            }
+            case HistogramType::TimeMicroseconds: {
+                auto buckHighUs = doubleMicroseconds(buckHigh);
+                auto buckHighMs = duration_cast<doubleMilliseconds>(buckHighUs);
+                auto buckHighS = duration_cast<doubleSeconds>(buckHighUs);
+
+                if (buckHighS.count() > 1) {
+                    auto low = duration_cast<doubleSeconds>(
+                            microseconds(lastBuckLow));
+                    dump(out,
+                         "s",
+                         low.count(),
+                         buckHighS.count(),
+                         count,
+                         percentile);
+                } else if (buckHighMs.count() > 1) {
+                    auto low = duration_cast<doubleMilliseconds>(
+                            doubleMicroseconds(lastBuckLow));
+                    dump(out,
+                         "ms",
+                         low.count(),
+                         buckHighMs.count(),
+                         count,
+                         percentile);
+                } else {
+                    dump(out, "us", lastBuckLow, buckHigh, count, percentile);
+                }
+                break;
+            }
             }
 
-            // Set the low bucket value to this buckets high width value.
             lastBuckLow = buckHigh;
         }
 
@@ -108,14 +227,74 @@ void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
         if (overflowed) {
             const auto barWidth = barChartWidth(overflowed);
             const auto countWidth = countFieldWidth();
-            const doubleSeconds maxTrackableS =
-                    doubleMicroseconds(maxTrackableValue);
-            fmt::print(out,
-                       "[{:6.2f} - {:6.2f}]s (overflowed)\t{}| {}\n",
-                       maxTrackableS.count(),
-                       std::numeric_limits<double>::infinity(),
-                       fmt::format("{0:>{1}}", overflowed, countWidth),
-                       std::string(barWidth, '#'));
+
+            switch (type) {
+            case HistogramType::Count:
+                fmt::print(out,
+                           "[{:6.2f} - {:6.2f}] (overflowed)\t{}| {}\n",
+                           static_cast<long double>(maxTrackableValue),
+                           std::numeric_limits<double>::infinity(),
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+                break;
+            case HistogramType::Ratio:
+                fmt::print(out,
+                           "[{:6.2f} - {:6.2f}] (overflowed)\t{}| {}\n",
+                           static_cast<long double>(maxTrackableValue) / 10.0L,
+                           std::numeric_limits<double>::infinity(),
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+                break;
+            case HistogramType::Size: {
+                constexpr auto KiB = 1_KiB;
+                constexpr auto MiB = 1_MiB;
+                constexpr auto GiB = 1_GiB;
+                constexpr auto TiB = 1_TiB;
+
+                std::string_view unit = "B";
+                long double val = maxTrackableValue;
+                if (maxTrackableValue >= TiB) {
+                    unit = "TiB";
+                    val /= static_cast<long double>(TiB);
+                } else if (maxTrackableValue >= GiB) {
+                    unit = "GiB";
+                    val /= static_cast<long double>(GiB);
+                } else if (maxTrackableValue >= MiB) {
+                    unit = "MiB";
+                    val /= static_cast<long double>(MiB);
+                } else if (maxTrackableValue >= KiB) {
+                    unit = "KiB";
+                    val /= static_cast<long double>(KiB);
+                }
+                fmt::print(out,
+                           "[{:6.2f} - {:6.2f}]{} (overflowed)\t{}| {}\n",
+                           val,
+                           std::numeric_limits<double>::infinity(),
+                           unit,
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+                break;
+            }
+            case HistogramType::TimeSeconds:
+                fmt::print(out,
+                           "[{:6.2f} - {:6.2f}]s (overflowed)\t{}| {}\n",
+                           static_cast<long double>(maxTrackableValue),
+                           std::numeric_limits<double>::infinity(),
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+                break;
+            case HistogramType::TimeMicroseconds: {
+                const doubleSeconds maxTrackableS =
+                        doubleMicroseconds(maxTrackableValue);
+                fmt::print(out,
+                           "[{:6.2f} - {:6.2f}]s (overflowed)\t{}| {}\n",
+                           maxTrackableS.count(),
+                           std::numeric_limits<double>::infinity(),
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+                break;
+            }
+            }
         }
     }
 
@@ -128,7 +307,7 @@ void TimingHistogramPrinter::printLegend(FILE* out) {
 }
 
 void TimingHistogramPrinter::dump(FILE* out,
-                                  std::string_view timeunit,
+                                  std::string_view unit,
                                   long double low,
                                   long double high,
                                   int64_t count,
@@ -140,7 +319,7 @@ void TimingHistogramPrinter::dump(FILE* out,
                "[{:6.2f} - {:6.2f}]{} ({:6.4f}%)\t{}| {}\n",
                low,
                high,
-               timeunit,
+               unit,
                percentile,
                fmt::format("{0:>{1}}", count, numberOfSpaces),
                std::string(num, '#'));

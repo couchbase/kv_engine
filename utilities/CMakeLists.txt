@@ -116,6 +116,7 @@ cb_add_test_executable(utilities_testapp
         stat_group_test.cc
         string_utilities_test.cc
         throttle_utilities_test.cc
+        timing_histogram_printer_test.cc
         util_test.cc)
 kv_enable_pch(utilities_testapp)
 cb_enable_unity_build(utilities_testapp)
