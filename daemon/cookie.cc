@@ -225,6 +225,16 @@ void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
     } else {
         packet = &header;
     }
+    uint8_t opcode = 0xff;
+    try {
+        if (!packet->isResponse()) {
+            opcode = static_cast<uint8_t>(
+                    packet->getRequest().getClientOpcode());
+        }
+    } catch (...) {
+        opcode = 0xff;
+    }
+    currentOpcode.store(opcode, std::memory_order_release);
 }
 
 cb::const_byte_buffer Cookie::getPacket() const {
@@ -447,13 +457,24 @@ void Cookie::maybeLogSlowCommand(
 
 Cookie::Cookie(Connection& conn)
     : connection(conn),
-      resource_allocation_domain(ResourceAllocationDomain::None) {
+      resource_allocation_domain(ResourceAllocationDomain::None),
+      generation(static_cast<uint64_t>(
+              std::chrono::steady_clock::now().time_since_epoch().count())) {
+}
+
+void Cookie::incrementGeneration() {
+    const auto opcode = currentOpcode.load(std::memory_order_acquire);
+    if (opcode != 0xff) {
+        previousOpcode.store(opcode, std::memory_order_release);
+    }
+    generation.fetch_add(1, std::memory_order_release);
 }
 
 void Cookie::initialize(std::chrono::steady_clock::time_point now,
                         const cb::mcbp::Header& header,
                         bool tracing_enabled) {
     reset();
+    incrementGeneration();
     setTracingEnabled(tracing_enabled ||
                       Settings::instance().alwaysCollectTraceInfo());
     setPacket(header);
@@ -776,6 +797,11 @@ Cookie::~Cookie() {
         cb::logger::flush();
         std::terminate();
     }
+    // Note: Because magic_byte_pattern is a std::atomic, this store has
+    // defined side effects in the C++ memory model and cannot be eliminated
+    // as a dead store by the compiler even though the object is being
+    // destroyed.
+    magic_byte_pattern.store(MagicByteFreed, std::memory_order_release);
 }
 
 void Cookie::reset() {
@@ -785,6 +811,10 @@ void Cookie::reset() {
     total_throttle_time = total_throttle_time.zero();
     error_json.clear();
     packet = {};
+    const auto prev = currentOpcode.exchange(0xff, std::memory_order_acq_rel);
+    if (prev != 0xff) {
+        previousOpcode.store(prev, std::memory_order_release);
+    }
     validated = false;
     cas = 0;
     commandContext.reset();
@@ -1155,15 +1185,101 @@ ConnectionIface& Cookie::getConnectionIface() {
     return connection;
 }
 
+void Cookie::logSpuriousNotification(cb::engine_errc status,
+                                     uint64_t notification_magic_byte,
+                                     uint64_t notification_generation,
+                                     uint8_t notification_opcode) const {
+    const auto opToString = [](uint8_t op) -> std::string {
+        if (op == 0xff) {
+            return "None";
+        }
+        try {
+            return to_string(static_cast<cb::mcbp::ClientOpcode>(op));
+        } catch (...) {
+            return cb::to_hex(op);
+        }
+    };
+
+    const auto getCurrentOpcode = [this, &opToString]() -> std::string {
+        if (empty()) {
+            return "None";
+        }
+        try {
+            return opToString(
+                    static_cast<uint8_t>(getRequest().getClientOpcode()));
+        } catch (...) {
+            try {
+                return opToString(getHeader().getOpcode());
+            } catch (...) {
+                return "None";
+            }
+        }
+    };
+
+    const auto prefix = fmt::format(
+            "Spurious notification: cookie:{} not in ewouldblock state",
+            static_cast<const void*>(this));
+
+    // Log what should be stack stored data first and flush the logger. I.e. as
+    // it stands we don't trust this.
+    LOG_CRITICAL(
+            "{} [1/2] notification state: magic:0x{:x} generation:{} "
+            "opcode:{} status:{}",
+            prefix,
+            notification_magic_byte,
+            notification_generation,
+            opToString(notification_opcode),
+            to_string(status));
+    cb::logger::flush();
+
+    // Next log the state which is owned by the cookie. "this" could be junk, we
+    // don't know.
+    LOG_CRITICAL(
+            "{} [2/2] cookie state: magic:0x{:x} generation:{} opcode:{} "
+            "previous-opcode:{} connection:{}",
+            prefix,
+            magic_byte_pattern.load(std::memory_order_acquire),
+            generation.load(std::memory_order_acquire),
+            getCurrentOpcode(),
+            opToString(previousOpcode.load(std::memory_order_acquire)),
+            connection.getDescription());
+    cb::logger::flush();
+}
+
 void Cookie::notifyIoComplete(cb::engine_errc status) {
+    // Snapshot the state of the cookie as it is _now_, so that the callback
+    // below may report what the notification was issued for (and not just
+    // what the cookie happens to look like by the time it runs).
+    const auto notification_magic_byte =
+            magic_byte_pattern.load(std::memory_order_acquire);
+    const auto notification_generation =
+            generation.load(std::memory_order_acquire);
+    const auto notification_opcode =
+            currentOpcode.load(std::memory_order_acquire);
     auto& thr = getConnection().getThread();
     thr.eventBase.runInEventBaseThreadAlwaysEnqueue(
-            [this, status, scheduled = std::chrono::steady_clock::now()]() {
+            [this,
+             status,
+             notification_magic_byte,
+             notification_generation,
+             notification_opcode,
+             scheduled = std::chrono::steady_clock::now()]() {
                 TRACE_LOCKGUARD_TIMED(getConnection().getThread().mutex,
                                       "mutex",
                                       "notifyIoComplete",
                                       SlowMutexThreshold);
-                getConnection().processNotifiedCookie(*this, status, scheduled);
+
+                if (!isEwouldblock()) {
+                    logSpuriousNotification(status,
+                                            notification_magic_byte,
+                                            notification_generation,
+                                            notification_opcode);
+                    // Retain the current behaviour, that is to expect (throw)
+                    Expects(isEwouldblock());
+                }
+
+                incrementGeneration();
+                connection.processNotifiedCookie(*this, status, scheduled);
             });
 }
 
