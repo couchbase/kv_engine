@@ -221,6 +221,41 @@ static size_t regionsPerSlab(const std::string& allocatorStatsDump,
 // temp-OOM. It is re-enabled to assert recovery (phase 2). The gate does not
 // depend on the defragmenter being enabled, only on the published RSS/frag.
 TEST_P(MemTrackingBucketTest, HighFragmentation) {
+    // A note on the `+ 64` in the two regionsPerSlab() queries below.
+    //
+    // regionsPerSlab() returns the `regs` of the smallest jemalloc bin that
+    // fits the query size, and that value is used as the survivor delete
+    // stride in phases 2 and 4 (keep index 0, nregs, 2*nregs, ... -> one live
+    // region per slab). So the query must resolve to the SAME size class the
+    // stored Blob actually lands in, otherwise the stride is wrong.
+    //
+    // A stored Blob is value + a ~9-byte header (sizeof(Blob) 12 - 3 padding,
+    // see Blob::getAllocationSize()). Both value sizes here (1024, 4096) sit
+    // exactly on a jemalloc class boundary, so the real Blob (value + 9)
+    // spills into the NEXT class. The `+ 64` bumps the query past the boundary
+    // into that next class. Any margin between the header size and the gap to
+    // the following class works; 64 is a round, robust choice (it does not
+    // depend on the exact header size):
+    //
+    //   value     alloc   real class   RSS/region   regs
+    //   A: 1024   1033    1280         1280         16
+    //   B: 4096   4105    5120         5120         4
+    //
+    // Dropping the `+ 64` makes the query resolve to the value's own boundary
+    // class (1024 / 4096) instead. Those have a different slab geometry, hence
+    // a different `regs`, so the delete stride is wrong:
+    //
+    //   * A: the 1024 bin has nregs = 4 (vs 16 for 1280). The stride keeps 4
+    //     survivors per 1280 slab instead of 1, so allocated drops ~4x less
+    //     and the fragmentation we build is far weaker.
+    //   * B: the 4096 bin has regs = 1. Stride 1 makes `i % nregsB` always 0,
+    //     so the phase-4 delete loop removes NOTHING (and ASSERT_GT(nregsB, 0)
+    //     still passes). B stays fully packed.
+    //
+    // The final rss>quota / alloc<quota asserts may still pass on phase-3
+    // slack, but the test would be flaky and no longer reproduce the MB-55537
+    // condition.
+
     adminConnection->selectBucket(bucketName);
 
     const auto setParam = [](std::string_view key, std::string_view value) {
