@@ -579,7 +579,9 @@ bool Connection::reEvaluateThrottledCookies() {
                 throttled = true;
             } else {
                 c->setThrottled(false);
-                c->notifyIoComplete(cb::engine_errc::success);
+                processNotifiedCookie(*c,
+                                      cb::engine_errc::success,
+                                      std::chrono::steady_clock::now());
             }
         }
     }

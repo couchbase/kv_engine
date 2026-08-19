@@ -16,6 +16,7 @@
 #include "log_macros.h"
 
 #include <daemon/cookie.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/socket.h>
 
 #include <folly/portability/GTest.h>
@@ -51,6 +52,20 @@ public:
     Cookie& allocateCookie() {
         cookies.emplace_back(std::make_unique<Cookie>(*this));
         return *cookies.back();
+    }
+
+    Cookie& getFirstCookie() {
+        Expects(!cookies.empty());
+        return *cookies.front();
+    }
+
+    /// Detach the read/write/event callbacks from the underlying
+    /// bufferevent so that draining any bufferevent callback which was
+    /// triggered (but not yet run) via triggerCallback() is side-effect
+    /// free, rather than running the connection's real packet execution
+    /// pipeline.
+    void detachBuffereventCallbacks() {
+        bufferevent_setcb(bev.get(), nullptr, nullptr, nullptr, nullptr);
     }
 
     /// Returns the current state of the connection.
@@ -287,4 +302,62 @@ TEST_F(ConnectionUnitTests, MB_67796_emptySendQueue) {
 
 TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
     resetConnectionTest(false);
+}
+
+/**
+ * Connection::reEvaluateThrottledCookies() must un-throttle a cookie
+ * synchronously (rather than via a deferred event base callback) so that
+ * the cookie's state cannot be invalidated by a connection reset or bucket
+ * teardown before the unthrottle completes.
+ *
+ * If this regresses back to going via Cookie::notifyIoComplete(), the
+ * cookie would still be in the ewouldblock state immediately after
+ * reEvaluateThrottledCookies() returns; ~Cookie() calls std::terminate() if
+ * a cookie is destroyed while still marked ewouldblock, so TearDown() would
+ * abort the test process in that case.
+ */
+TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
+    using namespace cb::mcbp;
+
+    // processNotifiedCookie() records into this histogram, indexed by
+    // thread.index; normally sized during front-end thread startup, which
+    // MockFrontEndThread bypasses.
+    cookie_notification_histogram.resize(1);
+    std::array<uint8_t, 256> requestBuffer{};
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(ClientOpcode::Get);
+    builder.setKey("key");
+
+    auto& cookie = connection->getFirstCookie();
+    cookie.initialize(std::chrono::steady_clock::now(),
+                      *reinterpret_cast<const Header*>(builder.getFrame()));
+    cookie.setEwouldblock();
+    cookie.setThrottled(true);
+
+    ASSERT_TRUE(cookie.isThrottled());
+    ASSERT_TRUE(cookie.isEwouldblock());
+
+    // Throttling is disabled by default, so Bucket::shouldThrottle() will
+    // return false and the cookie should be un-throttled immediately -
+    // no connections left needing a re-check.
+    EXPECT_FALSE(connection->reEvaluateThrottledCookies());
+
+    EXPECT_FALSE(cookie.isThrottled());
+    EXPECT_FALSE(cookie.isEwouldblock());
+    EXPECT_EQ(cb::engine_errc::success, cookie.getAiostat());
+
+    // processNotifiedCookie() calls triggerCallback(), which schedules the
+    // connection's read callback as a deferred libevent callback rather than
+    // running it inline. Until that deferred callback actually runs, libevent
+    // holds an extra reference on the connection's bufferevent to keep it
+    // alive - freeing the connection (in TearDown()) before draining it here
+    // leaves that reference dangling and the bufferevent (and its evbuffers)
+    // leaked. Detach the callbacks first so draining it doesn't try to run
+    // the connection's real packet execution pipeline against a cookie that
+    // was never fully set up for that (e.g. never authenticated/validated).
+    connection->detachBuffereventCallbacks();
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+
+    cookie.reset();
 }
