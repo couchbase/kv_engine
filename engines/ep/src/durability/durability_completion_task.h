@@ -31,15 +31,27 @@
  * management, for example we avoid lock inversions with earlier locks acquired
  * during dcpSeqnoAck when attemping to later call notifySeqnoAvailable when
  * this was done on the original thread.
+ *
+ * Multiple instances of this task exist per bucket (see
+ * KVBucket::createAndScheduleDurabilityCompletionTasks). Each vBucket is
+ * assigned to one of them for as long as it exists on this node, so
+ * completion of a single bucket's SyncWrites can scale beyond a single thread
+ * while still completing each vBucket's SyncWrites in-order.
  */
 class DurabilityCompletionTask : public VBNotifiableTask {
 public:
-    explicit DurabilityCompletionTask(EventuallyPersistentEngine& engine);
+    /**
+     * @param engine the engine this task is associated with
+     * @param id identifier of this task within the bucket's set of
+     *        DurabilityCompletionTasks - used to distinguish them in
+     *        logs / task stats.
+     */
+    DurabilityCompletionTask(EventuallyPersistentEngine& engine, size_t id);
 
     void visitVBucket(VBucket& vb) override;
 
     std::string getDescription() const override {
-        return "DurabilityCompletionTask";
+        return "DurabilityCompletionTask:" + std::to_string(id);
     }
 
     /**
@@ -49,4 +61,8 @@ public:
      * for it to run.
      */
     void notifySyncWritesToComplete(Vbid vbid);
+
+private:
+    /// Identifier of this task within the bucket's set of tasks.
+    const size_t id;
 };

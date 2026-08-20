@@ -315,7 +315,6 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     lastSnapStart,
                                     lastSnapEnd,
                                     std::move(table),
-                                    makeSyncWriteResolvedCB(),
                                     makeSyncWriteCompleteCB(),
                                     syncWriteTimeoutFactory,
                                     makeSeqnoAckCB(),

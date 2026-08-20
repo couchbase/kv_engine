@@ -152,7 +152,6 @@ VBucketPtr KVStoreRandomizedTest::makeVBucket() {
             /*lastSnapEnd*/ seqno,
             /*table*/ nullptr,
             std::make_shared<DummyCB>(),
-            [](Vbid) {},
             NoopSyncWriteCompleteCb,
             NoopSyncWriteTimeoutFactory,
             NoopSeqnoAckCb,

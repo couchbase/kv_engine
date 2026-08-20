@@ -33,6 +33,7 @@
 #include <atomic>
 #include <iostream>
 #include <list>
+#include <mutex>
 #include <queue>
 
 class ActiveDurabilityMonitor;
@@ -40,6 +41,7 @@ struct CheckpointSnapshotRange;
 class CheckpointManager;
 class CheckpointConfig;
 class ConflictResolution;
+class DurabilityCompletionTask;
 class Configuration;
 class CompactionBGFetchItem;
 struct DCPBackfillIface;
@@ -184,7 +186,6 @@ public:
             std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<Vbid>> flusherCb,
             std::unique_ptr<AbstractStoredValueFactory> valFact,
-            SyncWriteResolvedCallback syncWriteResolvedCb,
             SyncWriteCompleteCallback syncWriteCb,
             SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
             SeqnoAckCallback seqnoAckCb,
@@ -2910,11 +2911,16 @@ private:
     std::unique_ptr<ConflictResolution> conflictResolver;
 
     /**
-     * Callback invoked when one or more SyncWrites are ready to be resolved for
-     * this VBucket (either met requirements and should be Committed, or cannot
-     * meet requirements and should be Aborted).
+     * Guards the one-time bind of DurabilityCompletionTask.
+     * @see notifySyncWritesPendingCompletion()
      */
-    SyncWriteResolvedCallback syncWriteResolvedCb;
+    std::once_flag durabilityCompletionTaskBound;
+
+    /**
+     * The DurabilityCompletionTask which completes this vBucket's resolved
+     * SyncWrites.
+     */
+    std::shared_ptr<DurabilityCompletionTask> durabilityCompletionTask;
 
     /**
      * Callback invoked after a SyncWrite has been completed (Committed /

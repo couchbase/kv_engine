@@ -293,7 +293,6 @@ public:
                 /*lastSnapEnd*/ 1000,
                 /*table*/ nullptr,
                 std::make_shared<DummyCB>(),
-                [](Vbid) {},
                 NoopSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,

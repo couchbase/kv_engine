@@ -29,6 +29,7 @@
 
 #include <folly/Expected.h>
 #include <cstdlib>
+#include <mutex>
 #include <variant>
 
 class CheckpointDestroyerTask;
@@ -1124,6 +1125,28 @@ public:
 
     void createAndScheduleCheckpointDestroyerTasks();
     void createAndScheduleCheckpointRemoverTasks();
+
+    using DurabilityCompletionTasks =
+            std::vector<std::shared_ptr<DurabilityCompletionTask>>;
+
+    /**
+     * Create and schedule the set of DurabilityCompletionTasks for this
+     * bucket.
+     *
+     * The number of tasks is given by the durability_completion_task_count
+     * config param; '0' means auto-configure to the number of QuickNonIO
+     * threads (the maximum concurrency available to this task type).
+     */
+    void createAndScheduleDurabilityCompletionTasks();
+
+    /**
+     * Bind a vBucket to the DurabilityCompletionTask currently serving the
+     * fewest vBuckets, and return it. Called by VBucket the first time it
+     * resolves a SyncWrite; the returned reference is both what routes the
+     * vBucket's notifications and what counts it against the task.
+     */
+    std::shared_ptr<DurabilityCompletionTask> getDurabilityCompletionTask();
+
     void createAndScheduleBucketQuotaChangeTask();
 
     /**
@@ -1470,7 +1493,6 @@ protected:
      * resolved for the given vBucket and are awaiting Completion (Commit /
      * Abort). Used by makeVBucket().
      */
-    SyncWriteResolvedCallback makeSyncWriteResolvedCB();
 
     /**
      * Returns the callback function to be invoked when a SyncWrite has been
@@ -1620,9 +1642,18 @@ protected:
     SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory =
             NoopSyncWriteTimeoutFactory;
 
-    /// Responsible for completing (commiting or aborting SyncWrites which have
-    /// completed in this KVBucket.
-    std::shared_ptr<DurabilityCompletionTask> durabilityCompletionTask;
+    /**
+     * Responsible for completing (commiting or aborting) SyncWrites which have
+     * been resolved in this KVBucket.
+     *
+     * Each vBucket is bound to exactly one of these tasks, so that each of the
+     * vBucket's SyncWrites are still completed in-order.
+     */
+    DurabilityCompletionTasks durabilityCompletionTasks;
+
+    /// Serialises getDurabilityCompletionTask(), so that vBuckets binding
+    /// concurrently don't all observe the same least-referenced task.
+    std::mutex durabilityCompletionTaskBindMutex;
 
     /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */

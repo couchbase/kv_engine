@@ -75,5 +75,5 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
 
 void MockEphemeralBucket::setDurabilityCompletionTask(
         std::shared_ptr<DurabilityCompletionTask> task) {
-    durabilityCompletionTask = task;
+    durabilityCompletionTasks = {std::move(task)};
 }

@@ -511,6 +511,23 @@ KVBucketTest::getCheckpointDestroyerTasks() const {
     return store->ckptDestroyerTasks;
 }
 
+void KVBucketTest::createAndScheduleDurabilityCompletionTasks() {
+    store->createAndScheduleDurabilityCompletionTasks();
+}
+
+const KVBucket::DurabilityCompletionTasks&
+KVBucketTest::getDurabilityCompletionTasks() const {
+    return store->durabilityCompletionTasks;
+}
+
+std::vector<size_t> KVBucketTest::getDurabilityCompletionTaskRefCounts() const {
+    std::vector<size_t> counts;
+    for (const auto& task : store->durabilityCompletionTasks) {
+        counts.push_back(task.use_count());
+    }
+    return counts;
+}
+
 void KVBucketTest::runBGFetcherTask() {
     MockGlobalTask mockTask(engine->getTaskable(),
                             TaskId::MultiBGFetcherTask);

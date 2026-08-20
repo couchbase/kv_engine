@@ -64,7 +64,6 @@ public:
                 /*lastSnapEnd*/ 0,
                 /*table*/ nullptr,
                 std::make_shared<DummyCB>(),
-                SyncWriteResolvedCallback{},
                 NoopSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,
                 NoopSeqnoAckCb,

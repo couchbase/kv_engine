@@ -20,10 +20,11 @@
 using namespace std::chrono_literals;
 
 DurabilityCompletionTask::DurabilityCompletionTask(
-        EventuallyPersistentEngine& engine)
+        EventuallyPersistentEngine& engine, size_t id)
     : VBNotifiableTask(engine,
                        TaskId::DurabilityCompletionTask,
-                       25ms /* maxChunkDuration */) {
+                       25ms /* maxChunkDuration */),
+      id(id) {
 }
 
 void DurabilityCompletionTask::visitVBucket(VBucket& vb) {

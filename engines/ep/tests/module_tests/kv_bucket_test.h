@@ -299,6 +299,25 @@ public:
     const KVBucket::CheckpointDestroyers& getCheckpointDestroyerTasks() const;
 
     /**
+     * Create and schedule the bucket's DurabilityCompletionTasks.
+     * Note: unit tests don't run KVBucket::initialize(), so tests which want
+     * SyncWrites to be completed by the background tasks must call this.
+     */
+    void createAndScheduleDurabilityCompletionTasks();
+
+    /**
+     * Allow test access to all durability completion tasks.
+     */
+    const KVBucket::DurabilityCompletionTasks& getDurabilityCompletionTasks()
+            const;
+
+    /**
+     * @return the reference count of each DurabilityCompletionTask, indexed as
+     *         getDurabilityCompletionTasks().
+     */
+    std::vector<size_t> getDurabilityCompletionTaskRefCounts() const;
+
+    /**
      * Convenience method to run the background fetcher task once (in the
      * current thread).
      */

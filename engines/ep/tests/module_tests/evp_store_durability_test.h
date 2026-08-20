@@ -28,3 +28,30 @@ protected:
                 vbid, vbucket_state_active, {{"topology", topology}});
     }
 };
+
+/**
+ * Test fixture for verifying that SyncWrite completion is sharded across
+ * multiple DurabilityCompletionTasks.
+ *
+ * Parameterised on the number of DurabilityCompletionTasks
+ * (durability_completion_task_count).
+ */
+class ShardedDurabilityCompletionTest
+    : public SingleThreadedKVBucketTest,
+      public ::testing::WithParamInterface<size_t> {
+protected:
+    void SetUp() override;
+    void TearDown() override;
+
+    /// Make the given vBucket active with a valid topology, but perform no
+    /// SyncWrite on it.
+    void makeActive(Vbid vbid);
+
+    /// Make the given vBucket active and resolve one SyncWrite on it - which
+    /// is what binds the vBucket to a DurabilityCompletionTask.
+    void resolveSyncWrite(Vbid vbid);
+
+    /// Cookies of the SyncWrites issued by resolveSyncWrite(), which must
+    /// outlive the SyncWrites they belong to.
+    std::vector<CookieIface*> cookies;
+};

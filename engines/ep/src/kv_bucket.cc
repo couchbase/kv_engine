@@ -67,11 +67,13 @@
 #include <statistics/labelled_collector.h>
 #include <utilities/math_utilities.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <ctime>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -517,9 +519,7 @@ bool KVBucket::initialize() {
                 std::make_shared<VBucketSyncWriteTimeoutTask>(engine, vbucket));
     };
 
-    durabilityCompletionTask =
-            std::make_shared<DurabilityCompletionTask>(engine);
-    ExecutorPool::get()->schedule(durabilityCompletionTask);
+    createAndScheduleDurabilityCompletionTasks();
 
     workloadMonitorTask = std::make_shared<WorkLoadMonitor>(engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask);
@@ -3118,12 +3118,23 @@ size_t KVBucket::getMemFootPrint() {
     return mem;
 }
 
-SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
-    return [this](Vbid vbid) {
-        if (this->durabilityCompletionTask) {
-            this->durabilityCompletionTask->notifySyncWritesToComplete(vbid);
-        }
-    };
+std::shared_ptr<DurabilityCompletionTask>
+KVBucket::getDurabilityCompletionTask() {
+    if (durabilityCompletionTasks.empty()) {
+        // Some unit tests don't create the tasks - they drive SyncWrite
+        // completion directly instead.
+        return {};
+    }
+
+    // Bind to the least-referenced task - i.e. the one currently serving the
+    // fewest vBuckets, as each bound vBucket holds a reference to its task.
+    // Ties go to the lowest task id; since the reference returned below is
+    // what the next bind counts, sequential binds rotate over the tied tasks.
+    std::lock_guard<std::mutex> lh(durabilityCompletionTaskBindMutex);
+    return *std::ranges::min_element(
+            durabilityCompletionTasks, {}, [](const auto& task) {
+                return task.use_count();
+            });
 }
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
@@ -3481,6 +3492,29 @@ void KVBucket::createAndScheduleCheckpointRemoverTasks() {
                 std::make_shared<CheckpointMemRecoveryTask>(engine, stats, id);
         chkRemovers.emplace_back(task);
         ExecutorPool::get()->schedule(task);
+    }
+}
+
+void KVBucket::createAndScheduleDurabilityCompletionTasks() {
+    Expects(durabilityCompletionTasks.empty());
+
+    auto numTasks =
+            engine.getConfiguration().getDurabilityCompletionTaskCount();
+    if (numTasks == 0) {
+        // Auto-configure: there's no benefit in having more tasks than the
+        // number of threads which can run them concurrently.
+        numTasks = std::max(size_t{1}, ExecutorPool::get()->getNumQuickNonIO());
+    }
+
+    EP_LOG_INFO(
+            "KVBucket::createAndScheduleDurabilityCompletionTasks: "
+            "creating {} DurabilityCompletionTask(s)",
+            numTasks);
+
+    for (size_t id = 0; id < numTasks; ++id) {
+        durabilityCompletionTasks.push_back(
+                std::make_shared<DurabilityCompletionTask>(engine, id));
+        ExecutorPool::get()->schedule(durabilityCompletionTasks.back());
     }
 }
 

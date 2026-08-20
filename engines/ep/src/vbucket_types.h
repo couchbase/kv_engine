@@ -37,7 +37,6 @@ class VBucket;
  * Will normally call the DurabilityCompletionTask to wake up and process
  * those resolved SyncWrites.
  */
-using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
 
 /**
  * Callback function invoked when an accepted SyncWrite operation has been

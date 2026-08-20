@@ -69,6 +69,12 @@ public:
             uint64_t maxPrepareSeqno,
             std::optional<vbucket_state_t> expectedNextState) override;
 
+    /**
+     * Replace the bucket's set of DurabilityCompletionTasks with the single
+     * given task, which then handles all vBuckets.
+     * Note: a vBucket binds to a task on its first resolved SyncWrite, so this
+     * must be called before that - creating the vBucket first is fine.
+     */
     void setDurabilityCompletionTask(
             std::shared_ptr<DurabilityCompletionTask> task);
 

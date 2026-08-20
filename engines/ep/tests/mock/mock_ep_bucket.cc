@@ -120,7 +120,7 @@ VBucketPtr MockEPBucket::makeVBucket(
 
 void MockEPBucket::setDurabilityCompletionTask(
         std::shared_ptr<DurabilityCompletionTask> task) {
-    durabilityCompletionTask = task;
+    durabilityCompletionTasks = {std::move(task)};
 }
 
 Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {

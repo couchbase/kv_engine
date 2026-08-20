@@ -1899,7 +1899,6 @@ VBucketPtr EPBucket::makeVBucket(
                           lastSnapEnd,
                           std::move(table),
                           std::make_shared<NotifyFlusherCB>(shard),
-                          makeSyncWriteResolvedCB(),
                           makeSyncWriteCompleteCB(),
                           syncWriteTimeoutFactory,
                           makeSeqnoAckCB(),

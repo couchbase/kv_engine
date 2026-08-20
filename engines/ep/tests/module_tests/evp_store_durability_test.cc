@@ -2628,7 +2628,7 @@ TEST_P(DurabilityBucketTest, AddSyncDelete_CommittedDelete) {
 TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
     setVBucketToActiveWithValidTopology();
 
-    auto task = std::make_shared<DurabilityCompletionTask>(*engine);
+    auto task = std::make_shared<DurabilityCompletionTask>(*engine, 0);
     if (persistent()) {
         auto* mockStore = static_cast<MockEPBucket*>(store);
         mockStore->setDurabilityCompletionTask(task);
@@ -5514,3 +5514,254 @@ INSTANTIATE_TEST_SUITE_P(AllBackends,
                          BackingStoreMaxVisibleSeqnoTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+void ShardedDurabilityCompletionTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string +=
+            "durability_completion_task_count=" + std::to_string(GetParam());
+    // More than the 4 vBuckets SynchronousEPEngine defaults to, so that the
+    // tests can use a sparse set of vbids.
+    config_string += ";max_vbuckets=16";
+    SingleThreadedKVBucketTest::SetUp();
+    // Unit tests don't run KVBucket::initialize(), so create the tasks here.
+    createAndScheduleDurabilityCompletionTasks();
+}
+
+void ShardedDurabilityCompletionTest::TearDown() {
+    for (auto* cookie : cookies) {
+        destroy_mock_cookie(cookie);
+    }
+    cookies.clear();
+    SingleThreadedKVBucketTest::TearDown();
+}
+
+void ShardedDurabilityCompletionTest::makeActive(Vbid vbid) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+}
+
+void ShardedDurabilityCompletionTest::resolveSyncWrite(Vbid vbid) {
+    makeActive(vbid);
+
+    auto* cookie = create_mock_cookie(engine.get());
+    cookies.push_back(cookie);
+
+    auto pending = makePendingItem(
+            makeStoredDocKey("key" + std::to_string(vbid.get())), "value");
+    pending->setVBucketId(vbid);
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending, cookie));
+
+    auto vb = store->getVBucket(vbid);
+    {
+        auto rlh = std::shared_lock<folly::SharedMutex>(vb->getStateLock());
+        vb->seqnoAcknowledged(rlh, "replica", 1);
+    }
+    // Resolved, but not completed until the owning task runs.
+    ASSERT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
+}
+
+TEST_P(ShardedDurabilityCompletionTest, SyncWritesCompletedByOwningTask) {
+    const auto& tasks = getDurabilityCompletionTasks();
+    // Sanity check that the number of tasks created matches the config.
+    ASSERT_EQ(GetParam(), tasks.size());
+
+    // Newly scheduled tasks are due to run immediately; run each of them once
+    // (finding nothing to do) so they all snooze until notified.
+    auto& qNonIoQ = *task_executor->getLpTaskQ(TaskType::QuickNonIO);
+    for (size_t i = 0; i < tasks.size(); ++i) {
+        runNextTask(qNonIoQ);
+    }
+    for (const auto& task : tasks) {
+        ASSERT_EQ(cb::time::steady_clock::time_point::max(),
+                  task->getWaketime());
+    }
+
+    // Make a SyncWrite on each vBucket and ack it, which resolves the
+    // SyncWrite and should notify the task which owns that vBucket.
+    const Vbid::id_type numVbuckets = 4;
+    std::vector<CookieIface*> cookies;
+    for (Vbid::id_type i = 0; i < numVbuckets; ++i) {
+        const auto currVbid = Vbid(i);
+        setVBucketStateAndRunPersistTask(
+                currVbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+        auto* cookie = create_mock_cookie(engine.get());
+        cookies.push_back(cookie);
+
+        auto pending = makePendingItem(
+                makeStoredDocKey("key" + std::to_string(i)), "value");
+        pending->setVBucketId(currVbid);
+        ASSERT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*pending, cookie));
+
+        auto vb = store->getVBucket(currVbid);
+        {
+            auto rlh = std::shared_lock<folly::SharedMutex>(vb->getStateLock());
+            vb->seqnoAcknowledged(rlh, "replica", 1);
+        }
+
+        // Resolved, but not completed until the owning task runs.
+        ASSERT_EQ(0, vb->acquireStateLockAndGetHighCompletedSeqno());
+    }
+
+    // Check that only the tasks which own at least one of the above vBuckets
+    // have been woken.
+    // Note: a vBucket binds to the then least-referenced task on its first
+    // resolved SyncWrite, so resolving on vBuckets 0..numVbuckets-1 in order
+    // binds vBucket i to tasks[i % numTasks]; with more tasks than vBuckets
+    // the surplus tasks own nothing.
+    for (size_t i = 0; i < tasks.size(); ++i) {
+        const auto& task = tasks.at(i);
+        if (i < numVbuckets) {
+            EXPECT_LE(task->getWaketime(), cb::time::steady_clock::now())
+                    << "Task:" << i << " should have been woken";
+        } else {
+            EXPECT_EQ(cb::time::steady_clock::time_point::max(),
+                      task->getWaketime())
+                    << "Task:" << i << " owns no vBuckets, should be asleep";
+        }
+    }
+
+    // Run all woken tasks - between them they must complete the SyncWrites of
+    // all vBuckets.
+    const auto numWoken = std::min(size_t(numVbuckets), tasks.size());
+    for (size_t i = 0; i < numWoken; ++i) {
+        runNextTask(qNonIoQ);
+    }
+
+    for (Vbid::id_type i = 0; i < numVbuckets; ++i) {
+        auto vb = store->getVBucket(Vbid(i));
+        EXPECT_EQ(1, vb->acquireStateLockAndGetHighCompletedSeqno())
+                << "SyncWrite on " << Vbid(i) << " should have been completed";
+    }
+
+    for (auto* cookie : cookies) {
+        destroy_mock_cookie(cookie);
+    }
+}
+
+TEST_P(ShardedDurabilityCompletionTest, VBucketsSplitEvenlyAcrossTasks) {
+    const auto numTasks = getDurabilityCompletionTasks().size();
+    ASSERT_EQ(GetParam(), numTasks);
+
+    // A task's reference count also includes the references held by the pool
+    // and the ExecutorPool, so take a baseline before anything binds.
+    const auto baseline = getDurabilityCompletionTaskRefCounts();
+
+    // A node doesn't own an evenly distributed subset of the vbid space, so
+    // use a set of vbids which is deliberately sparse and which (for some of
+    // the task counts under test) is heavily skewed under a vbid % numTasks
+    // mapping - here every vbid is even, so with 2 tasks a static mapping
+    // would put all of them on tasks[0].
+    const std::vector<Vbid::id_type> vbids = {0, 2, 4, 6, 8, 10, 12, 14};
+    for (auto id : vbids) {
+        resolveSyncWrite(Vbid(id));
+    }
+
+    // Every task should own either floor(N/numTasks) or ceil(N/numTasks)
+    // vBuckets.
+    const auto minPerTask = vbids.size() / numTasks;
+    const auto maxPerTask = (vbids.size() + numTasks - 1) / numTasks;
+    const auto counts = getDurabilityCompletionTaskRefCounts();
+    ASSERT_EQ(numTasks, counts.size());
+    for (size_t i = 0; i < numTasks; ++i) {
+        const auto vbsPerTask = counts[i] - baseline[i];
+        EXPECT_GE(vbsPerTask, minPerTask)
+                << "Task:" << i << " owns too few vBuckets";
+        EXPECT_LE(vbsPerTask, maxPerTask)
+                << "Task:" << i << " owns too many vBuckets";
+    }
+}
+
+TEST_P(ShardedDurabilityCompletionTest, VBucketsWithoutSyncWritesDoNotBind) {
+    const auto numTasks = getDurabilityCompletionTasks().size();
+    ASSERT_EQ(GetParam(), numTasks);
+
+    const auto baseline = getDurabilityCompletionTaskRefCounts();
+    const auto oneEach = [&baseline] {
+        auto expected = baseline;
+        for (auto& count : expected) {
+            ++count;
+        }
+        return expected;
+    }();
+
+    // vBuckets which never complete a SyncWrite give the tasks no work, so
+    // they must not take a share of one. Replicas never do (their prepares are
+    // completed inline by the PassiveDM), and nor does an active which simply
+    // sees no durable writes.
+    for (Vbid::id_type i = 0; i < 4; ++i) {
+        setVBucketState(Vbid(i), vbucket_state_replica);
+    }
+    for (Vbid::id_type i = 4; i < 8; ++i) {
+        makeActive(Vbid(i));
+    }
+    EXPECT_EQ(baseline, getDurabilityCompletionTaskRefCounts());
+
+    // Only the vBuckets which actually resolve a SyncWrite bind, and they are
+    // spread over all the tasks rather than sharing them with the idle ones.
+    for (Vbid::id_type i = 8; i < 8 + numTasks; ++i) {
+        resolveSyncWrite(Vbid(i));
+    }
+    EXPECT_EQ(oneEach, getDurabilityCompletionTaskRefCounts());
+}
+
+TEST_P(ShardedDurabilityCompletionTest, DeletedVBucketReleasesItsTask) {
+    const auto numTasks = getDurabilityCompletionTasks().size();
+    ASSERT_EQ(GetParam(), numTasks);
+
+    const auto baseline = getDurabilityCompletionTaskRefCounts();
+    const auto oneEach = [&baseline] {
+        auto expected = baseline;
+        for (auto& count : expected) {
+            ++count;
+        }
+        return expected;
+    }();
+
+    // Bind exactly one vBucket per task.
+    for (Vbid::id_type i = 0; i < numTasks; ++i) {
+        resolveSyncWrite(Vbid(i));
+    }
+    EXPECT_EQ(oneEach, getDurabilityCompletionTaskRefCounts());
+
+    // Delete them all. A vBucket's binding is released when the VBucket object
+    // is destroyed, which is deferred to a background task - so the counts
+    // only drop once those have run.
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (Vbid::id_type i = 0; i < numTasks; ++i) {
+        ASSERT_EQ(cb::engine_errc::success,
+                  store->deleteVBucket(Vbid(i), nullptr));
+        runNextTask(auxIoQ,
+                    "Removing (dead) " + Vbid(i).to_string() +
+                            " from memory and disk");
+    }
+    EXPECT_EQ(baseline, getDurabilityCompletionTaskRefCounts());
+
+    // The tasks are all unbound again, so re-binding the vBuckets must spread
+    // them out just as before (rather than piling them onto the tasks which
+    // appear least-referenced because of stale counts).
+    for (Vbid::id_type i = 0; i < numTasks; ++i) {
+        resolveSyncWrite(Vbid(i));
+    }
+    EXPECT_EQ(oneEach, getDurabilityCompletionTaskRefCounts());
+}
+
+INSTANTIATE_TEST_SUITE_P(MultipleDurabilityCompletionTasks,
+                         ShardedDurabilityCompletionTest,
+                         ::testing::Values(
+                                 // number of completion tasks
+                                 1, // Degenerate case, same as pre-sharding
+                                 2, // even distribution
+                                 3, // uneven distribution
+                                 4, // task for each vBucket
+                                 5 // more tasks than vBuckets
+                                 ),
+                         ::testing::PrintToStringParamName());

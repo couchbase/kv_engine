@@ -21,6 +21,7 @@
 #include "doc_pre_expiry.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/dead_durability_monitor.h"
+#include "durability/durability_completion_task.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -106,7 +107,6 @@ VBucket::VBucket(Vbid i,
                  std::unique_ptr<FailoverTable> table,
                  std::shared_ptr<Callback<Vbid>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
-                 SyncWriteResolvedCallback syncWriteResolvedCb,
                  SyncWriteCompleteCallback syncWriteCb,
                  SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
                  SeqnoAckCallback seqnoAckCb,
@@ -188,7 +188,6 @@ VBucket::VBucket(Vbid i,
       bucketCreation(false),
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
-      syncWriteResolvedCb(std::move(syncWriteResolvedCb)),
       syncWriteCompleteCb(std::move(syncWriteCb)),
       seqnoAckCb(std::move(seqnoAckCb)),
       mayContainXattrs(mightContainXattrs),
@@ -870,7 +869,22 @@ void VBucket::processDurabilityTimeout(
 }
 
 void VBucket::notifySyncWritesPendingCompletion() {
-    syncWriteResolvedCb(getId());
+    if (!bucket) {
+        // Some unit tests construct VBuckets without a KVBucket - they drive
+        // SyncWrite completion directly instead.
+        return;
+    }
+
+    // Bind to a task on the first resolved SyncWrite. Once bound the vBucket
+    // keeps the same task for as long as it exists, so its SyncWrites are
+    // completed in-order.
+    std::call_once(durabilityCompletionTaskBound, [this] {
+        durabilityCompletionTask = bucket->getDurabilityCompletionTask();
+    });
+
+    if (durabilityCompletionTask) {
+        durabilityCompletionTask->notifySyncWritesToComplete(getId());
+    }
 }
 
 void VBucket::processResolvedSyncWrites() {
