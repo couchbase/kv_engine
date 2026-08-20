@@ -420,6 +420,12 @@ def write_dockerfile(logfile, dockerfile):
     # First line in Dockerfile
     print(f'FROM --platform=linux/{platform} {image}:{tag}', file=dockerfile)
 
+    # An emulated x86_64 CPU does not advertise the AVX2/BMI/FMA flags that
+    # Couchbase Server >= 8.0 requires (x86-64-v3), so both the package
+    # pre-install script and the couchbase-server launcher would abort. This
+    # environment is for offline debugging, so skip the check.
+    print('ENV COUCHBASE_DO_NOT_VALIDATE_CPU_MICROARCHITECTURE=1', file=dockerfile)
+
     important_packages = [
         'libc6',
         'libgcc1',
