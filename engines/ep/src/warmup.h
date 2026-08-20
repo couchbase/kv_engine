@@ -361,6 +361,15 @@ public:
     bool maybeWaitForVBucketWarmup(CookieIface* cookie);
 
     /**
+     * Remove the given cookie from the pending cookies awaiting warmup if the
+     * cookie's connection is disconnecting
+     *
+     * @param cookie the cookie to remove
+     * @return true if the cookie was found and removed
+     */
+    bool removeCookie(const CookieIface* cookie);
+
+    /**
      * Perform any notifications to any pending operations
      * @param status Status code to send to all waiting cookies.
      */

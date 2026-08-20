@@ -1452,6 +1452,12 @@ bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
     });
 }
 
+bool Warmup::removeCookie(const CookieIface* cookie) {
+    return syncData.withLock([cookie](auto& syncData) {
+        return std::erase(syncData.cookies, cookie) != 0;
+    });
+}
+
 void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     // get each VB in the shard and iterate its collections manifest
     // load the _local doc count value

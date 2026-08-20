@@ -7037,6 +7037,14 @@ std::shared_ptr<ConnHandler> EventuallyPersistentEngine::getConnHandler(
 
 void EventuallyPersistentEngine::handleDisconnect(CookieIface& cookie) {
     dcpConnMap_->disconnect(&cookie);
+
+    // a cookie may be parked in Warmup awaiting completion of
+    // PopulateVBucketMap; remove it now that the connection is going away and
+    // notify it
+    auto* warmup = kvBucket->getPrimaryWarmup();
+    if (warmup && warmup->removeCookie(&cookie)) {
+        notifyIOComplete(cookie, cb::engine_errc::disconnect);
+    }
 }
 
 void EventuallyPersistentEngine::initiate_shutdown() {

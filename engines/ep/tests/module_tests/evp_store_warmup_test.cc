@@ -443,6 +443,43 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     }
 }
 
+TEST_F(WarmupTest, PendingCookieRemovedOnDisconnect) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    resetEngineAndEnableWarmup();
+
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
+    auto* disconnectCookie = create_mock_cookie(engine.get());
+
+    auto dummyAddStats = [](std::string_view, std::string_view, const auto&) {
+
+    };
+
+    // park a cookie in warmup
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            engine->get_stats(*disconnectCookie, "vbucket", {}, dummyAddStats));
+
+    // cookie must be removed from warmup and notified so the connection can
+    // finish closing
+    engine->handleDisconnect(*disconnectCookie);
+    EXPECT_EQ(cb::engine_errc::disconnect,
+              mock_waitfor_cookie(disconnectCookie));
+
+    // advance warmup past PopulateVBucketMap where the disconnected cookie must
+    // not be notified again
+    while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+        CheckedExecutor executor(task_executor, readerQueue);
+        executor.runCurrentTask();
+    }
+    EXPECT_FALSE(mock_cookie_notified(disconnectCookie));
+
+    destroy_mock_cookie(disconnectCookie);
+}
+
 /**
  * WarmupTest.MB_32577
  *
