@@ -1717,8 +1717,18 @@ GetValue KVBucket::getInternal(const DocKeyView& key,
                                       cHandle,
                                       getReplicaItem);
 
+        // would_block means the value was not resident and a bgfetch has been
+        // queued; the front-end will re-drive this operation once the fetch
+        // completes, and opsGet is incremented on that second pass. Counting
+        // the miss here (and only here) keeps opsGetBgFetch and opsGet at one
+        // increment per operation, so opsGetBgFetch/opsGet is the cache miss
+        // ratio for this class of operations. Every path which increments
+        // opsGet must do the same, else the ratio is skewed - see
+        // getAndUpdateTtl() and getLocked().
         if (result.getStatus() != cb::engine_errc::would_block) {
             cHandle.incrementOpsGet();
+        } else {
+            cHandle.incrementOpsGetBgFetch();
         }
         return result;
     }
@@ -1935,8 +1945,21 @@ GetValue KVBucket::getAndUpdateTtl(const DocKeyView& key,
                 cHandle.processExpiryTime(exptime, getMaxTtl()),
                 cHandle);
 
-        if (result.getStatus() == cb::engine_errc::success) {
-            cHandle.incrementOpsStore();
+        if (result.getStatus() == cb::engine_errc::would_block) {
+            // Value not resident, a bgfetch has been queued. The operation is
+            // re-driven once it completes and counted in opsGet then, so count
+            // the miss here.
+            cHandle.incrementOpsGetBgFetch();
+        } else {
+            // As getInternal(), count the operation on the pass which
+            // terminates it, whatever the outcome. Counting only success would
+            // leave a miss which then turned out to be not-found present in
+            // opsGetBgFetch but absent from opsGet, so the ratio of the two
+            // would not be bounded by 1. opsStore counts stores rather than
+            // operations, so it stays conditional on success.
+            if (result.getStatus() == cb::engine_errc::success) {
+                cHandle.incrementOpsStore();
+            }
             cHandle.incrementOpsGet();
         }
         return result;
@@ -1968,7 +1991,14 @@ GetValue KVBucket::getLocked(const DocKeyView& key,
     }
 
     auto result = vb->getLocked(lockTimeout, cookie, engine, cHandle);
-    if (result.getStatus() == cb::engine_errc::success) {
+    if (result.getStatus() == cb::engine_errc::would_block) {
+        // Value not resident, a bgfetch has been queued. The operation is
+        // re-driven once it completes and counted in opsGet then, so count the
+        // miss here.
+        cHandle.incrementOpsGetBgFetch();
+    } else {
+        // As getInternal(), count the operation on the pass which terminates
+        // it, whatever the outcome - see the comment in getAndUpdateTtl().
         cHandle.incrementOpsGet();
     }
     return result;

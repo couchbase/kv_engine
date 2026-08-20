@@ -68,6 +68,7 @@ struct OperationCounts {
     uint64_t opsStore{0};
     uint64_t opsDelete{0};
     uint64_t opsGet{0};
+    uint64_t opsGetBgFetch{0};
 };
 
 struct ManifestUidNetworkOrder {
@@ -329,6 +330,7 @@ public:
     void incrementOpsStore();
     void incrementOpsDelete();
     void incrementOpsGet();
+    void incrementOpsGetBgFetch();
     OperationCounts getOperationCounts() const;
 
     struct CoreLocalStats {
@@ -341,6 +343,9 @@ public:
         mutable Counter numOpsDelete;
         //! The number of basic get operations
         mutable Counter numOpsGet;
+        //! The subset of numOpsGet which had to background fetch the value
+        //! from disk, i.e. the value was not resident (a cache miss)
+        mutable Counter numOpsGetBgFetch;
     };
     CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
 

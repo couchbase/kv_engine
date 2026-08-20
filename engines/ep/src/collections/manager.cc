@@ -893,4 +893,6 @@ void Collections::CachedStats::addAggregatedCollectionStats(
     collector.addStat(Key::collection_ops_store, operationCounts.opsStore);
     collector.addStat(Key::collection_ops_delete, operationCounts.opsDelete);
     collector.addStat(Key::collection_ops_get, operationCounts.opsGet);
+    collector.addStat(Key::collection_ops_get_bgfetch,
+                      operationCounts.opsGetBgFetch);
 }

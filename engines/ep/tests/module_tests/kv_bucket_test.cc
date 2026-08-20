@@ -22,6 +22,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
@@ -2134,6 +2135,325 @@ TEST_P(KVBucketParamTest, AccessExpiryGetLockedPreservesSystemXattrs) {
     EXPECT_EQ(1, engine->getEpStats().expired_access);
 
     verifySystemXattrsInTombstone(key);
+}
+
+/**
+ * opsGetBgFetch / opsGet is only a valid cache miss ratio if both counters
+ * advance exactly once per operation. A miss drives the operation through the
+ * engine twice - once to queue the bgfetch (would_block) and once after it
+ * completes - so the miss must be counted on the first pass and opsGet only on
+ * the second, i.e. a single missed get yields 1/1 and not 1/2.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchCountsCacheMiss) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+    ASSERT_EQ(0, counts().opsGet);
+    ASSERT_EQ(0, counts().opsGetBgFetch);
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+    // A resident value is a cache hit - one operation, no fetch.
+    ASSERT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, cookie, options).getStatus());
+    EXPECT_EQ(1, counts().opsGet);
+    EXPECT_EQ(0, counts().opsGetBgFetch);
+
+    evict_key(vbid, key);
+
+    // First pass queues the fetch. The miss is counted now; opsGet is not, as
+    // this operation has not completed yet.
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->get(key, vbid, cookie, options).getStatus());
+    EXPECT_EQ(1, counts().opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch);
+
+    runBGFetcherTask();
+
+    // Second pass completes the operation and counts it. Both counters have
+    // advanced by exactly one for this single missed get.
+    ASSERT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, cookie, options).getStatus());
+    EXPECT_EQ(2, counts().opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch);
+}
+
+/**
+ * getAndUpdateTtl and getLocked also increment opsGet, so they must increment
+ * opsGetBgFetch too - otherwise their misses are absent from the numerator
+ * while their completions are present in the denominator, understating the
+ * ratio for any workload using Touch/GAT or GetLocked.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchCountsTouchAndGetLockedMisses) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto touchKey = makeStoredDocKey("touch");
+    auto lockKey = makeStoredDocKey("lock");
+    store_item(vbid, touchKey, "value");
+    store_item(vbid, lockKey, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+
+    // Touch (getAndUpdateTtl) of a non-resident value.
+    evict_key(vbid, touchKey);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getAndUpdateTtl(touchKey, vbid, cookie, 0).getStatus());
+    EXPECT_EQ(0, counts().opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch);
+
+    runBGFetcherTask();
+
+    ASSERT_EQ(cb::engine_errc::success,
+              store->getAndUpdateTtl(touchKey, vbid, cookie, 0).getStatus());
+    EXPECT_EQ(1, counts().opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch);
+
+    // GetLocked of a non-resident value.
+    evict_key(vbid, lockKey);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getLocked(lockKey, vbid, std::chrono::seconds{10}, cookie)
+                      .getStatus());
+    EXPECT_EQ(1, counts().opsGet);
+    EXPECT_EQ(2, counts().opsGetBgFetch);
+
+    runBGFetcherTask();
+
+    ASSERT_EQ(cb::engine_errc::success,
+              store->getLocked(lockKey, vbid, std::chrono::seconds{10}, cookie)
+                      .getStatus());
+    EXPECT_EQ(2, counts().opsGet);
+    EXPECT_EQ(2, counts().opsGetBgFetch);
+}
+
+/**
+ * A miss whose fetch then finds no document must still be counted in opsGet,
+ * else it sits in opsGetBgFetch with nothing in the denominator and the ratio
+ * is no longer bounded by 1. This is why all three sites count the operation
+ * on whatever outcome terminates it rather than only on success.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchCountsMissesWhichFindNothing) {
+    if (!persistent() || !fullEviction()) {
+        GTEST_SKIP() << "Needs full eviction to fetch for an absent key";
+    }
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+
+    // Leave each key on disk as a tombstone only, so it is absent from the
+    // HashTable but still present in the bloom filter - an access has to go to
+    // disk to discover it is gone.
+    auto storeThenDelete = [this](const StoredDocKey& key) {
+        store_item(vbid, key, "value");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        delete_item(vbid, key);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    };
+
+    // A plain get.
+    auto getKey = makeStoredDocKey("get");
+    storeThenDelete(getKey);
+    auto before = counts();
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->get(getKey, vbid, cookie, options).getStatus());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->get(getKey, vbid, cookie, options).getStatus());
+    EXPECT_EQ(1, counts().opsGet - before.opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch - before.opsGetBgFetch);
+
+    // getAndUpdateTtl (Touch/GAT).
+    auto gatKey = makeStoredDocKey("gat");
+    storeThenDelete(gatKey);
+    before = counts();
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getAndUpdateTtl(gatKey, vbid, cookie, 0).getStatus());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->getAndUpdateTtl(gatKey, vbid, cookie, 0).getStatus());
+    EXPECT_EQ(1, counts().opsGet - before.opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch - before.opsGetBgFetch);
+    // The document was not stored, only looked for.
+    EXPECT_EQ(0, counts().opsStore - before.opsStore);
+
+    // getLocked.
+    auto lockKey = makeStoredDocKey("lock");
+    storeThenDelete(lockKey);
+    before = counts();
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getLocked(lockKey, vbid, std::chrono::seconds{10}, cookie)
+                      .getStatus());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->getLocked(lockKey, vbid, std::chrono::seconds{10}, cookie)
+                      .getStatus());
+    EXPECT_EQ(1, counts().opsGet - before.opsGet);
+    EXPECT_EQ(1, counts().opsGetBgFetch - before.opsGetBgFetch);
+}
+
+/**
+ * An operation can need two fetches - get_if reads the metadata first so the
+ * filter can reject the document without paying for the body, then fetches the
+ * body if it is wanted. Both fetches are counted, but so is each pass which
+ * returns the operation to the caller, so the two counters stay in step and the
+ * ratio remains bounded by 1.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchTwoFetchOperation) {
+    if (!persistent() || !fullEviction()) {
+        GTEST_SKIP() << "Needs full eviction for a separate metadata fetch";
+    }
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, key);
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+    const auto before = counts();
+
+    // Filter accepts, so the body is wanted and a second fetch is needed.
+    auto doGetIf = [this, &key]() {
+        return engine
+                ->getIfInner(*cookie,
+                             key,
+                             vbid,
+                             [](const item_info&) { return true; })
+                .first;
+    };
+
+    // Metadata fetch, then body fetch, then the value is returned.
+    ASSERT_EQ(cb::engine_errc::would_block, doGetIf());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::would_block, doGetIf());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::success, doGetIf());
+
+    EXPECT_EQ(2, counts().opsGetBgFetch - before.opsGetBgFetch);
+    // The metadata-only pass returns to the caller and so is counted too,
+    // which is what keeps opsGetBgFetch from outrunning opsGet.
+    EXPECT_EQ(2, counts().opsGet - before.opsGet);
+}
+
+/**
+ * If the value is evicted again after its fetch completes but before the
+ * operation is re-driven - the pager winning a narrow race under memory
+ * pressure - the operation fetches twice but is only returned to the caller
+ * once. opsGetBgFetch therefore outruns opsGet and the ratio of the two exceeds
+ * 1 for that operation. Rare, but it means the ratio is fetches per completed
+ * operation rather than a fraction which cannot exceed 1.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchReEvictedBeforeRetry) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, key);
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+    const auto before = counts();
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
+
+    // Miss, and the fetch makes the value resident again.
+    ASSERT_EQ(cb::engine_errc::would_block, doGet().getStatus());
+    runBGFetcherTask();
+
+    // The pager evicts it again before the operation is re-driven.
+    evict_key(vbid, key);
+
+    // So the operation misses a second time.
+    ASSERT_EQ(cb::engine_errc::would_block, doGet().getStatus());
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::success, doGet().getStatus());
+
+    // Two fetches, but the operation was only completed once.
+    EXPECT_EQ(2, counts().opsGetBgFetch - before.opsGetBgFetch);
+    EXPECT_EQ(1, counts().opsGet - before.opsGet);
+}
+
+/**
+ * The counter must not pick up bgfetches from paths outside the opsGet class -
+ * that conflation is the flaw in ep_bg_fetched/cmd_lookup which this stat
+ * exists to avoid. A DelWithMeta against a non-resident xattr document has to
+ * fetch from disk to preserve the system xattrs in the tombstone, raising
+ * ep_bg_fetched, but it is not a get and must leave both counters alone.
+ */
+TEST_P(KVBucketParamTest, OpsGetBgFetchExcludesNonGetFetches) {
+    if (!persistent()) {
+        GTEST_SKIP() << "Ephemeral cannot evict values";
+    }
+
+    auto key = makeStoredDocKey("key");
+    storeAndEvictXattrDoc(key);
+
+    auto counts = [this]() {
+        return getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+    ASSERT_EQ(0, counts().opsGet);
+    ASSERT_EQ(0, counts().opsGetBgFetch);
+
+    auto& stats = engine->getEpStats();
+    const auto fetchedBefore = stats.bg_fetched + stats.bg_meta_fetched;
+
+    // Under value-eviction the stored value is still in the HashTable so this
+    // is a value fetch; under full-eviction it is a metadata fetch first.
+    // Either way a fetch is required, and neither is a get.
+    ItemMetaData itemMeta{0xdeadbeefcafefeed, 2, 0, 0};
+    uint64_t cas = 0;
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->deleteWithMeta(key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    itemMeta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    1 /*bySeqno*/,
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
+
+    runBGFetcherTask();
+
+    EXPECT_GT(stats.bg_fetched + stats.bg_meta_fetched, fetchedBefore);
+    EXPECT_EQ(0, counts().opsGet);
+    EXPECT_EQ(0, counts().opsGetBgFetch);
 }
 
 /**

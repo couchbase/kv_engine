@@ -4780,6 +4780,7 @@
         "key": "collection_ops_get",
         "unit": "none",
         "description": "Per-collection counters of operations that perform get (read) type operations against active vbuckets",
+        "long_description": "Counts attempted operations rather than successful ones: an operation is counted once it terminates, whether it found the document or not, so lookups of keys which do not exist are included. The class is wider than client reads - it also covers Touch, which returns no value, and the reads which Append, Prepend, Increment, Decrement and the conditional-store filter perform internally. An operation which has to wait for a background fetch is counted when it is re-driven afterwards, so each operation is counted exactly once; see collection_ops_get_bgfetch for the subset which required a fetch.",
         "type": "counter",
         "cbstat": "ops_get",
         "prometheus": {
@@ -4789,6 +4790,21 @@
             }
         },
         "added": "7.0.0"
+    },
+    {
+        "key": "collection_ops_get_bgfetch",
+        "unit": "none",
+        "description": "Per-collection counter of the get (read) type operations counted by collection_ops_get which had to background fetch the value from disk, i.e. cache misses",
+        "long_description": "The subset of collection_ops_get which found the value non-resident and had to wait for a background fetch from disk. The ratio collection_ops_get_bgfetch / collection_ops_get is the cache miss ratio for that class of operations, but it is strictly fetches per completed operation rather than a bounded probability, so it can exceed 1: if the pager evicts a value again after its fetch completes but before the operation is re-driven, that operation fetches more than once while still completing (and being counted in collection_ops_get) only once.",
+        "type": "counter",
+        "cbstat": "ops_get_bgfetch",
+        "prometheus": {
+            "family": "collection_ops_bgfetch",
+            "labels": {
+                "op": "get"
+            }
+        },
+        "added": "8.5.0"
     },
     // Metering
     {

@@ -530,6 +530,13 @@ public:
         return itr->second.incrementOpsGet();
     }
 
+    void incrementOpsGetBgFetch() const {
+        if (!valid()) {
+            return;
+        }
+        itr->second.incrementOpsGetBgFetch();
+    }
+
     Metered isMetered() const {
         return itr->second.isMetered();
     }

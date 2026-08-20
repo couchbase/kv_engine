@@ -205,6 +205,9 @@ public:
     void incrementOpsGet() const {
         meta->incrementOpsGet();
     }
+    void incrementOpsGetBgFetch() const {
+        meta->incrementOpsGetBgFetch();
+    }
 
     AccumulatedStats getStatsForSummary() const {
         return {getItemCount(), getDiskSize()};

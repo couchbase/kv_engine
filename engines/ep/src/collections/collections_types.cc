@@ -70,6 +70,7 @@ OperationCounts& OperationCounts::operator+=(const OperationCounts& other) {
     opsStore += other.opsStore;
     opsDelete += other.opsDelete;
     opsGet += other.opsGet;
+    opsGetBgFetch += other.opsGetBgFetch;
     return *this;
 }
 
@@ -150,6 +151,10 @@ void CollectionSharedMetaData::incrementOpsGet() {
     coreLocal.get()->numOpsGet++;
 }
 
+void CollectionSharedMetaData::incrementOpsGetBgFetch() {
+    coreLocal.get()->numOpsGetBgFetch++;
+}
+
 OperationCounts CollectionSharedMetaData::getOperationCounts() const {
     OperationCounts counts;
     // sum the core local RelaxedAtomic counters
@@ -157,6 +162,7 @@ OperationCounts CollectionSharedMetaData::getOperationCounts() const {
         counts.opsStore += core->numOpsStore;
         counts.opsDelete += core->numOpsDelete;
         counts.opsGet += core->numOpsGet;
+        counts.opsGetBgFetch += core->numOpsGetBgFetch;
     }
     return counts;
 }
