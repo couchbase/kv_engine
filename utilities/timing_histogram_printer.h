@@ -39,20 +39,50 @@ public:
      */
     static HistogramType getHistogramType(std::string_view name);
 
+    /**
+     * Format an average value into a human-readable string according to
+     * histogram type.
+     *
+     * @param avg The average value
+     * @param type The histogram type
+     * @return The formatted average string
+     */
+    static std::string formatAvg(long double avg, HistogramType type);
+
+    /**
+     * Set whether to use UTF-8 sparkline fractional block characters (default:
+     * true)
+     */
+    void setUseUtf8(bool enable);
+
+    /**
+     * Set a custom maximum bar width (<= 0 to auto-detect from terminal size)
+     */
+    void setBarWidth(int width);
+
 protected:
     void dump(FILE* out,
               std::string_view unit,
               long double low,
               long double high,
               int64_t count,
-              double percentile);
+              double percentile,
+              int availableBarWidth);
+
+    /**
+     * Render a bar representing the count.
+     *
+     * @param count The bucket count
+     * @param availableBarWidth Maximum bar width in characters
+     * @return Rendered bar string (UTF-8 sparkline or ASCII '#')
+     */
+    std::string renderBar(int64_t count, int availableBarWidth) const;
 
     // Calculation for padding around the count in each histogram bucket
     size_t countFieldWidth() const;
 
-    // Calculation for histogram size rendering - how wide should the
-    // ASCII bar be for the count of samples.
-    int barChartWidth(int64_t count) const;
+    bool useUtf8 = true;
+    int customBarWidth = 0;
 
     /**
      * The highest value of all the samples (used to figure out the width

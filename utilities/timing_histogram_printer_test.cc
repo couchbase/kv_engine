@@ -169,4 +169,103 @@ TEST_F(TimingHistogramPrinterTest, DumpTimeSecondsHistogram) {
     TimingHistogramPrinter printer(json);
     const auto output = dumpToString(printer, "paged_out_time");
     EXPECT_NE(std::string::npos, output.find("[  0.00 -  10.00]s (100.0000%)"));
+    EXPECT_NE(std::string::npos, output.find("Avg: 5.00s"));
+}
+
+TEST_F(TimingHistogramPrinterTest, FormatAvg) {
+    using Type = TimingHistogramPrinter::HistogramType;
+
+    EXPECT_EQ("12.34", TimingHistogramPrinter::formatAvg(12.34L, Type::Count));
+    EXPECT_EQ("1.23", TimingHistogramPrinter::formatAvg(12.34L, Type::Ratio));
+
+    // Size
+    EXPECT_EQ("500.00B", TimingHistogramPrinter::formatAvg(500.0L, Type::Size));
+    EXPECT_EQ("2.50KiB",
+              TimingHistogramPrinter::formatAvg(2560.0L, Type::Size));
+    EXPECT_EQ("4.00MiB",
+              TimingHistogramPrinter::formatAvg(4194304.0L, Type::Size));
+    EXPECT_EQ("1.50GiB",
+              TimingHistogramPrinter::formatAvg(1610612736.0L, Type::Size));
+    EXPECT_EQ("2.00TiB",
+              TimingHistogramPrinter::formatAvg(2199023255552.0L, Type::Size));
+
+    // TimeSeconds
+    EXPECT_EQ("500.00us",
+              TimingHistogramPrinter::formatAvg(0.0005L, Type::TimeSeconds));
+    EXPECT_EQ("50.00ms",
+              TimingHistogramPrinter::formatAvg(0.050L, Type::TimeSeconds));
+    EXPECT_EQ("5.50s",
+              TimingHistogramPrinter::formatAvg(5.50L, Type::TimeSeconds));
+    EXPECT_EQ("10m:05s",
+              TimingHistogramPrinter::formatAvg(605.0L, Type::TimeSeconds));
+
+    // TimeMicroseconds
+    EXPECT_EQ(
+            "250.00us",
+            TimingHistogramPrinter::formatAvg(250.0L, Type::TimeMicroseconds));
+    EXPECT_EQ("15.50ms",
+              TimingHistogramPrinter::formatAvg(15500.0L,
+                                                Type::TimeMicroseconds));
+    EXPECT_EQ("2.50s",
+              TimingHistogramPrinter::formatAvg(2500000.0L,
+                                                Type::TimeMicroseconds));
+    EXPECT_EQ("10m:05s",
+              TimingHistogramPrinter::formatAvg(605000000.0L,
+                                                Type::TimeMicroseconds));
+}
+
+TEST_F(TimingHistogramPrinterTest, DumpWithZeroSuppression) {
+    const nlohmann::json json = {{"data",
+                                  {{10, 0, 0.0},
+                                   {20, 0, 0.0},
+                                   {30, 50, 50.0},
+                                   {40, 50, 100.0},
+                                   {50, 0, 100.0},
+                                   {60, 0, 100.0}}},
+                                 {"bucketsLow", 0},
+                                 {"total", 100},
+                                 {"overflowed", 0}};
+
+    TimingHistogramPrinter printer(json);
+    const auto output = dumpToString(printer, "rw_0:readIOAmpCount");
+
+    // Leading zero buckets [0 - 10] and [10 - 20] must be omitted
+    EXPECT_EQ(std::string::npos, output.find("[  0.00 -  10.00]"));
+    EXPECT_EQ(std::string::npos, output.find("[ 10.00 -  20.00]"));
+
+    // Non-zero buckets [20 - 30] and [30 - 40] must be present
+    EXPECT_NE(std::string::npos, output.find("[ 20.00 -  30.00] (50.0000%)"));
+    EXPECT_NE(std::string::npos, output.find("[ 30.00 -  40.00] (100.0000%)"));
+
+    // Trailing zero buckets [40 - 50] and [50 - 60] must be omitted
+    EXPECT_EQ(std::string::npos, output.find("[ 40.00 -  50.00]"));
+    EXPECT_EQ(std::string::npos, output.find("[ 50.00 -  60.00]"));
+
+    EXPECT_NE(std::string::npos, output.find("Avg: 30.00"));
+    EXPECT_NE(std::string::npos, output.find("Total: 100 operations"));
+}
+
+TEST_F(TimingHistogramPrinterTest, DumpUtf8SparklinesAndAscii) {
+    const nlohmann::json json = {{"data", {{10, 100, 50.0}, {20, 50, 100.0}}},
+                                 {"bucketsLow", 0},
+                                 {"total", 150},
+                                 {"overflowed", 0}};
+
+    TimingHistogramPrinter printer(json);
+    printer.setBarWidth(20);
+
+    // UTF-8 enabled (default)
+    printer.setUseUtf8(true);
+    const auto utf8Output = dumpToString(printer, "rw_0:flushTime");
+    // Max count is 100, so count 100 gets full 20 blocks of '█'
+    EXPECT_NE(std::string::npos, utf8Output.find("████████████████████"));
+    // Count 50 gets 10 blocks
+    EXPECT_NE(std::string::npos, utf8Output.find("██████████"));
+
+    // ASCII fallback
+    printer.setUseUtf8(false);
+    const auto asciiOutput = dumpToString(printer, "rw_0:flushTime");
+    EXPECT_NE(std::string::npos, asciiOutput.find("####################"));
+    EXPECT_NE(std::string::npos, asciiOutput.find("##########"));
+    EXPECT_EQ(std::string::npos, asciiOutput.find("█"));
 }
