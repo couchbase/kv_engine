@@ -14,7 +14,7 @@ There is however still useful to know which keys are the most frequently
 accessed, as there may be bugs in the application layer causing the clients
 to hammer a few keys instead of distributing the load evenly across the keyspace.
 To address this need, we have introduced a new feature called "key sampling"
-which is available in Couchbase Server Totoro.
+which is available in Couchbase Server 8.5.
 
 ## How key sampling works
 

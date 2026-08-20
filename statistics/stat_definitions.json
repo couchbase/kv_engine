@@ -519,13 +519,13 @@
         "key": "ep_total_compressed_value_size",
         "unit": "bytes",
         "description": "The total size of document values that are compressed, including documents that are later expired or deleted.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_total_decompressed_value_size",
         "unit": "bytes",
         "description": "The total decompressed size of document values that are compressed, including documents that are later expired or deleted.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_overhead",
@@ -1337,13 +1337,13 @@
         "key": "magma_compaction_rate_limit",
         "unit": "bytes",
         "description": "The I/O bandwidth in bytes per second that compactions across all shards in a node can consume",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "magma_enable_compaction_dataonly_ratelimiting",
         "unit": "none",
         "description": "Limits rate-limiting to fragmentation-reduction compactions only. If disabled, all compactions are throttled",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "magma_num_flusher_threads",
@@ -1373,7 +1373,7 @@
         "key": "ep_magma_metaonly_gets",
         "unit": "none",
         "description": "Number of metadata-only get operations",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_inserts",
@@ -1551,7 +1551,7 @@
         "key": "ep_magma_corruption_errors",
         "unit": "none",
         "description": "Number of corruption errors detected by Magma",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
 /* Read amp. */
     {
@@ -1602,14 +1602,14 @@
         "unit": "none",
         "type": "counter",
         "description": "Number of read IOs performed on the get path",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_readio_set",
         "unit": "none",
         "type": "counter",
         "description": "Number of read IOs performed on the set path",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_readioamp",
@@ -1639,7 +1639,7 @@
         "key": "ep_magma_bytes_overwritten",
         "unit": "bytes",
         "type": "counter",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "description": "Logical bytes that were overwritten during write operations (size of replaced documents)."
     },
     {
@@ -1869,7 +1869,7 @@
         "key": "ep_magma_nonresident_bloom_filter_size",
         "unit": "none",
         "description": "Space taken up by bloom filters not currently in memory",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_total_mem_used",
@@ -1908,28 +1908,28 @@
         "unit": "none",
         "type": "counter",
         "description": "Number of bloom filter lookups where the filter correctly indicated the key did not exist",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_bloom_filter_lookups_miss",
         "unit": "none",
         "type": "counter",
         "description": "Number of bloom filter lookups where the filter returned a false positive",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_bloom_filter_cache_hits",
         "unit": "none",
         "type": "counter",
         "description": "Number of bloom filter lookups served from the in-memory bloom filter cache",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_bloom_filter_cache_misses",
         "unit": "none",
         "type": "counter",
         "description": "Number of bloom filter lookups that required a disk read",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
 /* SST file count. */
     {
@@ -2001,7 +2001,7 @@
         "unit": "count",
         "type": "counter",
         "description": "Total number of sync attempts to Fusion including both successful and failed attempts.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_fusion_bytes_synced",
@@ -2092,7 +2092,7 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total amount of data not yet synced to FusionLogStore.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_fusion_log_store_remote_puts",
@@ -2155,7 +2155,7 @@
         "unit": "count",
         "type": "counter",
         "description": "Total number of times the log checkpoint failed.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_fusion_num_logs_mounted",
@@ -2238,19 +2238,19 @@
         "key": "fusion_max_pending_upload_bytes",
         "unit": "bytes",
         "description": "Configuration value for the maximum amount of pending upload bytes across all volumes.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "fusion_max_pending_upload_bytes_lwm_ratio",
         "unit": "none",
         "description": "Configuration value for the proportion of max_pending_upload_bytes beyond which syncs for volumes with highest pending bytes are only allowed.",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "fusion_deferred_upload_bytes",
         "unit": "bytes",
         "description": "The amount of data Fusion knows is pending sync but has decided to defer in order to reduce the number of uploads to FusionLogStore",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     /* Magma Continous Backup Stats */
     {
@@ -2258,46 +2258,46 @@
         "unit": "count",
         "type": "counter",
         "description": "Number of Backups that have occurred",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_contbk_num_failed_backups",
         "unit": "count",
         "type": "counter",
         "description": "Number of Backups that have failed",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_contbk_num_backup_hardlinks",
         "unit": "count",
         "type": "counter",
         "description": "Number of file hardlinks that have occurred as a part of backup",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_contbk_num_write_ios",
         "unit": "count",
         "type": "counter",
         "description": "Number of Write IOs that have occurred as a part of backup",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_contbk_num_bytes_written",
         "unit": "bytes",
         "description": "Number of bytes written as a part of the backup",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_contbk_num_table_bytes_backedup",
         "unit": "bytes",
         "description": "Number of Table Bytes that have been backed up",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_db_max_format_version",
         "unit": "none",
         "description": "Maximum disk format version supported by the bucket's storage engine",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     /* EPBucket::getFileStats */
     {
@@ -2350,7 +2350,7 @@
         "unit": "bytes",
         "cbstat": "ep_dcp_cache_transfer_read_bytes",
         "description": "The number of bytes read by DCP cache transfer",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
 /* Timing stats */
     {
@@ -2744,7 +2744,7 @@
     {
         "key": "tls_certificate_verification_problems",
         "unit": "none",
-        "added": "totoro",
+        "added": "8.5.0",
         "description" : "The number of times TLS certificate verification has found issues with the certificate presented by the client during connection establishment"
     },
     {
@@ -2797,13 +2797,13 @@
         "key": "curr_bucket_connections",
         "description": "The current number of connections for this bucket",
         "unit": "none",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "curr_bucket_connections_closing",
         "description": "The current number of connections currently closing down for this bucket",
         "unit": "none",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     /* Amount of memory allocated by the daemon. */
     {
@@ -3319,7 +3319,7 @@
         "key": "subdoc_offload_count",
         "description": "The number of subdoc operations executed in the non-IO thread pool",
         "unit": "none",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "subdoc_execute",
@@ -3551,7 +3551,7 @@
         "key": "memcached_num_quicknonio_threads_actual",
         "cbstat": "num_quicknonio_threads_actual",
         "description": "The current number of threads in the QuickNonIO pool",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "prometheus": false,
         "unit": "none"
     },
@@ -3559,7 +3559,7 @@
         "key": "memcached_num_quicknonio_threads_configured",
         "cbstat": "num_quicknonio_threads_configured",
         "description": "The configured number of threads in the QuickNonIO pool",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "prometheus": false,
         "unit": "none"
     },
@@ -3567,7 +3567,7 @@
         "key": "memcached_num_slowio_threads_actual",
         "cbstat": "num_slowio_threads_actual",
         "description": "The current number of threads in the SlowIO pool",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "prometheus": false,
         "unit": "none"
     },
@@ -3575,7 +3575,7 @@
         "key": "memcached_num_slowio_threads_configured",
         "cbstat": "num_slowio_threads_configured",
         "description": "The configured number of threads in the SlowIO pool",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "prometheus": false,
         "unit": "none"
     },
@@ -3619,7 +3619,7 @@
         "key": "memcached_num_cpus",
         "cbstat": "num_cpus",
         "description": "The number of logical CPUs available to the process",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "prometheus": false,
         "unit": "none"
     },
@@ -4177,13 +4177,13 @@
         "key": "ep_pageable_mem_high_watermark",
         "unit": "bytes",
         "description": "Pageable memory high watermark (used in paging management)",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_pageable_mem_low_watermark",
         "unit": "bytes",
         "description": "Pageable memory low watermark (used in paging management)",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_checkpoint_memory_recovery_upper_mark_bytes",
@@ -4837,7 +4837,7 @@
         "unit": "microseconds",
         "type": "histogram",
         "description": "Histogram of throttle wait times for a bucket since reset",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
     {
@@ -4853,7 +4853,7 @@
         "unit": "none",
         "type": "gauge",
         "description": "Current reserved throttle limit for a bucket (units per second).",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
     {
@@ -4861,7 +4861,7 @@
         "unit": "none",
         "type": "gauge",
         "description": "Current hard throttle limit for a bucket (units per second).",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
         {
@@ -4869,7 +4869,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units used by a bucket since reset",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
     {
@@ -4877,7 +4877,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units used by a bucket since reset",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
     {
@@ -4917,7 +4917,7 @@
         "unit": "bytes",
         "type": "counter",
         "description": "Total number of bytes read from the bucket using GetFileFragment",
-        "added": "8.1.0",
+        "added": "8.5.0",
         "stability": "internal"
     },
     {
