@@ -726,7 +726,7 @@
             }
         },
         "description": "Cumulative number of tombstones dropped by compaction",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_compaction_prepares_purged",
@@ -739,7 +739,7 @@
             }
         },
         "description": "Cumulative number of completed SyncWrite prepares dropped by compaction",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_compaction_collection_items_purged",
@@ -752,7 +752,7 @@
             }
         },
         "description": "Cumulative number of items dropped by compaction because their collection was dropped",
-        "added": "8.1.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_rollback_count",
@@ -1020,7 +1020,7 @@
         "unit": "none",
         "description": "The number of items loaded as result of using the access log",
         "prometheus": false,
-        "added": "7.2.0"
+        "added": "7.2.9"
     },
     {
         "family": "ops",
@@ -1349,13 +1349,13 @@
         "key": "magma_num_flusher_threads",
         "unit": "none",
         "description": "The number of magma flusher threads.",
-        "added": "7.6.11"
+        "added": "8.5.0"
     },
     {
         "key": "magma_num_compactor_threads",
         "unit": "none",
         "description": "The number of magma compactor threads.",
-        "added": "7.6.11"
+        "added": "8.5.0"
     },
     {
         "key": "ep_magma_sets",
@@ -2029,7 +2029,7 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total size of the file data present in all the logs on FusionLogStore.",
-        "added": "8.0.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_fusion_log_store_garbage_size",
@@ -2043,7 +2043,7 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total size of the summary section of all logs on FusionLogStore.",
-        "added": "8.0.0"
+        "added": "8.5.0"
     },
     {
         "key": "ep_fusion_logs_cleaned",
@@ -2224,14 +2224,14 @@
         "key": "fusion_num_uploader_threads",
         "unit": "bytes",
         "description": "The number of Fusion Uploader threads.",
-        "added": "8.0.0"
+        "added": "8.5.0"
 
     },
     {
         "key": "fusion_num_migrator_threads",
         "unit": "bytes",
         "description": "The number of Fusion Migrator threads.",
-        "added": "8.0.0"
+        "added": "8.5.0"
 
     },
     {
@@ -2779,7 +2779,7 @@
         "description": "The current number of authenticated connections using the labelled SDK",
         "cbstat": "current_sdk_connections:{sdk}",
         "unit": "none",
-        "added": "7.6.5"
+        "added": "7.6.6"
     },
     {
         "key": "connection_structures",
@@ -4446,7 +4446,7 @@
                 "type": "consumer"
             }
         },
-        "added": "7.0.0"
+        "added": "7.6.0"
     },
     {
         "key": "connagg_items_sent",
@@ -4924,13 +4924,13 @@
         "key": "pager_deleted",
         "unit": "bytes",
         "description": "Number of bytes deleted by pager",
-        "added": "7.6.11"
+        "added": "7.6.12"
     },
     {
         "key": "pager_throttled",
         "unit": "none",
         "type": "counter",
         "description": "Total number of times pager has been throttled",
-        "added": "7.6.11"
+        "added": "7.6.12"
     }
 ]
