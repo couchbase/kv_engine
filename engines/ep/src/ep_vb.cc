@@ -1523,6 +1523,16 @@ cb::engine_errc EPVBucket::continueRangeScan(
         // This is an I/O complete phase of the continue request. Validate that
         // the stashed UUID matches the input.
         Expects(continueToken->uuid == params.uuid);
+
+        if (continueToken->disconnectOnResume) {
+            // A previous continueRangeScan() call for this scan failed to
+            // send its response after potentially already writing part of
+            // it to the connection. The scan itself was already cancelled
+            // and cleaned up at that point, so there is nothing left to do
+            // here other than disconnect the connection - do not attempt to
+            // send anything further on it.
+            return cb::engine_errc::disconnect;
+        }
     }
 
     auto status = setupCookieForRangeScan(params.uuid, cookie);
@@ -1568,7 +1578,44 @@ cb::engine_errc EPVBucket::continueRangeScan(
     }
 
     if (continueState.second) {
-        continueState.second->complete(cookie);
+        try {
+            continueRangeScanPreCompleteHook();
+            continueState.second->complete(cookie);
+        } catch (const std::bad_alloc&) {
+            // Unlike the above, complete() may have already written part of
+            // the response into the connection's output buffer before
+            // failing. We must not attempt to send anything else on this
+            // connection - doing so risks corrupting the byte stream for
+            // whatever is read next. The connection must be disconnected
+            // instead - engine code cannot do that directly, so it is
+            // requested via the returned status.
+            EP_LOG_WARN_CTX(
+                    "EPVBucket::continueRangeScan disconnecting due to "
+                    "std::bad_alloc while sending the continue response",
+                    {"vbid", getId()},
+                    {"uuid", params.uuid});
+            if (rangeScans.cancelScan(dynamic_cast<EPBucket&>(*bucket),
+                                      params.uuid) ==
+                cb::engine_errc::success) {
+                // The scan was still live and is now queued for an I/O task
+                // to clean it up and notify this cookie. We cannot
+                // disconnect yet - the connection must stay valid until
+                // that happens - so defer the disconnect: stash a token
+                // that tells the resumed continueRangeScan() call (once
+                // that cleanup completes) to disconnect at that point
+                // instead of processing normally. If this allocation also
+                // fails, let it propagate - the generic connection-level
+                // exception handling will disconnect anyway.
+                bucket->getEPEngine().storeEngineSpecific(
+                        cookie,
+                        RangeScanContinueToken{params.uuid,
+                                               /*disconnectOnResume=*/true});
+                return cb::engine_errc::would_block;
+            }
+            // The scan had already been removed from the map, so nothing
+            // else is tied to this cookie - safe to disconnect immediately.
+            return cb::engine_errc::disconnect;
+        }
     }
 
     return continueState.first;

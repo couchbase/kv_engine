@@ -12,6 +12,7 @@
 
 #include "dcp/backfill_by_seqno_disk.h"
 #include "range_scans/range_scan_owner.h"
+#include "utilities/testing_hook.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
@@ -319,6 +320,13 @@ public:
      * @return if found a scan, else a nullptr
      */
     std::shared_ptr<RangeScan> getRangeScan(cb::rangescan::Id id) const;
+
+    /**
+     * Testing hook invoked from continueRangeScan(), just before the
+     * response is sent via RangeScanContinueResult::complete(). Used by
+     * tests to simulate a std::bad_alloc at that point.
+     */
+    TestingHook<> continueRangeScanPreCompleteHook;
 
     /**
      * Add a new range scan

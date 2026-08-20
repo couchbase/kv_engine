@@ -49,6 +49,12 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
         // sent. The executor will process these, e.g. ensuring correct nmvb
         // responses.
         return HandlingStatus::ExecutorSends;
+    case cb::engine_errc::disconnect:
+        // continueRangeScan() may have failed to send its response after
+        // already writing part of it to the connection (e.g. std::bad_alloc
+        // mid-send). The executor must disconnect the connection rather
+        // than attempt to send anything further.
+        return HandlingStatus::ExecutorSends;
     // The following are not expected status codes to be handled by range-scan
     // continue (except success which is handled outside of this function)
     case cb::engine_errc::success:
@@ -59,7 +65,6 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
     case cb::engine_errc::not_supported:
     case cb::engine_errc::too_big:
     case cb::engine_errc::too_many_connections:
-    case cb::engine_errc::disconnect:
     case cb::engine_errc::no_access:
     case cb::engine_errc::temporary_failure:
     case cb::engine_errc::out_of_range:

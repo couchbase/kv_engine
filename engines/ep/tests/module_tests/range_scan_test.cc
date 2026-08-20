@@ -928,6 +928,116 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
               mock_waitfor_cookie(cookie));
 }
 
+// Check that if RangeScanContinueResult::complete() fails to send the
+// response (e.g. due to a std::bad_alloc), we do not attempt to recover and
+// send a normal response - complete() may have already written part of the
+// response to the connection, so sending anything further risks corrupting
+// the byte stream. Instead the connection must be disconnected. If the scan
+// is still alive, the disconnect is deferred (via a flag on the continue
+// token) until the resumed call, once the scan's own cleanup is done and it
+// is safe for the connection to go away.
+//
+// Note: this uses a real RangeScanDataHandler (rather than the
+// TestRangeScanHandler used elsewhere in this file, whose *OnFrontendThread()
+// methods are no-ops returning null) so that complete() is actually invoked -
+// MockCookie::sendResponse() is a safe no-op, so this is fine to exercise
+// here.
+TEST_P(RangeScanCreateAndContinueTest,
+       continue_handles_bad_alloc_on_complete_send_still_alive) {
+    auto uuid = createScan(
+            scanCollection,
+            {"user"},
+            {"user\xFF"},
+            {},
+            {},
+            cb::engine_errc::success,
+            std::make_unique<RangeScanDataHandler>(
+                    *engine,
+                    getScanType() == cb::rangescan::KeyOnly::Yes,
+                    getIncludeXattrs() == cb::rangescan::IncludeXattrs::Yes));
+    auto vb = store->getVBucket(vbid);
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+
+    // itemLimit=1 deterministically forces the first round to yield
+    // range_scan_more (there are multiple "user"-prefixed keys), keeping the
+    // scan alive (Idle) with real data ready to send - unlike relying on a
+    // buffer-full "success" yield, which depends on backend/data size and
+    // isn't guaranteed to occur before range_scan_complete.
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 1, 0ms, 0, cb::engine_errc::success};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(*cookie, continueParams));
+
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "RangeScanContinueTask");
+    auto ioCompleteStatus = mock_waitfor_cookie(cookie);
+    ASSERT_EQ(cb::engine_errc::range_scan_more, ioCompleteStatus);
+    continueParams.currentStatus = ioCompleteStatus;
+
+    // Inject the failure on the call that would otherwise send this batch.
+    epVb.continueRangeScanPreCompleteHook = []() { throw std::bad_alloc(); };
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(*cookie, continueParams));
+
+    // Scan was cancelled (removed from the map) rather than left stuck.
+    EXPECT_FALSE(epVb.getRangeScan(uuid));
+
+    // The disconnect was deferred - the resumed call must return disconnect
+    // immediately, without needing another AuxIO round.
+    EXPECT_EQ(cb::engine_errc::disconnect,
+              vb->continueRangeScan(*cookie, continueParams));
+}
+
+// As above, but the injected failure happens on the call that processes
+// range_scan_complete - the scan has already been removed from the map by
+// that point, so there is nothing pending to defer for; the disconnect can
+// (and must) be reported immediately.
+TEST_P(RangeScanCreateAndContinueTest,
+       continue_handles_bad_alloc_on_complete_send_already_removed) {
+    auto uuid = createScan(
+            scanCollection,
+            {"user"},
+            {"user\xFF"},
+            {},
+            {},
+            cb::engine_errc::success,
+            std::make_unique<RangeScanDataHandler>(
+                    *engine,
+                    getScanType() == cb::rangescan::KeyOnly::Yes,
+                    getIncludeXattrs() == cb::rangescan::IncludeXattrs::Yes));
+    auto vb = store->getVBucket(vbid);
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(*cookie, continueParams));
+
+    for (;;) {
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                    "RangeScanContinueTask");
+        auto ioCompleteStatus = mock_waitfor_cookie(cookie);
+        continueParams.currentStatus = ioCompleteStatus;
+
+        if (ioCompleteStatus == cb::engine_errc::range_scan_complete) {
+            epVb.continueRangeScanPreCompleteHook = []() {
+                throw std::bad_alloc();
+            };
+            EXPECT_EQ(cb::engine_errc::disconnect,
+                      vb->continueRangeScan(*cookie, continueParams));
+            break;
+        }
+
+        ASSERT_TRUE(ioCompleteStatus == cb::engine_errc::success ||
+                    ioCompleteStatus == cb::engine_errc::range_scan_more)
+                << ioCompleteStatus;
+        ASSERT_EQ(cb::engine_errc::would_block,
+                  vb->continueRangeScan(*cookie, continueParams));
+    }
+
+    EXPECT_FALSE(epVb.getRangeScan(uuid));
+}
+
 // Test that a scan doesn't keep on reading if a cancel occurs during the I/O
 // task run
 TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {

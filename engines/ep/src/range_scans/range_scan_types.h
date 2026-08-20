@@ -37,6 +37,16 @@ struct RangeScanCreateToken {
 // Data stored in engine-specific during a RangeScan continue request
 struct RangeScanContinueToken {
     cb::rangescan::Id uuid;
+
+    /**
+     * Set when a previous continueRangeScan() call failed to send its
+     * response after already possibly writing part of it to the connection
+     * (e.g. std::bad_alloc mid-send). The scan itself has already been
+     * cancelled/cleaned up by that point; this just tells the next
+     * continueRangeScan() call (once resumed) to disconnect the connection
+     * without attempting to write anything further to it.
+     */
+    bool disconnectOnResume{false};
 };
 
 /**
