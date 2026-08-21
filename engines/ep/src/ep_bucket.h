@@ -381,6 +381,8 @@ public:
 
     void releaseBlockedCookies() override;
 
+    void releaseBlockedCookie(CookieIface& cookie) override;
+
     void initiateShutdown() override;
 
     bool canEvictFromReplicas() override {

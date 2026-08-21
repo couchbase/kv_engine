@@ -2885,6 +2885,12 @@ void EPBucket::releaseBlockedCookies() {
     }
 }
 
+void EPBucket::releaseBlockedCookie(CookieIface& cookie) {
+    if (warmupTask) {
+        warmupTask->notifyWaitingCookie(cookie, cb::engine_errc::disconnect);
+    }
+}
+
 void EPBucket::initiateShutdown() {
     // MB-56646: A crash occurred because DCP connections are able to disconnect
     // as part of initiate_shutdown (see KVBucket::initiateShutdown). Having

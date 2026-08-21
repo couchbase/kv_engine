@@ -1452,10 +1452,19 @@ bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
     });
 }
 
-bool Warmup::removeCookie(const CookieIface* cookie) {
-    return syncData.withLock([cookie](auto& syncData) {
-        return std::erase(syncData.cookies, cookie) != 0;
+void Warmup::notifyWaitingCookie(CookieIface& cookie, cb::engine_errc status) {
+    const bool waiting = syncData.withLock([&cookie](auto& syncData) {
+        return std::erase(syncData.cookies, &cookie) != 0;
     });
+
+    if (!waiting) {
+        return;
+    }
+
+    EP_LOG_INFO("Warmup({})::notifyWaitingCookie unblocking cookie status:{}",
+                getName(),
+                status);
+    store.getEPEngine().notifyIOComplete(&cookie, status);
 }
 
 void Warmup::loadCollectionStatsForShard(uint16_t shardId) {

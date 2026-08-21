@@ -361,19 +361,19 @@ public:
     bool maybeWaitForVBucketWarmup(CookieIface* cookie);
 
     /**
-     * Remove the given cookie from the pending cookies awaiting warmup if the
-     * cookie's connection is disconnecting
-     *
-     * @param cookie the cookie to remove
-     * @return true if the cookie was found and removed
-     */
-    bool removeCookie(const CookieIface* cookie);
-
-    /**
      * Perform any notifications to any pending operations
      * @param status Status code to send to all waiting cookies.
      */
     void notifyWaitingCookies(cb::engine_errc status);
+
+    /**
+     * remove the given cookie from the pending operations and notify it (in
+     * cases where the cookie's connection is disconnecting)
+     *
+     * @param cookie the cookie to remove and notify
+     * @param status status code to send to the cookie
+     */
+    void notifyWaitingCookie(CookieIface& cookie, cb::engine_errc status);
 
     bool setOOMFailure() {
         bool inverse = false;

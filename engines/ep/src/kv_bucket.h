@@ -281,6 +281,15 @@ public:
     virtual void releaseBlockedCookies();
 
     /**
+     * release the cookie if it is blocked on a pending request as the cookie's
+     * connection is disconnecting
+     *
+     * @param cookie the cookie of the disconnecting connection
+     */
+    virtual void releaseBlockedCookie(CookieIface& cookie) {
+    }
+
+    /**
      * Implementation dependent handler of initiate_shutdown
      */
     virtual void initiateShutdown();
