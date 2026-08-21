@@ -878,12 +878,30 @@ protected:
     std::chrono::seconds stuckTimeout{std::chrono::seconds(720)};
 
     /**
+     * Recomputes inlineCheckpointItemLimit from configuredInlineCheckpointItem-
+     * Limit and this connection's compression/xattr configuration. The inline
+     * extraction path (ActiveStream::nextCheckpointItem) may modify item values
+     * on the front-end thread, so it is disabled (limit forced to 0) whenever
+     * this producer's config could trigger value modification:
+     * Snappy not supported, forced value compression, or xattr/deleted-user-
+     * xattr stripping (see shouldModifyItem()).
+     */
+    void updateInlineCheckpointItemLimit();
+
+    /**
+     * The configured value of dcp_active_stream_inline_checkpoint_item_limit.
+     * Set at construction and updated dynamically via
+     * setInlineCheckpointItemLimit() when the config changes.
+     */
+    std::atomic<size_t> configuredInlineCheckpointItemLimit{0};
+
+    /**
      * If the number of items pending for an active stream's cursor is less
      * than this limit, the stream extracts them inline (under streamMutex)
      * rather than scheduling the ActiveStreamCheckpointProcessorTask. A value
-     * of 0 disables the inline path. Sourced from
-     * dcp_active_stream_inline_checkpoint_item_limit; updated dynamically via
-     * setInlineCheckpointItemLimit() when the config changes.
+     * of 0 disables the inline path. This is the configured value, or 0 when
+     * the inline path must be disabled for this connection - see
+     * updateInlineCheckpointItemLimit() which keeps it in sync.
      */
     std::atomic<size_t> inlineCheckpointItemLimit{0};
 };

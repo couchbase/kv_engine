@@ -1284,7 +1284,7 @@
         "dcp_active_stream_inline_checkpoint_item_limit": {
             "added": "8.5.0",
             "default": "50",
-            "descr": "When the number of items pending for an ActiveStream's cursor is less than or equal to this value, the stream will run checkpoint item extraction inline rather than scheduling the ActiveStreamCheckpointProcessorTask. This avoids task-scheduling latency for small numbers of items. Set to 0 to always schedule the task.",
+            "descr": "When the number of items pending for an ActiveStream's cursor is less than or equal to this value, the stream will run checkpoint item extraction inline rather than scheduling the ActiveStreamCheckpointProcessorTask. This avoids task-scheduling latency for small numbers of items. Set to 0 to always schedule the task. Note this has no effect on streams that are configured in a way which would modify items for transmision.",
             "dynamic": true,
             "type": "size_t"
         },

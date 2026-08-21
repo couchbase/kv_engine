@@ -229,7 +229,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       skipDeletesInInitialBackfill(isFlagSet(
               flags, cb::mcbp::DcpOpenFlag::SkipDeletesInInitialBackfill)),
       stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()),
-      inlineCheckpointItemLimit(
+      configuredInlineCheckpointItemLimit(
               e.getConfiguration()
                       .getDcpActiveStreamInlineCheckpointItemLimit()) {
     if (getName().find("secidx") != std::string::npos) {
@@ -299,6 +299,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
             isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
+
+    updateInlineCheckpointItemLimit();
 
     auto regex = e.getDcpDisconnectWhenStuckNameRegex();
     if (!regex.empty()) {
@@ -1396,6 +1398,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         } else {
             forceValueCompression = false;
         }
+        updateInlineCheckpointItemLimit();
         return cb::engine_errc::success;
         // vulcan onwards we accept two cursor_dropping control keys.
     } else if (key == DcpControlKeys::SupportsCursorDropping ||
@@ -1967,6 +1970,14 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
             c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("force_value_compression", forceValueCompression, add_stat, c);
+    addStat("inline_checkpoint_item_limit",
+            getInlineCheckpointItemLimit(),
+            add_stat,
+            c);
+    addStat("configured_inline_checkpoint_item_limit",
+            configuredInlineCheckpointItemLimit.load(std::memory_order_relaxed),
+            add_stat,
+            c);
     addStat("cursor_dropping", supportsCursorDropping, add_stat, c);
     addStat("send_stream_end_on_client_close_stream",
             sendStreamEndOnClientStreamClose,
@@ -2723,7 +2734,20 @@ size_t DcpProducer::getBackfillByteLimit() const {
 }
 
 void DcpProducer::setInlineCheckpointItemLimit(size_t limit) {
-    inlineCheckpointItemLimit.store(limit, std::memory_order_relaxed);
+    configuredInlineCheckpointItemLimit.store(limit, std::memory_order_relaxed);
+    updateInlineCheckpointItemLimit();
+}
+
+void DcpProducer::updateInlineCheckpointItemLimit() {
+    const bool mayModifyValue =
+            !isSnappyEnabled() || isForceValueCompressionEnabled() ||
+            includeXattrs == IncludeXattrs::No ||
+            includeDeletedUserXattrs == IncludeDeletedUserXattrs::No;
+    inlineCheckpointItemLimit.store(
+            mayModifyValue ? 0
+                           : configuredInlineCheckpointItemLimit.load(
+                                     std::memory_order_relaxed),
+            std::memory_order_relaxed);
 }
 
 size_t DcpProducer::getInlineCheckpointItemLimit() const {

@@ -7938,7 +7938,19 @@ protected:
         engine->getConfiguration().setDcpActiveStreamInlineCheckpointItemLimit(
                 5);
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-        setupProducer();
+        // The inline extraction path runs item modification (compression /
+        // xattr pruning) on the front-end thread, so DcpProducer disables it
+        // unless the connection will never modify item values: Snappy is
+        // supported, no xattr stripping (neither IncludeXattrs::No nor
+        // IncludeDeletedUserXattrs::No) and value compression is not forced
+        // (see DcpProducer::updateInlineCheckpointItemLimit). Enable Snappy on
+        // the cookie and open the producer with both xattr flags so the inline
+        // path under test is active.
+        cookie_to_mock_cookie(cookie)->setDatatypeSupport(
+                PROTOCOL_BINARY_DATATYPE_SNAPPY);
+        setupProducer({},
+                      cb::mcbp::DcpOpenFlag::IncludeXattrs |
+                              cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs);
         cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
     }
 
