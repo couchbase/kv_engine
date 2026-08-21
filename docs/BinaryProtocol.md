@@ -455,9 +455,9 @@ information about a given command.
 | 0x27 | Audit put |
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
-| 0x2a | [SetBucketThrottleProperties](#0x2a-set-bucket-throttle-properties) |
+| 0x2a | [SetBucketThrottleProperties](#0x2a-set-bucket-throttle-properties) (not supported) |
 | 0x2b | [SetBucketDataLimitExceeded](#0x2b-set-bucket-data-limit-exceeded) |
-| 0x2c | [SetNodeThrottleProperties](#0x2c-set-node-throttle-properties) |
+| 0x2c | [SetNodeThrottleProperties](#0x2c-set-node-throttle-properties) (not supported) |
 | 0x30 | RGet (not supported) |
 | 0x31 | RSet (not supported) |
 | 0x32 | RSetQ (not supported) |
@@ -1957,6 +1957,9 @@ The following example shows that the server agreed to enable 0x0003 and
 
 ### 0x2a Set Bucket Throttle Properties
 
+**Not supported:** This command is no longer supported. These configs are
+now set as part of the bucket configuration.
+
 The `Set Bucket Throttle Properties` command is used to set bucket-specific 
 throttle properties.
 
@@ -2017,6 +2020,9 @@ message is used in the reply to the client):
 The successful return message carries no extra userdata.
 
 ### 0x2c Set Node Throttle Properties
+
+**Not supported:** This command is no longer supported. These configs are
+now set as part of the bucket configuration.
 
 The `Set Node Throttle Properties` command is used to set node-specific
 throttle properties.
