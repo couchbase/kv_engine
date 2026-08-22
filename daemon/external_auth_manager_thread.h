@@ -183,9 +183,10 @@ protected:
     std::unordered_map<uint32_t, std::pair<Connection*, AuthnAuthzServiceTask*>>
             requestMap;
 
-    // The map to store the opaque of pending requests sorted by their timeout
-    // times
-    std::map<std::chrono::steady_clock::time_point, uint32_t> pendingRequests;
+    // The multimap to store the opaque of pending requests sorted by their
+    // timeout times
+    std::multimap<std::chrono::steady_clock::time_point, uint32_t>
+            pendingRequests;
 
     /// The mutex variable used to protect access to _all_ the internal
     /// members

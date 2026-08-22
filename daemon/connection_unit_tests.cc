@@ -89,6 +89,42 @@ public:
     }
 };
 
+/// Exposes the protected internals of ExternalAuthManagerThread needed to
+/// drive handleTimeoutRequest() directly from a test, without having to
+/// start the real background thread.
+class TestableExternalAuthManagerThread : public ExternalAuthManagerThread {
+public:
+    void testHandleTimeoutRequest() {
+        std::lock_guard<std::mutex> guard(mutex);
+        handleTimeoutRequest();
+    }
+
+    /// Insert an entry directly into pendingRequests, bypassing the normal
+    /// request flow, so tests can force a chosen deadline (in particular,
+    /// two entries sharing the exact same deadline).
+    void insertPendingRequest(std::chrono::steady_clock::time_point deadline,
+                              uint32_t opaque) {
+        std::lock_guard<std::mutex> guard(mutex);
+        pendingRequests.emplace(deadline, opaque);
+    }
+
+    size_t getPendingRequestsSize() {
+        std::lock_guard<std::mutex> guard(mutex);
+        return pendingRequests.size();
+    }
+
+    size_t countPendingRequestsAt(
+            std::chrono::steady_clock::time_point deadline) {
+        std::lock_guard<std::mutex> guard(mutex);
+        return pendingRequests.count(deadline);
+    }
+
+    size_t getIncomingResponseSize() {
+        std::lock_guard<std::mutex> guard(mutex);
+        return incommingResponse.size();
+    }
+};
+
 class ConnectionUnitTests : public ::testing::Test {
 public:
     static void SetUpTestCase() {
@@ -360,4 +396,45 @@ TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
     frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
 
     cookie.reset();
+}
+
+/**
+ * MB-73412: pendingRequests used to be a std::map keyed by deadline. Two
+ * requests sharing the exact same deadline would collide, and the second
+ * emplace() would silently be dropped (map::emplace is a no-op on a
+ * duplicate key), losing timeout tracking for that request. Verify the
+ * multimap retains both entries.
+ */
+TEST(ExternalAuthManagerThreadUnitTest,
+     MB73412_PendingRequestsAllowsSameDeadline) {
+    TestableExternalAuthManagerThread mgr;
+    const auto deadline = std::chrono::steady_clock::now();
+
+    mgr.insertPendingRequest(deadline, 1);
+    mgr.insertPendingRequest(deadline, 2);
+
+    EXPECT_EQ(2, mgr.countPendingRequestsAt(deadline));
+}
+
+/**
+ * MB-73412: handleTimeoutRequest() used to leave timed-out entries in
+ * pendingRequests, so the same entry would be timed out again (and another
+ * synthetic response queued) on every subsequent call until a real response
+ * arrived. Verify a second call finds nothing left to time out.
+ */
+TEST(ExternalAuthManagerThreadUnitTest,
+     MB73412_HandleTimeoutRequestErasesEntry) {
+    TestableExternalAuthManagerThread mgr;
+    const auto deadline = std::chrono::steady_clock::now();
+    mgr.insertPendingRequest(deadline, 1);
+
+    mgr.testHandleTimeoutRequest();
+    EXPECT_EQ(0, mgr.getPendingRequestsSize());
+    EXPECT_EQ(1, mgr.getIncomingResponseSize());
+
+    // Prior to the fix this would have found the same (never erased) entry
+    // still expired, and queued a second, duplicate synthetic response.
+    mgr.testHandleTimeoutRequest();
+    EXPECT_EQ(0, mgr.getPendingRequestsSize());
+    EXPECT_EQ(1, mgr.getIncomingResponseSize());
 }
