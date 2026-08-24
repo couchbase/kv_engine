@@ -79,7 +79,6 @@
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/magma_support.h>
-#include <utilities/throttle_utilities.h>
 
 /**
  * The handler function is used to handle and incomming packet (command or
@@ -415,24 +414,6 @@ static void shutdown_executor(Cookie& cookie) {
     LOG_INFO_CTX("Shutdown server requested",
                  {"conn_id", cookie.getConnectionId()});
     shutdown_server();
-}
-
-static void set_node_throttle_properties_executor(Cookie& cookie) {
-    const cb::throttle::SetNodeThrottleLimitPayload limits =
-            nlohmann::json::parse(cookie.getHeader().getValueString());
-    auto& instance = cb::serverless::Config::instance();
-    if (limits.capacity) {
-        instance.nodeCapacity = limits.capacity.value();
-    }
-    if (limits.default_throttle_reserved_units) {
-        instance.defaultThrottleReservedUnits =
-                limits.default_throttle_reserved_units.value();
-    }
-    if (limits.default_throttle_hard_limit) {
-        instance.defaultThrottleHardLimit =
-                limits.default_throttle_hard_limit.value();
-    }
-    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void set_active_encryption_key_executor(Cookie& cookie) {
@@ -960,8 +941,6 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::Shutdown, shutdown_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
                   set_bucket_data_limit_exceeded_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties_Unsupported,
-                  set_node_throttle_properties_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
                   set_active_encryption_key_executor);
     setup_handler(cb::mcbp::ClientOpcode::PruneEncryptionKeys,
