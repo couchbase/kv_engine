@@ -350,6 +350,8 @@ public:
     Counter compactionFailed;
     //! Number of times a compaction is aborted.
     Counter compactionAborted;
+    //! Number of times a compaction completes successfully.
+    Counter compactionSucceeded;
     //! Number of tombstones dropped by compaction.
     Counter compactionTombstonesPurged;
     //! Number of completed prepares dropped by compaction.

@@ -6700,6 +6700,82 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_FALSE(vb->isBucketCreation());
 }
 
+/**
+ * ep_running_compactions counts compactions which are actually executing, i.e.
+ * are inside KVStoreIface::compactDB, split by whether KV requested the
+ * compaction itself or it arrived externally. Check the gauge rises for the
+ * duration of a compaction, is attributed to the correct trigger, and returns
+ * to zero afterwards - including when compaction throws. Also check
+ * ep_compaction_succeeded counts each completed compaction.
+ */
+TEST_P(STParamPersistentBucketTest, RunningCompactionsGauge) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
+    auto& epstats = engine->getEpStats();
+
+    // Nothing is compacting at rest.
+    ASSERT_EQ(0, epBucket.getNumRunningCompactions(true));
+    ASSERT_EQ(0, epBucket.getNumRunningCompactions(false));
+
+    // The completion callback runs inside compactDB, so it observes the gauge
+    // while the compaction it belongs to is still counted.
+    size_t internalDuring = 0;
+    size_t externalDuring = 0;
+    mockEPBucket.setPostCompactionCompletionHook([&]() {
+        internalDuring = epBucket.getNumRunningCompactions(true);
+        externalDuring = epBucket.getNumRunningCompactions(false);
+    });
+
+    const auto succeeded = epstats.compactionSucceeded;
+
+    // runCompaction() leaves internally_requested at its default of false, so
+    // this is an externally requested compaction.
+    runCompaction(vbid);
+    EXPECT_EQ(0, internalDuring);
+    EXPECT_EQ(1, externalDuring);
+    EXPECT_EQ(succeeded + 1, epstats.compactionSucceeded);
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(true));
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(false));
+
+    // The same compaction requested internally is attributed to the other
+    // trigger.
+    internalDuring = 0;
+    externalDuring = 0;
+    {
+        CompactionConfig config;
+        config.internally_requested = true;
+        std::vector<CookieIface*> noCookies;
+        BucketAllocationGuard guard{engine.get()};
+        epBucket.doCompact(vbid, config, noCookies);
+    }
+    EXPECT_EQ(1, internalDuring);
+    EXPECT_EQ(0, externalDuring);
+    EXPECT_EQ(succeeded + 2, epstats.compactionSucceeded);
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(true));
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(false));
+
+    if (isNexus()) {
+        // As for RollbackCompletionCallbackStateAfterCompletionCallbackFailure
+        // below - throwing from the callback only fails the primary, which
+        // Nexus reports as a mismatch.
+        return;
+    }
+
+    // A compaction which throws must still give up its slot.
+    const auto failed = epstats.compactionFailed;
+    mockEPBucket.setPostCompactionCompletionHook(
+            []() { throw std::runtime_error("RunningCompactionsGauge"); });
+    runCompaction(vbid);
+    EXPECT_EQ(failed + 1, epstats.compactionFailed);
+    EXPECT_EQ(succeeded + 2, epstats.compactionSucceeded);
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(true));
+    EXPECT_EQ(0, epBucket.getNumRunningCompactions(false));
+}
+
 TEST_P(STParamPersistentBucketTest,
        RollbackCompletionCallbackStateAfterCompletionCallbackFailure) {
     if (isNexus()) {

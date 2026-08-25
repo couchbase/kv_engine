@@ -7126,6 +7126,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_uncommitted_items",
                           "ep_compaction_failed",
                           "ep_compaction_aborted",
+                          "ep_compaction_succeeded",
+                          "ep_running_internal_compactions",
+                          "ep_running_external_compactions",
                           "ep_compaction_tombstones_purged",
                           "ep_compaction_prepares_purged",
                           "ep_compaction_collection_items_purged"});

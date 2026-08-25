@@ -192,6 +192,12 @@ public:
      */
     bool updateCompactionTasks(Vbid vbid);
 
+    /**
+     * Returns the number of currently running compactions, split by whether
+     * requested internally (after collection drop) or externally.
+     */
+    size_t getNumRunningCompactions(bool internallyRequested) const;
+
     uint64_t getTotalDiskSize() override;
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
@@ -770,6 +776,18 @@ protected:
             compactionTasks;
     // Semaphore limiting how many compaction tasks may run concurrently
     std::unique_ptr<cb::AwaitableSemaphore> compactionSemaphore;
+
+    /**
+     * How many compactions are currently executing, i.e. are inside
+     * KVStoreIface::compactDB. Split by CompactionConfig::internally_requested
+     * as observed when the compaction began.
+     *
+     * Note these count a subset of compactionTasks - a task which is merely
+     * scheduled, snoozed awaiting its requested start time, or queued waiting
+     * for a compactionSemaphore token is not counted here.
+     */
+    cb::RelaxedAtomic<size_t> runningInternalCompactions{0};
+    cb::RelaxedAtomic<size_t> runningExternalCompactions{0};
 
     /**
      * Bool referenced during compaction that is checked to determine if we

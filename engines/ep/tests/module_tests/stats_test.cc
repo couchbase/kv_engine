@@ -1774,6 +1774,47 @@ TEST_F(StatTest, CompactionPurgedMetricFamily) {
     EXPECT_EQ(lowStats.end(), lowStats.find(family));
 }
 
+/**
+ * The two running-compaction gauges share one metric family, distinguished by
+ * the "trigger" label. Check both are exposed, as gauges, and that they are in
+ * the low cardinality group only - unlike the purge counters above, this is a
+ * cheap, fast-moving value which is the whole point of scraping frequently.
+ */
+TEST_F(StatTest, RunningCompactionsMetricFamily) {
+    using namespace cb::prometheus;
+    const std::string family{"ep_running_compactions"};
+
+    std::unordered_map<std::string, prometheus::MetricFamily> lowStats;
+    PrometheusStatCollector lowCollector{lowStats};
+    auto lowBucketCollector = lowCollector.forBucket("bucket");
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->get_prometheus_stats(lowBucketCollector, MetricGroup::Low));
+
+    auto itr = lowStats.find(family);
+    ASSERT_NE(lowStats.end(), itr);
+    EXPECT_EQ(prometheus::MetricType::Gauge, itr->second.type);
+
+    std::unordered_set<std::string> triggerLabels;
+    for (const auto& metric : itr->second.metric) {
+        for (const auto& label : metric.label) {
+            if (label.name == "trigger") {
+                triggerLabels.insert(label.value);
+            }
+        }
+    }
+    EXPECT_EQ((std::unordered_set<std::string>{"internal", "external"}),
+              triggerLabels);
+
+    std::unordered_map<std::string, prometheus::MetricFamily> highStats;
+    PrometheusStatCollector highCollector{highStats};
+    auto highBucketCollector = highCollector.forBucket("bucket");
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->get_prometheus_stats(highBucketCollector,
+                                           MetricGroup::High));
+    EXPECT_EQ(highStats.end(), highStats.find(family));
+}
+
 class CheckpointMemQuotaTest : public StatTest {
     void SetUp() override {
         config_string +=

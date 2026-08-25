@@ -1554,6 +1554,16 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     auto ctx = makeCompactionContext(vb->getId(), config, vb->getPurgeSeqno());
     auto* shard = vbMap.getShardByVbId(vb->getId());
     auto* store = shard->getRWUnderlying();
+
+    // A compaction is only "running" for as long as it is inside compactDB;
+    // the task exists for much longer than that (see ep_pending_compactions).
+    // Note the guard is required rather than merely tidy, as compactDB can
+    // throw and the switch below has multiple exits.
+    auto& running = config.internally_requested ? runningInternalCompactions
+                                                : runningExternalCompactions;
+    ++running;
+    auto runningGuard = folly::makeGuard([&running] { --running; });
+
     CompactDBStatus result;
     try {
         result = store->compactDB(vb.getLock(), ctx);
@@ -1578,6 +1588,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         stats.compactionAborted++;
         break;
     case CompactDBStatus::Success:
+        stats.compactionSucceeded++;
         // Only count an explicit compaction's purges once it completed;
         // couchstore discards its output file on failure/abort, so nothing was
         // actually dropped.
@@ -1760,7 +1771,16 @@ cb::engine_errc EPBucket::getImplementationStats(
     using namespace cb::stats;
     collector.addStat(Key::ep_pending_compactions,
                       compactionTasks.rlock()->size());
+    collector.addStat(Key::ep_running_internal_compactions,
+                      runningInternalCompactions);
+    collector.addStat(Key::ep_running_external_compactions,
+                      runningExternalCompactions);
     return cb::engine_errc::success;
+}
+
+size_t EPBucket::getNumRunningCompactions(bool internallyRequested) const {
+    return internallyRequested ? runningInternalCompactions
+                               : runningExternalCompactions;
 }
 
 cb::engine_errc EPBucket::getPerVBucketDiskStats(CookieIface& cookie,

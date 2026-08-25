@@ -705,6 +705,38 @@
         "added": "7.0.0"
     },
     {
+        "family": "ep_running_compactions",
+        "unit": "count",
+        "description": "Number of compactions currently executing",
+        "long_description": "For persistent buckets, the number of vBucket compactions currently executing, split by whether KV requested the compaction itself (currently only to purge a dropped collection) or it arrived externally, e.g. ns_server auto-compaction or an explicit CompactDB request. Tombstone purging happens within every compaction rather than triggering one of its own. Contrast with ep_pending_compactions, which also counts compactions queued but not yet running; the gap between the two is the compaction backlog. Magma buckets compact mostly internally, on their own threads, without KV scheduling a task - those compactions are not counted here."
+    },
+    {
+        "key": "ep_running_internal_compactions",
+        "unit": "count",
+        "type": "gauge",
+        "prometheus": {
+            "family": "ep_running_compactions",
+            "labels": {
+                "trigger": "internal"
+            }
+        },
+        "description": "Number of KV-initiated compactions currently executing",
+        "added": "8.5.0"
+    },
+    {
+        "key": "ep_running_external_compactions",
+        "unit": "count",
+        "type": "gauge",
+        "prometheus": {
+            "family": "ep_running_compactions",
+            "labels": {
+                "trigger": "external"
+            }
+        },
+        "description": "Number of externally-requested compactions currently executing",
+        "added": "8.5.0"
+    },
+    {
         "key": "ep_compaction_failed",
         "unit": "none",
         "description": "Counter of how many times compaction has failed, e.g. a system call error caused compaction to fail",
@@ -716,6 +748,14 @@
         "unit": "none",
         "description": "Counter of how many times compaction aborted, e.g. the vbucket is required to rollback, so compaction is aborted",
         "added": "7.1.0"
+    },
+    {
+        "key": "ep_compaction_succeeded",
+        "unit": "count",
+        "type": "counter",
+        "description": "Counter of how many times compaction completed successfully",
+        "long_description": "Provides the cumulative number of vBucket compactions which ran to completion. Together with ep_compaction_failed and ep_compaction_aborted this covers every outcome of a compaction, so the three can be summed for a total and divided for a failure ratio, while the rate of this counter alone gives compaction throughput. Persistent buckets only. Note that ep_compaction_aborted is also incremented when a compaction task finds its vbucket has been deleted before compaction began, so the sum slightly exceeds the number of compactions actually attempted. Magma buckets perform most of their compaction internally and those compactions are not counted here; see ep_magma_compactions.",
+        "added": "8.5.0"
     },
     {
         "family": "ep_compaction_purged",
