@@ -119,8 +119,8 @@ public:
 
     /**
      * Implements DCPBackfillIface::fail
-     * Logs the failure and moves the backfill to State::Done so that it cannot
-     * be run again (and a subsequent cancel() does not warn).
+     * Moves the backfill to State::Done so that it cannot be run again (and a
+     * subsequent cancel() does not warn).
      */
     void fail() override;
 

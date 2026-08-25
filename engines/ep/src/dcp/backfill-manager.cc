@@ -416,7 +416,7 @@ backfill_status_t BackfillManager::runBackfill(DCPBackfillIface& backfill) {
 void BackfillManager::handleBackfillException(DCPBackfillIface& backfill,
                                               const std::exception& error) {
     cb::logger::Json ctx{{"name", name},
-                         {"backfill_uuid", backfill.getUID()},
+                         {"uuid", backfill.getUID()},
                          {"error", error.what()}};
 
     if (const auto* backtrace = cb::getBacktrace(error)) {

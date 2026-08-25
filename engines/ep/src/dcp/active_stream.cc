@@ -2528,15 +2528,7 @@ void ActiveStream::handleDcpProducerException(const std::exception& exception) {
             std::move(ctx));
 
     if (engine->getConfiguration().isDcpProducerCatchExceptions()) {
-        setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
-        // Disconnect the connection
-        auto producer = producerPtr.lock();
-        if (producer) {
-            producer->flagDisconnect();
-            // Notify producer to close front-end connection and
-            // remaining streams.
-            producer->scheduleNotify();
-        }
+        setDeadAndDisconnect();
     } else {
         throw;
     }
