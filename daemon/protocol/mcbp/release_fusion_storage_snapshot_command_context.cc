@@ -16,6 +16,8 @@
 #include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 
+#include <chrono>
+
 ReleaseFusionStorageSnapshotCommandContext::
         ReleaseFusionStorageSnapshotCommandContext(Cookie& cookie)
     : BackgroundThreadCommandContext(
@@ -40,23 +42,32 @@ cb::engine_errc ReleaseFusionStorageSnapshotCommandContext::execute() {
         vbucketList.emplace_back(id.get<magma::Magma::KVStoreID>());
     }
 
+    const auto start = std::chrono::steady_clock::now();
     const auto status =
             magma::Magma::ReleaseFusionStorageSnapshot(metadatastoreUri,
                                                        authToken,
                                                        fusionNamespace,
                                                        vbucketList,
                                                        snapshotUuid);
+    const auto stop = std::chrono::steady_clock::now();
     if (!status.IsOK()) {
         response = fmt::format("Failed with error: {}", status.String());
-        LOG_WARNING_CTX("ReleaseFusionStorageSnapshot: ",
+        LOG_WARNING_CTX("ReleaseFusionStorageSnapshot",
                         {"status", status.String()},
                         {fusion_json_key_vbucket_list,
                          request[fusion_json_key_vbucket_list]},
                         {"fusion_namespace", fusionNamespace},
                         {fusion_json_key_metadatastore_uri, metadatastoreUri},
                         {fusion_json_key_snapshot_uuid, snapshotUuid},
-                        {fusion_json_key_bucket_uuid, bucketUuid});
+                        {fusion_json_key_bucket_uuid, bucketUuid},
+                        {"duration", stop - start});
         return cb::engine_errc::failed;
     }
+    LOG_INFO_CTX("ReleaseFusionStorageSnapshot",
+                 {"fusion_namespace", fusionNamespace},
+                 {fusion_json_key_metadatastore_uri, metadatastoreUri},
+                 {fusion_json_key_snapshot_uuid, snapshotUuid},
+                 {fusion_json_key_bucket_uuid, bucketUuid},
+                 {"duration", stop - start});
     return cb::engine_errc::success;
 }

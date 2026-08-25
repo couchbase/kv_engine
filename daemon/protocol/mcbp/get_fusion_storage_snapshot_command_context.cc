@@ -16,6 +16,8 @@
 #include <utilities/fusion_utilities.h>
 #include <utilities/magma_support.h>
 
+#include <chrono>
+
 GetFusionStorageSnapshotCommandContext::GetFusionStorageSnapshotCommandContext(
         Cookie& cookie)
     : BackgroundThreadCommandContext(
@@ -42,6 +44,7 @@ cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
         vbucketList.emplace_back(id.get<magma::Magma::KVStoreID>());
     }
 
+    const auto start = std::chrono::steady_clock::now();
     const auto [status, json] =
             magma::Magma::GetFusionStorageSnapshot(metadatastoreUri,
                                                    authToken,
@@ -49,9 +52,10 @@ cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
                                                    vbucketList,
                                                    snapshotUuid,
                                                    validTill);
+    const auto stop = std::chrono::steady_clock::now();
     if (!status.IsOK()) {
         response = fmt::format("Failed with error: {}", status.String());
-        LOG_WARNING_CTX("GetFusionStorageSnapshot: ",
+        LOG_WARNING_CTX("GetFusionStorageSnapshot",
                         {"status", status.String()},
                         {fusion_json_key_vbucket_list,
                          request[fusion_json_key_vbucket_list]},
@@ -59,9 +63,17 @@ cb::engine_errc GetFusionStorageSnapshotCommandContext::execute() {
                         {fusion_json_key_metadatastore_uri, metadatastoreUri},
                         {fusion_json_key_snapshot_uuid, snapshotUuid},
                         {fusion_json_key_bucket_uuid, bucketUuid},
-                        {fusion_json_key_valid_till, validity});
+                        {fusion_json_key_valid_till, validity},
+                        {"duration", stop - start});
         return cb::engine_errc::failed;
     }
+    LOG_INFO_CTX("GetFusionStorageSnapshot",
+                 {"fusion_namespace", fusionNamespace},
+                 {fusion_json_key_metadatastore_uri, metadatastoreUri},
+                 {fusion_json_key_snapshot_uuid, snapshotUuid},
+                 {fusion_json_key_bucket_uuid, bucketUuid},
+                 {fusion_json_key_valid_till, validity},
+                 {"duration", stop - start});
     response = json.dump();
     datatype = cb::mcbp::Datatype::JSON;
     return cb::engine_errc::success;
