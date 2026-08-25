@@ -36,6 +36,7 @@
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
+#include "dcp_stream_test.h"
 #include "dcp_utils.h"
 #include "ep_engine_storage.h"
 #include "ep_time.h"
@@ -2890,6 +2891,139 @@ TEST_F(FlowControlFullEvictionTest,
                "mutation";
 
     connMap.removeConn(cookie);
+}
+
+// Receive a marker for snapshot 1, 2 (type memory)
+// Receive a mutation for 1 and flush
+// Begin a backfill which performs the merge case (1 from disk, need 2 from
+// memory). Receive 2 after merge case begins. Receive snapshots (type memory)
+// but because these are memory|checkpoint the stream still replicates
+// consistent boundaries (no memory checckpoint extension case).
+//
+// Each snapshot is [key, key1]
+//
+TEST_P(SingleThreadedPassiveStreamTest,
+       BackfillSnapshotFromPartialReplicaIntoMemory) {
+    const uint64_t opaque = 1;
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {},
+                                     {},
+                                     {}));
+    auto& vb = *store->getVBucket(vbid);
+    auto mutation = [this, &vb](const std::string& key, uint64_t bySeqno) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->mutation(opaque,
+                                     makeStoredDocKey(key),
+                                     {},
+                                     0,
+                                     bySeqno,
+                                     vbid,
+                                     0,
+                                     bySeqno,
+                                     0,
+                                     0,
+                                     0,
+                                     0));
+        EXPECT_EQ(bySeqno, vb.getHighSeqno());
+    };
+
+    // Write mutation @ seqno 1 and flush.
+    mutation("key", 1);
+    flushVBucketToDiskIfPersistent(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    // Ensure mutation is not in memory so new DCP stream will backfill
+    EXPECT_EQ(1, manager.expelUnreferencedCheckpointItems().count);
+
+    // Create the producer and DCP stream.
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test_replica_producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    auto activeStream = producer->addMockActiveStream(
+            cb::mcbp::DcpAddStreamFlag::None, 0, vb, 0, ~0ULL, 0, 0, 0);
+    ASSERT_TRUE(activeStream->isBackfilling());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Run backfill and produce the 0,2 snapshot and mutation@1
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    runNextTask(lpAuxioQ); // init + scan
+    ASSERT_EQ(2, readyQ.size());
+
+    MockDcpMessageProducers producers;
+
+    // Marker seq 0 - 2
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+
+    // producer mutation @ 1
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(1, producers.last_byseqno);
+
+    // Now we can continute the interesting part of the test, the rest of the
+    // partial snapshot and a second snapshot.
+    mutation("key1", 2);
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     3, // start
+                                     4, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {},
+                                     {},
+                                     {}));
+    mutation("key", 3);
+    mutation("key1", 4);
+
+    // First kick the memory processing forward so checkpoints are gathered
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+    producer->getCheckpointSnapshotTask()->runInner(true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ("key1", producers.last_key);
+    EXPECT_EQ(2, producers.last_byseqno);
+
+    // marker 3, 4
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(3, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ("key", producers.last_key);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ("key1", producers.last_key);
+    EXPECT_EQ(4, producers.last_byseqno);
 }
 
 struct PrintToStringCombinedNameXattrOnOff {

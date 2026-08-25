@@ -326,8 +326,11 @@ bool ActiveStream::markDiskSnapshot(
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
-        const auto originalEndSeqno = diskEndSeqno;
+        // Clear this for sanity (cursor drop case could bring us here whilst
+        // merging is not complete, but that's another issue MB-62883)
+        mergeEndSeqno = 0;
 
+        const auto originalEndSeqno = diskEndSeqno;
         if (!isBackfilling()) {
             OBJ_LOG_WARN_CTX(*this,
                              "ActiveStream::markDiskSnapshot: Unexpected state",
@@ -376,14 +379,9 @@ bool ActiveStream::markDiskSnapshot(
         }
         // An atomic read of vbucket state without acquiring the
         // reader lock for state should suffice here.
-        // For replica vbuckets, extend diskEndSeqno to the persisted snapshot
-        // end when a backfill only covers part of an in-progress disk snapshot
-        // (e.g. rebalance). The remainder is delivered via the memory phase.
-        // Only merge for Disk snapshots: merging a Memory snapshot produces an
-        // incorrect lastSentSnapEndSeqno and causes a premature DCP snapshot in
-        // the memory phase under certain conditions, refer to MB-71914.
+        // For replica vbuckets, extend diskEndSeqno to the "persisted" snapshot
+        // end, which is a consistent point.
         if (vb->getState() == vbucket_state_replica && persistedSnapshotInfo &&
-            persistedSnapshotInfo->type == CheckpointType::Disk &&
             persistedSnapshotInfo->snapEnd > diskEndSeqno) {
             OBJ_LOG_INFO_CTX(
                     *this,
@@ -393,6 +391,9 @@ bool ActiveStream::markDiskSnapshot(
                     {"backfill_end_seqno", diskEndSeqno},
                     {"persisted_snap_end", persistedSnapshotInfo->snapEnd});
             diskEndSeqno = persistedSnapshotInfo->snapEnd;
+            // Record the snapshot end so that processItems/snapshot does not
+            // generate a new marker whilst still within this merged snapshot.
+            mergeEndSeqno = diskEndSeqno;
         }
 
         // If the stream supports SyncRep then send the HCS in the
@@ -1831,106 +1832,144 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
             snapEndRequiresSeqnoAdvanced = true;
         }
 
-        auto flags = getMarkerFlags(meta);
-        if (isTakeoverSend()) {
-            waitForSnapshot++;
-            flags |= DcpSnapshotMarkerFlag::Acknowledge;
+        // mergeEndSeqno != 0 - we are processing the memory-part of the
+        // backfill/memory merged snapshot. In which case the disk
+        // marker already advertised up to mergeEndSeqno.
+        // The batch of items being processed here may end:
+        //   1) before the mergeEndSeqno
+        //   2) on the mergeEndSeqno
+        //   3) after the mergeEndSeqo
+        // Cases 1 and 2 must not generate a new snapshot marker, but must ship
+        // the items. Case 3 must ship the items upto and including
+        // mergeEndSeqno (and handle seqno-advance case) then continue to
+        // generate a new snapshot marker for the following range.
+        // Note though that snapEnd isn't always the seqno of items.back(). It
+        // could be pushed forward to highNonVisibleSeqno and that affects
+        // case 3.
+        if (snapEnd <= mergeEndSeqno) {
+            // case 1 and 2, skips to loop that empties items to the readyQ
+            snapEndRequiresSeqnoAdvanced = false;
+        } else {
+            if (mergeEndSeqno) {
+                // Case 3: The batch passes the end of the merged snapshot -
+                // complete it and generate a new marker for the remaining
+                // items.
+                //
+                // Note: completeMergedSnapshot may drain items empty. That can
+                // only occur when snapEnd was extended to highNonVisibleSeqno
+                // above.
+                snapStart = completeMergedSnapshot(items, snapEnd);
+            }
+
+            auto flags = getMarkerFlags(meta);
+            if (isTakeoverSend()) {
+                waitForSnapshot++;
+                flags |= DcpSnapshotMarkerFlag::Acknowledge;
+            }
+
+            // If the stream supports SyncRep then send the HCS for
+            // CktpType::disk
+            const auto sendHCS = supportSyncReplication() &&
+                                 isDiskCheckpointType(meta.checkpointType);
+            std::optional<uint64_t> hcsToSend;
+            if (sendHCS) {
+                Expects(meta.diskCheckpointState);
+                hcsToSend = meta.diskCheckpointState->highCompletedSeqno;
+                OBJ_LOG_INFO_CTX(*this,
+                                 "ActiveStream::snapshot: Sending disk "
+                                 "snapshot",
+                                 {"snapshot", {snapStart, snapEnd}},
+                                 {"high_completed_seqno", *hcsToSend});
+            }
+
+            /* We need to send the requested 'snap_start_seqno_' as the
+               snapshot start when we are sending the first snapshot because
+               the first snapshot could be resumption of a previous snapshot */
+            const bool wasFirst = !firstMarkerSent;
+            if (!firstMarkerSent) {
+                snapStart = std::min(snap_start_seqno_, snapStart);
+                firstMarkerSent = true;
+            }
+
+            const auto mvsToSend = supportSyncReplication()
+                                           ? std::make_optional(maxVisibleSeqno)
+                                           : std::nullopt;
+
+            std::optional<uint64_t> psToSend;
+            std::optional<uint64_t> hpsToSend;
+            if (isDiskCheckpointType(meta.checkpointType)) {
+                Expects(meta.diskCheckpointState);
+                psToSend =
+                        supportPurgeSeqnoInSnapshot()
+                                ? std::make_optional(
+                                          meta.diskCheckpointState->purgeSeqno)
+                                : std::nullopt;
+                hpsToSend = supportHPSInSnapshot()
+                                    ? std::make_optional(
+                                              meta.diskCheckpointState
+                                                      ->highPreparedSeqno)
+                                    : std::nullopt;
+            }
+
+            pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                          vb_,
+                                                          snapStart,
+                                                          snapEnd,
+                                                          flags,
+                                                          hcsToSend,
+                                                          hpsToSend,
+                                                          mvsToSend,
+                                                          psToSend,
+                                                          sid));
+            // Update the last start seqno seen but handle base case as
+            // lastSentSnapStartSeqno is initial zero
+            if (snapStart > 0) {
+                lastSentSnapStartSeqno = snapStart;
+            }
+
+            // We only consider failing here if the vBucket state is active. If
+            // this is a replica vBucket (and as such this must be a view
+            // stream) then it is possible for us to send a snap start <
+            // previous snap end as we attempt to merge disk and memory
+            // snapshots.
+            if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
+                engine->getVBucket(vb_)->getState() == vbucket_state_active) {
+                auto msg = fmt::format(
+                        "ActiveStream::snapshot: sent "
+                        "snapshot marker to client with snap start <= previous "
+                        "snap end "
+                        "{} "
+                        "lastSentSnapStart:{} "
+                        "lastSentSnapEnd:{} "
+                        "snapStart:{} "
+                        "snapEnd:{} "
+                        "flags:{} "
+                        "sid:{} "
+                        "producer name:{} "
+                        "lastReadSeqno:{} "
+                        "curChkSeqno:{}",
+                        vb_,
+                        lastSentSnapStartSeqno.load(),
+                        lastSentSnapEndSeqno.load(),
+                        snapStart,
+                        snapEnd,
+                        flags,
+                        sid,
+                        getName(),
+                        lastReadSeqno.load(),
+                        curChkSeqno.load());
+                cb::throwWithTrace(std::logic_error(msg));
+            }
+            lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
+
+            // Here we can just clear this flag as it is set every time we
+            // process a checkpoint_start item in ActiveStream::processItems.
+            nextSnapshotIsCheckpoint = false;
         }
+    }
 
-        // If the stream supports SyncRep then send the HCS for CktpType::disk
-        const auto sendHCS = supportSyncReplication() &&
-                             isDiskCheckpointType(meta.checkpointType);
-        std::optional<uint64_t> hcsToSend;
-        if (sendHCS) {
-            Expects(meta.diskCheckpointState);
-            hcsToSend = meta.diskCheckpointState->highCompletedSeqno;
-            OBJ_LOG_INFO_CTX(*this,
-                             "ActiveStream::snapshot: Sending disk snapshot",
-                             {"snapshot", {snapStart, snapEnd}},
-                             {"high_completed_seqno", *hcsToSend});
-        }
-
-        /* We need to send the requested 'snap_start_seqno_' as the snapshot
-           start when we are sending the first snapshot because the first
-           snapshot could be resumption of a previous snapshot */
-        const bool wasFirst = !firstMarkerSent;
-        if (!firstMarkerSent) {
-            snapStart = std::min(snap_start_seqno_, snapStart);
-            firstMarkerSent = true;
-        }
-
-        const auto mvsToSend = supportSyncReplication()
-                                       ? std::make_optional(maxVisibleSeqno)
-                                       : std::nullopt;
-
-        std::optional<uint64_t> psToSend;
-        std::optional<uint64_t> hpsToSend;
-        if (isDiskCheckpointType(meta.checkpointType)) {
-            Expects(meta.diskCheckpointState);
-            psToSend = supportPurgeSeqnoInSnapshot()
-                               ? std::make_optional(
-                                         meta.diskCheckpointState->purgeSeqno)
-                               : std::nullopt;
-            hpsToSend =
-                    supportHPSInSnapshot()
-                            ? std::make_optional(meta.diskCheckpointState
-                                                         ->highPreparedSeqno)
-                            : std::nullopt;
-        }
-
-        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
-                                                      vb_,
-                                                      snapStart,
-                                                      snapEnd,
-                                                      flags,
-                                                      hcsToSend,
-                                                      hpsToSend,
-                                                      mvsToSend,
-                                                      psToSend,
-                                                      sid));
-        // Update the last start seqno seen but handle base case as
-        // lastSentSnapStartSeqno is initial zero
-        if (snapStart > 0) {
-            lastSentSnapStartSeqno = snapStart;
-        }
-
-        // We only consider failing here if the vBucket state is active. If this
-        // is a replica vBucket (and as such this must be a view stream) then it
-        // is possible for us to send a snap start < previous snap end as we
-        // attempt to merge disk and memory snapshots.
-        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
-            engine->getVBucket(vb_)->getState() == vbucket_state_active) {
-            auto msg = fmt::format(
-                    "ActiveStream::snapshot: sent "
-                    "snapshot marker to client with snap start <= previous "
-                    "snap end "
-                    "{} "
-                    "lastSentSnapStart:{} "
-                    "lastSentSnapEnd:{} "
-                    "snapStart:{} "
-                    "snapEnd:{} "
-                    "flags:{} "
-                    "sid:{} "
-                    "producer name:{} "
-                    "lastReadSeqno:{} "
-                    "curChkSeqno:{}",
-                    vb_,
-                    lastSentSnapStartSeqno.load(),
-                    lastSentSnapEndSeqno.load(),
-                    snapStart,
-                    snapEnd,
-                    flags,
-                    sid,
-                    getName(),
-                    lastReadSeqno.load(),
-                    curChkSeqno.load());
-            cb::throwWithTrace(std::logic_error(msg));
-        }
-        lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
-
-        // Here we can just clear this flag as it is set every time we process
-        // a checkpoint_start item in ActiveStream::processItems.
-        nextSnapshotIsCheckpoint = false;
+    if (mergedSnapshotNeedsSeqnoAdvance(items)) {
+        snapEndRequiresSeqnoAdvanced = true;
     }
 
     for (auto& item : items) {
@@ -1958,6 +1997,74 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                      isSeqnoGapAtEndOfSnapshot(curChkSeqno))) {
         queueSeqnoAdvanced();
     }
+}
+
+// This function forms part of ::snapshot. It is for processing an items batch
+// when we're in a backfill/memory merge. In this case the items "straddles" the
+// border between the end of the merge snapshot and start of the next snapshot.
+// Comments in ::snapshot call this "Case 3". It is only invoked in the merge
+// case (mergeEndSeqno is set to the end of that backfill/memory snapshot).
+uint64_t ActiveStream::completeMergedSnapshot(
+        std::deque<std::unique_ptr<DcpResponse>>& items, uint64_t snapEnd) {
+    // Any leading items still within the merged range belong to the marker
+    // already sent by markDiskSnapshot - push them now, ahead of the next
+    // marker, which must only cover the items beyond the merge point.
+    uint64_t lastMergeSeqnoSent = 0;
+    while (!items.empty()) {
+        const auto seqno = static_cast<uint64_t>(*items.front()->getBySeqno());
+        if (seqno > mergeEndSeqno) {
+            break;
+        }
+        lastMergeSeqnoSent = seqno;
+        pushToReadyQ(std::move(items.front()));
+        items.pop_front();
+    }
+
+    // A snapshot's advertised end seqno must always be sent - either the item
+    // itself or a SeqnoAdvanced replacing it. If the item at mergeEndSeqno
+    // was filtered out, close the merged snapshot now, before the new marker.
+    if (lastMergeSeqnoSent != mergeEndSeqno && isSeqnoAdvancedEnabled()) {
+        queueSeqnoAdvanced(mergeEndSeqno);
+    }
+
+    // items could be empty. If snapEnd was inflated to be highNonVisibleSeqno
+    // then all items could have been part of merge range, but snapEnd extends
+    // "emptily" into a new snapshot, which must be sent and thus
+    // "seqno-advancing" the consumer to the highNonVisibleSeqno.
+    // Here we compute the snapStart for the "next" snapshot which ::snapshot
+    // has to generate to reach "snapEnd" (and accounting for that empty
+    // possibility). In the empty case use snapEnd itself - the new snapshot is
+    // the range {snapEnd, snapEnd} closed by seqno-advance{snapEnd}.
+    const auto snapStart =
+            items.empty() ? snapEnd
+                          : static_cast<uint64_t>(*items.front()->getBySeqno());
+
+    // The merged snapshot is complete.
+    mergeEndSeqno = 0;
+    return snapStart;
+}
+
+bool ActiveStream::mergedSnapshotNeedsSeqnoAdvance(
+        const std::deque<std::unique_ptr<DcpResponse>>& items) {
+    // The merged snapshot (if any) is complete once the cursor has consumed
+    // up to mergeEndSeqno - no marker was pushed for these items (a marker
+    // that passes the merge point clears mergeEndSeqno via
+    // completeMergedSnapshot). curChkSeqno, not lastReadSeqno, is the
+    // consumed-up-to quantity: a non-visible item (e.g. a prepare on a
+    // non-sync-write stream) at mergeEndSeqno advances only curChkSeqno.
+    if (!mergeEndSeqno || curChkSeqno < mergeEndSeqno) {
+        // Not yet reached the end of the merge range.
+        return false;
+    }
+    // mergeEndSeqno != 0 means completeMergedSnapshot did not run (it clears
+    // the merge window), so items is the caller's original non-empty batch.
+    Expects(!items.empty());
+    // If the item at mergeEndSeqno was filtered out then no mutation closes
+    // the snapshot for the client and a SeqnoAdvanced must take its place.
+    const bool needsSeqnoAdvance =
+            static_cast<uint64_t>(*items.back()->getBySeqno()) < mergeEndSeqno;
+    mergeEndSeqno = 0;
+    return needsSeqnoAdvance;
 }
 
 void ActiveStream::setDeadInner(cb::mcbp::DcpStreamEndStatus status) {

@@ -23,6 +23,7 @@
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_time.h"
+#include "ep_types.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -2883,14 +2884,421 @@ public:
         SingleThreadedKVBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     }
+
+    void TearDown() override {
+        // The producer must be released before the engine is destroyed.
+        if (producer) {
+            producer->closeAllStreams();
+            producer->cancelCheckpointCreatorTask();
+            producer.reset();
+        }
+        SingleThreadedKVBucketTest::TearDown();
+    }
+
+    /**
+     * Drive the common backfill/memory merge scenario used by the filtered
+     * stream tests.
+     *
+     * On return:
+     * 1. VBucket(vbid) has a snapshot(type=memory) created for range 1 to
+     *    snapshotEnd
+     * 2. The fruit collection is created and flushed at seqno:1
+     * 3. An item @ seqno:2 has been written/flushed to default collection
+     * 4. DCP producer/stream created (filter on default collection + does not
+     *    enable durability)
+     * 5. DCP stream stepped into backfill and the disk/memory merge begins.
+     * 6. An item @ seqno:3 has been written (to seqno3Collection)
+     * 7. If snapshotEnd does not already cover seqno:4, the open checkpoint
+     *    is extended to 4 (simulating a producer sending checkpoint over
+     *    many snapshots)
+     * 8. An item @ seqno:4 has been written (to seqno4Collection). If
+     *    seqno4IsPrepare it is written as a prepare, which is non-visible -
+     *    the maximum visible seqno of any range covering seqno:4 is then 3.
+     *
+     * The in-memory phase has not yet run, caller can now step DCP etc...
+     */
+    void setupMergedBackfillToSeqno(
+            CollectionID seqno4Collection,
+            CollectionID seqno3Collection = CollectionID::Default,
+            uint64_t snapshotEnd = 3,
+            bool seqno4IsPrepare = false) {
+        VBucketPtr vb = store->getVBucket(vbid);
+
+        // Begin by receiving a memory snapshot for the range 1 to
+        // snapshotEnd. A prepare at seqno:4 is non-visible and caps the
+        // snapshot's maximum visible seqno at 3.
+        const uint64_t maxVisibleSeqno =
+                seqno4IsPrepare ? std::min<uint64_t>(snapshotEnd, 3)
+                                : snapshotEnd;
+        vb->checkpointManager->createSnapshot(
+                1, snapshotEnd, 0, {}, CheckpointType::Memory, maxVisibleSeqno);
+
+        // Create the fruit collection (cid:9) at seqno:1.
+        vb->replicaBeginCollection(Collections::ManifestUid(1),
+                                   {ScopeID::Default, 9},
+                                   "fruit",
+                                   {},
+                                   Collections::Metered::No,
+                                   CanDeduplicate::Yes,
+                                   Collections::ManifestUid{},
+                                   1);
+
+        // Write+flush seqno:1 to disk then expel it so the backfill cannot
+        // retrieve it from memory.
+        flush_vbucket_to_disk(vbid, 1);
+        vb->checkpointManager->expelUnreferencedCheckpointItems();
+
+        // Write+flush seqno:2 (default collection). Flushing advances
+        // the persistence cursor past seqno:2 so that the DCP cursor
+        // registered by markDiskSnapshot lands on the seqno:2 mutation item
+        // rather than on checkpoint_start.
+        writeDocToReplica(vbid, makeStoredDocKey("seq:2"), 2, false);
+        flush_vbucket_to_disk(vbid, 1);
+
+        // Create DCP and run the backfill phase.
+        // DCP stream is filtering on default collection.
+        producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+        ASSERT_TRUE(producer);
+        createDcpStream(*producer, vbid, R"({"collections":["0"]})");
+
+        notifyAndRunToCheckpoint(*producer, producers, false);
+
+        // The backfill (disk seqnos 1,2) merges with the persisted snapshot
+        // [1,snapshotEnd]: the disk marker advertises the merged range
+        // [0,snapshotEnd] and the stream records mergeEndSeqno=snapshotEnd.
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+        EXPECT_EQ(0, producers.last_snap_start_seqno);
+        EXPECT_EQ(snapshotEnd, producers.last_snap_end_seqno);
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(producers));
+        // seqno:1 (fruit collection creation event) is filtered by the
+        // default-only stream and skipped; seqno:2 is delivered.
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(2, producers.last_byseqno);
+
+        // Write seqno:3, then write seqno:4 (a mutation or a prepare), first
+        // extending the checkpoint if the received snapshot does not already
+        // cover it.
+        writeDocToReplica(
+                vbid, makeStoredDocKey("seq:3", seqno3Collection), 3, false);
+        if (snapshotEnd < 4) {
+            vb->checkpointManager->extendOpenCheckpoint(
+                    4, seqno4IsPrepare ? 3 : 4);
+        }
+        writeDocToReplica(vbid,
+                          makeStoredDocKey("seq:4", seqno4Collection),
+                          4,
+                          seqno4IsPrepare);
+    }
+
+protected:
+    std::shared_ptr<MockDcpProducer> producer;
+    MockDcpMessageProducers producers;
 };
 
 TEST_F(MergeSnapshotTest, MB71914MonotonicException) {
+    // seqno:4 is written to the fruit collection, it will not match the stream
+    setupMergedBackfillToSeqno(CollectionEntry::fruit);
+
+    // Run the in-memory phase. seqno:3 (default) passes the filter; seqno:4
+    // (fruit) does not but advances lastReadSeqno to 4 - beyond the merged
+    // marker end - so ActiveStream::snapshot would otherwise consider the
+    // snapshot complete and push a [3,3] marker, violating the
+    // strict-monotonic lastSentSnapEndSeqno (the MB-71914 exception).
+    // With mergeEndSeqno=3 recorded, no new marker is generated for items
+    // within the merged range: seqno:3 is delivered under the already-sent
+    // [0,3] marker, completing it.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    // setupMergedBackfillToSeqno checked that the snapshot ends at 3, this is
+    // the last item
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // seqno:4 (fruit) is filtered; stream is idle.
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Variant of MB71914MonotonicException where seqno:4 is also a default
+// collection item, so it is not filtered from the stream. The in-memory batch
+// [3,4] straddles the merged snapshot end (3) and must be split: seqno:3 is
+// delivered under the already-sent merged marker [0,3], completing it, whilst
+// seqno:4 requires a new marker [4,4].
+TEST_F(MergeSnapshotTest, SplitAtMergeBoundary) {
+    // seqno:4 is written to the default collection, so unlike
+    // MB71914MonotonicException it is not filtered from the stream.
+    setupMergedBackfillToSeqno(CollectionID::Default);
+
+    // Run the in-memory phase. Both seqno:3 and seqno:4 pass the filter, and
+    // the batch straddles mergeEndSeqno(3), splitting the processing.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    // seqno:3 is delivered with no preceding marker - it completes the merged
+    // [0,3] snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // seqno:4 is beyond the merge point and arrives under a new [4,4] marker.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(4, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Variant where the item at the merged snapshot end (seqno:4, fruit) is
+// filtered from the stream. No mutation can close the merged [0,4] snapshot
+// for the client, so a SeqnoAdvanced must take its place.
+TEST_F(MergeSnapshotTest, SeqnoAdvanceClosesMergedSnapshot) {
+    // The received snapshot covers to seqno:4, so the merged snapshot is
+    // [0,4] and seqno:4 (fruit) is its final item.
+    setupMergedBackfillToSeqno(
+            CollectionEntry::fruit, CollectionID::Default, 4);
+
+    // Run the in-memory phase. seqno:3 passes the filter; seqno:4 - the
+    // merged snapshot's final item - does not. seqno:3 arrives under the
+    // already-sent [0,4] marker, and a SeqnoAdvanced stands in for the
+    // filtered seqno:4 to close the snapshot.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Variant where the item at the merged snapshot end (seqno:3, fruit) is
+// filtered and the same batch holds seqno:4 (default), which lies beyond the
+// merge point. Protocol rule: a snapshot's advertised end seqno must always
+// be sent - the item itself or a SeqnoAdvanced replacing it. The merged [0,3]
+// snapshot must therefore be closed by a SeqnoAdvanced to 3 before the new
+// [4,4] marker is sent.
+TEST_F(MergeSnapshotTest, SeqnoAdvanceClosesMergedSnapshotBeforeNewMarker) {
+    // seqno:3 (the merge end) is written to the fruit collection so it is
+    // filtered; seqno:4 is written to the default collection.
+    setupMergedBackfillToSeqno(CollectionID::Default, CollectionEntry::fruit);
+
+    // Run the in-memory phase over [3,4].
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    // A SeqnoAdvanced to 3 stands in for the filtered seqno:3, closing the
+    // merged [0,3] snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // seqno:4 arrives under a new [4,4] marker.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(4, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Exercises the items.empty() outcome of completeMergedSnapshot: every
+// deliverable item lies within the merged range, yet the batch still passes
+// the merge point. The in-memory batch is seqno:3 (default, deliverable),
+// seqno:4 (fruit - a filtered mutation which advances lastReadSeqno past the
+// merge end, letting the batch through the replica gate) and seqno:5 (a
+// prepare in the default collection on a non-sync-write stream, which cannot
+// be sent but raises snapEnd via highNonVisibleSeqno). The drain then empties
+// the deque: seqno:3 closes the merged [0,3] snapshot and the prepare is
+// advertised by an item-less [5,5] marker terminated by a SeqnoAdvanced.
+TEST_F(MergeSnapshotTest, PrepareBeyondMergeEndDrainsBatch) {
+    // seqno:3 default (deliverable), seqno:4 fruit (filtered).
+    setupMergedBackfillToSeqno(CollectionEntry::fruit);
+
+    // Extend the checkpoint again and write a prepare at seqno:5 (default
+    // collection). maxVisibleSnapEnd stays at 4 as a prepare is not visible.
+    VBucketPtr vb = store->getVBucket(vbid);
+    vb->checkpointManager->extendOpenCheckpoint(5, 4);
+    writeDocToReplica(vbid, makeStoredDocKey("seq:5"), 5, true /*prepare*/);
+
+    // Run the in-memory phase over [3,5].
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    // seqno:3 is delivered with no preceding marker - it completes the merged
+    // [0,3] snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // The range beyond the merge point is advertised by a new marker: the
+    // items deque was fully drained so it is the item-less range [5,5] -
+    // snapEnd (the prepare's seqno via highNonVisibleSeqno) is used for both
+    // ends rather than guessing at mergeEndSeqno+1, which may never have been
+    // assigned to any item...
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(5, producers.last_snap_start_seqno);
+    EXPECT_EQ(5, producers.last_snap_end_seqno);
+
+    // ... and contains no items; a SeqnoAdvanced delivers its end.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers.last_op);
+    EXPECT_EQ(5, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// From ActiveStream::snapshot comments this test intends to cover "case 2"
+// but when the snapshot end was assigned to highNonVisibleSeqno. The snapshot
+// batch's deliverable items end before the merge point, but the item at the
+// merged snapshot end (seqno:4) is a prepare which cannot be sent on the
+// non-sync-write stream. highNonVisibleSeqno therefore raises snapEnd to land
+// exactly on mergeEndSeqno. A trailing fruit mutation (seqno:5) advances
+// lastReadSeqno past the merge end, admitting the batch into the
+// marker-generation stage - where no new marker may be generated: the merged
+// [0,4] marker already covers the batch, so seqno:3 ships marker-less and a
+// SeqnoAdvanced to 4 stands in for the prepare, closing the merged snapshot.
+TEST_F(MergeSnapshotTest, HighNonVisibleSeqnoRaisesSnapEndToMergeEnd) {
+    // The received snapshot covers to seqno:4, so the merged snapshot is
+    // [0,4]. seqno:4 is a prepare in the default collection - within the
+    // stream's filter but non-visible, so the in-memory phase records it as
+    // highNonVisibleSeqno.
+    setupMergedBackfillToSeqno(CollectionID::Default,
+                               CollectionID::Default,
+                               4 /*snapshotEnd*/,
+                               true /*seqno4IsPrepare*/);
+
+    // Extend the checkpoint and write seqno:5 to fruit: a filtered mutation
+    // which advances lastReadSeqno beyond the merge end.
+    VBucketPtr vb = store->getVBucket(vbid);
+    vb->checkpointManager->extendOpenCheckpoint(5, 5);
+    writeDocToReplica(
+            vbid, makeStoredDocKey("seq:5", CollectionEntry::fruit), 5, false);
+
+    // Run the in-memory phase over [3,5]. snapEnd of the deliverable items
+    // (3) is raised by highNonVisibleSeqno to 4 == mergeEndSeqno.
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    // seqno:3 is delivered with no preceding marker - it belongs to the
+    // merged [0,4] snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // The prepare at the merged snapshot end can never be sent - a
+    // SeqnoAdvanced to 4 closes the merged snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Variant of HighNonVisibleSeqnoRaisesSnapEndToMergeEnd where the in-memory
+// batch *ends* on the prepare at the merged snapshot end: no item advances
+// lastReadSeqno past the merge point, so ActiveStream::snapshot's replica
+// gate skips the marker-generation stage entirely and the merged [0,4]
+// snapshot is closed via the isSeqnoGapAtEndOfSnapshot path (a SeqnoAdvanced
+// to 4). That close must also terminate the merge window: the next batch
+// (seqno:5) must arrive under a new [5,5] marker without a second
+// SeqnoAdvanced to 4 being emitted for the already-closed merged snapshot.
+TEST_F(MergeSnapshotTest, PrepareAtMergeEndNoDuplicateSeqnoAdvance) {
+    // The received snapshot covers to seqno:4, so the merged snapshot is
+    // [0,4]. seqno:4 is a prepare in the default collection. Unlike
+    // HighNonVisibleSeqnoRaisesSnapEndToMergeEnd nothing is written beyond
+    // it - the in-memory batch ends on the prepare, so nothing advances
+    // lastReadSeqno beyond the merge point.
+    setupMergedBackfillToSeqno(CollectionID::Default,
+                               CollectionID::Default,
+                               4 /*snapshotEnd*/,
+                               true /*seqno4IsPrepare*/);
+
+    // Run the in-memory phase over [3,4].
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    // seqno:3 is delivered with no preceding marker - it belongs to the
+    // merged [0,4] snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+
+    // The prepare at the merged snapshot end can never be sent - a
+    // SeqnoAdvanced to 4 closes the merged snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+
+    // The merged snapshot is closed; a later mutation must arrive under a
+    // new [5,5] marker with no further SeqnoAdvanced for the merged range.
+    VBucketPtr vb = store->getVBucket(vbid);
+    vb->checkpointManager->extendOpenCheckpoint(5, 5);
+    writeDocToReplica(vbid, makeStoredDocKey("seq:5"), 5, false);
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(5, producers.last_snap_start_seqno);
+    EXPECT_EQ(5, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(5, producers.last_byseqno);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
+}
+
+// Cover the case where the merged snapshot is consumed over multiple
+// in-memory batches. The merged range is [0,6]: the backfill supplies seqnos
+// 1,2, then the in-memory phase runs twice, first processing [3,4] and then
+// [5,6]. No new marker should be generated at any point - every item belongs
+// to the merged snapshot already advertised by the backfill marker, which the
+// final batch completes.
+TEST_F(MergeSnapshotTest, MultipleBatchesWithinMerge) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Begin by receiving a memory snapshot for the range 1 to 3.
+    // Begin by receiving a memory snapshot for the range 1 to 6.
     vb->checkpointManager->createSnapshot(
-            1, 3, 0, {}, CheckpointType::Memory, 3);
+            1, 6, 0, {}, CheckpointType::Memory, 6);
 
     // Create the fruit collection (cid:9) at seqno:1.
     vb->replicaBeginCollection(Collections::ManifestUid(1),
@@ -2916,26 +3324,20 @@ TEST_F(MergeSnapshotTest, MB71914MonotonicException) {
 
     // Create DCP and run the backfill phase.
     // DCP stream is filtering on default collection.
-    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     ASSERT_TRUE(producer);
     createDcpStream(*producer, vbid, R"({"collections":["0"]})");
 
-    MockDcpMessageProducers producers;
     notifyAndRunToCheckpoint(*producer, producers, false);
 
-    // The merge is suppressed because the persisted snapshot is Memory-type.
-    // Merging would inflate lastSentSnapEndSeqno to the checkpoint end (3),
-    // causing the memory phase to skip its snapshot marker (it would see the
-    // snapshot as still in-progress). Without a marker, seqno:3 would be
-    // delivered with snapEnd(3) == lastSentSnapEndSeqno(3), violating the
-    // strict-monotonic invariant — the bug fixed by MB-71914.
-    // With the merge suppressed, lastSentSnapEndSeqno stays at the actual disk
-    // end (2), and the memory phase correctly issues a fresh [3,3] marker.
+    // The backfill (disk seqnos 1,2) merges with the persisted snapshot
+    // [1,6]: the disk marker advertises the merged range [0,6] and the
+    // stream records mergeEndSeqno=6.
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    EXPECT_EQ(6, producers.last_snap_end_seqno);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
     // seqno:1 (fruit collection creation event) is filtered by the
@@ -2943,35 +3345,38 @@ TEST_F(MergeSnapshotTest, MB71914MonotonicException) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
     EXPECT_EQ(2, producers.last_byseqno);
 
-    // Write seqno:3 (default), the last item of the original [1,3] snapshot.
+    // First in-memory batch: seqnos 3,4 (default). Still short of
+    // mergeEndSeqno(6) - both are delivered under the merged marker with no
+    // new marker, and the merge state must remain in force.
     writeDocToReplica(vbid, makeStoredDocKey("seq:3"), 3, false);
-
-    // Simulate an old-style producer sending a consecutive Memory snapshot
-    // without the Checkpoint flag: extendOpenCheckpoint silently raises the
-    // checkpoint end from 3 to 4 without inserting a checkpoint_start item.
-    // seqno:4 (fruit, cid:9) is written into the extended checkpoint.
-    vb->checkpointManager->extendOpenCheckpoint(4, 4);
-    writeDocToReplica(vbid, makeStoredDocKey("seq:4", 9), 4, false);
-
-    // Run the in-memory phase. seqno:3 (default) passes the filter; seqno:4
-    // (fruit) does not but advances newLastReadSeqno to 4. With the fix,
-    // lastSentSnapEndSeqno=2 so store(snapEnd=3) is valid (3 > 2) and seqno:3
-    // is delivered under a new snapshot marker [3,3] without a monotonic
-    // violation.
+    writeDocToReplica(vbid, makeStoredDocKey("seq:4"), 4, false);
     notifyAndRunToCheckpoint(*producer, producers, true);
-
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(3, producers.last_snap_start_seqno);
-    EXPECT_EQ(3, producers.last_snap_end_seqno);
 
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
     EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(4, producers.last_byseqno);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->stepWithBorderGuard(producers));
 
-    // seqno:4 (fruit) is filtered; stream is idle.
+    // Second in-memory batch: seqnos 5,6 (default) complete the merged
+    // snapshot. Again no new marker - seqno:6 closes the [0,6] snapshot.
+    writeDocToReplica(vbid, makeStoredDocKey("seq:5"), 5, false);
+    writeDocToReplica(vbid, makeStoredDocKey("seq:6"), 6, false);
+    notifyAndRunToCheckpoint(*producer, producers, true);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(5, producers.last_byseqno);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(6, producers.last_byseqno);
     EXPECT_EQ(cb::engine_errc::would_block,
               producer->stepWithBorderGuard(producers));
 }
@@ -3015,17 +3420,15 @@ TEST_F(MergeSnapshotTest, MB72198DuplicateKeys) {
     MockDcpMessageProducers producers;
     notifyAndRunToCheckpoint(*producer, producers, false);
 
-    // The persisted snapshot is Memory-type, so per MB-71914 the disk/memory
-    // merge is suppressed, only merges between disk and memory snapshots are
-    // allowed.
-    // The backfill marker covers only the disk range [0,2] and the in-memory
-    // phase sends its own marker afterwards.
+    // The backfill (disk seqnos 1,2) merges with the persisted snapshot
+    // [1,3]: the disk marker advertises the merged range [0,3] and the
+    // stream records mergeEndSeqno=3.
     std::set<StoredDocKey> keys;
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     EXPECT_EQ(0, producers.last_snap_start_seqno);
-    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    EXPECT_EQ(3, producers.last_snap_end_seqno);
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
@@ -3042,15 +3445,10 @@ TEST_F(MergeSnapshotTest, MB72198DuplicateKeys) {
     // Run the in-memory phase, this will collect from checkpoint seqno:3 and
     // seqno:4. seqno:4 (also key "seq:1") is a newer copy of the key already
     // sent at seqno:1 in the backfill snapshot above.
-    // Since the two snapshots are not merged the consumer will receive seqno:4
-    // in a separate snapshot to seqno:1.
+    // The batch straddles mergeEndSeqno(3): seqno:3 is delivered under the
+    // already-sent merged marker [0,3], completing it, whilst seqno:4 arrives
+    // under a new marker [4,4] - the duplicate key is in a new snapshot.
     notifyAndRunToCheckpoint(*producer, producers, true);
-
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-    EXPECT_EQ(3, producers.last_snap_start_seqno);
-    EXPECT_EQ(4, producers.last_snap_end_seqno);
 
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));
@@ -3058,6 +3456,12 @@ TEST_F(MergeSnapshotTest, MB72198DuplicateKeys) {
     EXPECT_EQ(3, producers.last_byseqno);
     EXPECT_TRUE(keys.insert(producers.last_dockey).second)
             << "Duplicate key found: " << producers.last_dockey.to_string();
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(4, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
 
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepWithBorderGuard(producers));

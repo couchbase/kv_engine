@@ -19,6 +19,7 @@
 #include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
+#include <cstdint>
 #include <optional>
 
 namespace cb::mcbp::request {
@@ -874,6 +875,53 @@ private:
                   std::optional<uint64_t> highNonVisibleSeqno,
                   uint64_t newLastReadSeqno);
 
+    /**
+     * Called by snapshot() when the batch of items passes the end of a
+     * merged snapshot (mergeEndSeqno). Pushes the leading items which are
+     * still within the merged range - they belong to the marker already sent
+     * by markDiskSnapshot and must precede the new marker. If the item at
+     * mergeEndSeqno was filtered out, a SeqnoAdvanced is queued in its place
+     * to close the merged snapshot. Clears mergeEndSeqno.
+     *
+     * @param items The batch being processed; drained of any leading items
+     *        at seqnos <= mergeEndSeqno. May be drained empty - see the
+     *        caller for how the marker it generates remains valid.
+     * @param snapEnd The end seqno of the marker the caller will generate;
+     *        used as the snap-start when items is drained empty, giving an
+     *        item-less {snapEnd, snapEnd} snapshot closed by a SeqnoAdvanced.
+     * @return the snap-start for the new marker covering the remaining items
+     */
+    uint64_t completeMergedSnapshot(
+            std::deque<std::unique_ptr<DcpResponse>>& items, uint64_t snapEnd);
+
+    /**
+     * Called by snapshot() after the marker-generation stage. Determines if
+     * the batch of items completes a merged snapshot (the cursor has consumed
+     * up to mergeEndSeqno) with the item at mergeEndSeqno removed from the
+     * stream - in which case no mutation closes the snapshot for the client
+     * and a SeqnoAdvanced must take its place. Clears mergeEndSeqno once
+     * consumed up to.
+     *
+     * Completion is judged on curChkSeqno, not lastReadSeqno: the item at
+     * mergeEndSeqno may be removed from the stream either by the collection
+     * filter (which still advances lastReadSeqno) or by being non-visible,
+     * e.g. a prepare on a non-sync-write stream (which advances only
+     * curChkSeqno). Both must close the merge window - were it left set, the
+     * next batch would re-close the merged snapshot via
+     * completeMergedSnapshot, sending a duplicate SeqnoAdvanced.
+     *
+     * Note this check cannot live within the marker-generation stage: when
+     * the item at mergeEndSeqno is removed from the stream, lastReadSeqno
+     * never exceeds the merged marker's end, so the replica gate
+     * (isReplicaSnapshotComplete) skips that stage entirely and
+     * isSeqnoGapAtEndOfSnapshot cannot see that the snapshot needs closing.
+     *
+     * @param items The batch being processed (must be non-empty)
+     * @return true if a SeqnoAdvanced is required to close the merged snapshot
+     */
+    bool mergedSnapshotNeedsSeqnoAdvance(
+            const std::deque<std::unique_ptr<DcpResponse>>& items);
+
     void endStream(cb::mcbp::DcpStreamEndStatus reason);
 
     /* reschedule = FALSE ==> First backfill on the stream
@@ -1174,4 +1222,9 @@ private:
     const size_t backfillAntilagInterval;
 
     size_t backfillAntilagSkipped{0};
+
+    // When backfill/memory "merging" occurs, this is the end-seqno of the
+    // merged-snapshot, no new snapshot-marker can be generated before this
+    // mutation. 0 no merge
+    uint64_t mergeEndSeqno{0};
 };

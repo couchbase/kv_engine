@@ -5567,7 +5567,7 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     ASSERT_EQ(0, readyQ.size());
 
     // Core test
-    // Backfill generates a [0, 1] complete snapshot even if on disk replica is
+    // Backfill generates a [0, 2] complete snapshot when on disk replica is
     // in a partial [0, 2] snapshot.
     auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ); // init + scan
@@ -5578,7 +5578,7 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(0, snapMarker.getStartSeqno());
-    EXPECT_EQ(1, snapMarker.getEndSeqno());
+    EXPECT_EQ(2, snapMarker.getEndSeqno());
     // mutation
     resp = activeStream->next(*producer);
     ASSERT_TRUE(resp);
