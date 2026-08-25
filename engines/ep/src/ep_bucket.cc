@@ -3477,9 +3477,6 @@ cb::engine_errc EPBucket::startFusionUploader(Vbid vbid, uint64_t term) {
 }
 
 cb::engine_errc EPBucket::stopFusionUploader(Vbid vbid) {
-    if (!isVbucketActive(vbid)) {
-        return cb::engine_errc::not_my_vbucket;
-    }
     auto* underlying = getRWUnderlying(vbid);
     Expects(underlying);
     if (!underlying->getStorageProperties().supportsFusion()) {

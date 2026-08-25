@@ -1137,7 +1137,7 @@ TEST_P(FusionTest, StopFusionUploader_NonActiveVbucket) {
     }
     connection->setVbucket(vbid, vbucket_state_replica, {});
     auto resp = stopFusionUploader(vbid);
-    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     // Restore active state so TearDown cleanup can proceed
     connection->setVbucket(vbid, vbucket_state_active, {});
 }
