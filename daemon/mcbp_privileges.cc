@@ -241,7 +241,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::DisableTraffic, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::Ifconfig, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::ReturnMeta, requireMetaWriteOnCurrentDocument);
-    setup(ClientOpcode::CompactDb, require<Privilege::NodeSupervisor>);
+    setup(ClientOpcode::CompactDb, require<Privilege::Administrator>);
     setup(ClientOpcode::SetClusterConfig, require<Privilege::NodeSupervisor>);
     setup(ClientOpcode::GetClusterConfig, empty);
     setup(ClientOpcode::GetRandomKey, require<Privilege::Read>);
