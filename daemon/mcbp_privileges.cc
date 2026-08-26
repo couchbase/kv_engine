@@ -307,8 +307,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * Command to trigger compaction of a vbucket
      */
-    setup(cb::mcbp::ClientOpcode::CompactDb,
-          require<Privilege::NodeSupervisor>);
+    setup(cb::mcbp::ClientOpcode::CompactDb, require<Privilege::Administrator>);
     /**
      * Command to set cluster configuration
      */
