@@ -7224,12 +7224,12 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     auto connhandler = getSharedPtrConnHandler(cookie);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
-    auto vbuckets = kvBucket->getVBuckets().getBuckets();
     std::vector<char> payload;
     try {
-        // Build the response payload. Each entry in the array occupies 10 bytes
+        // Reserve the response payload, sized for maximum case of all VBuckets
+        // exist (1 node cluster). Each entry in the array occupies 10 bytes
         // (two bytes vbucket id followed by 8 bytes sequence number)
-        payload.reserve(vbuckets.size() *
+        payload.reserve(kvBucket->getVBuckets().getSize() *
                         (sizeof(uint16_t) + sizeof(uint64_t)));
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -7276,70 +7276,65 @@ void EventuallyPersistentEngine::collectVBucketSequenceNumbers(
                 "collectVBucketSequenceNumbers: cannot specify both "
                 "collection ID and scope ID");
     }
-    auto vbuckets = kvBucket->getVBuckets().getBuckets();
-    for (auto vbid : vbuckets) {
-        VBucketPtr vb = getVBucket(vbid);
-        if (vb) {
-            if (!reqState.test(vb->getState())) {
+    for (Vbid::id_type id = 0; id < kvBucket->getVBuckets().getSize(); id++) {
+        auto vb = getVBucket(Vbid(id));
+        if (!vb || !reqState.test(vb->getState())) {
+            continue;
+        }
+
+        uint64_t highSeqno{0};
+
+        if (cid) {
+            auto handle = vb->lockCollections();
+            // The collection may not exist in any given vBucket.
+            // Check this instead of throwing and catching an
+            // exception.
+            if (handle.exists(cid.value())) {
+                if (cid.value() == CollectionID::Default &&
+                    !collectionsEnabled) {
+                    highSeqno =
+                            supportsSyncWrites
+                                    ? handle.getDefaultCollectionMaxLegacyDCPSeqno()
+                                    : handle.getDefaultCollectionMaxVisibleSeqno();
+                } else {
+                    // supports collections thus supports SeqAdvanced. KV
+                    // returns the high-seqno which may or may not be
+                    // visible
+                    highSeqno = handle.getHighSeqno(*cid);
+                }
+            } else {
+                // If the collection doesn't exist in this
+                // vBucket, return nothing for this vBucket.
+                continue;
+            }
+        } else if (sid) {
+            auto handle = vb->lockCollections();
+            // Get all collections in the scope and find the highest seqno
+            auto collectionsInScope = handle.getCollectionsForScope(*sid);
+            if (!collectionsInScope) {
+                // Scope doesn't exist in this vBucket
                 continue;
             }
 
-            uint64_t highSeqno{0};
-
-            if (cid) {
-                auto handle = vb->lockCollections();
-                // The collection may not exist in any given vBucket.
-                // Check this instead of throwing and catching an
-                // exception.
-                if (handle.exists(cid.value())) {
-                    if (cid.value() == CollectionID::Default &&
-                        !collectionsEnabled) {
-                        highSeqno =
-                                supportsSyncWrites
-                                        ? handle.getDefaultCollectionMaxLegacyDCPSeqno()
-                                        : handle.getDefaultCollectionMaxVisibleSeqno();
-                    } else {
-                        // supports collections thus supports SeqAdvanced. KV
-                        // returns the high-seqno which may or may not be
-                        // visible
-                        highSeqno = handle.getHighSeqno(*cid);
-                    }
-                } else {
-                    // If the collection doesn't exist in this
-                    // vBucket, return nothing for this vBucket.
-                    continue;
-                }
-            } else if (sid) {
-                auto handle = vb->lockCollections();
-                // Get all collections in the scope and find the highest seqno
-                auto collectionsInScope = handle.getCollectionsForScope(*sid);
-                if (!collectionsInScope) {
-                    // Scope doesn't exist in this vBucket
-                    continue;
-                }
-
-                for (const auto& collectionId : collectionsInScope.value()) {
-                    uint64_t collectionSeqno =
-                            handle.getHighSeqno(collectionId);
-                    highSeqno = std::max(highSeqno, collectionSeqno);
-                }
+            for (const auto& collectionId : collectionsInScope.value()) {
+                uint64_t collectionSeqno = handle.getHighSeqno(collectionId);
+                highSeqno = std::max(highSeqno, collectionSeqno);
+            }
+        } else {
+            if (vb->getState() == vbucket_state_active) {
+                highSeqno = supportsSyncWrites || collectionsEnabled
+                                    ? vb->getHighSeqno()
+                                    : vb->getMaxVisibleSeqno();
             } else {
-                if (vb->getState() == vbucket_state_active) {
-                    highSeqno = supportsSyncWrites || collectionsEnabled
-                                        ? vb->getHighSeqno()
-                                        : vb->getMaxVisibleSeqno();
-                } else {
-                    highSeqno =
-                            supportsSyncWrites || collectionsEnabled
+                highSeqno = supportsSyncWrites || collectionsEnabled
                                     ? vb->checkpointManager->getSnapshotInfo()
                                               .range.getEnd()
                                     : vb->checkpointManager
                                               ->getVisibleSnapshotEndSeqno();
-                }
             }
-
-            callback(vbid, highSeqno);
         }
+
+        callback(Vbid(id), highSeqno);
     }
 }
 
