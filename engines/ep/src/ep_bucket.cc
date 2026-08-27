@@ -550,7 +550,11 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     // the restart.
     Monotonic<uint64_t> maxVisibleSeqno{proposedVBState.maxVisibleSeqno};
 
-    if (toFlush.maxDeletedRevSeqno) {
+    // We should not flush a maxDeleteSeqno that is lower than a previously
+    // flushed value.
+    if (toFlush.maxDeletedRevSeqno &&
+        toFlush.maxDeletedRevSeqno.value() >
+                static_cast<uint64_t>(proposedVBState.maxDeletedSeqno)) {
         proposedVBState.maxDeletedSeqno = toFlush.maxDeletedRevSeqno.value();
     }
 

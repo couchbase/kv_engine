@@ -5055,6 +5055,58 @@ TEST_P(STParamPersistentBucketTest, SetVBucketStateDirtyQueueAge) {
     EXPECT_EQ(0, vb->dirtyQueueSize);
 }
 
+// MB-73556: toFlush.maxDeletedRevSeqno, which is the maximum over the
+// *current* flush batch should not overwrite a higher value on disk.
+// A batch whose highest deleted revSeqno is lower than the
+// already-persisted value must NOT lower it
+TEST_P(STParamPersistentBucketTest,
+       MaxDeletedSeqnoDoesNotRegressAcrossFlushes) {
+    store->setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto* kvstore = store->getRWUnderlying(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    // Seed keyLow FIRST, while the vbucket's deleted-revSeqno counter is still
+    // 0, so it keeps revSeqno 1.
+    const auto keyLow = makeStoredDocKey("keyLow");
+    store_item(vbid, keyLow, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Batch 1: drive a deleted revSeqno HIGH and persist i
+    const auto keyHigh = makeStoredDocKey("keyHigh");
+    const int numUpserts = 40;
+    for (int i = 0; i < numUpserts; ++i) {
+        store_item(vbid, keyHigh, "value");
+    }
+    delete_item(vbid, keyHigh);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto highState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, highState.status);
+    const uint64_t persistedHigh = highState.state.maxDeletedSeqno;
+    ASSERT_GT(persistedHigh, 2)
+            << "expected keyHigh's high tombstone revSeqno to be persisted";
+
+    // Force keyLow's delete into its OWN checkpoint. A checkpoint retains the
+    // maximum deleted revSeqno over its whole lifetime. We want to overwrite
+    // the high seqno with a lower one.
+    manager.createNewCheckpoint();
+
+    // Batch 2 (a SEPARATE flush): delete the low-rev key which will have
+    // revSeqno of 2. This should not overwrite the high maxDeletedRevSeqno.
+    delete_item(vbid, keyLow);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto afterState = kvstore->getPersistedVBucketState(vbid);
+    ASSERT_EQ(KVStoreIface::ReadVBStateStatus::Success, afterState.status);
+
+    // The monotonic counter must not have moved backwards on disk to 2.
+    EXPECT_EQ(persistedHigh, uint64_t(afterState.state.maxDeletedSeqno))
+            << "max_deleted_seqno regressed on disk: " << persistedHigh
+            << " -> " << uint64_t(afterState.state.maxDeletedSeqno);
+}
+
 TEST_P(STParamPersistentBucketTest, GetAllKeysDoesNotCountDeleted) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
