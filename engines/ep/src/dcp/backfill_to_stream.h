@@ -58,8 +58,7 @@ public:
 
     /**
      * Implements DCPBackfillIface::fail
-     * Sets the associated stream to dead with BackfillFail so that the client
-     * is informed the stream has ended.
+     * Calls ActiveStream::setDeadAndDisconnect if the stream is still valid
      */
     void fail() override;
 
