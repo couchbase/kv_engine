@@ -8634,20 +8634,28 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("test access scanner and warmup",
-                 test_access_scanner,
-                 test_setup,
-                 teardown,
-                 // Need to cap at <number of items written, so we create
-                 // >1 checkpoint. Also given bucket quota is being
-                 // constrained.
-                 "chk_max_items=500;"
-                 "chk_remover_stime=1;"
-                 "max_num_shards=2;"
-                 "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "test access scanner and warmup",
+                test_access_scanner,
+                test_setup,
+                teardown,
+                // Need to cap at <number of items written, so we create
+                // >1 checkpoint. Also given bucket quota is being
+                // constrained.
+                "chk_max_items=500;"
+                "chk_remover_stime=1;"
+                "max_num_shards=2;"
+                "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
+                "checkpoint_memory_recovery_lower_mark=0;"
+                // Fills a tiny 10MB quota to drive eviction, so RSS sits over
+                // quota with the evicted-value memory left fragmented -- the
+                // RSS/fragmentation back-pressure condition. That gate is on by
+                // default now and would temp-OOM the fill (and perturb the
+                // residency the access log/warmup depend on); this test does
+                // not exercise it, so disable it.
+                "fragmentation_backpressure_enabled=false",
+                prepare,
+                cleanup),
         TestCase("test set_param message",
                  test_set_param_message,
                  test_setup,
@@ -9619,18 +9627,25 @@ BaseTestCase testsuite_testcases[] = {
                  "seqno_persistence_timeout=0",
                  prepare,
                  cleanup),
-        TestCase("test bucket quota reduction",
-                 test_bucket_quota_reduction,
-                 test_setup,
-                 teardown,
-                 // A slightly generous quota is required to give us room to
-                 // work with - 10MB
-                 "max_size=10485760;"
-                 // Have the quota change task run constantly to avoid
-                 // unnecessary waiting in the test
-                 "bucket_quota_change_task_poll_interval=0",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "test bucket quota reduction",
+                test_bucket_quota_reduction,
+                test_setup,
+                teardown,
+                // A slightly generous quota is required to give us room to
+                // work with - 10MB
+                "max_size=10485760;"
+                // Have the quota change task run constantly to avoid
+                // unnecessary waiting in the test
+                "bucket_quota_change_task_poll_interval=0;"
+                // Reducing the quota leaves RSS over the new quota with the
+                // freed memory fragmented (allocated < quota), which is the
+                // RSS/fragmentation back-pressure condition. That gate is on by
+                // default but this test is not exercising it -- it expects the
+                // post-reduction store to succeed -- so disable it here.
+                "fragmentation_backpressure_enabled=false",
+                prepare,
+                cleanup),
         TestCase("test background warmup",
                  test_bg_warmup,
                  test_setup,
