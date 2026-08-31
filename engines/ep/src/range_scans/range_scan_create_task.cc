@@ -23,8 +23,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         EPBucket& bucket,
         CookieIface& cookie,
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
-        const cb::rangescan::CreateParameters& params,
-        std::unique_ptr<RangeScanCreateToken> scanData)
+        const cb::rangescan::CreateParameters& params)
     : EpTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask),
       bucket(bucket),
       vbid(params.vbid),
@@ -36,7 +35,6 @@ RangeScanCreateTask::RangeScanCreateTask(
       includeXattrs(params.includeXattrs),
       snapshotReqs(params.snapshotReqs),
       samplingConfig(params.samplingConfig),
-      scanData(std::move(scanData)),
       name(params.name) {
     // They must be the same collection
     Expects(this->start.getCollectionID() == this->end.getCollectionID());
@@ -46,22 +44,23 @@ bool RangeScanCreateTask::run() {
     TRACE_EVENT1("ep-engine/task", "RangeScanCreateTask", "vbid", vbid.get());
 
     auto status = cb::engine_errc::success;
+    cb::rangescan::Id uuid;
     try {
-        std::tie(status, scanData->uuid) = create();
+        std::tie(status, uuid) = create();
     } catch (const cb::engine_error& e) {
         // Failure induced by KV will have logged, e.g. KVStore open failures.
         // Failure induced by the user (e.g. empty range) has no need to log
         engine->setErrorContext(cookie, e.what());
         status = cb::engine_errc(e.code().value());
-        // create failure, clear out cookie (this object will free the data
-        // which was "there")
-        engine->clearEngineSpecific(cookie);
     }
 
-    // On success, release the scanData. The frontend thread will retrieve and
-    // handle destruction and free
+    // On success store the uuid of the new scan, the frontend thread will
+    // retrieve it when this cookie is notified. On any failure clear the token
+    // which was stored before this task was scheduled.
     if (status == cb::engine_errc::success) {
-        scanData.release();
+        engine->storeEngineSpecific(cookie, RangeScanCreateToken{uuid});
+    } else {
+        engine->clearEngineSpecific(cookie);
     }
 
     engine->notifyIOComplete(&cookie, status);

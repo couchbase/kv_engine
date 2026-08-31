@@ -13,25 +13,39 @@
 #include <memcached/engine_error.h>
 #include <memcached/range_scan_id.h>
 
+#include <gsl/gsl-lite.hpp>
+
 #include <vector>
 
 class CookieIface;
 
-// RangeScanCreateState describes which stage of creation a RangeScan is in
-// Creation always starts in Pending and then:
-// 1) Pending->Creating for a scan with no seqno persistence requirements
-// 2) Pending->WaitForPersistence->Creating for a scan that has seqno
+// RangeScanCreateState describes which stage of creation a RangeScan is in.
+// No token is stored until the stage is known:
+// 1) Creating->Done for a scan with no seqno persistence requirements
+// 2) WaitForPersistence->Creating->Done for a scan that has seqno
 //    persistence requirements
 enum class RangeScanCreateState : char {
-    Pending, // RangeScan creation begins
     WaitForPersistence, // RangeScan create is waiting for a seqno to be stored
-    Creating // RangeScan has scheduled a task to create the scan
+    Creating, // RangeScan has scheduled a task to create the scan
+    Done // The task created the scan, the uuid is now valid
 };
 
-// Data stored in engine-specific during a RangeScan create request
+// Data stored in engine-specific during a RangeScan create request. A token is
+// immutable, each stage of the create stores a new one.
 struct RangeScanCreateToken {
-    cb::rangescan::Id uuid;
-    RangeScanCreateState state{RangeScanCreateState::Pending};
+    /// Used by the frontend thread to record the stage of the create
+    explicit RangeScanCreateToken(RangeScanCreateState state) : state(state) {
+        // Done requires a valid uuid, which only the other constructor sets
+        Expects(state != RangeScanCreateState::Done);
+    }
+
+    /// Used by RangeScanCreateTask once the scan exists, the state is Done
+    explicit RangeScanCreateToken(cb::rangescan::Id uuid)
+        : uuid(uuid), state(RangeScanCreateState::Done) {
+    }
+
+    const cb::rangescan::Id uuid{};
+    const RangeScanCreateState state;
 };
 
 // Data stored in engine-specific during a RangeScan continue request

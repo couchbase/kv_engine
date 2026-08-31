@@ -20,7 +20,6 @@
 
 class CookieIface;
 class EPBucket;
-struct RangeScanCreateToken;
 class RangeScanDataHandlerIFace;
 
 /**
@@ -32,8 +31,7 @@ public:
     RangeScanCreateTask(EPBucket& bucket,
                         CookieIface& cookie,
                         std::unique_ptr<RangeScanDataHandlerIFace> handler,
-                        const cb::rangescan::CreateParameters& params,
-                        std::unique_ptr<RangeScanCreateToken> scanData);
+                        const cb::rangescan::CreateParameters& params);
 
     bool run() override;
 
@@ -65,6 +63,5 @@ protected:
     cb::rangescan::IncludeXattrs includeXattrs;
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
     std::optional<cb::rangescan::SamplingConfiguration> samplingConfig;
-    std::unique_ptr<RangeScanCreateToken> scanData;
     const std::string name;
 };
