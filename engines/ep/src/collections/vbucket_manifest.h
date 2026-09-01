@@ -33,10 +33,6 @@ class KVStoreIface;
 class VBucket;
 class StatCollector;
 
-namespace flatbuffers {
-class FlatBufferBuilder;
-}
-
 namespace Collections {
 
 class Manager;
