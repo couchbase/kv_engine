@@ -1083,7 +1083,10 @@ cb::engine_errc VBucket::commit(
             DurabilityItemCtx{res.pending->getBySeqno(), nullptr /*cookie*/};
 
     queueItmCtx.hcs = res.pending->getBySeqno();
-    if (res.pending->isDeleted()) {
+    // Note the deleted state of the prepare before committing it; the pending
+    // StoredValue may not be usable afterwards.
+    const auto isSyncDelete = res.pending->isDeleted();
+    if (isSyncDelete) {
         // we are about to commit a sync delete, bump the maxDeletedRevSeqno
         // just as it would be for a non-sync delete
         ht.updateMaxDeletedRevSeqno(res.pending->getRevSeqno());
@@ -1093,6 +1096,16 @@ cb::engine_errc VBucket::commit(
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
+
+    // Account the SyncWrite against the collection's op counters. This cannot
+    // be done on the front-end path (KVBucket::set and friends) as a prepare
+    // returns sync_write_pending rather than success, and the completion path
+    // short-circuits in storeIfInner without re-entering KVBucket.
+    // Only count on active, to match where non-durable ops are counted.
+    if (getState() == vbucket_state_active) {
+        isSyncDelete ? cHandle.incrementOpsDelete()
+                     : cHandle.incrementOpsStore();
+    }
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
@@ -2471,10 +2484,6 @@ cb::engine_errc VBucket::deleteItem(
             ret = cb::engine_errc::sync_write_in_progress;
             break;
         }
-    }
-
-    if (ret == cb::engine_errc::success) {
-        cHandle.incrementOpsDelete();
     }
 
     return ret;
