@@ -2087,6 +2087,9 @@ cb::engine_errc KVBucket::deleteItem(
                                 itemMeta,
                                 mutInfo,
                                 cHandle);
+        if (result == cb::engine_errc::success) {
+            cHandle.incrementOpsDelete();
+        }
     }
 
     if (durability) {
