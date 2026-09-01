@@ -70,12 +70,17 @@ void BucketLogger::logWithContext(cb::logger::Level lvl,
     } catch (const std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure
         // what arguments failed above.
-        spdlog::logger::log(spdlog::level::err,
-                            "BucketLogger::logWithContext: Failed to log '{}' "
-                            "{}, what(): {}",
+        // Format eagerly and log the plain string (rather than passing the
+        // format string + args to spdlog::logger::log()) to avoid going
+        // through spdlog's deprecated fmt::format_string ->
+        // fmt::basic_string_view conversion (MB-73675).
+        spdlog::logger::log(
+                spdlog::level::err,
+                fmt::format("BucketLogger::logWithContext: Failed to log "
+                            "'{}' {}, what(): {}",
                             msg,
                             ctx,
-                            e.what());
+                            e.what()));
     }
 }
 
