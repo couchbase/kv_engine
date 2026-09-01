@@ -3181,12 +3181,13 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     using namespace cb::stats;
 
     // getStats from Magma
-    constexpr std::array<std::string_view, 32> statNames = {
+    constexpr std::array<std::string_view, 35> statNames = {
             {"fusion_NumSyncs",
              "fusion_NumSyncAttempts",
              "fusion_NumSyncFailures",
              "fusion_NumCheckpointFailures",
              "fusion_NumBytesSynced",
+             "fusion_NumBytesIncoming",
              "fusion_NumLogsMigrated",
              "fusion_NumLogsMounted",
              "fusion_NumMigrationFailures",
@@ -3204,6 +3205,8 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
              "fusion_NumLogCleanReads",
              "fusion_ExtentMergerReads",
              "fusion_ExtentMergerBytesRead",
+             "fusion_NumLogsMerged",
+             "fusion_NumLogMergerBytesRead",
              "fusion_NumLogStoreRemotePuts",
              "fusion_NumLogStoreReads",
              "fusion_NumLogStoreRemoteGets",
@@ -3238,6 +3241,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_syncs, "fusion_NumSyncs");
     addStat(Key::ep_fusion_sync_attempts, "fusion_NumSyncAttempts");
     addStat(Key::ep_fusion_bytes_synced, "fusion_NumBytesSynced");
+    addStat(Key::ep_fusion_bytes_incoming, "fusion_NumBytesIncoming");
     addStat(Key::ep_fusion_logs_migrated, "fusion_NumLogsMigrated");
     addStat(Key::ep_fusion_bytes_migrated, "fusion_NumBytesMigrated");
     addStat(Key::ep_fusion_log_store_data_size, "fusion_LogStoreDataSize");
@@ -3253,6 +3257,9 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_extent_merger_reads, "fusion_ExtentMergerReads");
     addStat(Key::ep_fusion_extent_merger_bytes_read,
             "fusion_ExtentMergerBytesRead");
+    addStat(Key::ep_fusion_logs_merged, "fusion_NumLogsMerged");
+    addStat(Key::ep_fusion_log_merger_bytes_read,
+            "fusion_NumLogMergerBytesRead");
     addStat(Key::ep_fusion_log_store_pending_delete_size,
             "fusion_LogStorePendingDeleteSize");
     addStat(Key::ep_fusion_pending_upload_bytes, "fusion_PendingUploadBytes");

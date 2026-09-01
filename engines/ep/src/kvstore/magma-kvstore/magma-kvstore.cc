@@ -4310,6 +4310,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("fusion_NumSyncs", magmaStats->FusionFSStats.NumSyncs);
     fill("fusion_NumSyncAttempts", magmaStats->FusionFSStats.NumSyncAttempts);
     fill("fusion_NumBytesSynced", magmaStats->FusionFSStats.NumBytesSynced);
+    fill("fusion_NumBytesIncoming", magmaStats->FusionFSStats.NumBytesIncoming);
     fill("fusion_NumLogsMigrated", magmaStats->FusionFSStats.NumLogsMigrated);
     fill("fusion_NumBytesMigrated", magmaStats->FusionFSStats.NumBytesMigrated);
     fill("fusion_LogStoreDataSize", magmaStats->FusionFSStats.LogStoreDataSize);
@@ -4324,6 +4325,9 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats->FusionFSStats.ExtentMergerReads);
     fill("fusion_ExtentMergerBytesRead",
          magmaStats->FusionFSStats.ExtentMergerBytesRead);
+    fill("fusion_NumLogsMerged", magmaStats->FusionFSStats.NumLogsMerged);
+    fill("fusion_NumLogMergerBytesRead",
+         magmaStats->FusionFSStats.NumLogMergerBytesRead);
     fill("fusion_LogStorePendingDeleteSize",
          magmaStats->FusionFSStats.LogStorePendingDeleteSize);
     fill("fusion_PendingUploadBytes", magmaStats->FusionPendingUploadBytes);
