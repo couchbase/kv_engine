@@ -292,6 +292,66 @@ TEST_P(ClusterConfigTest, ClustermapChangeNotificationBrief_Global) {
     test_CccpPushNotification(true, true);
 }
 
+TEST_P(ClusterConfigTest, PushReachesEveryFrontEndThread) {
+    constexpr size_t numConnections = 16;
+    constexpr int64_t epoch = 1;
+    constexpr int64_t revision =
+            99999; // should be greater than existing config
+    const std::string bucket_map{R"({"rev":99999, "bucket" : true})"};
+
+    std::vector<std::unique_ptr<MemcachedConnection>> connections;
+    for (size_t ii = 0; ii < numConnections; ++ii) {
+        auto conn = userConnection->clone();
+        conn->authenticate("Luke");
+        conn->selectBucket(bucketName);
+        conn->setFeature(cb::mcbp::Feature::Duplex, true);
+        conn->setFeature(cb::mcbp::Feature::ClustermapChangeNotification, true);
+        connections.emplace_back(std::move(conn));
+    }
+
+    adminConnection->executeInBucket(bucketName, [&bucket_map](auto& c) {
+        ASSERT_TRUE(c.execute(BinprotSetClusterConfigCommand{
+                                      bucket_map, epoch, revision, bucketName})
+                            .isSuccess());
+    });
+
+    // use a read timeout so that a connection which never gets the push fails
+    // the test not hang
+    for (size_t ii = 0; ii < connections.size(); ++ii) {
+        Frame frame;
+        connections[ii]->recvFrame(frame,
+                                   cb::mcbp::ClientOpcode::Invalid,
+                                   std::chrono::seconds{30});
+
+        ASSERT_EQ(cb::mcbp::Magic::ServerRequest, frame.getMagic())
+                << "connection " << ii;
+        auto* request = frame.getRequest();
+        ASSERT_EQ(cb::mcbp::ServerOpcode::ClustermapChangeNotification,
+                  request->getServerOpcode())
+                << "connection " << ii;
+
+        EXPECT_EQ(bucketName, request->getKeyString()) << "connection " << ii;
+
+        using cb::mcbp::request::SetClusterConfigPayload;
+        ASSERT_EQ(sizeof(SetClusterConfigPayload), request->getExtlen())
+                << "connection " << ii;
+
+        auto extras = request->getExtdata();
+        const auto* ver =
+                reinterpret_cast<const SetClusterConfigPayload*>(extras.data());
+        EXPECT_EQ(revision, ver->getRevision()) << "connection " << ii;
+        EXPECT_EQ(epoch, ver->getEpoch()) << "connection " << ii;
+
+        EXPECT_EQ(expectedDatatype, request->getDatatype())
+                << "connection " << ii;
+        EXPECT_EQ(bucket_map,
+                  getInflatedValue(
+                          protocol_binary_datatype_t(request->getDatatype()),
+                          request->getValueString()))
+                << "connection " << ii;
+    }
+}
+
 TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     // Set one for the default bucket
     setClusterConfig(R"({"rev":1000})", 1000);

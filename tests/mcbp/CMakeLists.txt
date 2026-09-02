@@ -41,3 +41,14 @@ add_sanitizers(memcached_mcbp_bench)
 add_test(NAME memcached_mcbp_bench
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_mcbp_bench --benchmark_min_time=0.0000001s)
+
+cb_add_test_executable(memcached_clustermap_push_bench clustermap_push_bench.cc)
+kv_enable_pch(memcached_clustermap_push_bench)
+target_link_libraries(memcached_clustermap_push_bench PRIVATE
+                      memcached_daemon
+                      benchmark::benchmark)
+add_sanitizers(memcached_clustermap_push_bench)
+
+add_test(NAME memcached_clustermap_push_bench
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_clustermap_push_bench --benchmark_min_time=0.0000001s)

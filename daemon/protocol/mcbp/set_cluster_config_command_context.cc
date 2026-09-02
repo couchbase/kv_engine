@@ -21,6 +21,7 @@
 #include <folly/io/IOBuf.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/compress.h>
+#include <array>
 
 using cb::mcbp::request::SetClusterConfigPayload;
 
@@ -122,23 +123,64 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     return status;
 }
 
+enum class ClustermapPayloadFormat : size_t { Brief = 0, Full, FullCompressed };
+
+struct ClustermapPayloadCache {
+    ClustermapVersion version;
+    std::array<std::string, 3> bodies;
+
+    const std::string& getBody(
+            ClustermapPayloadFormat format,
+            const ClusterConfiguration::Configuration& active,
+            std::string_view name) {
+        if (version != active.version) {
+            bodies = {};
+            version = active.version;
+        }
+
+        auto& body = bodies[size_t(format)];
+        if (!body.empty()) {
+            // empty means not built yet
+            return body;
+        }
+
+        SetClusterConfigPayload extras;
+        extras.setEpoch(active.version.getEpoch());
+        extras.setRevision(active.version.getRevno());
+        const auto extrasBuffer = extras.getBuffer();
+
+        std::string_view payload;
+        if (format == ClustermapPayloadFormat::Full) {
+            payload = active.uncompressed;
+        } else if (format == ClustermapPayloadFormat::FullCompressed) {
+            payload = active.compressed;
+        }
+
+        body.reserve(extrasBuffer.size() + name.size() + payload.size());
+        body.append(reinterpret_cast<const char*>(extrasBuffer.data()),
+                    extrasBuffer.size());
+        body.append(name);
+        body.append(payload);
+        return body;
+    }
+};
+
 /// Push the configuration for the provided bucket to all clients
 /// bound to the bucket and subscribe to notifications.
 /// If an error occurs while pushing the configuration for the client
 /// the client is shut down (as we might be out of sync protocol wise
 /// on our send buffer)
 ///
-/// Ideally we should have "preformatted" the message to send, but
-/// due to the desire to do deduplication (in the case the map change
-/// before we get around to push it to client X) we can't do that ;)
-///
 /// @param bucketname The name of the bucket to push notifications for
 static void push_cluster_config(std::string_view bucketname) {
+    ClustermapPayloadCache cache;
+
     // Iterate over all the connections and check if the connection is
     // associated with the provided bucket. iterate_all_connections
     // will inject a callback for each worker thread and run in the
     // connections' context while performing the callback
-    iterate_all_connections([bucketname](Connection& connection) -> void {
+    iterate_all_connections([bucketname,
+                             &cache](Connection& connection) -> void {
         auto mode = connection.getClustermapChangeNotification();
         if (mode == ClustermapChangeNotification::None) {
             // The client hasn't asked to be notified
@@ -169,46 +211,34 @@ static void push_cluster_config(std::string_view bucketname) {
             }
 
             using namespace cb::mcbp;
-            cb::mcbp::request::SetClusterConfigPayload version;
-            version.setEpoch(active->version.getEpoch());
-            version.setRevision(active->version.getRevno());
-            size_t needed = sizeof(Request) + // packet header
-                            sizeof(version) + // rev data in extdata
-                            bucket.name.size(); // the name of the bucket
+            auto format = ClustermapPayloadFormat::Brief;
+            auto datatype = PROTOCOL_BINARY_RAW_BYTES;
             if (mode == ClustermapChangeNotification::Full) {
-                if (connection.supportsSnappyEverywhere()) {
-                    needed += active->compressed.size(); // The actual payload
-                } else {
-                    needed += active->uncompressed.size(); // The actual payload
-                }
+                const bool compressed = connection.supportsSnappyEverywhere();
+                format = compressed ? ClustermapPayloadFormat::FullCompressed
+                                    : ClustermapPayloadFormat::Full;
+                datatype = connection.getEnabledDatatypes(
+                        compressed ? (PROTOCOL_BINARY_DATATYPE_JSON |
+                                      PROTOCOL_BINARY_DATATYPE_SNAPPY)
+                                   : PROTOCOL_BINARY_DATATYPE_JSON);
             }
 
-            std::string buffer;
-            buffer.resize(needed);
-            RequestBuilder builder(buffer);
-            builder.setMagic(Magic::ServerRequest);
-            builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
-            builder.setExtras(version.getBuffer());
-            builder.setKey(bucket.name);
-            if (mode == ClustermapChangeNotification::Full) {
-                if (connection.supportsSnappyEverywhere()) {
-                    builder.setDatatype(
-                            cb::mcbp::Datatype{connection.getEnabledDatatypes(
-                                    PROTOCOL_BINARY_DATATYPE_JSON |
-                                    PROTOCOL_BINARY_DATATYPE_SNAPPY)});
-                    builder.setValue(active->compressed);
-                } else {
-                    builder.setDatatype(
-                            cb::mcbp::Datatype{connection.getEnabledDatatypes(
-                                    PROTOCOL_BINARY_DATATYPE_JSON)});
-                    builder.setValue(active->uncompressed);
-                }
-            } else {
-                builder.setDatatype(cb::mcbp::Datatype::Raw);
-            }
+            const auto& body = cache.getBody(format, *active, bucket.name);
 
-            // Inject our packet into the stream!
-            connection.copyToOutputStream(builder.getFrame()->getFrame());
+            // only the header differs between clients receiving the same format
+            // hence built here separately before appending the shared body
+            Request header = {};
+            header.setMagic(Magic::ServerRequest);
+            header.setOpcode(ServerOpcode::ClustermapChangeNotification);
+            header.setExtlen(sizeof(SetClusterConfigPayload));
+            header.setKeylen(gsl::narrow<uint16_t>(bucket.name.size()));
+            header.setDatatype(datatype);
+            header.setBodylen(gsl::narrow<uint32_t>(body.size()));
+
+            connection.copyToOutputStream(
+                    std::string_view{reinterpret_cast<const char*>(&header),
+                                     sizeof(header)},
+                    body);
         } catch (const std::bad_alloc&) {
             // memory allocation failed; just ignore the push request
             connection.shutdown();
