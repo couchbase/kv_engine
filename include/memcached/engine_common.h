@@ -10,12 +10,12 @@
 
 #pragma once
 
+#include <memcached/cookie_iface.h>
 #include <cstdint>
 #include <functional>
 #include <string_view>
 
 struct EngineIface;
-class CookieIface;
 
 namespace cb::mcbp {
 enum class Status : uint16_t;
