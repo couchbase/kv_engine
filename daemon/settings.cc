@@ -575,7 +575,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMagmaCompactionRateLimit(value.get<size_t>());
         } else if (key == "magma_enable_compaction_dataonly_ratelimiting") {
             setMagmaEnableCompactionDataonlyRatelimiting(value.get<bool>());
-        } else {
+        } else if (!(key == "xattr_enabled"sv ||
+                     key == "collections_enabled"sv)) {
             LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
     }
