@@ -54,8 +54,8 @@ static bool wait_for_mapped_below(const cb::ArenaMallocClient& client,
 // Initialise the base class and the keyPattern, the keyPattern determines the
 // key length, which should be large for StoredValue tests
 DefragmenterTest::DefragmenterTest()
-    : VBucketTestBase(VBType::Persistent, getEvictionPolicy()),
-      keyPattern(isModeStoredValue() ? keyPattern2 : keyPattern1) {
+    : VBucketTestBase(VBType::Persistent, std::get<0>(GetParam())) {
+    keyPattern = isModeStoredValue() ? keyPattern2 : keyPattern1;
 }
 
 DefragmenterTest::~DefragmenterTest() = default;
