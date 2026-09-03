@@ -55,13 +55,15 @@ class bcolors:
 # one for the main release train and one for each MP branch.
 sequences = {
     'couchstore': [
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')]
     ],
 
     'kv_engine': [
         # main kv_engine release train sequence
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')],
 
         # 8.0 release train (morpheus)
@@ -79,24 +81,28 @@ sequences = {
     ],
 
     'phosphor': [
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')]
     ],
 
     'platform': [
         # main platform release train
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')]
     ],
 
     'sigar': [
         # main sigar release train
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')]
     ],
 
     'subjson': [
-        [('couchbase/morpheus', 'couchbase/master')],
+        [('couchbase/totoro', 'couchbase/master')],
+        [('couchbase/morpheus', 'couchbase/totoro')],
         [('couchbase/trinity', 'couchbase/morpheus')]
     ]
 
