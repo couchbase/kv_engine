@@ -32,7 +32,7 @@ MockDcpProducer::MockDcpProducer(EventuallyPersistentEngine& theEngine,
                                  cb::mcbp::DcpOpenFlag flags,
                                  bool startTask)
     : DcpProducer(theEngine, cookie, name, flags, startTask) {
-    backfillManagerHolder = std::make_shared<MockDcpBackfillManager>(engine_);
+    backfillManager = std::make_unique<MockDcpBackfillManager>(engine_, *this);
 }
 
 void MockDcpProducer::setNoopEnabled(MockDcpProducer::NoopMode mode) {
@@ -364,47 +364,38 @@ std::pair<std::shared_ptr<ActiveStream>, bool> MockDcpProducer::findStream(
 }
 
 void MockDcpProducer::setBackfillBufferSize(size_t newSize) {
-    backfillManagerHolder.withRLock([newSize](const auto& backfillMgr) {
-        Expects(backfillMgr);
-        std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-                ->setBackfillBufferSize(newSize);
-    });
+    Expects(backfillManager);
+    dynamic_cast<MockDcpBackfillManager&>(*backfillManager)
+            .setBackfillBufferSize(newSize);
 }
 
 void MockDcpProducer::setBackfillBufferBytesRead(size_t newSize) {
-    backfillManagerHolder.withRLock([newSize](const auto& backfillMgr) {
-        Expects(backfillMgr);
-        std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-                ->setBackfillBufferBytesRead(newSize);
-    });
+    Expects(backfillManager);
+    dynamic_cast<MockDcpBackfillManager&>(*backfillManager)
+            .setBackfillBufferBytesRead(newSize);
 }
 
 bool MockDcpProducer::getBackfillBufferFullStatus() {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    Expects(backfillMgr);
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-            ->getBackfillBufferFullStatus();
+    Expects(backfillManager);
+    return dynamic_cast<MockDcpBackfillManager&>(*backfillManager)
+            .getBackfillBufferFullStatus();
 }
 
 BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    Expects(backfillMgr);
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-            ->public_getBackfillScanBuffer();
+    Expects(backfillManager);
+    return dynamic_cast<MockDcpBackfillManager&>(*backfillManager)
+            .public_getBackfillScanBuffer();
 }
 
 UniqueDCPBackfillPtr MockDcpProducer::public_dequeueNextBackfill() {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    Expects(backfillMgr);
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-            ->public_dequeueNextBackfill();
+    Expects(backfillManager);
+    return dynamic_cast<MockDcpBackfillManager&>(*backfillManager)
+            .public_dequeueNextBackfill();
 }
 
 backfill_status_t MockDcpProducer::public_backfill() {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    Expects(backfillMgr);
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
-            ->backfill();
+    Expects(backfillManager);
+    return dynamic_cast<MockDcpBackfillManager&>(*backfillManager).backfill();
 }
 
 void MockDcpProducer::setupMockLogger() {

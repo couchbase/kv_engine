@@ -36,15 +36,16 @@ using namespace std::string_literals;
 class BackfillManagerTask : public EpTask {
 public:
     BackfillManagerTask(EventuallyPersistentEngine& e,
-                        std::shared_ptr<BackfillManager> mgr,
+                        std::weak_ptr<DcpProducer> producer,
+                        const std::string& name,
                         double sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : EpTask(e,
                  TaskId::BackfillManagerTask,
                  sleeptime,
                  completeBeforeShutdown),
-          weak_manager(mgr),
-          description("Backfilling items for "s + mgr->name) {
+          producer(std::move(producer)),
+          description("Backfilling items for "s + name) {
     }
 
     bool run() override;
@@ -54,13 +55,10 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 private:
-    // A weak pointer to the backfill manager which owns this
-    // task. The manager is owned by the DcpProducer, but we need to
-    // give the BackfillManagerTask access to the manager as it runs
-    // concurrently in a different thread.
-    // If the manager is deleted (by the DcpProducer) then the
-    // ManagerTask simply cancels itself and stops running.
-    std::weak_ptr<BackfillManager> weak_manager;
+    // A weak pointer to the DcpProducer which owns the BackfillManager this
+    // task runs. The manager is a member of the producer, so promoting this
+    // keeps the manager alive for the duration of run()
+    const std::weak_ptr<DcpProducer> producer;
 
     /// The description of this task. Set during construction to the name
     /// of the BackfillManager.
@@ -69,17 +67,15 @@ private:
 
 bool BackfillManagerTask::run() {
     TRACE_EVENT0("ep-engine/task", "BackFillManagerTask");
-    // Create a new shared_ptr to the manager for the duration of this
-    // execution.
-    auto manager = weak_manager.lock();
-    if (!manager) {
-        // backfill manager no longer exists - cancel ourself and stop
-        // running.
+    // Create a new shared_ptr to the producer (inturn to the manager it owns)
+    // for the duration of this execution
+    auto producerPtr = producer.lock();
+    if (!producerPtr) {
         cancel();
         return false;
     }
 
-    backfill_status_t status = manager->backfill();
+    backfill_status_t status = producerPtr->getBackfillManager().backfill();
     if (status == backfill_finished) {
         return false;
     }
@@ -105,11 +101,13 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
     return std::chrono::milliseconds(310);
 }
 
-BackfillManager::BackfillManager(KVBucket& kvBucket,
+BackfillManager::BackfillManager(DcpProducer& producer,
+                                 KVBucket& kvBucket,
                                  KVStoreScanTracker& scanTracker,
                                  std::string name,
                                  const Configuration& config)
     : name(std::move(name)),
+      producer(producer),
       kvBucket(kvBucket),
       scanTracker(scanTracker),
       managerTask(nullptr),
@@ -136,6 +134,9 @@ void BackfillManager::addStats(DcpProducer& conn,
                                const AddStatFn& add_stat,
                                CookieIface& c) {
     std::unique_lock<std::mutex> lh(lock);
+    if (closed) {
+        return;
+    }
     auto bufferCopy = buffer;
     auto initializingBackfillsSize = initializingBackfills.size();
     auto activeBackfillsSize = activeBackfills.size();
@@ -159,39 +160,52 @@ void BackfillManager::addStats(DcpProducer& conn,
 }
 
 BackfillManager::~BackfillManager() {
-    if (managerTask) {
-        managerTask->cancel();
-        managerTask.reset();
+    shutdown();
+}
+
+void BackfillManager::shutdown() {
+    std::list<UniqueDCPBackfillPtr> toDelete;
+    size_t trackedBackfills = 0;
+    ExTask taskToCancel;
+
+    {
+        std::lock_guard<std::mutex> lh(lock);
+        if (closed) {
+            return;
+        }
+        closed = true;
+
+        taskToCancel = std::exchange(managerTask, {});
+
+        trackedBackfills = initializingBackfills.size() +
+                           activeBackfills.size() + snoozingBackfills.size();
+
+        toDelete.splice(toDelete.end(), initializingBackfills);
+        toDelete.splice(toDelete.end(), activeBackfills);
+        while (!snoozingBackfills.empty()) {
+            toDelete.push_back(std::move(snoozingBackfills.front().second));
+            snoozingBackfills.pop_front();
+        }
+        toDelete.splice(toDelete.end(), pendingBackfills);
     }
 
-    while (!initializingBackfills.empty()) {
-        UniqueDCPBackfillPtr backfill =
-                std::move(initializingBackfills.front());
-        initializingBackfills.pop_front();
-        backfill->cancel();
+    if (taskToCancel) {
+        taskToCancel->cancel();
+    }
+
+    for (size_t ii = 0; ii < trackedBackfills; ++ii) {
         scanTracker.decrNumRunningBackfills();
     }
 
-    while (!activeBackfills.empty()) {
-        UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
-        activeBackfills.pop_front();
-        backfill->cancel();
-        scanTracker.decrNumRunningBackfills();
+    while (!toDelete.empty()) {
+        toDelete.front()->cancel();
+        toDelete.pop_front();
     }
+}
 
-    while (!snoozingBackfills.empty()) {
-        UniqueDCPBackfillPtr backfill =
-                std::move((snoozingBackfills.front()).second);
-        snoozingBackfills.pop_front();
-        backfill->cancel();
-        scanTracker.decrNumRunningBackfills();
-    }
-
-    while (!pendingBackfills.empty()) {
-        UniqueDCPBackfillPtr backfill = std::move(pendingBackfills.front());
-        pendingBackfills.pop_front();
-        backfill->cancel();
-    }
+bool BackfillManager::isClosed() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return closed;
 }
 
 void BackfillManager::setBackfillOrder(BackfillManager::ScheduleOrder order) {
@@ -201,6 +215,12 @@ void BackfillManager::setBackfillOrder(BackfillManager::ScheduleOrder order) {
 BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
     std::unique_lock<std::mutex> lh(lock);
+    if (closed) {
+        // this manager shouldnt accept anymore backfills as its shutdown now
+        lh.unlock();
+        backfill->cancel();
+        return ScheduleResult::Closed;
+    }
     ScheduleResult result;
     if (scanTracker.canCreateBackfill(getNumInProgressBackfills(lh))) {
         initializingBackfills.push_back(std::move(backfill));
@@ -221,7 +241,10 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
         // because managerTask could become reset once the lock is released.
         // See ::backfill()
         auto newTask = std::make_shared<BackfillManagerTask>(
-                kvBucket.getEPEngine(), shared_from_this());
+                kvBucket.getEPEngine(),
+                std::static_pointer_cast<DcpProducer>(
+                        producer.shared_from_this()),
+                name);
         managerTask = newTask;
         lh.unlock();
         ExecutorPool::get()->schedule(newTask);
@@ -231,6 +254,9 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
 
 bool BackfillManager::bytesCheckAndRead(size_t bytes) {
     std::lock_guard<std::mutex> lh(lock);
+    if (closed) {
+        return false;
+    }
 
     buffer.bytesRead += bytes;
     scanBuffer.itemsRead++;
@@ -263,6 +289,9 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
 
 void BackfillManager::bytesSent(size_t bytes) {
     std::unique_lock<std::mutex> lh(lock);
+    if (closed) {
+        return;
+    }
     if (bytes > buffer.bytesRead) {
         throw std::invalid_argument(
                 "BackfillManager::bytesSent: bytes "
@@ -366,6 +395,16 @@ backfill_status_t BackfillManager::backfill() {
     // status is success or snooze then it is added back to the appropriate
     // in-progress queue.
     numInProgressUntrackedBackfills--;
+
+    // shutdown() may have run while a backfill was dequeued and since it was in
+    // none of the queues at that point so shutdown() would not have drained it
+    // so don't put it on a closed backfillmgr
+    if (closed) {
+        lh.unlock();
+        scanTracker.decrNumRunningBackfills();
+        backfill->cancel();
+        return backfill_finished;
+    }
 
     switch (status) {
         case backfill_success:

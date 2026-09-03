@@ -933,9 +933,8 @@ TEST_P(STParameterizedBucketTest,
         // stream and about to add to map).
         shutdownAllConnectionsStart.post();
 
-        // Wait until shutdownAllCollections has finished, and
-        // DcpProducer::disconnect has been set (and backfillMgr set
-        // to nullptr.
+        // Wait until shutdownAllCollections has finished and
+        // DcpProducer::disconnect has been set
         shutdownAllConnectionsFinished.wait();
     };
 
@@ -1096,8 +1095,8 @@ TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
 
                     tg1.threadUp();
                 } else {
-                    // Before the fix we would fail here
-                    EXPECT_FALSE(producer->getBFMPtr());
+                    ASSERT_TRUE(producer->getBFMPtr());
+                    EXPECT_TRUE(producer->getBFMPtr()->isClosed());
                 }
             });
 
@@ -2709,7 +2708,7 @@ TEST_P(STParamPersistentBucketTest, test_mb22451) {
         << "completeBackfill should set isBackfillTaskRunning to False";
     EXPECT_TRUE(mock_stream->isBackfilling())
         << "stream state should not have changed";
-    // Required to ensure that the backfillMgr is deleted
+    // Shuts down the backfillMgr
     producer->closeAllStreams();
 
     // MB-41332 notifyBackfillManager is safe to call after closeAllStreams

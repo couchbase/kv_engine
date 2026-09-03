@@ -147,11 +147,14 @@ struct BackfillScanBuffer {
     size_t maxItems;
 };
 
-class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
+class BackfillManager {
 public:
     /**
      * Construct a BackfillManager to manage backfills for a DCP Producer.
      *
+     * @param producer The DcpProducer which owns this manager; must outlive the
+     * manager, and must be owned by a shared_ptr as schedule() gives a weak_ptr
+     * to it to BackfillManagerTask; can be null for tests
      * @param kvBucket Bucket DCP Producer belongs to (used to check memory
      *        usage and if Backfills should be paused).
      * @param scanTracker Object which tracks how many scans are
@@ -161,7 +164,8 @@ public:
      * @param config The bucket configuration, for retrieving the backfill
      *        params
      */
-    BackfillManager(KVBucket& kvBucket,
+    BackfillManager(DcpProducer& producer,
+                    KVBucket& kvBucket,
                     KVStoreScanTracker& scanTracker,
                     std::string name,
                     const Configuration& config);
@@ -189,6 +193,7 @@ public:
     enum class ScheduleResult {
         Active,
         Pending,
+        Closed,
     };
     /**
      * Transfer ownership of the specified DCPBackfill to the BackfillManager.
@@ -196,8 +201,15 @@ public:
      * active Backfills, waking up the BackfillTask if necessary.
      * If the maximum has been reached, then add to the set of pending
      * backfills.
+     *
+     * when shutdown() is called the backfill is cancelled and Closed is
+     * returned
      */
     ScheduleResult schedule(UniqueDCPBackfillPtr backfill);
+
+    void shutdown();
+
+    bool isClosed() const;
 
     /**
      * Checks if the read size can fit into the backfill buffer and scan
@@ -418,6 +430,12 @@ protected:
      */
     int numInProgressUntrackedBackfills{0};
 
+    // set by shutdown() to refuse all further backfill schedules; mutated and
+    // read under 'lock'
+    bool closed{false};
+
+    // The DcpProducer which owns this BackfillManager
+    DcpProducer& producer;
     // KVBucket this BackfillManager is associated with.
     KVBucket& kvBucket;
     // The object tracking how many scans are in progress. This tells

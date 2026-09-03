@@ -22,8 +22,10 @@
  */
 class MockDcpBackfillManager : public BackfillManager {
 public:
-    explicit MockDcpBackfillManager(EventuallyPersistentEngine& theEngine)
-        : BackfillManager(*theEngine.getKVBucket(),
+    explicit MockDcpBackfillManager(EventuallyPersistentEngine& theEngine,
+                                    DcpProducer& producer)
+        : BackfillManager(producer,
+                          *theEngine.getKVBucket(),
                           theEngine.getKVBucket()->getKVStoreScanTracker(),
                           "MockDcpBackfillManager",
                           theEngine.getConfiguration()) {

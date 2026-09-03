@@ -159,7 +159,7 @@ public:
     }
 
     BackfillManager* getBFMPtr() {
-        return backfillManagerHolder.rlock()->get();
+        return backfillManager.get();
     }
 
     size_t getBytesOutstanding() const {
@@ -307,6 +307,10 @@ public:
 
     void setSeqnoAckHook(std::function<void()> hook) {
         seqnoAckHook = hook;
+    }
+
+    void setScheduleBackfillManagerHook(std::function<void()> hook) {
+        scheduleBackfillManagerHook = hook;
     }
 
     IncludeValue public_getIncludeValue() const {

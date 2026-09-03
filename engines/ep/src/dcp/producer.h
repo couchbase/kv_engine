@@ -206,6 +206,13 @@ public:
     void notifyBackfillManager();
 
     /**
+     * @return the BackfillManager owned by this producer
+     */
+    BackfillManager& getBackfillManager() {
+        return *backfillManager;
+    }
+
+    /**
      * Notify the BackfillManager that the given number of bytes have been read,
      * increasing the amount of space used in the Backfill buffer.
      *
@@ -456,6 +463,8 @@ public:
     TestingHook<> seqnoAckHook;
 
     TestingHook<> updateStreamsMapHook;
+
+    TestingHook<> scheduleBackfillManagerHook;
 
     // Passed to updateStreamMap() for allowing/forbidding an exising stream
     // for a same vbid/sid found at call. If found, depending on this param
@@ -758,19 +767,18 @@ protected:
     std::chrono::minutes logBufferAggregatedFullDuration{30};
 #endif
 
-    // backfill manager object is owned by this class, but use an
-    // shared_ptr as the lifetime of the manager is shared between the
-    // producer (this class) and BackfillManagerTask (which has a
-    // weak_ptr) to this.
-    // Different threads may attempt to access the shared_ptr - for example:
-    // - Bucket deletion thread may attempt to reset() the shared_ptr when
-    //   shutting down DCP connections
-    // - A frontend thread may also attempt to reset() the shared_ptr when
-    //   a connection is disconnected.
-    // As such, reset (modification) of this pointer is mediated via
+    // The backfill manager is owned only by this class
+    // Different threads may attempt to tear the manager down - for example:
+    // - Bucket deletion thread, when shutting down DCP connections
+    // - A frontend thread, when a connection is disconnected
+    // Both do so via closeAllStreams(), which is serialised by
     // closeAllStreamsLock - see MB-38521.
-    folly::Synchronized<std::shared_ptr<BackfillManager>, std::shared_mutex>
-            backfillManagerHolder;
+    //
+    // teardown calls BackfillManager::shutdown() instead of releasing this
+    // pointer; its set once at construction and never reassigned, so it is safe
+    // to read from any thread without synchronisation leaving no "window" in
+    // which a caller holds a manager the producer has already disowned
+    std::unique_ptr<BackfillManager> backfillManager;
 
     VBReadyQueue ready;
 
@@ -859,9 +867,9 @@ protected:
 
     /**
      * Lock that prevent concurrent execution of closeAllStreams function. This
-     * is required as we have to atomically set our streams to dead (requires
-     * the backfillMgr) and reset the backfillMgr (to prevent lingering cyclic
-     * references).
+     * is required as we have to atomically set our streams to dead and shut
+     * down the backfillMgr; taken by removeBackfill() so that ~ActiveStream
+     * cannot re-enter while closeAllStreams is iterating
      */
     std::mutex closeAllStreamsLock;
 

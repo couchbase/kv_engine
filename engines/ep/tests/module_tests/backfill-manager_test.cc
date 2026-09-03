@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/backfill-manager.h"
 #include "evp_store_single_threaded_test.h"
@@ -18,6 +19,7 @@
 
 using ::testing::_;
 using ::testing::InSequence;
+using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::Throw;
@@ -45,8 +47,15 @@ class BackfillManagerTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {
         SingleThreadedKVBucketTest::SetUp();
+        producer =
+                std::make_shared<MockDcpProducer>(*engine,
+                                                  cookie,
+                                                  "BackfillManagerTest",
+                                                  cb::mcbp::DcpOpenFlag::None,
+                                                  false);
         backfillMgr =
-                std::make_shared<BackfillManager>(*engine->getKVBucket(),
+                std::make_shared<BackfillManager>(*producer,
+                                                  *engine->getKVBucket(),
                                                   backfillTracker,
                                                   "BackfillManagerTest",
                                                   engine->getConfiguration());
@@ -56,6 +65,7 @@ protected:
         // Need to destroy engine & backfillManager objects before shutting
         // down ExecutorPool.
         backfillMgr.reset();
+        producer.reset();
         SingleThreadedKVBucketTest::TearDown();
     }
 
@@ -71,6 +81,7 @@ protected:
     }
 
     GMockBackfillTracker backfillTracker;
+    std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<BackfillManager> backfillMgr;
 };
 
@@ -595,6 +606,99 @@ void BackfillManagerParamTest::drainRatioOutOfRange(float testedVal) {
         config_string.clear();
         BackfillManagerTest::SetUp();
     }
+}
+
+TEST_F(BackfillManagerTest, ScheduleAfterShutdownIsRefused) {
+    auto backfill = std::make_unique<GMockDCPBackfill>();
+
+    EXPECT_CALL(backfillTracker, canCreateBackfill(_)).Times(0);
+    EXPECT_CALL(*backfill, cancel()).Times(1);
+
+    backfillMgr->shutdown();
+    ASSERT_TRUE(backfillMgr->isClosed());
+
+    EXPECT_EQ(BackfillManager::ScheduleResult::Closed,
+              backfillMgr->schedule(std::move(backfill)));
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
+}
+
+TEST_F(BackfillManagerTest, ShutdownDrainsQueuesAndNotifiesTracker) {
+    auto active = std::make_unique<GMockDCPBackfill>();
+    auto pending = std::make_unique<GMockDCPBackfill>();
+
+    EXPECT_CALL(*active, cancel()).Times(1);
+    EXPECT_CALL(*pending, cancel()).Times(1);
+
+    {
+        InSequence s;
+        EXPECT_CALL(backfillTracker, canCreateBackfill(_))
+                .WillOnce(Return(true))
+                .RetiresOnSaturation();
+        // second is declined so it lands in pendingQ with no reservation
+        EXPECT_CALL(backfillTracker, canCreateBackfill(_))
+                .WillOnce(Return(false))
+                .RetiresOnSaturation();
+        // Exactly one reservation to return: the initializingQ backfill.
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
+                .WillOnce(Return())
+                .RetiresOnSaturation();
+    }
+
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(active)));
+    ASSERT_EQ(BackfillManager::ScheduleResult::Pending,
+              backfillMgr->schedule(std::move(pending)));
+    ASSERT_EQ(2, backfillMgr->getNumBackfills());
+
+    backfillMgr->shutdown();
+
+    EXPECT_TRUE(backfillMgr->isClosed());
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
+}
+
+TEST_F(BackfillManagerTest, ShutdownIsIdempotent) {
+    auto backfill = std::make_unique<GMockDCPBackfill>();
+
+    EXPECT_CALL(backfillTracker, canCreateBackfill(_)).WillOnce(Return(true));
+    EXPECT_CALL(backfillTracker, decrNumRunningBackfills()).Times(1);
+    // Cancelled once, not once per shutdown() call.
+    EXPECT_CALL(*backfill, cancel()).Times(1);
+
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill)));
+
+    backfillMgr->shutdown();
+    EXPECT_TRUE(backfillMgr->isClosed());
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
+
+    backfillMgr->shutdown();
+    EXPECT_TRUE(backfillMgr->isClosed());
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
+
+    // And again via the destructor, which also routes through shutdown().
+    backfillMgr.reset();
+}
+
+TEST_F(BackfillManagerTest, BackfillDoesNotRequeueIntoClosedManager) {
+    auto backfill = std::make_unique<GMockDCPBackfill>();
+    auto* backfillPtr = backfill.get();
+
+    EXPECT_CALL(backfillTracker, canCreateBackfill(_)).WillOnce(Return(true));
+    EXPECT_CALL(*backfillPtr, setCreateMode(_)).Times(1);
+
+    EXPECT_CALL(*backfillPtr, run()).WillOnce(Invoke([this]() {
+        backfillMgr->shutdown();
+        return backfill_success;
+    }));
+    EXPECT_CALL(*backfillPtr, cancel()).Times(1);
+    EXPECT_CALL(backfillTracker, decrNumRunningBackfills()).Times(1);
+
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr->schedule(std::move(backfill)));
+
+    EXPECT_EQ(backfill_finished, backfillMgr->backfill());
+    EXPECT_TRUE(backfillMgr->isClosed());
+    EXPECT_EQ(0, backfillMgr->getNumBackfills());
 }
 
 TEST_F(BackfillManagerParamTest, DrainRatio_LowerThanMin) {

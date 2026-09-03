@@ -204,7 +204,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       consumerSupportsHifiMfu(false),
       lastSendTime(ep_uptime_now()),
       log(BufferLog(*this)),
-      backfillManagerHolder(std::make_shared<BackfillManager>(
+      backfillManager(std::make_unique<BackfillManager>(
+              *this,
               *e.getKVBucket(),
               e.getKVBucket()->getKVStoreScanTracker(),
               name,
@@ -1339,17 +1340,16 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                                      std::string_view key,
                                      std::string_view value) {
     lastReceiveTime = ep_uptime_now();
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (!backfillMgr) {
+    if (backfillManager->isClosed()) {
         return cb::engine_errc::invalid_arguments;
     }
 
     if (key == DcpControlKeys::BackfillOrder) {
         using ScheduleOrder = BackfillManager::ScheduleOrder;
         if (value == "round-robin") {
-            backfillMgr->setBackfillOrder(ScheduleOrder::RoundRobin);
+            backfillManager->setBackfillOrder(ScheduleOrder::RoundRobin);
         } else if (value == "sequential") {
-            backfillMgr->setBackfillOrder(ScheduleOrder::Sequential);
+            backfillManager->setBackfillOrder(ScheduleOrder::Sequential);
         } else {
             engine_.setErrorContext(
                     *getCookie(),
@@ -1879,25 +1879,15 @@ cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
 }
 
 void DcpProducer::notifyBackfillManager() {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (backfillMgr) {
-        backfillMgr->wakeUpTask();
-    }
+    backfillManager->wakeUpTask();
 }
 
 bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes) {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (backfillMgr) {
-        return backfillMgr->bytesCheckAndRead(bytes);
-    }
-    return false;
+    return backfillManager->bytesCheckAndRead(bytes);
 }
 
 void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (backfillMgr) {
-        backfillMgr->bytesSent(bytes);
-    }
+    backfillManager->bytesSent(bytes);
 }
 
 uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
@@ -1905,42 +1895,45 @@ uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
                                               uint64_t start,
                                               uint64_t end) {
     Expects(start <= end);
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (!backfillMgr) {
-        return 0;
-    }
+
+    scheduleBackfillManagerHook();
 
     auto backfill = vb.createDCPBackfill(engine_, s, start, end);
     const auto backfillUID = backfill->getUID();
-    switch (backfillMgr->schedule(std::move(backfill))) {
+    switch (backfillManager->schedule(std::move(backfill))) {
     case BackfillManager::ScheduleResult::Active:
         break;
     case BackfillManager::ScheduleResult::Pending:
-        OBJ_LOG_INFO_RAW(*s, "Backfill is pending");
+        OBJ_LOG_INFO_CTX(*s,
+                         "Backfill is pending",
+                         {"start_seqno", start},
+                         {"end_seqno", end});
         break;
+    case BackfillManager::ScheduleResult::Closed:
+        OBJ_LOG_INFO_CTX(*s,
+                         "Backfill not scheduled, backfillMgr is closed",
+                         {"start_seqno", start},
+                         {"end_seqno", end});
+        return 0;
     }
     return backfillUID;
 }
 
 uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
                                               std::shared_ptr<ActiveStream> s) {
-    auto backfill = vb.createDCPBackfill(engine_, std::move(s));
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (!backfillMgr) {
+    auto backfill = vb.createDCPBackfill(engine_, s);
+    const auto backfillUID = backfill->getUID();
+    if (backfillManager->schedule(std::move(backfill)) ==
+        BackfillManager::ScheduleResult::Closed) {
+        OBJ_LOG_INFO_RAW(*s, "Backfill not scheduled, backfillMgr is closed");
         return 0;
     }
-    const auto backfillUID = backfill->getUID();
-    backfillMgr->schedule(std::move(backfill));
     return backfillUID;
 }
 
 bool DcpProducer::removeBackfill(uint64_t backfillUID) {
     std::lock_guard<std::mutex> lg(closeAllStreamsLock);
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (backfillMgr) {
-        return backfillMgr->removeBackfill(backfillUID);
-    }
-    return false;
+    return backfillManager->removeBackfill(backfillUID);
 }
 
 void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
@@ -1998,11 +1991,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
             c);
     addStat("disconnect_when_stuck_timeout", stuckTimeout.count(), add_stat, c);
 
-    // Possible that the producer has had its streams closed and hence doesn't
-    // have a backfill manager anymore.
-    if (const auto backfillMgr = backfillManagerHolder.copy(); backfillMgr) {
-        backfillMgr->addStats(*this, add_stat, c);
-    }
+    backfillManager->addStats(*this, add_stat, c);
 
     log.rlock()->addStats(add_stat, c);
 
@@ -2235,7 +2224,6 @@ void DcpProducer::closeAllStreams() {
     closeAllStreamsPreLockHook();
 
     std::lock_guard<std::mutex> lg(closeAllStreamsLock);
-    const auto backfillMgr = backfillManagerHolder.copy();
 
     closeAllStreamsPostLockHook();
 
@@ -2243,8 +2231,7 @@ void DcpProducer::closeAllStreams() {
     std::vector<Vbid> vbvector;
     {
         std::ranges::for_each(
-                *streams,
-                [&backfillMgr, &vbvector](StreamsMap::value_type& vt) {
+                *streams, [this, &vbvector](StreamsMap::value_type& vt) {
                     vbvector.push_back((Vbid)vt.first);
                     std::vector<ContainerElement> streamPtrs;
                     // MB-35073: holding StreamContainer lock while
@@ -2269,12 +2256,9 @@ void DcpProducer::closeAllStreams() {
                         // deadlock trying to remove the backfill, as
                         // DcpProducer::removeBackfill needs the
                         // closeAllStreamsLock which is already locked.
-                        if (backfillMgr) {
-                            auto* as = dynamic_cast<ActiveStream*>(
-                                    streamPtr.get());
-                            if (as) {
-                                as->removeBackfill(*backfillMgr);
-                            }
+                        auto* as = dynamic_cast<ActiveStream*>(streamPtr.get());
+                        if (as) {
+                            as->removeBackfill(*backfillManager);
                         }
                         streamPtr->setDead(
                                 cb::mcbp::DcpStreamEndStatus::Disconnected);
@@ -2287,16 +2271,7 @@ void DcpProducer::closeAllStreams() {
 
     closeAllStreamsHook();
 
-    // Destroy the backfillManager. (BackfillManager task also
-    // may hold a weak reference to it while running, but that is
-    // guaranteed to decay and free the BackfillManager once it
-    // completes run().
-    // This will terminate any tasks and delete any backfills
-    // associated with this Producer.  This is necessary as if we
-    // don't, then the ref-counted ptr references which exist between
-    // DcpProducer and ActiveStream result in us leaking DcpProducer
-    // objects (and Couchstore vBucket files, via DCPBackfill task).
-    backfillManagerHolder.wlock()->reset();
+    backfillManager->shutdown();
 }
 
 const char* DcpProducer::getType() const {
@@ -2722,15 +2697,16 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
 }
 
 void DcpProducer::setBackfillByteLimit(size_t bytes) {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    if (backfillMgr) {
-        backfillMgr->setBackfillByteLimit(bytes);
+    if (backfillManager->isClosed()) {
+        return;
     }
+    backfillManager->setBackfillByteLimit(bytes);
 }
 
 size_t DcpProducer::getBackfillByteLimit() const {
-    const auto backfillMgr = backfillManagerHolder.copy();
-    return backfillMgr ? backfillMgr->getBackfillByteLimit() : 0;
+    return backfillManager->isClosed()
+                   ? 0
+                   : backfillManager->getBackfillByteLimit();
 }
 
 void DcpProducer::setInlineCheckpointItemLimit(size_t limit) {

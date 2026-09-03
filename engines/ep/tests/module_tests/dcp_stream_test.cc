@@ -2271,6 +2271,73 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(SingleThreadedActiveStreamTest, ScheduleDuringCloseAllStreamsIsRefused) {
+    auto vb = engine->getVBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    // drop the fixture's stream, then make the data reachable only via backfill
+    // so that activating a new stream schedules one
+    stream.reset();
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    const auto openId = manager.getOpenCheckpointId();
+    manager.createNewCheckpoint();
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 cb::mcbp::DcpOpenFlag::None,
+                                                 false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, cb::mcbp::DcpAddStreamFlag::None, 0, *vb);
+    ASSERT_FALSE(stream->isBackfilling());
+
+    // this stream is not in DcpProducer::streams, so closeAllStreams() finds no
+    // stream to setDead and never takes this stream's streamMutex, and reaches
+    // the holder reset that is exactly the state streamRequest is in between
+    // s->setActive() and updateStreamsMap() in scheduleTasksForStreamRequest()
+    ASSERT_FALSE(producer->findStream(vbid));
+
+    auto& bfm = dynamic_cast<MockDcpBackfillManager&>(producer->getBFM());
+    ASSERT_EQ(0, bfm.getNumBackfills());
+    ASSERT_FALSE(bfm.isClosed());
+    ASSERT_EQ(0, store->getKVStoreScanTracker().getNumRunningBackfills());
+
+    // tg1: the scheduling thread is inside scheduleBackfillManager, before it
+    // creates and schedules the backfill tg2: this thread has finished
+    // closeAllStreams()
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+    producer->setScheduleBackfillManagerHook([&tg1, &tg2]() {
+        tg1.threadUp();
+        tg2.threadUp();
+    });
+
+    // setActive -> transitionState(Backfilling) -> scheduleBackfill_UNLOCKED ->
+    // DcpProducer::scheduleBackfillManager
+    std::thread scheduler([this]() { stream->setActive(); });
+    tg1.threadUp();
+
+    producer->closeAllStreams();
+    EXPECT_NE(nullptr, producer->getBFMPtr());
+    EXPECT_TRUE(bfm.isClosed());
+
+    tg2.threadUp();
+    scheduler.join();
+
+    // schedule was refused, so nothing is queued and the stream was given no
+    // backfill uid to hold
+    EXPECT_EQ(0, bfm.getNumBackfills());
+    EXPECT_EQ(0, stream->getBackfillUID());
+    EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningBackfills());
+    EXPECT_NE(nullptr, producer->getBFMPtr());
+
+    EXPECT_TRUE(stream->isBackfilling());
+}
+
 /// Test that backfill is correctly cancelled if the VBucket is deleted
 /// part-way through the backfill.
 TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
