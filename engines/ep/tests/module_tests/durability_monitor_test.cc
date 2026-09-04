@@ -2126,10 +2126,14 @@ TEST_P(ActiveDurabilityMonitorNullTopologyTest,
     adm.setAndProcessCommitStrategy(
             DurabilityMonitor::CommitStrategy::MajorityAck);
     EXPECT_FALSE(adm.isDurabilityPossible());
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              adm.checkDurabilityPossible());
 
     adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
                                             MajorityAckFallbackToMasterAckOnly);
     EXPECT_FALSE(adm.isDurabilityPossible());
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              adm.checkDurabilityPossible());
 }
 
 /**

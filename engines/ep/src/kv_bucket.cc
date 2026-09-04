@@ -661,7 +661,14 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     // MB-25931: Empty XATTR items need their value before we can call
     // pre_expiry. These occur because the value has been evicted.
     if (cb::mcbp::datatype::is_xattr(it.getDataType()) && it.getNBytes() == 0) {
+        if (source != ExpireBy::Compactor) {
+            return; // Don't fetch document on a NonIO thread
+        }
         getValue(it);
+        if (it.getNBytes() == 0 &&
+            cb::mcbp::datatype::is_xattr(it.getDataType())) {
+            return;
+        }
     }
 
     // Process positive seqnos (ignoring special *temp* items) and only those
@@ -1972,6 +1979,14 @@ cb::engine_errc KVBucket::unlockKey(const DocKeyView& key,
         auto* v = res.storedValue;
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
             vb->ht.cleanupIfTemporaryItem(res.lock, *v);
+            return cb::engine_errc::no_such_key;
+        }
+        if (v->isExpired(ep_real_time())) {
+            // Expired, but the expiry hasn't been processed yet as that
+            // requires fetching the non-resident value (to preserve any
+            // system xattrs in the tombstone). Logically the item is gone;
+            // no need to fetch it here, the expiry is processed by the
+            // pager/compactor or the next access to the value.
             return cb::engine_errc::no_such_key;
         }
         if (v->isLocked(currentTime)) {

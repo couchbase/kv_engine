@@ -187,6 +187,12 @@ public:
     int64_t getHighestTrackedSeqno() const override;
 
     /**
+     * Checks whether durability is possible based on the replication topology
+     * @see isDurabilityPossible()
+     */
+    cb::engine_errc checkDurabilityPossible() const;
+
+    /**
      * @return true if the replication topology allows Majority being reached,
      *     false otherwise
      */
