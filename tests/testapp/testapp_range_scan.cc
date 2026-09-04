@@ -255,8 +255,8 @@ TEST_P(RangeScanTest, CreateInvalid) {
     try {
         userConnection->recvResponse(resp);
         FAIL() << "Expected connection to be closed after invalid UUID";
-    } catch (std::system_error& e) {
-        EXPECT_TRUE(strstr(e.what(), "Network error")) << e.what();
+    } catch (const std::system_error& e) {
+        EXPECT_EQ(std::errc::connection_reset, e.code()) << e.what();
     }
     // Reset userConnection so it reconnects in next test.
     userConnection.reset();
@@ -797,9 +797,9 @@ TEST_P(RangeScanTest, ErrorRangeScanCancelled) {
 TEST_P(RangeScanTest, ErrorNoBucket) {
     try {
         testErrorsDuringContinue(cb::mcbp::Status::NoBucket);
-    } catch (const std::exception& e) {
+    } catch (const std::system_error& e) {
         // The delete test can trigger disconnect and a reset error
-        EXPECT_TRUE(strstr(e.what(), "Network error")) << e.what();
+        EXPECT_EQ(std::errc::connection_reset, e.code()) << e.what();
     }
     // Re-create the bucket for any subsequent tests
     mcd_env->getTestBucket().setUpBucket(bucketName, "", *adminConnection);

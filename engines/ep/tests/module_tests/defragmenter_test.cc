@@ -19,6 +19,9 @@
 #include "test_helpers.h"
 #include "vbucket.h"
 
+// For sysconf/_SC_PAGESIZE on Windows (and <unistd.h> elsewhere)
+#include <folly/portability/Unistd.h>
+
 #include <chrono>
 #include <thread>
 

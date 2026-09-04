@@ -14,13 +14,13 @@
 #include <cblogger/logger.h>
 #include <cblogger/logger_config.h>
 #include <fcntl.h>
+// For STDERR_FILENO on Windows (and <unistd.h> elsewhere)
+#include <folly/portability/Unistd.h>
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #ifdef WIN32
 #include <io.h>
 #include <sys/stat.h>
-#else
-#include <unistd.h>
 #endif
 namespace cb::breakpad {
 

@@ -372,27 +372,41 @@ protected:
                 std::make_shared<MockGlobalTask>(taskable, TaskId::ItemPager);
 
         // To match functionality of ep-engine ExecutorPool, register
-        // a callback to record task wait/run times.
+        // an observer to record task wait/run times.
         // TODO: Make taskable actually record times in histogram
         // as per EPEngine.
         // TODO: Record the timings on a per-Task basis. Folly adds support
         // for this as of
         // https://github.com/facebook/folly/commit/7469e0b55e0d534da34ef6bfe4d0d0068f023cd9
-        auto statsCallback = [dummyTask = this->dummyTask,
-                              taskable = &this->taskable](
-                                     folly::ThreadPoolExecutor::TaskStats ts) {
-            taskable->logQTime(*dummyTask,
-                               folly::getCurrentThreadName().value_or(
-                                       "Unknown PureFollyExecutorBench thread"),
-                               ts.waitTime);
-            taskable->logRunTime(
-                    *dummyTask,
-                    folly::getCurrentThreadName().value_or(
-                            "Unknown PureFollyExecutorBench thread"),
-                    ts.runTime);
+        class StatsObserver : public folly::ThreadPoolExecutor::TaskObserver {
+        public:
+            StatsObserver(ExTask dummyTask, NullTaskable& taskable)
+                : dummyTask(std::move(dummyTask)), taskable(taskable) {
+            }
+
+            void taskProcessed(
+                    const folly::ThreadPoolExecutor::ProcessedTaskInfo&
+                            info) noexcept override {
+                taskable.logQTime(
+                        *dummyTask,
+                        folly::getCurrentThreadName().value_or(
+                                "Unknown PureFollyExecutorBench thread"),
+                        info.waitTime);
+                taskable.logRunTime(
+                        *dummyTask,
+                        folly::getCurrentThreadName().value_or(
+                                "Unknown PureFollyExecutorBench thread"),
+                        info.runTime);
+            }
+
+        private:
+            ExTask dummyTask;
+            NullTaskable& taskable;
         };
-        pool->subscribeToTaskStats(statsCallback);
-        ioPool->subscribeToTaskStats(statsCallback);
+        pool->addTaskObserver(
+                std::make_unique<StatsObserver>(dummyTask, taskable));
+        ioPool->addTaskObserver(
+                std::make_unique<StatsObserver>(dummyTask, taskable));
     }
 
     void shutdownPool() {

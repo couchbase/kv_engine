@@ -143,8 +143,7 @@ TEST_P(MemTrackingBucketTest, MB_71836) {
         conn.execute(cmd);
         FAIL() << "Server should force disconnection";
     } catch (const std::system_error& e) {
-        EXPECT_THAT(e.what(),
-                    testing::HasSubstr("AsyncSocketException: Network error"));
+        EXPECT_EQ(std::errc::connection_reset, e.code()) << e.what();
     }
 }
 
