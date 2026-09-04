@@ -30,7 +30,7 @@ void GetRandomKeyVisitor::visitBucket(VBucket& vb) {
     }
 
     if (vBucketFilter(vb.getId())) {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         if (vb.getState() != vbucket_state_active) {
             return;
         }
