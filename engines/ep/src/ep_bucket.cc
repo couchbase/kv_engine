@@ -3021,6 +3021,14 @@ cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
     return vb->cancelRangeScan(uuid, &cookie);
 }
 
+void EPBucket::addRangeScanStats(const StatCollector& collector) {
+    collector.addStat("num_running",
+                      getKVStoreScanTracker().getNumRunningRangeScans());
+    collector.addStat("max_running",
+                      getKVStoreScanTracker().getMaxRunningRangeScans());
+    rangeScans.addStats(collector);
+}
+
 cb::engine_errc EPBucket::prepareForPause(
         folly::CancellationToken cancellationToken) {
     // 1. Wait for all outstanding disk writing operations to complete.

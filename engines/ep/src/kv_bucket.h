@@ -1153,6 +1153,14 @@ public:
                                     CookieIface& cookie) override;
 
     /**
+     * Add stats for the bucket level range scan objects. This is a no-op for
+     * buckets which do not support range scans.
+     */
+    virtual void addRangeScanStats(const StatCollector&) {
+        // no-op, overridden by buckets which support range scans
+    }
+
+    /**
      * Process a bucket quota change to the desired value
      *
      * @param desiredQuota

@@ -643,9 +643,14 @@ TEST_P(RangeScanTest, TestStats) {
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    // Nothing in vbid1
+    // Nothing in vbid1, only the bucket level (unprefixed) stats return
     auto stats = userConnection->stats("range-scans 1");
-    EXPECT_TRUE(stats.empty());
+    EXPECT_FALSE(stats.empty());
+    for (const auto& [key, value] : stats.items()) {
+        EXPECT_FALSE(key.starts_with("vb_")) << key;
+    }
+    EXPECT_TRUE(stats.contains("num_running"));
+    EXPECT_TRUE(stats.contains("max_running"));
 
     // Scan in vbid0
     stats = userConnection->stats("range-scans 0");

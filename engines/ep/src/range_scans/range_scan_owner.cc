@@ -322,8 +322,6 @@ cb::engine_errc VB::RangeScanOwner::cancelScan(EPBucket& bucket,
 }
 
 cb::engine_errc VB::RangeScanOwner::doStats(const StatCollector& collector) {
-    Expects(readyScans);
-    readyScans->addStats(collector);
     auto locked = syncData.rlock();
     for (const auto& scan : locked->rangeScans) {
         scan.second->addStats(collector);

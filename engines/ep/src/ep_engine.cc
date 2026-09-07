@@ -7731,6 +7731,10 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
         // Stats only for one vbucket
         vbid = Vbid(result);
     }
+    // Add the bucket level stats (no vb_n: prefix). This is a no-op for
+    // buckets which don't support range scans.
+    kvBucket->addRangeScanStats(collector);
+
     VBucketFilter filter = vbid ? VBucketFilter::create(*vbid)
                                 : VBucketFilter::createMatchAll();
 

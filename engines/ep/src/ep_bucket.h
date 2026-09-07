@@ -439,6 +439,8 @@ public:
                                     cb::rangescan::Id uuid,
                                     CookieIface& cookie) override;
 
+    void addRangeScanStats(const StatCollector& collector) override;
+
     cb::engine_errc prepareForPause(folly::CancellationToken) override;
 
     cb::engine_errc prepareForResume() override;
