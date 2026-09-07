@@ -234,6 +234,52 @@ def get_gerrit_patch_from_parameters_action(action):
     return None
 
 
+# Cache of gerrit_patch URL -> reviewer count, to avoid re-querying Gerrit for
+# the same patch (the same patch typically appears across many builds).
+_reviewer_count_cache = {}
+
+
+def get_gerrit_reviewer_count(change_url):
+    """Query Gerrit for the number of reviewers on the change identified by
+    change_url (a GERRIT_CHANGE_URL value).
+
+    Returns the reviewer count, or None if it could not be determined."""
+    if change_url in _reviewer_count_cache:
+        return _reviewer_count_cache[change_url]
+
+    url = urlparse(change_url)
+    # The change number is the final path component - handles both the legacy
+    # '<host>/12345' and the newer '<host>/c/<project>/+/12345' forms.
+    match = re.search(r'(\d+)/?$', url.path)
+    if not match:
+        logging.warning(
+            "get_gerrit_reviewer_count: Could not extract change number from " +
+            change_url)
+        _reviewer_count_cache[change_url] = None
+        return None
+    change_number = match.group(1)
+    reviewers_url = (f"{url.scheme}://{url.netloc}"
+                     f"/changes/{change_number}/reviewers/")
+
+    count = None
+    try:
+        response = requests.get(reviewers_url, timeout=30)
+        response.raise_for_status()
+        # Gerrit prefixes JSON responses with ")]}'".
+        text = response.text
+        if text.startswith(")]}'"):
+            text = text.split('\n', 1)[1]
+        reviewers = json.loads(text)
+        count = len(reviewers)
+    except (requests.exceptions.RequestException, ValueError) as e:
+        logging.warning(
+            f"get_gerrit_reviewer_count: Failed to fetch reviewers from "
+            f"{reviewers_url}: {e}")
+
+    _reviewer_count_cache[change_url] = count
+    return count
+
+
 def extract_failed_builds(details):
     failures = dict()
     for number, info in details.items():
@@ -248,11 +294,18 @@ def extract_failed_builds(details):
                     description = cause['description'].strip()
                     timestamp = datetime.datetime.utcfromtimestamp(
                         info['timestamp'] / 1000.0)
+                    if not gerrit_patch:
+                        # Not a patch-triggered CV build - skip.
+                        continue
+                    # Record the patch's reviewer count on each instance; the
+                    # >1-reviewer requirement is applied per failure signature
+                    # (in filter_failed_builds), not per instance.
+                    reviewer_count = get_gerrit_reviewer_count(gerrit_patch)
                     if description not in failures:
                         failures[description] = list()
-                    assert (gerrit_patch)
                     failures[description].append({'description': description,
                                                   'gerrit_patch': gerrit_patch,
+                                                  'reviewer_count': reviewer_count,
                                                   'timestamp': timestamp,
                                                   'url': info['url'],
                                                   'node_name': info['node_name'],
@@ -447,7 +500,13 @@ def filter_failed_builds(details):
             patches[d['gerrit_patch']] = True
         range = max(timestamps) - min(timestamps)
 
-        if range > datetime.timedelta(hours=6) and len(patches) > 1:
+        # Keep the failure if more than 2 reviewers have been added
+        # This accounts for build-bot and restriction-checker
+        has_multi_reviewer = any(
+            (d.get('reviewer_count') or 0) > 2 for d in details)
+
+        if (range > datetime.timedelta(hours=6) and len(patches) > 1
+                and has_multi_reviewer):
             merged2[key] = details
     return merged2
 
