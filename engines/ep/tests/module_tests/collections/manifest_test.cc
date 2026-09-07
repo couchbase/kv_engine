@@ -1053,6 +1053,17 @@ TEST(ManifestTest, isSuccesor) {
     cm.update(CollectionEntry::meat, cb::NoExpiryLimit, true);
     Collections::Manifest d{std::string{cm}};
     EXPECT_EQ(cb::engine_errc::success, c.isSuccessor(d).code());
+
+    // A flush of a collection is a valid successor
+    cm.flush(CollectionEntry::meat);
+    Collections::Manifest e{std::string{cm}};
+    EXPECT_EQ(cb::engine_errc::success, d.isSuccessor(e).code());
+
+    // A further change with no new flush carries the flushUid forwards and is
+    // a valid successor
+    cm.add(CollectionEntry::fruit);
+    Collections::Manifest f{std::string{cm}};
+    EXPECT_EQ(cb::engine_errc::success, e.isSuccessor(f).code());
 }
 
 TEST(ManifestTest, isNotSuccesor) {
@@ -1113,6 +1124,36 @@ TEST(ManifestTest, isNotSuccesor) {
         Collections::Manifest incoming2{std::string{cm2}};
         EXPECT_EQ(cb::engine_errc::success,
                   current.isSuccessor(incoming2).code());
+    }
+
+    {
+        // The flushUid of a collection cannot go backwards
+        CollectionsManifest cm2 = cm;
+        cm2.flush(CollectionEntry::meat);
+        Collections::Manifest flushed{std::string{cm2}};
+        // The flush itself is a valid successor of current
+        ASSERT_EQ(cb::engine_errc::success,
+                  current.isSuccessor(flushed).code());
+
+        // cm has no flush of meat, so with only the uid moved ahead it claims
+        // meat was never flushed - the flushUid went backwards
+        CollectionsManifest cm3 = cm;
+        cm3.updateUid(cm2.getUid() + 1);
+        Collections::Manifest incoming{std::string{cm3}};
+        EXPECT_NE(cb::engine_errc::success,
+                  flushed.isSuccessor(incoming).code());
+
+        // A lower, but non-zero flushUid is also invalid
+        CollectionsManifest cm4 = cm;
+        cm4.flush(CollectionEntry::meat);
+        cm4.flush(CollectionEntry::meat);
+        Collections::Manifest flushedTwice{std::string{cm4}};
+        ASSERT_EQ(cb::engine_errc::success,
+                  flushed.isSuccessor(flushedTwice).code());
+        cm2.updateUid(cm4.getUid() + 1);
+        Collections::Manifest incoming2{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  flushedTwice.isSuccessor(incoming2).code());
     }
 
     // Move a collection to a different scope

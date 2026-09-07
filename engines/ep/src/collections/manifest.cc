@@ -747,8 +747,20 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
             }
         }
 
-        // Log collection creations
+        // Check flushUid and log collection creations
         for (auto itr = successor.begin(); itr != successor.end(); ++itr) {
+            // No collection can be flushed by a manifest which is ahead of the
+            // manifest itself. This is enforced when constructing from JSON,
+            // this check is a safety net for other construction paths.
+            if (itr->second.flushUid > successor.getUid()) {
+                return {cb::engine_errc::cannot_apply_collections_manifest,
+                        fmt::format("invalid flushUid detected, flushUid "
+                                    "cannot exceed the manifest "
+                                    "uid:{:#x}, successor:{{{}}}",
+                                    successor.getUid(),
+                                    itr->second)};
+            }
+
             auto collection = findCollection(itr->first);
             if (collection == collections.end()) {
                 EP_LOG_INFO("create collection manifest:{:#x}, {}",
@@ -794,6 +806,16 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                                     "detected current:{{{}}}, successor:{{{}}}",
                                     collection,
                                     itr->second)};
+                }
+
+                // The flushUid is mutable, but can only increase
+                if (itr->second.flushUid < collection.flushUid) {
+                    return {cb::engine_errc::cannot_apply_collections_manifest,
+                            fmt::format("invalid flushUid change detected, "
+                                        "flushUid cannot decrease "
+                                        "current:{{{}}}, successor:{{{}}}",
+                                        collection,
+                                        itr->second)};
                 }
             } else {
                 EP_LOG_INFO("drop collection manifest:{:#x} cid:{}, sid:{}",
