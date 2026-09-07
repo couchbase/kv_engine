@@ -71,7 +71,7 @@ ActiveStreamCheckpointProcessorTask::processStreams(
         streams.pop_back();
         // check current runtime of the task
         now = std::chrono::steady_clock::now();
-        if ((now - start) > maxDuration) {
+        if ((now - start) >= maxDuration) {
             // time is up
             break;
         }
