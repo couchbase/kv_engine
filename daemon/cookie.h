@@ -663,6 +663,21 @@ protected:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid);
 
+    /// Chosen so they read as ASCII when viewed as raw bytes in memory
+    /// on a little-endian platform - "COOKIE!!" and "CRUMBLED"
+    /// respectively - making them easy to spot in a hex dump or
+    /// debugger.
+    static constexpr uint64_t MagicByteLive = 0x212145494B4F4F43ULL;
+    static constexpr uint64_t MagicByteFreed = 0x44454C424D555243ULL;
+
+    /// Canary reported by notifyIoComplete() when it drops a spurious
+    /// notification. Set to MagicByteLive by the constructor and to
+    /// MagicByteFreed by ~Cookie(); anything else logged means this
+    /// object's storage no longer belongs to a live Cookie (freed, or
+    /// already reused for a different one). Purely diagnostic - we don't
+    /// make any decisions based on its value.
+    std::atomic<uint64_t> magic_byte_pattern{MagicByteLive};
+
     /**
      * The connection object this cookie is bound to
      */
@@ -809,6 +824,42 @@ protected:
 
     /// Is the cookie currently throttled
     std::atomic_bool throttled{false};
+
+    void incrementGeneration();
+
+    /// Log the fact that we're dropping a notification which arrived for
+    /// a cookie which isn't in the ewouldblock state. The notification_*
+    /// arguments are the values read when notifyIoComplete() was called;
+    /// they're logged next to the cookie's current values to allow the
+    /// two to be compared.
+    ///
+    /// Emitted as two separate messages: the first reports only what was
+    /// passed in on the stack and is flushed before the second one - which
+    /// reads the (potentially corrupt or already freed) cookie - is even
+    /// attempted, so that we still get the notification's own details out
+    /// if reading the cookie brings the process down.
+    void logSpuriousNotification(cb::engine_errc status,
+                                 uint64_t notification_magic_byte,
+                                 uint64_t notification_generation,
+                                 uint8_t notification_opcode) const;
+
+    /// Command generation counter, bumped whenever a new command starts
+    /// and whenever a notification is processed. Logged by
+    /// notifyIoComplete() so that a dropped notification can be tied back
+    /// to the command it was issued for.
+    std::atomic_uint64_t generation;
+
+    /// Previous opcode executed for this cookie (for stale notification
+    /// debugging)
+    std::atomic_uint8_t previousOpcode{0xff};
+
+    /// Opcode of the request currently referenced by "packet" (0xff if
+    /// there is no active request packet). Kept in sync with "packet" so
+    /// that notifyIoComplete() - which may be called from an arbitrary
+    /// engine thread - can report the opcode the notification was issued
+    /// for without dereferencing the (non-atomic, front-end-thread-owned)
+    /// "packet" pointer itself.
+    std::atomic<uint8_t> currentOpcode{0xff};
 
     cb::engine_errc ewouldblock = cb::engine_errc::success;
 
