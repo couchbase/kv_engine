@@ -862,6 +862,12 @@ protected:
     uint64_t getItemCount(CollectionID collection) const;
 
     /**
+     * @return the flush-uid of the collection (uid of the manifest which
+     *         last flushed the collection, zero if never flushed)
+     */
+    ManifestUid getFlushUid(CollectionID collection) const;
+
+    /**
      * @return the highest seqno for this collection
      */
     uint64_t getHighSeqno(CollectionID collection) const;

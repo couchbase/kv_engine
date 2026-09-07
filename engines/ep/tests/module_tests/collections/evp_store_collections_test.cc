@@ -1289,6 +1289,87 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 }
 
+// Test that the flushUid of a collection is loaded at warmup.
+TEST_F(CollectionsWarmupTest, warmupFlushUid) {
+    CollectionsManifest cm;
+    StoredDocKey flushedAway{"apple", CollectionEntry::fruit};
+    StoredDocKey postFlushKey{"pear", CollectionEntry::fruit};
+    Collections::ManifestUid flushUid;
+    {
+        auto vb = store->getVBucket(vbid);
+
+        // 1. Add the fruit collection and store an item into it.
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::fruit)));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        store_item(vbid, flushedAway, "value");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // 2. flush the fruit collection
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm.flush(CollectionEntry::fruit)));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // 2.1 save the flushUid for post-warmup check.
+        flushUid = Collections::ManifestUid{cm.getUid()};
+        EXPECT_EQ(flushUid,
+                  vb->lockCollections().getFlushUid(CollectionEntry::fruit));
+
+        // 3. Cannot read back the flushed key
+        EXPECT_EQ(cb::engine_errc::no_such_key,
+                  store->get(flushedAway, vbid, cookie, get_options_t::NONE)
+                          .getStatus());
+
+        // 4. Store a new item
+        store_item(vbid, postFlushKey, "value");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(1,
+                  vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+        // 5. run eraser so flush is fully processed
+        runCollectionsEraser(vbid);
+    } // VBucketPtr scope ends
+
+    // 6. warmup and validate post-warmup state.
+    resetEngineAndWarmup();
+
+    auto vb = store->getVBucket(vbid);
+
+    // 7. Still one item
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // 8. And the flushUid of fruit was restored
+    EXPECT_EQ(flushUid,
+              vb->lockCollections().getFlushUid(CollectionEntry::fruit));
+
+    // Re-applying the current manifest must be accepted as a no-op. If the
+    // flushUid was not warmed up this manifest appears to flush fruit and is
+    // rejected as EqualUidWithDifferences.
+    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
+              vb->updateFromManifest(
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                      makeManifest(cm)));
+
+    // Applying a newer manifest with no new flush must not flush fruit, only
+    // the dairy creation event is generated.
+    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
+              vb->updateFromManifest(
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                      makeManifest(cm.add(CollectionEntry::dairy))));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // The item written after the flush survived the manifest updates and the
+    // flush-uid is unchanged
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_EQ(cb::engine_errc::success,
+              store->get(postFlushKey, vbid, cookie, get_options_t::NONE)
+                      .getStatus());
+    EXPECT_EQ(flushUid,
+              vb->lockCollections().getFlushUid(CollectionEntry::fruit));
+}
+
 // Set the manifest before warmup runs, without the fix, the manifest wouldn't
 // get applied to the active vbucket
 TEST_F(CollectionsWarmupTest, MB_38125) {

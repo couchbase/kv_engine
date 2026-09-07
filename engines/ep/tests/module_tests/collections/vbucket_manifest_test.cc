@@ -155,6 +155,15 @@ public:
         throw std::logic_error("public_getMaxTtl failed to find collection");
     }
 
+    Collections::ManifestUid public_getFlushUid(CollectionID id) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        if (exists_UNLOCKED(id)) {
+            auto itr = map.find(id);
+            return itr->second.getFlushUid();
+        }
+        throw std::logic_error("public_getFlushUid failed to find collection");
+    }
+
     void dump() {
         std::cerr << *this << std::endl;
     }
@@ -1390,6 +1399,59 @@ TEST_P(VBucketManifestTest, flush) {
     // Now that seqno is considered flush/deleted
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             StoredDocKey{"pear", CollectionEntry::fruit}, seqno));
+}
+
+// Test that creating a collection which was already flushed (the manifest
+// carries a flush_uid for the collection) stores the flushUid in the new
+// entry. This is the case for example when a new vbucket is created after an
+// existing collection was flushed. If the create path discards the flushUid,
+// the next manifest update (greater uid, no new flush) is wrongly processed
+// as another flush of the collection, logically deleting everything written
+// since the real flush.
+TEST_P(VBucketManifestTest, create_with_flush_uid) {
+    // Test requires FlatBuffers events as they carry the flushUid.
+    if (!GetParam()) {
+        GTEST_SKIP();
+    }
+
+    // fruit was added and flushed before this vbucket ever saw a manifest.
+    cm.add(CollectionEntry::fruit);
+    cm.flush(CollectionEntry::fruit);
+    const Collections::ManifestUid flushUid{cm.getUid()};
+    ASSERT_TRUE(manifest.update(cm));
+
+    // Active creates via applyCreates, replica via replicaCreate - both must
+    // store the flushUid.
+    EXPECT_EQ(flushUid,
+              manifest.getActiveManifest().public_getFlushUid(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(flushUid,
+              manifest.getReplicaManifest().public_getFlushUid(
+                      CollectionEntry::fruit));
+
+    // The next mutation of fruit would be at this seqno
+    auto seqno = manifest.getActiveVB().getHighSeqno() + 1;
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            StoredDocKey{"pear", CollectionEntry::fruit}, seqno));
+
+    // A second manifest with a greater uid, but no new flush, must not be
+    // seen as a flush of fruit.
+    auto highSeqno = manifest.getActiveVB().getHighSeqno();
+    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
+
+    // Only the dairy create event was generated
+    EXPECT_EQ(highSeqno + 1, manifest.getActiveVB().getHighSeqno());
+
+    // And fruit was not flushed, the mutation is still alive and the flushUid
+    // is unchanged.
+    EXPECT_FALSE(manifest.isLogicallyDeleted(
+            StoredDocKey{"pear", CollectionEntry::fruit}, seqno));
+    EXPECT_EQ(flushUid,
+              manifest.getActiveManifest().public_getFlushUid(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(flushUid,
+              manifest.getReplicaManifest().public_getFlushUid(
+                      CollectionEntry::fruit));
 }
 
 INSTANTIATE_TEST_SUITE_P(VBucketManifestTests,

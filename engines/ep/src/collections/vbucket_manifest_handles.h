@@ -153,6 +153,11 @@ public:
         return manifest->getItemCount(collection);
     }
 
+    /// @return the flush-uid of the collection (zero if never flushed)
+    ManifestUid getFlushUid(CollectionID collection) const {
+        return manifest->getFlushUid(collection);
+    }
+
     uint64_t getHighSeqno(CollectionID collection) const {
         return manifest->getHighSeqno(collection);
     }

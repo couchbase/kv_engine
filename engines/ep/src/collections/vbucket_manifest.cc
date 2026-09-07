@@ -603,7 +603,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
             canDeduplicate,
             maxTtl,
             metered,
-            ManifestUid{}); // @todo: Pass the flushUid from update paths
+            flushUid);
 
     if (!inserted) {
         throwException<std::logic_error>(
@@ -1443,6 +1443,16 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.getItemCount();
+}
+
+ManifestUid Manifest::getFlushUid(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __func__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.getFlushUid();
 }
 
 uint64_t Manifest::getHighSeqno(CollectionID collection) const {
