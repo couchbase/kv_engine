@@ -17,27 +17,27 @@
 namespace Collections.Persist;
 
 table Collection {
-    collectionId:uint;
-    ttlValid:bool;
-    maxTtl:uint;
+    collection_id:uint;
+    ttl_valid:bool;
+    max_ttl:uint;
     name:string;
     // "history" added in 7.2 (neo)
     history:bool = false;
     // "metered" added in "7.5" (elixir)
     metered:bool = false;
     // "flush_uid" added in "8.0" (morpheus)
-    flushUid:ulong = 0;
+    flush_uid:ulong = 0;
 }
 
 // not used
 table ScopeLimits {
-    dataSizeEnabled:bool = false;
-    dataSize:uint64 = 0;
-    dataSizeClusterValue:uint64 = 0;
+    data_size_enabled:bool = false;
+    data_size:uint64 = 0;
+    data_size_cluster_value:uint64 = 0;
 }
 
 table Scope {
-    scopeId:uint;
+    scope_id:uint;
     name:string;
     collections:[Collection];
     limits:ScopeLimits; // not used

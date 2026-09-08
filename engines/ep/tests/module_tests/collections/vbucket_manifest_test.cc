@@ -458,28 +458,29 @@ public:
                         replica.wlock(rlh).replicaDrop(
                                 *vbR,
                                 Collections::ManifestUid{collection->uid()},
-                                collection->collectionId(),
-                                collection->systemCollection(),
+                                collection->collection_id(),
+                                collection->system_collection(),
                                 qi->getBySeqno());
                     } else {
                         const auto& collection = Collections::VB::Manifest::
                                 getCollectionFlatbuffer(qi->getValueView());
                         cb::ExpiryLimit maxTtl;
-                        if (collection.ttlValid()) {
-                            maxTtl = std::chrono::seconds(collection.maxTtl());
+                        if (collection.ttl_valid()) {
+                            maxTtl = std::chrono::seconds(collection.max_ttl());
                         }
                         std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,
                                 Collections::ManifestUid{collection.uid()},
-                                {collection.scopeId(),
-                                 collection.collectionId()},
+                                {collection.scope_id(),
+                                 collection.collection_id()},
                                 collection.name()->str(),
                                 maxTtl,
                                 Collections::getMetered(collection.metered()),
                                 getCanDeduplicateFromHistory(
                                         collection.history()),
-                                Collections::ManifestUid{collection.flushUid()},
+                                Collections::ManifestUid{
+                                        collection.flush_uid()},
                                 qi->getBySeqno());
                     }
                     break;
@@ -490,14 +491,14 @@ public:
                             Collections::VB::Manifest::getCollectionFlatbuffer(
                                     qi->getValueView());
                     cb::ExpiryLimit maxTtl;
-                    if (collection.ttlValid()) {
-                        maxTtl = std::chrono::seconds(collection.maxTtl());
+                    if (collection.ttl_valid()) {
+                        maxTtl = std::chrono::seconds(collection.max_ttl());
                     }
                     std::shared_lock rlh(vbR->getStateLock());
                     replica.wlock(rlh).replicaModifyCollection(
                             *vbR,
                             Collections::ManifestUid{collection.uid()},
-                            collection.collectionId(),
+                            collection.collection_id(),
                             maxTtl,
                             Collections::getMetered(collection.metered()),
                             getCanDeduplicateFromHistory(collection.history()),
@@ -512,8 +513,8 @@ public:
                         replica.wlock(rlh).replicaDropScope(
                                 *vbR,
                                 Collections::ManifestUid{scope->uid()},
-                                scope->scopeId(),
-                                scope->systemScope(),
+                                scope->scope_id(),
+                                scope->system_scope(),
                                 qi->getBySeqno());
                     } else {
                         const auto* scope =
@@ -523,7 +524,7 @@ public:
                         replica.wlock(rlh).replicaCreateScope(
                                 *vbR,
                                 Collections::ManifestUid{scope->uid()},
-                                scope->scopeId(),
+                                scope->scope_id(),
                                 scope->name()->str(),
                                 qi->getBySeqno());
                     }

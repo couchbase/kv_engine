@@ -781,18 +781,18 @@ cb::engine_errc PassiveStream::processBeginCollection(
                 Collections::VB::Manifest::getCollectionFlatbuffer(
                         event.getEventData());
         cb::ExpiryLimit maxTtl;
-        if (collection.ttlValid()) {
-            maxTtl = std::chrono::seconds(collection.maxTtl());
+        if (collection.ttl_valid()) {
+            maxTtl = std::chrono::seconds(collection.max_ttl());
         }
 
         vb.replicaBeginCollection(
                 Collections::ManifestUid{collection.uid()},
-                {collection.scopeId(), collection.collectionId()},
+                {collection.scope_id(), collection.collection_id()},
                 event.getKey(),
                 maxTtl,
                 Collections::getMetered(collection.metered()),
                 getCanDeduplicateFromHistory(collection.history()),
-                Collections::ManifestUid{collection.flushUid()},
+                Collections::ManifestUid{collection.flush_uid()},
                 *event.getBySeqno());
     } catch (std::exception& e) {
         OBJ_LOG_WARN_CTX(
@@ -812,13 +812,13 @@ cb::engine_errc PassiveStream::processModifyCollection(
                         event.getEventData());
 
         cb::ExpiryLimit maxTtl;
-        if (collection.ttlValid()) {
-            maxTtl = std::chrono::seconds(collection.maxTtl());
+        if (collection.ttl_valid()) {
+            maxTtl = std::chrono::seconds(collection.max_ttl());
         }
 
         vb.replicaModifyCollection(
                 Collections::ManifestUid{collection.uid()},
-                collection.collectionId(),
+                collection.collection_id(),
                 maxTtl,
                 Collections::getMetered(collection.metered()),
                 getCanDeduplicateFromHistory(collection.history()),
@@ -840,8 +840,8 @@ cb::engine_errc PassiveStream::processDropCollection(
                 Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
                         event.getEventData());
         vb.replicaDropCollection(Collections::ManifestUid{collection->uid()},
-                                 collection->collectionId(),
-                                 collection->systemCollection(),
+                                 collection->collection_id(),
+                                 collection->system_collection(),
                                  *event.getBySeqno());
     } catch (std::exception& e) {
         OBJ_LOG_WARN_CTX(
@@ -859,7 +859,7 @@ cb::engine_errc PassiveStream::processCreateScope(
         const auto* scope = Collections::VB::Manifest::getScopeFlatbuffer(
                 event.getEventData());
         vb.replicaCreateScope(Collections::ManifestUid{scope->uid()},
-                              scope->scopeId(),
+                              scope->scope_id(),
                               event.getKey(),
                               *event.getBySeqno());
     } catch (std::exception& e) {
@@ -879,8 +879,8 @@ cb::engine_errc PassiveStream::processDropScope(
                 Collections::VB::Manifest::getDroppedScopeFlatbuffer(
                         event.getEventData());
         vb.replicaDropScope(Collections::ManifestUid{scope->uid()},
-                            scope->scopeId(),
-                            scope->systemScope(),
+                            scope->scope_id(),
+                            scope->system_scope(),
                             *event.getBySeqno());
     } catch (std::exception& e) {
         OBJ_LOG_WARN_CTX(

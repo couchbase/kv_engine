@@ -703,7 +703,7 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
                             qi->getValueView());
             // System collection-ness is derived from the already stored name
             EXPECT_TRUE(Collections::isSystemCollection(
-                    collection.name()->str(), collection.collectionId()));
+                    collection.name()->str(), collection.collection_id()));
         } else {
             EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
 
@@ -711,7 +711,7 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
                     qi->getValueView());
             // System scope-ness is derived from the already stored name
             EXPECT_TRUE(Collections::isSystemScope(scope->name()->str(),
-                                                   scope->scopeId()));
+                                                   scope->scope_id()));
         }
     }
     events.clear();
@@ -732,13 +732,13 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
             const auto& droppedCollection =
                     Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
                             qi->getValueView());
-            EXPECT_TRUE(droppedCollection->systemCollection());
+            EXPECT_TRUE(droppedCollection->system_collection());
         } else {
             EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
             const auto* droppedScope =
                     Collections::VB::Manifest::getDroppedScopeFlatbuffer(
                             qi->getValueView());
-            EXPECT_TRUE(droppedScope->systemScope());
+            EXPECT_TRUE(droppedScope->system_scope());
         }
     }
 }
@@ -769,14 +769,14 @@ TEST_P(CollectionsKVStoreTest, systemCollectionReplicaTombstones) {
             const auto& droppedCollection =
                     Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
                             qi->getValueView());
-            EXPECT_EQ(CollectionID(8), droppedCollection->collectionId());
-            EXPECT_TRUE(droppedCollection->systemCollection());
+            EXPECT_EQ(CollectionID(8), droppedCollection->collection_id());
+            EXPECT_TRUE(droppedCollection->system_collection());
         } else {
             EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
             const auto* droppedScope =
                     Collections::VB::Manifest::getDroppedScopeFlatbuffer(
                             qi->getValueView());
-            EXPECT_TRUE(droppedScope->systemScope());
+            EXPECT_TRUE(droppedScope->system_scope());
         }
     }
 }

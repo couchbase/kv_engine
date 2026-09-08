@@ -527,8 +527,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
         const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
 
-        EXPECT_TRUE(collection.ttlValid());
-        EXPECT_EQ(100, collection.maxTtl());
+        EXPECT_TRUE(collection.ttl_valid());
+        EXPECT_EQ(100, collection.max_ttl());
     };
     {
         VBucketPtr vb = store->getVBucket(vbid);

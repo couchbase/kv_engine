@@ -442,47 +442,47 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         for (const auto* entry : *open->entries()) {
             // For each currently open collection, is it in the dropped map?
             auto result = flushAccounting.getDroppedCollections().find(
-                    entry->collectionId());
+                    entry->collection_id());
 
             // If not found in dropped collections add to output
             if (result == flushAccounting.getDroppedCollections().end()) {
                 auto meta = getMaybeModifiedCollectionMetaData(
-                        entry->collectionId(),
-                        entry->startSeqno(),
+                        entry->collection_id(),
+                        entry->start_seqno(),
                         CollectionMetaData{
-                                entry->scopeId(),
-                                entry->collectionId(),
+                                entry->scope_id(),
+                                entry->collection_id(),
                                 {},
-                                entry->ttlValid()
-                                        ? std::chrono::seconds{entry->maxTtl()}
+                                entry->ttl_valid()
+                                        ? std::chrono::seconds{entry->max_ttl()}
                                         : cb::NoExpiryLimit,
                                 getCanDeduplicateFromHistory(entry->history()),
                                 Collections::getMetered(entry->metered()),
-                                Collections::ManifestUid{entry->flushUid()}});
+                                Collections::ManifestUid{entry->flush_uid()}});
 
                 // maxTTL is validated in Manifest.cc to be <= int32_t
                 const auto maxTtl = gsl::narrow_cast<uint32_t>(
                         meta.maxTtl.value_or(std::chrono::seconds::zero())
                                 .count());
                 exclusiveInsertCollection(
-                        entry->collectionId(),
-                        Collections::ManifestUid{entry->flushUid()},
+                        entry->collection_id(),
+                        Collections::ManifestUid{entry->flush_uid()},
                         Collections::KVStore::CreateCollection(
                                 builder,
-                                entry->startSeqno(),
-                                entry->scopeId(),
-                                entry->collectionId(),
+                                entry->start_seqno(),
+                                entry->scope_id(),
+                                entry->collection_id(),
                                 meta.maxTtl.has_value(),
                                 maxTtl,
                                 builder.CreateString(entry->name()),
                                 getHistoryFromCanDeduplicate(
                                         meta.canDeduplicate),
                                 Collections::getMeteredFromEnum(meta.metered),
-                                entry->flushUid()));
+                                entry->flush_uid()));
 
             } else {
                 // Here we maintain the startSeqno of the dropped collection
-                result->second.startSeqno = entry->startSeqno();
+                result->second.startSeqno = entry->start_seqno();
             }
         }
     } else if (!flushAccounting.getDroppedCollections().contains(
@@ -692,16 +692,16 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
                 existingScopes.data());
 
         for (const auto* entry : *fbData->entries()) {
-            auto result = droppedScopes.find(entry->scopeId());
+            auto result = droppedScopes.find(entry->scope_id());
 
             // If not found in dropped scopes add to output
             if (result == droppedScopes.end()) {
                 exclusiveInsertScope(
-                        entry->scopeId(),
+                        entry->scope_id(),
                         Collections::KVStore::CreateScope(
                                 builder,
-                                entry->startSeqno(),
-                                entry->scopeId(),
+                                entry->start_seqno(),
+                                entry->scope_id(),
                                 builder.CreateString(entry->name())));
             }
         }

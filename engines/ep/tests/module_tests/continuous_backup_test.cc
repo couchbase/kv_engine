@@ -133,9 +133,9 @@ TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
     auto metadataString = runContinuousBackupCallback(vbid, *initialSnapshot);
 
     auto& metadata = Backup::decodeBackupMetadata(metadataString);
-    EXPECT_EQ(maxCas, metadata.maxCas());
+    EXPECT_EQ(maxCas, metadata.max_cas());
     EXPECT_EQ(1, metadata.failovers()->size());
-    EXPECT_EQ(1, metadata.openCollections()->entries()->size());
+    EXPECT_EQ(1, metadata.open_collections()->entries()->size());
     EXPECT_EQ(1, metadata.scopes()->entries()->size());
 }
 
@@ -168,9 +168,9 @@ TEST_P(ContinousBackupTest, CallbackOldSnapshot) {
     // Expect the manifest to have changed.
     ASSERT_EQ(initialMetadata.failovers()->size(),
               latestMetadata.failovers()->size());
-    ASSERT_NE(initialMetadata.maxCas(), latestMetadata.maxCas());
-    ASSERT_NE(initialMetadata.openCollections()->entries()->size(),
-              latestMetadata.openCollections()->entries()->size());
+    ASSERT_NE(initialMetadata.max_cas(), latestMetadata.max_cas());
+    ASSERT_NE(initialMetadata.open_collections()->entries()->size(),
+              latestMetadata.open_collections()->entries()->size());
     ASSERT_NE(initialMetadata.scopes()->entries()->size(),
               latestMetadata.scopes()->entries()->size());
     ASSERT_NE(initialMetadata.manifest()->uid(),

@@ -484,24 +484,24 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
         for (const Collections::Persist::Collection* collection :
              *scope->collections()) {
             cb::ExpiryLimit maxTtl;
-            CollectionID cid(collection->collectionId());
-            if (collection->ttlValid()) {
-                maxTtl = std::chrono::seconds(collection->maxTtl());
+            CollectionID cid(collection->collection_id());
+            if (collection->ttl_valid()) {
+                maxTtl = std::chrono::seconds(collection->max_ttl());
             }
 
             enableDefaultCollection(cid);
             scopeCollections.emplace_back(
-                    ScopeID{scope->scopeId()},
+                    ScopeID{scope->scope_id()},
                     cid,
                     collection->name()->str(),
                     maxTtl,
                     getCanDeduplicateFromHistory(collection->history()),
                     collection->metered() ? Metered::Yes : Metered::No,
-                    ManifestUid{collection->flushUid()});
+                    ManifestUid{collection->flush_uid()});
         }
 
         this->scopes.emplace(
-                scope->scopeId(),
+                scope->scope_id(),
                 Scope{scope->name()->str(), std::move(scopeCollections)});
     }
 

@@ -19,10 +19,10 @@ namespace Collections.VB;
 table Collection {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
-    scopeId:uint;
-    collectionId:uint;
-    ttlValid:bool;
-    maxTtl:uint;
+    scope_id:uint;
+    collection_id:uint;
+    ttl_valid:bool;
+    max_ttl:uint;
     name:string;
     // All fields after here are added from 7.2
     //
@@ -32,11 +32,11 @@ table Collection {
 
     // All fields after here are added from 7.2.4
     //
-    // defaultCollectionMVS: MB-59452: This field exists to assist in the
+    // default_collection_mvs: MB-59452: This field exists to assist in the
     // tracking of what is the max-visible seqno of the default collection. This
     // field is only written to when the event is a modification of the default
     // collection and serves no purpose outside of KV-engine.
-    defaultCollectionMVS:ulong = 0;
+    default_collection_mvs:ulong = 0;
 
     // All fields after here are added from 7.6
     //
@@ -46,10 +46,10 @@ table Collection {
     metered:bool = false;
 
     // All fields after here are added from 8.0
-    // flushUid: MB-41351 The default is 0 - for all collections which existed
+    // flush_uid: MB-41351 The default is 0 - for all collections which existed
     // and didn't define this value they could not be flushed and 0 is the
     // correct default to detect subsequent flushes.
-    flushUid:ulong = 0;
+    flush_uid:ulong = 0;
 
     // Warning: When merging/changing the tables. Always check all callers to
     // Collections::VB::CreateCollection and check that parameters are ordered
@@ -63,22 +63,22 @@ table Collection {
 table DroppedCollection {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
-    scopeId:uint;
-    collectionId:uint;
+    scope_id:uint;
+    collection_id:uint;
 
     // All fields after here are added from 7.6
     //
-    // systemCollection: Required so we can determine how to evaluate this event
+    // system_collection: Required so we can determine how to evaluate this event
     // for DCP streams with no system collection privileges. This defaults to
     // false, all collections before 7.6 will not be system collections.
-    systemCollection:bool = false;
+    system_collection:bool = false;
 }
 
 // FlatBuffers SystemEvents: This is the structure used by CreateScope
 table Scope {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
-    scopeId:uint;
+    scope_id:uint;
     name:string;
 }
 
@@ -86,14 +86,14 @@ table Scope {
 table DroppedScope {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
-    scopeId:uint;
+    scope_id:uint;
 
     // All fields after here are added from 7.6
     //
-    // systemScope: Required so we can determine how to evaluate this event
+    // system_scope: Required so we can determine how to evaluate this event
     // for DCP streams with no system collection privileges. This defaults to
     // false, all scopes before 7.6 will not be system scopes.
-    systemScope:bool = false;
+    system_scope:bool = false;
 }
 
 root_type Collection;

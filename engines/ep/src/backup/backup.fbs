@@ -20,9 +20,9 @@ table FailoverEntry {
 }
 
 table Metadata {
-    maxCas:ulong;
+    max_cas:ulong;
     failovers:[FailoverEntry];
     manifest:Collections.KVStore.CommittedManifest;
-    openCollections:Collections.KVStore.OpenCollections;
+    open_collections:Collections.KVStore.OpenCollections;
     scopes:Collections.KVStore.Scopes;
 }

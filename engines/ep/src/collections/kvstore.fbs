@@ -22,13 +22,13 @@ namespace Collections.KVStore;
 // Metadata for a single collection
 table Collection {
     // The following fields all exist with the "epoch" of collections, 7.0+
-    startSeqno:ulong;
-    scopeId:uint;
-    collectionId:uint;
-    // The TTL is optional, ttlValid determines if the value of ttl should be
+    start_seqno:ulong;
+    scope_id:uint;
+    collection_id:uint;
+    // The TTL is optional, ttl_valid determines if the value of ttl should be
     // used when processing new items.
-    ttlValid:bool;
-    maxTtl:uint;
+    ttl_valid:bool;
+    max_ttl:uint;
     name:string;
     // All fields after here are added from 7.2
     //
@@ -44,10 +44,10 @@ table Collection {
     metered:bool = false;
 
     // All fields after here are added from 8.0
-    // flushUid: MB-41351 The default is 0 - for all collections which existed
+    // flush_uid: MB-41351 The default is 0 - for all collections which existed
     // and didn't define this value they could not be flushed and 0 is the
     // correct default to detect subsequent flushes.
-    flushUid:ulong = 0;
+    flush_uid:ulong = 0;
 }
 
 // All of the open collections
@@ -58,8 +58,8 @@ table OpenCollections {
 
 // Metadata for a single scope
 table Scope {
-    startSeqno:ulong;
-    scopeId:uint;
+    start_seqno:ulong;
+    scope_id:uint;
     name:string;
 }
 
@@ -69,9 +69,9 @@ table Scopes {
 }
 
 table Dropped {
-    startSeqno:ulong;
-    endSeqno:ulong;
-    collectionId:uint;
+    start_seqno:ulong;
+    end_seqno:ulong;
+    collection_id:uint;
 }
 
 // The collections which are dropped but not completely purged from storage

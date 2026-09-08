@@ -1247,7 +1247,7 @@ uint64_t Manifest::getSeqnoFromFlatBuffer(const Item& item) {
     Expects(!cb::mcbp::datatype::is_xattr(item.getDataType()));
     const auto& collection =
             Collections::VB::Manifest::getCollectionFlatbuffer(item);
-    return collection.defaultCollectionMVS();
+    return collection.default_collection_mvs();
 }
 
 size_t Manifest::getSystemEventItemCount() const {
@@ -1382,42 +1382,42 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
     const auto* droppedCollection =
             getDroppedCollectionFlatbuffer(flatbufferData);
     return {ManifestUid(droppedCollection->uid()),
-            droppedCollection->scopeId(),
-            droppedCollection->collectionId(),
-            droppedCollection->systemCollection()};
+            droppedCollection->scope_id(),
+            droppedCollection->collection_id(),
+            droppedCollection->system_collection()};
 }
 
 CollectionEventData Manifest::getCollectionEventData(
         const Collection& collection) {
     // if maxTtlValid needs considering
     cb::ExpiryLimit maxTtl;
-    if (collection.ttlValid()) {
-        maxTtl = std::chrono::seconds(collection.maxTtl());
+    if (collection.ttl_valid()) {
+        maxTtl = std::chrono::seconds(collection.max_ttl());
     }
 
     return {ManifestUid(collection.uid()),
-            {collection.scopeId(),
-             collection.collectionId(),
+            {collection.scope_id(),
+             collection.collection_id(),
              collection.name()->str(),
              maxTtl,
              getCanDeduplicateFromHistory(collection.history()),
              getMetered(collection.metered()),
-             ManifestUid{collection.flushUid()}}};
+             ManifestUid{collection.flush_uid()}}};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(
         std::string_view flatbufferData) {
     const auto* scope = getScopeFlatbuffer(flatbufferData);
     return {ManifestUid(scope->uid()),
-            {scope->scopeId(), scope->name()->str()}};
+            {scope->scope_id(), scope->name()->str()}};
 }
 
 DropScopeEventData Manifest::getDropScopeEventData(
         std::string_view flatbufferData) {
     const auto* droppedScope = getDroppedScopeFlatbuffer(flatbufferData);
     return {ManifestUid(droppedScope->uid()),
-            droppedScope->scopeId(),
-            droppedScope->systemScope()};
+            droppedScope->scope_id(),
+            droppedScope->system_scope()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

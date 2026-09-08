@@ -66,17 +66,17 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 scopes.data());
         for (const auto* entry : *fbData->entries()) {
-            auto emplaced = openScopes.emplace(entry->scopeId());
+            auto emplaced = openScopes.emplace(entry->scope_id());
             // same scope exists many times
             if (!emplaced.second) {
                 throw std::invalid_argument(
                         "decodeManifest: duplicate scope:" +
-                        ScopeID(entry->scopeId()).to_string() +
+                        ScopeID(entry->scope_id()).to_string() +
                         " in stored data");
             }
             rv.scopes.push_back(
-                    {entry->startSeqno(),
-                     Collections::ScopeMetaData{entry->scopeId(),
+                    {entry->start_seqno(),
+                     Collections::ScopeMetaData{entry->scope_id(),
                                                 entry->name()->str()}});
         }
     } else {
@@ -110,27 +110,27 @@ std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
     auto fbData = flatbuffers::GetRoot<OpenCollections>(data.data());
     for (const auto* entry : *fbData->entries()) {
         cb::ExpiryLimit maxTtl;
-        if (entry->ttlValid()) {
-            maxTtl = std::chrono::seconds(entry->maxTtl());
+        if (entry->ttl_valid()) {
+            maxTtl = std::chrono::seconds(entry->max_ttl());
         }
 
-        auto emplaced = openCollections.emplace(entry->collectionId());
+        auto emplaced = openCollections.emplace(entry->collection_id());
         // same collection exists already
         if (!emplaced.second) {
             throw std::invalid_argument(
                     "decodeOpenCollections: duplicate collection:" +
-                    CollectionID(entry->collectionId()).to_string() +
+                    CollectionID(entry->collection_id()).to_string() +
                     " in stored data");
         }
-        rv.emplace_back(entry->startSeqno(),
+        rv.emplace_back(entry->start_seqno(),
                         Collections::CollectionMetaData{
-                                entry->scopeId(),
-                                entry->collectionId(),
+                                entry->scope_id(),
+                                entry->collection_id(),
                                 entry->name()->str(),
                                 maxTtl,
                                 getCanDeduplicateFromHistory(entry->history()),
                                 Collections::getMetered(entry->metered()),
-                                Collections::ManifestUid{entry->flushUid()}});
+                                Collections::ManifestUid{entry->flush_uid()}});
     }
     return rv;
 }
@@ -147,9 +147,9 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
             flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
                     dc.data());
     for (const auto* entry : *fbData->entries()) {
-        rv.push_back({static_cast<uint64_t>(entry->startSeqno()),
-                      static_cast<uint64_t>(entry->endSeqno()),
-                      entry->collectionId()});
+        rv.push_back({entry->start_seqno(),
+                      entry->end_seqno(),
+                      entry->collection_id()});
     }
     return rv;
 }

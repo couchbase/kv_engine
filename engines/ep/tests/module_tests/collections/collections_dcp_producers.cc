@@ -394,8 +394,8 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
 
-        last_collection_id = collection.collectionId();
-        last_scope_id = collection.scopeId();
+        last_collection_id = collection.collection_id();
+        last_scope_id = collection.scope_id();
         last_collection_manifest_uid = collection.uid();
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         EXPECT_NE(0, key.size());
@@ -404,8 +404,8 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
 
         last_metered = Collections::getMetered(collection.metered());
 
-        if (collection.ttlValid()) {
-            last_max_ttl = std::chrono::seconds(collection.maxTtl());
+        if (collection.ttl_valid()) {
+            last_max_ttl = std::chrono::seconds(collection.max_ttl());
         }
         break;
     }
@@ -413,7 +413,7 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         const auto* collection =
                 Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
                         eventView);
-        last_collection_id = collection->collectionId();
+        last_collection_id = collection->collection_id();
         last_collection_manifest_uid = collection->uid();
         EXPECT_EQ(0, key.size());
         break;
@@ -421,7 +421,7 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
     case mcbp::systemevent::id::CreateScope: {
         const auto* scope =
                 Collections::VB::Manifest::getScopeFlatbuffer(eventView);
-        last_scope_id = scope->scopeId();
+        last_scope_id = scope->scope_id();
         last_collection_manifest_uid = scope->uid();
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         EXPECT_NE(0, key.size());
@@ -430,7 +430,7 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
     case mcbp::systemevent::id::DropScope: {
         const auto* scope =
                 Collections::VB::Manifest::getDroppedScopeFlatbuffer(eventView);
-        last_scope_id = scope->scopeId();
+        last_scope_id = scope->scope_id();
         last_collection_manifest_uid = scope->uid();
         EXPECT_EQ(0, key.size());
         break;
