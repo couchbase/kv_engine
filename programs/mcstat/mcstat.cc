@@ -7,6 +7,8 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include "stat_formatters.h"
+#include "tasks_table_printer.h"
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/split_string.h>
@@ -15,18 +17,43 @@
 #include <programs/mc_program_getopt.h>
 #include <programs/natsort.h>
 #include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/timing_histogram_printer.h>
+#include <array>
 #include <cctype>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 
 using namespace cb::terminal;
 
-/// Set to true if we should print the output in JSON format
+/**
+ * Set to true if we should print the output in JSON format
+ */
 bool json = false;
 
-/// Split the requested string into the stat key and the value
-/// (dcp allows for a JSON value to be passed in)
+/**
+ * Set to true via mcstat's own "--disable-utf8" to render timing histogram
+ * bars (see print_key_value_pair()'s use of TimingHistogramPrinter) with
+ * plain ASCII rather than UTF-8 sparkline characters. mcstat defaults to
+ * UTF-8, matching TimingHistogramPrinter's own default.
+ */
+bool disableUtf8 = false;
+
+/**
+ * The server's error map "errors" object (keyed by hex status code),
+ * used to resolve mcbp status codes to human-readable names/descriptions.
+ * Fetched once, right after the connection is established (see main()),
+ * and reused for the lifetime of the connection - mirrors
+ * mc_bin_client.py's hello() caching self.error_map rather than issuing a
+ * fresh GetErrorMap request every time a status code needs resolving.
+ */
+nlohmann::json errorMap = nlohmann::json::object();
+
+/**
+ * Split the requested string into the stat key and the value
+ * (dcp allows for a JSON value to be passed in)
+ */
 static std::pair<std::string, std::string> split_request_string(
         std::string_view request) {
     if (request.empty()) {
@@ -40,6 +67,20 @@ static std::pair<std::string, std::string> split_request_string(
                   << "Unknown stat group: " << arguments.front()
                   << TerminalColor::Reset << std::endl;
         exit(EXIT_FAILURE);
+    }
+
+    if (info->id == StatGroupId::Tasks || info->id == StatGroupId::TasksAll ||
+        info->id == StatGroupId::Hash || info->id == StatGroupId::Dispatcher ||
+        info->id == StatGroupId::Responses) {
+        if (arguments.size() > 1) {
+            std::string_view view = request;
+            view.remove_prefix(arguments.front().size());
+            while (!view.empty() && std::isspace(view.front())) {
+                view.remove_prefix(1);
+            }
+            return {std::string{arguments.front()}, std::string(view)};
+        }
+        return {std::string{arguments.front()}, {}};
     }
 
     if (info->id == StatGroupId::Dcp) {
@@ -139,6 +180,7 @@ static void print_key_value_pair(std::string_view group,
 
         try {
             TimingHistogramPrinter printer(nlohmann::json::parse(value));
+            printer.setUseUtf8(!disableUtf8);
             printer.dumpHistogram(nm);
             printed = true;
         } catch (const std::exception&) {
@@ -151,6 +193,77 @@ static void print_key_value_pair(std::string_view group,
 }
 
 /**
+ * If statKey is "dcp", issue the (streaming) DCP stat request and print it;
+ * otherwise do nothing. Returns true if the DCP stat was handled.
+ */
+static bool maybe_request_dcp_stat(MemcachedConnection& connection,
+                                   const std::string& statKey,
+                                   const std::string& statValue) {
+    if (statKey != "dcp") {
+        return false;
+    }
+    auto value = nlohmann::json::object();
+    if (!statValue.empty()) {
+        value = nlohmann::json::parse(statValue);
+    }
+    if (!value.contains("stream_format")) {
+        value["stream_format"] = "json";
+    }
+    request_dcp_stat(connection, value.dump());
+    return true;
+}
+
+/**
+ * Fetch the server's error map and return its "errors" object (keyed by
+ * hex status code), used to resolve status codes to their human-readable
+ * names. Returns an empty object if the server doesn't support the
+ * command.
+ */
+static nlohmann::json get_server_error_map_errors(
+        MemcachedConnection& connection) {
+    auto rsp = connection.execute(BinprotGetErrorMapCommand{});
+    if (!rsp.isSuccess()) {
+        return nlohmann::json::object();
+    }
+    return rsp.getDataJson().value("errors", nlohmann::json::object());
+}
+
+/**
+ * Format a failed stat request as "Memcached error #<status>: <name> :
+ * <desc> : <context>", resolving <name>/<desc> via the cached server error
+ * map (falling back to the mcbp status text if the map doesn't have an
+ * entry, e.g. a status code newer than this client binary knows about)
+ * and <context> via any extended error JSON context (empty for a plain
+ * protocol error).
+ */
+static std::string format_memcached_error(const ConnectionError& error) {
+    auto status = uint16_t(error.getReason());
+    auto entry = errorMap.find(fmt::format("{:x}", status));
+
+    std::string name = fmt::format("{}", error.getReason());
+    std::string desc;
+    if (entry != errorMap.end()) {
+        name = entry->value("name", name);
+        desc = entry->value("desc", "");
+    }
+
+    std::string context;
+    try {
+        const auto ctx = error.getErrorJsonContext();
+        if (ctx.is_object()) {
+            auto errorObj = ctx.value("error", nlohmann::json::object());
+            if (errorObj.is_object()) {
+                context = errorObj.value("context", "");
+            }
+        }
+    } catch (const std::exception&) {
+    }
+
+    return fmt::format(
+            "Memcached error #{}:  {} : {} : {}", status, name, desc, context);
+}
+
+/**
  * Request a stat from the server
  * @param connection socket connected to the server
  * @param statGroup the name of the stat to receive (empty == ALL)
@@ -158,15 +271,74 @@ static void print_key_value_pair(std::string_view group,
 static void request_stat(MemcachedConnection& connection,
                          const std::string& statGroup) {
     auto [statKey, statValue] = split_request_string(statGroup);
-    if (statKey == "dcp") {
-        auto value = nlohmann::json::object();
-        if (!statValue.empty()) {
-            value = nlohmann::json::parse(statValue);
+    if (maybe_request_dcp_stat(connection, statKey, statValue)) {
+        return;
+    }
+
+    if (statKey == "tasks" || statKey == "tasks-all") {
+        if (json) {
+            auto stats = connection.stats(statKey);
+            std::cout << stats.dump() << std::endl;
+        } else {
+            std::vector<std::pair<std::string, std::string>> stats;
+            connection.stats(
+                    [&stats](const auto& key, const auto& value) -> void {
+                        stats.emplace_back(key, value);
+                    },
+                    statKey);
+            printTasksTable(stats, statValue, std::cout);
         }
-        if (!value.contains("stream_format")) {
-            value["stream_format"] = "json";
+        return;
+    }
+
+    if (statKey == "hash") {
+        if (json) {
+            auto stats = connection.stats(statKey);
+            std::cout << stats.dump() << std::endl;
+        } else {
+            std::vector<std::pair<std::string, std::string>> stats;
+            connection.stats(
+                    [&stats](const auto& key, const auto& value) -> void {
+                        stats.emplace_back(key, value);
+                    },
+                    statKey);
+            printHashStats(stats, statValue == "detail", std::cout);
         }
-        request_dcp_stat(connection, value.dump());
+        return;
+    }
+
+    if (statKey == "dispatcher") {
+        if (json) {
+            auto stats = connection.stats(statKey);
+            std::cout << stats.dump() << std::endl;
+        } else {
+            std::vector<std::pair<std::string, std::string>> stats;
+            connection.stats(
+                    [&stats](const auto& key, const auto& value) -> void {
+                        stats.emplace_back(key, value);
+                    },
+                    statKey);
+            printDispatcherStats(stats, statValue == "logs", std::cout);
+        }
+        return;
+    }
+
+    if (statKey == "responses") {
+        if (json) {
+            auto stats = connection.stats(statKey);
+            std::cout << stats.dump() << std::endl;
+        } else {
+            std::vector<std::pair<std::string, std::string>> stats;
+            connection.stats(
+                    [&stats](const auto& key, const auto& value) -> void {
+                        stats.emplace_back(key, value);
+                    },
+                    statKey);
+            printResponsesStats(stats,
+                                errorMap,
+                                statValue == "all" || statValue == "1",
+                                std::cout);
+        }
         return;
     }
 
@@ -184,10 +356,17 @@ static void request_stat(MemcachedConnection& connection,
 
 void request_sorted_stat(MemcachedConnection& connection,
                          const std::string& statGroup) {
+    auto [statKey, statValue] = split_request_string(statGroup);
+    if (statKey == "tasks" || statKey == "tasks-all" || statKey == "hash" ||
+        statKey == "dispatcher" || statKey == "responses") {
+        // These formatters have their own internal sorting logic
+        request_stat(connection, statGroup);
+        return;
+    }
+
     using KeyValue = std::pair<std::string, std::string>;
     std::vector<KeyValue> stats;
 
-    auto [statKey, statValue] = split_request_string(statGroup);
     connection.stats(
             [&stats](const std::string& k, const std::string& v) -> void {
                 stats.emplace_back(k, v);
@@ -407,6 +586,12 @@ int main(int argc, char** argv) {
                       "sort",
                       "sort output (only valid for non-JSON output)"});
 
+    getopt.addOption({[](auto) { disableUtf8 = true; },
+                      "disable-utf8",
+                      "Render timing histogram bars with plain ASCII "
+                      "instead of UTF-8 sparkline characters (UTF-8 is "
+                      "used by default)"});
+
     getopt.addOption({[&getopt](auto value) {
                           if (value.empty()) {
                               usage(getopt, EXIT_SUCCESS);
@@ -449,6 +634,7 @@ int main(int argc, char** argv) {
         connection->setAgentName("mcstat/" PRODUCT_VERSION);
         connection->setFeatures(
                 {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
+        errorMap = get_server_error_map_errors(*connection);
 
         if (allBuckets) {
             buckets = connection->listBuckets();
@@ -477,6 +663,10 @@ int main(int argc, char** argv) {
             }
         } while (bucketItr != buckets.end());
 
+    } catch (const ConnectionError& error) {
+        std::cerr << TerminalColor::Red << format_memcached_error(error)
+                  << TerminalColor::Reset << std::endl;
+        return EXIT_FAILURE;
     } catch (const std::exception& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
                   << std::endl;
