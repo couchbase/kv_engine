@@ -272,6 +272,26 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
         return getStat<uint64_t>(
                 *adminConnection, "", "ep_arena_memory_allocated");
     };
+    // Fetching the "default" stat group returns a large number of stats,
+    // so where multiple values are needed together dump the group once
+    // and pick them out of that snapshot rather than issuing one STAT
+    // call per value.
+    const auto statSnapshot = [] { return adminConnection->stats(""); };
+    const auto pick = [](const nlohmann::json& stats, std::string_view key) {
+        return stats.at(key).get<uint64_t>();
+    };
+
+    // The two temp-OOM counters are always asserted together (a fragmentation
+    // rejection is also a temp-OOM), so read both from a single snapshot.
+    struct TmpOomCounters {
+        uint64_t fragmentation;
+        uint64_t total;
+    };
+    const auto tmpOomCounters = [&] {
+        const auto stats = statSnapshot();
+        return TmpOomCounters{pick(stats, "ep_fragmentation_tmp_ooms"),
+                              pick(stats, "ep_tmp_oom_errors")};
+    };
 
     // checkpoint_memory_ratio is a Checkpoint-category param, so it must be set
     // with Type::Checkpoint.
@@ -315,6 +335,8 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // 1) to assert it, once the fragmented state is in place.
     setParam("fragmentation_backpressure_enabled", "false");
 
+    const auto tmpOomsAtStart = tmpOomCounters();
+
     // Use a fixed 100 MB quota so the test does not depend on any -c max_size
     // and stays quick (less to load). The change is applied asynchronously.
     constexpr auto quota = 100 * 1024 * 1024;
@@ -328,11 +350,12 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // non_resident/value_ejects reveal whether item values are being ejected.
     const auto logDebugState = [&]([[maybe_unused]] std::string_view stage) {
         if constexpr (folly::kIsDebug) {
-            const auto stat = [](const char* key) {
-                return getStat<uint64_t>(*adminConnection, "", key);
+            const auto stats = statSnapshot();
+            const auto stat = [&](std::string_view key) {
+                return pick(stats, key);
             };
-            const auto r = resident();
-            const auto a = allocated();
+            const auto r = stat("ep_arena_memory_resident");
+            const auto a = stat("ep_arena_memory_allocated");
             std::cout << "[ HighFragmentation ] " << stage
                       << ": quota=" << quota << " resident=" << r
                       << " allocated=" << a << " frag="
@@ -344,7 +367,10 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                       << " kv_size=" << stat("ep_kv_size")
                       << " non_resident=" << stat("ep_num_non_resident")
                       << " value_ejects=" << stat("ep_num_value_ejects")
-                      << " high_wat=" << stat("ep_mem_high_wat") << std::endl;
+                      << " high_wat=" << stat("ep_mem_high_wat")
+                      << " tmp_ooms=" << stat("ep_tmp_oom_errors")
+                      << " frag_tmp_ooms=" << stat("ep_fragmentation_tmp_ooms")
+                      << std::endl;
         }
     };
     logDebugState("start");
@@ -445,8 +471,9 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     lowerCheckpointMemRatio();
     logDebugState("after delete B");
 
-    const auto rss = resident();
-    const auto alloc = allocated();
+    const auto arenaStats = statSnapshot();
+    const auto rss = pick(arenaStats, "ep_arena_memory_resident");
+    const auto alloc = pick(arenaStats, "ep_arena_memory_allocated");
     ASSERT_GT(rss, quota) << "did not reach RSS>quota; rss=" << rss
                           << " alloc=" << alloc << " quota=" << quota;
     ASSERT_LT(alloc, quota)
@@ -465,6 +492,10 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // this, which we assert below as the direct "aggressive scheduling" signal.
     const auto minSleep = getStat<float>(
             *adminConnection, "", "ep_defragmenter_auto_min_sleep");
+
+    EXPECT_EQ(tmpOomsAtStart.fragmentation, tmpOomCounters().fragmentation)
+            << "ep_fragmentation_tmp_ooms moved while "
+               "fragmentation_backpressure_enabled was false";
 
     // Phase 1: back-pressure. Enable the feature; the defragmenter is still
     // disabled, so recovery cannot run and RSS stays put. The gate reads the
@@ -486,6 +517,23 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                cb::mcbp::Status::Etmpfail;
     };
     cb::waitForPredicate(probeRejected);
+
+    // The probe above was rejected, so the counter must have moved from the
+    // pre-enable baseline. This same read is the baseline for the single
+    // rejection asserted next.
+    const auto beforeProbe = tmpOomCounters();
+    EXPECT_GT(beforeProbe.fragmentation, tmpOomsAtStart.fragmentation)
+            << "the gate rejected a mutation but ep_fragmentation_tmp_ooms did "
+               "not move";
+
+    EXPECT_TRUE(probeRejected()) << "the latched gate accepted a mutation";
+    const auto afterProbe = tmpOomCounters();
+    EXPECT_EQ(beforeProbe.fragmentation + 1, afterProbe.fragmentation)
+            << "one fragmentation rejection did not bump "
+               "ep_fragmentation_tmp_ooms by exactly one";
+    EXPECT_EQ(beforeProbe.total + 1, afterProbe.total)
+            << "a fragmentation rejection must also bump ep_tmp_oom_errors, "
+               "which counts it as a temp-OOM";
 
     // Phase 2: recovery. Enable the defragmenter. The MonitorTask, still seeing
     // critical fragmentation, wakes it and it runs in aggressive mode (min
@@ -517,6 +565,19 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // Once the MonitorTask republishes the recovered RSS, the gate lifts and
     // mutations are accepted again.
     cb::waitForPredicate([&] { return !probeRejected(); });
+
+    const auto afterRecovery = tmpOomCounters();
+    size_t rejections = 0;
+    for (int i = 0; i < 10; ++i) {
+        rejections += probeRejected() ? 1 : 0;
+    }
+    const auto afterAcceptedProbes = tmpOomCounters();
+    EXPECT_EQ(0u, rejections) << "the gate re-latched after recovery";
+    EXPECT_EQ(afterRecovery.fragmentation, afterAcceptedProbes.fragmentation)
+            << "ep_fragmentation_tmp_ooms moved on accepted mutations";
+    EXPECT_EQ(afterRecovery.total, afterAcceptedProbes.total)
+            << "ep_tmp_oom_errors moved on accepted mutations";
+
     logDebugState("after recovery");
     adminConnection->setAutoRetryTmpfail(true);
 }
