@@ -208,8 +208,15 @@ def fetch_failed_builds(server_url, username, password, build_limit, branch):
             # firstBuild and fullName to be able to fetch all builds, and
             # underneath is does some pagination on the results.
             server.tree_filter = 'firstBuild[number],fullName,builds[number,result]'
-            builds = server.get_job_info(
-                job + branch, depth=1, fetch_all_builds=True)['builds']
+            # Not all jobs exist on every branch
+            try:
+                builds = server.get_job_info(
+                    job + branch, depth=1, fetch_all_builds=True)['builds']
+            except (jenkins.NotFoundException, jenkins.JenkinsException) as e:
+                logging.warning(
+                    "Skipping job {} - not available for branch {}: {}".format(
+                        job + branch, branch, e))
+                continue
             for b in builds:
                 b['job'] = job + branch
             logging.debug(
@@ -319,6 +326,57 @@ def extract_failed_builds(details):
                 "extract_failed_builds: Did not find Gerrit patch for " +
                 info['url'] + " Result:" + info['result'])
     return failures
+
+
+def report_failures(raw_builds, branch):
+    """Extract, filter and print the failures for a single branch's downloaded
+    builds under a branch-specific section heading."""
+    print('h1. Branch: {}\n'.format(branch))
+    logging.info("[{}] Number of builds downloaded: {}.".format(
+        branch, len(raw_builds)))
+    failures = extract_failed_builds(raw_builds)
+    logging.info(
+        "[{}] Number of builds with at least one failure: {}.".format(
+            branch, len(failures)))
+    failures = filter_failed_builds(failures)
+    logging.info("[{}] Number of unique failures: {}".format(
+        branch, len(failures)))
+
+    sorted_failures = sorted(failures.items(), key=lambda i: len(i[1]),
+                             reverse=True)
+
+    # Count total number of failures
+    total_failures = 0
+    for (_, details) in sorted_failures:
+        total_failures += len(details)
+
+    for (summary, details) in sorted_failures:
+        num_failures = len(details)
+        print('+Error signature+')
+        print('{code}')
+        print(summary)
+        print('{code}\n')
+        print('+Details+')
+        print(
+            '{} instances of this failure ({:.1f}% of sampled failures):'.format(
+                num_failures,
+                (num_failures * 100.0) / total_failures))
+        for d_idx, d in enumerate(details[:100]):
+            human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+            node_name = d['node_name']
+            labels = d['labels']
+            print("* Time: {}, Jenkins job: {}, patch: {}, node: {}, labels: [{}]".format(human_time,
+                  d['url'], d['gerrit_patch'], node_name, labels))
+            if len(d['variables']) > 0:
+                print(' `- where ', end='')
+                for name, value in d['variables'].items():
+                    print(f'{name} = `{value[d_idx]}`;', end='')
+                print()
+        if len(details) > 100:
+            print(
+                "<cut> - only showing details of first 100/{} instances.".format(
+                    len(details)))
+        print('\n===========\n')
 
 
 class Template:
@@ -531,8 +589,11 @@ if __name__ == '__main__':
             'download: Download build details, writing to stdout as JSON.\n'
             'parse: Parse previously-downloaded build details read from stdin.\n'
             'download_and_parse: Download and parse build details.\n'))
-    parser.add_argument('--branch', type=str, default='master',
-                        help='Branch to scan for')
+    parser.add_argument('--branches', type=str, nargs='+',
+                        default=['master', 'trinity', 'morpheus', 'totoro'],
+                        help=('Branches to scan for. Each branch is reported '
+                              'in its own section, and reports only its own '
+                              'failures.'))
     parser.add_argument('--build-limit',
                         type=int,
                         default=200,
@@ -540,62 +601,25 @@ if __name__ == '__main__':
                               'for each job'))
     args = parser.parse_args()
 
+    # Each branch is reported independently and reports its own failures.
     if args.mode != 'parse':
         if args.username is None or args.password is None:
             print('Mode requires username and password', file=sys.stderr)
             parser.print_usage()
             sys.exit(1)
-        raw_builds = fetch_failed_builds(
-            'http://cv.jenkins.couchbase.com',
-            args.username,
-            args.password,
-            args.build_limit,
-            args.branch)
+        raw_builds = dict()
+        for branch in args.branches:
+            raw_builds[branch] = fetch_failed_builds(
+                'https://cv.jenkins.couchbase.com',
+                args.username,
+                args.password,
+                args.build_limit,
+                branch)
     if args.mode == 'download':
         print(json.dumps(raw_builds))
         sys.exit(0)
     if args.mode == 'parse':
         raw_builds = json.load(sys.stdin)
-    logging.info("Number of builds downloaded: {}.".format(len(raw_builds)))
-    failures = extract_failed_builds(raw_builds)
-    logging.info(
-        "Number of builds with at least one failure: {}.".format(
-            len(failures)))
-    failures = filter_failed_builds(failures)
-    logging.info("Number of unique failures: {}".format(len(failures)))
 
-    sorted_failures = sorted(failures.items(), key=lambda i: len(i[1]),
-                             reverse=True)
-
-    # Count total number of failures
-    total_failures = 0
-    for (_, details) in sorted_failures:
-        total_failures += len(details)
-
-    for (summary, details) in sorted_failures:
-        num_failures = len(details)
-        print('+Error signature+')
-        print('{code}')
-        print(summary)
-        print('{code}\n')
-        print('+Details+')
-        print(
-            '{} instances of this failure ({:.1f}% of sampled failures):'.format(
-                num_failures,
-                (num_failures * 100.0) / total_failures))
-        for d_idx, d in enumerate(details[:100]):
-            human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
-            node_name = d['node_name']
-            labels = d['labels']
-            print("* Time: {}, Jenkins job: {}, patch: {}, node: {}, labels: [{}]".format(human_time,
-                  d['url'], d['gerrit_patch'], node_name, labels))
-            if len(d['variables']) > 0:
-                print(' `- where ', end='')
-                for name, value in d['variables'].items():
-                    print(f'{name} = `{value[d_idx]}`;', end='')
-                print()
-        if len(details) > 100:
-            print(
-                "<cut> - only showing details of first 100/{} instances.".format(
-                    len(details)))
-        print('\n===========\n')
+    for branch, branch_builds in raw_builds.items():
+        report_failures(branch_builds, branch)
