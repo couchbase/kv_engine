@@ -28,9 +28,6 @@ The Database Change Protocol (DCP) a protocol used by Couchbase for moving large
 * Core Server Architecture
 	* [Server Design](documentation/server-design.md)
 	* [Rebalance](documentation/rebalance.md)
-	* View Engine Integration
-	* Backup Tool
-	* [Upgrade (2.x to 3.x)](documentation/upgrade.md)
 * [Future Work](documentation/future-work.md)
 * [Change Log](documentation/changelog.md)
 * [Design Discussions](documentation/discussion.md)
