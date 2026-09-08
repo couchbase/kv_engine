@@ -632,8 +632,11 @@ int main(int argc, char** argv) {
         auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
         connection->setAgentName("mcstat/" PRODUCT_VERSION);
-        connection->setFeatures(
-                {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
+        // Negotiate Collections so collection-aware stat groups (e.g.
+        // per-collection stats) are reported in full.
+        connection->setFeatures({cb::mcbp::Feature::XERROR,
+                                 cb::mcbp::Feature::Collections,
+                                 cb::mcbp::Feature::JSON});
         errorMap = get_server_error_map_errors(*connection);
 
         if (allBuckets) {
