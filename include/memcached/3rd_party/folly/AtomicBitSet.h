@@ -146,7 +146,8 @@ inline bool AtomicBitSet<N>::set(size_t idx, std::memory_order order) {
 
 template <size_t N>
 inline bool AtomicBitSet<N>::reset(size_t idx, std::memory_order order) {
-    return data_[blockIndex(idx)].fetch_and(~mask(idx), order) & mask(idx);
+    const auto invMask = gsl::narrow_cast<BlockType>(~mask(idx));
+    return data_[blockIndex(idx)].fetch_and(invMask, order) & mask(idx);
 }
 
 template <size_t N>
