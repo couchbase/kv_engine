@@ -14,6 +14,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/unit_test_mode.h>
 #include <memory>
 
 /**
@@ -692,6 +693,995 @@ TEST_P(CompactDbValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+// -----------------------------------------------------------------------------
+// Bucket Management (CreateBucket, DeleteBucket, ListBuckets, SelectBucket,
+// PauseBucket, ResumeBucket)
+// -----------------------------------------------------------------------------
+
+class CreateBucketValidatorTest : public ::testing::WithParamInterface<bool>,
+                                  public ValidatorTest {
+public:
+    CreateBucketValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::CreateBucket);
+        builder.setKey("mybucket");
+        builder.setValue(std::string("ep.so\0{}", 7));
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::CreateBucket,
+                                       &request);
+    }
+};
+
+TEST_P(CreateBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, MissingKey) {
+    req.setKeylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, InvalidBucketName) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::CreateBucket);
+    builder.setKey("invalid/bucket/name");
+    builder.setValue("ep.so");
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, UnknownBucketType) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::CreateBucket);
+    builder.setKey("mybucket");
+    builder.setValue("nonexistent_engine.so");
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateBucketValidatorTest, NoBucketNotSupported) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::CreateBucket);
+    builder.setKey("mybucket");
+    builder.setValue("nobucket.so");
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+}
+
+class ListBucketsValidatorTest : public ::testing::WithParamInterface<bool>,
+                                 public ValidatorTest {
+public:
+    ListBucketsValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::ListBuckets,
+                                       &request);
+    }
+};
+
+TEST_P(ListBucketsValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(ListBucketsValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ListBucketsValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ListBucketsValidatorTest, InvalidValue) {
+    req.setBodylen(5);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class DeleteBucketValidatorTest : public ::testing::WithParamInterface<bool>,
+                                  public ValidatorTest {
+public:
+    DeleteBucketValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DeleteBucket);
+        builder.setKey("mybucket");
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DeleteBucket,
+                                       &request);
+    }
+};
+
+TEST_P(DeleteBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(DeleteBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DeleteBucketValidatorTest, MissingKey) {
+    req.setKeylen(0);
+    req.setBodylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class SelectBucketValidatorTest : public ::testing::WithParamInterface<bool>,
+                                  public ValidatorTest {
+public:
+    SelectBucketValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::SelectBucket);
+        builder.setKey("mybucket");
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SelectBucket,
+                                       &request);
+    }
+};
+
+TEST_P(SelectBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SelectBucketValidatorTest, EmptyKey) {
+    req.setKeylen(0);
+    req.setBodylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SelectBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SelectBucketValidatorTest, InvalidValue) {
+    req.setBodylen(req.getKeylen() + 4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class PauseResumeBucketValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    PauseResumeBucketValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setKey("mybucket");
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
+        req.setOpcode(opcode);
+        return ValidatorTest::validate(opcode, &request);
+    }
+};
+
+TEST_P(PauseResumeBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              validate(cb::mcbp::ClientOpcode::PauseBucket));
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              validate(cb::mcbp::ClientOpcode::ResumeBucket));
+}
+
+TEST_P(PauseResumeBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::PauseBucket));
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::ResumeBucket));
+}
+
+TEST_P(PauseResumeBucketValidatorTest, InvalidCas) {
+    req.setCas(0xbeef);
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::PauseBucket));
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::ResumeBucket));
+}
+
+TEST_P(PauseResumeBucketValidatorTest, InvalidValue) {
+    req.setBodylen(req.getKeylen() + 5);
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::PauseBucket));
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::ResumeBucket));
+}
+
+// -----------------------------------------------------------------------------
+// Ifconfig Validator Test
+// -----------------------------------------------------------------------------
+
+class IfconfigValidatorTest : public ::testing::WithParamInterface<bool>,
+                              public ValidatorTest {
+public:
+    IfconfigValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Ifconfig,
+                                       &request);
+    }
+};
+
+TEST_P(IfconfigValidatorTest, ListCorrect) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("list");
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(IfconfigValidatorTest, ListWithValueFails) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("list");
+    builder.setValue("non-empty");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(IfconfigValidatorTest, DeleteCorrect) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("delete");
+    builder.setValue(R"({"port": 11210})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(IfconfigValidatorTest, DeleteWithoutValueFails) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("delete");
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(IfconfigValidatorTest, DefineCorrect) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("define");
+    builder.setValue(
+            R"({"port": 11210, "host": "127.0.0.1", "family": "inet", "type": "mcbp"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(IfconfigValidatorTest, DefineInvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("define");
+    builder.setValue("not valid json");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(IfconfigValidatorTest, TlsCorrect) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("tls");
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(IfconfigValidatorTest, InvalidKey) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("invalid_key");
+    builder.setValue(R"({"foo": "bar"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(IfconfigValidatorTest, InvalidExtlen) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Ifconfig);
+    builder.setKey("list");
+    uint8_t ext = 1;
+    builder.setExtras({&ext, sizeof(ext)});
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+// -----------------------------------------------------------------------------
+// Security / Active Encryption Keys / Prune / Register Auth Token
+// -----------------------------------------------------------------------------
+
+class SetActiveEncryptionKeysValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    SetActiveEncryptionKeysValidatorTest()
+        : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+        builder.setKey("@audit");
+        builder.setValue(R"({"keystore": {}})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::SetActiveEncryptionKeys, &request);
+    }
+};
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, InvalidEntity) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@unknown_entity");
+    builder.setValue(R"({"keystore": {}})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, InvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@audit");
+    builder.setValue("not json");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, MissingKeystore) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@audit");
+    builder.setValue(R"({"foo": "bar"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, UnavailableUnencryptedKeyId) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@audit");
+    builder.setValue(R"({"unavailable": ["unencrypted"], "keystore": {}})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class PruneEncryptionKeysValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    PruneEncryptionKeysValidatorTest()
+        : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::PruneEncryptionKeys);
+        builder.setKey("@audit");
+        builder.setValue(R"(["key1", "key2"])");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::PruneEncryptionKeys, &request);
+    }
+};
+
+TEST_P(PruneEncryptionKeysValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(PruneEncryptionKeysValidatorTest, InvalidEntity) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::PruneEncryptionKeys);
+    builder.setKey("@unknown_entity");
+    builder.setValue(R"(["key1"])");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(PruneEncryptionKeysValidatorTest, InvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::PruneEncryptionKeys);
+    builder.setKey("@audit");
+    builder.setValue("not json");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class RegisterAuthTokenValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    RegisterAuthTokenValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::RegisterAuthToken);
+        builder.setValue(
+                R"({"id": 1, "token": "jwt_token_val", "type": "JWT"})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::RegisterAuthToken, &request);
+    }
+};
+
+TEST_P(RegisterAuthTokenValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(RegisterAuthTokenValidatorTest, RemoveTokenOnlyId) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::RegisterAuthToken);
+    builder.setValue(R"({"id": 1})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(RegisterAuthTokenValidatorTest, MissingId) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::RegisterAuthToken);
+    builder.setValue(R"({"token": "jwt_token_val", "type": "JWT"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RegisterAuthTokenValidatorTest, UnsupportedType) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::RegisterAuthToken);
+    builder.setValue(R"({"id": 1, "token": "val", "type": "OAUTH"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+}
+
+TEST_P(RegisterAuthTokenValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::Raw);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RegisterAuthTokenValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+// -----------------------------------------------------------------------------
+// Range Scan (RangeScanCreate, RangeScanContinue, RangeScanCancel)
+// -----------------------------------------------------------------------------
+
+class RangeScanCreateValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    RangeScanCreateValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::RangeScanCreate);
+        builder.setValue(R"({"range": {"start": "a", "end": "z"}})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::RangeScanCreate,
+                                       &request);
+    }
+};
+
+TEST_P(RangeScanCreateValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(RangeScanCreateValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::Raw);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RangeScanCreateValidatorTest, InvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::RangeScanCreate);
+    builder.setValue("invalid json");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RangeScanCreateValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RangeScanCreateValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class RangeScanContinueValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    RangeScanContinueValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::request::RangeScanContinuePayload payload{};
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::RangeScanContinue);
+        builder.setExtras(payload.getBuffer());
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::RangeScanContinue, &request);
+    }
+};
+
+TEST_P(RangeScanContinueValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(RangeScanContinueValidatorTest, InvalidExtlen) {
+    req.setExtlen(4);
+    req.setBodylen(4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RangeScanContinueValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(RangeScanContinueValidatorTest, InvalidValue) {
+    req.setBodylen(req.getExtlen() + 4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class RangeScanCancelValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    RangeScanCancelValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::rangescan::Id id{};
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::RangeScanCancel);
+        builder.setExtras(cb::const_byte_buffer{id.data(), id.size()});
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::RangeScanCancel,
+                                       &request);
+    }
+};
+
+TEST_P(RangeScanCancelValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(RangeScanCancelValidatorTest, InvalidExtlen) {
+    req.setExtlen(4);
+    req.setBodylen(4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+// -----------------------------------------------------------------------------
+// Snapshots (PrepareSnapshot, ReleaseSnapshot, DownloadSnapshot,
+// GetFileFragment)
+// -----------------------------------------------------------------------------
+
+class PrepareSnapshotValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    PrepareSnapshotValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::PrepareSnapshot);
+        builder.setValue(R"({"storage": "couchstore"})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::PrepareSnapshot,
+                                       &request);
+    }
+};
+
+TEST_P(PrepareSnapshotValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(PrepareSnapshotValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::Raw);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(PrepareSnapshotValidatorTest, InvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::PrepareSnapshot);
+    builder.setValue("not a json string");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(PrepareSnapshotValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(PrepareSnapshotValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class ReleaseSnapshotValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    ReleaseSnapshotValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::ReleaseSnapshot);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::ReleaseSnapshot,
+                                       &request);
+    }
+};
+
+TEST_P(ReleaseSnapshotValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(ReleaseSnapshotValidatorTest, WithKey) {
+    req.setKeylen(4);
+    req.setBodylen(4);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(ReleaseSnapshotValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReleaseSnapshotValidatorTest, InvalidCas) {
+    req.setCas(0xbeef);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class DownloadSnapshotValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    DownloadSnapshotValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DownloadSnapshot);
+        builder.setValue(R"({"foo": "bar"})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DownloadSnapshot,
+                                       &request);
+    }
+};
+
+TEST_P(DownloadSnapshotValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(DownloadSnapshotValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::Raw);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DownloadSnapshotValidatorTest, InvalidJson) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DownloadSnapshot);
+    builder.setValue("invalid json");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class GetFileFragmentValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    GetFileFragmentValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::GetFileFragment);
+        builder.setKey("fragment_file");
+        builder.setValue(R"({"id": 1, "offset": "0", "length": "100"})");
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetFileFragment,
+                                       &request);
+    }
+};
+
+TEST_P(GetFileFragmentValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(GetFileFragmentValidatorTest, MissingId) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::GetFileFragment);
+    builder.setKey("fragment_file");
+    builder.setValue(R"({"offset": "0", "length": "100"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetFileFragmentValidatorTest, NonStringOffset) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::GetFileFragment);
+    builder.setKey("fragment_file");
+    builder.setValue(R"({"id": 1, "offset": 0, "length": "100"})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetFileFragmentValidatorTest, MissingKey) {
+    req.setKeylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+// -----------------------------------------------------------------------------
+// SetBucketDataLimitExceeded & AdjustTimeofday
+// -----------------------------------------------------------------------------
+
+class SetBucketDataLimitExceededValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    SetBucketDataLimitExceededValidatorTest()
+        : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::request::SetBucketDataLimitExceededPayload payload;
+        payload.setStatus(cb::mcbp::Status::BucketSizeLimitExceeded);
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded);
+        builder.setKey("mybucket");
+        builder.setExtras(payload.getBuffer());
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded, &request);
+    }
+};
+
+TEST_P(SetBucketDataLimitExceededValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetBucketDataLimitExceededValidatorTest, InvalidStatus) {
+    cb::mcbp::request::SetBucketDataLimitExceededPayload payload;
+    payload.setStatus(cb::mcbp::Status::Eaccess);
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded);
+    builder.setKey("mybucket");
+    builder.setExtras(payload.getBuffer());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetBucketDataLimitExceededValidatorTest, MissingKey) {
+    req.setKeylen(0);
+    req.setBodylen(req.getExtlen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetBucketDataLimitExceededValidatorTest, InvalidExtlen) {
+    req.setExtlen(1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class AdjustTimeofdayValidatorTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
+public:
+    AdjustTimeofdayValidatorTest() : ValidatorTest(GetParam()), req(request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        setUnitTestMode(true);
+        cb::mcbp::request::AdjustTimePayload payload;
+        payload.setTimeType(
+                cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
+        builder.setExtras(payload.getBuffer());
+    }
+
+    void TearDown() override {
+        setUnitTestMode(false);
+        ValidatorTest::TearDown();
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::AdjustTimeofday,
+                                       &request);
+    }
+};
+
+TEST_P(AdjustTimeofdayValidatorTest, CorrectMessageInUnitTestMode) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(AdjustTimeofdayValidatorTest, NotSupportedWithoutUnitTestMode) {
+    setUnitTestMode(false);
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
+}
+
+TEST_P(AdjustTimeofdayValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(AdjustTimeofdayValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getExtlen() + 2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(AdjustTimeofdayValidatorTest, InvalidCas) {
+    req.setCas(0xbeef);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DropPrivilegeValidatorTest,
                          ::testing::Bool(),
@@ -744,6 +1734,96 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          CompactDbValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         CreateBucketValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         ListBucketsValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DeleteBucketValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SelectBucketValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         PauseResumeBucketValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         IfconfigValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetActiveEncryptionKeysValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         PruneEncryptionKeysValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         RegisterAuthTokenValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         RangeScanCreateValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         RangeScanContinueValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         RangeScanCancelValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         PrepareSnapshotValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         ReleaseSnapshotValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         DownloadSnapshotValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         GetFileFragmentValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetBucketDataLimitExceededValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         AdjustTimeofdayValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 
