@@ -1997,8 +1997,6 @@ void BinprotReturnMetaCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 void BinprotObserveCommand::encode(std::vector<uint8_t>& buf) const {
-    BinprotGenericCommand::encode(buf);
-
     size_t total = 0;
     for (const auto& k : keys) {
         // 2 byte vbid
