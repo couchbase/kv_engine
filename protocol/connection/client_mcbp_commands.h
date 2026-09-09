@@ -518,12 +518,12 @@ private:
 
 class BinprotPauseBucketCommand : public BinprotGenericCommand {
 public:
-    BinprotPauseBucketCommand(std::string name, uint64_t session_token = 0);
+    explicit BinprotPauseBucketCommand(std::string name);
 };
 
 class BinprotResumeBucketCommand : public BinprotGenericCommand {
 public:
-    BinprotResumeBucketCommand(std::string name, uint64_t session_token = 0);
+    explicit BinprotResumeBucketCommand(std::string name);
 };
 
 class BinprotGetCommand : public BinprotGenericCommand {

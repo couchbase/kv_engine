@@ -515,18 +515,14 @@ BinprotCreateBucketCommand::BinprotCreateBucketCommand(
     module_config.insert(module_config.end(), config.begin(), config.end());
 }
 
-BinprotPauseBucketCommand::BinprotPauseBucketCommand(std::string name,
-                                                     uint64_t session_token)
+BinprotPauseBucketCommand::BinprotPauseBucketCommand(std::string name)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::PauseBucket,
                             std::move(name)) {
-    setCas(session_token);
 }
 
-BinprotResumeBucketCommand::BinprotResumeBucketCommand(std::string name,
-                                                       uint64_t session_token)
+BinprotResumeBucketCommand::BinprotResumeBucketCommand(std::string name)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::ResumeBucket,
                             std::move(name)) {
-    setCas(session_token);
 }
 
 void BinprotGetCommand::encode(std::vector<uint8_t>& buf) const {
