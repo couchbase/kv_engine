@@ -10,29 +10,29 @@
  */
 
 #include "executors.h"
+#include "single_state_steppable_context.h"
 
 #include <daemon/cookie.h>
-#include <daemon/sendbuffer.h>
 #include <memcached/collections.h>
 
 void collections_get_scope_id_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto& req = cookie.getRequest();
-    std::string_view path = req.getKeyString();
-    if (path.empty()) {
-        path = req.getValueString();
-    }
-    auto rv = connection.getBucketEngine().get_scope_id(cookie, path);
-    if (rv.result == cb::engine_errc::success) {
-        auto payload = rv.getPayload();
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            payload.getBuffer(),
-                            {},
-                            {},
-                            cb::mcbp::Datatype::Raw,
-                            0);
-    } else {
-        Expects(rv.result != cb::engine_errc::would_block);
-        handle_executor_status(cookie, rv.result);
-    }
+    cookie.obtainContext<SingleStateCommandContext>(
+                  cookie,
+                  [](Cookie& c) -> std::expected<std::string, cb::engine_errc> {
+                      auto& req = c.getRequest();
+                      std::string_view path = req.getKeyString();
+                      if (path.empty()) {
+                          path = req.getValueString();
+                      }
+                      auto rv =
+                              c.getConnection().getBucketEngine().get_scope_id(
+                                      c, path);
+                      if (rv.result != cb::engine_errc::success) {
+                          return std::unexpected(rv.result);
+                      }
+                      return std::string{rv.getPayload().getBuffer()};
+                  },
+                  cb::mcbp::Datatype::Raw,
+                  SingleStateCommandContext::PayloadLocation::Extras)
+            .drive();
 }
