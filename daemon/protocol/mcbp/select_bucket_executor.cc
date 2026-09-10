@@ -9,6 +9,7 @@
  */
 
 #include "executors.h"
+#include "single_state_steppable_context.h"
 
 #include <cblogger/logger.h>
 #include <daemon/bucket_manager.h>
@@ -18,7 +19,8 @@
 #include <platform/scope_timer.h>
 #include <serverless/config.h>
 
-cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
+static cb::engine_errc select_bucket(Cookie& cookie,
+                                     const std::string& bucketname) {
     auto& connection = cookie.getConnection();
     auto oldIndex = connection.getBucketIndex();
 
@@ -59,48 +61,54 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 }
 
 void select_bucket_executor(Cookie& cookie) {
-    using cb::tracing::Code;
-    using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
-                                                        Code::SelectBucket);
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              using cb::tracing::Code;
+              using cb::tracing::SpanStopwatch;
+              ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+                      c, Code::SelectBucket);
 
-    // Unfortunately we need to copy it over to a std::string as the
-    // internal methods expects the string to be terminated with '\0'
-    const std::string bucketname{cookie.getRequest().getKeyString()};
+              // Unfortunately we need to copy it over to a std::string as the
+              // internal methods expects the string to be terminated with
+              // '\0'
+              const std::string bucketname{c.getRequest().getKeyString()};
 
-    cb::engine_errc code = cb::engine_errc::success;
-    auto& connection = cookie.getConnection();
-    if (!connection.isAuthenticated()) {
-        cookie.setErrorContext("Not authenticated");
-        LOG_INFO_CTX("select_bucket failed - Not authenticated",
-                     {"conn_id", connection.getId()},
-                     {"bucket", bucketname},
-                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
-                     {"description", connection.getDescription()});
-        code = cb::engine_errc::no_access;
-    } else if (connection.isDCP()) {
-        cookie.setErrorContext("DCP connections cannot change bucket");
+              auto& connection = c.getConnection();
+              cb::engine_errc code = cb::engine_errc::success;
+              if (!connection.isAuthenticated()) {
+                  c.setErrorContext("Not authenticated");
+                  LOG_INFO_CTX("select_bucket failed - Not authenticated",
+                               {"conn_id", connection.getId()},
+                               {"bucket", bucketname},
+                               {"opaque", ntohl(c.getRequest().getOpaque())},
+                               {"description", connection.getDescription()});
+                  code = cb::engine_errc::no_access;
+              } else if (connection.isDCP()) {
+                  c.setErrorContext("DCP connections cannot change bucket");
 
-        LOG_INFO_CTX("select_bucket failed - DCP connection",
-                     {"conn_id", connection.getId()},
-                     {"bucket", bucketname},
-                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
-                     {"description", connection.getDescription()});
-        code = cb::engine_errc::not_supported;
-    } else if (connection.getNumberOfCookies() > 1) {
-        // We can't switch bucket if we've got multiple commands in flight
-        LOG_INFO_CTX("select_bucket failed - multiple commands in flight",
-                     {"conn_id", connection.getId()},
-                     {"bucket", bucketname},
-                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
-                     {"description", connection.getDescription()});
-        code = cb::engine_errc::not_supported;
-    } else if (bucketname == "@no bucket@") {
-        // unselect bucket!
-        BucketManager::instance().associateBucket(cookie, {});
-    } else {
-        code = select_bucket(cookie, bucketname);
-    }
+                  LOG_INFO_CTX("select_bucket failed - DCP connection",
+                               {"conn_id", connection.getId()},
+                               {"bucket", bucketname},
+                               {"opaque", ntohl(c.getRequest().getOpaque())},
+                               {"description", connection.getDescription()});
+                  code = cb::engine_errc::not_supported;
+              } else if (connection.getNumberOfCookies() > 1) {
+                  // We can't switch bucket if we've got multiple commands in
+                  // flight
+                  LOG_INFO_CTX(
+                          "select_bucket failed - multiple commands in "
+                          "flight",
+                          {"conn_id", connection.getId()},
+                          {"bucket", bucketname},
+                          {"opaque", ntohl(c.getRequest().getOpaque())},
+                          {"description", connection.getDescription()});
+                  code = cb::engine_errc::not_supported;
+              } else if (bucketname == "@no bucket@") {
+                  // unselect bucket!
+                  BucketManager::instance().associateBucket(c, {});
+              } else {
+                  code = select_bucket(c, bucketname);
+              }
 
-    handle_executor_status(cookie, code);
+              return SingleStateCommandContext::noPayload(code);
+          }).drive();
 }
