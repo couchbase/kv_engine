@@ -11,26 +11,23 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
-void dcp_stream_end_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        auto& request = cookie.getRequest();
-        using cb::mcbp::request::DcpStreamEndPayload;
-        const auto& payload =
-                request.getCommandSpecifics<DcpStreamEndPayload>();
-        ret = dcpStreamEnd(cookie,
-                           request.getOpaque(),
-                           request.getVBucket(),
-                           payload.getStatus());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+static cb::engine_errc do_dcp_stream_end(Cookie& cookie) {
+    auto& request = cookie.getRequest();
+    using cb::mcbp::request::DcpStreamEndPayload;
+    const auto& payload = request.getCommandSpecifics<DcpStreamEndPayload>();
+    return dcpStreamEnd(cookie,
+                        request.getOpaque(),
+                        request.getVBucket(),
+                        payload.getStatus());
 }
 
+void dcp_stream_end_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_stream_end(c); })
+            .drive();
+}

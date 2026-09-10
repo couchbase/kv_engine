@@ -10,52 +10,49 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 #include <daemon/cookie.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 
+static cb::engine_errc do_dcp_prepare(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    const auto& extras =
+            req.getCommandSpecifics<cb::mcbp::request::DcpPreparePayload>();
+    const auto datatype = uint8_t(req.getDatatype());
+    const auto value = req.getValue();
+
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
+        const char* payload = reinterpret_cast<const char*>(value.data());
+        cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
+                             cb::mcbp::datatype::is_snappy(datatype));
+        if (blob.get_system_size() > cb::limits::PrivilegedBytes) {
+            return cb::engine_errc::too_big;
+        }
+    }
+
+    return dcpPrepare(
+            cookie,
+            req.getOpaque(),
+            cookie.getConnection().makeDocKey(req.getKey()),
+            value,
+            datatype,
+            req.getCas(),
+            req.getVBucket(),
+            extras.getFlags(),
+            extras.getBySeqno(),
+            extras.getRevSeqno(),
+            extras.getExpiration(),
+            extras.getLockTime(),
+            extras.getNru(),
+            extras.getDeleted() ? DocumentState::Deleted : DocumentState::Alive,
+            extras.getDurabilityLevel());
+}
+
 void dcp_prepare_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        const auto& extras =
-                req.getCommandSpecifics<cb::mcbp::request::DcpPreparePayload>();
-        const auto datatype = uint8_t(req.getDatatype());
-        const auto value = req.getValue();
-
-        if (cb::mcbp::datatype::is_xattr(datatype)) {
-            const char* payload = reinterpret_cast<const char*>(value.data());
-            cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
-                                 cb::mcbp::datatype::is_snappy(datatype));
-            if (blob.get_system_size() > cb::limits::PrivilegedBytes) {
-                ret = cb::engine_errc::too_big;
-            }
-        }
-
-        if (ret == cb::engine_errc::success) {
-            ret = dcpPrepare(cookie,
-                             req.getOpaque(),
-                             cookie.getConnection().makeDocKey(req.getKey()),
-                             value,
-                             datatype,
-                             req.getCas(),
-                             req.getVBucket(),
-                             extras.getFlags(),
-                             extras.getBySeqno(),
-                             extras.getRevSeqno(),
-                             extras.getExpiration(),
-                             extras.getLockTime(),
-                             extras.getNru(),
-                             extras.getDeleted() ? DocumentState::Deleted
-                                                 : DocumentState::Alive,
-                             extras.getDurabilityLevel());
-        }
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_prepare(c); })
+            .drive();
 }

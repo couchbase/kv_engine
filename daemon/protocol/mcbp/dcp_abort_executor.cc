@@ -9,24 +9,24 @@
  */
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
-void dcp_abort_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-    if (ret == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        using cb::mcbp::request::DcpAbortPayload;
-        const auto& extras = req.getCommandSpecifics<DcpAbortPayload>();
-        ret = dcpAbort(cookie,
-                       req.getOpaque(),
-                       req.getVBucket(),
-                       cookie.getConnection().makeDocKey(req.getKey()),
-                       extras.getPreparedSeqno(),
-                       extras.getAbortSeqno());
-    }
+static cb::engine_errc do_dcp_abort(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpAbortPayload;
+    const auto& extras = req.getCommandSpecifics<DcpAbortPayload>();
+    return dcpAbort(cookie,
+                    req.getOpaque(),
+                    req.getVBucket(),
+                    cookie.getConnection().makeDocKey(req.getKey()),
+                    extras.getPreparedSeqno(),
+                    extras.getAbortSeqno());
+}
 
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+void dcp_abort_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_abort(c); })
+            .drive();
 }

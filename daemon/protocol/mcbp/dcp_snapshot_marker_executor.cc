@@ -12,30 +12,28 @@
 #include "executors.h"
 
 #include "engine_wrapper.h"
+#include "no_success_response_steppable_context.h"
 
 #include <daemon/cookie.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 
 void dcp_snapshot_marker_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        auto& req = cookie.getRequest();
-        const auto snapshot = cb::mcbp::DcpSnapshotMarker::decode(req);
-        ret = dcpSnapshotMarker(cookie,
-                                req.getOpaque(),
-                                req.getVBucket(),
-                                snapshot.getStartSeqno(),
-                                snapshot.getEndSeqno(),
-                                snapshot.getFlags(),
-                                snapshot.getHighCompletedSeqno(),
-                                snapshot.getHighPreparedSeqno(),
-                                snapshot.getMaxVisibleSeqno(),
-                                snapshot.getPurgeSeqno());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      auto& req = c.getRequest();
+                      const auto snapshot =
+                              cb::mcbp::DcpSnapshotMarker::decode(req);
+                      return dcpSnapshotMarker(c,
+                                               req.getOpaque(),
+                                               req.getVBucket(),
+                                               snapshot.getStartSeqno(),
+                                               snapshot.getEndSeqno(),
+                                               snapshot.getFlags(),
+                                               snapshot.getHighCompletedSeqno(),
+                                               snapshot.getHighPreparedSeqno(),
+                                               snapshot.getMaxVisibleSeqno(),
+                                               snapshot.getPurgeSeqno());
+                  })
+            .drive();
 }
-

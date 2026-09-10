@@ -12,24 +12,24 @@
 #include "executors.h"
 
 #include "engine_wrapper.h"
+#include "no_success_response_steppable_context.h"
 
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_set_vbucket_state_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        using cb::mcbp::request::DcpSetVBucketState;
-        auto& request = cookie.getRequest();
-        const auto& payload = request.getCommandSpecifics<DcpSetVBucketState>();
-        ret = dcpSetVbucketState(cookie,
-                                 request.getOpaque(),
-                                 request.getVBucket(),
-                                 vbucket_state_t(payload.getState()));
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      using cb::mcbp::request::DcpSetVBucketState;
+                      auto& request = c.getRequest();
+                      const auto& payload =
+                              request.getCommandSpecifics<DcpSetVBucketState>();
+                      return dcpSetVbucketState(
+                              c,
+                              request.getOpaque(),
+                              request.getVBucket(),
+                              vbucket_state_t(payload.getState()));
+                  })
+            .drive();
 }

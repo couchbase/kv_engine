@@ -10,24 +10,23 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
+static cb::engine_errc do_dcp_seqno_acknowledged(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
+    const auto& extras = req.getCommandSpecifics<DcpSeqnoAcknowledgedPayload>();
+    return dcpSeqnoAcknowledged(cookie,
+                                req.getOpaque(),
+                                req.getVBucket(),
+                                extras.getPreparedSeqno());
+}
+
 void dcp_seqno_acknowledged_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
-        const auto& extras =
-                req.getCommandSpecifics<DcpSeqnoAcknowledgedPayload>();
-        ret = dcpSeqnoAcknowledged(cookie,
-                                   req.getOpaque(),
-                                   req.getVBucket(),
-                                   extras.getPreparedSeqno());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) { return do_dcp_seqno_acknowledged(c); })
+            .drive();
 }

@@ -13,25 +13,24 @@
 
 #include "dcp_add_failover_log.h"
 #include "engine_wrapper.h"
+#include "no_success_response_steppable_context.h"
 
 #include <daemon/cookie.h>
 
+static cb::engine_errc do_dcp_get_failover_log(Cookie& cookie) {
+    auto& req = cookie.getRequest();
+    return dcpGetFailoverLog(
+            cookie,
+            req.getOpaque(),
+            req.getVBucket(),
+            [cookieRef = std::ref(cookie)](
+                    const std::vector<vbucket_failover_t>& vec) {
+                return add_failover_log(vec, cookieRef);
+            });
+}
+
 void dcp_get_failover_log_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        auto& req = cookie.getRequest();
-        ret = dcpGetFailoverLog(
-                cookie,
-                req.getOpaque(),
-                req.getVBucket(),
-                [c = std::ref(cookie)](
-                        const std::vector<vbucket_failover_t>& vec) {
-                    return add_failover_log(vec, c);
-                });
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_get_failover_log(c); })
+            .drive();
 }

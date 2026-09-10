@@ -9,21 +9,20 @@
  */
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        auto& req = cookie.getRequest();
-        using cb::mcbp::request::DcpBufferAckPayload;
-        const auto& payload = req.getCommandSpecifics<DcpBufferAckPayload>();
-        ret = dcpBufferAcknowledgement(
-                cookie, req.getOpaque(), payload.getBufferBytes());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      auto& req = c.getRequest();
+                      using cb::mcbp::request::DcpBufferAckPayload;
+                      const auto& payload =
+                              req.getCommandSpecifics<DcpBufferAckPayload>();
+                      return dcpBufferAcknowledgement(
+                              c, req.getOpaque(), payload.getBufferBytes());
+                  })
+            .drive();
 }

@@ -10,25 +10,24 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "no_success_response_steppable_context.h"
 #include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
+static cb::engine_errc do_dcp_commit(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpCommitPayload;
+    const auto& extras = req.getCommandSpecifics<DcpCommitPayload>();
+    return dcpCommit(cookie,
+                     req.getOpaque(),
+                     req.getVBucket(),
+                     cookie.getConnection().makeDocKey(req.getKey()),
+                     extras.getPreparedSeqno(),
+                     extras.getCommitSeqno());
+}
+
 void dcp_commit_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        using cb::mcbp::request::DcpCommitPayload;
-        const auto& extras = req.getCommandSpecifics<DcpCommitPayload>();
-        ret = dcpCommit(cookie,
-                        req.getOpaque(),
-                        req.getVBucket(),
-                        cookie.getConnection().makeDocKey(req.getKey()),
-                        extras.getPreparedSeqno(),
-                        extras.getCommitSeqno());
-    }
-
-    if (ret != cb::engine_errc::success) {
-        handle_executor_status(cookie, ret);
-    }
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_commit(c); })
+            .drive();
 }
