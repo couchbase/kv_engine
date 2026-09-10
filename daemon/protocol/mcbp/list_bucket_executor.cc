@@ -9,17 +9,12 @@
  */
 
 #include "executors.h"
-
+#include "single_state_steppable_context.h"
 #include <daemon/bucket_manager.h>
-#include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/sendbuffer.h>
 
-std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
-    if (!connection.isAuthenticated()) {
-        return std::make_pair(cb::engine_errc::no_access, "");
-    }
-
+static std::expected<std::string, cb::engine_errc> list_bucket(
+        Connection& connection) {
     std::string blob;
     // The blob string will contain all of the buckets, and to
     // avoid too many reallocations we should probably just reserve
@@ -39,26 +34,11 @@ std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
         blob.pop_back();
     }
 
-    return std::make_pair(cb::engine_errc::success, blob);
+    return blob;
 }
 
 void list_bucket_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    std::pair<cb::engine_errc, std::string> ret;
-    try {
-        ret = list_bucket(connection);
-        if (ret.first == cb::engine_errc::success) {
-            cookie.sendResponse(cb::mcbp::Status::Success,
-                                {},
-                                {},
-                                {ret.second.data(), ret.second.size()},
-                                cb::mcbp::Datatype::Raw,
-                                0);
-            return;
-        }
-    } catch (const std::bad_alloc&) {
-        ret.first = cb::engine_errc::no_memory;
-    }
-
-    handle_executor_status(cookie, ret.first);
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return list_bucket(c.getConnection());
+          }).drive();
 }
