@@ -114,10 +114,11 @@ static void get_locked_executor(Cookie& cookie) {
 
 static void unlock_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_unlock(c,
-                                   c.getRequestKey(),
-                                   c.getRequest().getVBucket(),
-                                   c.getRequest().getCas());
+              return SingleStateCommandContext::noPayload(
+                      bucket_unlock(c,
+                                    c.getRequestKey(),
+                                    c.getRequest().getVBucket(),
+                                    c.getRequest().getCas()));
           }).drive();
 }
 
@@ -127,8 +128,8 @@ static void gat_executor(Cookie& cookie) {
 
 static void evict_key_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_evict_key(
-                      c, c.getRequestKey(), c.getRequest().getVBucket());
+              return SingleStateCommandContext::noPayload(bucket_evict_key(
+                      c, c.getRequestKey(), c.getRequest().getVBucket()));
           }).drive();
 }
 
@@ -137,8 +138,9 @@ static void seqno_persistence_executor(Cookie& cookie) {
               auto data = c.getHeader().getExtdata();
               auto seqno =
                       ntohll(*reinterpret_cast<const uint64_t*>(data.data()));
-              return bucket_wait_for_seqno_persistence(
-                      c, seqno, c.getRequest().getVBucket());
+              return SingleStateCommandContext::noPayload(
+                      bucket_wait_for_seqno_persistence(
+                              c, seqno, c.getRequest().getVBucket()));
           }).drive();
 }
 
@@ -148,13 +150,15 @@ static void ifconfig_executor(Cookie& cookie) {
 
 static void start_persistence_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_start_persistence(c);
+              return SingleStateCommandContext::noPayload(
+                      bucket_start_persistence(c));
           }).drive();
 }
 
 static void stop_persistence_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_stop_persistence(c);
+              return SingleStateCommandContext::noPayload(
+                      bucket_stop_persistence(c));
           }).drive();
 }
 
@@ -164,15 +168,17 @@ static void observe_executor(Cookie& cookie) {
 
 static void enable_traffic_control_mode_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_set_traffic_control_mode(
-                      c, TrafficControlMode::Enabled);
+              return SingleStateCommandContext::noPayload(
+                      bucket_set_traffic_control_mode(
+                              c, TrafficControlMode::Enabled));
           }).drive();
 }
 
 static void disable_traffic_control_mode_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_set_traffic_control_mode(
-                      c, TrafficControlMode::Disabled);
+              return SingleStateCommandContext::noPayload(
+                      bucket_set_traffic_control_mode(
+                              c, TrafficControlMode::Disabled));
           }).drive();
 }
 
@@ -269,10 +275,11 @@ static void release_snapshot_executor(Cookie& cookie) {
 static void download_snapshot_executor(Cookie& cookie) {
     if (cookie.getConnection().getBucket().supports(Feature::Persistence)) {
         cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-                  return c.getConnection().getBucketEngine().download_snapshot(
-                          c,
-                          c.getRequest().getVBucket(),
-                          c.getRequest().getValueString());
+                  return SingleStateCommandContext::noPayload(
+                          c.getConnection().getBucketEngine().download_snapshot(
+                                  c,
+                                  c.getRequest().getVBucket(),
+                                  c.getRequest().getValueString()));
               }).drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
@@ -533,14 +540,15 @@ static void delete_vbucket_executor(Cookie& cookie) {
               using namespace std::string_view_literals;
               const auto& req = c.getRequest();
               auto value = req.getValueString();
-              return bucket_delete_vbucket(
-                      c, req.getVBucket(), value == "async=0"sv);
+              return SingleStateCommandContext::noPayload(bucket_delete_vbucket(
+                      c, req.getVBucket(), value == "async=0"sv));
           }).drive();
 }
 
 static void compact_db_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-              return bucket_compact_database(c);
+              return SingleStateCommandContext::noPayload(
+                      bucket_compact_database(c));
           }).drive();
 }
 
@@ -633,8 +641,9 @@ static void start_fusion_uploader_executor(Cookie& cookie) {
                   const auto args = nlohmann::json::parse(req.getValueString());
                   const std::string term = args["term"];
                   auto& engine = c.getConnection().getBucketEngine();
-                  return engine.startFusionUploader(req.getVBucket(),
-                                                    std::stoull(term));
+                  return SingleStateCommandContext::noPayload(
+                          engine.startFusionUploader(req.getVBucket(),
+                                                     std::stoull(term)));
               } catch (const std::exception& e) {
                   const auto& conn = c.getConnection();
                   LOG_WARNING_CTX("start_fusion_uploader_executor",
@@ -642,7 +651,8 @@ static void start_fusion_uploader_executor(Cookie& cookie) {
                                   {"description", conn.getDescription()},
                                   {"error", e.what()});
                   c.setErrorContext(e.what());
-                  return cb::engine_errc::failed;
+                  return SingleStateCommandContext::noPayload(
+                          cb::engine_errc::failed);
               }
           }).drive();
 }
@@ -657,7 +667,8 @@ static void stop_fusion_uploader_executor(Cookie& cookie) {
               try {
                   const auto& req = c.getRequest();
                   auto& engine = c.getConnection().getBucketEngine();
-                  return engine.stopFusionUploader(req.getVBucket());
+                  return SingleStateCommandContext::noPayload(
+                          engine.stopFusionUploader(req.getVBucket()));
               } catch (const std::exception& e) {
                   const auto& conn = c.getConnection();
                   LOG_WARNING_CTX("stop_fusion_uploader_executor",
@@ -665,7 +676,8 @@ static void stop_fusion_uploader_executor(Cookie& cookie) {
                                   {"description", conn.getDescription()},
                                   {"error", e.what()});
                   c.setErrorContext(e.what());
-                  return cb::engine_errc::failed;
+                  return SingleStateCommandContext::noPayload(
+                          cb::engine_errc::failed);
               }
           }).drive();
 }

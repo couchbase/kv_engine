@@ -19,36 +19,24 @@
 #include <daemon/sendbuffer.h>
 
 SingleStateCommandContext::SingleStateCommandContext(
-        Cookie& cookie,
-        std::function<cb::engine_errc(Cookie&)> handler,
-        cb::mcbp::Datatype successDatatype)
+        Cookie& cookie, Handler handler, cb::mcbp::Datatype successDatatype)
     : SteppableCommandContext(cookie),
       handler(std::move(handler)),
       successDatatype(successDatatype) {
 }
 
 cb::engine_errc SingleStateCommandContext::step() {
-    auto ret = cb::engine_errc::success;
-    std::string blob;
-    do {
-        switch (state) {
-        case State::Wait:
-            ret = handler(cookie);
-            if (ret == cb::engine_errc::success) {
-                state = State::Done;
-            }
-            break;
-        case State::Done:
-            blob = cookie.getErrorContext();
-            cookie.sendResponse(
-                    cb::engine_errc::success,
-                    {},
-                    {},
-                    blob,
-                    blob.empty() ? cb::mcbp::Datatype::Raw : successDatatype,
-                    cookie.getCas());
-            return cb::engine_errc::success;
-        }
-    } while (ret == cb::engine_errc::success);
-    return ret;
+    auto result = handler(cookie);
+    if (!result) {
+        return result.error();
+    }
+
+    cookie.sendResponse(
+            cb::engine_errc::success,
+            {},
+            {},
+            *result,
+            result->empty() ? cb::mcbp::Datatype::Raw : successDatatype,
+            cookie.getCas());
+    return cb::engine_errc::success;
 }

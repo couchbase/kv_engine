@@ -11,7 +11,9 @@
 
 #include "steppable_command_context.h"
 #include <mcbp/protocol/datatype.h>
+#include <expected>
 #include <functional>
+#include <string>
 
 /**
  * SingleStateCommandContext is used to implement commands which just
@@ -22,22 +24,45 @@
  * codes (including would_block and call the handler at a later time
  * once the cookie has been notified).
  *
- * The handler should return "success" when the execution of the command
- * is complete; and at that time the SingleStateCommandContext will send
- * a "success" message back to the client and use whatever the cookie
- * stored in its error context as the payload to the message.
+ * The handler should return the success payload (which may be empty)
+ * when the execution of the command is complete; SingleStateCommandContext
+ * will then send a "success" message back to the client with that value
+ * as the payload. On failure the handler should return the error via
+ * std::unexpected.
  */
 class SingleStateCommandContext : public SteppableCommandContext {
 public:
-    explicit SingleStateCommandContext(
+    using Handler =
+            std::function<std::expected<std::string, cb::engine_errc>(Cookie&)>;
+
+    /**
+     * Create a SingleStateCommandContext with a handler that returns a
+     * payload on success or an engine error code on failure.
+     *
+     * @param cookie The client cookie associated with the command
+     * @param handler Callback returning std::expected with success payload
+     * string or cb::engine_errc
+     * @param successDatatype Datatype of the payload sent on success
+     */
+    SingleStateCommandContext(
             Cookie& cookie,
-            std::function<cb::engine_errc(Cookie&)> handler,
+            Handler handler,
             cb::mcbp::Datatype successDatatype = cb::mcbp::Datatype::Raw);
+
+    /**
+     * Adapt a plain cb::engine_errc result (no success payload) to the
+     * SingleStateCommandContext handler contract.
+     */
+    static std::expected<std::string, cb::engine_errc> noPayload(
+            cb::engine_errc status) {
+        if (status == cb::engine_errc::success) {
+            return std::string{};
+        }
+        return std::unexpected(status);
+    }
 
 protected:
     cb::engine_errc step() override;
-    const std::function<cb::engine_errc(Cookie&)> handler;
+    const Handler handler;
     const cb::mcbp::Datatype successDatatype;
-    enum class State { Wait, Done };
-    State state = State::Wait;
 };
