@@ -9,6 +9,7 @@
  */
 
 #include "executors.h"
+#include "single_state_steppable_context.h"
 #include "utilities.h"
 
 #include <cblogger/logger.h>
@@ -104,7 +105,7 @@ static std::optional<Hdr1sfMicroSecHistogram> get_timings(Cookie& cookie,
  * Get the aggregated timings across "all" buckets that the connected
  * client has access to.
  */
-static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
+static std::expected<std::string, cb::engine_errc> get_aggregated_timings(
         Cookie& cookie, uint8_t opcode) {
     Hdr1sfMicroSecHistogram timings;
     bool found = false;
@@ -125,14 +126,15 @@ static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
             });
 
     if (found) {
-        return {cb::engine_errc::success, timings.to_string()};
+        return timings.to_string();
     }
 
     // We didn't have access to any buckets!
-    return {cb::engine_errc::no_access, {}};
+    return std::unexpected(cb::engine_errc::no_access);
 }
 
-std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
+static std::expected<std::string, cb::engine_errc> get_cmd_timer(
+        Cookie& cookie) {
     const auto& request = cookie.getRequest();
     const auto bucket = request.getKeyString();
     const auto extras = request.getExtdata();
@@ -169,17 +171,19 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
                                   .getNoBucket()
                                   .timings.get_timing_histogram(opcode);
             if (histo) {
-                return {cb::engine_errc::success, histo->to_string()};
+                return histo->to_string();
             }
-            return {cb::engine_errc::success, {}};
+            // histogram for this opcode hasn't been created yet so just
+            // return a histogram with no data in it
+            return Hdr1sfMicroSecHistogram{}.to_string();
         }
-        return {cb::engine_errc::no_access, {}};
+        return std::unexpected(cb::engine_errc::no_access);
     }
 
     if (bucket.empty() || bucket == BucketManager::instance().at(index).name) {
         // Use checkPrivilege to ensure that it gets logged.
         if (cookie.checkPrivilege(cb::rbac::Privilege::SimpleStats).failed()) {
-            return {cb::engine_errc::no_access, {}};
+            return std::unexpected(cb::engine_errc::no_access);
         }
 
         // The current selected bucket
@@ -187,39 +191,20 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
         auto* histo =
                 connection.getBucket().timings.get_timing_histogram(opcode);
         if (histo) {
-            return {cb::engine_errc::success, histo->to_string()};
+            return histo->to_string();
         }
-        return {cb::engine_errc::success, {}};
+        // histogram for this opcode hasn't been created yet so just
+        // return a histogram with no data in it
+        return Hdr1sfMicroSecHistogram{}.to_string();
     }
 
     // We removed support for getting command timings for not the current bucket
     // as it was broken and unused
-    return {cb::engine_errc::not_supported, {}};
+    return std::unexpected(cb::engine_errc::not_supported);
 }
 
 void get_cmd_timer_executor(Cookie& cookie) {
-    std::pair<cb::engine_errc, std::string> ret;
-    try {
-        ret = get_cmd_timer(cookie);
-    } catch (const std::bad_alloc&) {
-        ret.first = cb::engine_errc::no_memory;
-    }
-
-    if (ret.first == cb::engine_errc::success) {
-        auto value = std::move(ret.second);
-        if (value.empty()) {
-            // histogram for this opcode hasn't been created yet so just
-            // return a histogram with no data in it
-            Hdr1sfMicroSecHistogram h;
-            value = h.to_string();
-        }
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            value,
-                            cb::mcbp::Datatype::JSON,
-                            0);
-    } else {
-        handle_executor_status(cookie, ret.first);
-    }
+    cookie.obtainContext<SingleStateCommandContext>(
+                  cookie, get_cmd_timer, cb::mcbp::Datatype::JSON)
+            .drive();
 }

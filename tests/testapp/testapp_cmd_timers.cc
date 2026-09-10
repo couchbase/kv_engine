@@ -64,6 +64,33 @@ protected:
         return ret;
     }
 
+    /**
+     * MB-73918: get_cmd_timer_executor was refactored to build its
+     * response via SingleStateCommandContext instead of a bespoke
+     * pair<errc, string> plus manual sendResponse(). Verify that the
+     * histogram returned for an opcode with no recorded samples is
+     * still the full Hdr1sfMicroSecHistogram JSON object (i.e. we
+     * don't accidentally start returning an empty payload).
+     *
+     * @param payload the JSON returned from the server
+     */
+    static void verifyEmptyHistogramFormat(const std::string_view payload) {
+        ASSERT_FALSE(payload.empty());
+        auto json = nlohmann::json::parse(payload);
+        for (const auto* key : {"total",
+                                "bucketsLow",
+                                "data",
+                                "overflowed",
+                                "overflowed_sum",
+                                "max_trackable"}) {
+            EXPECT_TRUE(json.contains(key))
+                    << "Missing '" << key << "' in " << payload;
+        }
+        EXPECT_EQ(0, json["total"].get<size_t>());
+        EXPECT_EQ(0, json["overflowed"].get<size_t>());
+        EXPECT_EQ(0, json["overflowed_sum"].get<size_t>());
+    }
+
     /// The command we want to get the timings for.
     static constexpr auto opcode = cb::mcbp::ClientOpcode::Noop;
 };
@@ -194,6 +221,7 @@ TEST_P(CmdTimerTest, EmptySuccess) {
                 bucketName, cb::mcbp::ClientOpcode::Set});
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(0, getNumberOfOps(response.getDataView()));
+        verifyEmptyHistogramFormat(response.getDataView());
     });
 }
 
