@@ -36,6 +36,14 @@ public:
             std::function<std::expected<std::string, cb::engine_errc>(Cookie&)>;
 
     /**
+     * Where the success payload returned by the handler should be placed
+     * in the response packet. Most commands return their payload in the
+     * value; a few legacy encodings (e.g. GetCollectionId/GetScopeId)
+     * require the payload in extras instead.
+     */
+    enum class PayloadLocation { Value, Extras };
+
+    /**
      * Create a SingleStateCommandContext with a handler that returns a
      * payload on success or an engine error code on failure.
      *
@@ -43,11 +51,14 @@ public:
      * @param handler Callback returning std::expected with success payload
      * string or cb::engine_errc
      * @param successDatatype Datatype of the payload sent on success
+     * @param payloadLocation Where to place the success payload in the
+     *        response packet
      */
     SingleStateCommandContext(
             Cookie& cookie,
             Handler handler,
-            cb::mcbp::Datatype successDatatype = cb::mcbp::Datatype::Raw);
+            cb::mcbp::Datatype successDatatype = cb::mcbp::Datatype::Raw,
+            PayloadLocation payloadLocation = PayloadLocation::Value);
 
     /**
      * Adapt a plain cb::engine_errc result (no success payload) to the
@@ -65,4 +76,5 @@ protected:
     cb::engine_errc step() override;
     const Handler handler;
     const cb::mcbp::Datatype successDatatype;
+    const PayloadLocation payloadLocation;
 };

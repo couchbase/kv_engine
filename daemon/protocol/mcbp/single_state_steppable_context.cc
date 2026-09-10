@@ -19,10 +19,14 @@
 #include <daemon/sendbuffer.h>
 
 SingleStateCommandContext::SingleStateCommandContext(
-        Cookie& cookie, Handler handler, cb::mcbp::Datatype successDatatype)
+        Cookie& cookie,
+        Handler handler,
+        cb::mcbp::Datatype successDatatype,
+        PayloadLocation payloadLocation)
     : SteppableCommandContext(cookie),
       handler(std::move(handler)),
-      successDatatype(successDatatype) {
+      successDatatype(successDatatype),
+      payloadLocation(payloadLocation) {
 }
 
 cb::engine_errc SingleStateCommandContext::step() {
@@ -31,12 +35,21 @@ cb::engine_errc SingleStateCommandContext::step() {
         return result.error();
     }
 
-    cookie.sendResponse(
-            cb::engine_errc::success,
-            {},
-            {},
-            *result,
-            result->empty() ? cb::mcbp::Datatype::Raw : successDatatype,
-            cookie.getCas());
+    if (payloadLocation == PayloadLocation::Extras) {
+        cookie.sendResponse(cb::engine_errc::success,
+                            *result,
+                            {},
+                            {},
+                            cb::mcbp::Datatype::Raw,
+                            cookie.getCas());
+    } else {
+        cookie.sendResponse(
+                cb::engine_errc::success,
+                {},
+                {},
+                *result,
+                result->empty() ? cb::mcbp::Datatype::Raw : successDatatype,
+                cookie.getCas());
+    }
     return cb::engine_errc::success;
 }
