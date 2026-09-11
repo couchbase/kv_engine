@@ -17,7 +17,8 @@
 enum class ResourceAllocationDomain : uint8_t {
     /// Allocations accounted for by the bucket
     Bucket,
-    /// Allocation accounted for by the global pool
+    /// Allocation taken from the global (unassigned) pool. Such allocations
+    /// are also part of the bucket's own usage and are counted in both gauges.
     Global,
     /// Allocations we don't want to track somewhere (privilege override for
     /// instance)
