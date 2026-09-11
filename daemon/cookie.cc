@@ -204,12 +204,10 @@ std::string_view Cookie::getAgentName() const {
     return connection.getAgentName();
 }
 
-bool Cookie::execute(bool useStartTime) {
-    auto ts = useStartTime ? start : std::chrono::steady_clock::now();
-
-    auto done = doExecute();
-
-    auto te = std::chrono::steady_clock::now();
+bool Cookie::execute() {
+    const auto ts = std::chrono::steady_clock::now();
+    const auto done = doExecute();
+    const auto te = std::chrono::steady_clock::now();
     tracer.record(cb::tracing::Code::Execute, ts, te);
 
     if (done) {
@@ -616,6 +614,8 @@ cb::mcbp::Status Cookie::validateClientRequest(
 }
 
 cb::mcbp::Status Cookie::validate() {
+    ScopeTimer1<cb::tracing::SpanStopwatch<cb::tracing::Code>> timer(
+            *this, cb::tracing::Code::Validate);
     using namespace cb::mcbp;
     const auto& header = getHeader();
     if (header.isRequest()) [[likely]] {

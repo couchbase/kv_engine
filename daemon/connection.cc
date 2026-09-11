@@ -776,7 +776,7 @@ void Connection::executeCommandPipeline() {
                 if (getBucket().shouldThrottle(cookie, true, 0)) {
                     stop = handleThrottleCommand(cookie) || tooMuchData();
                 } else if ((!active || cookie.mayReorder()) &&
-                           cookie.execute(true)) {
+                           cookie.execute()) {
                     // Command executed successfully, reset the cookie to
                     // allow it to be reused
                     cookie.reset();

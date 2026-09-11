@@ -11,13 +11,15 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 namespace cb::tracing {
 
 enum class Code : uint8_t {
     /// Time spent in the entire request
     Request,
+    /// Time spent validating the request
+    Validate,
     /// Time spent throttled
     Throttled,
     /// The time spent during execution on front end thread
@@ -106,6 +108,6 @@ enum class Code : uint8_t {
     PrepareSnapshotCleanupOnFailure,
 };
 
-std::string format_as(Code code);
+std::string_view format_as(Code code);
 void to_json(nlohmann::json& json, const Code& code);
 } // namespace cb::tracing

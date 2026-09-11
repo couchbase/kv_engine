@@ -8,100 +8,104 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/tracecode.h>
 #include <nlohmann/json.hpp>
 
 namespace cb::tracing {
-std::string format_as(const Code tracecode) {
+std::string_view format_as(const Code tracecode) {
+    using namespace std::string_view_literals;
     switch (tracecode) {
     case Code::Request:
-        return "request";
+        return "request"sv;
+    case Code::Validate:
+        return "validate"sv;
     case Code::Throttled:
-        return "throttled";
+        return "throttled"sv;
     case Code::Execute:
-        return "execute";
+        return "execute"sv;
     case Code::AssociateBucket:
-        return "associate_bucket";
+        return "associate_bucket"sv;
     case Code::DisassociateBucket:
-        return "disassociate_bucket";
+        return "disassociate_bucket"sv;
     case Code::BucketLockWait:
-        return "bucket_lock.wait";
+        return "bucket_lock.wait"sv;
     case Code::BucketLockHeld:
-        return "bucket_lock.held";
+        return "bucket_lock.held"sv;
     case Code::UpdatePrivilegeContext:
-        return "update_privilege_context";
+        return "update_privilege_context"sv;
     case Code::CreateRbacContext:
-        return "create_rbac_context";
+        return "create_rbac_context"sv;
     case Code::Audit:
-        return "audit";
+        return "audit"sv;
     case Code::AuditReconfigure:
-        return "audit.reconfigure";
+        return "audit.reconfigure"sv;
     case Code::AuditStats:
-        return "audit.stats";
+        return "audit.stats"sv;
     case Code::AuditValidate:
-        return "audit.validate";
+        return "audit.validate"sv;
     case Code::SnappyDecompress:
-        return "snappy.decompress";
+        return "snappy.decompress"sv;
     case Code::JsonValidate:
-        return "json_validate";
+        return "json_validate"sv;
     case Code::JsonParse:
-        return "json_parse";
+        return "json_parse"sv;
     case Code::SubdocOperate:
-        return "subdoc.operate";
+        return "subdoc.operate"sv;
     case Code::BackgroundWait:
-        return "bg.wait";
+        return "bg.wait"sv;
     case Code::BackgroundLoad:
-        return "bg.load";
+        return "bg.load"sv;
     case Code::Get:
-        return "get";
+        return "get"sv;
     case Code::GetIf:
-        return "get.if";
+        return "get.if"sv;
     case Code::GetRandomDocument:
-        return "get.random_document";
+        return "get.random_document"sv;
     case Code::GetStats:
-        return "get.stats";
+        return "get.stats"sv;
     case Code::SetWithMeta:
-        return "set.with.meta";
+        return "set.with.meta"sv;
     case Code::Store:
-        return "store";
+        return "store"sv;
     case Code::SyncWritePrepare:
-        return "sync_write.prepare";
+        return "sync_write.prepare"sv;
     case Code::SyncWriteAckLocal:
-        return "sync_write.ack_local";
+        return "sync_write.ack_local"sv;
     case Code::SyncWriteAckRemote:
-        return "sync_write.ack_remote";
+        return "sync_write.ack_remote"sv;
     case Code::SelectBucket:
-        return "select_bucket";
+        return "select_bucket"sv;
     case Code::StreamFilterCreate:
-        return "stream_req.filter";
+        return "stream_req.filter"sv;
     case Code::StreamCheckRollback:
-        return "stream_req.rollback";
+        return "stream_req.rollback"sv;
     case Code::StreamGetCollectionHighSeq:
-        return "stream_req.get_collection_seq";
+        return "stream_req.get_collection_seq"sv;
     case Code::StreamFindMap:
-        return "stream_req.find_map";
+        return "stream_req.find_map"sv;
     case Code::StreamUpdateMap:
-        return "stream_req.update_map";
+        return "stream_req.update_map"sv;
     case Code::Sasl:
-        return "sasl";
+        return "sasl"sv;
     case Code::SaslExternalAuth:
-        return "sasl.external_auth";
+        return "sasl.external_auth"sv;
     case Code::StorageEngineStats:
-        return "storage_engine_stats";
+        return "storage_engine_stats"sv;
     case Code::Notified:
-        return "notified";
+        return "notified"sv;
     case Code::PrepareSnapshotCreatePath:
-        return "prepare_snapshot.create_path";
+        return "prepare_snapshot.create_path"sv;
     case Code::PrepareSnapshot:
-        return "prepare_snapshot.prepare_impl";
+        return "prepare_snapshot.prepare_impl"sv;
     case Code::PrepareSnapshotChecksums:
-        return "prepare_snapshot.checksums";
+        return "prepare_snapshot.checksums"sv;
     case Code::PrepareSnapshotWriteManifest:
-        return "prepare_snapshot.write_manifest";
+        return "prepare_snapshot.write_manifest"sv;
     case Code::PrepareSnapshotCleanupOnFailure:
-        return "prepare_snapshot.cleanup_on_failure";
+        return "prepare_snapshot.cleanup_on_failure"sv;
     }
-    return "unknown tracecode";
+    Expects(false && "Unknown cb::tracing::Code");
 }
 
 void to_json(nlohmann::json& json, const Code& code) {

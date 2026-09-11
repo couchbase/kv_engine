@@ -175,7 +175,7 @@ public:
      * @return true if the command executed completely
      *         false if the command blocked (ewouldblock)
      */
-    bool execute(bool useStartTime = false);
+    bool execute();
 
     /**
      * Set the packet used by this command context.
