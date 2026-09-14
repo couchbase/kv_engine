@@ -72,7 +72,8 @@ These options are shared by every C++ "mc" tool in this repository:
 | `-j, --json[=value]`          | Print the result in JSON (pretty-printing is no longer supported).                          |
 | `-b, --bucket bucketname`     | The bucket whose statistics are to be retrieved.                                             |
 | `-a, --all-buckets`           | Get the list of buckets from the node and display stats on a per-bucket basis. Mutually exclusive with `-b`/`--bucket`. |
-| `--sort`                      | Sort the output (only valid for non-JSON output).                                            |
+| `--sort`                      | Sort the output (only valid for non-JSON output). Mutually exclusive with `--raw`.            |
+| `--raw`                       | Send `statkey` to the server as-is, skipping both the known-stat-group validation and any specialized formatting, always using plain key/value output. Mutually exclusive with `--sort`. |
 | `--disable-utf8`              | Render timing histogram bars with plain ASCII instead of UTF-8 sparkline characters (UTF-8 is used by default). |
 | `--help[=statkey]`            | Show the help message, or (with `=statkey`) a description of a specific statkey.             |
 
@@ -85,6 +86,13 @@ bucket-scoped (marked `B`) and some requiring the `Stats` privilege
 `mcstat --help=statkey` for the full, up to date list with
 descriptions, and `mcstat --help=<statkey>` for a description of one
 specific statkey.
+
+`mcstat` validates `statkey` against this known-stat-group list before
+sending anything to the server. This means `mcstat` can't reach a stat
+group introduced in a version of Couchbase Server newer than this
+binary was built against, since the binary has no way of knowing
+about it. In that situation, pass `--raw`, which sends `statkey` to
+the server exactly as given, skipping the known-stat-group validation.
 
 ## Example
 

@@ -354,6 +354,33 @@ static void request_stat(MemcachedConnection& connection,
     }
 }
 
+/**
+ * Send statGroup to the server exactly as given, without validating it
+ * against the known stat groups (StatsGroupManager) first, and without any
+ * specialized rendering (e.g. hash/dispatcher/tasks) - only the generic,
+ * plain key/value output. Mirrors cbstats.py's own 'raw' command.
+ *
+ * Useful for stat groups this mcstat binary doesn't know about (e.g.
+ * internal/underscore-prefixed debug stats such as "_hash-dump <vbid>", or
+ * ones added to a newer server than this binary was built against).
+ *
+ * @param connection socket connected to the server
+ * @param statGroup the exact stat group (and any arguments) to send
+ */
+static void request_raw_stat(MemcachedConnection& connection,
+                             const std::string& statGroup) {
+    if (json) {
+        auto stats = connection.stats(statGroup);
+        std::cout << stats.dump() << std::endl;
+    } else {
+        connection.stats(
+                [&statGroup](const auto& key, const auto& value) -> void {
+                    print_key_value_pair(statGroup, key, value);
+                },
+                statGroup);
+    }
+}
+
 void request_sorted_stat(MemcachedConnection& connection,
                          const std::string& statGroup) {
     auto [statKey, statValue] = split_request_string(statGroup);
@@ -540,6 +567,7 @@ static std::string buildStatString(const std::vector<std::string_view>& args) {
 
 int main(int argc, char** argv) {
     bool sort = false;
+    bool raw = false;
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
@@ -586,6 +614,15 @@ int main(int argc, char** argv) {
                       "sort",
                       "sort output (only valid for non-JSON output)"});
 
+    getopt.addOption(
+            {[&raw](auto) { raw = true; },
+             "raw",
+             "Send statkey to the server as-is, without validating it "
+             "against the known stat groups first, and without any "
+             "specialized formatting (mirrors cbstats' 'raw' command). "
+             "Useful for internal/underscore-prefixed debug stat groups "
+             "this mcstat binary doesn't know about."});
+
     getopt.addOption({[](auto) { disableUtf8 = true; },
                       "disable-utf8",
                       "Render timing histogram bars with plain ASCII "
@@ -614,6 +651,12 @@ int main(int argc, char** argv) {
     if (sort && json) {
         std::cerr << TerminalColor::Red
                   << "Cannot create JSON output while sorting"
+                  << TerminalColor::Reset << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if (raw && sort) {
+        std::cerr << TerminalColor::Red << "Cannot sort raw output"
                   << TerminalColor::Reset << std::endl;
         return EXIT_FAILURE;
     }
@@ -659,7 +702,9 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            if (sort) {
+            if (raw) {
+                request_raw_stat(*connection, stat_key);
+            } else if (sort) {
                 request_sorted_stat(*connection, stat_key);
             } else {
                 request_stat(*connection, stat_key);
