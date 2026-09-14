@@ -298,7 +298,6 @@ public:
                  const Histogram<T, Limits>& hist,
                  const Labels& labels) const {
         HistogramData histData{};
-        histData.sampleCount = hist.total();
         histData.buckets.reserve(hist.size());
 
         for (const auto& bin : hist) {
@@ -306,6 +305,13 @@ public:
             auto upper = getBucketMax(bin);
             auto count = bin->count();
             histData.buckets.push_back({lower, upper, count});
+            // Accumulate sampleCount from the same bucket counts used to
+            // build 'buckets', rather than a separate hist.total() call
+            // (itself just an accumulate over the bins) - two walks of a
+            // live histogram can otherwise disagree under concurrent
+            // add()s, e.g. making sampleCount smaller than the summed
+            // bucket counts computed elsewhere from this HistogramData.
+            histData.sampleCount += count;
 
             // TODO: Histogram doesn't track the sum of all added values but
             //  prometheus requires that value. For now just approximate it from

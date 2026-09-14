@@ -35,7 +35,9 @@ public:
      * @param cookie passed to addStatFn for each call
      */
     CBStatCollector(AddStatFn addStatFn, CookieIface& cookie)
-        : addStatFn(std::move(addStatFn)), cookie(cookie) {
+        : addStatFn(std::move(addStatFn)),
+          cookie(cookie),
+          useOldStyleHistograms(cookie.getAgentName().contains("cbstat")) {
     }
 
     // Allow usage of the "helper" methods defined in the base type.
@@ -120,6 +122,14 @@ private:
 
     const AddStatFn addStatFn;
     CookieIface& cookie;
+
+    /**
+     * True if the requesting client is cbstats.py (identified by its
+     * agent name containing "cbstat"), which still requires histograms
+     * in the legacy flat, per-bucket format rather than a single JSON
+     * document.
+     */
+    const bool useOldStyleHistograms;
 };
 
 // Convenience method which maintain the existing add_casted_stat interface

@@ -19,6 +19,7 @@
 #include <serverless/config.h>
 #include <utilities/timing_histogram_printer.h>
 #include <algorithm>
+#include <set>
 
 using namespace std::string_view_literals;
 
@@ -811,7 +812,56 @@ TEST_P(StatsTest, TestAllocatorStats) {
 TEST_P(StatsTest, TestFrequencyCountersStats) {
     using namespace std::string_view_literals;
 
-    auto stats = userConnection->stats("frequency-counters");
+    // A regular (non-cbstats-compat) client gets each vbucket state's MFU
+    // histogram as a single JSON document - the same format used for
+    // HdrHistogram-backed stats (e.g. 'timings') - rather than as flat
+    // per-bucket stats (see CBStatCollector::addStat(HistogramData)).
+    std::set<std::string> statesSeen;
+    userConnection->stats(
+            [&statesSeen](const auto& key, const auto& value) {
+                EXPECT_TRUE(key.starts_with("vb_"));
+                EXPECT_TRUE(key.ends_with("_evictable_mfu"));
+
+                try {
+                    auto json = nlohmann::json::parse(value);
+
+                    // Verify the raw JSON shape - a full 256-bucket
+                    // ArrayHistogram-backed MFU histogram starting at 0,
+                    // with a total and mean reported alongside the buckets.
+                    ASSERT_TRUE(json["data"].is_array());
+                    EXPECT_EQ(256, json["data"].size());
+                    EXPECT_EQ(0, json["bucketsLow"].template get<uint64_t>());
+                    for (size_t i = 0; i < json["data"].size(); i++) {
+                        // Each bucket covers exactly one value, {i, i+1}.
+                        EXPECT_EQ(i + 1,
+                                  json["data"][i][0].template get<uint64_t>());
+                    }
+                    EXPECT_TRUE(json.contains("total"));
+                    EXPECT_TRUE(json.contains("mean"));
+
+                    // Throws if 'json' isn't a well-formed histogram document.
+                    TimingHistogramPrinter printer(json);
+                } catch (const std::exception& e) {
+                    ADD_FAILURE() << "Failed to parse the histogram data: "
+                                  << e.what();
+                }
+                statesSeen.insert(key);
+            },
+            "frequency-counters");
+    EXPECT_EQ(std::set<std::string>({"vb_active_evictable_mfu",
+                                     "vb_replica_evictable_mfu",
+                                     "vb_pending_evictable_mfu"}),
+              statesSeen);
+
+    // A cbstats-compat client (agent name containing "cbstat") still gets
+    // the legacy flat, per-bucket format cbstats.py relies on.
+    auto conn = userConnection->clone();
+    conn->setAgentName("cbstats 1.0");
+    conn->setFeature(cb::mcbp::Feature::XERROR, true);
+    conn->authenticate("Luke");
+    conn->selectBucket(bucketName);
+
+    auto stats = conn->stats("frequency-counters");
     EXPECT_FALSE(stats.empty());
 
     // We expect 257 histogram buckets per vbucket state (256 buckets + mean)

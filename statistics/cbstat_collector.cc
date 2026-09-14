@@ -18,10 +18,57 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privileges.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
 
 #include <string_view>
+
+namespace {
+/**
+ * Serialize a HistogramData to the same JSON shape HdrHistogram::to_json()
+ * produces (see platform/hdrhistogram/hdrhistogram.cc), so both histogram
+ * types are indistinguishable to a client - and so that mcstat and other
+ * non-cbstats clients can render any histogram stat with the same generic
+ * JSON-histogram handling regardless of which C++ histogram type backs it
+ * server-side.
+ */
+std::string histogramDataToJson(const HistogramData& hist) {
+    uint64_t bucketedTotal = 0;
+    for (const auto& bucket : hist.buckets) {
+        bucketedTotal += bucket.count;
+    }
+
+    nlohmann::json data = nlohmann::json::array();
+    uint64_t cumulative = 0;
+    for (const auto& bucket : hist.buckets) {
+        cumulative += bucket.count;
+        const double percentile =
+                bucketedTotal ? (100.0 * static_cast<double>(cumulative) /
+                                 static_cast<double>(bucketedTotal))
+                              : 0.0;
+        data.push_back({bucket.upperBound, bucket.count, percentile});
+    }
+
+    nlohmann::json root;
+    root["total"] = bucketedTotal;
+    root["bucketsLow"] =
+            hist.buckets.empty() ? 0 : hist.buckets.front().lowerBound;
+    root["data"] = std::move(data);
+    // HdrHistogram::to_json() doesn't include the mean - TimingHistogram-
+    // Printer instead re-derives an average from bucket midpoints. That
+    // approximation is exact for HistogramData too *except* for histograms
+    // such as ArrayHistogram, whose buckets represent a single exact value
+    // (e.g. bucket {i, i+1} means "value exactly i"), where the midpoint
+    // (i+0.5) is systematically 0.5 higher than the true mean. Include the
+    // already-tracked mean explicitly so clients can use it instead.
+    root["mean"] = hist.mean;
+    root["overflowed"] = hist.sampleCount - bucketedTotal;
+    root["overflowed_sum"] = 0;
+    root["max_trackable"] = hist.maxTrackableValue;
+    return root.dump();
+}
+} // namespace
 
 using namespace std::string_view_literals;
 
@@ -85,6 +132,16 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HistogramData& hist,
                               const Labels& labels) const {
+    if (!useOldStyleHistograms) {
+        // Report as a single JSON document, the same format used for
+        // HdrHistogram-backed stats (see the addStat(HdrHistogram) overload
+        // below) - lets any non-cbstats-compat client (e.g. mcstat) render
+        // every histogram stat the same way, regardless of which C++
+        // histogram type backs it server-side.
+        addStat(k, histogramDataToJson(hist), labels);
+        return;
+    }
+
     auto key = k.needsFormatting() ? formatKey(k.cbstatsKey, labels)
                                    : std::string(k.cbstatsKey);
     fmt::memory_buffer buf;
@@ -127,8 +184,6 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HdrHistogram& v,
                               const Labels& labels) const {
-    const auto useOldStyleHistograms =
-            cookie.getAgentName().find("cbstat") != std::string::npos;
     if (useOldStyleHistograms) {
         // cbstats handles HdrHistograms in the same manner as Histogram,
         // so convert to the common HistogramData type and call addStat again.

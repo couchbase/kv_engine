@@ -37,6 +37,9 @@ TimingHistogramPrinter::TimingHistogramPrinter(const nlohmann::json& json)
       overflowed(cb::getOptionalJsonObject(json, "overflowed").value_or(0)),
       maxTrackableValue(
               cb::getOptionalJsonObject(json, "max_trackable").value_or(0)) {
+    if (auto meanJson = cb::getOptionalJsonObject(json, "mean")) {
+        mean = meanJson->get<uint64_t>();
+    }
 }
 
 uint64_t TimingHistogramPrinter::getTotal() const {
@@ -65,7 +68,8 @@ TimingHistogramPrinter::HistogramType TimingHistogramPrinter::getHistogramType(
         baseName == "ep_active_or_pending_eviction_values_evicted" ||
         baseName == "ep_replica_eviction_values_evicted" ||
         baseName == "ep_active_or_pending_eviction_values_snapshot" ||
-        baseName == "ep_replica_eviction_values_snapshot") {
+        baseName == "ep_replica_eviction_values_snapshot" ||
+        baseName.ends_with("evictable_mfu")) {
         return HistogramType::Count;
     }
     if (baseName.ends_with("Ratio")) {
@@ -478,7 +482,9 @@ void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
         }
 
         if (total > 0) {
-            const auto avgVal = weightedSum / static_cast<long double>(total);
+            const auto avgVal =
+                    mean ? static_cast<long double>(*mean)
+                         : weightedSum / static_cast<long double>(total);
             fmt::print(out, "Avg: {}\n", formatAvg(avgVal, type));
         }
     }

@@ -47,6 +47,9 @@ TEST_F(TimingHistogramPrinterTest, GetHistogramType) {
     EXPECT_EQ(Type::Count,
               TimingHistogramPrinter::getHistogramType(
                       "rw_0:ep_active_or_pending_eviction_values_evicted"));
+    EXPECT_EQ(Type::Count,
+              TimingHistogramPrinter::getHistogramType(
+                      "vb_active_evictable_mfu"));
 
     // Size histograms
     EXPECT_EQ(Type::Size, TimingHistogramPrinter::getHistogramType("readSize"));

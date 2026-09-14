@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <optional>
 
 /**
  * Timing histogram printer is a utility class to dump the histogram
@@ -120,4 +121,14 @@ protected:
      * (Added in 7.2.0).
      */
     uint64_t maxTrackableValue = 0;
+
+    /**
+     * The histogram's true mean, if the server provided one. When absent,
+     * dumpHistogram() falls back to approximating the average from bucket
+     * midpoints - which is exact for wide, HdrHistogram-style buckets, but
+     * is systematically biased for histograms whose buckets represent a
+     * single exact value (e.g. an ArrayHistogram bucket {i, i+1} means
+     * "value exactly i", not a range centred on i+0.5).
+     */
+    std::optional<uint64_t> mean;
 };
