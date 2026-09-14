@@ -179,8 +179,7 @@ to deny a tenant to go over a certain limit.
 ## Unthrottled privilege
 
 Connections holding the `Unthrottled` privilege will not be throttled,
-but their usage is still accounted for and affecting throttling for
-other connections.
+and their usage will not count towards any of the limits.
 
 ## Problems with the current design in memcached
 
@@ -303,10 +302,6 @@ From a 1000ft this would looks something like:
     return Throttle;
 
 #### Ideas
-
-* At the tick interval iterate over all buckets and sum up the
-  reserved resources for each bucket. The delta between total capacity
-  and reserved would go into the free pool.
 
 * Slow start buckets. For buckets without any connections, we will only
   reserve 10% of credits. Once they do get a connection, they'll
