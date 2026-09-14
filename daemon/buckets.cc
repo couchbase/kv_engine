@@ -284,6 +284,10 @@ void Bucket::consumedUnits(std::size_t units, ResourceAllocationDomain domain) {
         throttle_gauge.increment(units);
         return;
     case ResourceAllocationDomain::Global:
+        // Units taken from the free pool are still part of the bucket's own
+        // consumption: they must be accounted for in the bucket gauge too,
+        // or the hard limit could never be reached.
+        throttle_gauge.increment(units);
         BucketManager::instance().consumedResources(units);
         return;
     case ResourceAllocationDomain::None:
@@ -419,14 +423,15 @@ std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottle(
         return {false, ResourceAllocationDomain::Bucket};
     }
 
-    // Check the hard limit (if set)
-    if (throttle_hard_limit != std::numeric_limits<std::size_t>::max()) {
-        if (throttle_gauge.isBelow(throttle_hard_limit, units)) {
-            return {false, ResourceAllocationDomain::Bucket};
-        }
+    // Above the reservation. Check the hard limit.
+    // Throttle even if there are units left in the free pool.
+    if (throttle_hard_limit != std::numeric_limits<std::size_t>::max() &&
+        !throttle_gauge.isBelow(throttle_hard_limit, units)) {
         return {true, ResourceAllocationDomain::None};
     }
 
+    // Below the hard limit: the bucket may only continue by taking units
+    // from the global free pool, on a first come, first served basis.
     if (BucketManager::instance().isUnassignedResourcesAvailable(units)) {
         return {false, ResourceAllocationDomain::Global};
     }
