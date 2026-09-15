@@ -20,11 +20,13 @@ StatDef::StatDef(CBStatsKey cbstatsKey,
                  cb::stats::Unit unit,
                  std::string_view metricFamilyKey,
                  ::prometheus::MetricType type,
+                 std::string_view help,
                  Labels&& labels)
     : cbstatsKey(std::move(cbstatsKey)),
       unit(unit),
       metricFamily(metricFamilyKey),
       type(type),
+      help(help),
       labels(std::move(labels)) {
     if (metricFamily.empty()) {
         metricFamily = std::string(this->cbstatsKey);
@@ -39,11 +41,13 @@ StatDef::StatDef(CBStatsKey cbstatsKey, CBStatsOnlyTag)
 StatDef::StatDef(std::string_view metricFamilyKey,
                  cb::stats::Unit unit,
                  ::prometheus::MetricType type,
+                 std::string_view help,
                  Labels&& labels,
                  PrometheusOnlyTag)
     : unit(unit),
       metricFamily(metricFamilyKey),
       type(type),
+      help(help),
       labels(std::move(labels)) {
     metricFamily += unit.getSuffix();
 }
