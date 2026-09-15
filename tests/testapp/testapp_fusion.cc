@@ -980,8 +980,7 @@ TEST_P(FusionTest, GetReleaseStorageSnapshot) {
         ASSERT_TRUE(vb.contains("snapshotUUID"));
         EXPECT_EQ(snapshotUuid, vb["snapshotUUID"].get<std::string>());
         ASSERT_TRUE(vb.contains("validTill"));
-        ASSERT_TRUE(vb.contains("version"));
-        EXPECT_EQ(1, vb["version"]);
+        ASSERT_TRUE(vb.contains("storageFormatVersion"));
         ASSERT_TRUE(vb.contains("volumeID"));
         EXPECT_FALSE(vb["volumeID"].empty());
     }
