@@ -4956,7 +4956,15 @@
         "added": "8.5.0",
         "stability": "internal"
     },
-        {
+    {
+        "key": "node_capacity",
+        "unit": "none",
+        "type": "gauge",
+        "description": "The configured node throttle capacity in units per second the node is allowed to consume before throttling. This is total read+write units per second all buckets on the node may consume.",
+        "added": "8.5.0",
+        "stability": "internal"
+    },
+    {
         "key": "ru_total",
         "unit": "none",
         "type": "counter",
