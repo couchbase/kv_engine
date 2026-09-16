@@ -283,7 +283,7 @@ public:
      *
      * This method encodes a new dropped collections 'list'. The new list is the
      * relative complement of the parameters:
-     * A (droppedCollections) and B (idsToRemove).
+     * A (droppedCollections) and B (erased).
      *
      * E.g. if A[0, 1, 2] and B[0, 1] the function returns as flatbuffer data
      * set[2]
@@ -294,10 +294,8 @@ public:
      *
      * @param droppedCollection vector of known dropped collections constructed
      *        from the post compaction snapshot
-     * @param postCompactionDropped the set of IDs that are known to be dropped
-     *        in the pre compaction snapshot.
-     * @param endSeqno the end-seqno (greatest collection end) from the pre
-     *        compaction snapshot
+     * @param erased the collections erased, those dropped in the pre
+     *        compaction snapshot (each mapped to its end-seqno)
      *
      * @return A new set of dropped collections as per the description above.
      *         This is flatbuffer encoding of DroppedCollections (kvstore.fbs)
@@ -306,8 +304,7 @@ public:
     encodeRelativeComplementOfDroppedCollections(
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
-            const std::unordered_set<CollectionID>& idsToRemove,
-            uint64_t endSeqno);
+            const std::unordered_map<CollectionID, uint64_t>& erased);
 
     /**
      * Encode the collections erase seqno (EraseSeqno in kvstore.fbs). Named
@@ -408,6 +405,15 @@ private:
      * For each scope dropped in the batch, we record the greatest seqno
      */
     std::unordered_map<ScopeID, uint64_t> droppedScopes;
+
+    /**
+     * For each collection flushed in the batch, the start-seqno of the
+     * generation(s) the flush ended (the least seen). Set by
+     * encodeOpenCollections from the open collections on disk or the
+     * collection's first create in the batch, and used for the collection's
+     * dropped entry (which is encoded after the open collections).
+     */
+    std::unordered_map<CollectionID, uint64_t> flushedStartSeqnos;
 
     /**
      * Used for accounting items, disk-size and high-seqno during flushing

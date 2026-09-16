@@ -22,7 +22,12 @@ ScanContext::ScanContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections) {
     for (const auto& droppedCollection : droppedCollections) {
-        dropped.insert(droppedCollection.collectionId);
+        // The list has one entry per collection (a flush extends the entry)
+        const bool emplaced = droppedEndSeqnos
+                                      .emplace(droppedCollection.collectionId,
+                                               droppedCollection.endSeqno)
+                                      .second;
+        Expects(emplaced);
         // Find the full extent of dropped collections, we will only map lookup
         // for keys inside the range.
         startSeqno =
@@ -44,7 +49,7 @@ ScanContext::ScanContext(
 bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
                                      bool isDeleted,
                                      uint64_t seqno) const {
-    if (!canCheckOpenMap && dropped.empty()) {
+    if (!canCheckOpenMap && droppedEndSeqnos.empty()) {
         // early bypass, no need to inspect the key + containers
         return false;
     }
@@ -65,7 +70,8 @@ bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
         cid = key.getCollectionID();
     }
 
-    if (!dropped.empty() && isLogicallyDeleted(cid, isDeleted, seqno)) {
+    if (!droppedEndSeqnos.empty() &&
+        isLogicallyDeleted(cid, isDeleted, seqno)) {
         return true;
     }
     if (canCheckOpenMap) {
@@ -87,16 +93,25 @@ bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
 bool ScanContext::isLogicallyDeleted(CollectionID cid,
                                      bool isDeleted,
                                      uint64_t seqno) const {
-    // Is the key in a range which contains dropped collections and in the set?
-    return (seqno >= startSeqno && seqno < endSeqno) && dropped.contains(cid);
+    // Is the key in a range which contains dropped collections? This is a
+    // cheap filter before the per collection lookup.
+    if (seqno < startSeqno || seqno >= endSeqno) {
+        return false;
+    }
+    // The key must be below the end-seqno of its own collection. A flushed
+    // collection is in the dropped list but is also alive, so a key above the
+    // flush seqno (the new generation) is not logically deleted even if another
+    // collection was dropped at a higher seqno.
+    auto itr = droppedEndSeqnos.find(cid);
+    return itr != droppedEndSeqnos.end() && seqno < itr->second;
 }
 
 std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {
     os << "ScanContext: startSeqno:" << scanContext.startSeqno
        << ", endSeqno:" << scanContext.endSeqno;
     os << " dropped:[";
-    for (CollectionID cid : scanContext.dropped) {
-        os << cid.to_string() << ", ";
+    for (const auto& [cid, end] : scanContext.droppedEndSeqnos) {
+        os << cid.to_string() << ":" << end << ", ";
     }
     os << "]\n"
        << "canCheckOpenMap:" << scanContext.canCheckOpenMap << ", open:[";

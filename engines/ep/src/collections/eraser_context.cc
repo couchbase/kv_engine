@@ -30,8 +30,7 @@ void EraserContext::processSystemEvent(const DocKeyView& key, SystemEvent se) {
         //    that the old generation of the collection was fully visited.
         // If the ID is in the drop list, then we remove it and set the
         // 'removed' flag.
-        auto itr = dropped.find(getCollectionIDFromKey(key));
-        if (itr != dropped.end()) {
+        if (droppedEndSeqnos.contains(getCollectionIDFromKey(key))) {
             seenEndOfCollection = true;
         }
     }

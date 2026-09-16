@@ -375,6 +375,19 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
     // flushUID is persisted)
     std::unordered_map<CollectionID, ManifestUid> outputIds;
 
+    // Record the start of the generation which a flush in this batch ended
+    const auto& flushed = flushAccounting.getFlushedCollections();
+    auto recordFlushedStart = [this, &flushed](CollectionID cid,
+                                               uint64_t startSeqno) {
+        if (!flushed.contains(cid)) {
+            return;
+        }
+        auto [itr, emplaced] = flushedStartSeqnos.try_emplace(cid, startSeqno);
+        if (!emplaced) {
+            itr->second = std::min(itr->second, startSeqno);
+        }
+    };
+
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Collection>>
             finalisedOpenCollection;
@@ -404,6 +417,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
     // meta-data for the output but only if there is no drop event following.
     for (auto& [cid, span] : collections) {
         using Collections::KVStore::OpenCollection;
+        recordFlushedStart(cid, span.low.startSeqno);
 
         if (auto itr = flushAccounting.getDroppedCollections().find(cid);
             itr != flushAccounting.getDroppedCollections().end()) {
@@ -451,6 +465,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         auto open = flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
                 currentCollections.data());
         for (const auto* entry : *open->entries()) {
+            recordFlushedStart(entry->collection_id(), entry->start_seqno());
             // For each currently open collection, is it in the dropped map?
             auto result = flushAccounting.getDroppedCollections().find(
                     entry->collection_id());
@@ -498,6 +513,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         }
     } else if (!flushAccounting.getDroppedCollections().contains(
                        CollectionID::Default)) {
+        // The default collection exists from seqno 0
+        recordFlushedStart(CollectionID::Default, 0);
         // Default construct metadata yields the default collection epoch state
         // if the default collection was modified, this will return the modded
         // state or just the epoch input state.
@@ -548,10 +565,20 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
 
-    // Add Collection's to this set only if they are in both old and new
-    // sets of dropped collections - this ensures we generate it once into
-    // the new output.
+    // A collection must appear once in the output. Track the collections
+    // already added so that the following loops can skip them.
     std::unordered_set<CollectionID> skip;
+
+    // A flush of a collection in this batch extends the end-seqno of any
+    // dropped entry for the same collection (from disk or from this batch).
+    // Everything below the flush seqno is logically deleted.
+    const auto& flushed = flushAccounting.getFlushedCollections();
+    auto applyFlush = [&flushed](CollectionID cid, uint64_t endSeqno) {
+        if (auto itr = flushed.find(cid); itr != flushed.end()) {
+            return std::max<uint64_t>(endSeqno, itr->second);
+        }
+        return endSeqno;
+    };
 
     // Iterate through the existing dropped collections and look each up in the
     // commit metadata. If the collection is in both lists, we will just update
@@ -562,10 +589,13 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
             itr != flushAccounting.getDroppedCollections().end()) {
             // Collection is in both old and new 'sets' of dropped collections
             // we only want it in the output once - update the end-seqno here
-            // and add to skip set
             collection.endSeqno = itr->second.endSeqno;
-            skip.emplace(collection.collectionId);
         }
+        // The collection may also have been flushed in this batch (e.g. it was
+        // dropped, recreated and flushed) - extend the end-seqno
+        collection.endSeqno =
+                applyFlush(collection.collectionId, collection.endSeqno);
+        skip.emplace(collection.collectionId);
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder,
                 collection.startSeqno,
@@ -578,31 +608,36 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
-        if (skip.contains(cid) || emptyDroppedCollections.contains(cid)) {
-            // This collection is already in output, or is empty (so don't emit)
+        if (emptyDroppedCollections.contains(cid) ||
+            !skip.emplace(cid).second) {
+            // This collection is empty (so don't emit) or is already in output.
+            // An empty collection is not added to skip, a flush of it in this
+            // batch must still be emitted.
             continue;
         }
-        // update skip so the flushes of dropped collections get ignored.
-        skip.emplace(cid);
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder,
                 dropped.startSeqno,
-                dropped.endSeqno,
+                applyFlush(cid, dropped.endSeqno),
                 uint32_t(dropped.collectionId));
         output.push_back(newEntry);
     }
 
-    // Any flushes?
-    for (const auto& [cid, seqno] : flushAccounting.getFlushedCollections()) {
-        if (skip.contains(cid)) {
+    // Finally any flushed collections that are not yet in the output.
+    for (const auto& [cid, seqno] : flushed) {
+        if (!skip.emplace(cid).second) {
             // This collection is already in output
             continue;
         }
-        auto newEntry =
-                Collections::KVStore::CreateDropped(builder,
-                                                    0, // should be old start?
-                                                    seqno,
-                                                    uint32_t(cid));
+        // The start of the generation the flush ended (see
+        // encodeOpenCollections). Without it 0 is a safe lower bound, all of
+        // the collection below seqno is logically deleted.
+        const auto start = flushedStartSeqnos.find(cid);
+        auto newEntry = Collections::KVStore::CreateDropped(
+                builder,
+                start == flushedStartSeqnos.end() ? 0 : start->second,
+                seqno,
+                uint32_t(cid));
         output.push_back(newEntry);
     }
 
@@ -623,8 +658,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
 flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        const std::unordered_set<CollectionID>& idsToRemove,
-        uint64_t endSeqno) {
+        const std::unordered_map<CollectionID, uint64_t>& erased) {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
 
@@ -638,7 +672,8 @@ flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
         //   this collection is not been fully purged. This occurs in the case
         //   a collection was resurrected and dropped during replay. In this
         //   case the collection must remain in the final output.
-        if (!idsToRemove.contains(dc.collectionId) || dc.endSeqno > endSeqno) {
+        const auto erasedItr = erased.find(dc.collectionId);
+        if (erasedItr == erased.end() || dc.endSeqno > erasedItr->second) {
             // Include this collection in the final set
             auto newEntry = Collections::KVStore::CreateDropped(
                     builder,

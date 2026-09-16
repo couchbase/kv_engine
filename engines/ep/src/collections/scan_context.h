@@ -15,7 +15,6 @@
 
 #include <fmt/ostream.h>
 #include <unordered_map>
-#include <unordered_set>
 
 struct DocKeyView;
 
@@ -24,7 +23,7 @@ namespace Collections {
 namespace KVStore {
 struct OpenCollection;
 struct DroppedCollection;
-}
+} // namespace KVStore
 
 namespace VB {
 
@@ -53,8 +52,8 @@ public:
                     droppedCollections);
 
     bool operator==(const ScanContext& other) const {
-        return dropped == other.dropped && startSeqno == other.startSeqno &&
-               endSeqno == other.endSeqno;
+        return droppedEndSeqnos == other.droppedEndSeqnos &&
+               startSeqno == other.startSeqno && endSeqno == other.endSeqno;
     }
 
     bool operator!=(const ScanContext& other) const {
@@ -85,17 +84,27 @@ public:
 
     /// @return if true dropped set is empty
     bool empty() const {
-        return dropped.empty();
+        return droppedEndSeqnos.empty();
     }
 
-    /// @return the set of dropped collections
-    const std::unordered_set<CollectionID>& getDroppedCollections() const {
-        return dropped;
+    /// @return the dropped collections, each mapped to its end-seqno
+    const std::unordered_map<CollectionID, uint64_t>& getDroppedCollections()
+            const {
+        return droppedEndSeqnos;
     }
 
     /// @return the endSeqno - the maximum endSeqno of all dropped collections
     uint64_t getEndSeqno() const {
         return endSeqno;
+    }
+
+    /**
+     * @return the end-seqno of the given dropped collection, or 0 if the
+     *         collection is not dropped.
+     */
+    uint64_t getEndSeqno(CollectionID cid) const {
+        auto itr = droppedEndSeqnos.find(cid);
+        return itr == droppedEndSeqnos.end() ? 0 : itr->second;
     }
 
 protected:
@@ -106,9 +115,15 @@ protected:
     friend std::ostream& operator<<(std::ostream&, const ScanContext&);
 
     /**
-     * All of the collections that are dropped
+     * For each dropped collection the end-seqno of the drop (or flush). A
+     * key@seqno of the collection is logically deleted when seqno < end-seqno.
+     * The dropped list has one entry per collection, a flush of a listed
+     * collection extends its end-seqno. A flushed collection is also alive, so
+     * the range check must be per collection - one seqno window spanning every
+     * dropped collection would wrongly cover the new generation of a flushed
+     * collection (MB-41351).
      */
-    std::unordered_set<CollectionID> dropped;
+    std::unordered_map<CollectionID, uint64_t> droppedEndSeqnos;
 
     /**
      * All of the collections that are open, mapped to their start-seqno.

@@ -606,13 +606,123 @@ TEST_F(CollectionsVBFlushTest, flushCollection) {
     const auto flushed = flushCollection(20, ManifestUid{7}, fruit);
     commit();
 
-    // Expects fruit open with the new flushUid and the old items dropped
-    // Note: the dropped entry of a flushed collection currently has a
-    // startSeqno of 0
+    // Expects fruit open with the new flushUid and the old items (from the
+    // start of the ended generation) dropped
     expectDisk(
             {.manifestUid = ManifestUid{7},
              .collections = OpenCollections{defaultCollection, {20, flushed}},
-             .dropped = DroppedList{{0, 20, fruit.cid}}});
+             .dropped = DroppedList{{10, 20, fruit.cid}}});
+}
+
+// A collection created and flushed in one batch, the dropped entry starts at
+// the create.
+TEST_F(CollectionsVBFlushTest, createAndFlushCollection) {
+    createCollection(10, ManifestUid{1}, fruit);
+    flushMutation(fruit.cid, 11);
+    const auto flushed = flushCollection(12, ManifestUid{2}, fruit);
+    commit();
+
+    expectDisk(
+            {.manifestUid = ManifestUid{2},
+             .collections = OpenCollections{defaultCollection, {12, flushed}},
+             .dropped = DroppedList{{10, 12, fruit.cid}}});
+}
+
+// With nothing on disk the default collection exists from seqno 0, a flush of
+// it drops from 0.
+TEST_F(CollectionsVBFlushTest, flushDefaultCollectionEpoch) {
+    const auto flushed =
+            flushCollection(5, ManifestUid{1}, CollectionMetaData{});
+    commit();
+
+    expectDisk({.manifestUid = ManifestUid{1},
+                .collections = OpenCollections{{5, flushed}},
+                .dropped = DroppedList{{0, 5, CollectionID::Default}}});
+}
+
+// A collection flushed again before compaction purges its dropped entry keeps
+// one entry, the flush extends its endSeqno.
+TEST_F(CollectionsVBFlushTest, flushCollectionTwice) {
+    createCollection(10, ManifestUid{1}, fruit);
+    commit();
+    const auto flushed1 = flushCollection(20, ManifestUid{2}, fruit);
+    commit();
+    expectDisk(
+            {.manifestUid = ManifestUid{2},
+             .collections = OpenCollections{defaultCollection, {20, flushed1}},
+             .dropped = DroppedList{{10, 20, fruit.cid}}});
+
+    const auto flushed2 = flushCollection(30, ManifestUid{3}, fruit);
+    commit();
+    expectDisk(
+            {.manifestUid = ManifestUid{3},
+             .collections = OpenCollections{defaultCollection, {30, flushed2}},
+             .dropped = DroppedList{{10, 30, fruit.cid}}});
+}
+
+// A dropped collection (in the list on disk) which is resurrected and then
+// flushed keeps one entry, the flush extends its endSeqno.
+TEST_F(CollectionsVBFlushTest, flushResurrectedCollectionOnDisk) {
+    createCollection(10, ManifestUid{1}, fruit);
+    commit();
+    flushMutation(fruit.cid, 11);
+    dropCollection(12, ManifestUid{2}, fruit);
+    commit();
+    createCollection(13, ManifestUid{3}, fruit);
+    commit();
+    expectDisk({.manifestUid = ManifestUid{3},
+                .collections = OpenCollections{defaultCollection, {13, fruit}},
+                .dropped = DroppedList{{10, 12, fruit.cid}}});
+
+    const auto flushed = flushCollection(20, ManifestUid{4}, fruit);
+    commit();
+    expectDisk(
+            {.manifestUid = ManifestUid{4},
+             .collections = OpenCollections{defaultCollection, {20, flushed}},
+             .dropped = DroppedList{{10, 20, fruit.cid}}});
+}
+
+// Drop, re-create and flush a collection in one batch. The dropped entry ends
+// at the flush, everything below it is logically deleted.
+TEST_F(CollectionsVBFlushTest, dropCreateFlushCollection) {
+    createCollection(10, ManifestUid{1}, fruit);
+    commit();
+
+    flushMutation(fruit.cid, 11);
+    dropCollection(12, ManifestUid{2}, fruit);
+    createCollection(13, ManifestUid{3}, fruit);
+    const auto flushed = flushCollection(14, ManifestUid{4}, fruit);
+    commit();
+
+    expectDisk(
+            {.manifestUid = ManifestUid{4},
+             .collections = OpenCollections{defaultCollection, {14, flushed}},
+             .dropped = DroppedList{{10, 14, fruit.cid}}});
+}
+
+// A collection in the dropped list on disk which is resurrected, dropped,
+// re-created and flushed in one batch keeps one entry, ending at the flush.
+TEST_F(CollectionsVBFlushTest, dropCreateFlushCollectionOnDisk) {
+    createCollection(10, ManifestUid{1}, fruit);
+    commit();
+    flushMutation(fruit.cid, 11);
+    dropCollection(12, ManifestUid{2}, fruit);
+    commit();
+    expectDisk({.manifestUid = ManifestUid{2},
+                .collections = OpenCollections{defaultCollection},
+                .dropped = DroppedList{{10, 12, fruit.cid}}});
+
+    createCollection(13, ManifestUid{3}, fruit);
+    flushMutation(fruit.cid, 14);
+    dropCollection(15, ManifestUid{4}, fruit);
+    createCollection(16, ManifestUid{5}, fruit);
+    const auto flushed = flushCollection(17, ManifestUid{6}, fruit);
+    commit();
+
+    expectDisk(
+            {.manifestUid = ManifestUid{6},
+             .collections = OpenCollections{defaultCollection, {17, flushed}},
+             .dropped = DroppedList{{10, 17, fruit.cid}}});
 }
 
 // A create of a collection which is already on disk (and is not a flush) is a
@@ -709,17 +819,18 @@ TEST_F(CollectionsVBFlushTest, encodeRelativeComplementOfDroppedCollections) {
                                        {3, 9, vegetable.cid}}});
 
     using Collections::VB::Flush;
-    // fruit is removed. dairy is unknown to idsToRemove so remains. vegetable
-    // was dropped after the given endSeqno so remains.
+    // fruit is removed. dairy is not erased so remains. vegetable was dropped
+    // after the given endSeqno so remains.
     auto buf = Flush::encodeRelativeComplementOfDroppedCollections(
-            getDiskDropped(), {fruit.cid, vegetable.cid}, 8);
+            getDiskDropped(), {{fruit.cid, 7}});
     EXPECT_THAT(Collections::KVStore::decodeDroppedCollections(view(buf)),
                 UnorderedElementsAre(DroppedCollection{2, 8, dairy.cid},
                                      DroppedCollection{3, 9, vegetable.cid}));
 
     // Everything removed, the output is empty (no data)
     buf = Flush::encodeRelativeComplementOfDroppedCollections(
-            getDiskDropped(), {fruit.cid, dairy.cid, vegetable.cid}, 9);
+            getDiskDropped(),
+            {{fruit.cid, 7}, {dairy.cid, 8}, {vegetable.cid, 9}});
     EXPECT_EQ(0, buf.size());
 }
 

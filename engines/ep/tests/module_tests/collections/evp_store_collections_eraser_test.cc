@@ -67,6 +67,9 @@ public:
         }
     }
 
+    /// Body of the flush_then_drop_other_collection tests, see the definition
+    void flushThenDropOtherCollection(bool warmup);
+
     /**
      * Check that the persisted dropped collections list holds exactly the
      * given collections and that the persisted manifest and in-memory manifest
@@ -1408,6 +1411,152 @@ TEST_P(CollectionsEraserTest, flush_with_more_items) {
     runCollectionsEraser(vbid);
 
     EXPECT_EQ(5, vb->getNumItems());
+}
+
+// After fruit is flushed, dropping an unrelated collection must not cause the
+// eraser to purge fruit's post-flush (new generation) items. The on-disk
+// dropped list holds fruit{0, flushSeqno} and vegetable{createSeqno, dropSeqno}
+// and Collections::VB::ScanContext must evaluate the seqno range of each
+// dropped collection, not one window spanning all of them.
+// @param warmup if true the engine is restarted before the eraser runs, so
+//        the eraser works purely from the persisted dropped list.
+void CollectionsEraserTest::flushThenDropOtherCollection(bool warmup) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+    }
+
+    CollectionsManifest cm;
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "1");
+    store_item(vbid, StoredDocKey{"carrot", CollectionEntry::vegetable}, "1");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Flush fruit, apple is now logically deleted
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // New generation of fruit
+    auto pear = StoredDocKey{"pear", CollectionEntry::fruit};
+    store_item(vbid, pear, "1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // Drop vegetable - the drop seqno is above pear's seqno
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (warmup) {
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = store->getVBucket(vbid);
+        // Warmup restores the state, fruit is alive (1 item) and vegetable is
+        // gone.
+        EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+        EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::vegetable));
+        EXPECT_EQ(1,
+                  vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    }
+
+    runCollectionsEraser(vbid);
+
+    // apple and carrot are purged, pear must survive
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    if (!isFullEviction()) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->get(pear, vbid, cookie, get_options_t::NONE)
+                          .getStatus());
+    }
+
+    // The eraser processed both dropped entries, the list must be gone
+    auto [status, dropped] =
+            store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
+}
+
+TEST_P(CollectionsEraserTest, flush_then_drop_other_collection) {
+    flushThenDropOtherCollection(false);
+}
+
+TEST_P(CollectionsEraserTest, flush_then_drop_other_collection_warmup) {
+    flushThenDropOtherCollection(true);
+}
+
+// Flushing the same collection twice before compaction must not leave two
+// entries for the collection in the persisted dropped-collections list.
+TEST_P(CollectionsEraserTest, flush_twice_dropped_list) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto [status, dropped] =
+            store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    ASSERT_EQ(1, dropped.size());
+    EXPECT_EQ(CollectionEntry::fruit.getId(), dropped[0].collectionId);
+    // The end is the second flush
+    EXPECT_EQ(vb->getHighSeqno(), dropped[0].endSeqno);
+}
+
+// Dropping a collection, recreating it and then flushing it before compaction
+// must leave a single entry in the dropped list which covers everything below
+// the flush.
+TEST_P(CollectionsEraserTest, drop_recreate_flush_dropped_list) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto pear = StoredDocKey{"pear", CollectionEntry::fruit};
+    store_item(vbid, pear, "1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto flushSeqno = vb->getHighSeqno();
+    auto plum = StoredDocKey{"plum", CollectionEntry::fruit};
+    store_item(vbid, plum, "1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    {
+        auto [status, dropped] =
+                store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+        ASSERT_TRUE(status);
+        ASSERT_EQ(1, dropped.size());
+        EXPECT_EQ(CollectionEntry::fruit.getId(), dropped[0].collectionId);
+        EXPECT_EQ(flushSeqno, dropped[0].endSeqno);
+    }
+
+    runCollectionsEraser(vbid);
+
+    // apple and pear purged, plum survives
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    if (!isFullEviction()) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->get(plum, vbid, cookie, get_options_t::NONE)
+                          .getStatus());
+    }
+    auto [status, dropped] =
+            store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
 }
 
 // @todo: flush test where items are mixed in the flush batch. Any items ahead

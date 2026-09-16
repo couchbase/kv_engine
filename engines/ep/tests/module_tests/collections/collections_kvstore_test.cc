@@ -1251,6 +1251,8 @@ public:
     uint64_t getEndSeqno() const {
         return endSeqno;
     }
+
+    using ScanContext::getEndSeqno;
 };
 
 TEST(ScanContextTest, construct) {
@@ -1362,6 +1364,46 @@ TEST(ScanContextTest, isLogicallyDeleted) {
             SystemEventFactory::makeScopeEventKey(ScopeID(8)), false, 99));
     EXPECT_FALSE(tsc.isLogicallyDeleted(
             SystemEventFactory::makeScopeEventKey(ScopeID(8)), true, 99));
+}
+
+// A flushed collection is in the dropped list (start 0, end flush-seqno) but
+// is also alive. A second collection dropped at a higher seqno must not make
+// the new generation of the flushed collection logically deleted.
+TEST(ScanContextTest, flushedCollectionAndDroppedCollection) {
+    // fruit(8) flushed at seqno 5, vegetable(9) created at 1 dropped at 7
+    std::vector<Collections::KVStore::DroppedCollection> dc = {
+            {{0, 5, CollectionID{8}}, {1, 7, CollectionID{9}}}};
+    TestScanContext tsc{{}, dc};
+    EXPECT_EQ(0, tsc.getStartSeqno());
+    EXPECT_EQ(7, tsc.getEndSeqno());
+    EXPECT_EQ(5, tsc.getEndSeqno(CollectionID{8}));
+    EXPECT_EQ(7, tsc.getEndSeqno(CollectionID{9}));
+    EXPECT_EQ(0, tsc.getEndSeqno(CollectionID{10}));
+
+    auto fruit = StoredDocKey("apple", CollectionID(8));
+    auto vegetable = StoredDocKey("carrot", CollectionID(9));
+
+    // Old generation of fruit is logically deleted
+    EXPECT_TRUE(tsc.isLogicallyDeleted(fruit, false, 3));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(fruit, false, 4));
+    // The flush event itself and the new generation are not
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            false,
+            5));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(fruit, false, 6));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(fruit, false, 8));
+
+    // vegetable is deleted up to the drop
+    EXPECT_TRUE(tsc.isLogicallyDeleted(vegetable, false, 1));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(vegetable, false, 6));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(vegetable, false, 7));
+
+    // The dropped list has one entry per collection
+    std::vector<Collections::KVStore::DroppedCollection> dc2 = {
+            {{0, 5, CollectionID{8}}, {0, 9, CollectionID{8}}}};
+    EXPECT_THROW(TestScanContext({}, dc2), gsl::fail_fast);
 }
 
 // Test that when open collections is used, but there are no open collections

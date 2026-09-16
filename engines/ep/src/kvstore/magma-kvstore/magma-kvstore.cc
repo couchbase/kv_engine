@@ -3302,8 +3302,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     LocalDbReqs localDbReqs;
 
     Status status;
-    std::unordered_set<CollectionID> purgedCollections;
-    uint64_t purgedCollectionsEndSeqno = 0;
+    std::unordered_map<CollectionID, uint64_t> purgedCollections;
     auto compactionStatus = CompactDBStatus::Success;
     // Item counts of the dropped collections.
     std::vector<std::pair<Collections::KVStore::DroppedCollection, uint64_t>>
@@ -3419,9 +3418,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
             // This collection purged successfully, save this for later so that
             // we can update the droppedCollections local doc
-            purgedCollections.insert(dc.collectionId);
-            purgedCollectionsEndSeqno =
-                    std::max(dc.endSeqno, purgedCollectionsEndSeqno);
+            purgedCollections.emplace(dc.collectionId, dc.endSeqno);
         }
 
         // Also need to compact the prepare namespace as this is disjoint from
@@ -3513,10 +3510,8 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
         // 2) Generate a new flatbuffer document to write back
         auto fbData = Collections::VB::Flush::
-                encodeRelativeComplementOfDroppedCollections(
-                        droppedCollections,
-                        purgedCollections,
-                        purgedCollectionsEndSeqno);
+                encodeRelativeComplementOfDroppedCollections(droppedCollections,
+                                                             purgedCollections);
 
         // 3) If the function returned data, write it, else the document is
         // delete.
