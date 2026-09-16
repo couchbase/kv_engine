@@ -733,6 +733,35 @@ static cb::engine_errc stat_fusion_executor(const StatGroup& stat_group,
     return cb::engine_errc::not_supported;
 }
 
+/**
+ * Handler for the <code>stats warmup</code> command.
+ *
+ * Add a fast path for ephemeral buckets (type Couchbase to avoid
+ * getting a different response code from nobucket, crash bucket, ewb etc)
+ * as they have no notion of warmup.
+ *
+ * The motivation for this change is that ns_server's health checker
+ * runs this command (with a 1 sec auto failover it gets executed every
+ * 100ms), and there is no point of running the extra complexity of
+ *
+ *    1. dispatch the request to the NonIO thead pool
+ *    2. suspend this connection
+ *    3. let the task on the NonIO threadpool collect the stats (not found)
+ *       and try to notify this connection
+ *    4. pick up the notification and reschedule the connection
+ *    5. return the not found back to the client.
+ */
+static cb::engine_errc stat_warmup_executor(const StatGroup& stat_group,
+                                            const std::string& arg,
+                                            Cookie& cookie) {
+    const auto& bucket = cookie.getConnection().getBucket();
+    if (!bucket.supports(cb::engine::Feature::Persistence) &&
+        bucket.type == BucketType::Couchbase) {
+        return cb::engine_errc::no_such_key;
+    }
+    return stat_bucket_stats(stat_group, arg, cookie);
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -782,7 +811,8 @@ static std::unordered_map<StatGroupId, command_stat_handler> stat_handlers = {
          {true, stat_encryption_key_ids_executor}},
         {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
         {StatGroupId::Scheduler, {true, stat_scheduler_executor}},
-        {StatGroupId::Fusion, {true, stat_fusion_executor}}};
+        {StatGroupId::Fusion, {true, stat_fusion_executor}},
+        {StatGroupId::Warmup, {true, stat_warmup_executor}}};
 
 /**
  * For a given key, try and return the handler for it

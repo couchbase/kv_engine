@@ -67,7 +67,7 @@ void Bucket::reset() {
     pause_cancellation_source = folly::CancellationSource::invalid();
 }
 
-bool Bucket::supports(cb::engine::Feature feature) {
+bool Bucket::supports(cb::engine::Feature feature) const {
     return supportedFeatures.contains(feature);
 }
 

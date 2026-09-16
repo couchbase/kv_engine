@@ -212,7 +212,7 @@ public:
      * Convenience function to check if the bucket supports the feature by
      * searching for it in the supportedFeatures set.
      */
-    bool supports(cb::engine::Feature feature);
+    bool supports(cb::engine::Feature feature) const;
 
     /// Get a JSON representation of the bucket
     nlohmann::json to_json() const;
