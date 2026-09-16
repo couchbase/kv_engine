@@ -15,6 +15,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
 #include "checkpoint_utils.h"
+#include "collections/manager.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/durability_completion_task.h"
 #include "durability/durability_monitor.h"
@@ -872,7 +873,8 @@ TEST_P(DurabilityEPBucketTest, PersistPrepareAbortPrepareDeleteAbort) {
 }
 
 /// Test persistence of a prepared & committed SyncWrite, followed by a
-/// prepared & committed SyncDelete.
+/// prepared & committed SyncDelete. Test also verifies that collection
+/// stats are now updated in sync write operation
 TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -880,6 +882,14 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     auto& vb = *store->getVBucket(vbid);
+
+    // Lambda to fetch collection counters
+    auto counts = [this]() {
+        return store->getCollectionsManager().getOperationCounts(
+                CollectionID::Default);
+    };
+    ASSERT_EQ(0, counts().opsStore);
+    ASSERT_EQ(0, counts().opsDelete);
 
     // prepare SyncWrite and commit.
     auto key = makeStoredDocKey("key");
@@ -916,6 +926,9 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(0, vb.opsDelete);
 
+    EXPECT_EQ(1, counts().opsStore);
+    EXPECT_EQ(0, counts().opsDelete);
+
     // prepare SyncDelete and commit.
     uint64_t cas = 0;
     using namespace cb::durability;
@@ -935,6 +948,10 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(1, vb.opsCreate);
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(0, vb.opsDelete);
+
+    // Collection counts shouldn't change prematurely on preparing.
+    EXPECT_EQ(1, counts().opsStore);
+    EXPECT_EQ(0, counts().opsDelete);
 
     {
         std::shared_lock rlh(vb.getStateLock());
@@ -968,6 +985,9 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(1, vb.opsCreate);
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(1, vb.opsDelete);
+
+    EXPECT_EQ(1, counts().opsStore);
+    EXPECT_EQ(1, counts().opsDelete);
 }
 
 // a committed SyncDelete's tombstone must be stored with flags==0 as a
