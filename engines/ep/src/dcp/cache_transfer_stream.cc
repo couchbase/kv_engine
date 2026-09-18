@@ -366,6 +366,9 @@ bool CacheTransferTask::run() {
 
     if (position == vb->ht.endPosition() ||
         CacheTransferStream::isFinished(visitor.getStatus())) {
+        // setDead does not flush, so hand over the final batch here.
+        stream.flushBuffer();
+
         // Calculate total runtime
         auto endTime = cb::time::steady_clock::now();
         auto totalRuntimeMs =
@@ -488,9 +491,8 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
             return;
         }
 
-        // Flush any buffered items before ending the stream.
-        flushBufferLocked(lh);
-
+        // A partial batch belongs to the visiting task and is not flushed
+        // here - the task flushes before ending a completed transfer.
         if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
             request.end_seqno > request.start_seqno) {
             state = State::SwitchingToActiveStream;
@@ -504,18 +506,15 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     notifyStreamReady(false, getProducer().get());
 }
 
+// MB-74148: Not yet called by DcpProducer for a CacheTransferStream (only
+// invoked on SnapshotMarker, which this stream never produces).
 bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
     // Does this stream still have the appropriate privileges to operate?
     if (filter.checkPrivileges(*producer.getCookie(), engine) !=
         cb::engine_errc::success) {
-        {
-            std::lock_guard<std::mutex> lh(streamMutex);
-            // Flush any buffered items before ending the stream
-            flushBufferLocked(lh);
-            pushToReadyQ(makeEndStreamResponse(
-                    cb::mcbp::DcpStreamEndStatus::LostPrivileges));
-        }
-        notifyStreamReady(false, &producer);
+        // setDead moves the stream to Dead so the task stops queueing (and
+        // drops any partial batch) rather than queueing after the stream-end.
+        setDead(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         return true;
     }
     return false;
@@ -808,16 +807,17 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
                             sizeof(cb::mcbp::request::DcpCacheTransferPayload);
     cb::unique_item_ptr itemPtr{uniqueItem.release(), cb::ItemDeleter(&engine)};
 
-    std::lock_guard<std::mutex> lh(streamMutex);
     if (state.load() != State::Active) {
         return false;
     }
 
     // Check if adding this item would exceed the batch byte or item limit and
     // we have items to flush
-    if (!itemsBuffer.empty() && (bufferedSize + wireSize > batchMaxSize ||
-                                 itemsBuffer.size() >= batchMaxItems)) {
-        flushBufferLocked(lh);
+    const auto noSpaceAvailable = (bufferedSize + wireSize > batchMaxSize ||
+                                   itemsBuffer.size() >= batchMaxItems);
+    if (noSpaceAvailable && !flushBuffer()) {
+        // state.load() != State::Active
+        return false;
     }
 
     // Add item to buffer as cb::ItemWithCacheHint
@@ -833,10 +833,10 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
 }
 
 bool CacheTransferStream::flushBuffer() {
-    std::lock_guard<std::mutex> lh(streamMutex);
     if (itemsBuffer.empty()) {
         return true;
     }
+    std::lock_guard<std::mutex> lh(streamMutex);
     if (state.load() != State::Active) {
         // Clear buffer but return false to indicate stream is not active
         itemsBuffer.clear();
