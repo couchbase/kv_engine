@@ -27,6 +27,7 @@
 #include <memcached/protocol_binary.h>
 #include <statistics/cbstat_collector.h>
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -458,6 +459,8 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
         availableBytes.reset();
     }
 
+    reserveBuffer();
+
     OBJ_LOG_INFO_CTX(p->getLogger(),
                      "Creating CacheTransferStream",
                      {"max_seqno", request.start_seqno},
@@ -863,6 +866,14 @@ void CacheTransferStream::flushBufferLocked(
 
     // Reset buffer state (itemsBuffer is now empty after move)
     bufferedSize = 0;
+
+    // The move took the buffer's storage, so restore its capacity.
+    reserveBuffer();
+}
+
+void CacheTransferStream::reserveBuffer() {
+    // batchMaxItems of 0 is documented as one item per batch.
+    itemsBuffer.reserve(std::max(batchMaxItems, size_t{1}));
 }
 
 size_t CacheTransferStream::getBufferedSize() const {
