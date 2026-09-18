@@ -36,6 +36,11 @@ namespace cb::mcbp {
  * The class provides an iterator interface for traversing the items.
  * Validation is performed during iteration rather than construction,
  * except for a minimal size check in the constructor.
+ *
+ * A failed advance leaves the iterator with no current item, which compares
+ * equal to end(). hasError() must therefore be checked immediately after
+ * every advance - begin() advances as well as operator++ - and never only at
+ * the top of a loop body, which a failed advance does not reach.
  */
 class DcpCacheTransferBuffer {
 public:
@@ -160,7 +165,10 @@ public:
         }
 
         /**
-         * Check if iteration encountered an error.
+         * Check if iteration encountered an error. Must be called after
+         * each advance, before comparing against end() - see the class
+         * comment.
+         *
          * @return true if an error occurred during iteration
          */
         bool hasError() const {
