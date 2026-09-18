@@ -802,10 +802,9 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
     auto uniqueItem = sv.toItem(getVBucket(),
                                 StoredValue::HideLockedCas::No,
                                 includeValueForThisItem);
-    const size_t wireSize = uniqueItem->getValMemSize() +
-                            uniqueItem->getKey().size() +
-                            sizeof(cb::mcbp::request::DcpCacheTransferPayload);
     cb::unique_item_ptr itemPtr{uniqueItem.release(), cb::ItemDeleter(&engine)};
+
+    const size_t wireSize = DcpCacheTransfer::getItemWireSize(*itemPtr);
 
     if (state.load() != State::Active) {
         return false;
@@ -853,9 +852,16 @@ void CacheTransferStream::flushBufferLocked(
         return;
     }
 
+    // bufferedSize is the sum of getItemWireSize over the batch.
+    const auto flowControlSize = static_cast<uint32_t>(
+            DcpCacheTransfer::getFramingSize(sid) + bufferedSize);
+
     // Move items directly to DcpCacheTransfer - no extra allocation needed
-    auto response = std::make_unique<DcpCacheTransfer>(
-            opaque_, std::move(itemsBuffer), getVBucket(), sid);
+    auto response = std::make_unique<DcpCacheTransfer>(opaque_,
+                                                       std::move(itemsBuffer),
+                                                       getVBucket(),
+                                                       sid,
+                                                       flowControlSize);
 
     totalBytesQueued += response->getMessageSize();
     pushToReadyQ(std::move(response));
