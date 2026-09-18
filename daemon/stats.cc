@@ -112,6 +112,8 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(
                 Key::tls_certificate_verification_problems,
                 global_statistics.tls_certificate_verification_problems);
+        collector.addStat(Key::node_capacity,
+                          Settings::instance().getNodeCapacity());
         if (isFusionSupportEnabled()) {
             collector.addStat(Key::fusion_migration_rate_limit,
                               magma::Magma::GetFusionMigrationRateLimit());
