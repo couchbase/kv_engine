@@ -484,7 +484,7 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     ExecutorPool::get()->cancel(tid);
     {
         std::lock_guard<std::mutex> lh(streamMutex);
-        if (state != State::Active) {
+        if (state.load() != State::Active) {
             return;
         }
 
@@ -540,7 +540,7 @@ void CacheTransferStream::cancelTransfer() {
         // Log only on transition from Active. There could be many in-flight
         // messages triggering the cancel. setDead will change the state of this
         // stream to be !Active.
-        logMessage = state == State::Active;
+        logMessage = state.load() == State::Active;
     }
     if (logMessage) {
         OBJ_LOG_INFO_CTX(
@@ -596,7 +596,7 @@ std::string CacheTransferStream::getStreamTypeName() const {
 }
 
 std::string CacheTransferStream::getStateName() const {
-    switch (state) {
+    switch (state.load()) {
     case State::Active:
         return "Active";
     case State::SwitchingToActiveStream:
@@ -608,8 +608,8 @@ std::string CacheTransferStream::getStateName() const {
 }
 
 bool CacheTransferStream::isActive() const {
-    std::lock_guard<std::mutex> lh(streamMutex);
-    return state != State::Dead;
+    // Lock free - see the declaration of state.
+    return state.load() != State::Dead;
 }
 
 std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
@@ -809,7 +809,7 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
     cb::unique_item_ptr itemPtr{uniqueItem.release(), cb::ItemDeleter(&engine)};
 
     std::lock_guard<std::mutex> lh(streamMutex);
-    if (state != State::Active) {
+    if (state.load() != State::Active) {
         return false;
     }
 
@@ -837,7 +837,7 @@ bool CacheTransferStream::flushBuffer() {
     if (itemsBuffer.empty()) {
         return true;
     }
-    if (state != State::Active) {
+    if (state.load() != State::Active) {
         // Clear buffer but return false to indicate stream is not active
         itemsBuffer.clear();
         bufferedSize = 0;

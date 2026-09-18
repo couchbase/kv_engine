@@ -15,6 +15,7 @@
 #include "dcp/producer_stream.h"
 #include "dcp/stream_request_info.h"
 #include <memcached/dcp.h>
+#include <atomic>
 #include <memory>
 
 class StoredValue;
@@ -222,7 +223,13 @@ protected:
      * Active -> SwitchingToActiveStream -> Dead
      */
     enum class State { Active, SwitchingToActiveStream, Dead };
-    State state{State::Active};
+
+    /**
+     * The stream state. Written only under streamMutex, which serialises a
+     * transition with its readyQ push. Atomic so that the advisory isActive()
+     * check, made once per hash bucket, needs no lock.
+     */
+    std::atomic<State> state{State::Active};
 
     /// ID of the task generating data for the stream.
     size_t tid{0};
