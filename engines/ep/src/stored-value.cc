@@ -95,15 +95,13 @@ StoredValue::StoredValue(DocKeyView key,
 
     new (this->key()) SerialisedDocKey(key);
 
-    Blob* data{nullptr};
-    if (value.empty()) {
-        data = Blob::New(0);
-        // resident defaults to false.
-    } else {
-        data = Blob::New(value.data(), value.size());
+    // No value means non-resident with a null Blob pointer, the same state an
+    // ejected StoredValue holds. resident defaults to false.
+    if (!value.empty()) {
+        this->value.reset(
+                TaggedPtr<Blob>(Blob::New(value.data(), value.size()), 0));
         setResident(true);
     }
-    this->value.reset(TaggedPtr<Blob>(data, 0));
 
     // Finally set the "tag-owned" members.
     setAge(0);
