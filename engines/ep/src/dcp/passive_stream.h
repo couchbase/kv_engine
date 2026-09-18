@@ -151,12 +151,13 @@ public:
      * Process a cache transfer message (from a DcpCacheTransfer
      * producer stream).
      *
+     * @param vb the vbucket the message was received for
      * @param items batch of items to push to cache
      * @return cb::engine_errc::success if the item(s) were inserted into the
      * cache otherwise a status code for why not.
      */
     cb::engine_errc processCacheTransfer(
-            const cb::mcbp::DcpCacheTransferBuffer items);
+            VBucket& vb, const cb::mcbp::DcpCacheTransferBuffer items);
 
 protected:
     bool transitionState(StreamState newState);
