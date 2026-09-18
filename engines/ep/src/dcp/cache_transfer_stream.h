@@ -139,8 +139,10 @@ public:
         logWithContext(level, msg, cb::logger::Json::object());
     }
 
-    std::function<void(const StoredValue&)> preQueueCallback =
-            [](const auto&) { /*nothing*/ };
+    /// Test hook for each StoredValue the visitor offers. Left empty rather
+    /// than defaulted to a do-nothing lambda, as it is reached for every item
+    /// walked.
+    std::function<void(const StoredValue&)> preQueueCallback;
 
     Collections::VB::Filter takeFilter() {
         return std::move(filter);

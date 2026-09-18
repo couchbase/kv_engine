@@ -710,7 +710,9 @@ bool CacheTransferStream::skip(const StoredValue& sv,
 
 CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         const StoredValue& sv, Collections::VB::ReadHandle& readHandle) {
-    preQueueCallback(sv);
+    if (preQueueCallback) {
+        preQueueCallback(sv);
+    }
 
     // Lots of little checks to make to decide if the item found in the
     // hash-table should be skipped or queued.
