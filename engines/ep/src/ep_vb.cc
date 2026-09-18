@@ -15,6 +15,7 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/flush.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill_by_id_disk.h"
 #include "dcp/backfill_by_seqno_disk.h"
@@ -1247,6 +1248,16 @@ void EPVBucket::collectionsRolledBack(VBucketStateLockRef vbStateLock,
 
     manifest = std::make_unique<Collections::VB::Manifest>(
             bucket.getSharedCollectionsManager(), persistedManifest);
+
+    // rollback can restore a disk state where a collection is recorded as
+    // dropped but its data has not been purged; compaction scheduled when the
+    // drop was flushed may already have run so nothing remains to remove the
+    // data
+    if (manifest->isDropInProgress()) {
+        Collections::VB::Flush::triggerPurge(getId(),
+                                             dynamic_cast<EPBucket&>(bucket));
+    }
+
     auto wh = manifest->wlock(vbStateLock);
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
