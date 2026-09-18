@@ -1505,6 +1505,8 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         engine->getEpStats().cacheTransferBytesRead += bytesRead;
     });
 
+    // Build outside of loop/locked scope. The buffer end sentinel can allocate
+    const auto end = items.end();
     auto manifest = vb->lockCollections();
     // The previously checked collection. The manifest read handle is held for
     // the whole message, so a collection checked once cannot be dropped
@@ -1528,24 +1530,25 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         return bufferError(itr);
     }
 
-    while (itr != items.end()) {
+    while (itr != end) {
         const auto& item = *itr;
 
         DocKeyView key(item.getKey(), DocKeyEncodesCollectionId::Yes);
+        const auto cid = key.getCollectionID();
         // It would be really odd if the vbucket didn't know about this
         // collection.
-        if (key.getCollectionID() != checkedCollection) {
-            if (!manifest.exists(key.getCollectionID())) {
+        if (cid != checkedCollection) {
+            if (!manifest.exists(cid)) {
                 OBJ_LOG_WARN_CTX(
                         *this,
                         "PassiveStream::processCacheTransfer: collection "
                         "does not exist",
                         {"vb", vb_},
                         {"seqno", item.getBySeqno()},
-                        {"collection_id", key.getCollectionID()});
+                        {"collection_id", cid});
                 return cb::engine_errc::unknown_collection;
             }
-            checkedCollection = key.getCollectionID();
+            checkedCollection = cid;
         }
 
         // Add the key/meta and value
