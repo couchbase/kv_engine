@@ -4308,7 +4308,7 @@
         "key": "ep_hlc_drift_count",
         "unit": "none",
         "cbstat": "ep_{state}_hlc_drift_count",
-        "description": "The accumulated number of times the corresponding kv_ep_hlc_drift_count has been updated",
+        "description": "The accumulated number of times the corresponding kv_ep_hlc_drift has been updated",
         "added": "7.0.0"
     },
     {
