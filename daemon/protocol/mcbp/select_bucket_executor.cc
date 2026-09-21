@@ -33,21 +33,6 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 
     auto& bm = BucketManager::instance();
     if (bm.associateBucket(cookie, bucketname)) {
-        // We found the bucket, great. Test to see if it is valid for the
-        // given connection
-        if (connection.isCollectionsSupported() &&
-            !connection.getBucket().supports(
-                    cb::engine::Feature::Collections)) {
-            // It wasn't valid, try to jump back to the bucket we used to be
-            // associated with..
-            if (oldIndex != connection.getBucketIndex()) {
-                bm.associateBucket(cookie, bm.at(oldIndex).name);
-            }
-            cookie.setErrorContext(
-                    "Destination bucket does not support collections");
-            return cb::engine_errc::not_supported;
-        }
-
         if (cb::serverless::isEnabled() && !connection.isInternal()) {
             using cb::serverless::Config;
             if (connection.getBucket().references >

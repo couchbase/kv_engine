@@ -297,14 +297,10 @@ void process_hello_packet_executor(Cookie& cookie) {
             connection.setXerrorSupport(true);
             added = true;
             break;
-        case Feature::Collections: {
-            auto& bucket = connection.getBucket();
-            // Abort if the engine cannot support collections
-            if (bucket.supports(cb::engine::Feature::Collections)) {
-                connection.setCollectionsSupported(true);
-                added = true;
-            }
-        } break;
+        case Feature::Collections:
+            connection.setCollectionsSupported(true);
+            added = true;
+            break;
         case Feature::DedupeNotMyVbucketClustermap:
             connection.setDedupeNmvbMaps(true);
             added = true;

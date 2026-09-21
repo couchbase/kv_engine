@@ -212,7 +212,7 @@ public:
     }
 
     cb::engine::FeatureSet getFeatures() override {
-        return {};
+        return {cb::engine::Feature::Collections};
     }
 
     std::optional<cb::HlcTime> getVBucketHlcNow(Vbid) override {
