@@ -680,7 +680,9 @@ TEST_P(SubdocTestappTest, TestSubdocOpAfterWholedocSetNonJson) {
             cb::mcbp::ClientOpcode::SubdocReplace,
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-            cb::mcbp::ClientOpcode::SubdocArrayAddUnique};
+            cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveAll};
 
     // expect that any Subdoc mutation following a non-json wholedoc will fail
     for (size_t i = 0; i < mutationOpcodes.size(); i++) {
@@ -753,7 +755,9 @@ TEST_P(SubdocTestappTest,
             cb::mcbp::ClientOpcode::SubdocReplace,
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-            cb::mcbp::ClientOpcode::SubdocArrayAddUnique};
+            cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveAll};
 
     // expect that any Subdoc mutation will fail
     for (size_t i = 0; i < opcodes.size(); i++) {

@@ -1158,6 +1158,20 @@ void subdoc_array_add_unique_executor(Cookie& cookie) {
             .drive();
 }
 
+void subdoc_array_remove_first_executor(Cookie& cookie) {
+    cookie.obtainContext<SubdocCommandContext>(
+                  cookie,
+                  get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst>())
+            .drive();
+}
+
+void subdoc_array_remove_all_executor(Cookie& cookie) {
+    cookie.obtainContext<SubdocCommandContext>(
+                  cookie,
+                  get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveAll>())
+            .drive();
+}
+
 void subdoc_counter_executor(Cookie& cookie) {
     cookie.obtainContext<SubdocCommandContext>(
                   cookie, get_traits<cb::mcbp::ClientOpcode::SubdocCounter>())

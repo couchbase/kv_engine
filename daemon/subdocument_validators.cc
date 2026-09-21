@@ -324,6 +324,17 @@ cb::mcbp::Status subdoc_array_add_unique_validator(Cookie& cookie) {
             cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>());
 }
 
+cb::mcbp::Status subdoc_array_remove_first_validator(Cookie& cookie) {
+    return subdoc_validator(
+            cookie,
+            get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst>());
+}
+
+cb::mcbp::Status subdoc_array_remove_all_validator(Cookie& cookie) {
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveAll>());
+}
+
 cb::mcbp::Status subdoc_counter_validator(Cookie& cookie) {
     return subdoc_validator(
             cookie, get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());

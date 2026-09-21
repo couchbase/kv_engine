@@ -819,6 +819,78 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
     EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
+TEST_P(SubdocMultiMutationTest, ValidArrayRemoveFirst) {
+    // No Mkdir_p flag support (can't remove from a non-existent array).
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                         cb::mcbp::subdoc::PathFlag(0),
+                         "path",
+                         "value"});
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+
+    // Allowed empty path.
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                     cb::mcbp::subdoc::PathFlag(0),
+                     "",
+                     "value"};
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+}
+
+TEST_P(SubdocMultiMutationTest, InvalidArrayRemoveFirst) {
+    // Mkdir_p is not a valid flag for this command.
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p,
+                         "path",
+                         "value"});
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
+
+    // Must have value
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                     cb::mcbp::subdoc::PathFlag(0),
+                     "path",
+                     ""};
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
+}
+
+TEST_P(SubdocMultiMutationTest, ValidArrayRemoveAll) {
+    // No Mkdir_p flag support (can't remove from a non-existent array).
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                         cb::mcbp::subdoc::PathFlag(0),
+                         "path",
+                         "value"});
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+
+    // Allowed empty path.
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                     cb::mcbp::subdoc::PathFlag(0),
+                     "",
+                     "value"};
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+}
+
+TEST_P(SubdocMultiMutationTest, InvalidArrayRemoveAll) {
+    // Mkdir_p is not a valid flag for this command.
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p,
+                         "path",
+                         "value"});
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
+
+    // Must have value
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                     cb::mcbp::subdoc::PathFlag(0),
+                     "path",
+                     ""};
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
+}
+
 TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
     // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocCounter,
@@ -876,6 +948,8 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
         case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
         case cb::mcbp::ClientOpcode::SubdocCounter:
         case cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr:
             continue;

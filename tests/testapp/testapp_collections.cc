@@ -1779,6 +1779,49 @@ TEST_P(CollectionsTest,
             ClientOpcode::SubdocArrayAddUnique, key, "v1", "true"};
     execute(*admin, command, true, false, true, Status::KeyEnoent);
 }
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayRemoveFirst_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveFirst, key, "v1", "true"};
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+TEST_P(CollectionsTest,
+       ClientOpcode_SubdocArrayRemoveFirst_with_euid_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveFirst, key, "v1", "true"};
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayRemoveFirst_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveFirst, key, "v1", "true"};
+    execute(*admin, command, false, false, false, Status::KeyEnoent);
+}
+TEST_P(CollectionsTest,
+       ClientOpcode_SubdocArrayRemoveFirst_with_euid_with_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveFirst, key, "v1", "true"};
+    execute(*admin, command, true, false, true, Status::KeyEnoent);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayRemoveAll_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveAll, key, "v1", "true"};
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayRemoveAll_with_euid_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveAll, key, "v1", "true"};
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayRemoveAll_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveAll, key, "v1", "true"};
+    execute(*admin, command, false, false, false, Status::KeyEnoent);
+}
+TEST_P(CollectionsTest,
+       ClientOpcode_SubdocArrayRemoveAll_with_euid_with_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayRemoveAll, key, "v1", "true"};
+    execute(*admin, command, true, false, true, Status::KeyEnoent);
+}
 TEST_P(CollectionsTest, ClientOpcode_SubdocGetCount_no_access) {
     BinprotSubdocCommand command{ClientOpcode::SubdocGetCount, key, "hello"};
     executeInSystemCollectionWithoutAccess(*user, command, false);

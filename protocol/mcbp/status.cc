@@ -99,6 +99,7 @@ bool is_known(Status status) {
     case Status::SubdocCanOnlyReviveDeletedDocuments:
     case Status::SubdocDeletedDocumentCantHaveValue:
     case Status::SubdocFieldNotBinaryValue:
+    case Status::SubdocValueNotFound:
         return true;
     case Status::COUNT:
     case Status::ReservedUserStart:
@@ -194,6 +195,7 @@ bool isStatusSuccess(Status status) {
     case Status::SubdocCanOnlyReviveDeletedDocuments:
     case Status::SubdocDeletedDocumentCantHaveValue:
     case Status::SubdocFieldNotBinaryValue:
+    case Status::SubdocValueNotFound:
     case Status::COUNT:
     case Status::ReservedUserStart:
     case Status::ReservedUserEnd:
@@ -405,6 +407,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "SubdocDeletedDocumentCantHaveValue";
         case Status::SubdocFieldNotBinaryValue:
             return "SubdocFieldNotBinaryValue";
+        case Status::SubdocValueNotFound:
+            return "SubdocValueNotFound";
         case Status::COUNT:
         case Status::ReservedUserStart:
         case Status::ReservedUserEnd:
@@ -588,6 +592,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Subdoc: A deleted document can't have a value";
         case Status::SubdocFieldNotBinaryValue:
             return "Subdoc: The field is not a binary value";
+        case Status::SubdocValueNotFound:
+            return "Subdoc: The requested value was not found in the array";
 
         // Following are here to keep compiler happy; either handled below or
         // will throw if invalid (e.g. COUNT).

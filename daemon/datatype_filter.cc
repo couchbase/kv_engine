@@ -59,6 +59,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SubdocAllowReplicaReadOnDeletedDocs:
     case cb::mcbp::Feature::MutateWithMeta:
     case cb::mcbp::Feature::DcpSkipDeletesInInitialBackfill:
+    case cb::mcbp::Feature::SubdocArrayRemoveValue:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

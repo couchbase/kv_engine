@@ -170,6 +170,8 @@ static void mcbp_validate_response_header(const cb::mcbp::Response& response,
         case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
             ASSERT_EQ(0, response.getKeylen());
             ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES,
                       uint8_t(response.getDatatype()));

@@ -195,6 +195,90 @@ protected:
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getDataView());
     }
 
+    void doArrayRemoveFirstTest(const std::string& path) {
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                           name,
+                           path,
+                           "\"Smith\"",
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                      name,
+                      path,
+                      "\"Jones\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        // Only the first "Smith" should be removed if there were more than
+        // one - add a second one to verify that.
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                      name,
+                      path,
+                      "\"Smith\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                      name,
+                      path,
+                      "\"Smith\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc_get(path, PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getDataView());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                      name,
+                      path,
+                      "\"NotThere\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::SubdocValueNotFound, resp.getStatus());
+    }
+
+    void doArrayRemoveAllTest(const std::string& path) {
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                           name,
+                           path,
+                           "\"Smith\"",
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                      name,
+                      path,
+                      "\"Jones\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                      name,
+                      path,
+                      "\"Smith\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                      name,
+                      path,
+                      "\"Smith\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+        resp = subdoc_get(path, PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ("[\"Jones\"]", resp.getDataView());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                      name,
+                      path,
+                      "\"NotThere\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::SubdocValueNotFound, resp.getStatus());
+    }
+
     void doCounterTest(const std::string& path) {
         auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
                            name,
@@ -1145,6 +1229,36 @@ TEST_P(XattrTest, ArrayAddUnique_FullXattrSpec) {
  */
 TEST_P(XattrTest, ArrayAddUnique_PartialXattrSpec) {
     doAddUniqueTest("doc.authors");
+}
+
+/**
+ * Removes the first array element equal to a given value, at the root
+ * of the given X-Key.
+ */
+TEST_P(XattrTest, ArrayRemoveFirst_FullXattrSpec) {
+    doArrayRemoveFirstTest("doc");
+}
+
+/**
+ * Removes the first array element equal to a given value, by X-Path.
+ */
+TEST_P(XattrTest, ArrayRemoveFirst_PartialXattrSpec) {
+    doArrayRemoveFirstTest("doc.authors");
+}
+
+/**
+ * Removes every array element equal to a given value, at the root of
+ * the given X-Key.
+ */
+TEST_P(XattrTest, ArrayRemoveAll_FullXattrSpec) {
+    doArrayRemoveAllTest("doc");
+}
+
+/**
+ * Removes every array element equal to a given value, by X-Path.
+ */
+TEST_P(XattrTest, ArrayRemoveAll_PartialXattrSpec) {
+    doArrayRemoveAllTest("doc.authors");
 }
 
 /**

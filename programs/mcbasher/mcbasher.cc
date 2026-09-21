@@ -387,6 +387,8 @@ protected:
         case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
         case cb::mcbp::ClientOpcode::SubdocCounter:
         case cb::mcbp::ClientOpcode::SubdocMultiLookup:
         case cb::mcbp::ClientOpcode::SubdocMultiMutation:

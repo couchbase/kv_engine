@@ -28,6 +28,8 @@ void subdoc_array_push_last_executor(Cookie& cookie);
 void subdoc_array_push_first_executor(Cookie& cookie);
 void subdoc_array_insert_executor(Cookie& cookie);
 void subdoc_array_add_unique_executor(Cookie& cookie);
+void subdoc_array_remove_first_executor(Cookie& cookie);
+void subdoc_array_remove_all_executor(Cookie& cookie);
 void subdoc_counter_executor(Cookie& cookie);
 void subdoc_get_count_executor(Cookie& cookie);
 void subdoc_replace_body_with_xattr_executor(Cookie& cookie);

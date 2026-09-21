@@ -283,6 +283,52 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayAddUnique) {
     testMultipathArrayAddUnique();
 }
 
+// ArrayRemoveFirst/ArrayRemoveAll don't support Mkdir_p (there's nothing
+// sensible to "remove" from a freshly created, empty array), so unlike
+// ArrayAddUnique they can't create the array-holding tombstone in a
+// single request. Create it first, then remove from it in a second
+// request against the now-existing (deleted) document.
+void XattrNoDocTest::testMultipathArrayRemoveFirst() {
+    BinprotSubdocMultiMutationCommand createCmd(
+            name,
+            {{ClientOpcode::SubdocArrayPushLast,
+              PathFlag::XattrPath,
+              "array",
+              "4"}},
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
+            durReqs);
+
+    auto resp = subdocMultiMutation(createCmd);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    BinprotSubdocMultiMutationCommand removeCmd(
+            name,
+            {{ClientOpcode::SubdocArrayRemoveFirst,
+              PathFlag::XattrPath,
+              "array",
+              "4"}},
+            DocFlag::AccessDeleted | DocFlag::ReviveDocument,
+            durReqs);
+
+    // ReviveDocument resurrects the tombstone into a live document as
+    // part of this mutation, so the result (and subsequent access) is
+    // that of a normal live document, not a deleted one.
+    resp = subdocMultiMutation(removeCmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    EXPECT_EQ("[]", resp.getDataView());
+}
+
+TEST_P(XattrNoDocTest, MultipathArrayRemoveFirst) {
+    testMultipathArrayRemoveFirst();
+}
+
+TEST_P(XattrNoDocDurabilityTest, MultipathArrayRemoveFirst) {
+    testMultipathArrayRemoveFirst();
+}
+
 void XattrNoDocTest::testMultipathCounter() {
     BinprotSubdocMultiMutationCommand cmd(
             name,

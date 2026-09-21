@@ -131,6 +131,34 @@ TEST_P(SubdocPerfTest, Array_RemoveLast) {
     delete_object("list");
 }
 
+// Create an N-element array of unique values, then benchmark removing each
+// value (by value, not index) one at a time.
+TEST_P(SubdocPerfTest, Array_RemoveByValueFirst) {
+    store_document("list", subdoc_create_array(iterations));
+
+    for (size_t i = 0; i < iterations; i++) {
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                "list",
+                "",
+                std::to_string(i))));
+    }
+    delete_object("list");
+}
+
+// As per Array_RemoveByValueFirst, but using ArrayRemoveAll.
+TEST_P(SubdocPerfTest, Array_RemoveByValueAll) {
+    store_document("list", subdoc_create_array(iterations));
+
+    for (size_t i = 0; i < iterations; i++) {
+        ASSERT_TRUE(subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                "list",
+                "",
+                std::to_string(i))));
+    }
+    delete_object("list");
+}
 
 // Create an N-element array, then benchmark replacing the first element.
 TEST_P(SubdocPerfTest, Array_ReplaceFirst) {

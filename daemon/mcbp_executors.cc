@@ -1003,6 +1003,10 @@ void initialize_mbcp_lookup_map() {
                   subdoc_array_insert_executor);
     setup_handler(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                   subdoc_array_add_unique_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                  subdoc_array_remove_first_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                  subdoc_array_remove_all_executor);
     setup_handler(cb::mcbp::ClientOpcode::SubdocCounter,
                   subdoc_counter_executor);
     setup_handler(cb::mcbp::ClientOpcode::SubdocMultiLookup,

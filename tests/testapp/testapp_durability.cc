@@ -261,6 +261,22 @@ TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
     executeCommand(payload, Status::Success);
 }
 
+TEST_P(SubdocDurabilityTest, SubdocArrayRemoveFirstMaybeSupported) {
+    BinprotSubdocCommand cmd(
+            ClientOpcode::SubdocArrayRemoveFirst, name, "array", "1");
+    std::vector<uint8_t> payload;
+    cmd.encode(payload);
+    executeCommand(payload, Status::Success);
+}
+
+TEST_P(SubdocDurabilityTest, SubdocArrayRemoveAllMaybeSupported) {
+    BinprotSubdocCommand cmd(
+            ClientOpcode::SubdocArrayRemoveAll, name, "array", "1");
+    std::vector<uint8_t> payload;
+    cmd.encode(payload);
+    executeCommand(payload, Status::Success);
+}
+
 TEST_P(SubdocDurabilityTest, SubdocCounterMaybeSupported) {
     BinprotSubdocCommand cmd(ClientOpcode::SubdocCounter, name, "counter", "1");
     std::vector<uint8_t> payload;

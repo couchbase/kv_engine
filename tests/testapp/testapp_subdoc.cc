@@ -1208,6 +1208,138 @@ TEST_P(SubdocTestappTest, SubdocArrayAddUnique_Simple) {
     delete_object("d");
 }
 
+TEST_P(SubdocTestappTest, SubdocArrayRemoveFirst_Simple) {
+    // a). Remove the only element in a single-element array.
+    store_document("a", "[0]");
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst, "a", "", "0"));
+    validate_json_document("a", "[]");
+    delete_object("a");
+
+    // b). Removing a value not present in the array fails.
+    store_document("b", "[0,1,2]");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                                 "b",
+                                 "",
+                                 "9"),
+            cb::mcbp::Status::SubdocValueNotFound);
+    validate_json_document("b", "[0,1,2]");
+
+    // c). Only the *first* occurrence of a repeated value is removed.
+    delete_object("b");
+    store_document("b", "[1,2,1,2,1]");
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst, "b", "", "1"));
+    validate_json_document("b", "[2,1,2,1]");
+
+    // d). Check that all permitted types of values can be found and removed:
+    delete_object("b");
+    const std::vector<std::string> valid_values(
+            {"\"string\"", "10", "1.0", "true", "false", "null"});
+    std::string array = "[";
+    for (const auto& v : valid_values) {
+        array += v + ",";
+    }
+    array.back() = ']';
+    store_document("b", array);
+    for (const auto& v : valid_values) {
+        EXPECT_SD_OK(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst, "b", "", v));
+    }
+    validate_json_document("b", "[]");
+
+    // e). Check it is not permitted to search for non-primitive types.
+    const std::vector<std::string> invalid_values(
+            {R"({"foo": "bar"})", "[0,1,2]"});
+    for (const auto& v : invalid_values) {
+        EXPECT_SUBDOC_CMD(
+                BinprotSubdocCommand(
+                        cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                        "b",
+                        "",
+                        v),
+                cb::mcbp::Status::SubdocValueCantinsert,
+                "");
+    }
+    delete_object("b");
+
+    // f). Attempts to remove from an array with non-primitive values fail.
+    store_document("c", R"([{"a":"b"}])");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                                 "c",
+                                 "",
+                                 "1"),
+            cb::mcbp::Status::SubdocPathMismatch);
+    delete_object("c");
+
+    // g). Removing from a path which isn't an array fails.
+    store_document("e", R"({"foo":"bar"})");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                                 "e",
+                                 "",
+                                 "1"),
+            cb::mcbp::Status::SubdocPathMismatch);
+    delete_object("e");
+
+    // h). Removing from an array which doesn't exist fails with
+    // PathEnoent (and not ValueNotFound).
+    store_document("f", R"({"foo":[1]})");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                                 "f",
+                                 "bar",
+                                 "1"),
+            cb::mcbp::Status::SubdocPathEnoent);
+    delete_object("f");
+}
+
+TEST_P(SubdocTestappTest, SubdocArrayRemoveAll_Simple) {
+    // a). Every occurrence of the value is removed, other elements untouched.
+    store_document("a", "[1,2,1,2,1]");
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveAll, "a", "", "1"));
+    validate_json_document("a", "[2,2]");
+    delete_object("a");
+
+    // b). Removing every element leaves an empty array.
+    store_document("a", "[5,5,5]");
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocArrayRemoveAll, "a", "", "5"));
+    validate_json_document("a", "[]");
+    delete_object("a");
+
+    // c). Removing a value not present in the array fails.
+    store_document("b", "[0,1,2]");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocArrayRemoveAll, "b", "", "9"),
+            cb::mcbp::Status::SubdocValueNotFound);
+    validate_json_document("b", "[0,1,2]");
+    delete_object("b");
+
+    // c2). Removing from an array which doesn't exist fails with
+    // PathEnoent (and not ValueNotFound).
+    store_document("b", R"({"foo":[1]})");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                                 "b",
+                                 "bar",
+                                 "1"),
+            cb::mcbp::Status::SubdocPathEnoent);
+    delete_object("b");
+
+    // d). Attempts to remove from an array with non-primitive values fail.
+    store_document("c", R"([{"a":"b"}])");
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocArrayRemoveAll, "c", "", "1"),
+            cb::mcbp::Status::SubdocPathMismatch);
+    delete_object("c");
+}
+
 TEST_P(SubdocTestappTest, SubdocArrayInsert_Simple) {
     // Start with an empty array.
     store_document("a", "[]");
@@ -2004,6 +2136,32 @@ TEST_P(SubdocTestappTest, SubdocStatsArrayAddUnique) {
     std::string fragment("20");
     std::string result("[10,11,12,13,14,15,16,17,18,19,20]");
     test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                              MUTATION_TRAITS,
+                              input,
+                              "",
+                              fragment,
+                              "",
+                              result.size(),
+                              fragment.size());
+}
+TEST_P(SubdocTestappTest, SubdocStatsArrayRemoveFirst) {
+    std::string input("[10,11,12,13,14,15,16,17,18,19,20]");
+    std::string fragment("20");
+    std::string result("[10,11,12,13,14,15,16,17,18,19]");
+    test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                              MUTATION_TRAITS,
+                              input,
+                              "",
+                              fragment,
+                              "",
+                              result.size(),
+                              fragment.size());
+}
+TEST_P(SubdocTestappTest, SubdocStatsArrayRemoveAll) {
+    std::string input("[10,11,12,13,14,15,16,17,18,19,20]");
+    std::string fragment("20");
+    std::string result("[10,11,12,13,14,15,16,17,18,19]");
+    test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
                               MUTATION_TRAITS,
                               input,
                               "",

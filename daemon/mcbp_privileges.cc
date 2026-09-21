@@ -257,6 +257,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::SubdocArrayPushFirst, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocArrayInsert, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocArrayAddUnique, requireUpsertOnCurrentDocument);
+    setup(ClientOpcode::SubdocArrayRemoveFirst, requireUpsertOnCurrentDocument);
+    setup(ClientOpcode::SubdocArrayRemoveAll, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocGetCount, requireReadOnCurrentDocument);
     setup(ClientOpcode::SubdocCounter, requireReadOnCurrentDocument);
     setup(ClientOpcode::SubdocCounter, requireUpsertOnCurrentDocument);

@@ -61,7 +61,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "SubdocAllowReplicaReadOnDeletedDocs"},
          {cb::mcbp::Feature::MutateWithMeta, "MutateWithMeta"},
          {cb::mcbp::Feature::DcpSkipDeletesInInitialBackfill,
-          "DcpSkipDeletesInInitialBackfill"}}};
+          "DcpSkipDeletesInInitialBackfill"},
+         {cb::mcbp::Feature::SubdocArrayRemoveValue,
+          "SubdocArrayRemoveValue"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& [feature, name] : featureBlueprint) {

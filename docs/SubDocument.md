@@ -593,6 +593,53 @@ overhead
     - `STATUS_PATH_MISMATCH` or if the array contains non-primitive
       elements
 
+### CMD_ARRAY_REMOVE_FIRST : Remove the first matching element from an array
+
+This will remove the first element of the array whose value equals
+VALUE, leaving any further equal elements untouched. It is the
+value-based counterpart to `CMD_DELETE` (which removes by path/index
+instead).
+
+The same restrictions, and the same **string comparison** semantics,
+that `CMD_ARRAY_ADD_UNIQUE` places on VALUE and on the existing
+contents of the array apply here too: both VALUE and the array's
+existing elements must be JSON Primitives, and comparison is a strict
+string comparison (so `"123"` does not equal `123`, `"true"` does not
+equal `true`, and `1.0` does not equal `1`).
+
+Unlike `CMD_ARRAY_ADD_UNIQUE`, this command does not support
+`FLAG_MKDIR_P` / `FLAG_MKDOC` - there is nothing to sensibly remove
+from an array that doesn't yet exist.
+
+- Inputs:
+    - The key of the document to change
+    - Path to containing array. Path may be empty to indicate a top level
+      array
+    - JSON Primitive value to search for and remove
+
+- Errors:
+    - Generic subdoc errors
+    - `STATUS_PATH_ENOENT` if the array does not exist
+    - `STATUS_VALUE_NOT_FOUND` if the array exists, but does not
+      contain an element equal to VALUE
+    - `STATUS_VALUE_CANTINSERT` if the input value is not a
+      primitive
+    - `STATUS_PATH_MISMATCH` if the path does not point to an array, or
+      if the array contains non-primitive elements
+
+### CMD_ARRAY_REMOVE_ALL : Remove every matching element from an array
+
+As `CMD_ARRAY_REMOVE_FIRST`, except every element equal to VALUE is
+removed, not just the first.
+
+- Inputs:
+    - The key of the document to change
+    - Path to containing array. Path may be empty to indicate a top level
+      array
+    - JSON Primitive value to search for and remove
+
+- Errors: as per `CMD_ARRAY_REMOVE_FIRST`.
+
 ### CMD_ARRAY_UPSERT_UNIQUE: Insert a unique element into an array if not present
 
 This command functions entirely like CMD_ARRAY_ADD_UNIQUE, except that
@@ -839,6 +886,8 @@ be completed successfully, or none of them are executed.
       - ARRAY_PUSH_FIRST
       - ARRAY_PUSH_LAST
       - ARRAY_ADD_UNIQUE
+      - ARRAY_REMOVE_FIRST
+      - ARRAY_REMOVE_ALL
       - ARRAY_INSERT
     - Mutation path
     - Mutation value (if applicable)

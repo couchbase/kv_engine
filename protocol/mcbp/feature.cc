@@ -91,6 +91,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "MutateWithMeta";
     case Feature::DcpSkipDeletesInInitialBackfill:
         return "DcpSkipDeletesInInitialBackfill";
+    case Feature::SubdocArrayRemoveValue:
+        return "SubdocArrayRemoveValue";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

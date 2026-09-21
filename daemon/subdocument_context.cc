@@ -808,6 +808,9 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
     case Subdoc::Error::VALUE_ETOODEEP:
         return cb::mcbp::Status::SubdocValueEtoodeep;
 
+    case Subdoc::Error::VALUE_ENOENT:
+        return cb::mcbp::Status::SubdocValueNotFound;
+
     default:
         // TODO: handle remaining errors.
         LOG_WARNING_CTX(

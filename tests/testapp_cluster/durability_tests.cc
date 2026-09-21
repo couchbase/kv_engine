@@ -106,7 +106,10 @@ protected:
             cmd.setValue("1");
             if (opcode == cb::mcbp::ClientOpcode::SubdocArrayInsert) {
                 cmd.setPath("foo.[0]");
-            } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace) {
+            } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace &&
+                       opcode !=
+                               cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst &&
+                       opcode != cb::mcbp::ClientOpcode::SubdocArrayRemoveAll) {
                 cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p);
                 cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::Mkdoc);
             }
@@ -289,6 +292,26 @@ TEST_F(DurabilityTest, SubdocArrayAddUnique) {
     subdoc(*getConnection(),
            "SubdocArrayAddUnique",
            cb::mcbp::ClientOpcode::SubdocArrayAddUnique);
+}
+TEST_F(DurabilityTest, SubdocArrayRemoveFirst) {
+    auto conn = getConnection();
+    conn->store("SubdocArrayRemoveFirst",
+                Vbid{0},
+                R"({"foo":[1]})",
+                cb::mcbp::Datatype::JSON);
+    subdoc(*conn,
+           "SubdocArrayRemoveFirst",
+           cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst);
+}
+TEST_F(DurabilityTest, SubdocArrayRemoveAll) {
+    auto conn = getConnection();
+    conn->store("SubdocArrayRemoveAll",
+                Vbid{0},
+                R"({"foo":[1]})",
+                cb::mcbp::Datatype::JSON);
+    subdoc(*conn,
+           "SubdocArrayRemoveAll",
+           cb::mcbp::ClientOpcode::SubdocArrayRemoveAll);
 }
 
 TEST_F(DurabilityTest, SubdocCounter) {

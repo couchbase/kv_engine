@@ -320,6 +320,10 @@ enum class Status : uint16_t {
     /// was not a binary field.
     SubdocFieldNotBinaryValue = 0xd8,
 
+    /// The path exists in the document (and refers to an array), but the
+    /// array does not contain the requested value.
+    SubdocValueNotFound = 0xd9,
+
     /*************************************************************************/
 
     /**

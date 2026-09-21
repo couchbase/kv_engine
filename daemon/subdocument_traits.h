@@ -327,6 +327,40 @@ get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>() {
 }
 
 template <>
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst>() {
+    using namespace cb::mcbp::subdoc;
+    return {CommandScope::SubJSON,
+            Subdoc::Command::ARRAY_REMOVE_FIRST,
+            cb::mcbp::ClientOpcode::Invalid,
+            PathFlag::XattrPath,
+            PathFlag::None,
+            DocFlag::AccessDeleted | DocFlag::ReviveDocument,
+            /*request_has_value*/ true,
+            /*allow_empty_path*/ true,
+            ResponseValue::None,
+            /*is_mutator*/ true,
+            SubdocPath::SINGLE};
+}
+
+template <>
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveAll>() {
+    using namespace cb::mcbp::subdoc;
+    return {CommandScope::SubJSON,
+            Subdoc::Command::ARRAY_REMOVE_ALL,
+            cb::mcbp::ClientOpcode::Invalid,
+            PathFlag::XattrPath,
+            PathFlag::None,
+            DocFlag::AccessDeleted | DocFlag::ReviveDocument,
+            /*request_has_value*/ true,
+            /*allow_empty_path*/ true,
+            ResponseValue::None,
+            /*is_mutator*/ true,
+            SubdocPath::SINGLE};
+}
+
+template <>
 inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocCounter>() {
     using namespace cb::mcbp::subdoc;
     return {CommandScope::SubJSON,

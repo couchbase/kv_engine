@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 9,
+    "revision": 10,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -646,6 +646,14 @@
         "d8": {
             "name": "SUBDOC_FIELD_NOT_BINARY_VALUE",
             "desc": "Subdoc: The field is not a binary value",
+            "attrs": [
+                "subdoc",
+                "item-only"
+            ]
+        },
+        "d9": {
+            "name": "SUBDOC_VALUE_NOT_FOUND",
+            "desc": "Subdoc: The requested value was not found in the array",
             "attrs": [
                 "subdoc",
                 "item-only"

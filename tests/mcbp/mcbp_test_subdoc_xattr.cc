@@ -93,6 +93,8 @@ protected:
         case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
         case cb::mcbp::ClientOpcode::SubdocCounter:
             return true;
 
@@ -109,6 +111,8 @@ protected:
         case cb::mcbp::ClientOpcode::SubdocDelete:
         case cb::mcbp::ClientOpcode::SubdocCounter:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
             return false;
 
         case cb::mcbp::ClientOpcode::SubdocMultiLookup:
@@ -138,18 +142,21 @@ INSTANTIATE_TEST_SUITE_P(
         SubdocOpcodes,
         SubdocXattrSingleTest,
         ::testing::Combine(
-                ::testing::Values(cb::mcbp::ClientOpcode::SubdocGet,
-                                  cb::mcbp::ClientOpcode::SubdocExists,
-                                  cb::mcbp::ClientOpcode::SubdocDictAdd,
-                                  cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                  cb::mcbp::ClientOpcode::SubdocDelete,
-                                  cb::mcbp::ClientOpcode::SubdocReplace,
-                                  cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                  cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                                  cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                                  cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                  cb::mcbp::ClientOpcode::SubdocCounter,
-                                  cb::mcbp::ClientOpcode::SubdocGetCount),
+                ::testing::Values(
+                        cb::mcbp::ClientOpcode::SubdocGet,
+                        cb::mcbp::ClientOpcode::SubdocExists,
+                        cb::mcbp::ClientOpcode::SubdocDictAdd,
+                        cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        cb::mcbp::ClientOpcode::SubdocDelete,
+                        cb::mcbp::ClientOpcode::SubdocReplace,
+                        cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                        cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                        cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                        cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                        cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
+                        cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
+                        cb::mcbp::ClientOpcode::SubdocCounter,
+                        cb::mcbp::ClientOpcode::SubdocGetCount),
                 ::testing::Bool()));
 
 TEST_P(SubdocXattrSingleTest, PathTest) {

@@ -355,6 +355,11 @@ enum class ClientOpcode : uint8_t {
     // Subdoc additions for Cheshire-Cat
     SubdocReplaceBodyWithXattr = 0xd3,
 
+    /* Removes the first (or, for RemoveAll, every) array element whose
+     * raw JSON text equals the supplied value. */
+    SubdocArrayRemoveFirst = 0xd4,
+    SubdocArrayRemoveAll = 0xd5,
+
     /* Create a "key-index" RangeScan */
     RangeScanCreate = 0xda,
     /* Continue a "key-index" RangeScan */

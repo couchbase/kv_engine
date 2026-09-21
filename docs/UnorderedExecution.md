@@ -88,6 +88,8 @@ limitations etc.
 * SubdocArrayPushFirst
 * SubdocArrayInsert
 * SubdocArrayAddUnique
+* SubdocArrayRemoveFirst
+* SubdocArrayRemoveAll
 * SubdocCounter
 * SubdocMultiLookup
 * SubdocMultiMutation
