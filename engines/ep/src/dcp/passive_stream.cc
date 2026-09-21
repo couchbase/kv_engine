@@ -574,64 +574,47 @@ std::string PassiveStream::to_string(StreamState st) {
 }
 
 cb::engine_errc PassiveStream::processCommit(
-        const CommitSyncWriteConsumer& commit) {
-    VBucketPtr vb = engine->getVBucket(vb_);
-
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
+        VBucket& vb, const CommitSyncWriteConsumer& commit) {
     // The state of the VBucket should never change during a commit, because
     // VBucket::commit() may generated expired items.
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
-    std::shared_lock rlh(vb->getStateLock());
-    if (!permittedVBStates.test(vb->getState())) {
+    std::shared_lock rlh(vb.getStateLock());
+    if (!permittedVBStates.test(vb.getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
-    return vb->commit(rlh,
-                      commit.getKey(),
-                      commit.getPreparedSeqno(),
-                      *commit.getBySeqno(),
-                      CommitType::Majority,
-                      vb->lockCollections(commit.getKey()));
+    return vb.commit(rlh,
+                     commit.getKey(),
+                     commit.getPreparedSeqno(),
+                     *commit.getBySeqno(),
+                     CommitType::Majority,
+                     vb.lockCollections(commit.getKey()));
 }
 
 cb::engine_errc PassiveStream::processAbort(
-        const AbortSyncWriteConsumer& abort) {
-    VBucketPtr vb = engine->getVBucket(vb_);
-
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
+        VBucket& vb, const AbortSyncWriteConsumer& abort) {
     // The state of the VBucket should never change during an abort, because
     // VBucket::abort() may generated expired items.
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
-    std::shared_lock rlh(vb->getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
 
-    if (!permittedVBStates.test(vb->getState())) {
+    if (!permittedVBStates.test(vb.getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
-    return vb->abort(rlh,
-                     abort.getKey(),
-                     abort.getPreparedSeqno(),
-                     abort.getAbortSeqno(),
-                     vb->lockCollections(abort.getKey()));
+    return vb.abort(rlh,
+                    abort.getKey(),
+                    abort.getPreparedSeqno(),
+                    abort.getAbortSeqno(),
+                    vb.lockCollections(abort.getKey()));
 }
 
 cb::engine_errc PassiveStream::processSystemEvent(
-        const SystemEventMessage& event) {
-    VBucketPtr vb = engine->getVBucket(vb_);
-
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-    std::shared_lock rlh(vb->getStateLock());
-    if (!permittedVBStates.test(vb->getState())) {
+        VBucket& vb, const SystemEventMessage& event) {
+    std::shared_lock rlh(vb.getStateLock());
+    if (!permittedVBStates.test(vb.getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -639,15 +622,15 @@ cb::engine_errc PassiveStream::processSystemEvent(
 
     if (flatBuffersSystemEventsEnabled) {
         rv = processSystemEventFlatBuffers(
-                *vb, static_cast<const SystemEventConsumerMessage&>(event));
+                vb, static_cast<const SystemEventConsumerMessage&>(event));
     } else {
-        rv = processSystemEvent(*vb, event);
+        rv = processSystemEventNoFlatBuffers(vb, event);
     }
 
     return rv;
 }
 
-cb::engine_errc PassiveStream::processSystemEvent(
+cb::engine_errc PassiveStream::processSystemEventNoFlatBuffers(
         VBucket& vb, const SystemEventMessage& event) {
     Expects(!flatBuffersSystemEventsEnabled);
     // Depending on the event, extras is different and key may even be empty
@@ -1143,18 +1126,13 @@ void PassiveStream::processSetVBucketState(const SetVBucketState& state) {
     notifyStreamReady();
 }
 
-void PassiveStream::handleSnapshotEnd(uint64_t seqno) {
-    auto vb = engine->getVBucket(vb_);
-    if (!vb) {
-        return;
-    }
-
+void PassiveStream::handleSnapshotEnd(VBucket& vb, uint64_t seqno) {
     if (seqno != cur_snapshot_end.load()) {
         return;
     }
 
     if (cur_snapshot_type.load() == Snapshot::Disk) {
-        vb->setReceivingInitialDiskSnapshot(false);
+        vb.setReceivingInitialDiskSnapshot(false);
     }
 
     if (cur_snapshot_ack) {
@@ -1184,7 +1162,7 @@ void PassiveStream::handleSnapshotEnd(uint64_t seqno) {
         const auto hcs = cur_snapshot_type.load() == Snapshot::Disk
                                  ? cur_snapshot_hcs
                                  : std::nullopt;
-        vb->notifyPassiveDMOfSnapEndReceived(seqno, hps, hcs);
+        vb.notifyPassiveDMOfSnapEndReceived(seqno, hps, hcs);
         cur_snapshot_prepare.store(false);
     }
 }
@@ -1367,7 +1345,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         const DcpResponse& resp, EnforceMemCheck enforceMemCheck) {
     auto vb = engine->getVBucket(vb_);
     if (!vb) {
-        return {*this, cb::engine_errc::not_my_vbucket, {}};
+        return {*this, cb::engine_errc::not_my_vbucket, {}, {}};
     }
 
     cb::engine_errc ret = cb::engine_errc::success;
@@ -1380,10 +1358,12 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
                                   enforceMemCheck);
         break;
     case DcpResponse::Event::Commit:
-        ret = processCommit(static_cast<const CommitSyncWriteConsumer&>(resp));
+        ret = processCommit(*vb,
+                            static_cast<const CommitSyncWriteConsumer&>(resp));
         break;
     case DcpResponse::Event::Abort:
-        ret = processAbort(static_cast<const AbortSyncWriteConsumer&>(resp));
+        ret = processAbort(*vb,
+                           static_cast<const AbortSyncWriteConsumer&>(resp));
         break;
     case DcpResponse::Event::SnapshotMarker:
         processMarker(static_cast<const SnapshotMarker&>(resp));
@@ -1397,7 +1377,8 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         transitionState(StreamState::Dead);
     } break;
     case DcpResponse::Event::SystemEvent:
-        ret = processSystemEvent(static_cast<const SystemEventMessage&>(resp));
+        ret = processSystemEvent(*vb,
+                                 static_cast<const SystemEventMessage&>(resp));
         break;
     case DcpResponse::Event::CacheTransferRx: {
         ret = processCacheTransfer(
@@ -1406,7 +1387,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     }
     case DcpResponse::Event::CacheTransferEnd:
         ret = processCacheTransferEnd(
-                static_cast<const CacheTransferEndConsumer&>(resp));
+                *vb, static_cast<const CacheTransferEndConsumer&>(resp));
         break;
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
@@ -1454,12 +1435,12 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         }
     }
 
-    return {*this, ret, seqno};
+    return {*this, ret, seqno, std::move(vb)};
 }
 
 PassiveStream::ProcessMessageResult::~ProcessMessageResult() {
-    if (err == cb::engine_errc::success && seqno) {
-        stream->handleSnapshotEnd(*seqno);
+    if (err == cb::engine_errc::success && seqno && vb) {
+        stream->handleSnapshotEnd(*vb, *seqno);
     }
 }
 
@@ -1575,16 +1556,10 @@ cb::engine_errc PassiveStream::processCacheTransfer(
 }
 
 cb::engine_errc PassiveStream::processCacheTransferEnd(
-        const CacheTransferEndConsumer& resp) {
-    VBucketPtr vb = engine->getVBucket(vb_);
+        VBucket& vb, const CacheTransferEndConsumer& resp) {
+    std::shared_lock rlh(vb.getStateLock());
 
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    std::shared_lock rlh(vb->getStateLock());
-
-    if (!permittedVBStates.test(vb->getState())) {
+    if (!permittedVBStates.test(vb.getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -1592,7 +1567,7 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
             *this, "PassiveStream::processCacheTransferEnd", {"vb", vb_});
     // Transfer complete - rebalance can continue and HashTable down-sizing is
     // re-enabled (see the ht.minimumSize function set by VBucket).
-    vb->setSnapshotRebalanceCanContinue();
+    vb.setSnapshotRebalanceCanContinue();
 
     return cb::engine_errc::success;
 }

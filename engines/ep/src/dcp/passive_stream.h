@@ -133,7 +133,7 @@ public:
      *
      * @param seqno
      */
-    void handleSnapshotEnd(uint64_t seqno);
+    void handleSnapshotEnd(VBucket& vb, uint64_t seqno);
 
     /**
      * @return the number of bytes of DCP messages that have been queued into
@@ -174,23 +174,26 @@ protected:
                                         EnforceMemCheck enforceMemCheck);
 
     /// Process an incoming commit of a SyncWrite.
-    cb::engine_errc processCommit(const CommitSyncWriteConsumer& commit);
+    cb::engine_errc processCommit(VBucket& vb,
+                                  const CommitSyncWriteConsumer& commit);
 
     /// Process an incoming abort of a SyncWrite.
-    cb::engine_errc processAbort(const AbortSyncWriteConsumer& abort);
+    cb::engine_errc processAbort(VBucket& vb,
+                                 const AbortSyncWriteConsumer& abort);
 
     /**
      * Handle DCP system events against this stream.
      *
      * @param event The system-event to process against the stream.
      */
-    cb::engine_errc processSystemEvent(const SystemEventMessage& event);
+    cb::engine_errc processSystemEvent(VBucket& vb,
+                                       const SystemEventMessage& event);
 
     /**
      * Inner handler for when messages don't use FlatBuffers
      */
-    cb::engine_errc processSystemEvent(VBucket& vb,
-                                       const SystemEventMessage& event);
+    cb::engine_errc processSystemEventNoFlatBuffers(
+            VBucket& vb, const SystemEventMessage& event);
 
     /**
      * Inner handler for when messages do use FlatBuffers
@@ -301,7 +304,7 @@ protected:
      * successfully
      */
     cb::engine_errc processCacheTransferEnd(
-            const CacheTransferEndConsumer& resp);
+            VBucket& vb, const CacheTransferEndConsumer& resp);
 
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised
@@ -355,8 +358,9 @@ protected:
     public:
         ProcessMessageResult(PassiveStream& stream,
                              cb::engine_errc err,
-                             std::optional<int64_t> seqno)
-            : stream(&stream), err(err), seqno(seqno){};
+                             std::optional<int64_t> seqno,
+                             VBucketPtr vb)
+            : stream(&stream), vb(std::move(vb)), err(err), seqno(seqno) {};
 
         ~ProcessMessageResult();
 
@@ -372,6 +376,9 @@ protected:
 
     private:
         PassiveStream* stream;
+        /// Held so the destructor's handleSnapshotEnd does not look it up
+        /// again. Null only when processMessage found no vbucket.
+        VBucketPtr vb;
         cb::engine_errc err;
         std::optional<int64_t> seqno;
     };
