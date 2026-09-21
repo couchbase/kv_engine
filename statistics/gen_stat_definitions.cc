@@ -95,8 +95,6 @@ constexpr std::array<std::string_view, 1> excludedConfigKeys{
         // Nexus is strictly for testing
         "nexus_"};
 
-constexpr std::string_view configVersionAdded = "7.0.0";
-
 static void usage() {
     fmt::print(stderr,
                "Usage: gen_stat_definitions -j statJSON -C configJSON -c cfile "
@@ -772,8 +770,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Need a string for the nlohmann::json::value() function default.
-    const std::string configVersionAddedStr(configVersionAdded);
     for (const auto& configParam : config.at("params").items()) {
         // config params use only the key currently, no units or description
         std::vector<std::string> keys;
@@ -791,10 +787,8 @@ int main(int argc, char** argv) {
             spec.enumKey = "ep_" + key;
             spec.unit = "none";
             spec.configurationParam = true;
-            // Use the param's optional "added" field if present, otherwise fall
-            // back to the default value
-            spec.added =
-                    configParam.value().value("added", configVersionAddedStr);
+            // genconfig requires every parameter to define "added"
+            spec.added = configParam.value().at("added").get<std::string>();
             // We don't have a stability field for our config params, so for now
             // we decide what it should be here.
             spec.stability =

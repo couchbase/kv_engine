@@ -5,6 +5,7 @@
  * The parameter definitions are in the format:
  *
  * "key": {
+ *     "added": "major.minor.patch" | "code-name",
  *     "type": "parameter_type",
  *     "aliases": ["alias1", "alias2"],
  *     "descr": "parameter_description",
@@ -57,9 +58,12 @@
  *     When the compat_version is after the public_since version, then
  *     the parameter is reported with visibility "public"; otherwise it is
  *     reported with visibility "internal".
- * * "added" - the version that this parameter was added - this is used to
- *     ensure a correct "added" version is passed to the generated statistics
- *     documentation.
+ * * "added" - mandatory, the release that this parameter was added in - this
+ *     is used to ensure a correct "added" version is passed to the generated
+ *     statistics documentation. A release version is preferred, but if the
+ *     release name is not yet known the branch/project code-name can be used
+ *     as a placeholder. Parameters which pre-date the field are recorded as
+ *     "7.0.0".
  */
 {
     "params": {
@@ -71,12 +75,14 @@
             "type": "std::string"
         },
         "allow_sanitize_value_in_deletion" : {
+            "added": "7.0.0",
             "default" : "true",
             "descr": "Let EPE delete/prepare/del_with_meta prune any invalid body in the payload instead of failing",
             "dynamic" : true,
             "type" : "bool"
         },
         "alog_block_size": {
+            "added": "7.0.0",
             "default": "4096",
             "descr": "Logging block size.",
             "dynamic": false,
@@ -86,6 +92,7 @@
             }
         },
         "alog_path": {
+            "added": "7.0.0",
             "default": "",
             "descr": "Path to the access log.",
             "dynamic": true,
@@ -95,6 +102,7 @@
             }
         },
         "access_scanner_enabled": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "true",
                 "serverless": "false"
@@ -107,6 +115,7 @@
             }
         },
         "alog_sleep_time": {
+            "added": "7.0.0",
             "default": "1440",
             "descr": "Number of minutes between each sweep for the access log",
             "dynamic": true,
@@ -122,6 +131,7 @@
             }
         },
         "alog_task_time": {
+            "added": "7.0.0",
             "default": "2",
             "descr": "Hour in GMT time when access scanner task is scheduled to run",
             "dynamic": true,
@@ -137,6 +147,7 @@
             }
         },
         "alog_resident_ratio_threshold": {
+            "added": "7.0.0",
             "default": "95",
             "descr": "Resident ratio percentage above which we do not generate access log",
             "dynamic": true,
@@ -152,6 +163,7 @@
             }
         },
         "alog_max_stored_items": {
+            "added": "7.0.0",
             "default": "1024",
             "descr": "The maximum number of items the Access Scanner will hold in memory before commiting them to disk",
             "type": "size_t",
@@ -166,6 +178,7 @@
             }
         },
         "backend": {
+            "added": "7.0.0",
             "default": "couchdb",
             "descr": "The storage backend to use. The \"nexus\" variant is a test only backend which will run two backends for a single bucket and compare the results of their operations.",
             "dynamic": false,
@@ -179,6 +192,7 @@
             }
         },
         "backfill_mem_threshold": {
+            "added": "7.0.0",
             "default": "96",
             "descr": "Memory usage threshold (percentage of bucket quota) after which backfill will be snoozed.",
             "dynamic": true,
@@ -191,12 +205,14 @@
             }
         },
         "bfilter_enabled": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "Enable or disable the bloom filter",
             "dynamic": true,
             "type": "bool"
         },
         "bfilter_key_count": {
+            "added": "7.0.0",
             "default": "10000",
             "descr": "Bloomfilter: Estimated key count per vbucket",
             "dynamic": true,
@@ -208,12 +224,14 @@
             }
         },
         "bfilter_fp_prob": {
+            "added": "7.0.0",
             "default": "0.01",
             "descr": "Bloomfilter: Allowed probability for false positives",
             "dynamic": true,
             "type": "float"
         },
         "bfilter_residency_threshold": {
+            "added": "7.0.0",
             "default": "0.1",
             "descr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
             "dynamic": true,
@@ -226,6 +244,7 @@
             }
         },
         "bucket_type": {
+            "added": "7.0.0",
             "default": "persistent",
             "descr": "Bucket type in the couchbase server",
             "dynamic": false,
@@ -245,6 +264,7 @@
             "type": "float"
         },
         "chk_expel_enabled": {
+            "added": "7.0.0",
             "default" : "true",
             "descr": "Enable the ability to expel (remove from memory) items from a checkpoint.  An item can be expelled if all cursors in the checkpoint have iterated past the item.",
             "dynamic" : true,
@@ -322,12 +342,14 @@
             "type": "size_t"
         },
         "collections_drop_compaction_delay" : {
+            "added": "7.0.0",
             "default": "5000",
             "descr": "How many milliseconds before compaction runs following the drop of a collection",
             "dynamic": false,
             "type": "size_t"
         },
         "collections_enabled" : {
+            "added": "7.0.0",
             "default": "true",
             "descr": "Enable the collections functionality, enabling the storage of collection metadata",
             "dynamic": false,
@@ -341,6 +363,7 @@
             "type": "bool"
         },
         "compression_mode": {
+            "added": "7.0.0",
             "default": "off",
             "descr": "Determines which compression mode the bucket operates in",
 	    "dynamic": true,
@@ -392,6 +415,7 @@
             }
         },
         "conflict_resolution_type": {
+            "added": "7.0.0",
             "default": "seqno",
             "descr": "Conflict resolution mode to use for this Bucket",
             "dynamic": false,
@@ -405,42 +429,49 @@
             }
         },
         "couch_bucket": {
+            "added": "7.0.0",
             "default": "default",
             "descr": "The name of this bucket",
             "dynamic": false,
             "type": "std::string"
         },
         "data_traffic_enabled": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "True if we want to enable data traffic after warmup is complete",
             "dynamic": false,
             "type": "bool"
         },
         "dbname": {
+            "added": "7.0.0",
             "default": "",
             "descr": "Path to on-disk storage.",
             "dynamic": false,
             "type": "std::string"
         },
         "dcp_noop_mandatory_for_v5_features": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "Forces clients to enable noop for v5 features",
             "dynamic": true,
             "type": "bool"
         },
         "defragmenter_enabled": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "True if defragmenter task is enabled",
             "dynamic": true,
             "type": "bool"
         },
         "defragmenter_interval": {
+            "added": "7.0.0",
             "default": "10.0",
             "descr": "How often defragmenter task should be run (in seconds).",
             "dynamic": true,
             "type": "float"
         },
         "defragmenter_age_threshold": {
+            "added": "7.0.0",
             "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a document be to be considered for defragmentation.",
             "type": "size_t",
@@ -453,6 +484,7 @@
             }
         },
         "defragmenter_stored_value_age_threshold": {
+            "added": "7.0.0",
             "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a StoredValue be to be considered for defragmentation.",
             "type": "size_t",
@@ -465,6 +497,7 @@
             }
         },
         "defragmenter_chunk_duration": {
+            "added": "7.0.0",
             "default": "20",
             "descr": "Maximum time (in ms) defragmentation task will run for before being paused (and resumed at the next defragmenter_interval).",
             "dynamic": true,
@@ -553,6 +586,7 @@
             "type": "size_t"
         },
         "durability_min_level": {
+            "added": "7.0.0",
             "default": "none",
             "descr": "Bucket Minimum Durability Level. KVEngine upgrades any write request to this min-level, if the min-level is higher than the write-level. May upgrade a NormalWrite to SyncWrite.",
             "dynamic": true,
@@ -567,6 +601,7 @@
             }
         },
         "ephemeral_full_policy": {
+            "added": "7.0.0",
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",
             "dynamic": true,
@@ -602,6 +637,7 @@
             }
         },
         "ephemeral_metadata_purge_age": {
+            "added": "7.0.0",
             "default": "60",
             "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
             "dynamic": true,
@@ -611,6 +647,7 @@
             }
         },
         "ephemeral_metadata_purge_interval": {
+            "added": "7.0.0",
             "default": "60",
             "descr": "Time in seconds between automatic, periodic runs of the Ephemeral metadata purge task. Periodic purging disabled if set to 0.",
             "dynamic": true,
@@ -620,6 +657,7 @@
             }
         },
         "ephemeral_metadata_mark_stale_chunk_duration": {
+            "added": "7.0.0",
             "default": "20",
             "descr": "Maximum time (in ms) ephemeral hash table cleaner task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
             "dynamic": true,
@@ -629,6 +667,7 @@
             }
         },
         "ephemeral_metadata_purge_stale_chunk_duration": {
+            "added": "7.0.0",
             "default": "20",
             "descr": "Maximum time (in ms) ephemeral stale metadata purge task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
             "dynamic": true,
@@ -638,6 +677,7 @@
             }
         },
         "executor_pool_backend": {
+            "added": "7.0.0",
             "default": "folly",
             "descr": "Executor Pool backend in use",
             "dynamic": false,
@@ -650,18 +690,21 @@
             }
         },
         "exp_pager_enabled": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "True if expiry pager task is enabled",
             "dynamic": true,
             "type": "bool"
         },
         "exp_pager_stime": {
+            "added": "7.0.0",
             "default": "600",
             "descr": "Number of seconds between expiry pager runs.",
             "dynamic": true,
             "type": "size_t"
         },
         "exp_pager_initial_run_time": {
+            "added": "7.0.0",
             "default": "-1",
             "descr": "Hour in GMT time when expiry pager can be scheduled for initial run",
             "dynamic": true,
@@ -674,12 +717,14 @@
             }
         },
         "failpartialwarmup": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "If true then do not allow traffic to be enabled to the bucket if warmup didn't complete successfully",
             "dynamic": false,
             "type": "bool"
         },
         "flusher_total_batch_limit" : {
+            "added": "7.0.0",
             "default": "4000000",
             "descr": "Number of items that all flushers can be currently flushing. Each flusher has flusher_total_batch_limit / num_writer_threads individual batch size. Individual batches may be larger than this value, as we cannot split Memory checkpoints across multiple commits.",
             "dynamic": true,
@@ -717,24 +762,28 @@
             }
         },
         "getl_default_timeout": {
+            "added": "7.0.0",
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",
             "dynamic": true,
             "type": "size_t"
         },
         "getl_max_timeout": {
+            "added": "7.0.0",
             "default": "30",
             "descr": "The maximum timeout for a getl lock in (s)",
             "dynamic": true,
             "type": "size_t"
         },
         "hlc_drift_ahead_threshold_us": {
+            "added": "7.0.0",
             "default": "5000000",
             "descr": "The μs threshold of drift at which we will increment a vbucket's ahead counter.",
             "dynamic": true,
             "type": "size_t"
         },
         "hlc_drift_behind_threshold_us": {
+            "added": "7.0.0",
             "default": "5000000",
             "descr": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
             "dynamic": true,
@@ -776,6 +825,7 @@
             }
         },
         "ht_locks": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "47",
                 "serverless": "47",
@@ -798,12 +848,14 @@
             }
         },
         "ht_resize_interval": {
+            "added": "7.0.0",
             "default": "1",
             "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
             "dynamic": true,
             "type": "float"
         },
         "ht_size": {
+            "added": "7.0.0",
             "default": "47",
             "descr": "The initial and minimum number of slots in HashTable objects.",
             "dynamic": true,
@@ -836,6 +888,7 @@
             }
         },
         "item_compressor_interval": {
+            "added": "7.0.0",
             "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",
             "dynamic": true,
@@ -847,6 +900,7 @@
             }
         },
         "item_compressor_chunk_duration": {
+            "added": "7.0.0",
             "default": "20",
             "descr": "Maximum time (in ms) item compression task will run for before being paused (and resumed at the next item_compressor_interval).",
             "dynamic": true,
@@ -858,6 +912,7 @@
             }
         },
         "item_eviction_policy": {
+            "added": "7.0.0",
             "default": "value_only",
             "descr": "Item eviction policy on cache, which is used by the item pager",
             "dynamic": false,
@@ -873,6 +928,7 @@
             }
         },
         "item_eviction_age_percentage": {
+            "added": "7.0.0",
             "default": "30",
             "descr": "The age percentage used when determining the age threshold in the learning_age_and_mfu eviction policy.",
             "dynamic": true,
@@ -885,6 +941,7 @@
             }
         },
         "item_eviction_freq_counter_age_threshold": {
+            "added": "7.0.0",
             "default": "1",
             "decr": "The threshold for determining at what execution frequency we consider age when selecting items for eviction.",
             "dynamic": true,
@@ -935,6 +992,7 @@
             }
         },
         "item_freq_decayer_chunk_duration": {
+            "added": "7.0.0",
             "default": "20",
             "descr": "Maximum time (in ms) itemFreqDecayer task will run for before being paused.",
             "dynamic": true,
@@ -946,6 +1004,7 @@
             }
         },
         "item_freq_decayer_percent": {
+            "added": "7.0.0",
             "default": "50",
             "descr": "The percent that the frequency counter of a document is decayed when visited by item_freq_decayer.",
             "dynamic": true,
@@ -958,6 +1017,7 @@
             }
         },
         "connection_manager_interval": {
+            "added": "7.0.0",
             "default": "0.1",
             "descr": "How often connection manager task should be run (in seconds).",
             "type": "float",
@@ -981,6 +1041,7 @@
             }
         },
         "max_checkpoints": {
+            "added": "7.0.0",
             "default": "10",
             "descr": "The expected max number of checkpoints in each VBucket on a balanced system. Note: That is not a hard limit on the single vbucket. That is used (together with checkpoint_memory_ratio) for computing checkpoint_max_size, which triggers checkpoint creation.",
             "dynamic": true,
@@ -992,24 +1053,28 @@
             }
         },
         "max_failover_entries": {
+            "added": "7.0.0",
             "default": "25",
             "descr": "maximum number of failover log entries",
             "dynamic": false,
             "type": "size_t"
         },
         "max_item_privileged_bytes": {
+            "added": "7.0.0",
             "default": "(1024 * 1024)",
             "descr": "Maximum number of bytes allowed for 'privileged' (system) data for an item in addition to the max_item_size bytes",
             "dynamic": true,
             "type": "size_t"
         },
         "max_item_size": {
+            "added": "7.0.0",
             "default": "(20 * 1024 * 1024)",
             "descr": "Maximum number of bytes allowed for an item",
             "dynamic": true,
             "type": "size_t"
         },
         "max_size": {
+            "added": "7.0.0",
             "default": "(100 * 1024 * 1024)",
             "dynamic": true,
             "type": "size_t",
@@ -1018,6 +1083,7 @@
             "aliases":["cache_size"]
         },
         "max_ttl":{
+            "added": "7.0.0",
             "default": "0",
             "descr": "A maximum TTL (in seconds) that will apply to all new documents, documents set with no TTL will be given this value. A value of 0 means this is disabled",
             "dynamic": true,
@@ -1030,6 +1096,7 @@
             }
         },
         "max_vbuckets": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "1024",
                 "serverless": "48"
@@ -1045,12 +1112,14 @@
             }
         },
         "max_threads": {
+            "added": "7.0.0",
             "default": "0",
             "descr": "Maximum number of threads of any single class (0 = automatically select based on core count)",
             "dynamic": false,
             "type": "size_t"
         },
         "max_num_bgfetchers": {
+            "added": "7.0.0",
             "default": "0",
             "descr": "Maximum number of bg fetcher objects (the number of concurrent bg fetch tasks we can run). 0 = auto-configure which means we use the same number as the number of reader threads (num_reader_threads).",
             "dynamic": false,
@@ -1064,6 +1133,7 @@
             "type": "size_t"
         },
         "max_num_shards": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "0",
                 "serverless": "1"
@@ -1073,6 +1143,7 @@
             "type": "size_t"
         },
         "max_num_workers": {
+            "added": "7.0.0",
             "default": "4",
             "descr": "Bucket Priority relative to other buckets",
             "dynamic": false,
@@ -1106,6 +1177,7 @@
             }
         },
         "mem_used_merge_threshold_percent" : {
+            "added": "7.0.0",
             "default": "0.5",
             "descr": "What percent of max_data size should we allow the estimated total memory to lag by (EPStats::getEstimatedTotalMemoryUsed)",
             "dynamic": true,
@@ -1236,6 +1308,7 @@
             "type": "bool"
         },
         "pager_sleep_time_ms": {
+            "added": "7.0.0",
             "default": "5000",
             "descr": "How long in milliseconds the ItemPager will sleep for when not being requested to run",
             "dynamic": false,
@@ -1268,6 +1341,7 @@
             "type": "size_t"
         },
         "persistent_metadata_purge_age": {
+            "added": "7.0.0",
             "default": "259200",
             "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days. If this is dynamically changed for a magma bucket then magma may not trigger compactions when it should, this can be avoided by running a full manual compaction after changing this parameter.",
             "long_description": "Provides the configured time interval after which the persistent metadata of deleted items, known as tombstones, is permanently purged from disk storage. It represents the active policy for tombstone expiration, balancing robust replication consistency against disk space reclamation. This value is crucial for tuning storage overhead.",
@@ -1283,6 +1357,7 @@
             }
         },
         "uuid": {
+            "added": "7.0.0",
             "default": "",
             "descr": "The UUID for the bucket",
             "dynamic" : false,
@@ -1303,6 +1378,7 @@
             "type": "size_t"
         },
         "dcp_backfill_byte_limit": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "20 * 1024 * 1024",
                 "serverless": "512 * 1024"
@@ -1476,12 +1552,14 @@
             "dynamic": false
         },
         "dcp_enable_noop": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "Whether DCP Consumer connections should attempt to negotiate no-ops with the Producer",
             "dynamic": true,
             "type": "bool"
         },
         "dcp_min_compression_ratio": {
+            "added": "7.0.0",
             "default": "0.85",
             "descr": "Compression ratio to be achieved above which producer will ship documents as is",
             "dynamic": true,
@@ -1493,6 +1571,7 @@
             }
         },
         "dcp_idle_timeout": {
+            "added": "7.0.0",
             "default": "360",
             "descr": "The maximum number of seconds between dcp messages before a connection is disconnected",
             "dynamic": true,
@@ -1504,6 +1583,7 @@
             }
         },
         "dcp_noop_tx_interval": {
+            "added": "7.0.0",
             "default": "0.1",
             "descr": "The time interval in seconds between noop messages being sent to the consumer",
             "dynamic": true,
@@ -1570,6 +1650,7 @@
             "type": "size_t"
         },
         "dcp_scan_byte_limit": {
+            "added": "7.0.0",
             "default": {
                 "on-prem": "4 * 1024 * 1024",
                 "serverless": "128 * 1024"
@@ -1579,12 +1660,14 @@
             "type": "size_t"
         },
         "dcp_scan_item_limit": {
+            "added": "7.0.0",
             "default": "4096",
             "descr": "Max items that can be read in a single backfill scan before yielding",
             "dynamic": false,
             "type": "size_t"
         },
         "dcp_takeover_max_time": {
+            "added": "7.0.0",
             "default": "60",
             "descr": "Max amount of time for takeover send (in seconds) after which front end ops would return ETMPFAIL",
             "dynamic": true,
@@ -1608,18 +1691,21 @@
             "type": "bool"
         },
         "dcp_producer_snapshot_marker_yield_limit": {
+            "added": "7.0.0",
             "default": "0",
             "descr": "Not in use - replaced by dcp_producer_processor_run_duration_us",
             "dynamic": false,
             "type": "size_t"
         },
         "fsync_after_every_n_bytes_written": {
+            "added": "7.0.0",
             "default": "1048576",
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
             "dynamic": true,
             "type" : "size_t"
         },
         "min_compression_ratio": {
+            "added": "7.0.0",
             "default": "1.2",
             "descr": "specifies a minimum compression ratio below which storing the document will be stored as uncompressed.",
             "dynamic": true,
@@ -1638,18 +1724,21 @@
             "type": "bool"
         },
         "magma_delete_memtable_writecache": {
+            "added": "7.0.0",
             "default": "8192",
             "dynamic": false,
             "descr": "Magma uses a lazy update model to maintain the sequence index. It maintains a list of deleted seq #s that were deleted from the key Index.",
             "type": "size_t"
         },
         "magma_delete_frag_ratio": {
+            "added": "7.0.0",
             "default": "0.50",
             "dynamic": false,
             "descr": "Magma compaction always removes duplicate keys but not all sstables are visited during compaction.. This is the minimum fragmentation ratio threshold for when a compaction will be triggerred.",
             "type": "float"
         },
         "magma_max_checkpoints": {
+            "added": "7.0.0",
             "default": "5",
             "dynamic": false,
             "descr": "Maximum # of checkpoints retained for rollback.",
@@ -1689,6 +1778,7 @@
             }
         },
         "magma_checkpoint_interval": {
+            "added": "7.0.0",
             "default": "120",
             "dynamic": false,
             "descr": "Frequency of checkpoint interval; in seconds. A checkpoint provides a rollback point to which the data store can rollback to in the event of a failure.",
@@ -1702,30 +1792,35 @@
             "type": "size_t"
         },
         "magma_checkpoint_threshold": {
+            "added": "7.0.0",
             "default": "0.02",
             "dynamic": false,
             "descr": "Threshold of data written before a checkpoint is created; threshold is based on a fraction of the total data size. Checkpoints require data to be retained in order to provide rollback capability. If the amount of data written during a checkpoint interval is large, we need to do more frequent checkpoints to reduce space amplification.",
             "type": "float"
         },
         "magma_heartbeat_interval": {
+            "added": "7.0.0",
             "default": "10",
             "dynamic": false,
             "descr": "Frequency of heartbeat interval; in seconds. A heartbeat task is scheduled to provide cleanup and maintenance when magma is idle.",
             "type": "size_t"
         },
         "magma_write_cache_ratio": {
+            "added": "7.0.0",
             "default": "0.2",
             "dynamic": false,
             "descr": "Memory is maintained across 3 magma components; Bloom filters, Block cache and Write cache. The least important of these is the write cache. If there is insufficent memory for the write cache, the write cache will grow to the size of the batch and then be immediately flushed and freed. If there is available memory, the write cache is limited to 20% of the available memory (after bloom filter and block cache get their memory up to magma_max_write_cache (128MB). Bloom filters are the most important and are never paged out. Bloom filter memory can cause magma to go above the memory quota. To allevaite this, the bottom layer where the majority of bloom filter memory is, won't use bloom filters when OptimizeBloomFilterForMisses is on (which it is by default). The block cache grows each time the index sizes change. But its growth is bounded by the available memory or what's left over after the bloom filter memory is subtracted.",
             "type": "float"
         },
         "magma_max_write_cache": {
+            "added": "7.0.0",
             "default": "134217728",
             "dynamic": false,
             "descr": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. Regardless of how much memory might be available, this would be the maximum amount that could be allocated.",
             "type": "size_t"
         },
         "magma_mem_quota_ratio": {
+            "added": "7.0.0",
             "default": "0.5",
             "dynamic": true,
             "descr": "Magma total memory ratio of the Bucket Quota across all shards and Magma limit's it's memory usage to this value.",
@@ -1743,12 +1838,14 @@
             "type": "float"
         },
         "magma_enable_direct_io": {
+            "added": "7.0.0",
             "default": "false",
             "dynamic": false,
             "descr": "Using direct IO tells magma to bypass the file system cache when writing or reading sstables.",
             "type": "bool"
         },
         "magma_initial_wal_buffer_size": {
+            "added": "7.0.0",
             "default": "65536",
             "dynamic": false,
             "descr": "The WAL buffer is used to stage items to the write ahead log along with control information like begin and end transaction. This parameter refers to the initial WAL buffer size. The WAL buffer will adjust its size up to a maximum of 4MB or down to a minimum of 64KB depending on the transaction batch size with consideration for other magma components which consume memory such as the block cache, bloom filters, write cache and meta data overhead.",
@@ -1879,30 +1976,35 @@
             }
         },
         "magma_enable_upsert": {
+            "added": "7.0.0",
             "default": "false",
             "dynamic": false,
             "descr": "When true, the kv_engine will utilize Magma's upsert capabiltiy but accurate document counts for the data store or collections can not be maintained.",
             "type": "bool"
         },
         "magma_expiry_purger_interval": {
+            "added": "7.0.0",
             "default": "3600",
             "dynamic":false,
             "descr": "Magma maintains statistics about expired documents to run compaction based on magma_expiry_frag_threshold. This config determines the the expiry purger polling interval in seconds to trigger compaction on eligible sstables",
             "type": "size_t"
         },
         "magma_expiry_frag_threshold": {
+            "added": "7.0.0",
             "default": "0.25",
             "dynamic": false,
             "descr": "All compactions perform expiry but not all sstables are visited by compaction. Magma maintains an expiry histogram across the kvstore to help determine which range of sstables need to have compaction run on them because there are a significant number of expired items. The frag threshold is the number of expired keys vs keys in the data store.",
             "type": "float"
         },
         "magma_enable_block_cache": {
+            "added": "7.0.0",
             "default": "true",
             "dynamic": true,
             "descr": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
             "type": "bool"
         },
         "magma_fragmentation_percentage": {
+            "added": "7.0.0",
             "default": "50",
             "dynamic": true,
             "descr": "The percentage of fragmentation a magma bucket aims to maintain. A 100 value will disable sequence tree compactions by setting the desired fragmentation percentage to 100%. Smaller compactions of the key and local indexes will still run.",
@@ -1919,6 +2021,7 @@
             }
         },
         "magma_max_recovery_bytes": {
+            "added": "7.0.0",
             "default": "67108864",
             "dynamic": false,
             "descr": "Maximum amount of data that is replayed from the WAL during magma recovery. When this threshold is reached magma, creates a temporary checkpoint to recover at. This is per kvstore and in bytes.",
@@ -1932,12 +2035,14 @@
             "type": "size_t"
         },
         "magma_bloom_filter_accuracy": {
+            "added": "7.0.0",
             "default": "0.99",
             "descr": "Magma maintains a bloom filter per sstable in the LSMTree. The bloom filters are used to reduce IO in case of non-existent  This config sets the accuracy of the bloom filters ie. (1 - accuracy) = false positive rate",
             "dynamic": false,
             "type": "float"
         },
         "magma_bloom_filter_accuracy_for_bottom_level": {
+            "added": "7.0.0",
             "default": "0.95",
             "descr": "The bloom filters at the bottom level are used to avoid IO in case of non-existent keys. Also most of the data resides in the bottom level. This config allows for lowering of bloom filter accuracy of sstables residing in the lowermost level of the LSMTree.",
             "dynamic": false,
@@ -2229,6 +2334,7 @@
             }
         },
         "retain_erroneous_tombstones": {
+            "added": "7.0.0",
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",
 	        "dynamic": true,
@@ -2248,6 +2354,7 @@
             }
         },
         "sync_writes_max_allowed_replicas" : {
+            "added": "7.0.0",
             "default": "2",
             "descr": "The maximum number of supported replicas for SyncWrites. Attempts to issue SyncWrites against a topology with more replicas than this setting will fail with DurabilityImpossible.",
             "dynamic": false,
@@ -2267,6 +2374,7 @@
             }
         },
         "time_synchronization": {
+            "added": "7.0.0",
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",
             "dynamic": false,
@@ -2290,18 +2398,21 @@
           "type": "bool"
         },
         "couchstore_tracing": {
+            "added": "7.0.0",
             "default": "false",
             "dynamic": true,
             "descr": "Enable couchstore tracing",
             "type" : "bool"
         },
         "couchstore_write_validation": {
+            "added": "7.0.0",
             "default": "false",
             "dynamic": true,
             "descr": "Validate couchstore writes ",
             "type" : "bool"
         },
         "couchstore_mprotect": {
+            "added": "7.0.0",
             "default": "false",
             "dynamic": true,
             "descr": "Enable couchstore to mprotect the iobuffer",
@@ -2358,6 +2469,7 @@
             }
         },
         "warmup": {
+            "added": "7.0.0",
             "default": "true",
             "dynamic": false,
             "descr": "Is Warmup of existing data enabled",
@@ -2494,6 +2606,7 @@
             }
         },
         "xattr_enabled": {
+            "added": "7.0.0",
             "default": "true",
             "dynamic": true,
             "type": "bool"

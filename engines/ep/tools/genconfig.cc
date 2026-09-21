@@ -490,6 +490,26 @@ static bool isVersionString(const std::string& str) {
     return str.find('.') != std::string::npos && std::isdigit(str.front());
 }
 
+/**
+ * Every parameter must state the release it was added in - this is used to
+ * generate the statistics documentation. A release version is preferred, but
+ * where that is not yet known a branch/project code-name is accepted as a
+ * placeholder. Terminate if the field is missing or empty.
+ */
+static void checkAddedVersion(const std::string& key,
+                              const nlohmann::json& json) {
+    auto added = json.find("added");
+    if (added == json.end() || !added->is_string() ||
+        added->get<std::string>().empty()) {
+        fmt::print(stderr,
+                   "Error: \"{}\" must define \"added\" as the release it "
+                   "was added in, e.g. \"8.5.0\", or the branch/project "
+                   "code-name if the release is not yet known\n",
+                   key);
+        exit(EXIT_FAILURE);
+    }
+}
+
 static std::unordered_map<std::string, std::string> getCompatDefaults(
         const nlohmann::json& defaultVal) {
     // The input to this function is just the list of defaults from some given
@@ -568,6 +588,7 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     auto json = params[key];
     auto type = getDatatype(key, json);
+    checkAddedVersion(key, json);
 
     auto defaultVal = json["default"];
 
