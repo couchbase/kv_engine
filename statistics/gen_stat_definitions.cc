@@ -167,6 +167,7 @@ struct Spec {
     std::string added;
     std::string deprecated;
     std::string notes;
+    std::string description;
 
     [[nodiscard]] std::string_view getName() const {
         return prometheus.family.empty() ? enumKey : prometheus.family;
@@ -318,6 +319,10 @@ void from_json(const nlohmann::json& j, Spec& s) {
     if (auto itr = j.find("notes"); itr != j.end()) {
         s.notes = itr.value();
     }
+
+    if (auto itr = j.find("description"); itr != j.end()) {
+        s.description = itr.value();
+    }
 }
 
 /**
@@ -351,6 +356,7 @@ std::ostream& operator<<(std::ostream& os, const Spec& spec) {
             "\"" + (!spec.cbstat.empty() ? spec.cbstat : spec.enumKey) + "\"sv";
     auto prom = !spec.prometheus.family.empty() ? spec.prometheus.family
                                                 : spec.enumKey;
+    auto description = nlohmann::json(spec.description).dump();
 
     // the cbstat key may need formatting at runtime, check if this is the case
     if (cbstat.find('{') != std::string::npos) {
@@ -362,18 +368,20 @@ std::ostream& operator<<(std::ostream& os, const Spec& spec) {
 
     if (spec.prometheusEnabled && spec.cbstatEnabled) {
         fmt::print(os,
-                   R"(StatDef({}, {}, "{}", {}, {}))",
+                   R"(StatDef({}, {}, "{}", {}, {}sv, {}))",
                    cbstat,
                    spec.unit,
                    prom,
                    spec.type,
+                   description,
                    formatLabels(spec.prometheus.labels));
     } else if (spec.prometheusEnabled) {
         fmt::print(os,
-                   R"(StatDef("{}"sv, {}, {}, {}, {}))",
+                   R"(StatDef("{}"sv, {}, {}, {}sv, {}, {}))",
                    prom,
                    spec.unit,
                    spec.type,
+                   description,
                    formatLabels(spec.prometheus.labels),
                    "cb::stats::StatDef::PrometheusOnlyTag{}");
     } else if (spec.cbstatEnabled) {
@@ -406,6 +414,24 @@ nlohmann::json readJsonFile(const char* filename) {
 }
 
 /**
+ * Compute the name of the Prometheus metric family a stat is exposed under,
+ * e.g. "kv_ops", "kv_cmd_duration_seconds".
+ */
+std::string getMetricFamilyName(const std::string& baseName,
+                                const std::string& unitName) {
+    return fmt::format("kv_{}{}",
+                       baseName,
+                       cb::stats::Unit::from_string(unitName).getSuffix());
+}
+
+std::string getMetricFamilyName(const Spec& spec) {
+    return getMetricFamilyName(spec.prometheus.family.empty()
+                                       ? spec.enumKey
+                                       : spec.prometheus.family,
+                               spec.unit.empty() ? "none" : spec.unit);
+}
+
+/**
  * Generate a metrics documentation entry from the spec.
  * @return A tuple of the exported metric name and the doc entry.
  */
@@ -426,6 +452,10 @@ std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
 
     if (!spec.notes.empty()) {
         statDoc["notes"] = spec.notes;
+    }
+
+    if (!spec.description.empty()) {
+        statDoc["help"] = spec.description;
     }
 
     // work out the full name
@@ -467,7 +497,6 @@ void addDocumentation(const Spec& spec,
     }
 
     auto [statName, statDoc] = generateDocEntry(spec);
-    statDoc["help"] = statJson.value("description", "");
 
     if (statJson.contains("/prometheus/labels"_json_pointer)) {
         auto labels = json::array();
@@ -562,13 +591,50 @@ bool resolveMetricFamilyConflicts(
     return !anyConflicts;
 }
 
-void addConfigDocumentation(const Spec& spec,
-                            std::string_view helpText,
-                            nlohmann::json& documentation) {
-    auto [statName, statDoc] = generateDocEntry(spec);
-    statDoc["help"] = helpText;
+/**
+ * Extract the default value for a config param as a string.
+ *
+ * The default may be a plain string, or a dict of deployment-specific values
+ * (e.g. {"on-prem": ..., "serverless": ...}). In the dict case the on-prem
+ * value is used (serverless is defunct), falling back to a "default" key.
+ * Returns an empty string if no usable default is present.
+ */
+std::string getConfigDefault(const nlohmann::json& configParam) {
+    auto itr = configParam.find("default");
+    if (itr == configParam.end()) {
+        return {};
+    }
+    const auto& def = *itr;
+    if (def.is_string()) {
+        return def.get<std::string>();
+    }
+    if (def.is_object()) {
+        if (auto onPrem = def.find("on-prem"); onPrem != def.end()) {
+            return onPrem->get<std::string>();
+        }
+        if (auto fallback = def.find("default"); fallback != def.end()) {
+            return fallback->get<std::string>();
+        }
+    }
+    return {};
+}
 
-    documentation[statName] = std::move(statDoc);
+void addConfigurationDescription(Spec& spec,
+                                 std::string description,
+                                 std::string defaultValue) {
+    // Ensure the description ends with a full stop before appending the
+    // configuration-parameter sentence, so the two read cleanly.
+    if (!description.empty() && description.back() != '.') {
+        description += '.';
+    }
+    if (defaultValue.empty()) {
+        description += " Configuration parameter.";
+    } else {
+        description += fmt::format(
+                " Configuration parameter with a default value of {}.",
+                defaultValue);
+    }
+    spec.description = std::move(description);
 }
 
 int main(int argc, char** argv) {
@@ -645,6 +711,17 @@ int main(int argc, char** argv) {
             anyFailedRequirements = true;
             continue;
         }
+
+        // Prometheus HELP is a property of the metric family, not of an
+        // individual series, so where a family description exists it takes
+        // precedence over the per-stat description. This mirrors the help
+        // selected for metrics_metadata.json by
+        // resolveMetricFamilyConflicts().
+        if (auto itr = familyDescriptions.find(getMetricFamilyName(spec));
+            itr != familyDescriptions.end()) {
+            spec.description = itr->second.value("description", "");
+        }
+
         // format the enum key for the .h
         fmt::format_to(std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
         // format the whole stat def for the .cc
@@ -692,6 +769,11 @@ int main(int argc, char** argv) {
             // we decide what it should be here.
             spec.stability =
                     shouldDocumentConfigKey(key) ? "volatile" : "internal";
+
+            auto description = configParam.value().value("descr", "");
+            const auto defaultValue = getConfigDefault(configParam.value());
+            addConfigurationDescription(spec, description, defaultValue);
+
             // format the enum key for the .h
             fmt::format_to(
                     std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
@@ -703,8 +785,9 @@ int main(int argc, char** argv) {
             if (type == "std::string") {
                 continue;
             }
-            auto description = configParam.value().value("descr", "");
-            addConfigDocumentation(spec, description, documentation);
+
+            auto [statName, statDoc] = generateDocEntry(spec);
+            documentation[statName] = std::move(statDoc);
         }
     }
 

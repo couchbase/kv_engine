@@ -111,6 +111,7 @@ struct StatDef {
      * normalise stats into their base units, and suffix them correctly.
      * @param metricFamilyKey name which may be shared by multiple stats with
      * distinguishing labels. Used to group stats.
+     * @param help The description of a metric used by prometheus exporter
      * @param labels key/value pairs used by Prometheus to filter/aggregate
      * stats
      */
@@ -118,6 +119,7 @@ struct StatDef {
             cb::stats::Unit unit = cb::stats::units::none,
             std::string_view metricFamilyKey = "",
             ::prometheus::MetricType type = ::prometheus::MetricType::Gauge,
+            std::string_view help = std::string_view(""),
             Labels&& labels = {});
 
     /**
@@ -155,6 +157,7 @@ struct StatDef {
     StatDef(std::string_view metricFamilyKey,
             cb::stats::Unit unit,
             ::prometheus::MetricType type,
+            std::string_view help,
             Labels&& labels,
             PrometheusOnlyTag);
 
@@ -182,6 +185,9 @@ struct StatDef {
 
     // type of the metric for exposition for Prometheus
     const ::prometheus::MetricType type = ::prometheus::MetricType::Gauge;
+
+    // The description of a metric for Prometheus Exporter
+    const std::string help;
 
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector
