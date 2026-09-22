@@ -263,7 +263,6 @@ void CacheTransferHashTableVisitor::maybeLogForLongHashTableChain() {
         OBJ_LOG_WARN_CTX(
                 *stream,
                 "CacheTransferHashTableVisitor: long hash table chain detected",
-                {"vb", stream->getVBucket()},
                 {"bucket", bucketNum},
                 {"length", hashChainCount});
     }
@@ -306,10 +305,9 @@ bool CacheTransferTask::run() {
             return true;
         }
         auto& stream = visitor.getStream();
-        OBJ_LOG_WARN_CTX(stream,
+        OBJ_LOG_WARN_RAW(stream,
                          "CacheTransferTask::run: cancelling transfer due "
-                         "to backfill threshold",
-                         {"vb", vbid});
+                         "to backfill threshold");
         stream.cancelTransfer();
         // stop running the task
         return releaseVisitLockAndStop();
@@ -379,8 +377,7 @@ bool CacheTransferTask::run() {
         OBJ_LOG_INFO_CTX(
                 stream,
                 "CacheTransferTask::run: completed.",
-                {{"vb", vbid},
-                 {"ht_end", position == vb->ht.endPosition()},
+                {{"ht_end", position == vb->ht.endPosition()},
                  {"status", visitor.getStatus()},
                  {"visited_count", visitedCount},
                  {"queued_count", queuedCount},
@@ -414,8 +411,7 @@ double CacheTransferTask::maybeLogHighMemoryPressure(
         OBJ_LOG_INFO_CTX(
                 stream,
                 "CacheTransferTask::backing off due to high memory pressure",
-                {"detail", msg},
-                {"vb", vbid});
+                {"detail", msg});
         lastLoggedHighMemoryPressure = cb::time::steady_clock::now();
     }
     return engine->getConfiguration()
@@ -474,10 +470,9 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
 void CacheTransferStream::setActive() {
     auto producer = getProducer();
     if (!producer) {
-        OBJ_LOG_WARN_CTX(
+        OBJ_LOG_WARN_RAW(
                 *this,
-                "CacheTransferStream::scheduleTask: Producer cannot be locked",
-                {"vb", getVBucket()});
+                "CacheTransferStream::scheduleTask: Producer cannot be locked");
         return;
     }
     std::lock_guard<std::mutex> lh(streamMutex);
@@ -551,7 +546,6 @@ void CacheTransferStream::cancelTransfer() {
         OBJ_LOG_INFO_CTX(
                 *this,
                 "CacheTransferStream::cancelTransfer: Cancelling transfer",
-                {"vbid", getVBucket()},
                 {"total_bytes_queued", bytes});
     }
     // setDead may next switch over to an ActiveStream.

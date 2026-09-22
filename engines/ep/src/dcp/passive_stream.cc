@@ -384,8 +384,7 @@ bool PassiveStream::isCacheTransferAndFullEviction(
 bool PassiveStream::maybeLogCacheTransferOutOfMemory() {
     // Log only once as there could be many messages in flight.
     if (!hasLoggedCacheTransferOutOfMemory) {
-        OBJ_LOG_INFO_CTX(
-                *this, "CacheTransfer signalling out of memory", {"vb", vb_});
+        OBJ_LOG_INFO_RAW(*this, "CacheTransfer signalling out of memory");
         hasLoggedCacheTransferOutOfMemory = true;
         return true;
     }
@@ -1435,7 +1434,6 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
                         *this,
                         "PassiveStream::processMessage: Got error while trying "
                         "to process MutationConsumerMessage",
-                        {"vb_", vb_},
                         {"ret", cb::to_string(ret)},
                         {"resp", resp.to_string()},
                         {"*seqno", *seqno},
@@ -1515,7 +1513,6 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         OBJ_LOG_WARN_CTX(*this,
                          "PassiveStream::processCacheTransfer: error in "
                          "DcpCacheTransferBuffer",
-                         {"vb", vb_},
                          {"error", itr.getError()});
         return cb::engine_errc::disconnect;
     };
@@ -1538,7 +1535,6 @@ cb::engine_errc PassiveStream::processCacheTransfer(
                         *this,
                         "PassiveStream::processCacheTransfer: collection "
                         "does not exist",
-                        {"vb", vb_},
                         {"seqno", item.getBySeqno()},
                         {"collection_id", cid});
                 return cb::engine_errc::unknown_collection;
@@ -1562,7 +1558,6 @@ cb::engine_errc PassiveStream::processCacheTransfer(
             OBJ_LOG_WARN_CTX(*this,
                              "PassiveStream::processCacheTransfer: failed to "
                              "add item to HashTable",
-                             {"vb", vb_},
                              {"seqno", item.getBySeqno()},
                              {"cas", item.getCas()},
                              {"rev_seqno", item.getRevSeqno()},
@@ -1596,8 +1591,7 @@ cb::engine_errc PassiveStream::processCacheTransferEnd(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    OBJ_LOG_INFO_CTX(
-            *this, "PassiveStream::processCacheTransferEnd", {"vb", vb_});
+    OBJ_LOG_INFO_RAW(*this, "PassiveStream::processCacheTransferEnd");
     // Transfer complete - rebalance can continue and HashTable down-sizing is
     // re-enabled (see the ht.minimumSize function set by VBucket).
     vb->setSnapshotRebalanceCanContinue();
