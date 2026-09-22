@@ -2106,6 +2106,23 @@
                 }
             }
         },
+        "magma_fusion_state": {
+            "added": "8.5.0",
+            "default": "disabled",
+            "descr": "The Fusion state of the bucket, as set by ns_server.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "disabled",
+                    "disabling",
+                    "enabled",
+                    "enabling",
+                    "stopped",
+                    "stopping"
+                ]
+            }
+        },
         "magma_fusion_metadatastore_uri": {
             "added": "8.0.0",
             "default": "",
