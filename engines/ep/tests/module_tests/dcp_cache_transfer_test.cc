@@ -1129,6 +1129,53 @@ TEST_P(DcpCacheTransferTest, rx_byte_counter) {
     EXPECT_EQ(batch.size() + firstItemBytes, counter);
 }
 
+// A malformed buffer must fail the message. Both cases below return success
+// if the error is tested from inside the iteration loop, as the loop is not
+// re-entered after the failing advance.
+TEST_P(DcpCacheTransferTest, rx_malformed_buffer_disconnects) {
+    const auto replicaVB = Vbid(1);
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "test_producer->test_consumer");
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(
+                      /*opaque*/ 0, replicaVB, cb::mcbp::DcpAddStreamFlag{}));
+    const auto opaque = consumer->getVbucketStream(replicaVB)->getOpaque();
+
+    auto& counter = engine->getEpStats().cacheTransferBytesRead;
+    ASSERT_EQ(0, counter);
+
+    // A truncated tail: the first item is whole, the second declares a value
+    // which runs off the end of the buffer.
+    std::string batch;
+    appendWireItem(batch, makeStoredDocKey("a"), "value-a", 1);
+    const auto firstItemBytes = batch.size();
+    appendWireItem(batch, makeStoredDocKey("b"), "value-b", 2);
+    ASSERT_GT(batch.size() - 3, cb::mcbp::DcpCacheTransferBuffer::minSize());
+    batch.resize(batch.size() - 3);
+
+    EXPECT_EQ(cb::engine_errc::disconnect,
+              consumer->cache_transfer_rx(
+                      opaque,
+                      replicaVB,
+                      cb::mcbp::DcpCacheTransferBuffer(batch)));
+    EXPECT_EQ(firstItemBytes, counter);
+
+    // The first item is malformed, so begin() == end() and the loop body
+    // never runs.
+    std::string single;
+    appendWireItem(single, makeStoredDocKey("c"), "value-c", 3);
+    ASSERT_GT(single.size() - 4, cb::mcbp::DcpCacheTransferBuffer::minSize());
+    single.resize(single.size() - 4);
+
+    EXPECT_EQ(cb::engine_errc::disconnect,
+              consumer->cache_transfer_rx(
+                      opaque,
+                      replicaVB,
+                      cb::mcbp::DcpCacheTransferBuffer(single)));
+    EXPECT_EQ(firstItemBytes, counter);
+}
+
 // The HashTable pre-size estimate is memory-cautious whatever the eviction
 // mode. Value eviction must accommodate every key so is all-or-nothing: the
 // predicted table for the full key count must fit below the high watermark.
