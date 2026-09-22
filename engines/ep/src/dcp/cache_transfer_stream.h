@@ -256,6 +256,9 @@ protected:
      */
     void flushBufferLocked(const std::lock_guard<std::mutex>&);
 
+    /// Size itemsBuffer to hold a whole batch without reallocating.
+    void reserveBuffer();
+
     /// Maximum buffer size in bytes for batching cache transfer items. A value
     /// of 0 means one item per batch. Initialised from configuration at
     /// construction.

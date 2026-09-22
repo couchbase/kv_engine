@@ -344,15 +344,24 @@ TEST_P(DcpTest, CacheTransferStream) {
         case ClientOpcode::DcpCacheTransfer: {
             seenCacheTransfer = true;
             DcpCacheTransferBuffer buffer(req->getValueString());
-            for (auto it = buffer.begin(); it != buffer.end(); ++it) {
-                ASSERT_FALSE(it.hasError())
-                        << "DcpCacheTransferBuffer iteration error: "
-                        << it.getError().dump();
+            // hasError is checked after each advance, see
+            // DcpCacheTransferBuffer.
+            auto it = buffer.begin();
+            ASSERT_FALSE(it.hasError())
+                    << "DcpCacheTransferBuffer iteration error: "
+                    << it.getError().dump();
+
+            while (it != buffer.end()) {
                 // Strip the 1-byte default collection prefix from the wire key.
                 auto wireKey = it->getKey();
                 ASSERT_FALSE(wireKey.empty());
                 received.emplace(std::string{wireKey.substr(1)},
                                  std::string{it->getValue()});
+
+                ++it;
+                ASSERT_FALSE(it.hasError())
+                        << "DcpCacheTransferBuffer iteration error: "
+                        << it.getError().dump();
             }
             break;
         }

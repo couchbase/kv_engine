@@ -1382,6 +1382,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         break;
     case DcpResponse::Event::CacheTransferRx: {
         ret = processCacheTransfer(
+                *vb,
                 static_cast<const CacheTransferRxConsumer&>(resp).getItems());
         break;
     }
@@ -1465,16 +1466,10 @@ PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
 }
 
 cb::engine_errc PassiveStream::processCacheTransfer(
-        const cb::mcbp::DcpCacheTransferBuffer items) {
-    VBucketPtr vb = engine->getVBucket(vb_);
+        VBucket& vb, const cb::mcbp::DcpCacheTransferBuffer items) {
+    std::shared_lock rlh(vb.getStateLock());
 
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    std::shared_lock rlh(vb->getStateLock());
-
-    if (!permittedVBStates.test(vb->getState())) {
+    if (!permittedVBStates.test(vb.getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -1486,55 +1481,64 @@ cb::engine_errc PassiveStream::processCacheTransfer(
         engine->getEpStats().cacheTransferBytesRead += bytesRead;
     });
 
-    auto itr = items.begin();
-    auto manifest = vb->lockCollections();
+    // Build outside of loop/locked scope. The buffer end sentinel can allocate
+    const auto end = items.end();
+    auto manifest = vb.lockCollections();
     // The previously checked collection. The manifest read handle is held for
     // the whole message, so a collection checked once cannot be dropped
     // whilst iterating - a message of one collection needs a single exists()
     // lookup.
     std::optional<CollectionID> checkedCollection;
-    while (itr != items.end()) {
-        // mcbp_validators isn't iterating and checking the buffer - that
-        // happens once here so we must fail on an error.
-        if (itr.hasError()) {
-            OBJ_LOG_WARN_CTX(*this,
-                             "PassiveStream::processCacheTransfer: error in "
-                             "DcpCacheTransferBuffer",
-                             {"vb", vb_},
-                             {"error", itr.getError()});
-            return cb::engine_errc::disconnect;
-        }
+
+    // mcbp_validators does not walk the buffer, so a malformed one fails here.
+    // Checked after each advance, see DcpCacheTransferBuffer.
+    auto bufferError = [this](const auto& itr) {
+        OBJ_LOG_WARN_CTX(*this,
+                         "PassiveStream::processCacheTransfer: error in "
+                         "DcpCacheTransferBuffer",
+                         {"vb", vb_},
+                         {"error", itr.getError()});
+        return cb::engine_errc::disconnect;
+    };
+
+    auto itr = items.begin();
+    if (itr.hasError()) {
+        return bufferError(itr);
+    }
+
+    while (itr != end) {
         const auto& item = *itr;
 
         DocKeyView key(item.getKey(), DocKeyEncodesCollectionId::Yes);
+        const auto cid = key.getCollectionID();
         // It would be really odd if the vbucket didn't know about this
         // collection.
-        if (key.getCollectionID() != checkedCollection) {
-            if (!manifest.exists(key.getCollectionID())) {
+        if (cid != checkedCollection) {
+            if (!manifest.exists(cid)) {
                 OBJ_LOG_WARN_CTX(
                         *this,
                         "PassiveStream::processCacheTransfer: collection "
                         "does not exist",
                         {"vb", vb_},
                         {"seqno", item.getBySeqno()},
-                        {"collection_id", key.getCollectionID()});
+                        {"collection_id", cid});
                 return cb::engine_errc::unknown_collection;
             }
-            checkedCollection = key.getCollectionID();
+            checkedCollection = cid;
         }
 
         // Add the key/meta and value
         // Value can be 0 for non-resident/key-only transfer and that is handled
         // by this bespoke addToHashTable call.
-        const auto status = vb->addToHashTable(key,
-                                               item.getValue(),
-                                               {item.getCas(),
-                                                item.getRevSeqno(),
-                                                item.getFlags(),
-                                                item.getExpiration()},
-                                               item.getDatatype(),
-                                               item.getBySeqno(),
-                                               item.getCacheHint());
+        const auto status = vb.addToHashTable(key,
+                                              item.getValue(),
+                                              {item.getCas(),
+                                               item.getRevSeqno(),
+                                               item.getFlags(),
+                                               item.getExpiration()},
+                                              item.getDatatype(),
+                                              item.getBySeqno(),
+                                              item.getCacheHint());
         if (status != cb::engine_errc::success) {
             OBJ_LOG_WARN_CTX(*this,
                              "PassiveStream::processCacheTransfer: failed to "
@@ -1549,7 +1553,11 @@ cb::engine_errc PassiveStream::processCacheTransfer(
 
         // Add the key/meta/value bytes to our transfer metric.
         bytesRead += item.getSize();
+
         ++itr;
+        if (itr.hasError()) {
+            return bufferError(itr);
+        }
     }
 
     return cb::engine_errc::success;
