@@ -556,7 +556,7 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
         try {
             std::size_t val =
                     std::stoul(args.find("expected_duration")->second) * 1.3;
-            expected_duration = std::min(val, expected_duration);
+            expected_duration = std::max(val, expected_duration);
             if (val == 0) {
                 cookie.setErrorContext("expected_duration cannot be zero");
                 return cb::engine_errc::invalid_arguments;
