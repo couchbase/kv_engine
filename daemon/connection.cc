@@ -1545,17 +1545,6 @@ void Connection::setConnectionId(std::string_view uuid) {
     std::ranges::replace(connectionId, '"', ' ');
 }
 
-size_t Connection::getNumberOfCookies() const {
-    size_t ret = 0;
-    for (const auto& cookie : cookies) {
-        if (cookie) {
-            ++ret;
-        }
-    }
-
-    return ret;
-}
-
 void Connection::close() {
     bool ewb = false;
     uint32_t rc = refcount;

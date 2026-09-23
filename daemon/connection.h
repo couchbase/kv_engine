@@ -551,11 +551,6 @@ public:
                                  std::string_view cipherName);
 
     /**
-     * Get the number of cookies currently bound to this connection
-     */
-    size_t getNumberOfCookies() const;
-
-    /**
      * Check to see if the next packet to process is completely received
      * and available in the input pipe.
      *

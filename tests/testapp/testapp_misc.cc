@@ -437,6 +437,167 @@ TEST_P(MiscTest, PacketStamping) {
 #endif
 }
 
+/**
+ * Connection::getNumberOfCookies() counts every non-null slot in the
+ * connection's cookie deque, but the first slot is always retained (reset,
+ * not erased) once its command completes. That makes
+ * select_bucket_executor.cc's "getNumberOfCookies() > 1" guard ("we can't
+ * switch bucket if we've got multiple commands in flight") a false positive
+ * whenever SELECT_BUCKET is pipelined behind an earlier, reorderable command
+ * that went through an EWOULDBLOCK cycle: by the time SELECT_BUCKET runs,
+ * the earlier command has fully completed, yet its retained slot is still
+ * counted.
+ *
+ * Reproduce by pipelining a GET configured to EWOULDBLOCK once, followed
+ * immediately (without waiting for the GET's response) by a SELECT_BUCKET
+ * naming a bucket this user has no RBAC access to. The correct response is
+ * Eaccess; the bug instead yields NotSupported because the spurious cookie
+ * count trips select_bucket_executor's guard before RBAC is even
+ * evaluated.
+ */
+TEST_P(MiscTest, SelectBucketNotFalselyRejectedAfterBlockingCommand) {
+    // Store the document so the GET completes with Success once unblocked.
+    std::string value = "value";
+    DocumentInfo info;
+    info.id = name;
+    BinprotMutationCommand cmd;
+    cmd.setDocumentInfo(info);
+    cmd.addValueBuffer(value);
+    cmd.setMutationType(MutationType::Set);
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // We're going to modify the ewouldblock handling. Make sure we rebuild
+    // userConnection when we're done with this test to avoid potential
+    // problems in the next one if something misbehaves.
+    const auto resetGuard = folly::makeGuard([&] { userConnection.reset(); });
+
+    // GET is only ever allowed to be reordered ahead of a later,
+    // non-reorderable command (letting it occupy a second cookie slot while
+    // it blocks) if the connection negotiated Unordered Execution Mode --
+    // otherwise the barrier logic stops reading further commands the moment
+    // GET blocks, and the bug can't manifest.
+    userConnection->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+
+    // Make the next engine call (the GET below) return EWOULDBLOCK exactly
+    // once. Unlike SlowCasMismatch (which sleeps synchronously inside
+    // execute()), this returns control to the event loop and completes the
+    // command asynchronously via the normal notifyIoComplete path -- which
+    // is what leaves a retained-but-completed cookie slot behind.
+    userConnection->configureEwouldBlockEngine(
+            EWBEngineMode::Next_N, cb::engine_errc::would_block, 1);
+
+    // Build a pipeline of two commands and send them back-to-back without
+    // waiting for a response: the GET (which will block once) followed by
+    // a SELECT_BUCKET to a bucket this user has no access to.
+    BinprotGetCommand get_command(name);
+    std::vector<uint8_t> buffer;
+    get_command.encode(buffer);
+
+    const std::string noAccessBucket = "mb-getnumberofcookies-no-such-bucket";
+    BinprotGenericCommand select_bucket_command(
+            cb::mcbp::ClientOpcode::SelectBucket, noAccessBucket);
+    {
+        std::vector<uint8_t> buffer2;
+        select_bucket_command.encode(buffer2);
+        buffer.insert(buffer.end(), buffer2.begin(), buffer2.end());
+    }
+
+    userConnection->sendBuffer({buffer.data(), buffer.size()});
+
+    // The GET should complete successfully once its injected EWOULDBLOCK
+    // has been resolved.
+    userConnection->recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::Get, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+
+    // The SELECT_BUCKET should be rejected because this user has no RBAC
+    // access to that (non-existent) bucket -- not because of a bogus
+    // "multiple commands in flight" check. NotSupported here means the
+    // getNumberOfCookies() bug has reappeared.
+    userConnection->recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::SelectBucket, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus()) << rsp.getDataView();
+}
+
+/**
+ * Same underlying bug as SelectBucketNotFalselyRejectedAfterBlockingCommand,
+ * but for hello_packet_executor.cc, which has an identical (copy-pasted)
+ * "getNumberOfCookies() > 1" guard. HELLO isn't about switching buckets, but
+ * it's guarded by the very same stale-cookie-count check, so it can be
+ * spuriously rejected the same way.
+ *
+ * Reproduce by pipelining a GET configured to EWOULDBLOCK once, followed
+ * immediately by a HELLO negotiating a feature. The correct response is
+ * Success (with the feature enabled); the bug instead yields NotSupported.
+ */
+TEST_P(MiscTest, HelloNotFalselyRejectedAfterBlockingCommand) {
+    // Store the document so the GET completes with Success once unblocked.
+    std::string value = "value";
+    DocumentInfo info;
+    info.id = name;
+    BinprotMutationCommand cmd;
+    cmd.setDocumentInfo(info);
+    cmd.addValueBuffer(value);
+    cmd.setMutationType(MutationType::Set);
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // We're going to modify the ewouldblock handling. Make sure we rebuild
+    // userConnection when we're done with this test to avoid potential
+    // problems in the next one if something misbehaves.
+    const auto resetGuard = folly::makeGuard([&] { userConnection.reset(); });
+
+    // GET is only ever allowed to be reordered ahead of a later,
+    // non-reorderable command (letting it occupy a second cookie slot while
+    // it blocks) if the connection negotiated Unordered Execution Mode --
+    // otherwise the barrier logic stops reading further commands the moment
+    // GET blocks, and the bug can't manifest.
+    userConnection->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+
+    // Make the next engine call (the GET below) return EWOULDBLOCK exactly
+    // once. Unlike SlowCasMismatch (which sleeps synchronously inside
+    // execute()), this returns control to the event loop and completes the
+    // command asynchronously via the normal notifyIoComplete path -- which
+    // is what leaves a retained-but-completed cookie slot behind.
+    userConnection->configureEwouldBlockEngine(
+            EWBEngineMode::Next_N, cb::engine_errc::would_block, 1);
+
+    // Build a pipeline of two commands and send them back-to-back without
+    // waiting for a response: the GET (which will block once) followed by
+    // a HELLO requesting XATTR support.
+    BinprotGetCommand get_command(name);
+    std::vector<uint8_t> buffer;
+    get_command.encode(buffer);
+
+    BinprotHelloCommand hello_command(name);
+    hello_command.enableFeature(cb::mcbp::Feature::XATTR);
+    {
+        std::vector<uint8_t> buffer2;
+        hello_command.encode(buffer2);
+        buffer.insert(buffer.end(), buffer2.begin(), buffer2.end());
+    }
+
+    userConnection->sendBuffer({buffer.data(), buffer.size()});
+
+    // The GET should complete successfully once its injected EWOULDBLOCK
+    // has been resolved.
+    userConnection->recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::Get, rsp.getOp());
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+
+    // The HELLO should succeed and enable XATTR -- not be rejected because
+    // of a bogus "multiple commands in flight" check. NotSupported here
+    // means the getNumberOfCookies() bug has reappeared.
+    userConnection->recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::Hello, rsp.getOp());
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    BinprotHelloResponse hello_response(std::move(rsp));
+    const auto features = hello_response.getFeatures();
+    EXPECT_NE(features.end(),
+              std::ranges::find(features, cb::mcbp::Feature::XATTR));
+}
+
 TEST_F(TestappTest, CollectionsSelectBucket) {
     // Create and select a bucket on which we will be able to hello collections
     mcd_env->getTestBucket().createBucket("collections", "", *adminConnection);

@@ -91,17 +91,6 @@ void select_bucket_executor(Cookie& cookie) {
                                {"opaque", ntohl(c.getRequest().getOpaque())},
                                {"description", connection.getDescription()});
                   code = cb::engine_errc::not_supported;
-              } else if (connection.getNumberOfCookies() > 1) {
-                  // We can't switch bucket if we've got multiple commands in
-                  // flight
-                  LOG_INFO_CTX(
-                          "select_bucket failed - multiple commands in "
-                          "flight",
-                          {"conn_id", connection.getId()},
-                          {"bucket", bucketname},
-                          {"opaque", ntohl(c.getRequest().getOpaque())},
-                          {"description", connection.getDescription()});
-                  code = cb::engine_errc::not_supported;
               } else if (bucketname == "@no bucket@") {
                   // unselect bucket!
                   BucketManager::instance().associateBucket(c, {});

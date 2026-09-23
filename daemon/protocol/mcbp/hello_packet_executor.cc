@@ -182,17 +182,6 @@ void process_hello_packet_executor(Cookie& cookie) {
 
     std::vector<uint16_t> out;
 
-    // We can't switch bucket if we've got multiple commands in flight
-    if (connection.getNumberOfCookies() > 1) {
-        LOG_INFO_CTX(
-                "Changing options via HELO is not possible with multiple "
-                "commands in flight",
-                {"conn_id", connection.getId()},
-                {"description", connection.getDescription()});
-        cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
-    }
-
     FeatureSet requested;
     try {
         buildRequestVector(requested, input);
