@@ -25,11 +25,6 @@ static cb::engine_errc select_bucket(Cookie& cookie,
     auto oldIndex = connection.getBucketIndex();
 
     if (!cookie.mayAccessBucket(bucketname)) {
-        LOG_INFO_CTX("select_bucket failed - No access",
-                     {"conn_id", connection.getId()},
-                     {"bucket", bucketname},
-                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
-                     {"description", connection.getDescription()});
         return cb::engine_errc::no_access;
     }
 
@@ -74,22 +69,8 @@ void select_bucket_executor(Cookie& cookie) {
 
               auto& connection = c.getConnection();
               cb::engine_errc code = cb::engine_errc::success;
-              if (!connection.isAuthenticated()) {
-                  c.setErrorContext("Not authenticated");
-                  LOG_INFO_CTX("select_bucket failed - Not authenticated",
-                               {"conn_id", connection.getId()},
-                               {"bucket", bucketname},
-                               {"opaque", ntohl(c.getRequest().getOpaque())},
-                               {"description", connection.getDescription()});
-                  code = cb::engine_errc::no_access;
-              } else if (connection.isDCP()) {
+              if (connection.isDCP()) {
                   c.setErrorContext("DCP connections cannot change bucket");
-
-                  LOG_INFO_CTX("select_bucket failed - DCP connection",
-                               {"conn_id", connection.getId()},
-                               {"bucket", bucketname},
-                               {"opaque", ntohl(c.getRequest().getOpaque())},
-                               {"description", connection.getDescription()});
                   code = cb::engine_errc::not_supported;
               } else if (bucketname == "@no bucket@") {
                   // unselect bucket!
