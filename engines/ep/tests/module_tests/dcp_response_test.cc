@@ -187,9 +187,26 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
 }
 
 TEST_F(DcpResponseEngineTest, DcpCacheTransfer_getMessageSize) {
+    // Size the messages the way the producer does, from the two helpers.
+    auto messageSize = [](const std::vector<cb::ItemWithCacheHint>& items,
+                          cb::mcbp::DcpStreamId sid) {
+        uint32_t size = DcpCacheTransfer::getFramingSize(sid);
+        for (const auto& entry : items) {
+            size += DcpCacheTransfer::getItemWireSize(*entry.item);
+        }
+        return size;
+    };
+
     // Empty-items, no streamId: just the Request header.
     {
-        DcpCacheTransfer dct(1 /*opaque*/, {} /*items*/, Vbid(2), {} /*sid*/);
+        const std::vector<cb::ItemWithCacheHint> items;
+        EXPECT_EQ(sizeof(cb::mcbp::Request), messageSize(items, {}));
+
+        DcpCacheTransfer dct(1 /*opaque*/,
+                             {} /*items*/,
+                             Vbid(2),
+                             {} /*sid*/,
+                             messageSize(items, {}));
         EXPECT_EQ(sizeof(cb::mcbp::Request), dct.getMessageSize());
         EXPECT_EQ(dct.getMessageSize(), dct.getApproximateSize());
         EXPECT_EQ(Vbid(2), dct.getVBucket());
@@ -199,8 +216,13 @@ TEST_F(DcpResponseEngineTest, DcpCacheTransfer_getMessageSize) {
 
     // Empty-items, with streamId: header + framing extras for the sid.
     {
-        DcpCacheTransfer dct(
-                1 /*opaque*/, {} /*items*/, Vbid(2), cb::mcbp::DcpStreamId(7));
+        const cb::mcbp::DcpStreamId sid(7);
+        const std::vector<cb::ItemWithCacheHint> items;
+        DcpCacheTransfer dct(1 /*opaque*/,
+                             {} /*items*/,
+                             Vbid(2),
+                             sid,
+                             messageSize(items, sid));
         EXPECT_EQ(sizeof(cb::mcbp::Request) +
                           sizeof(cb::mcbp::DcpStreamIdFrameInfo),
                   dct.getMessageSize());
@@ -217,8 +239,15 @@ TEST_F(DcpResponseEngineTest, DcpCacheTransfer_getMessageSize) {
         items.push_back({makeItem(key1, value1), 0 /*cacheHint*/});
         items.push_back({makeItem(key2, value2), 0 /*cacheHint*/});
 
+        // An item accounts for its payload header, key and value, and not
+        // the Blob's allocation overhead.
+        EXPECT_EQ(sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
+                          makeStoredDocKey(key1).size() + value1.size(),
+                  DcpCacheTransfer::getItemWireSize(*items[0].item));
+
+        const auto size = messageSize(items, {});
         DcpCacheTransfer dct(
-                1 /*opaque*/, std::move(items), Vbid(2), {} /*sid*/);
+                1 /*opaque*/, std::move(items), Vbid(2), {} /*sid*/, size);
 
         const auto expected =
                 sizeof(cb::mcbp::Request) +
@@ -234,14 +263,14 @@ TEST_F(DcpResponseEngineTest, DcpCacheTransfer_getMessageSize) {
     {
         const std::string key = "k1";
         const std::string value = "v1";
+        const cb::mcbp::DcpStreamId sid(7);
 
         std::vector<cb::ItemWithCacheHint> items;
         items.push_back({makeItem(key, value), 0 /*cacheHint*/});
 
-        DcpCacheTransfer dct(1 /*opaque*/,
-                             std::move(items),
-                             Vbid(2),
-                             cb::mcbp::DcpStreamId(7));
+        const auto size = messageSize(items, sid);
+        DcpCacheTransfer dct(
+                1 /*opaque*/, std::move(items), Vbid(2), sid, size);
 
         const auto expected =
                 sizeof(cb::mcbp::Request) +

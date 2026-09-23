@@ -17,6 +17,7 @@
 #include "mcbp/protocol/request.h"
 #include "memcached/engine_error.h"
 #include "programs/engine_testapp/mock_cookie.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "stored-value.h"
 #include "tests/mock/mock_cache_transfer_stream.h"
 #include "tests/mock/mock_dcp.h"
@@ -311,6 +312,102 @@ TEST_P(DcpCacheTransferTest, oom) {
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponse(expectedItems));
     EXPECT_TRUE(stream->validateNextResponseIsEnd());
+}
+
+// The stream is ended (not by the task) whilst the task holds a partial batch.
+// The partial batch is dropped and only the end response is queued.
+TEST_P(DcpCacheTransferTest, setDead_drops_partial_batch) {
+    store_item(Vbid(0), makeStoredDocKey("2"), "2");
+    auto stream = createStream(*producer,
+                               1,
+                               Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
+                               store->getVBucket(vbid)->getHighSeqno());
+    int callbacks = 0;
+    stream->preQueueCallback = [&stream, &callbacks](const auto&) {
+        // On the second callback the first item is buffered
+        if (++callbacks == 2) {
+            ASSERT_NE(0, stream->getBufferedSize());
+            stream->setDead(cb::mcbp::DcpStreamEndStatus::Ok);
+        }
+    };
+    runCacheTransferTask();
+    EXPECT_EQ(2, callbacks);
+    EXPECT_EQ(0, stream->getBufferedSize());
+    EXPECT_EQ(1, stream->getItemsRemaining());
+    EXPECT_TRUE(stream->validateNextResponseIsEnd());
+}
+
+// The consumer responds Enomem to a DcpCacheTransfer, so the producer calls
+// cancelTransfer whilst the task holds a partial batch. The consumer has no
+// memory for it, so the partial batch is dropped and only the switch to
+// ActiveStream is queued.
+TEST_P(DcpCacheTransferTest,
+       cancelTransfer_drops_partial_batch_then_ActiveStream) {
+    store_item(Vbid(0), makeStoredDocKey("2"), "2");
+    const auto cacheMaxSeqno = store->getVBucket(vbid)->getHighSeqno();
+    store_item(Vbid(0), makeStoredDocKey("3"), "3");
+    auto stream = createStream(*producer,
+                               1,
+                               Vbid(0),
+                               cacheMaxSeqno,
+                               store->getVBucket(vbid)->getHighSeqno());
+    // Item "3" is beyond cacheMaxSeqno so is visited but skipped, so end the
+    // stream on the first callback which finds a buffered item.
+    bool ended = false;
+    stream->preQueueCallback = [&stream, &ended](const auto&) {
+        if (!ended && stream->getBufferedSize() != 0) {
+            ended = true;
+            stream->cancelTransfer();
+        }
+    };
+    runCacheTransferTask();
+    EXPECT_TRUE(ended);
+    EXPECT_EQ(0, stream->getBufferedSize());
+    EXPECT_EQ(1, stream->getItemsRemaining());
+    EXPECT_TRUE(stream->validateNextResponseIsCacheTransferToActiveStream());
+}
+
+// Privileges are lost whilst the task holds a partial batch. The stream ends
+// with LostPrivileges and nothing (partial or later batch) follows the end.
+TEST_P(DcpCacheTransferTest, lost_privileges_drops_partial_batch) {
+    store_item(Vbid(0), makeStoredDocKey("2"), "2");
+    auto stream = createStream(*producer,
+                               1,
+                               Vbid(0),
+                               store->getVBucket(vbid)->getHighSeqno(),
+                               store->getVBucket(vbid)->getHighSeqno());
+
+    // Privileges are intact, the stream continues
+    EXPECT_FALSE(stream->endIfRequiredPrivilegesLost(*producer));
+
+    auto guard = folly::makeGuard([] {
+        MockCookie::setCheckPrivilegeFunction({});
+        mock_set_privilege_context_revision(0);
+    });
+
+    int callbacks = 0;
+    stream->preQueueCallback = [this, &stream, &callbacks](const auto&) {
+        if (++callbacks == 2) {
+            ASSERT_NE(0, stream->getBufferedSize());
+            MockCookie::setCheckPrivilegeFunction(
+                    [](const CookieIface&,
+                       cb::rbac::Privilege,
+                       std::optional<ScopeID>,
+                       std::optional<CollectionID>) {
+                        return cb::rbac::PrivilegeAccessFail;
+                    });
+            mock_set_privilege_context_revision(1);
+            EXPECT_TRUE(stream->endIfRequiredPrivilegesLost(*producer));
+        }
+    };
+    runCacheTransferTask();
+    EXPECT_EQ(2, callbacks);
+    EXPECT_FALSE(stream->isActive());
+    EXPECT_EQ(0, stream->getBufferedSize());
+    EXPECT_EQ(1, stream->getItemsRemaining());
+    EXPECT_TRUE(stream->validateNextResponseIsEnd(
+            cb::mcbp::DcpStreamEndStatus::LostPrivileges));
 }
 
 TEST_P(DcpCacheTransferTest, skip_expired_items) {

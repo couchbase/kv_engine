@@ -15,6 +15,7 @@
 #include "dcp/producer_stream.h"
 #include "dcp/stream_request_info.h"
 #include <memcached/dcp.h>
+#include <atomic>
 #include <memory>
 
 class StoredValue;
@@ -160,6 +161,8 @@ public:
      * Flush any buffered items to the readyQ as a DcpCacheTransfer response.
      * This must be called before the stream ends or transitions state.
      *
+     * Must be called by the visiting task, which owns itemsBuffer.
+     *
      * @return true if items were flushed or buffer was empty, false if the
      *         stream is no longer active.
      */
@@ -167,6 +170,9 @@ public:
 
     /**
      * Get the current size of buffered items (sum of their sizes).
+     *
+     * Must be called by the visiting task, which owns the batch.
+     *
      * @return The current buffer size in bytes.
      */
     size_t getBufferedSize() const;
@@ -222,7 +228,13 @@ protected:
      * Active -> SwitchingToActiveStream -> Dead
      */
     enum class State { Active, SwitchingToActiveStream, Dead };
-    State state{State::Active};
+
+    /**
+     * The stream state. Written only under streamMutex, which serialises a
+     * transition with its readyQ push. Atomic so that the advisory isActive()
+     * check, made once per hash bucket, needs no lock.
+     */
+    std::atomic<State> state{State::Active};
 
     /// ID of the task generating data for the stream.
     size_t tid{0};
@@ -271,11 +283,16 @@ protected:
     /// construction.
     const size_t batchMaxItems{0};
 
-    /// Container for batching items.
+    /**
+     * Container for batching items. Owned by the visiting CacheTransferTask:
+     * only that thread appends, so appending needs no lock. streamMutex is
+     * taken only to move a finished batch to the readyQ, so a stream ended
+     * from the producer thread abandons a partial batch.
+     */
     std::vector<cb::ItemWithCacheHint> itemsBuffer;
 
     /// Current size of batch. This is the sum of item key+value sizes plus the
-    /// size of the DcpCacheTransferPayload for each item.
+    /// size of the DcpCacheTransferPayload for each item. Task owned.
     size_t bufferedSize{0};
 };
 
