@@ -129,6 +129,9 @@ Result CountingCollector::getResults(size_t collect_limit) const {
     result.num_keys_collected = num_keys_collected.load();
     result.num_keys_omitted = num_keys_omitted.load();
     result.shards = shardmaps.size();
+    if (collect_limit == 0) {
+        return result;
+    }
     std::vector<KeyInfo> keys;
     keys.reserve(collect_limit);
     for (const auto& shard : shardmaps) {

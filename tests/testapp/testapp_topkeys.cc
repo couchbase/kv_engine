@@ -90,6 +90,31 @@ TEST_P(Topkeys, TraceAllBucket) {
     }
 }
 
+/// A limit of 0 on topkeys.stop should return no keys, but should still
+/// report accurate summary fields.
+TEST_P(Topkeys, TraceStopWithZeroLimit) {
+    enableTracing();
+    for (int ii = 0; ii < 20; ++ii) {
+        BinprotGetCommand cmd("key-" + std::to_string(ii));
+        auto rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlGet,
+                                  fmt::format("topkeys.stop?limit={}", 0)});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+    auto json = rsp.getDataJson();
+    // enableTracing() only tracks up to 10 unique keys, so of the 20 keys
+    // accessed 10 should have been collected and 10 omitted, regardless of
+    // the limit requested on topkeys.stop.
+    EXPECT_EQ(10, json.value("num_keys_collected", -1));
+    EXPECT_EQ(10, json.value("num_keys_omitted", -1));
+    EXPECT_FALSE(json.contains("topkey")) << "json: " << json.dump(2);
+
+    auto& buckets = json["keys"];
+    EXPECT_TRUE(buckets.empty()) << "json: " << buckets.dump(2);
+}
+
 TEST_P(Topkeys, TraceBucketFilter) {
     mcd_env->getTestBucket().createBucket("bucket", {}, *adminConnection);
     enableTracing("bucket");

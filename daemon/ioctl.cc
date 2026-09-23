@@ -124,6 +124,9 @@ cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
  *                (100) is used instead
  *      + The limit only affects how many keys are returned from already-
  *                collected data
+ *      + A limit of 0 returns no keys (the "keys" object is empty), but
+ *                the summary fields (num_keys_collected, num_keys_omitted,
+ *                shards) are still populated
  *   - Example: limit=10
  *
  * Response
