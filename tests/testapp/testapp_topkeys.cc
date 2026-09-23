@@ -258,6 +258,17 @@ TEST_P(Topkeys, TraceCollectionFilter) {
     }
 }
 
+/// collection_filter only accepts decimal collection IDs; a hex value
+/// should be rejected with invalid_arguments.
+TEST_P(Topkeys, TraceCollectionFilterRejectsHex) {
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            fmt::format("topkeys.start?limit=10&shards=1&bucket_filter={}"
+                        "&collection_filter=0x18",
+                        bucketName)});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+}
+
 TEST_P(Topkeys, TraceMultipleCollectionFilter) {
     // Create collections manifest with fruit, vegetable, and dairy collections
     CollectionsManifest manifest;

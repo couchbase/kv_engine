@@ -488,7 +488,7 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
  *   - Example: bucket_filter=default,mybucket
  *
  * `collection_filter`
- *   - Type: Comma-separated list of collection IDs (hex or decimal)
+ *   - Type: Comma-separated list of collection IDs (decimal)
  *   - Default: Empty (monitor all collections in the filtered bucket)
  *   - Description: Filter to only monitor specific collections within a single
  *                  bucket
@@ -496,8 +496,8 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
  *      + Requires bucket_filter to be set with exactly one bucket
  *      + Results in invalid_arguments error if bucket filter has 0 or more
  *                than 1 bucket
- *      + Collection IDs must be valid unsigned integers
- *   - Example: collection_filter=9,10 (filters on collections 0x9 and 0x10)
+ *      + Collection IDs must be valid unsigned integers in decimal form
+ *   - Example: collection_filter=9,10 (filters on collections 0x9 and 0xa)
  *
  * Response
  *
