@@ -14,6 +14,7 @@
 
 #include "testapp_client_test.h"
 #include <engines/ep/src/dcp/dcp-types.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/dcp_cache_transfer_buffer.h>
 #include <nlohmann/json.hpp>
@@ -107,6 +108,17 @@ protected:
 
         return producerConn;
     }
+
+    /**
+     * Run a CacheTransfer stream and verify every stored document is
+     * received.
+     *
+     * @param minValueSize pad the stored values up to this size. The size of
+     *        the values dictates whether the server copies them into the send
+     *        buffer or chains them as SendBuffers, so both paths can be
+     *        covered.
+     */
+    void testCacheTransferStream(size_t minValueSize);
 
     void verifyMb26074(bool ephemeral);
 
@@ -280,11 +292,14 @@ TEST_P(DcpTest, DcpStreamStats) {
  * The test then reads DCP frames and verifies that the DcpCacheTransfer
  * message(s) contain every stored key/value before the stream is ended.
  */
-TEST_P(DcpTest, CacheTransferStream) {
+void DcpTest::testCacheTransferStream(size_t minValueSize) {
     std::map<std::string, std::string> expected;
     for (int ii = 0; ii < 5; ++ii) {
         auto key = fmt::format("CacheTransferStream_{}", ii);
         auto value = fmt::format("value_{}", ii);
+        if (value.size() < minValueSize) {
+            value.resize(minValueSize, char('a' + ii));
+        }
         store_document(key, value);
         expected.emplace(std::move(key), std::move(value));
     }
@@ -377,6 +392,19 @@ TEST_P(DcpTest, CacheTransferStream) {
     EXPECT_TRUE(seenStreamReqResponse);
     EXPECT_TRUE(seenCacheTransfer);
     EXPECT_EQ(expected, received);
+}
+
+TEST_P(DcpTest, CacheTransferStream) {
+    testCacheTransferStream(0);
+}
+
+/**
+ * As CacheTransferStream, but each value exceeds SendBuffer::MinimumDataSize
+ * (4096) so the server chains the value as a SendBuffer instead of copying it
+ * into the send buffer.
+ */
+TEST_P(DcpTest, CacheTransferStreamLargeValues) {
+    testCacheTransferStream(5000);
 }
 
 // We need our own namespace to avoid name clash with the DcpProducer class

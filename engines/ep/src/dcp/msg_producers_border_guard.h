@@ -156,6 +156,7 @@ public:
 
     cb::engine_errc cache_transfer_tx(uint32_t opaque,
                                       gsl::span<cb::ItemWithCacheHint> items,
+                                      size_t messageSize,
                                       Vbid vbucket,
                                       cb::mcbp::DcpStreamId sid) override;
 

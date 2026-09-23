@@ -2566,39 +2566,37 @@ cb::engine_errc Connection::seqno_advanced(uint32_t opaque,
 cb::engine_errc Connection::cache_transfer_tx(
         uint32_t opaque,
         gsl::span<cb::ItemWithCacheHint> items,
+        size_t messageSize,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
-    // 1. Calculate total size needed to stream the items
-    size_t len = 0;
-    for (const auto& item : items) {
-        // Payload + key + value
-        len += sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
-               item.item->getDocKey().size() + item.item->getValueView().size();
-    }
+    // The caller sized the message as it batched the items, so the body is
+    // simply everything which follows the request header.
+    Expects(messageSize > sizeof(cb::mcbp::Request));
     cb::mcbp::Request req = {};
     if (sid) {
         req.setMagic(cb::mcbp::Magic::AltClientRequest);
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
-        len += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     } else {
         req.setMagic(cb::mcbp::Magic::ClientRequest);
     }
 
     req.setOpcode(cb::mcbp::ClientOpcode::DcpCacheTransfer);
     // no extras or key in the header. The body encodes an array of items.
-    req.setBodylen(gsl::narrow_cast<uint32_t>(len));
+    req.setBodylen(gsl::narrow_cast<uint32_t>(messageSize -
+                                              sizeof(cb::mcbp::Request)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
 
+    cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
+    std::string_view sidbuffer;
+    if (sid) {
+        sidbuffer = frameExtras.getBuffer();
+    }
+
     try {
-        copyToOutputStream(req.getBuffer());
+        // mcbp request header and optional frameExtras.
+        copyToOutputStream(req.getBuffer(), sidbuffer);
 
-        if (sid) {
-            cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
-            copyToOutputStream(frameExtras.getBuffer());
-        }
-
-        // Now stream the items out
         for (auto& entry : items) {
             auto& item = entry.item;
             cb::mcbp::request::DcpCacheTransferPayload payload{
@@ -2612,16 +2610,23 @@ cb::engine_errc Connection::cache_transfer_tx(
                     item->getDataType(),
                     entry.cacheHint};
 
-            copyToOutputStream(payload.getBuffer(),
-                               item->getDocKey().getBuffer());
             const auto value = item->getValueView();
-            if (value.empty()) {
-                // key/meta no value to chain.
-                continue;
+            if (value.size() <= SendBuffer::MinimumDataSize) {
+                // like dcp mutation, values under MinimumDataSize are copied
+                // to the stream (this includes key/meta case where value is
+                // empty).
+                copyToOutputStream(payload.getBuffer(),
+                                   item->getDocKey().getBuffer(),
+                                   value);
+            } else {
+                // When the value exceeds the MinimumDataSize chain it (same as
+                // dcp mutation).
+                copyToOutputStream(payload.getBuffer(),
+                                   item->getDocKey().getBuffer());
+                auto sendbuffer = std::make_unique<ItemSendBuffer>(
+                        std::move(item), value, getBucket());
+                chainDataToOutputStream(std::move(sendbuffer));
             }
-            auto sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(item), value, getBucket());
-            chainDataToOutputStream(std::move(sendbuffer));
         }
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::disconnect;

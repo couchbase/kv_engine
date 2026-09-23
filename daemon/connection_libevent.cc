@@ -365,7 +365,7 @@ void LibeventConnection::copyToOutputStream(gsl::span<std::string_view> data) {
     auto* out = bufferevent_get_output(bev.get());
     size_t total = 0;
     for (const auto& d : data) {
-        if (evbuffer_add(out, d.data(), d.size()) == -1) {
+        if (d.size() && (evbuffer_add(out, d.data(), d.size()) == -1)) {
             throw std::bad_alloc();
         }
         total += d.size();

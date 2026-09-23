@@ -1241,6 +1241,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
             auto& ct = static_cast<DcpCacheTransfer&>(*resp);
             ret = producers.cache_transfer_tx(ct.getOpaque(),
                                               ct.getItems(),
+                                              ct.getMessageSize(),
                                               ct.getVBucket(),
                                               ct.getStreamId());
             break;
