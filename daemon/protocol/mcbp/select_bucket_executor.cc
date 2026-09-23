@@ -20,7 +20,7 @@
 #include <serverless/config.h>
 
 static cb::engine_errc select_bucket(Cookie& cookie,
-                                     const std::string& bucketname) {
+                                     const std::string_view bucketname) {
     auto& connection = cookie.getConnection();
     auto oldIndex = connection.getBucketIndex();
 
@@ -57,22 +57,19 @@ static cb::engine_errc select_bucket(Cookie& cookie,
 
 void select_bucket_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              using namespace std::string_view_literals;
               using cb::tracing::Code;
               using cb::tracing::SpanStopwatch;
               ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
                       c, Code::SelectBucket);
 
-              // Unfortunately we need to copy it over to a std::string as the
-              // internal methods expects the string to be terminated with
-              // '\0'
-              const std::string bucketname{c.getRequest().getKeyString()};
-
+              const auto bucketname{c.getRequest().getKeyString()};
               auto& connection = c.getConnection();
               cb::engine_errc code = cb::engine_errc::success;
               if (connection.isDCP()) {
                   c.setErrorContext("DCP connections cannot change bucket");
                   code = cb::engine_errc::not_supported;
-              } else if (bucketname == "@no bucket@") {
+              } else if (bucketname == "@no bucket@"sv) {
                   // unselect bucket!
                   BucketManager::instance().associateBucket(c, {});
               } else {
