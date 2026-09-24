@@ -7163,7 +7163,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                         "vb_0:prepare_size",
                                         "vb_0:history_disk_size",
                                         "vb_0:history_start_timestamp"};
-        statsKeys["diskinfo version"] = {"ep_db_max_format_version"};
+        statsKeys["diskinfo version"] = {"ep_db_max_format_version",
+                                         "ep_db_max_format_versions_json"};
 
         // Add stats which are only available for persistent buckets:
         std::initializer_list<std::string_view> persistence_stats = {
