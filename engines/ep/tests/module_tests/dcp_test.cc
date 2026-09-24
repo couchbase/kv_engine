@@ -1459,7 +1459,7 @@ protected:
         const auto dbname = getProcessUniqueDatabaseName();
         removePathIfExists(dbname);
 
-        const auto extraConfig = "dbname=" + dbname;
+        const auto extraConfig = "dbname=" + dbname + ";warmup=false";
         engine = SynchronousEPEngine::build(extraConfig);
 
         initialize_time_functions(get_mock_server_api()->core);

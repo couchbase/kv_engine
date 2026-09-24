@@ -40,6 +40,7 @@
 #include <fmt/format.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/rbac/privileges.h>
 #include <memcached/tracer.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
@@ -510,6 +511,21 @@ cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
                          {"vb_state", vb.toString(vb.getState())},
                          {"flags", fmt::to_string(req.flags)});
         return cb::engine_errc::not_my_vbucket;
+    }
+
+    // MB-53081: ns_server enables traffic once it considers the bucket ready,
+    // and may fail the node over before then. Refuse other clients until then.
+    // ns_server is exempt as it sets up replication from this node before it
+    // enables traffic.
+    if (engine_.isDegradedMode() &&
+        !getCookie()
+                 ->testPrivilege(cb::rbac::Privilege::NodeSupervisor, {}, {})
+                 .success()) {
+        OBJ_LOG_INFO_CTX(
+                *logger,
+                "Stream request failed because the bucket is not ready",
+                {"vb", vb.getId()});
+        return cb::engine_errc::temporary_failure;
     }
 
     req.high_seqno = vb.getHighSeqno();

@@ -7340,6 +7340,96 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+TEST_P(WarmupSTSingleShardTest, StreamRequestBeforeBucketReady) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    for (int ii = 1; ii <= 10; ++ii) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(ii)), "v");
+        if (ii == 5) {
+            flushVBucketToDiskIfPersistent(vbid, 5);
+        }
+    }
+    const auto oldUuid = store->getVBucket(vbid)->failovers->getLatestUUID();
+
+    resetEngineAndEnableWarmup("data_traffic_enabled=false", true);
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
+    ASSERT_TRUE(warmup);
+
+    while (warmup->getWarmupState() != WarmupState::State::PopulateVBucketMap) {
+        runNextTask(readerQueue);
+    }
+    runNextTask(readerQueue);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_TRUE(engine->getKVBucket()->isPrimaryWarmupLoadingData());
+    ASSERT_EQ(5, vb->getHighSeqno());
+    ASSERT_NE(oldUuid, vb->failovers->getLatestUUID());
+    vb.reset();
+
+    auto* projectorCookie = create_mock_cookie(engine.get());
+    projectorCookie->getConnection().setUser("@projector");
+    auto projector = createDcpProducer(projectorCookie, IncludeDeleteTime::Yes);
+    auto* nsServerCookie = create_mock_cookie(engine.get());
+    nsServerCookie->getConnection().setUser("@ns_server");
+    auto nsServer = createDcpProducer(nsServerCookie, IncludeDeleteTime::Yes);
+
+    MockCookie::setCheckPrivilegeFunction(
+            [projectorCookie](const CookieIface& cookie,
+                              cb::rbac::Privilege privilege,
+                              std::optional<ScopeID>,
+                              std::optional<CollectionID>) {
+                if (&cookie == projectorCookie &&
+                    privilege == cb::rbac::Privilege::NodeSupervisor) {
+                    return cb::rbac::PrivilegeAccessFail;
+                }
+                return cb::rbac::PrivilegeAccessOk;
+            });
+    auto privilegeGuard =
+            folly::makeGuard([] { MockCookie::setCheckPrivilegeFunction({}); });
+
+    auto streamRequest = [this, oldUuid](DcpProducer& producer) {
+        uint64_t rollbackSeqno = 0;
+        const auto status = producer.streamRequest({},
+                                                   1,
+                                                   vbid,
+                                                   9,
+                                                   ~0ull,
+                                                   oldUuid,
+                                                   8,
+                                                   9,
+                                                   &rollbackSeqno,
+                                                   &dcpAddFailoverLog,
+                                                   {});
+        return std::make_pair(status, rollbackSeqno);
+    };
+    const auto tmpfail =
+            std::make_pair(cb::engine_errc::temporary_failure, uint64_t{0});
+    const auto rollbackTo5 =
+            std::make_pair(cb::engine_errc::rollback, uint64_t{5});
+
+    EXPECT_EQ(tmpfail, streamRequest(*projector));
+    EXPECT_EQ(rollbackTo5, streamRequest(*nsServer));
+
+    runReadersUntilPrimaryWarmedUp();
+    ASSERT_TRUE(engine->isDegradedMode());
+    EXPECT_EQ(tmpfail, streamRequest(*projector));
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->handleTrafficControlCmd(*projectorCookie,
+                                              TrafficControlMode::Enabled));
+    EXPECT_EQ(rollbackTo5, streamRequest(*projector));
+
+    for (auto& producer : {projector, nsServer}) {
+        producer->closeAllStreams();
+        producer->cancelCheckpointCreatorTask();
+    }
+    projector.reset();
+    nsServer.reset();
+    destroy_mock_cookie(projectorCookie);
+    destroy_mock_cookie(nsServerCookie);
+}
+
 // MB-53118: Test that if during warmup a disk scan for keys / items is slower
 // than the backfill chunk duration / yield interval; that we still make forward
 // progres and don't livelock.
