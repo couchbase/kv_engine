@@ -397,20 +397,18 @@ SystemEventFlatBuffers::SystemEventFlatBuffers(uint32_t opaque,
     item->decompressValue();
 }
 
-uint32_t DcpCacheTransfer::calculateFlowControlSize(
-        const std::vector<cb::ItemWithCacheHint>& items,
-        cb::mcbp::DcpStreamId sid) {
-    // header
+uint32_t DcpCacheTransfer::getFramingSize(cb::mcbp::DcpStreamId sid) {
+    // header + optional framing extras
     uint32_t size = sizeof(cb::mcbp::Request);
-    // + optional framing extras
     if (sid) {
         size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     }
-    // + each item payload/key/value (value can be 0)
-    for (const auto& entry : items) {
-        size += sizeof(cb::mcbp::request::DcpCacheTransferPayload);
-        size += entry.item->getDocKey().size() +
-                entry.item->getValueView().size();
-    }
     return size;
+}
+
+uint32_t DcpCacheTransfer::getItemWireSize(const ItemIface& item) {
+    // payload/key/value (value can be 0)
+    return gsl::narrow_cast<uint32_t>(
+            sizeof(cb::mcbp::request::DcpCacheTransferPayload) +
+            item.getDocKey().size() + item.getValueView().size());
 }

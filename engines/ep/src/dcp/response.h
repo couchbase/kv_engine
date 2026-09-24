@@ -439,15 +439,15 @@ public:
      * @param items Vector of items to transfer
      * @param vbucket The vbucket id
      * @param sid The stream-ID
+     * @param flowControlSize The wire size of the message, which the producer
+     *        accumulates as it fills the batch
      */
     DcpCacheTransfer(uint32_t opaque,
                      std::vector<cb::ItemWithCacheHint> items,
                      Vbid vbucket,
-                     cb::mcbp::DcpStreamId sid)
-        : DcpResponse(Event::CacheTransfer,
-                      opaque,
-                      sid,
-                      calculateFlowControlSize(items, sid)),
+                     cb::mcbp::DcpStreamId sid,
+                     uint32_t flowControlSize)
+        : DcpResponse(Event::CacheTransfer, opaque, sid, flowControlSize),
           items(std::move(items)),
           vbucket(vbucket) {
     }
@@ -465,17 +465,23 @@ public:
     }
 
     /**
-     * Calculate the flow control size for this cache transfer message.
+     * The fixed overhead of a cache transfer message: the request header, plus
+     * the stream-ID frame info when the stream is multiplexed.
      *
-     * For each item: DcpCacheTransferPayload + key size + value size.
-     *
-     * @param items The items to transfer
      * @param sid The stream-ID
-     * @return The total flow control size
+     * @return The per-message overhead in bytes
      */
-    static uint32_t calculateFlowControlSize(
-            const std::vector<cb::ItemWithCacheHint>& items,
-            cb::mcbp::DcpStreamId sid);
+    static uint32_t getFramingSize(cb::mcbp::DcpStreamId sid);
+
+    /**
+     * The wire size a single item contributes to a cache transfer message: its
+     * DcpCacheTransferPayload, key and value. The producer uses this both to
+     * limit a batch and to size the message, so the two cannot disagree.
+     *
+     * @param item The item to measure
+     * @return The item's wire size in bytes
+     */
+    static uint32_t getItemWireSize(const ItemIface& item);
 
     size_t getApproximateSize() const override {
         return getMessageSize();

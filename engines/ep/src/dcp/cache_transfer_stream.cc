@@ -366,6 +366,9 @@ bool CacheTransferTask::run() {
 
     if (position == vb->ht.endPosition() ||
         CacheTransferStream::isFinished(visitor.getStatus())) {
+        // setDead does not flush, so hand over the final batch here.
+        stream.flushBuffer();
+
         // Calculate total runtime
         auto endTime = cb::time::steady_clock::now();
         auto totalRuntimeMs =
@@ -484,13 +487,12 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     ExecutorPool::get()->cancel(tid);
     {
         std::lock_guard<std::mutex> lh(streamMutex);
-        if (state != State::Active) {
+        if (state.load() != State::Active) {
             return;
         }
 
-        // Flush any buffered items before ending the stream.
-        flushBufferLocked(lh);
-
+        // A partial batch belongs to the visiting task and is not flushed
+        // here - the task flushes before ending a completed transfer.
         if (status == cb::mcbp::DcpStreamEndStatus::Ok &&
             request.end_seqno > request.start_seqno) {
             state = State::SwitchingToActiveStream;
@@ -504,18 +506,15 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     notifyStreamReady(false, getProducer().get());
 }
 
+// MB-74148: Not yet called by DcpProducer for a CacheTransferStream (only
+// invoked on SnapshotMarker, which this stream never produces).
 bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
     // Does this stream still have the appropriate privileges to operate?
     if (filter.checkPrivileges(*producer.getCookie(), engine) !=
         cb::engine_errc::success) {
-        {
-            std::lock_guard<std::mutex> lh(streamMutex);
-            // Flush any buffered items before ending the stream
-            flushBufferLocked(lh);
-            pushToReadyQ(makeEndStreamResponse(
-                    cb::mcbp::DcpStreamEndStatus::LostPrivileges));
-        }
-        notifyStreamReady(false, &producer);
+        // setDead moves the stream to Dead so the task stops queueing (and
+        // drops any partial batch) rather than queueing after the stream-end.
+        setDead(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         return true;
     }
     return false;
@@ -540,7 +539,7 @@ void CacheTransferStream::cancelTransfer() {
         // Log only on transition from Active. There could be many in-flight
         // messages triggering the cancel. setDead will change the state of this
         // stream to be !Active.
-        logMessage = state == State::Active;
+        logMessage = state.load() == State::Active;
     }
     if (logMessage) {
         OBJ_LOG_INFO_CTX(
@@ -596,7 +595,7 @@ std::string CacheTransferStream::getStreamTypeName() const {
 }
 
 std::string CacheTransferStream::getStateName() const {
-    switch (state) {
+    switch (state.load()) {
     case State::Active:
         return "Active";
     case State::SwitchingToActiveStream:
@@ -608,8 +607,8 @@ std::string CacheTransferStream::getStateName() const {
 }
 
 bool CacheTransferStream::isActive() const {
-    std::lock_guard<std::mutex> lh(streamMutex);
-    return state != State::Dead;
+    // Lock free - see the declaration of state.
+    return state.load() != State::Dead;
 }
 
 std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
@@ -803,21 +802,21 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
     auto uniqueItem = sv.toItem(getVBucket(),
                                 StoredValue::HideLockedCas::No,
                                 includeValueForThisItem);
-    const size_t wireSize = uniqueItem->getValMemSize() +
-                            uniqueItem->getKey().size() +
-                            sizeof(cb::mcbp::request::DcpCacheTransferPayload);
     cb::unique_item_ptr itemPtr{uniqueItem.release(), cb::ItemDeleter(&engine)};
 
-    std::lock_guard<std::mutex> lh(streamMutex);
-    if (state != State::Active) {
+    const size_t wireSize = DcpCacheTransfer::getItemWireSize(*itemPtr);
+
+    if (state.load() != State::Active) {
         return false;
     }
 
     // Check if adding this item would exceed the batch byte or item limit and
     // we have items to flush
-    if (!itemsBuffer.empty() && (bufferedSize + wireSize > batchMaxSize ||
-                                 itemsBuffer.size() >= batchMaxItems)) {
-        flushBufferLocked(lh);
+    const auto noSpaceAvailable = (bufferedSize + wireSize > batchMaxSize ||
+                                   itemsBuffer.size() >= batchMaxItems);
+    if (noSpaceAvailable && !flushBuffer()) {
+        // state.load() != State::Active
+        return false;
     }
 
     // Add item to buffer as cb::ItemWithCacheHint
@@ -833,11 +832,11 @@ bool CacheTransferStream::transferItem(const StoredValue& sv,
 }
 
 bool CacheTransferStream::flushBuffer() {
-    std::lock_guard<std::mutex> lh(streamMutex);
     if (itemsBuffer.empty()) {
         return true;
     }
-    if (state != State::Active) {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    if (state.load() != State::Active) {
         // Clear buffer but return false to indicate stream is not active
         itemsBuffer.clear();
         bufferedSize = 0;
@@ -853,9 +852,16 @@ void CacheTransferStream::flushBufferLocked(
         return;
     }
 
+    // bufferedSize is the sum of getItemWireSize over the batch.
+    const auto flowControlSize = static_cast<uint32_t>(
+            DcpCacheTransfer::getFramingSize(sid) + bufferedSize);
+
     // Move items directly to DcpCacheTransfer - no extra allocation needed
-    auto response = std::make_unique<DcpCacheTransfer>(
-            opaque_, std::move(itemsBuffer), getVBucket(), sid);
+    auto response = std::make_unique<DcpCacheTransfer>(opaque_,
+                                                       std::move(itemsBuffer),
+                                                       getVBucket(),
+                                                       sid,
+                                                       flowControlSize);
 
     totalBytesQueued += response->getMessageSize();
     pushToReadyQ(std::move(response));
