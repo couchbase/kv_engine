@@ -65,7 +65,12 @@ public:
     SingleThreadedRCPtr<Item> item;
 };
 
-class ItemPruneTest : public ItemTest {
+/**
+ * Tests for pruning the body and/or xattrs from an Item. Parameterised on
+ * whether the input value is Snappy-compressed.
+ */
+class ItemPruneTest : public ItemTest,
+                      public ::testing::WithParamInterface<bool> {
 public:
     void SetUp() override {
         std::string data = createXattrValue(valueData);
@@ -78,9 +83,28 @@ public:
                                   data.data(),
                                   data.size(),
                                   datatype);
+        maybeCompress();
     }
 
-    std::string valueData = R"({"json":"yes"})";
+    bool isCompressed() const {
+        return GetParam();
+    }
+
+    /**
+     * Compress the item's value if the test is parameterised on compressed
+     * input.
+     */
+    void maybeCompress() {
+        if (isCompressed()) {
+            ASSERT_TRUE(item->compressValue(true /*force*/));
+            ASSERT_TRUE(cb::mcbp::datatype::is_snappy(item->getDataType()));
+        }
+    }
+
+    // Pad the value so compression decreases its size; compressValue() leaves
+    // the value uncompressed if compression does not decrease its size.
+    std::string valueData =
+            R"({"json":"yes","pad":")" + std::string(64, 'a') + R"("})";
 };
 
 TEST_F(ItemTest, formatSmallUncompressibleBlob_MB_54680) {
@@ -233,7 +257,7 @@ TEST_F(ItemTest, ForceCompressForAlreadyCompressedValue) {
     EXPECT_TRUE(cb::mcbp::datatype::is_snappy(item->getDataType()));
 }
 
-TEST_F(ItemPruneTest, testPruneNothing) {
+TEST_P(ItemPruneTest, testPruneNothing) {
     item->removeBodyAndOrXattrs(IncludeValue::Yes,
                                 IncludeXattrs::Yes,
                                 IncludeDeletedUserXattrs::No);
@@ -241,16 +265,17 @@ TEST_F(ItemPruneTest, testPruneNothing) {
     auto datatype = item->getDataType();
     EXPECT_TRUE(cb::mcbp::datatype::is_json(datatype));
     EXPECT_TRUE(cb::mcbp::datatype::is_xattr(datatype));
-    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(datatype));
+    EXPECT_EQ(isCompressed(), cb::mcbp::datatype::is_snappy(datatype));
     EXPECT_FALSE(cb::mcbp::datatype::is_raw(datatype));
 
     // data should include the value and the xattrs
+    ASSERT_TRUE(item->decompressValue());
     auto data = createXattrValue(valueData);
     EXPECT_EQ(data.size(), item->getNBytes());
     EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
 }
 
-TEST_F(ItemPruneTest, testPruneXattrs) {
+TEST_P(ItemPruneTest, testPruneXattrs) {
     item->removeBodyAndOrXattrs(
             IncludeValue::Yes, IncludeXattrs::No, IncludeDeletedUserXattrs::No);
 
@@ -266,7 +291,7 @@ TEST_F(ItemPruneTest, testPruneXattrs) {
                          item->getNBytes()));
 }
 
-TEST_F(ItemPruneTest, testPruneValue) {
+TEST_P(ItemPruneTest, testPruneValue) {
     item->removeBodyAndOrXattrs(
             IncludeValue::No, IncludeXattrs::Yes, IncludeDeletedUserXattrs::No);
 
@@ -282,7 +307,12 @@ TEST_F(ItemPruneTest, testPruneValue) {
     EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
 }
 
-TEST_F(ItemPruneTest, testPruneValueUnderlyingDatatype) {
+/**
+ * With compressed input this verifies the fix for CBSE-23696: the value is inflated to
+ * remove the body, so the Snappy bit must not be restored along with the
+ * underlying datatype.
+ */
+TEST_P(ItemPruneTest, testPruneValueUnderlyingDatatype) {
     item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::Yes,
                                 IncludeDeletedUserXattrs::No);
@@ -300,7 +330,7 @@ TEST_F(ItemPruneTest, testPruneValueUnderlyingDatatype) {
     EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
 }
 
-TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
+TEST_P(ItemPruneTest, testPruneValueAndXattrs) {
     item->removeBodyAndOrXattrs(
             IncludeValue::No, IncludeXattrs::No, IncludeDeletedUserXattrs::No);
 
@@ -314,7 +344,7 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
+TEST_P(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
     item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::No,
                                 IncludeDeletedUserXattrs::No);
@@ -330,7 +360,7 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
+TEST_P(ItemPruneTest, testPruneValueWithNoXattrs) {
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
@@ -339,6 +369,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
                               const_cast<char*>(valueData.data()),
                               valueData.size(),
                               datatype);
+    maybeCompress();
 
     item->removeBodyAndOrXattrs(
             IncludeValue::No, IncludeXattrs::Yes, IncludeDeletedUserXattrs::No);
@@ -353,7 +384,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
+TEST_P(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
@@ -362,6 +393,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
                               const_cast<char*>(valueData.data()),
                               valueData.size(),
                               datatype);
+    maybeCompress();
 
     item->removeBodyAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
                                 IncludeXattrs::Yes,
@@ -377,9 +409,18 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-TEST_F(ItemPruneTest, getValueViewWithoutXattrs) {
-    EXPECT_EQ(valueData, item->getValueViewWithoutXattrs());
-    ASSERT_TRUE(item->compressValue());
+TEST_P(ItemPruneTest, getValueViewWithoutXattrs) {
+    if (!isCompressed()) {
+        EXPECT_EQ(valueData, item->getValueViewWithoutXattrs());
+        ASSERT_TRUE(item->compressValue());
+    }
     // cannot get a xattr view on a compressed value
     EXPECT_THROW(item->getValueViewWithoutXattrs(), std::logic_error);
 }
+
+INSTANTIATE_TEST_SUITE_P(Compression,
+                         ItemPruneTest,
+                         ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& testInfo) {
+                             return testInfo.param ? "Snappy" : "Uncompressed";
+                         });

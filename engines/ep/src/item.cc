@@ -624,9 +624,15 @@ Item::WasValueInflated Item::removeBodyAndOrXattrs(
         Expects(datatype == PROTOCOL_BINARY_RAW_BYTES);
     }
 
-    // MB-31967: Restore the complete datatype if requested
+    // MB-31967: Restore the complete datatype if requested.
+    // Snappy describes the encoding of the payload we are about to send, not
+    // the underlying document, so it must reflect the current value. The
+    // removeBody(), removeXattrs() and removeUserXattrs() above inflate the
+    // value before modifying it, so restoring the original Snappy bit would
+    // mislabel an uncompressed (or empty) payload as compressed.
     if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
-        setDataType(originalDatatype);
+        setDataType((originalDatatype & ~PROTOCOL_BINARY_DATATYPE_SNAPPY) |
+                    (getDataType() & PROTOCOL_BINARY_DATATYPE_SNAPPY));
     }
 
     return wasInflated;
