@@ -90,6 +90,31 @@ TEST_P(Topkeys, TraceAllBucket) {
     }
 }
 
+/// A limit of 0 on topkeys.stop should return no keys, but should still
+/// report accurate summary fields.
+TEST_P(Topkeys, TraceStopWithZeroLimit) {
+    enableTracing();
+    for (int ii = 0; ii < 20; ++ii) {
+        BinprotGetCommand cmd("key-" + std::to_string(ii));
+        auto rsp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    }
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::IoctlGet,
+                                  fmt::format("topkeys.stop?limit={}", 0)});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << " " << rsp.getDataView();
+    auto json = rsp.getDataJson();
+    // enableTracing() only tracks up to 10 unique keys, so of the 20 keys
+    // accessed 10 should have been collected and 10 omitted, regardless of
+    // the limit requested on topkeys.stop.
+    EXPECT_EQ(10, json.value("num_keys_collected", -1));
+    EXPECT_EQ(10, json.value("num_keys_omitted", -1));
+    EXPECT_FALSE(json.contains("topkey")) << "json: " << json.dump(2);
+
+    auto& buckets = json["keys"];
+    EXPECT_TRUE(buckets.empty()) << "json: " << buckets.dump(2);
+}
+
 TEST_P(Topkeys, TraceBucketFilter) {
     mcd_env->getTestBucket().createBucket("bucket", {}, *adminConnection);
     enableTracing("bucket");
@@ -256,6 +281,17 @@ TEST_P(Topkeys, TraceCollectionFilter) {
     for (auto it = keys.begin(); it != keys.end(); ++it) {
         EXPECT_TRUE(it.key().starts_with("fruit-")) << it.key();
     }
+}
+
+/// collection_filter only accepts decimal collection IDs; a hex value
+/// should be rejected with invalid_arguments.
+TEST_P(Topkeys, TraceCollectionFilterRejectsHex) {
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::IoctlSet,
+            fmt::format("topkeys.start?limit=10&shards=1&bucket_filter={}"
+                        "&collection_filter=0x18",
+                        bucketName)});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
 }
 
 TEST_P(Topkeys, TraceMultipleCollectionFilter) {

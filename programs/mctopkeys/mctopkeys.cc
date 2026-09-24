@@ -23,6 +23,7 @@ Options:
 
 Example:
     mctopkeys --user Administrator --password secret --duration 10 --limit 1000 --collect-limit 10000 --bucket_filter=mybucket1,mybucket2 --shards=64
+    mctopkeys --user Administrator --password secret --bucket_filter=mybucket1 --collection_filter=9,10
 
 )" << std::endl;
     std::exit(exitcode);
@@ -111,6 +112,7 @@ int main(const int argc, char** argv) {
     std::size_t collect_limit = 50000;
     std::optional<std::size_t> shards;
     std::string bucket_filter;
+    std::string collection_filter;
     bool cluster = false;
     bool decode_collections = false;
     std::unordered_map<std::string,
@@ -162,6 +164,18 @@ int main(const int argc, char** argv) {
                       "bucketname[,bucketname...]",
                       "Limit tracing to the named buckets"});
 
+    getopt.addOption({[&collection_filter](auto value) {
+                          if (!collection_filter.empty()) {
+                              collection_filter.push_back(',');
+                          }
+                          collection_filter.append(value);
+                      },
+                      "collection_filter",
+                      Argument::Required,
+                      "collectionid[,collectionid...]",
+                      "Limit tracing to the named collections (requires "
+                      "bucket_filter to specify exactly one bucket)"});
+
     getopt.addOption({[&cluster](auto) { cluster = true; },
                       "cluster",
                       "Request tracing on all nodes in the cluster"});
@@ -192,19 +206,31 @@ int main(const int argc, char** argv) {
         }
 
         const auto start_command = fmt::format(
-                "topkeys.start?limit={}&expected_duration={}{}{}",
+                "topkeys.start?limit={}&expected_duration={}{}{}{}",
                 collect_limit,
                 duration.count(),
                 bucket_filter.empty()
                         ? ""
                         : fmt::format("&bucket_filter={}", bucket_filter),
-                shards.has_value() ? fmt::format("&shards={}", *shards) : "");
+                shards.has_value() ? fmt::format("&shards={}", *shards) : "",
+                collection_filter.empty() ? ""
+                                          : fmt::format("&collection_filter={}",
+                                                        collection_filter));
         for (const auto& connection : connections) {
             const auto rsp = connection->execute(BinprotGenericCommand{
                     cb::mcbp::ClientOpcode::IoctlSet, start_command});
             if (!rsp.isSuccess()) {
-                std::cerr << "Failed to start topkeys collection on "
-                          << connection->getHostname() << std::endl;
+                try {
+                    std::cerr << "Failed to start topkeys collection on "
+                              << connection->getHostname() << " due to "
+                              << rsp.getStatus() << " - "
+                              << rsp.getErrorContext() << std::endl;
+                } catch (const std::exception&) {
+                    std::cerr << "Failed to start topkeys collection on "
+                              << connection->getHostname() << " due to "
+                              << rsp.getStatus() << " - " << rsp.getDataView()
+                              << std::endl;
+                }
             }
         }
 

@@ -124,6 +124,9 @@ cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
  *                (100) is used instead
  *      + The limit only affects how many keys are returned from already-
  *                collected data
+ *      + A limit of 0 returns no keys (the "keys" object is empty), but
+ *                the summary fields (num_keys_collected, num_keys_omitted,
+ *                shards) are still populated
  *   - Example: limit=10
  *
  * Response
@@ -488,7 +491,7 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
  *   - Example: bucket_filter=default,mybucket
  *
  * `collection_filter`
- *   - Type: Comma-separated list of collection IDs (hex or decimal)
+ *   - Type: Comma-separated list of collection IDs (decimal)
  *   - Default: Empty (monitor all collections in the filtered bucket)
  *   - Description: Filter to only monitor specific collections within a single
  *                  bucket
@@ -496,8 +499,8 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
  *      + Requires bucket_filter to be set with exactly one bucket
  *      + Results in invalid_arguments error if bucket filter has 0 or more
  *                than 1 bucket
- *      + Collection IDs must be valid unsigned integers
- *   - Example: collection_filter=9,10 (filters on collections 0x9 and 0x10)
+ *      + Collection IDs must be valid unsigned integers in decimal form
+ *   - Example: collection_filter=9,10 (filters on collections 0x9 and 0xa)
  *
  * Response
  *
@@ -556,7 +559,7 @@ static cb::engine_errc ioctlSetTopkeysStart(Cookie& cookie,
         try {
             std::size_t val =
                     std::stoul(args.find("expected_duration")->second) * 1.3;
-            expected_duration = std::min(val, expected_duration);
+            expected_duration = std::max(val, expected_duration);
             if (val == 0) {
                 cookie.setErrorContext("expected_duration cannot be zero");
                 return cb::engine_errc::invalid_arguments;
