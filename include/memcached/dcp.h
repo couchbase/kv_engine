@@ -391,6 +391,11 @@ struct DcpMessageProducersIface {
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param items span of items with their associated cache tags to send
+     * @param messageSize the total wire size of the message, i.e. the request
+     *                    header, the optional stream-ID frame info and the
+     *                    payload/key/value of every item. The caller has
+     *                    already computed this when building the batch, so it
+     *                    is not recomputed here.
      * @param vbucket the vbucket id the message belong to
      * @param sid The stream-ID the items apply to (can be 0 for none)
      *
@@ -399,6 +404,7 @@ struct DcpMessageProducersIface {
     [[nodiscard]] virtual cb::engine_errc cache_transfer_tx(
             uint32_t opaque,
             gsl::span<cb::ItemWithCacheHint> items,
+            size_t messageSize,
             Vbid vbucket,
             cb::mcbp::DcpStreamId sid) = 0;
 

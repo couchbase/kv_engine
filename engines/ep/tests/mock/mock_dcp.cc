@@ -539,12 +539,14 @@ cb::engine_errc MockDcpMessageProducers::seqno_advanced(
 cb::engine_errc MockDcpMessageProducers::cache_transfer_tx(
         uint32_t opaque,
         gsl::span<cb::ItemWithCacheHint> items,
+        size_t messageSize,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_stream_id = sid;
+    last_packet_size = gsl::narrow<uint32_t>(messageSize);
     last_op = cb::mcbp::ClientOpcode::DcpCacheTransfer;
     for (auto& item : items) {
         last_cache_transfer.emplace_back(std::move(item));

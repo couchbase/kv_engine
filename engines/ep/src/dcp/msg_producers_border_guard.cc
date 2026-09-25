@@ -258,10 +258,11 @@ cb::engine_errc DcpMsgProducersBorderGuard::seqno_advanced(
 cb::engine_errc DcpMsgProducersBorderGuard::cache_transfer_tx(
         uint32_t opaque,
         gsl::span<cb::ItemWithCacheHint> items,
+        size_t messageSize,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
-    return guarded.cache_transfer_tx(opaque, items, vbucket, sid);
+    return guarded.cache_transfer_tx(opaque, items, messageSize, vbucket, sid);
 }
 
 cb::engine_errc DcpMsgProducersBorderGuard::cache_transfer_end_tx(
