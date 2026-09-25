@@ -317,6 +317,45 @@ TEST_F(AuditFileTest, PruneFiles) {
     EXPECT_EQ(blueprint, auditfile.get_log_files());
 }
 
+/**
+ * The file currently being written to must never be pruned, even if
+ * it has gone idle for longer than the configured prune age (e.g. low
+ * traffic periods before the next rotation / write).
+ */
+TEST_F(AuditFileTest, PruneDoesNotRemoveCurrentlyOpenFile) {
+    class MockAuditFile : public AuditFile {
+    public:
+        MockAuditFile() : AuditFile("PruneOpenFile") {
+        }
+
+        void set_prune_age(std::chrono::seconds age) {
+            using namespace std::chrono;
+            prune_age = age;
+            next_prune = steady_clock::now() - seconds(1);
+        }
+
+        using AuditFile::open_file_name;
+    };
+
+    MockAuditFile auditfile;
+    auditfile.reconfigure(config);
+    auditfile.ensure_open();
+    ASSERT_TRUE(auditfile.is_open());
+
+    // Backdate the mtime of the currently open file so that it would be
+    // a prune candidate if it wasn't the file we're actively writing to.
+    std::filesystem::last_write_time(
+            auditfile.open_file_name,
+            std::filesystem::file_time_type::clock::now() -
+                    std::chrono::hours(1));
+
+    auditfile.set_prune_age(std::chrono::seconds(1));
+    auditfile.prune_old_audit_files();
+
+    EXPECT_TRUE(std::filesystem::exists(auditfile.open_file_name));
+    auditfile.close();
+}
+
 TEST_F(AuditFileTest, TestDekRotation) {
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);

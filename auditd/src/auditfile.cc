@@ -77,7 +77,11 @@ void AuditFile::prune_old_audit_files() {
     auto oldest = filesystem_now;
 
     const auto then = filesystem_now - *prune_age;
-    iterate_old_files([then, &oldest](const auto& path) {
+    iterate_old_files([this, then, &oldest](const auto& path) {
+        if (is_open() && path == open_file_name) {
+            // Never prune the file we're currently writing to.
+            return;
+        }
         auto mtime = last_write_time(path);
         if (mtime < then) {
             remove(path);
