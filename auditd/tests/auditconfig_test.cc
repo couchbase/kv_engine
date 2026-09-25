@@ -14,6 +14,7 @@
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <algorithm>
 #include <map>
 
 class AuditConfigTest : public ::testing::Test {
@@ -381,6 +382,29 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
     config = AuditConfig(json);
     EXPECT_EQ(AuditConfig::EventState::enabled, config.get_event_state(20488));
     EXPECT_EQ(AuditConfig::EventState::disabled, config.get_event_state(20480));
+}
+
+/**
+ * An event_states value other than exactly "enabled" or "disabled" is
+ * invalid. It must not fail the configuration, and must not be stored as
+ * undefined (which would silently disable the event). Instead the event is
+ * treated as enabled, regardless of its default state.
+ */
+TEST_F(AuditConfigTest, TestSpecifyInvalidEventStateTreatedAsEnabled) {
+    // Event 20488 is disabled by default, and 20480 is enabled by default
+    json["event_states"] =
+            nlohmann::json{{"20488", "Enabled"}, {"20480", "Disabled"}};
+    ASSERT_NO_THROW(config = AuditConfig(json));
+    EXPECT_EQ(AuditConfig::EventState::enabled, config.get_event_state(20488));
+    EXPECT_EQ(AuditConfig::EventState::enabled, config.get_event_state(20480));
+
+    const auto filter = config.get_audit_event_filter();
+    const auto enabled =
+            filter.at("default").at("enabled").get<std::vector<uint32_t>>();
+    EXPECT_NE(enabled.end(), std::ranges::find(enabled, 20488U));
+    EXPECT_NE(enabled.end(), std::ranges::find(enabled, 20480U));
+
+    EXPECT_NO_THROW(config.to_json());
 }
 
 TEST_F(AuditConfigTest, AuditPruneAge) {

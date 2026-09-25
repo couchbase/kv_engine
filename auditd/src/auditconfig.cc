@@ -10,6 +10,7 @@
 
 #include "auditconfig.h"
 #include "audit_descriptor_manager.h"
+#include <cblogger/logger.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
@@ -285,11 +286,20 @@ void AuditConfig::set_event_states(const nlohmann::json& object) {
     for (auto it = object.begin(); it != object.end(); ++it) {
         std::string event(it.key());
         std::string state{cb::jsonGet<std::string>(it)};
-        EventState estate{EventState::undefined};
-        if (state == "enabled") {
-            estate = EventState::enabled;
-        } else if (state == "disabled") {
+        EventState estate{EventState::enabled};
+        if (state == "disabled") {
             estate = EventState::disabled;
+        } else if (state != "enabled") {
+            // Don't fail the entire configuration (which would prevent
+            // memcached from starting) because of an invalid state. Err on
+            // the side of auditing the event rather than silently losing
+            // audit events.
+            LOG_WARNING_CTX(
+                    "AuditConfig::set_event_states(): Invalid state for "
+                    "event. Should be \"enabled\" or \"disabled\". Treating "
+                    "the event as enabled",
+                    {"event", event},
+                    {"state", state});
         }
         // add to the eventStates map
         event_states[std::stoi(event)] = estate;
