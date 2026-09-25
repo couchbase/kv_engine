@@ -359,15 +359,35 @@ nlohmann::json AuditConfig::to_json() const {
     return ret;
 }
 
+/**
+ * Build the "user/domain" key used by the filter_in and filter_out entries
+ * in the audit event filter.
+ *
+ * "local" (and the aliases "couchbase" and "builtin" accepted by
+ * cb::sasl::to_domain()) maps to the "couchbase" domain and "external"
+ * maps to "external". Every other domain (including "unknown") maps to
+ * "unknown" (external components may specify users in that domain).
+ *
+ * @param user The name of the user
+ * @param domain The domain as provided in the configuration
+ * @return The key to use in the audit event filter
+ */
+static std::string to_filter_userid(std::string_view user,
+                                    std::string_view domain) {
+    if (domain == "local" || domain == "couchbase" || domain == "builtin") {
+        return fmt::format("{}/couchbase", user);
+    }
+    if (domain == "external") {
+        return fmt::format("{}/external", user);
+    }
+    return fmt::format("{}/unknown", user);
+}
+
 std::vector<std::string> AuditConfig::get_disabled_users() const {
     std::vector<std::string> ret;
 
     for (const auto& [domain, user] : disabled_userids) {
-        if (domain == "local") {
-            ret.emplace_back(user + "/couchbase");
-        } else {
-            ret.emplace_back(user + "/external");
-        }
+        ret.emplace_back(to_filter_userid(user, domain));
     }
     return ret;
 }
@@ -396,7 +416,7 @@ nlohmann::json AuditConfig::get_audit_event_filter() const {
     if (!enabled_userids.empty()) {
         for (const auto& [name, domains] : enabled_userids) {
             for (const auto& domain : domains) {
-                def["filter_in"][name] = domain;
+                def["filter_in"][to_filter_userid(name, domain)] = enabled;
             }
         }
     }

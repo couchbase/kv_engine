@@ -9,7 +9,9 @@
  */
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
+#include <audit.h>
 #include <audit_descriptor_manager.h>
+#include <audit_event_filter.h>
 #include <fmt/format.h>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
@@ -443,4 +445,83 @@ TEST_F(AuditConfigTest, EnabledUserids) {
     ASSERT_EQ(2, ids.at("trond").size());
     ASSERT_TRUE(ids.at("trond").contains("unknown"));
     ASSERT_TRUE(ids.at("trond").contains("external"));
+}
+
+/**
+ * Build a userid array (as used by enabled_userids and disabled_userids)
+ * containing one user per domain spelling which may be provided in the
+ * configuration.
+ */
+static nlohmann::json getUseridsForAllDomains() {
+    nlohmann::json array = nlohmann::json::array();
+    array.push_back({{"user", "local"}, {"domain", "local"}});
+    array.push_back({{"user", "couchbase"}, {"domain", "couchbase"}});
+    array.push_back({{"user", "builtin"}, {"domain", "builtin"}});
+    array.push_back({{"user", "external"}, {"domain", "external"}});
+    array.push_back({{"user", "unknown"}, {"domain", "unknown"}});
+    array.push_back({{"user", "internal"}, {"domain", "internal"}});
+    return array;
+}
+
+/**
+ * Verify that the provided filter (filter_in or filter_out) contains
+ * exactly one entry per user returned by getUseridsForAllDomains(), keyed
+ * as "user/domain" using the domains BucketFilter understands, with the
+ * enabled event ids as the value.
+ */
+static void verifyUseridsForAllDomains(const nlohmann::json& def,
+                                       std::string_view key) {
+    ASSERT_TRUE(def.contains(key)) << def.dump(2);
+    const auto& filter = def[key];
+    EXPECT_EQ(6, filter.size()) << filter.dump(2);
+    for (const auto* name : {"local/couchbase",
+                             "couchbase/couchbase",
+                             "builtin/couchbase",
+                             "external/external",
+                             "unknown/unknown",
+                             "internal/unknown"}) {
+        ASSERT_TRUE(filter.contains(name)) << name << ": " << filter.dump(2);
+        EXPECT_EQ(def["enabled"], filter[name]) << name;
+    }
+}
+
+/**
+ * get_audit_event_filter() must produce "filter_in" entries keyed as
+ * "user/domain" with an array of enabled event ids as the value (the
+ * format BucketFilter expects), not a bare domain string keyed by the
+ * plain username. The domains must be mapped the same way as for
+ * "filter_out".
+ */
+TEST_F(AuditConfigTest, EnabledUseridsProducesValidFilterJson) {
+    json["enabled_userids"] = getUseridsForAllDomains();
+    json.erase("disabled_userids");
+    config = AuditConfig(json);
+
+    const auto filter = config.get_audit_event_filter();
+    const auto& def = filter.at("default");
+    verifyUseridsForAllDomains(def, "filter_in");
+    EXPECT_FALSE(def.contains("filter_out"));
+
+    // The generated filter must be consumable by AuditEventFilter without
+    // throwing.
+    EXPECT_NO_THROW(
+            AuditEventFilter::create(AuditImpl::generation.load(), filter));
+}
+
+/**
+ * get_audit_event_filter() must map the domains in disabled_userids to
+ * "filter_out" entries the same way as enabled_userids is mapped to
+ * "filter_in" entries.
+ */
+TEST_F(AuditConfigTest, DisabledUseridsProducesValidFilterJson) {
+    json["disabled_userids"] = getUseridsForAllDomains();
+    config = AuditConfig(json);
+
+    const auto filter = config.get_audit_event_filter();
+    const auto& def = filter.at("default");
+    verifyUseridsForAllDomains(def, "filter_out");
+    EXPECT_FALSE(def.contains("filter_in"));
+
+    EXPECT_NO_THROW(
+            AuditEventFilter::create(AuditImpl::generation.load(), filter));
 }
