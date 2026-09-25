@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "module": "module1",
+  "events": [
+    {
+      "id": 4095,
+      "name": "event 1",
+      "description": "the last legal event id for a module starting at 0",
+      "sync": true,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {},
+      "optional_fields": {}
+    }
+  ]
+}

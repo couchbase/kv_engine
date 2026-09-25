@@ -18,14 +18,16 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <utility>
 
 void Module::addEvent(Event event) {
-    if (event.id >= start && event.id < (start + max_events_per_module)) {
+    if (std::cmp_greater_equal(event.id, start) &&
+        std::cmp_less_equal(event.id, start + max_events_per_module)) {
         events.emplace_back(std::move(event));
     } else {
         throw std::runtime_error(
                 fmt::format("Error in {}: Event identifier {} is outside the "
-                            "legal range for module {}s legal range: [{}, {}>",
+                            "legal range for module {}s legal range: [{}, {}]",
                             path,
                             event.id,
                             name,

@@ -50,7 +50,7 @@ void set_production_build(bool enable) {
 
 /* Events types are defined as a hexidecimal number.
  * The event ids starts at 0x1000.
- * Each module is permitted a maximum of 4095 unique event types.
+ * Each module is permitted a maximum of 4096 unique event types.
  * i.e. module1: 0x1000 - 0x1FFF
  *      module2: 0x2000 - 0x2FFF
  *      module3: 0x3000 - 0x3FFF

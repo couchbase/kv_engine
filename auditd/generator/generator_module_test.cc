@@ -115,6 +115,24 @@ TEST_F(SingleModuleParseTest, MandatoryFields) {
     }
 }
 
+/**
+ * A module's legal event id range is documented as inclusive:
+ * [start, start + max_events_per_module]. Verify that the last id in
+ * that range is accepted, and the first id past it is rejected.
+ */
+TEST_F(SingleModuleParseTest, EventIdRangeIsInclusive) {
+    json["file"] = "auditd/generator/tests/module_boundary_legal.json";
+    Module module(json);
+    EXPECT_NO_THROW(module.loadEventDescriptorFile(SOURCE_ROOT));
+}
+
+TEST_F(SingleModuleParseTest, EventIdOneBeyondRangeIsRejected) {
+    json["file"] = "auditd/generator/tests/module_boundary_illegal.json";
+    Module module(json);
+    EXPECT_THROW(module.loadEventDescriptorFile(SOURCE_ROOT),
+                 std::runtime_error);
+}
+
 /// Verify that the headerfile was successfully written
 TEST_F(SingleModuleParseTest, HeaderfileGeneration) {
     Module module(json);
