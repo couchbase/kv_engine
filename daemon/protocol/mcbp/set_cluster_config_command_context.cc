@@ -18,7 +18,6 @@
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/sendbuffer.h>
 #include <executor/executorpool.h>
-#include <folly/io/IOBuf.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/compress.h>
 #include <array>
@@ -68,8 +67,7 @@ cb::engine_errc SetClusterConfigCommandContext::step() {
 cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     std::string compressed;
     try {
-        const auto iob = cb::compression::deflateSnappy(uncompressed);
-        compressed = std::string{folly::StringPiece(iob->coalesce())};
+        compressed = cb::compression::deflateSnappy(uncompressed);
     } catch (const std::bad_alloc&) {
         LOG_WARNING_CTX("Compression of config failed: No memory",
                         {"conn_id", cookie.getConnectionId()},

@@ -744,7 +744,7 @@ void Cookie::collectTimings(
 
 std::string_view Cookie::getInflatedInputPayload() const {
     if (inflated_input_payload) {
-        return folly::StringPiece{inflated_input_payload->coalesce()};
+        return *inflated_input_payload;
     }
 
     return getHeader().getValueString();
@@ -770,7 +770,7 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
     return false;
 }
 
-std::unique_ptr<folly::IOBuf> Cookie::inflateSnappy(std::string_view input) {
+std::string Cookie::inflateSnappy(std::string_view input) {
     using namespace cb::tracing;
     ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch<Code>> timer(
             std::forward_as_tuple(

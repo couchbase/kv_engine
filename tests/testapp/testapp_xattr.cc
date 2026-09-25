@@ -9,8 +9,7 @@
  */
 #include "testapp_xattr.h"
 
-#include <folly/Range.h>
-#include <folly/io/IOBuf.h>
+#include <folly/ScopeGuard.h>
 #include <platform/compress.h>
 #include <platform/crc32c.h>
 #include <platform/dirutils.h>
@@ -2406,8 +2405,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
         const auto fname = std::filesystem::path{SOURCE_ROOT} / "tests" /
                            "testapp" / "testapp_xattr.cc";
         auto content = cb::io::loadFile(fname);
-        payload = folly::StringPiece{
-                cb::compression::deflateSnappy(content)->coalesce()};
+        payload = cb::compression::deflateSnappy(content);
     }
 
     {

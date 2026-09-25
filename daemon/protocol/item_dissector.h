@@ -12,11 +12,9 @@
 
 #include <memcached/engine.h>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
-
-namespace folly {
-class IOBuf;
-}
 
 class SendBuffer;
 class Bucket;
@@ -90,7 +88,7 @@ public:
 
 protected:
     cb::unique_item_ptr item;
-    std::unique_ptr<folly::IOBuf> inflated_value;
+    std::optional<std::string> inflated_value;
     std::string_view xattr_view;
     std::string_view value_view;
     uint8_t datatype;

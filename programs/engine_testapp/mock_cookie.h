@@ -207,8 +207,7 @@ public:
 
     cb::engine_errc preLinkDocument(item_info& info) override;
 
-    std::unique_ptr<folly::IOBuf> inflateSnappy(
-            std::string_view input) override;
+    std::string inflateSnappy(std::string_view input) override;
 
     std::optional<FutureVBucketInfo> getFutureVbucketCounts(
             std::optional<FutureVBucketInfo>) const override {

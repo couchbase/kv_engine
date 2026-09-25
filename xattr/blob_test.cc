@@ -9,7 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 #include <fmt/format.h>
-#include <folly/io/IOBuf.h>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
@@ -277,11 +276,9 @@ TEST(XattrBlob, Compressed) {
 
     // Compress the data
     auto compressed = cb::compression::deflateSnappy(blob.finalize());
-    auto range = folly::StringPiece{compressed->coalesce()};
 
     // Create a new Blob from compressed data and validate that we can
     // get all keys
-    cb::xattr::Blob blob2({const_cast<char*>(range.data()), range.size()},
-                          true);
+    cb::xattr::Blob blob2({compressed.data(), compressed.size()}, true);
     validate(blob2);
 }

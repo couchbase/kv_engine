@@ -8,7 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 #include <fmt/format.h>
-#include <folly/io/IOBuf.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
@@ -42,20 +41,12 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
     }
 
     if (compressed) {
-        auto payload = cb::compression::inflateSnappy(
+        allocator = cb::compression::inflateSnappy(
                 buffer, std::numeric_limits<size_t>::max());
-        if (!payload) {
-            throw std::runtime_error(fmt::format(
-                    "Blob::assign failed to inflate.  buffer.size:{}",
-                    buffer.size()));
-        }
-
-        auto range = folly::StringPiece(payload->coalesce());
-        auto size = cb::xattr::get_body_offset(range);
+        auto size = cb::xattr::get_body_offset(allocator);
         Expects(size);
 
         allocator.resize(size);
-        std::copy_n(range.begin(), size, allocator.data());
         blob = {allocator.data(), size};
         return *this;
     }

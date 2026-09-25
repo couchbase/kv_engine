@@ -423,7 +423,7 @@ protected:
     // to avoid an extra memory allocation and copy (in_doc will reference
     // this section initially until someone tries to modify it.. at that
     // time in_doc points to a temporary buffer)
-    std::unique_ptr<folly::IOBuf> inflated_doc;
+    std::string inflated_doc;
 
     // The item info representing the input document
     item_info input_item_info = {};

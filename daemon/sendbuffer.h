@@ -9,7 +9,6 @@
  */
 #pragma once
 
-#include <folly/io/IOBuf.h>
 #include <memcached/engine.h>
 
 #include <string>
@@ -67,14 +66,6 @@ protected:
     Bucket& bucket;
 };
 
-class IOBufSendBuffer : public SendBuffer {
-public:
-    IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf, std::string_view view);
-
-protected:
-    std::unique_ptr<folly::IOBuf> buf;
-};
-
 /**
  * Specialized send buffer which holds a std::string that owns the data
  * to be sent. The string is released once libevent is done sending it.
@@ -88,6 +79,16 @@ public:
      *            regardless of how the source string was stored (e.g. SSO).
      */
     explicit StringSendBuffer(std::string buf);
+
+    /**
+     * @param buf The string holding the data (ownership is transferred to
+     *            this object)
+     * @param view The memory area within buf to transfer (the payload is
+     *             re-anchored to this object's copy of buf, so the view
+     *             remains valid regardless of how the source string was
+     *             stored, e.g. SSO)
+     */
+    StringSendBuffer(std::string buf, std::string_view view);
 
 protected:
     std::string buf;

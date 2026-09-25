@@ -13,7 +13,6 @@
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/sendbuffer.h>
-#include <folly/io/IOBuf.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
 
@@ -42,7 +41,7 @@ ItemDissector::ItemDissector(CookieIface& cookie,
                 throw;
             }
             datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            item_view = folly::StringPiece(inflated_value->coalesce());
+            item_view = *inflated_value;
         }
     }
 
@@ -61,8 +60,8 @@ ItemDissector::~ItemDissector() = default;
 std::unique_ptr<SendBuffer> ItemDissector::takeSendBuffer(std::string_view view,
                                                           Bucket& bucket) {
     if (inflated_value) {
-        return std::make_unique<IOBufSendBuffer>(std::move(inflated_value),
-                                                 view);
+        return std::make_unique<StringSendBuffer>(std::move(*inflated_value),
+                                                  view);
     }
     return std::make_unique<ItemSendBuffer>(std::move(item), view, bucket);
 }

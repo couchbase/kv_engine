@@ -15,7 +15,6 @@
 #include <daemon/bucket_manager.h>
 #include <daemon/cluster_config.h>
 #include <daemon/front_end_thread.h>
-#include <folly/io/IOBuf.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/protocol_binary.h>
@@ -63,12 +62,12 @@ static void buildConfiguration(size_t index) {
     }
     uncompressed.append(R"({"hostname":"192.0.2.2"}]})");
 
-    const auto iob = cb::compression::deflateSnappy(uncompressed);
+    auto compressed = cb::compression::deflateSnappy(uncompressed);
     configurations[index].setConfiguration(
             std::make_shared<ClusterConfiguration::Configuration>(
                     ClustermapVersion{1, 1},
                     std::move(uncompressed),
-                    std::string{folly::StringPiece(iob->coalesce())}));
+                    std::move(compressed)));
 }
 
 static ClusterConfiguration& configurationFor(int64_t size) {

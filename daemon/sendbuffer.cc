@@ -22,15 +22,21 @@ ItemSendBuffer::~ItemSendBuffer() {
     bucket.items_in_transit--;
 }
 
-IOBufSendBuffer::IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf,
-                                 std::string_view view)
-    : SendBuffer(view), buf(std::move(buf)) {
-}
-
 StringSendBuffer::StringSendBuffer(std::string buf)
     : SendBuffer({}), buf(std::move(buf)) {
     // Anchor the payload to the string owned by this object. The data pointer
     // of the source string is not stable across the move (small strings are
     // stored inline), so the view must reference our own buffer.
     payload = {this->buf.data(), this->buf.size()};
+}
+
+StringSendBuffer::StringSendBuffer(std::string buf, std::string_view view)
+    : SendBuffer({}) {
+    // Compute the offset of view within buf before moving buf; the move may
+    // relocate the underlying storage (small strings are stored inline), so
+    // the view must be re-anchored to our own copy afterwards.
+    const auto offset = static_cast<size_t>(view.data() - buf.data());
+    const auto size = view.size();
+    this->buf = std::move(buf);
+    payload = {this->buf.data() + offset, size};
 }

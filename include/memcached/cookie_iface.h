@@ -15,7 +15,6 @@
 #include <memcached/engine_storage.h>
 #include <memcached/tracer.h>
 #include <atomic>
-#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -339,8 +338,7 @@ public:
      * @param input Snappy-compressed input buffer.
      * @return inflated data
      */
-    virtual std::unique_ptr<folly::IOBuf> inflateSnappy(
-            std::string_view input) = 0;
+    virtual std::string inflateSnappy(std::string_view input) = 0;
 
     /// Get the start time for the command associated with this cookie
     virtual std::chrono::steady_clock::time_point getStartTime() const = 0;

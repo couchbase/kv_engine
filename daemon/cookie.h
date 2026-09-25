@@ -467,8 +467,7 @@ public:
      */
     bool inflateInputPayload(const cb::mcbp::Header& header);
 
-    std::unique_ptr<folly::IOBuf> inflateSnappy(
-            std::string_view input) override;
+    std::string inflateSnappy(std::string_view input) override;
 
     std::optional<FutureVBucketInfo> getFutureVbucketCounts(
             std::optional<FutureVBucketInfo> previousInfo =
@@ -775,7 +774,7 @@ protected:
      */
     std::unique_ptr<CommandContext> commandContext;
 
-    std::unique_ptr<folly::IOBuf> inflated_input_payload;
+    std::optional<std::string> inflated_input_payload;
 
     /// The Scope and Collection information for the current command picked
     /// out from the incoming packet as part of packet validation. This stores

@@ -663,10 +663,7 @@ cb::engine_errc SubdocExecutionContext::get_document_for_searching(
         }
 
         // Update the document to point to the uncompressed version.
-        auto range = inflated_doc->coalesce();
-        std::string_view view{reinterpret_cast<const char*>(range.data()),
-                              range.size()};
-        in_doc = MemoryBackedBuffer{view};
+        in_doc = MemoryBackedBuffer{std::string_view{inflated_doc}};
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
