@@ -221,6 +221,35 @@ TEST_F(AuditFileTest, TestRollover) {
     EXPECT_TRUE(secs == rotation_time - 10 || secs == (rotation_time - 11));
 }
 
+/**
+ * get_seconds_to_rotation() must clamp to a legal [0, rotate_interval]
+ * range rather than underflowing (and reporting the full interval as
+ * "remaining") when the elapsed time already exceeds rotate_interval,
+ * and must not invoke undefined behaviour if the wall clock is stepped
+ * backward.
+ */
+TEST_F(AuditFileTest, GetSecondsToRotationClampsOutOfRangeElapsedTime) {
+    config.set_rotate_interval(rotation_time);
+    config.set_rotate_size(100);
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+    auditfile.ensure_open();
+
+    // Simulate the consumer thread being delayed well past the rotation
+    // point without a rotation check having happened yet.
+    cb_timeofday_timetravel(rotation_time + 10);
+    EXPECT_EQ(0, auditfile.get_seconds_to_rotation());
+
+    // Simulate the wall clock being stepped backward past open_time.
+    cb_timeofday_timetravel(-(static_cast<int>(rotation_time) + 20));
+    EXPECT_EQ(rotation_time, auditfile.get_seconds_to_rotation());
+
+    auditfile.close();
+
+    // Undo the net time travel performed above (-10 seconds)
+    cb_timeofday_timetravel(10);
+}
+
 TEST_F(AuditFileTest, MB53282) {
     class MockAuditFile : public AuditFile {
     public:

@@ -133,8 +133,19 @@ uint32_t AuditFile::get_seconds_to_rotation() const {
     if (rotate_interval) {
         if (is_open()) {
             const auto now = auditd_time();
-            const auto diff = static_cast<uint32_t>(difftime(now, open_time));
-            return std::clamp(rotate_interval - diff, 0U, rotate_interval);
+            const auto diff = difftime(now, open_time);
+            // diff may be negative (the wall clock was stepped backward)
+            // or exceed rotate_interval (e.g. the consumer thread got
+            // delayed past the rotation point); clamp to a legal
+            // [0, rotate_interval] range before converting to uint32_t
+            // to avoid unsigned underflow / UB casting a negative double.
+            if (diff <= 0) {
+                return rotate_interval;
+            }
+            if (diff >= rotate_interval) {
+                return 0;
+            }
+            return rotate_interval - static_cast<uint32_t>(diff);
         }
         return rotate_interval;
     }
