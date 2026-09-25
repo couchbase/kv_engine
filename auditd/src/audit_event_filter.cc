@@ -52,6 +52,14 @@ public:
             if (iter == include_user_filter.end()) {
                 return true;
             }
+
+            const auto& vec = iter->second;
+            const bool all = vec.size() == 1 && vec.front() == allEvents;
+            if (!all && !std::ranges::binary_search(vec, id)) {
+                // The user is included, but only for a specific set of
+                // events which doesn't contain this id.
+                return true;
+            }
         }
 
         auto iter = exclude_user_filter.find(user);

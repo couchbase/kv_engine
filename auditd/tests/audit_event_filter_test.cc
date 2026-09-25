@@ -166,7 +166,7 @@ TEST(AuditEventFilterTest, isFilteredOut_Include_List) {
     cb::rbac::UserIdent user2External{"user2", cb::rbac::Domain::External};
 
     auto json =
-            R"({"default":{"enabled":[20481,20488],"filter_in":{"user1/couchbase":[20488],"user2/external":[20488]}}})"_json;
+            R"({"default":{"enabled":[20481,20488,20490],"filter_in":{"user1/couchbase":[20488],"user2/external":[20488]}}})"_json;
     auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
     ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
 
@@ -188,4 +188,12 @@ TEST(AuditEventFilterTest, isFilteredOut_Include_List) {
                                        {},
                                        {},
                                        {}));
+
+    // A user present in filter_in is only included for the event ids
+    // explicitly listed for them; other (filterable, enabled) events must
+    // still be filtered out.
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_MODIFY, user1Local, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_MODIFY, user2External, {}, {}, {}, {}));
 }
