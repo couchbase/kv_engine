@@ -39,19 +39,17 @@ std::size_t StatsTask::TaskData::append(std::string_view k,
     rsp.setOpaque(opaque);
     auto header = rsp.getBuffer();
     const auto total = header.size() + k.size() + v.size();
-    if (stats_buf.empty() || stats_buf.back()->tailroom() < total) {
-        stats_buf.emplace_back(folly::IOBuf::createCombined(BUFFER_CAPACITY));
+    if (stats_buf.empty() ||
+        (stats_buf.back().capacity() - stats_buf.back().size()) < total) {
+        auto& str = stats_buf.emplace_back();
+        str.reserve(BUFFER_CAPACITY);
     }
 
     // Write the mcbp response into the task's buffer (header, key, value).
-    auto& iob = *stats_buf.back();
-    iob.reserve(0, total);
-    std::ranges::copy(header, iob.writableTail());
-    iob.append(sizeof(rsp));
-    std::ranges::copy(k, iob.writableTail());
-    iob.append(k.size());
-    std::ranges::copy(v, iob.writableTail());
-    iob.append(v.size());
+    auto& str = stats_buf.back();
+    str.append(reinterpret_cast<const char*>(header.data()), header.size());
+    str.append(k);
+    str.append(v);
     return total;
 }
 
@@ -81,13 +79,12 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
         }
 
         while (!stats_buf.empty()) {
-            auto& iob = stats_buf.front();
-            std::string_view view = {reinterpret_cast<const char*>(iob->data()),
-                                     iob->length()};
-            cookie.getConnection().chainDataToOutputStream(
-                    std::make_unique<IOBufSendBuffer>(std::move(iob), view));
+            auto str = std::move(stats_buf.front());
             stats_buf.pop_front();
-            statsBufSize -= view.size();
+            const auto len = str.size();
+            cookie.getConnection().chainDataToOutputStream(
+                    std::make_unique<StringSendBuffer>(std::move(str)));
+            statsBufSize -= len;
         }
     });
 

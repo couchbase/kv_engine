@@ -11,12 +11,12 @@
 
 #include <executor/globaltask.h>
 #include <folly/Synchronized.h>
-#include <folly/io/IOBuf.h>
 #include <json/syntax_validator.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <platform/byte_literals.h>
 #include <deque>
+#include <string>
 
 class Connection;
 class Cookie;
@@ -80,7 +80,7 @@ private:
         /// validator used to check if the provided value is JSON
         std::unique_ptr<cb::json::SyntaxValidator> validator;
         cb::engine_errc command_error{cb::engine_errc::success};
-        std::deque<std::unique_ptr<folly::IOBuf>> stats_buf;
+        std::deque<std::string> stats_buf;
     };
 
     folly::Synchronized<TaskData, std::mutex> taskData;
