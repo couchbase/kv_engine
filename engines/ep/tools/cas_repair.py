@@ -24,6 +24,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 
 argParser = argparse.ArgumentParser()
@@ -148,11 +149,6 @@ for line in proc.stdout:
 
     cas = json_entry['cas']
 
-    # Skip deleted documents
-    if "deleted" in json_entry:
-        deletedSkipped += 1
-        continue
-
     # Is CAS above our limit?
     if int(cas) > args.caslimit:
         try:
@@ -175,6 +171,17 @@ for line in proc.stdout:
                             doc_id, cas))
             else:
                 count = count + 1
+
+                # Deleted documents are counted but cannot be touched, so
+                # skip them
+                if "deleted" in json_entry:
+                    deletedSkipped += 1
+                    if args.verbose:
+                        print(
+                            "Warning deleted key {} has a cas of {} which is "
+                            "above the threshold of {}, skipping".format(
+                                logical_key, cas, args.caslimit))
+                    continue
 
                 # Now we will need to separate out the collection ID, a number
                 # which uniquely identifies the collection for this document.
@@ -225,7 +232,7 @@ for line in proc.stdout:
                         # won't update and regeneate the CAS. Here we adjust by
                         # 1 second
                         if expiry == 0xffffffff:
-                            expiry = expiry - 1
+                            new_expiry = expiry - 1
                         else:
                             new_expiry = expiry + 1
                         if args.verbose:
@@ -247,13 +254,19 @@ for line in proc.stdout:
                     e, logical_key))
             mcClientErrors = mcClientErrors + 1
 
-totalSkipped = nonUTFSkipped + deletedSkipped
+proc.wait()
+if proc.returncode != 0:
+    print("Error: {} exited with status {}, results are incomplete".format(
+        " ".join(cmd), proc.returncode))
+    sys.exit(1)
+
 if count:
     if args.fix:
-        print("Complete with {} documents now fixed, "
+        fixed = count - deletedSkipped - nonUTFSkipped - mcClientErrors
+        print("Complete with {} of {} documents above threshold now fixed, "
               "Skipped {} deleted documents and "
               "{} documents with non UTF-8 keys".format(
-                  (count - totalSkipped), deletedSkipped, nonUTFSkipped))
+                  fixed, count, deletedSkipped, nonUTFSkipped))
     else:
         print("Complete with {} documents found above threshold".format(count))
 else:
