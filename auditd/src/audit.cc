@@ -188,6 +188,7 @@ bool AuditImpl::configure() {
     }
 
     log_directory = auditfile.get_log_directory();
+    compression_enabled = config.is_compression_enabled();
 
     if (enabled) {
         // If the write_event_to_disk function returns false then it is
@@ -263,7 +264,7 @@ void AuditImpl::prune_deks(const std::vector<std::string>& keys) const {
                 LOG_WARNING_CTX(message, ctx);
             },
             ".log",
-            config.is_compression_enabled());
+            compression_enabled.load());
 }
 
 bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {

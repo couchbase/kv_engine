@@ -87,8 +87,16 @@ protected:
     /// audit events.
     std::atomic_bool enabled{false};
 
-    /// The current configuration used by the daemon.
+    /// The current configuration used by the daemon. After construction
+    /// it is only ever read or written from the audit consumer thread.
     AuditConfig config;
+
+    /// Cached copy of config.is_compression_enabled(), updated by
+    /// configure() together with log_directory. prune_deks() may be
+    /// called from threads other than the audit consumer thread which
+    /// owns `config`, so we can't read config.is_compression_enabled()
+    /// there directly.
+    std::atomic_bool compression_enabled{false};
 
     /// The current audit log file we're using
     AuditFile auditfile;
