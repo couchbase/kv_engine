@@ -22,6 +22,8 @@
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
 
+#include <thread>
+
 /// A mock connection
 class MockConnection : public LibeventConnection {
 public:
@@ -394,6 +396,50 @@ TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
     // was never fully set up for that (e.g. never authenticated/validated).
     connection->detachBuffereventCallbacks();
     frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+
+    cookie.reset();
+}
+
+/**
+ * MB-74226: Cookie::setThrottled() used to add (now - start) to
+ * total_throttle_time when un-throttling, instead of
+ * (now - throttle_start). That measured the command's entire elapsed
+ * execution time rather than just the time spent throttled. Verify that
+ * time spent processing before throttling begins is excluded.
+ */
+TEST_F(ConnectionUnitTests, MB74226_TotalThrottleTimeExcludesPreThrottleTime) {
+    using namespace cb::mcbp;
+    using namespace std::chrono_literals;
+
+    std::array<uint8_t, 256> requestBuffer{};
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(ClientOpcode::Get);
+    builder.setKey("key");
+
+    auto& cookie = connection->getFirstCookie();
+    const auto start = std::chrono::steady_clock::now();
+    cookie.initialize(start,
+                      *reinterpret_cast<const Header*>(builder.getFrame()));
+
+    // Simulate time spent processing the command before it gets throttled.
+    std::this_thread::sleep_for(100ms);
+    cookie.setThrottled(true);
+
+    // Simulate time spent throttled.
+    std::this_thread::sleep_for(20ms);
+    cookie.setThrottled(false);
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto totalThrottleTime = cookie.getTotalThrottleTime();
+    const auto totalElapsed =
+            std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+    // With the bug, totalThrottleTime would be (end - start), i.e. roughly
+    // the full 120ms elapsed. Fixed, it should only reflect the ~20ms
+    // spent throttled - well under half of the total elapsed time.
+    EXPECT_GT(totalThrottleTime.count(), 0);
+    EXPECT_LT(totalThrottleTime.count(), totalElapsed.count() / 2);
 
     cookie.reset();
 }

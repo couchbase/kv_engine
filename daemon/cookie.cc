@@ -696,8 +696,8 @@ void Cookie::setThrottled(bool val) {
         throttle_start = now;
     } else {
         total_throttle_time +=
-                std::chrono::duration_cast<std::chrono::microseconds>(now -
-                                                                      start);
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - throttle_start);
         tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
     }
 }
