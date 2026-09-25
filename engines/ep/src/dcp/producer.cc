@@ -412,7 +412,9 @@ cb::engine_errc DcpProducer::streamRequest(
     const auto streamID = filter.getStreamId();
 
     if (!engine_.getMemoryTracker().isBelowBackfillThreshold() &&
-        getAuthenticatedUser() != "@ns_server") {
+        getCookie()
+                ->testPrivilege(cb::rbac::Privilege::NodeSupervisor, {}, {})
+                .failed()) {
         OBJ_LOG_WARN_CTX(
                 *logger,
                 "Stream request failed because memory usage is above quota",
@@ -518,9 +520,9 @@ cb::engine_errc DcpProducer::checkConditionsForStreamRequest(
     // ns_server is exempt as it sets up replication from this node before it
     // enables traffic.
     if (engine_.isDegradedMode() &&
-        !getCookie()
-                 ->testPrivilege(cb::rbac::Privilege::NodeSupervisor, {}, {})
-                 .success()) {
+        getCookie()
+                ->testPrivilege(cb::rbac::Privilege::NodeSupervisor, {}, {})
+                .failed()) {
         OBJ_LOG_INFO_CTX(
                 *logger,
                 "Stream request failed because the bucket is not ready",

@@ -7371,7 +7371,6 @@ TEST_P(WarmupSTSingleShardTest, StreamRequestBeforeBucketReady) {
     projectorCookie->getConnection().setUser("@projector");
     auto projector = createDcpProducer(projectorCookie, IncludeDeleteTime::Yes);
     auto* nsServerCookie = create_mock_cookie(engine.get());
-    nsServerCookie->getConnection().setUser("@ns_server");
     auto nsServer = createDcpProducer(nsServerCookie, IncludeDeleteTime::Yes);
 
     MockCookie::setCheckPrivilegeFunction(

@@ -6532,6 +6532,19 @@ TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
 }
 
 TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
+    MockCookie::setCheckPrivilegeFunction([cookie = cookie](
+                                                  const CookieIface& c,
+                                                  cb::rbac::Privilege privilege,
+                                                  std::optional<ScopeID>,
+                                                  std::optional<CollectionID>) {
+        if (&c == cookie && privilege == cb::rbac::Privilege::NodeSupervisor) {
+            return cb::rbac::PrivilegeAccessFail;
+        }
+        return cb::rbac::PrivilegeAccessOk;
+    });
+    auto privilegeGuard =
+            folly::makeGuard([] { MockCookie::setCheckPrivilegeFunction({}); });
+
     const auto& vb = *store->getVBucket(vbid);
     auto& config = engine->getConfiguration();
     const auto initVal = config.getBackfillMemThreshold();
