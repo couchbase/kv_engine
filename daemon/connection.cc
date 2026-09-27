@@ -47,6 +47,7 @@
 
 #include <exception>
 #include <string_view>
+#include <utility>
 
 #ifdef __linux__
 #include <linux/sockios.h>
@@ -860,8 +861,22 @@ bool Connection::isPacketReadyForExecutionAvailable() const {
     return isPacketAvailable();
 }
 
+void Connection::setDcpStreamThrottled(bool val) {
+    const auto wasThrottled = std::exchange(dcpStreamThrottled, val);
+    const auto now = std::chrono::steady_clock::now();
+    if (val && !wasThrottled) {
+        // Start timing on a genuine transition into throttled,
+        dcpThrottleStart = now;
+    } else if (!val && wasThrottled) {
+        // Collect total throttled time
+        getBucket().low_resolution_stats[getThread().index].throttle_times.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - dcpThrottleStart));
+    }
+}
+
 void Connection::resumeThrottledDcpStream() {
-    dcpStreamThrottled = false;
+    setDcpStreamThrottled(false);
 }
 
 void Connection::tryToProgressDcpStream() {
@@ -922,7 +937,7 @@ void Connection::tryToProgressDcpStream() {
             --numEvents;
             break;
         case cb::engine_errc::throttled:
-            dcpStreamThrottled = true;
+            setDcpStreamThrottled(true);
             // fallthrough
         case cb::engine_errc::would_block:
             more = false;
