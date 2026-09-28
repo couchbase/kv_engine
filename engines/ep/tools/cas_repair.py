@@ -68,6 +68,12 @@ argParser.add_argument(
          "otherwise just inspect and print affected documents",
     action='store_true')
 argParser.add_argument(
+    "--persist-timeout",
+    help="Optional: Seconds to wait for the touched documents to be "
+         "persisted when using --fix, defaults to 300",
+    default=300,
+    type=int)
+argParser.add_argument(
     "--verbose",
     help="Optional: Print information about all affected keys",
     action='store_true')
@@ -132,6 +138,7 @@ count = 0
 mcClientErrors = 0
 nonUTFSkipped = 0
 deletedSkipped = 0
+touchAttempted = False
 
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 for line in proc.stdout:
@@ -206,6 +213,8 @@ for line in proc.stdout:
                     # to change the expiry and generate a new CAS, all using
                     # touch.
 
+                    touchAttempted = True
+
                     # Convert the collection to an int, mc_bin_client will skip
                     # trying (and failing) to map to an ID when the input is an
                     # int.
@@ -260,6 +269,48 @@ if proc.returncode != 0:
         " ".join(cmd), proc.returncode))
     sys.exit(1)
 
+# Get the high seqno so we can wait for it to be persisted, preventing a race
+# with backfill that receives the poisoned document from disk and the fixed
+# version from memory. This will cause cas poisoning to re-occur.
+highSeqno = None
+if touchAttempted:
+    stat_key = "vb_{}:high_seqno".format(args.vbucket)
+    try:
+        seqno_stats = memcache.stats("vbucket-seqno {}".format(args.vbucket))
+        highSeqno = int(seqno_stats[stat_key])
+    except (mc_bin_client_ns.MemcachedError, KeyError, ValueError) as e:
+        print("Warning: Unable to read {} after touching documents: "
+              "{}".format(stat_key, e))
+
+# Wait for the high seqno to be persisted, so that all touched documents (and
+# their new CAS) are on disk.
+highSeqnoPersisted = False
+if highSeqno is not None:
+    persisted_key = "vb_{}:last_persisted_seqno".format(args.vbucket)
+    deadline = time.monotonic() + args.persist_timeout
+    persistedSeqno = None
+    while True:
+        try:
+            seqno_stats = memcache.stats(
+                "vbucket-seqno {}".format(args.vbucket))
+            persistedSeqno = int(seqno_stats[persisted_key])
+        except (mc_bin_client_ns.MemcachedError, KeyError, ValueError) as e:
+            print("Warning: Unable to read {}: {}".format(persisted_key, e))
+            break
+        if persistedSeqno >= highSeqno:
+            highSeqnoPersisted = True
+            break
+        if time.monotonic() >= deadline:
+            print("Warning: Timed out after {} seconds waiting for seqno {} to "
+                  "be persisted, {} is {}".format(
+                      args.persist_timeout, highSeqno, persisted_key,
+                      persistedSeqno))
+            break
+        if args.verbose:
+            print("Waiting for seqno {} to be persisted, {} is {}".format(
+                highSeqno, persisted_key, persistedSeqno))
+        time.sleep(1)
+
 if count:
     if args.fix:
         fixed = count - deletedSkipped - nonUTFSkipped - mcClientErrors
@@ -267,6 +318,11 @@ if count:
               "Skipped {} deleted documents and "
               "{} documents with non UTF-8 keys".format(
                   fixed, count, deletedSkipped, nonUTFSkipped))
+        if highSeqno is not None:
+            print("vbucket {} high seqno after all touches is {}, {}".format(
+                args.vbucket, highSeqno,
+                "persisted" if highSeqnoPersisted else "NOT confirmed as "
+                "persisted"))
     else:
         print("Complete with {} documents found above threshold".format(count))
 else:
@@ -276,3 +332,7 @@ if mcClientErrors:
     print("Warning the script caught {} mc_bin_client_ns.MemcachedError which "
           "are logged".format(
               mcClientErrors))
+
+if touchAttempted and not highSeqnoPersisted:
+    print("Error: Unable to confirm the touched documents were persisted")
+    sys.exit(1)
