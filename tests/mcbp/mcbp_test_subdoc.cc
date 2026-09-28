@@ -760,6 +760,15 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
               cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
+
+    // Replace can never succeed against a document which doesn't yet
+    // exist, so it must be equally rejected with the Add doc flag as it
+    // is with Mkdoc (see MB-66104).
+    request.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request document flags invalid",
+              validate_error_context(request));
+    request.clearDocFlags();
 }
 
 TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
@@ -864,6 +873,16 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
               cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
+
+    // ArrayInsert targets a specific existing array index, which cannot
+    // be synthesised against a document which doesn't yet exist, so it
+    // must be equally rejected with the Add doc flag as it is with
+    // Mkdoc (see MB-66104).
+    request.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request document flags invalid",
+              validate_error_context(request));
+    request.clearDocFlags();
 
     // Must have path
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,

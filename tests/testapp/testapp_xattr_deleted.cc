@@ -227,36 +227,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushFirst) {
     testMultipathArrayPushFirst();
 }
 
-// @todo MB-39545: This test fails because DocFlag::Mkdoc is invalid with
-//  ArrayInsert (the test fails at validation for ArrayInsert with "Invalid
-//  arguments").
-//  By changing to DocFlag::Add (valid for ArrayInsert) the test gets to the
-//  execution of ArrayInsert but is fails with SubdocMultiPathFailure.
-//  Specific and simple (single-path) tests on ArrayInsert suggests that we may
-//  have some existing issue in that area that we should address in a dedicated
-//  patch.
-TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
-    BinprotSubdocMultiMutationCommand cmd(
-            name,
-            {{ClientOpcode::SubdocArrayPushFirst,
-              PathFlag::XattrPath,
-              "array",
-              "0"},
-             {ClientOpcode::SubdocArrayInsert,
-              PathFlag::XattrPath,
-              "array.[0]",
-              "1"}},
-            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
-            durReqs);
-
-    auto resp = subdocMultiMutation(cmd);
-    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-
-    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
-    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("[0,1]", resp.getDataView());
-}
-
 void XattrNoDocTest::testMultipathArrayAddUnique() {
     BinprotSubdocMultiMutationCommand cmd(
             name,
