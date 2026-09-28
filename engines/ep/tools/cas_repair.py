@@ -27,312 +27,389 @@ import subprocess
 import sys
 import time
 
-argParser = argparse.ArgumentParser()
-argParser.add_argument(
-    "-d",
-    "--datafile",
-    help="Required: Path to the bucket database files",
-    required=True)
-argParser.add_argument(
-    "-u",
-    "--username",
-    help="Required: Username to authenticate with",
-    required=True)
-argParser.add_argument(
-    "-p",
-    "--password",
-    help="Required: Password to authenticate with",
-    required=True)
-argParser.add_argument(
-    "-b",
-    "--bucket",
-    help="Required: The name of the bucket to repair",
-    required=True)
-argParser.add_argument(
-    "-v",
-    "--vbucket",
-    help="Required: The numerical number of the vbucket to repair, accepts 0 "
-         "to 1023",
-    required=True,
-    type=int)
-argParser.add_argument(
-    "-c",
-    "--caslimit",
-    help="Optional: Repair documents when CAS exceeds this value. When omitted "
-         "documents with CAS greater then now+50 days are will be repaired",
-    type=int)
-argParser.add_argument(
-    "-f",
-    "--fix",
-    help="Optional: Actually make changes to the target bucket.vbucket, "
-         "otherwise just inspect and print affected documents",
-    action='store_true')
-argParser.add_argument(
-    "--persist-timeout",
-    help="Optional: Seconds to wait for the touched documents to be "
-         "persisted when using --fix, defaults to 300",
-    default=300,
-    type=int)
-argParser.add_argument(
-    "--verbose",
-    help="Optional: Print information about all affected keys",
-    action='store_true')
-argParser.add_argument(
-    "--debug",
-    help="Optional: Print information debug information as the script runs",
-    action='store_true')
-
-args = argParser.parse_args()
-
-if args.vbucket > 1023 or args.vbucket < 0:
-    raise Exception(
-        "Requested vbucket is out of range 0 to 1023, value given is {}".format(
-            args.vbucket))
-
-for tool in ["couch_dbdump"]:
-    if shutil.which(tool) is None:
-        raise Exception(
-            "cannot find {}. Check $PATH for required tools".format(tool))
-
-if args.caslimit is None:
-    # When not specified, create a reasonable bad future value, here it is 50
-    # days into the future. The script will be able to fix anything with CAS
-    # that exceeds this value.
-    args.caslimit = int(time.time() + (60 * 60 * 24 * 50))
-    # cas is nanosecond, time.time is seconds
-    args.caslimit = args.caslimit * 1000000000
-
-
-# Find the couchstore file for the vbucket
-regex = re.compile("(" + str(args.vbucket) + "\\.couch.[0-9]*)")
-datafile = None
-for root, dirs, files in os.walk(args.datafile):
-    for file in files:
-        if regex.match(file):
-            datafile = args.datafile + "/" + file
-
-if datafile is None:
-    raise Exception(
-        "No database file was found for vbucket {} in {}".format(
-            args.vbucket, args.datafile))
-else:
-    print("Processing with {}".format(datafile))
-
 # Script only runs against local memcached (it is using this nodes data file)
 HOST = "localhost"
 PORT = "11210"
 
-if args.fix:
-    # Only need to connect/auth when fixing
+
+class RepairStats:
+    """Counters and state gathered whilst processing the couch_dbdump output"""
+
+    def __init__(self):
+        # Documents (excluding system events) with a CAS above the threshold
+        self.above_threshold = 0
+        # Documents above the threshold which are deleted, so cannot be touched
+        self.deleted_skipped = 0
+        # Documents above the threshold with a non UTF-8 key, so cannot be
+        # touched
+        self.non_utf_skipped = 0
+        # Documents where a touch failed with a MemcachedError
+        self.mc_client_errors = 0
+        # Set once the first touch has been attempted
+        self.touch_attempted = False
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d",
+        "--datafile",
+        help="Required: Path to the bucket database files",
+        required=True)
+    parser.add_argument(
+        "-u",
+        "--username",
+        help="Required: Username to authenticate with",
+        required=True)
+    parser.add_argument(
+        "-p",
+        "--password",
+        help="Required: Password to authenticate with",
+        required=True)
+    parser.add_argument(
+        "-b",
+        "--bucket",
+        help="Required: The name of the bucket to repair",
+        required=True)
+    parser.add_argument(
+        "-v",
+        "--vbucket",
+        help="Required: The numerical number of the vbucket to repair, accepts "
+             "0 to 1023",
+        required=True,
+        type=int)
+    parser.add_argument(
+        "-c",
+        "--caslimit",
+        help="Optional: Repair documents when CAS exceeds this value. When "
+             "omitted documents with CAS greater then now+50 days are will be "
+             "repaired",
+        type=int)
+    parser.add_argument(
+        "-f",
+        "--fix",
+        help="Optional: Actually make changes to the target bucket.vbucket, "
+             "otherwise just inspect and print affected documents",
+        action='store_true')
+    parser.add_argument(
+        "--persist-timeout",
+        help="Optional: Seconds to wait for the touched documents to be "
+             "persisted when using --fix, defaults to 300",
+        default=300,
+        type=int)
+    parser.add_argument(
+        "--verbose",
+        help="Optional: Print information about all affected keys",
+        action='store_true')
+    parser.add_argument(
+        "--debug",
+        help="Optional: Print information debug information as the script "
+             "runs",
+        action='store_true')
+
+    args = parser.parse_args()
+
+    if args.vbucket > 1023 or args.vbucket < 0:
+        raise Exception(
+            "Requested vbucket is out of range 0 to 1023, value given is "
+            "{}".format(args.vbucket))
+
+    if args.caslimit is None:
+        # When not specified, create a reasonable bad future value, here it is
+        # 50 days into the future. The script will be able to fix anything with
+        # CAS that exceeds this value.
+        args.caslimit = int(time.time() + (60 * 60 * 24 * 50))
+        # cas is nanosecond, time.time is seconds
+        args.caslimit = args.caslimit * 1000000000
+
+    return args
+
+
+def check_required_tools():
+    for tool in ["couch_dbdump"]:
+        if shutil.which(tool) is None:
+            raise Exception(
+                "cannot find {}. Check $PATH for required tools".format(tool))
+
+
+def find_datafile(data_dir, vbucket):
+    """Find the couchstore file for the vbucket"""
+    regex = re.compile("(" + str(vbucket) + "\\.couch.[0-9]*)")
+    datafile = None
+    for root, dirs, files in os.walk(data_dir):
+        for file in files:
+            if regex.match(file):
+                datafile = data_dir + "/" + file
+
+    if datafile is None:
+        raise Exception(
+            "No database file was found for vbucket {} in {}".format(
+                vbucket, data_dir))
+    return datafile
+
+
+def connect(args):
+    """Connect and authenticate to the local memcached"""
     memcache = mc_bin_client_ns.MemcachedClient(host=HOST, port=PORT)
     memcache.sasl_auth_plain(user=args.username, password=args.password)
     memcache.bucket_select(args.bucket)
     memcache.enable_collections()
     memcache.hello("Couchbase CAS repair python script")
     memcache.vbucketId = args.vbucket
+    return memcache
 
-# Using couch_dbdump, obtain the metadata of every key. For each key...
-# 1) Check if the document CAS is greater than our threshold value
-cmd = ["couch_dbdump", "--no-body", "--json", datafile]
-count = 0
-mcClientErrors = 0
-nonUTFSkipped = 0
-deletedSkipped = 0
-touchAttempted = False
 
-proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-for line in proc.stdout:
-    # Running with --json so we can easily parse the metadata into the required
-    # components
-    if args.debug:
-        print(line)
-
-    try:
-        json_entry = json.loads(line)
-    except Exception as e:
-        print("Warning: Caught an exception {} whilst processing "
-              "line {}".format(e, line))
-        sys.exit(1)
-
+def touch_document(memcache, json_entry, logical_key, collection_id, verbose):
+    """
+    Touch the document so that it is given a new CAS. Touch requires that the
+    expiry is mutated, else it won't update and regenerate the CAS.
+    """
     cas = json_entry['cas']
 
-    # Is CAS above our limit?
-    if int(cas) > args.caslimit:
-        try:
-            doc_id = json_entry['id']
-            # doc_id needs further processing to split the key/collection
-            # Input is "(type:0xf2)key_name" and we want to obtain the type, but
-            # also get the logical_key
-            collection_info, logical_key = doc_id.split(')', 1)
+    # Convert the collection to an int, mc_bin_client will skip trying (and
+    # failing) to map to an ID when the input is an int.
+    collection = int(collection_id, 16)
+    # Get the expiry
+    expiry = json_entry['expiry']
 
-            if "system" in collection_info:
-                # System events have a CAS, but they do not replicate like
-                # regular documents, these will get fixed by a regular rebalance
-                # and do not pose a threat to the vbucket CAS. Just warn that
-                # one was found
-                if args.verbose:
-                    print(
-                        "A system event {} has a future CAS {}, this isn't a "
-                        "problem as the CAS will be reset if "
-                        "replicated".format(
-                            doc_id, cas))
-            else:
-                count = count + 1
-
-                # Deleted documents are counted but cannot be touched, so
-                # skip them
-                if "deleted" in json_entry:
-                    deletedSkipped += 1
-                    if args.verbose:
-                        print(
-                            "Warning deleted key {} has a cas of {} which is "
-                            "above the threshold of {}, skipping".format(
-                                logical_key, cas, args.caslimit))
-                    continue
-
-                # Now we will need to separate out the collection ID, a number
-                # which uniquely identifies the collection for this document.
-                collection_id = collection_info.split(':')[1]
-
-                if args.fix:
-                    # This is the symbol that couch_dbump replaces in its output
-                    # when it spots a non UTF-8 character in the document's key.
-                    # We cannot fix these documents because we are unable to get
-                    # the true key for the document.
-                    if "�" in logical_key:
-                        nonUTFSkipped += 1
-                        print(
-                            "Warning: skipping key {} in collection {} "
-                            "(cas {}) because it contains non-UTF-8 bytes "
-                            "and cannot be repaired via this script".format(
-                                logical_key, collection_info, cas
-                            )
-                        )
-                        continue
-                    # With the -f option the script writes back to the database
-                    # to change the expiry and generate a new CAS, all using
-                    # touch.
-
-                    touchAttempted = True
-
-                    # Convert the collection to an int, mc_bin_client will skip
-                    # trying (and failing) to map to an ID when the input is an
-                    # int.
-                    collection = int(collection_id, 16)
-                    # Get the expiry
-                    expiry = json_entry['expiry']
-
-                    # If the expiry is 0, a touch of 0 has no affect. In this
-                    # case set the expiry to some future time (30 days from now)
-                    # then back to 0
-                    if expiry == 0:
-                        if args.verbose:
-                            print(
-                                "Fixing key {} in collection {} which has "
-                                "cas of {}, setting expiry to +30days and "
-                                "back to 0".format(
-                                    logical_key, collection_id, cas))
-
-                        memcache.touch(logical_key, (60 * 60 * 24 * 30),
-                                       collection=collection)
-                        memcache.touch(logical_key, 0, collection=collection)
-                    else:
-                        # Touch requires that the expiry is mutated, else it
-                        # won't update and regeneate the CAS. Here we adjust by
-                        # 1 second
-                        if expiry == 0xffffffff:
-                            new_expiry = expiry - 1
-                        else:
-                            new_expiry = expiry + 1
-                        if args.verbose:
-                            print(
-                                "Fixing touch of key {} in collection {} which "
-                                "has cas of {}, changing expiry "
-                                "from {} to {}".format(
-                                    logical_key, collection_id, cas, expiry, new_expiry))
-                        memcache.touch(
-                            logical_key, new_expiry, collection=collection)
-                elif args.verbose:
-                    print(
-                        "Warning key {} in collection {} has a cas of {} which "
-                        "is above the threshold of {}".format(
-                            logical_key, collection_id, cas, args.caslimit))
-        except mc_bin_client_ns.MemcachedError as e:
+    # If the expiry is 0, a touch of 0 has no affect. In this case set the
+    # expiry to some future time (30 days from now) then back to 0
+    if expiry == 0:
+        if verbose:
             print(
-                "Warning: Caught a MemcachedError {} whilst processing key {}".format(
-                    e, logical_key))
-            mcClientErrors = mcClientErrors + 1
+                "Fixing key {} in collection {} which has cas of {}, setting "
+                "expiry to +30days and back to 0".format(
+                    logical_key, collection_id, cas))
 
-proc.wait()
-if proc.returncode != 0:
-    print("Error: {} exited with status {}, results are incomplete".format(
-        " ".join(cmd), proc.returncode))
-    sys.exit(1)
+        memcache.touch(logical_key, (60 * 60 * 24 * 30), collection=collection)
+        memcache.touch(logical_key, 0, collection=collection)
+        return
 
-# Get the high seqno so we can wait for it to be persisted, preventing a race
-# with backfill that receives the poisoned document from disk and the fixed
-# version from memory. This will cause cas poisoning to re-occur.
-highSeqno = None
-if touchAttempted:
-    stat_key = "vb_{}:high_seqno".format(args.vbucket)
+    # Adjust the expiry by 1 second
+    if expiry == 0xffffffff:
+        new_expiry = expiry - 1
+    else:
+        new_expiry = expiry + 1
+    if verbose:
+        print(
+            "Fixing touch of key {} in collection {} which has cas of {}, "
+            "changing expiry from {} to {}".format(
+                logical_key, collection_id, cas, expiry, new_expiry))
+    memcache.touch(logical_key, new_expiry, collection=collection)
+
+
+def process_document(json_entry, args, memcache, stats):
+    """
+    Check the CAS of a document from couch_dbdump. If it is above the threshold
+    either report it, or with --fix touch it so that it is given a new CAS.
+    """
+    cas = json_entry['cas']
+
+    # Only documents with a CAS above our limit need repairing
+    if int(cas) <= args.caslimit:
+        return
+
+    doc_id = json_entry['id']
+    # doc_id needs further processing to split the key/collection
+    # Input is "(type:0xf2)key_name" and we want to obtain the type, but
+    # also get the logical_key
+    collection_info, logical_key = doc_id.split(')', 1)
+
+    if "system" in collection_info:
+        # System events have a CAS, but they do not replicate like regular
+        # documents, these will get fixed by a regular rebalance and do not
+        # pose a threat to the vbucket CAS. Just warn that one was found
+        if args.verbose:
+            print(
+                "A system event {} has a future CAS {}, this isn't a problem "
+                "as the CAS will be reset if replicated".format(doc_id, cas))
+        return
+
+    stats.above_threshold += 1
+
+    # Deleted documents are counted but cannot be touched, so skip them
+    if "deleted" in json_entry:
+        stats.deleted_skipped += 1
+        if args.verbose:
+            print(
+                "Warning deleted key {} has a cas of {} which is above the "
+                "threshold of {}, skipping".format(
+                    logical_key, cas, args.caslimit))
+        return
+
+    # Now we will need to separate out the collection ID, a number which
+    # uniquely identifies the collection for this document.
+    collection_id = collection_info.split(':')[1]
+
+    if not args.fix:
+        if args.verbose:
+            print(
+                "Warning key {} in collection {} has a cas of {} which is "
+                "above the threshold of {}".format(
+                    logical_key, collection_id, cas, args.caslimit))
+        return
+
+    # This is the symbol that couch_dbump replaces in its output
+    # when it spots a non UTF-8 character in the document's key.
+    # We cannot fix these documents because we are unable to get
+    # the true key for the document.
+    if "�" in logical_key:
+        stats.non_utf_skipped += 1
+        print(
+            "Warning: skipping key {} in collection {} (cas {}) because it "
+            "contains non-UTF-8 bytes and cannot be repaired via this "
+            "script".format(logical_key, collection_info, cas))
+        return
+
+    # With the -f option the script writes back to the database to change the
+    # expiry and generate a new CAS, all using touch.
+    stats.touch_attempted = True
     try:
-        seqno_stats = memcache.stats("vbucket-seqno {}".format(args.vbucket))
-        highSeqno = int(seqno_stats[stat_key])
+        touch_document(memcache, json_entry, logical_key, collection_id,
+                       args.verbose)
+    except mc_bin_client_ns.MemcachedError as e:
+        print(
+            "Warning: Caught a MemcachedError {} whilst processing key "
+            "{}".format(e, logical_key))
+        stats.mc_client_errors += 1
+
+
+def process_datafile(args, datafile, memcache):
+    """
+    Using couch_dbdump, obtain the metadata of every key and process each one.
+    Exits if the output of couch_dbdump cannot be parsed, or if it fails.
+    """
+    cmd = ["couch_dbdump", "--no-body", "--json", datafile]
+    stats = RepairStats()
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    for line in proc.stdout:
+        # Running with --json so we can easily parse the metadata into the
+        # required components
+        if args.debug:
+            print(line)
+
+        try:
+            json_entry = json.loads(line)
+        except Exception as e:
+            print("Warning: Caught an exception {} whilst processing "
+                  "line {}".format(e, line))
+            sys.exit(1)
+
+        process_document(json_entry, args, memcache, stats)
+
+    proc.wait()
+    if proc.returncode != 0:
+        print("Error: {} exited with status {}, results are incomplete".format(
+            " ".join(cmd), proc.returncode))
+        sys.exit(1)
+
+    return stats
+
+
+def get_high_seqno(memcache, vbucket):
+    """
+    Touch does not return the seqno of the mutation, so read the vbucket high
+    seqno instead. Returns None if the high seqno cannot be read.
+    """
+    stat_key = "vb_{}:high_seqno".format(vbucket)
+    try:
+        seqno_stats = memcache.stats("vbucket-seqno {}".format(vbucket))
+        return int(seqno_stats[stat_key])
     except (mc_bin_client_ns.MemcachedError, KeyError, ValueError) as e:
         print("Warning: Unable to read {} after touching documents: "
               "{}".format(stat_key, e))
+        return None
 
-# Wait for the high seqno to be persisted, so that all touched documents (and
-# their new CAS) are on disk.
-highSeqnoPersisted = False
-if highSeqno is not None:
-    persisted_key = "vb_{}:last_persisted_seqno".format(args.vbucket)
-    deadline = time.monotonic() + args.persist_timeout
-    persistedSeqno = None
+
+def wait_for_persistence(memcache, vbucket, seqno, timeout, verbose):
+    """
+    Wait for the seqno to be persisted, so that all touched documents (and
+    their new CAS) are on disk. Returns True if seqno was persisted within
+    timeout seconds.
+    """
+    persisted_key = "vb_{}:last_persisted_seqno".format(vbucket)
+    deadline = time.monotonic() + timeout
     while True:
         try:
-            seqno_stats = memcache.stats(
-                "vbucket-seqno {}".format(args.vbucket))
-            persistedSeqno = int(seqno_stats[persisted_key])
+            seqno_stats = memcache.stats("vbucket-seqno {}".format(vbucket))
+            persisted_seqno = int(seqno_stats[persisted_key])
         except (mc_bin_client_ns.MemcachedError, KeyError, ValueError) as e:
             print("Warning: Unable to read {}: {}".format(persisted_key, e))
-            break
-        if persistedSeqno >= highSeqno:
-            highSeqnoPersisted = True
-            break
+            return False
+        if persisted_seqno >= seqno:
+            return True
         if time.monotonic() >= deadline:
             print("Warning: Timed out after {} seconds waiting for seqno {} to "
                   "be persisted, {} is {}".format(
-                      args.persist_timeout, highSeqno, persisted_key,
-                      persistedSeqno))
-            break
-        if args.verbose:
+                      timeout, seqno, persisted_key, persisted_seqno))
+            return False
+        if verbose:
             print("Waiting for seqno {} to be persisted, {} is {}".format(
-                highSeqno, persisted_key, persistedSeqno))
+                seqno, persisted_key, persisted_seqno))
         time.sleep(1)
 
-if count:
-    if args.fix:
-        fixed = count - deletedSkipped - nonUTFSkipped - mcClientErrors
-        print("Complete with {} of {} documents above threshold now fixed, "
-              "Skipped {} deleted documents and "
-              "{} documents with non UTF-8 keys".format(
-                  fixed, count, deletedSkipped, nonUTFSkipped))
-        if highSeqno is not None:
-            print("vbucket {} high seqno after all touches is {}, {}".format(
-                args.vbucket, highSeqno,
-                "persisted" if highSeqnoPersisted else "NOT confirmed as "
-                "persisted"))
+
+def print_summary(args, stats, high_seqno, persisted):
+    if stats.above_threshold:
+        if args.fix:
+            fixed = (stats.above_threshold - stats.deleted_skipped -
+                     stats.non_utf_skipped - stats.mc_client_errors)
+            print("Complete with {} of {} documents above threshold now "
+                  "fixed, Skipped {} deleted documents and {} documents with "
+                  "non UTF-8 keys".format(
+                      fixed, stats.above_threshold, stats.deleted_skipped,
+                      stats.non_utf_skipped))
+            if high_seqno is not None:
+                print("vbucket {} high seqno after all touches is {}, "
+                      "{}".format(
+                          args.vbucket, high_seqno,
+                          "persisted" if persisted else
+                          "NOT confirmed as persisted"))
+        else:
+            print("Complete with {} documents found above threshold".format(
+                stats.above_threshold))
     else:
-        print("Complete with {} documents found above threshold".format(count))
-else:
-    print("No documents were found with a CAS above threshold")
+        print("No documents were found with a CAS above threshold")
 
-if mcClientErrors:
-    print("Warning the script caught {} mc_bin_client_ns.MemcachedError which "
-          "are logged".format(
-              mcClientErrors))
+    if stats.mc_client_errors:
+        print("Warning the script caught {} mc_bin_client_ns.MemcachedError "
+              "which are logged".format(stats.mc_client_errors))
 
-if touchAttempted and not highSeqnoPersisted:
-    print("Error: Unable to confirm the touched documents were persisted")
-    sys.exit(1)
+
+def main():
+    args = parse_args()
+    check_required_tools()
+
+    datafile = find_datafile(args.datafile, args.vbucket)
+    print("Processing with {}".format(datafile))
+
+    memcache = None
+    if args.fix:
+        # Only need to connect/auth when fixing
+        memcache = connect(args)
+
+    stats = process_datafile(args, datafile, memcache)
+
+    # Get the high seqno so we can wait for it to be persisted, preventing a
+    # race with backfill that receives the poisoned document from disk and the
+    # fixed version from memory. This will cause cas poisoning to re-occur.
+    high_seqno = None
+    persisted = False
+    if stats.touch_attempted:
+        high_seqno = get_high_seqno(memcache, args.vbucket)
+        if high_seqno is not None:
+            persisted = wait_for_persistence(memcache, args.vbucket,
+                                             high_seqno, args.persist_timeout,
+                                             args.verbose)
+
+    print_summary(args, stats, high_seqno, persisted)
+
+    if stats.touch_attempted and not persisted:
+        print("Error: Unable to confirm the touched documents were persisted")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
