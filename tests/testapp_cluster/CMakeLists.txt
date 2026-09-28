@@ -34,7 +34,7 @@ add_test(NAME cluster_test
 # Don't run it concurrently with any other tests.
 set_tests_properties(cluster_test
         PROPERTIES RUN_SERIAL TRUE
-        ENVIRONMENT JE_MALLOC_CONF=junk:true)
+        ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
 
 if (TARGET magma AND NOT WIN32)
     # Magma emits a lot of critical warnings and fails on
@@ -47,5 +47,5 @@ if (TARGET magma AND NOT WIN32)
     # Don't run it concurrently with any other tests.
     set_tests_properties(cluster_test_magma
             PROPERTIES RUN_SERIAL TRUE
-            ENVIRONMENT JE_MALLOC_CONF=junk:true)
+            ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
 endif()
