@@ -20,6 +20,8 @@
 
 #include "collections/collections_types.h"
 #include <fmt/ostream.h>
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 class DiskDocKey;
@@ -50,6 +52,9 @@ std::ostream& operator<<(std::ostream& os, const Collections::KVStore::OpenColle
  * the scope.
  */
 struct OpenScope {
+    OpenScope(uint64_t startSeqno, ScopeMetaData metaData)
+        : startSeqno(startSeqno), metaData(std::move(metaData)) {
+    }
     uint64_t startSeqno;
     ScopeMetaData metaData;
     bool operator==(const OpenScope& other) const;
@@ -136,6 +141,13 @@ std::ostream& operator<<(std::ostream& os, const Collections::KVStore::Manifest&
  * A dropped collection stores the seqno range it spans and the collection-ID
  */
 struct DroppedCollection {
+    DroppedCollection(uint64_t startSeqno,
+                      uint64_t endSeqno,
+                      CollectionID collectionId)
+        : startSeqno(startSeqno),
+          endSeqno(endSeqno),
+          collectionId(collectionId) {
+    }
     uint64_t startSeqno;
     uint64_t endSeqno;
     CollectionID collectionId;
