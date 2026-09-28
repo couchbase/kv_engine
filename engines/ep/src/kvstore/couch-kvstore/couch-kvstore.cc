@@ -2132,6 +2132,12 @@ StorageProperties CouchKVStore::getStorageProperties() const {
             cb::couchstore::getFileFormatVersion()};
 }
 
+std::string CouchKVStore::getMaxFormatVersionsJson() const {
+    return nlohmann::json{
+            {"couchstore", cb::couchstore::getFileFormatVersion()}}
+            .dump();
+}
+
 std::variant<cb::engine_errc, std::unordered_set<std::string>>
 CouchKVStore::getEncryptionKeyIds() const {
     return vbucketEncryptionKeysManager.getKeys();

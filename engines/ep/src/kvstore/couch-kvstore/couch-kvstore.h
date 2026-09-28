@@ -199,6 +199,8 @@ public:
      */
     StorageProperties getStorageProperties() const override;
 
+    std::string getMaxFormatVersionsJson() const override;
+
     void set(TransactionContext& txnCtx, queued_item item) override;
 
     GetValue get(const DiskDocKey& key,

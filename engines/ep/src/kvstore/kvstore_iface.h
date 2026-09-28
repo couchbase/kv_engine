@@ -284,6 +284,18 @@ public:
     virtual StorageProperties getStorageProperties() const = 0;
 
     /**
+     * Get the max supported storage format versions of the underlying store,
+     * as a serialized Json object keyed by component, eg
+     * {"couchstore":14} or {"magma":1,"fusion":1}.
+     *
+     * @return the serialized Json, or an empty string if the store does not
+     *         report format versions.
+     */
+    virtual std::string getMaxFormatVersionsJson() const {
+        return {};
+    }
+
+    /**
      * Set an item into the kv store. cc
      *
      * @param txnCtx context for the transaction

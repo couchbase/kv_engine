@@ -13,6 +13,7 @@
 
 #include "kvstore/kvstore_config.h"
 
+#include "configuration_types.h"
 #include "ep_types.h"
 #include "libmagma/magma.h"
 #include "utilities/testing_hook.h"
@@ -333,6 +334,14 @@ public:
         return fusionNamespace;
     }
 
+    cb::config::MagmaFusionState getFusionState() const {
+        return fusionState;
+    }
+
+    void setFusionState(cb::config::MagmaFusionState state) {
+        fusionState = state;
+    }
+
     std::chrono::seconds getFusionUploadInterval() const {
         return fusionUploadInterval;
     }
@@ -648,6 +657,9 @@ private:
     folly::Synchronized<std::string> fusionMetadatastoreURI;
     // Fusion Namespace.
     std::string fusionNamespace;
+    // Fusion state of the bucket, as set by ns_server at bucket creation.
+    std::atomic<cb::config::MagmaFusionState> fusionState{
+            cb::config::MagmaFusionState::Disabled};
     // The interval between kvstore syncs to fusion
     std::atomic<std::chrono::seconds> fusionUploadInterval;
     // Maximum interval after which an upload will be permitted irrespective of
