@@ -62,12 +62,12 @@ FileOpsTrackerScopeGuard::~FileOpsTrackerScopeGuard() {
 }
 
 FileOpsTrackerScopeGuard::FileOpsTrackerScopeGuard(
-        FileOpsTrackerScopeGuard&& other)
+        FileOpsTrackerScopeGuard&& other) noexcept
     : tracker(std::exchange(other.tracker, nullptr)) {
 }
 
 FileOpsTrackerScopeGuard& FileOpsTrackerScopeGuard::operator=(
-        FileOpsTrackerScopeGuard&& other) {
+        FileOpsTrackerScopeGuard&& other) noexcept {
     tracker = std::exchange(other.tracker, nullptr);
     return *this;
 }

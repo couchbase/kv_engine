@@ -87,11 +87,12 @@ public:
     ~FileOpsTrackerScopeGuard();
 
     FileOpsTrackerScopeGuard(const FileOpsTrackerScopeGuard&) = delete;
-    FileOpsTrackerScopeGuard(FileOpsTrackerScopeGuard&& other);
+    FileOpsTrackerScopeGuard(FileOpsTrackerScopeGuard&& other) noexcept;
 
     FileOpsTrackerScopeGuard& operator=(const FileOpsTrackerScopeGuard&) =
             delete;
-    FileOpsTrackerScopeGuard& operator=(FileOpsTrackerScopeGuard&& other);
+    FileOpsTrackerScopeGuard& operator=(
+            FileOpsTrackerScopeGuard&& other) noexcept;
 
     FileOpsTracker* tracker;
 };
