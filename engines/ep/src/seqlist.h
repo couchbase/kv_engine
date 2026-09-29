@@ -165,11 +165,11 @@ public:
            defined before move constructor
            (http://stackoverflow.com/questions/29459040)
          */
-        RangeIterator(RangeIterator&& other)
+        RangeIterator(RangeIterator&& other) noexcept
             : rangeIterImpl(std::move(other.rangeIterImpl)) {
         }
 
-        RangeIterator& operator=(RangeIterator&& other) {
+        RangeIterator& operator=(RangeIterator&& other) noexcept {
             rangeIterImpl = std::move(other.rangeIterImpl);
             return *this;
         }
