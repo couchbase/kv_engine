@@ -41,11 +41,11 @@ public:
 
     ReadHandle(const Manifest* m, Manifest::mutex_type& lock);
 
-    ReadHandle(ReadHandle&& rhs)
+    ReadHandle(ReadHandle&& rhs) noexcept
         : readLock(std::move(rhs.readLock)), manifest(rhs.manifest) {
     }
 
-    ReadHandle& operator=(ReadHandle&& other) {
+    ReadHandle& operator=(ReadHandle&& other) noexcept {
         readLock = std::move(other.readLock);
         manifest = std::move(other.manifest);
 
@@ -673,7 +673,7 @@ public:
                 VBucketStateLockRef vbStateLock,
                 Manifest::mutex_type& lock);
 
-    WriteHandle(WriteHandle&& rhs)
+    WriteHandle(WriteHandle&& rhs) noexcept
         : vbStateLock(rhs.vbStateLock),
           writeLock(std::move(rhs.writeLock)),
           manifest(rhs.manifest) {
