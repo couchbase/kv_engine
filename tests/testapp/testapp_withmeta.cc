@@ -11,6 +11,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/codec/mutate_with_meta_payload.h>
 #include <platform/string_hex.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -911,6 +912,66 @@ TEST_P(WithMetaTest, MutateWithMetaDeleteWithBodyNoXattr) {
         EXPECT_EQ("Delete with meta: Document cannot have a body",
                   error.getErrorContext());
     }
+}
+
+TEST_P(WithMetaTest, SetWithMetaVBucketUuidCorrect) {
+    const auto uuid = getVbucketUuid();
+    userConnection->mutateWithMeta(document,
+                                   Vbid(0),
+                                   cb::mcbp::cas::Wildcard,
+                                   /*seqno*/ 1,
+                                   /*options*/ 0,
+                                   {},
+                                   vbucketUuidFrameInfo(uuid));
+}
+
+TEST_P(WithMetaTest, SetWithMetaVBucketUuidMismatch) {
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutateWithMeta(document,
+                                       Vbid(0),
+                                       cb::mcbp::cas::Wildcard,
+                                       /*seqno*/ 1,
+                                       /*options*/ 0,
+                                       {},
+                                       vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "SetWithMeta with incorrect vbucket uuid should fail";
+    } catch (const ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+}
+
+TEST_P(WithMetaTest, DelWithMetaVBucketUuidCorrect) {
+    // DelWithMeta only accepts a body consisting of XATTRs (or none), so
+    // use a dedicated minimal document rather than the fixture's default
+    // (a non-empty, non-xattr JSON body).
+    Document doc{};
+    doc.info.id = name;
+    doc.info.cas = testCas;
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+
+    userConnection->mutateWithMeta(
+            doc, Vbid(0), cb::mcbp::cas::Wildcard, /*seqno*/ 1, 0, {});
+    const auto uuid = getVbucketUuid();
+    BinprotDelWithMetaCommand cmd(doc, Vbid(0), 0, 0, 2, 0);
+    cmd.addFrameInfo(cb::mcbp::request::VBucketUuidFrameInfo(uuid));
+    const auto resp = BinprotMutationResponse(userConnection->execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+TEST_P(WithMetaTest, DelWithMetaVBucketUuidMismatch) {
+    Document doc{};
+    doc.info.id = name;
+    doc.info.cas = testCas;
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+
+    userConnection->mutateWithMeta(
+            doc, Vbid(0), cb::mcbp::cas::Wildcard, /*seqno*/ 1, 0, {});
+    const auto uuid = getVbucketUuid();
+    BinprotDelWithMetaCommand cmd(doc, Vbid(0), 0, 0, 2, 0);
+    cmd.addFrameInfo(cb::mcbp::request::VBucketUuidFrameInfo(uuid + 1));
+    const auto resp = BinprotMutationResponse(userConnection->execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, resp.getStatus());
 }
 
 class WithMetaRegenerateCasTest : public TestappXattrClientTest {

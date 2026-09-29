@@ -238,9 +238,10 @@ cb::engine_errc del(EngineIface* h,
                     std::string_view key,
                     uint64_t cas,
                     Vbid vbucket,
-                    CookieIface* cookie) {
+                    CookieIface* cookie,
+                    std::optional<uint64_t> requiredVbucketUuid) {
     mutation_descr_t mut_info{};
-    return del(h, key, &cas, vbucket, cookie, &mut_info);
+    return del(h, key, &cas, vbucket, cookie, &mut_info, requiredVbucketUuid);
 }
 
 cb::engine_errc del(EngineIface* h,
@@ -248,7 +249,8 @@ cb::engine_errc del(EngineIface* h,
                     uint64_t* cas,
                     Vbid vbucket,
                     CookieIface* cookie,
-                    mutation_descr_t* mut_info) {
+                    mutation_descr_t* mut_info,
+                    std::optional<uint64_t> requiredVbucketUuid) {
     bool create_cookie = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie(h);
@@ -260,6 +262,7 @@ cb::engine_errc del(EngineIface* h,
                          *cas,
                          vbucket,
                          {},
+                         requiredVbucketUuid,
                          *mut_info);
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -878,7 +881,8 @@ cb::engine_errc store(
         uint32_t exp,
         uint8_t datatype,
         DocumentState docState,
-        const std::optional<cb::durability::Requirements>& durReqs) {
+        const std::optional<cb::durability::Requirements>& durReqs,
+        std::optional<uint64_t> requiredVbucketUuid) {
     auto ret = storeCasVb11(h,
                             cookie,
                             op,
@@ -890,7 +894,8 @@ cb::engine_errc store(
                             exp,
                             datatype,
                             docState,
-                            durReqs);
+                            durReqs,
+                            requiredVbucketUuid);
     if (outitem) {
         *outitem = ret.second.release();
     }
@@ -923,6 +928,7 @@ cb::engine_errc storeCasOut(EngineIface* h,
                                    out_cas,
                                    StoreSemantics::Set,
                                    {},
+                                   {},
                                    docState,
                                    false);
 
@@ -945,7 +951,8 @@ cb::EngineErrorItemPair storeCasVb11(
         uint32_t exp,
         uint8_t datatype,
         DocumentState docState,
-        const std::optional<cb::durability::Requirements>& durReqs) {
+        const std::optional<cb::durability::Requirements>& durReqs,
+        std::optional<uint64_t> requiredVbucketUuid) {
     uint64_t cas = 0;
 
     auto rv = allocate(h, cookie, key, value.size(), flags, exp, datatype, vb);
@@ -967,8 +974,14 @@ cb::EngineErrorItemPair storeCasVb11(
         create_cookie = true;
     }
 
-    auto storeRet =
-            h->store(*cookie, *rv.second, cas, op, durReqs, docState, false);
+    auto storeRet = h->store(*cookie,
+                             *rv.second,
+                             cas,
+                             op,
+                             durReqs,
+                             requiredVbucketUuid,
+                             docState,
+                             false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1009,6 +1022,7 @@ cb::engine_errc replace(EngineIface* h,
                        cb::mcbp::cas::Wildcard,
                        StoreSemantics::Replace,
                        predicate,
+                       {},
                        {},
                        DocumentState::Alive,
                        false)

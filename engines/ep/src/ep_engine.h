@@ -189,6 +189,7 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             mutation_descr_t& mut_info) override;
     void release(ItemIface& itm) override;
     cb::EngineErrorItemPair get(CookieIface& cookie,
@@ -232,6 +233,7 @@ public:
             uint64_t& cas,
             StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
@@ -241,22 +243,25 @@ public:
             StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
-    cb::engine_errc set_with_meta(CookieIface& cookie,
-                                  Vbid vbucket,
-                                  DocKeyView key,
-                                  cb::const_byte_buffer value,
-                                  ItemMetaData item_meta,
-                                  std::optional<DeleteSource> delete_source,
-                                  protocol_binary_datatype_t datatype,
-                                  uint64_t& cas,
-                                  mutation_descr_t& mut_info,
-                                  CheckConflicts check_conflicts,
-                                  bool allow_existing,
-                                  GenerateBySeqno generate_by_seqno,
-                                  GenerateCas generate_cas,
-                                  ForceAcceptWithMetaOperation force) override;
+    cb::engine_errc set_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData item_meta,
+            std::optional<DeleteSource> delete_source,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            bool allow_existing,
+            GenerateBySeqno generate_by_seqno,
+            GenerateCas generate_cas,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            ForceAcceptWithMetaOperation force) override;
     cb::engine_errc delete_with_meta(
             CookieIface& cookie,
             Vbid vbucket,
@@ -268,6 +273,7 @@ public:
             GenerateBySeqno gen_by_seqno,
             GenerateCas gen_cas,
             DeleteSource delete_source,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ForceAcceptWithMetaOperation force) override;
     // Need to explicilty import EngineIface::flush to avoid warning about
     // DCPIface::flush hiding it.
@@ -566,6 +572,7 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             std::optional<cb::durability::Requirements> durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             mutation_descr_t& mut_info);
 
     void itemRelease(ItemIface* itm);
@@ -634,18 +641,22 @@ public:
 
     void resetStats();
 
-    cb::engine_errc storeInner(CookieIface& cookie,
-                               Item& itm,
-                               uint64_t& cas,
-                               StoreSemantics operation,
-                               bool preserveTtl);
+    cb::engine_errc storeInner(
+            CookieIface& cookie,
+            Item& itm,
+            uint64_t& cas,
+            StoreSemantics operation,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            bool preserveTtl);
 
-    cb::EngineErrorCasPair storeIfInner(CookieIface& cookie,
-                                        Item& itm,
-                                        uint64_t cas,
-                                        StoreSemantics operation,
-                                        const cb::StoreIfPredicate& predicate,
-                                        bool preserveTtl);
+    cb::EngineErrorCasPair storeIfInner(
+            CookieIface& cookie,
+            Item& itm,
+            uint64_t cas,
+            StoreSemantics operation,
+            const cb::StoreIfPredicate& predicate,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            bool preserveTtl);
 
     cb::engine_errc dcpOpen(CookieIface& cookie,
                             uint32_t opaque,
@@ -1666,20 +1677,22 @@ protected:
      * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
-    cb::engine_errc setWithMeta(Vbid vbucket,
-                                DocKeyView key,
-                                cb::const_byte_buffer value,
-                                ItemMetaData itemMeta,
-                                std::optional<DeleteSource> deleteSource,
-                                protocol_binary_datatype_t datatype,
-                                uint64_t& cas,
-                                mutation_descr_t& mut_info,
-                                CookieIface& cookie,
-                                CheckConflicts checkConflicts,
-                                bool allowExisting,
-                                GenerateBySeqno genBySeqno,
-                                GenerateCas genCas,
-                                ForceAcceptWithMetaOperation force);
+    cb::engine_errc setWithMeta(
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData itemMeta,
+            std::optional<DeleteSource> deleteSource,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CookieIface& cookie,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno,
+            GenerateCas genCas,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            ForceAcceptWithMetaOperation force);
 
     /**
      * Process the del_with_meta with the given buffers/values.
@@ -1698,17 +1711,19 @@ protected:
      * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
-    cb::engine_errc deleteWithMeta(Vbid vbucket,
-                                   DocKeyView key,
-                                   ItemMetaData itemMeta,
-                                   uint64_t& cas,
-                                   mutation_descr_t& mut_info,
-                                   CookieIface& cookie,
-                                   CheckConflicts checkConflicts,
-                                   GenerateBySeqno genBySeqno,
-                                   GenerateCas genCas,
-                                   DeleteSource deleteSource,
-                                   ForceAcceptWithMetaOperation force);
+    cb::engine_errc deleteWithMeta(
+            Vbid vbucket,
+            DocKeyView key,
+            ItemMetaData itemMeta,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CookieIface& cookie,
+            CheckConflicts checkConflicts,
+            GenerateBySeqno genBySeqno,
+            GenerateCas genCas,
+            DeleteSource deleteSource,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            ForceAcceptWithMetaOperation force);
 
     /// Make a DocKey from the key buffer
     DocKeyView makeDocKey(CookieIface& cookie, cb::const_byte_buffer key) const;

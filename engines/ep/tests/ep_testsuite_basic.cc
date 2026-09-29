@@ -621,6 +621,7 @@ static enum test_result test_getl(EngineIface* h) {
                      cas,
                      StoreSemantics::Set,
                      {},
+                     {},
                      DocumentState::Alive,
                      false),
             "Failed to Store item");
@@ -802,6 +803,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
                      *ret.second.get(),
                      cas,
                      StoreSemantics::Set,
+                     {},
                      {},
                      DocumentState::Alive,
                      false),

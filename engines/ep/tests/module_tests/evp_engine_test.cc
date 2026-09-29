@@ -156,7 +156,7 @@ queued_item EventuallyPersistentEngineTest::store_item(
     uint64_t cas;
     EXPECT_EQ(cb::engine_errc::success,
               engine->storeInner(
-                      *cookie, *item, cas, StoreSemantics::Set, false));
+                      *cookie, *item, cas, StoreSemantics::Set, {}, false));
     return item;
 }
 
@@ -167,9 +167,9 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
         cb::durability::Requirements reqs) {
     auto item = makePendingItem(makeStoredDocKey(key), value, reqs);
     uint64_t cas;
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            engine->storeInner(*cookie, *item, cas, StoreSemantics::Set, false))
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->storeInner(
+                      *cookie, *item, cas, StoreSemantics::Set, {}, false))
             << "pending SyncWrite should initially block (until durability "
                "met).";
     return item;
@@ -180,9 +180,9 @@ queued_item EventuallyPersistentEngineTest::store_pending_delete(
     auto item = makePendingItem(makeStoredDocKey(key), {}, reqs);
     item->setDeleted(DeleteSource::Explicit);
     uint64_t cas;
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            engine->storeInner(*cookie, *item, cas, StoreSemantics::Set, false))
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->storeInner(
+                      *cookie, *item, cas, StoreSemantics::Set, {}, false))
             << "pending SyncDelete should initially block (until durability "
                "met).";
     return item;
@@ -194,7 +194,7 @@ void EventuallyPersistentEngineTest::store_committed_item(
     uint64_t cas;
     EXPECT_EQ(cb::engine_errc::success,
               engine->storeInner(
-                      *cookie, *item, cas, StoreSemantics::Set, false));
+                      *cookie, *item, cas, StoreSemantics::Set, {}, false));
 }
 
 TEST_P(EPEngineParamTest, requirements_bucket_type) {

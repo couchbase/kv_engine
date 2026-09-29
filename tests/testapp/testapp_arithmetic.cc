@@ -117,6 +117,50 @@ TEST_P(ArithmeticTest, TestIncrementDoesWrap) {
     EXPECT_EQ(0, userConnection->increment(name, 1));
 }
 
+TEST_P(ArithmeticTest, TestIncrementVBucketUuidCorrect) {
+    EXPECT_EQ(0, userConnection->increment(name, 1, 0));
+    const auto uuid = getVbucketUuid();
+    EXPECT_EQ(1,
+              userConnection->increment(
+                      name, 1, 0, 0, nullptr, vbucketUuidFrameInfo(uuid)));
+}
+
+TEST_P(ArithmeticTest, TestIncrementVBucketUuidMismatch) {
+    EXPECT_EQ(0, userConnection->increment(name, 1, 0));
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->increment(
+                name, 1, 0, 0, nullptr, vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Increment with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+    EXPECT_EQ(0, userConnection->increment(name, 0, 0));
+}
+
+TEST_P(ArithmeticTest, TestDecrementVBucketUuidCorrect) {
+    // A create-on-not-found increment stores the "initial" value verbatim
+    // (the delta is only applied to an already-existing counter).
+    EXPECT_EQ(10, userConnection->increment(name, 0, 10));
+    const auto uuid = getVbucketUuid();
+    EXPECT_EQ(9,
+              userConnection->decrement(
+                      name, 1, 0, 0, nullptr, vbucketUuidFrameInfo(uuid)));
+}
+
+TEST_P(ArithmeticTest, TestDecrementVBucketUuidMismatch) {
+    EXPECT_EQ(10, userConnection->increment(name, 0, 10));
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->decrement(
+                name, 1, 0, 0, nullptr, vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Decrement with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+    EXPECT_EQ(10, userConnection->increment(name, 0, 0));
+}
+
 TEST_P(ArithmeticTest, TestConcurrentAccess) {
     auto conn1 = userConnection->clone();
     auto conn2 = userConnection->clone();

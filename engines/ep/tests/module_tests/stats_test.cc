@@ -926,6 +926,7 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
                                 cas,
                                 StoreSemantics::Set,
                                 {},
+                                {},
                                 DocumentState::Alive,
                                 false));
 
@@ -933,7 +934,7 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
         if (ii % 2 == 0) {
             mutation_descr_t mutInfo;
             ASSERT_EQ(cb::engine_errc::success,
-                      engine->remove(*cookie, key, cas, vbid, {}, mutInfo));
+                      engine->remove(*cookie, key, cas, vbid, {}, {}, mutInfo));
         }
     }
 
@@ -1206,6 +1207,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
                       cas,
                       Vbid(0),
                       cookie,
+                      {},
                       {},
                       nullptr,
                       mutation_descr);

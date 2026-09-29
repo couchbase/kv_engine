@@ -550,6 +550,7 @@ TEST_P(EPBucketTest, checkIfResidentAfterBgFetch) {
                                 vbid,
                                 /*cookie*/ cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
@@ -1644,6 +1645,7 @@ TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
                                 vbid,
                                 /*cookie*/ cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
@@ -1794,7 +1796,7 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
                               value);
         uint64_t cas;
         result = engine->storeInner(
-                *dummyCookie, item, cas, StoreSemantics::Set, false);
+                *dummyCookie, item, cas, StoreSemantics::Set, {}, false);
     }
 
     ASSERT_EQ(cb::engine_errc::no_memory, result);
@@ -1832,17 +1834,25 @@ TEST_P(EPBucketTest, replaceRequiresEnabledTraffic) {
     store_item(vbid, key, "value1");
     flush_vbucket_to_disk(vbid);
     engine->public_enableTraffic(false);
-    EXPECT_EQ(
-            cb::engine_errc::temporary_failure,
-            engine->storeIfInner(
-                          *cookie, item, 0, StoreSemantics::Replace, {}, false)
-                    .first);
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->storeIfInner(*cookie,
+                                   item,
+                                   0,
+                                   StoreSemantics::Replace,
+                                   {},
+                                   {},
+                                   false)
+                      .first);
     engine->public_enableTraffic(true);
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->storeIfInner(
-                          *cookie, item, 0, StoreSemantics::Replace, {}, false)
-                    .first);
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->storeIfInner(*cookie,
+                                   item,
+                                   0,
+                                   StoreSemantics::Replace,
+                                   {},
+                                   {},
+                                   false)
+                      .first);
 }
 
 TEST_P(EPBucketTest, mutationOperationsTmpfaiIfTakeoverBackedUp) {
@@ -1864,6 +1874,7 @@ TEST_P(EPBucketTest, mutationOperationsTmpfaiIfTakeoverBackedUp) {
                                           cas,
                                           vbid,
                                           cookie,
+                                          {},
                                           {},
                                           nullptr,
                                           mutation_descr),
@@ -1897,6 +1908,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
                                              0 /*cas*/,
                                              StoreSemantics::Set,
                                              predicate,
+                                             {},
                                              false));
         runBGFetcherTask();
     }
@@ -1907,6 +1919,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
                                       0 /*cas*/,
                                       StoreSemantics::Set,
                                       predicate,
+                                      {},
                                       false),
                  std::logic_error);
 }
@@ -1985,6 +1998,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
                                                  0 /*cas*/,
                                                  StoreSemantics::Set,
                                                  test.predicate,
+                                                 {},
                                                  false)
                                     .first;
         if (test.actualStatus == cb::engine_errc::success) {
@@ -2012,6 +2026,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
                                                    0 /*cas*/,
                                                    StoreSemantics::Set,
                                                    i.predicate,
+                                                   {},
                                                    false);
                 // The second run should result the same as VE
                 EXPECT_EQ(i.expectedVEStatus, status.first);
@@ -2047,6 +2062,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    0 /*cas*/,
                                    StoreSemantics::Set,
                                    predicate,
+                                   {},
                                    false)
                       .first);
 
@@ -2058,6 +2074,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    0 /*cas*/,
                                    StoreSemantics::Set,
                                    predicate,
+                                   {},
                                    false)
                       .first);
 
@@ -2068,6 +2085,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    0 /*cas*/,
                                    StoreSemantics::Set,
                                    predicate,
+                                   {},
                                    false)
                       .first);
 }
@@ -2202,6 +2220,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, DeleteTempPreserved) {
                                 vbid,
                                 /*cookie*/ cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr))
             << "Expected to need to go to disk to get key stats";
@@ -2214,6 +2233,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, DeleteTempPreserved) {
                                 vbid,
                                 /*cookie*/ cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr))
             << "Expected to not find the key";
@@ -2224,6 +2244,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, DeleteTempPreserved) {
                                 cas,
                                 vbid,
                                 /*cookie*/ cookie,
+                                {},
                                 {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr))

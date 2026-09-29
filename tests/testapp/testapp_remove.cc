@@ -146,3 +146,31 @@ TEST_P(RemoveTest, RemoveWithXattr) {
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr_keep_deleted) {
     verify_MB_22553();
 }
+
+/**
+ * Verify that a remove pinned to the vbucket's current failover UUID
+ * succeeds.
+ */
+TEST_P(RemoveTest, RemoveVBucketUuidCorrect) {
+    createDocument();
+    const auto uuid = getVbucketUuid();
+    userConnection->remove(name, Vbid(0), 0, vbucketUuidFrameInfo(uuid));
+}
+
+/**
+ * Verify that a remove pinned to a stale/incorrect vbucket UUID is
+ * rejected with vbuuid_not_equal rather than being applied.
+ */
+TEST_P(RemoveTest, RemoveVBucketUuidMismatch) {
+    createDocument();
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->remove(
+                name, Vbid(0), 0, vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Remove with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+    // The document should still be there
+    userConnection->get(name, Vbid(0));
+}

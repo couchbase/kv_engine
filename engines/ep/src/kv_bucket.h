@@ -85,13 +85,19 @@ public:
 
     cb::engine_errc set(Item& item,
                         CookieIface* cookie,
+                        const std::optional<uint64_t>& requiredVbucketUuid = {},
                         cb::StoreIfPredicate predicate = {}) override;
 
-    cb::engine_errc add(Item& item, CookieIface* cookie) override;
+    cb::engine_errc add(
+            Item& item,
+            CookieIface* cookie,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) override;
 
-    cb::engine_errc replace(Item& item,
-                            CookieIface* cookie,
-                            cb::StoreIfPredicate predicate = {}) override;
+    cb::engine_errc replace(
+            Item& item,
+            CookieIface* cookie,
+            const std::optional<uint64_t>& requiredVbucketUuid = {},
+            cb::StoreIfPredicate predicate = {}) override;
 
     GetValue get(const DocKeyView& key,
                  Vbid vbucket,
@@ -121,7 +127,8 @@ public:
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
             EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes,
-            uint64_t* vbucket_uuid = nullptr) override;
+            uint64_t* vbucket_uuid = nullptr,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) override;
 
     cb::engine_errc prepare(Item& item,
                             CookieIface* cookie,
@@ -138,23 +145,26 @@ public:
             Vbid vbucket,
             CookieIface* cookie,
             std::optional<cb::durability::Requirements> durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) override;
 
-    cb::engine_errc deleteWithMeta(const DocKeyView& key,
-                                   uint64_t& cas,
-                                   uint64_t* seqno,
-                                   Vbid vbucket,
-                                   CookieIface* cookie,
-                                   PermittedVBStates permittedVBStates,
-                                   CheckConflicts checkConflicts,
-                                   const ItemMetaData& itemMeta,
-                                   GenerateBySeqno genBySeqno,
-                                   GenerateCas generateCas,
-                                   uint64_t bySeqno,
-                                   DeleteSource deleteSource,
-                                   EnforceMemCheck enforceMemCheck,
-                                   uint64_t* vbucket_uuid = nullptr) override;
+    cb::engine_errc deleteWithMeta(
+            const DocKeyView& key,
+            uint64_t& cas,
+            uint64_t* seqno,
+            Vbid vbucket,
+            CookieIface* cookie,
+            PermittedVBStates permittedVBStates,
+            CheckConflicts checkConflicts,
+            const ItemMetaData& itemMeta,
+            GenerateBySeqno genBySeqno,
+            GenerateCas generateCas,
+            uint64_t bySeqno,
+            DeleteSource deleteSource,
+            EnforceMemCheck enforceMemCheck,
+            uint64_t* vbucket_uuid = nullptr,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) override;
 
     void reset() override;
 
@@ -1400,6 +1410,10 @@ protected:
      * @param isMutationOp Is this operation exepcted to queue a mutation,
      * and hence should be failed if takeover is backed up.
      * @param debugOpcode The debug name of the opcode (for logging purposes).
+     * @param requiredVbucketUuid if set, the operation only proceeds if the
+     *        vBucket's current failover UUID matches; otherwise it fails
+     *        with cb::engine_errc::vbuuid_not_equal. The UUID cannot change
+     *        while the returned state lock is held.
      * @return success if the operation can proceed, and the locked vBucket
      */
     KVBucketResult<std::tuple<VBucketPtr, std::shared_lock<folly::SharedMutex>>>
@@ -1407,7 +1421,8 @@ protected:
                       CookieIface& cookie,
                       PermittedVBStates permittedVBStates,
                       IsMutationOp isMutationOp,
-                      std::string_view debugOpcode);
+                      std::string_view debugOpcode,
+                      const std::optional<uint64_t>& requiredVbucketUuid = {});
 
     GetValue getInternal(const DocKeyView& key,
                          Vbid vbucket,

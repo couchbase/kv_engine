@@ -13,6 +13,7 @@
 #include <mcbp/codec/frameinfo.h>
 #include <platform/random.h>
 #include <xattr/utils.h>
+#include <cstring>
 
 void TestappClientTest::SetUpTestCase() {
     TestappTest::SetUpTestCase();
@@ -302,6 +303,24 @@ cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
                                cb::mcbp::subdoc::PathFlag::Mkdir_p,
                        cb::mcbp::subdoc::DocFlag::Mkdoc);
     return resp.getStatus();
+}
+
+uint64_t TestappXattrClientTest::getVbucketUuid(Vbid vbucket) {
+    auto rsp = userConnection->getFailoverLog(vbucket);
+    auto data = rsp.getDataView();
+    uint64_t uuid;
+    std::memcpy(&uuid, data.data(), sizeof(uuid));
+    return ntohll(uuid);
+}
+
+GetFrameInfoFunction vbucketUuidFrameInfo(uint64_t uuid) {
+    return [uuid]() -> FrameInfoVector {
+        FrameInfoVector ret;
+        ret.emplace_back(
+                std::make_unique<cb::mcbp::request::VBucketUuidFrameInfo>(
+                        uuid));
+        return ret;
+    };
 }
 
 void TestappXattrClientTest::SetUp() {

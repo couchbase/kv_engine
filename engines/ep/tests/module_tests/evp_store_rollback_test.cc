@@ -151,6 +151,7 @@ public:
                                     vbid,
                                     cookie,
                                     {},
+                                    {},
                                     /*itemMeta*/ nullptr,
                                     mutation_descr));
         if (flush_before_rollback) {

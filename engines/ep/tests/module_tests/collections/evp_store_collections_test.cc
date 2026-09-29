@@ -286,6 +286,7 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
                                 vbid,
                                 cookie,
                                 {},
+                                {},
                                 nullptr,
                                 mutation_descr));
 
@@ -1099,7 +1100,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         uint64_t cas;
         EXPECT_EQ(cb::engine_errc::success,
                   engine->storeInner(
-                          *cookie, item, cas, StoreSemantics::Set, false));
+                          *cookie, item, cas, StoreSemantics::Set, {}, false));
     }
     {
         Item item(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
@@ -1111,7 +1112,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         uint64_t cas;
         EXPECT_EQ(cb::engine_errc::unknown_collection,
                   engine->storeInner(
-                          *cookie, item, cas, StoreSemantics::Set, false));
+                          *cookie, item, cas, StoreSemantics::Set, {}, false));
     }
 
     EXPECT_EQ(1,
@@ -4117,6 +4118,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
                                             vbid,
                                             cookie,
                                             {},
+                                            {},
                                             nullptr,
                                             mutation_descr));
 
@@ -4151,8 +4153,14 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
     EXPECT_EQ(cb::engine_errc::success,
-              store->deleteItem(
-                      meatKey, cas, vbid, cookie, {}, nullptr, mutation_descr));
+              store->deleteItem(meatKey,
+                                cas,
+                                vbid,
+                                cookie,
+                                {},
+                                {},
+                                nullptr,
+                                mutation_descr));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto& kvstore =

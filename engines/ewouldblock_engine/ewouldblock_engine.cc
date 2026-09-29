@@ -115,6 +115,7 @@ public:
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             mutation_descr_t& mut_info) override;
     void release(ItemIface& item) override;
     cb::EngineErrorItemPair get(CookieIface& cookie,
@@ -162,6 +163,7 @@ public:
             uint64_t& cas,
             StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
@@ -171,22 +173,25 @@ public:
             StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
-    cb::engine_errc set_with_meta(CookieIface& cookie,
-                                  Vbid vbucket,
-                                  DocKeyView key,
-                                  cb::const_byte_buffer value,
-                                  ItemMetaData item_meta,
-                                  std::optional<DeleteSource> delete_source,
-                                  protocol_binary_datatype_t datatype,
-                                  uint64_t& cas,
-                                  mutation_descr_t& mut_info,
-                                  CheckConflicts check_conflicts,
-                                  bool allow_existing,
-                                  GenerateBySeqno generate_by_seqno,
-                                  GenerateCas generate_cas,
-                                  ForceAcceptWithMetaOperation force) override;
+    cb::engine_errc set_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData item_meta,
+            std::optional<DeleteSource> delete_source,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            bool allow_existing,
+            GenerateBySeqno generate_by_seqno,
+            GenerateCas generate_cas,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            ForceAcceptWithMetaOperation force) override;
     cb::engine_errc delete_with_meta(
             CookieIface& cookie,
             Vbid vbucket,
@@ -198,6 +203,7 @@ public:
             GenerateBySeqno gen_by_seqno,
             GenerateCas gen_cas,
             DeleteSource delete_source,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ForceAcceptWithMetaOperation force) override;
     cb::engine_errc flush(CookieIface& cookie) override;
     cb::engine_errc get_stats(CookieIface& cookie,
@@ -1018,12 +1024,19 @@ cb::engine_errc EWB_Engine::remove(
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         mutation_descr_t& mut_info) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::REMOVE, &cookie, err)) {
         return err;
     }
-    return real_engine->remove(cookie, key, cas, vbucket, durability, mut_info);
+    return real_engine->remove(cookie,
+                               key,
+                               cas,
+                               vbucket,
+                               durability,
+                               requiredVbucketUuid,
+                               mut_info);
 }
 
 void EWB_Engine::release(ItemIface& item) {
@@ -1133,6 +1146,7 @@ cb::engine_errc EWB_Engine::store(
         uint64_t& cas,
         StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1145,6 +1159,7 @@ cb::engine_errc EWB_Engine::store(
                               cas,
                               operation,
                               durability,
+                              requiredVbucketUuid,
                               document_state,
                               preserveTtl);
 }
@@ -1156,6 +1171,7 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1169,6 +1185,7 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
                                  operation,
                                  predicate,
                                  durability,
+                                 requiredVbucketUuid,
                                  document_state,
                                  preserveTtl);
 }
@@ -1186,6 +1203,7 @@ cb::engine_errc EWB_Engine::set_with_meta(
         bool allow_existing,
         GenerateBySeqno generate_by_seqno,
         GenerateCas generate_cas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     return real_engine->set_with_meta(cookie,
                                       vbucket,
@@ -1200,6 +1218,7 @@ cb::engine_errc EWB_Engine::set_with_meta(
                                       allow_existing,
                                       generate_by_seqno,
                                       generate_cas,
+                                      requiredVbucketUuid,
                                       force);
 }
 cb::engine_errc EWB_Engine::delete_with_meta(
@@ -1213,6 +1232,7 @@ cb::engine_errc EWB_Engine::delete_with_meta(
         GenerateBySeqno gen_by_seqno,
         GenerateCas gen_cas,
         DeleteSource delete_source,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     return real_engine->delete_with_meta(cookie,
                                          vbucket,
@@ -1224,6 +1244,7 @@ cb::engine_errc EWB_Engine::delete_with_meta(
                                          gen_by_seqno,
                                          gen_cas,
                                          delete_source,
+                                         requiredVbucketUuid,
                                          force);
 }
 

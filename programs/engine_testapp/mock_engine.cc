@@ -133,6 +133,7 @@ cb::engine_errc MockEngine::remove(
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         mutation_descr_t& mut_info) {
     auto engine_fn = [this,
                       c = std::ref(cookie),
@@ -140,8 +141,9 @@ cb::engine_errc MockEngine::remove(
                       cas_ = std::ref(cas),
                       vbucket,
                       dur = std::cref(durability),
+                      uuid = std::cref(requiredVbucketUuid),
                       m = std::ref(mut_info)]() {
-        return the_engine->remove(c, k, cas_, vbucket, dur, m);
+        return the_engine->remove(c, k, cas_, vbucket, dur, uuid, m);
     };
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
@@ -271,6 +273,7 @@ cb::engine_errc MockEngine::store(
         uint64_t& cas,
         StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     auto engine_fn = [this,
@@ -279,6 +282,7 @@ cb::engine_errc MockEngine::store(
                       _cas = std::ref(cas),
                       operation,
                       dur = std::cref(durability),
+                      uuid = std::cref(requiredVbucketUuid),
                       document_state,
                       preserveTtl]() {
         return the_engine->store(cookie,
@@ -286,6 +290,7 @@ cb::engine_errc MockEngine::store(
                                  _cas,
                                  operation,
                                  dur,
+                                 uuid,
                                  document_state,
                                  preserveTtl);
     };
@@ -300,6 +305,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     auto engine_fn = [this,
@@ -309,6 +315,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
                       operation,
                       pred = std::cref(predicate),
                       dur = std::cref(durability),
+                      uuid = std::cref(requiredVbucketUuid),
                       document_state,
                       preserveTtl]() {
         return the_engine->store_if(cookie,
@@ -317,6 +324,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
                                     operation,
                                     pred,
                                     dur,
+                                    uuid,
                                     document_state,
                                     preserveTtl);
     };
@@ -337,6 +345,7 @@ cb::engine_errc MockEngine::set_with_meta(
         bool allow_existing,
         GenerateBySeqno generate_by_seqno,
         GenerateCas generate_cas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     auto engine_fn = [this,
                       &cookie,
@@ -352,6 +361,7 @@ cb::engine_errc MockEngine::set_with_meta(
                       allow_existing,
                       generate_by_seqno,
                       generate_cas,
+                      uuid = std::cref(requiredVbucketUuid),
                       force]() {
         return the_engine->set_with_meta(cookie,
                                          vbucket,
@@ -366,6 +376,7 @@ cb::engine_errc MockEngine::set_with_meta(
                                          allow_existing,
                                          generate_by_seqno,
                                          generate_cas,
+                                         uuid,
                                          force);
     };
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
@@ -382,6 +393,7 @@ cb::engine_errc MockEngine::delete_with_meta(
         GenerateBySeqno gen_by_seqno,
         GenerateCas gen_cas,
         DeleteSource delete_source,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     auto engine_fn = [this,
                       &cookie,
@@ -394,6 +406,7 @@ cb::engine_errc MockEngine::delete_with_meta(
                       gen_by_seqno,
                       gen_cas,
                       delete_source,
+                      uuid = std::cref(requiredVbucketUuid),
                       force]() {
         return the_engine->delete_with_meta(cookie,
                                             vbucket,
@@ -405,6 +418,7 @@ cb::engine_errc MockEngine::delete_with_meta(
                                             gen_by_seqno,
                                             gen_cas,
                                             delete_source,
+                                            uuid,
                                             force);
     };
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);

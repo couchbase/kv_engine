@@ -117,6 +117,7 @@ cb::engine_errc EngineIface::set_with_meta(
         bool allow_existing,
         GenerateBySeqno generate_by_seqno,
         GenerateCas generate_cas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     return cb::engine_errc::not_supported;
 }
@@ -132,6 +133,7 @@ cb::engine_errc EngineIface::delete_with_meta(
         GenerateBySeqno generate_by_seqno,
         GenerateCas generate_cas,
         DeleteSource delete_source,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     return cb::engine_errc::not_supported;
 }

@@ -265,6 +265,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     return setWithMeta(vbucket,
                        key,
@@ -279,6 +280,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
                        allowExisting,
                        genBySeqno,
                        genCas,
+                       requiredVbucketUuid,
                        force);
 }
 

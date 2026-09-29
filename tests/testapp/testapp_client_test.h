@@ -110,6 +110,12 @@ std::ostream& operator<<(std::ostream& os, const XattrSupport& xattrSupport);
 std::string to_string(const XattrSupport& xattrSupport);
 
 /**
+ * Build a getFrameInfo callback which pins the operation to the provided
+ * vbucket failover UUID (FrameInfoId::VBucketUuid).
+ */
+GetFrameInfoFunction vbucketUuidFrameInfo(uint64_t uuid);
+
+/**
  * Test fixture for Extended Attribute (XATTR) tests.
  * Parameterized on:
  * - TransportProtocol (IPv4, Ipv6); (Plain, SSL);
@@ -236,7 +242,12 @@ protected:
     cb::mcbp::Status xattr_upsert(const std::string& path,
                                   const std::string& value);
 
-protected:
+    /**
+     * Fetch the vbucket's current (most recent) failover UUID by issuing
+     * a GetFailoverLog command.
+     */
+    uint64_t getVbucketUuid(Vbid vbucket = Vbid(0));
+
     Document document;
     cb::mcbp::Status xattrOperationStatus = cb::mcbp::Status::Success;
 };

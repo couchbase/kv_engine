@@ -263,6 +263,7 @@ cb::engine_errc EventuallyPersistentEngine::remove(
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         mutation_descr_t& mut_info) {
     // Maybe upgrade Durability Level
     using namespace cb::durability;
@@ -279,7 +280,7 @@ cb::engine_errc EventuallyPersistentEngine::remove(
     }
 
     return acquireEngine(this)->removeInner(
-            cookie, key, cas, vbucket, durReqs, mut_info);
+            cookie, key, cas, vbucket, durReqs, requiredVbucketUuid, mut_info);
 }
 
 void EventuallyPersistentEngine::release(ItemIface& itm) {
@@ -503,6 +504,7 @@ cb::engine_errc EventuallyPersistentEngine::store(
         uint64_t& cas,
         StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = static_cast<Item&>(itm);
@@ -527,7 +529,7 @@ cb::engine_errc EventuallyPersistentEngine::store(
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
     return acquireEngine(this)->storeInner(
-            cookie, item, cas, operation, preserveTtl);
+            cookie, item, cas, operation, requiredVbucketUuid, preserveTtl);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
@@ -537,6 +539,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         const std::optional<cb::durability::Requirements>& durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = static_cast<Item&>(itm);
@@ -560,8 +563,13 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
 
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
-    return acquireEngine(this)->storeIfInner(
-            cookie, item, cas, operation, predicate, preserveTtl);
+    return acquireEngine(this)->storeIfInner(cookie,
+                                             item,
+                                             cas,
+                                             operation,
+                                             predicate,
+                                             requiredVbucketUuid,
+                                             preserveTtl);
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_with_meta(
@@ -578,6 +586,7 @@ cb::engine_errc EventuallyPersistentEngine::set_with_meta(
         bool allow_existing,
         GenerateBySeqno generate_by_seqno,
         GenerateCas generate_cas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     mut_info = {};
     return acquireEngine(this)->setWithMeta(vbucket,
@@ -593,6 +602,7 @@ cb::engine_errc EventuallyPersistentEngine::set_with_meta(
                                             allow_existing,
                                             generate_by_seqno,
                                             generate_cas,
+                                            requiredVbucketUuid,
                                             force);
 }
 cb::engine_errc EventuallyPersistentEngine::delete_with_meta(
@@ -606,6 +616,7 @@ cb::engine_errc EventuallyPersistentEngine::delete_with_meta(
         GenerateBySeqno gen_by_seqno,
         GenerateCas gen_cas,
         DeleteSource delete_source,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     mut_info = {};
     return acquireEngine(this)->deleteWithMeta(vbucket,
@@ -618,6 +629,7 @@ cb::engine_errc EventuallyPersistentEngine::delete_with_meta(
                                                gen_by_seqno,
                                                gen_cas,
                                                delete_source,
+                                               requiredVbucketUuid,
                                                force);
 }
 
@@ -2369,6 +2381,7 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
         uint64_t& cas,
         Vbid vbucket,
         std::optional<cb::durability::Requirements> durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         mutation_descr_t& mut_info) {
     if (sanityCheckVBucketMapping) {
         validateKeyMapping("EventuallyPersistentEngine::removeInner",
@@ -2397,8 +2410,14 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
         }
     }
 
-    cb::engine_errc ret = kvBucket->deleteItem(
-            key, cas, vbucket, &cookie, durability, nullptr, mut_info);
+    cb::engine_errc ret = kvBucket->deleteItem(key,
+                                               cas,
+                                               vbucket,
+                                               &cookie,
+                                               durability,
+                                               requiredVbucketUuid,
+                                               nullptr,
+                                               mut_info);
 
     ret = maybeRemapStatus(ret);
     switch (ret) {
@@ -2592,6 +2611,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         uint64_t cas,
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         bool preserveTtl) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch<Code>> timer(
             std::forward_as_tuple(stats.storeCmdHisto),
@@ -2653,7 +2673,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             return {cb::engine_errc::temporary_failure, cas};
         }
         item.setPreserveTtl(preserveTtl);
-        status = kvBucket->set(item, &cookie, predicate);
+        status = kvBucket->set(item, &cookie, requiredVbucketUuid, predicate);
         break;
 
     case StoreSemantics::Add:
@@ -2666,7 +2686,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             return {cb::engine_errc::key_already_exists, cas};
         }
 
-        status = kvBucket->add(item, &cookie);
+        status = kvBucket->add(item, &cookie, requiredVbucketUuid);
         break;
 
     case StoreSemantics::Replace:
@@ -2676,7 +2696,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         }
 
         item.setPreserveTtl(preserveTtl);
-        status = kvBucket->replace(item, &cookie, predicate);
+        status = kvBucket->replace(
+                item, &cookie, requiredVbucketUuid, predicate);
         break;
     default:
         status = cb::engine_errc::not_supported;
@@ -2719,13 +2740,15 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     return {status, item.getCas()};
 }
 
-cb::engine_errc EventuallyPersistentEngine::storeInner(CookieIface& cookie,
-                                                       Item& itm,
-                                                       uint64_t& cas,
-                                                       StoreSemantics operation,
-                                                       bool preserveTtl) {
-    auto [status, _cas] =
-            storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
+cb::engine_errc EventuallyPersistentEngine::storeInner(
+        CookieIface& cookie,
+        Item& itm,
+        uint64_t& cas,
+        StoreSemantics operation,
+        const std::optional<uint64_t>& requiredVbucketUuid,
+        bool preserveTtl) {
+    auto [status, _cas] = storeIfInner(
+            cookie, itm, cas, operation, {}, requiredVbucketUuid, preserveTtl);
     cas = _cas;
     return status;
 }
@@ -6174,6 +6197,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                           allowExisting,
                           GenerateBySeqno::Yes,
                           generateCas,
+                          request.getVBucketUuid(),
                           forceFlag);
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -6244,6 +6268,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     if (!validateWithMetaOptions(cookie, force, genCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
@@ -6354,7 +6379,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                      genBySeqno,
                                      genCas,
                                      EnforceMemCheck::Yes,
-                                     &mut_info.vbucket_uuid);
+                                     &mut_info.vbucket_uuid,
+                                     requiredVbucketUuid);
 
     if (ret == cb::engine_errc::success) {
         if (deleteSource.has_value()) {
@@ -6471,6 +6497,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                  GenerateBySeqno::Yes,
                                  generateCas,
                                  deleteSource,
+                                 request.getVBucketUuid(),
                                  forceFlag);
         } else {
             // A delete with a value
@@ -6487,6 +6514,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                               true /*allowExisting*/,
                               GenerateBySeqno::Yes,
                               generateCas,
+                              request.getVBucketUuid(),
                               forceFlag);
         }
     } catch (const std::bad_alloc&) {
@@ -6524,6 +6552,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
         DeleteSource deleteSource,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ForceAcceptWithMetaOperation force) {
     if (!validateWithMetaOptions(cookie, force, genCas, checkConflicts)) {
         return cb::engine_errc::invalid_arguments;
@@ -6542,7 +6571,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                      0 /*bySeqno*/,
                                      deleteSource,
                                      EnforceMemCheck::Yes,
-                                     &mut_info.vbucket_uuid);
+                                     &mut_info.vbucket_uuid,
+                                     requiredVbucketUuid);
     if (ret == cb::engine_errc::success) {
         ++stats.numOpsDelMeta;
     }
@@ -6741,6 +6771,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                                    cas,
                                    req.getVBucket(),
                                    &cookie,
+                                   {},
                                    {},
                                    &itm_meta,
                                    mutation_descr);

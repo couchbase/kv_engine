@@ -161,14 +161,16 @@ cb::engine_errc del(EngineIface* h,
                     std::string_view key,
                     uint64_t cas,
                     Vbid vbucket,
-                    CookieIface* cookie = nullptr);
+                    CookieIface* cookie = nullptr,
+                    std::optional<uint64_t> requiredVbucketUuid = {});
 
 cb::engine_errc del(EngineIface* h,
                     std::string_view key,
                     uint64_t* cas,
                     Vbid vbucket,
                     CookieIface* cookie,
-                    mutation_descr_t* mut_info);
+                    mutation_descr_t* mut_info,
+                    std::optional<uint64_t> requiredVbucketUuid = {});
 
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
@@ -251,7 +253,8 @@ cb::engine_errc store(
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive,
-        const std::optional<cb::durability::Requirements>& durReqs = {});
+        const std::optional<cb::durability::Requirements>& durReqs = {},
+        std::optional<uint64_t> requiredVbucketUuid = {});
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
                                  CookieIface* cookie,
@@ -294,7 +297,8 @@ cb::EngineErrorItemPair storeCasVb11(
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive,
-        const std::optional<cb::durability::Requirements>& durReqs = {});
+        const std::optional<cb::durability::Requirements>& durReqs = {},
+        std::optional<uint64_t> requiredVbucketUuid = {});
 
 cb::engine_errc replace(EngineIface* h,
                         CookieIface* cookie,

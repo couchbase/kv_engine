@@ -1105,6 +1105,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                                                     vbid,
                                                     cookie,
                                                     {},
+                                                    {},
                                                     /*itemMeta*/ nullptr,
                                                     mutation_descr));
 
@@ -1155,6 +1156,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                                                     cas,
                                                     vbid,
                                                     cookie,
+                                                    {},
                                                     {},
                                                     /*itemMeta*/ nullptr,
                                                     mutation_descr));
@@ -1241,8 +1243,12 @@ protected:
 
             uint64_t cas;
             EXPECT_EQ(cb::engine_errc::success,
-                      engine->storeInner(
-                              *cookie, item, cas, StoreSemantics::Set, false));
+                      engine->storeInner(*cookie,
+                                         item,
+                                         cas,
+                                         StoreSemantics::Set,
+                                         {},
+                                         false));
             pageableMemCurrent = store->getPageableMemCurrent();
             numItems++;
         }

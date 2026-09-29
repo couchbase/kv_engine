@@ -49,6 +49,7 @@ public:
             uint64_t&,
             Vbid,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>&,
             mutation_descr_t&) override {
         return cb::engine_errc::no_bucket;
     }
@@ -108,6 +109,7 @@ public:
                           uint64_t&,
                           StoreSemantics,
                           const std::optional<cb::durability::Requirements>&,
+                          const std::optional<uint64_t>&,
                           DocumentState,
                           bool) override {
         return cb::engine_errc::no_bucket;
@@ -120,6 +122,7 @@ public:
             StoreSemantics,
             const cb::StoreIfPredicate&,
             const std::optional<cb::durability::Requirements>&,
+            const std::optional<uint64_t>&,
             DocumentState,
             bool) override {
         return {cb::engine_errc::no_bucket, 0};

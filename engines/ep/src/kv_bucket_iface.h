@@ -129,17 +129,26 @@ public:
      *        existing item.
      * @return the result of the store operation
      */
-    virtual cb::engine_errc set(Item& item,
-                                CookieIface* cookie,
-                                cb::StoreIfPredicate predicate = {}) = 0;
+    virtual cb::engine_errc set(
+            Item& item,
+            CookieIface* cookie,
+            const std::optional<uint64_t>& requiredVbucketUuid = {},
+            cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Add an item in the store.
      * @param item the item to add
      * @param cookie the cookie representing the client to store the item
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @return the result of the operation
      */
-    virtual cb::engine_errc add(Item& item, CookieIface* cookie) = 0;
+    virtual cb::engine_errc add(
+            Item& item,
+            CookieIface* cookie,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) = 0;
 
     /**
      * Replace an item in the store.
@@ -150,9 +159,11 @@ public:
      *        existing item.
      * @return the result of the operation
      */
-    virtual cb::engine_errc replace(Item& item,
-                                    CookieIface* cookie,
-                                    cb::StoreIfPredicate predicate = {}) = 0;
+    virtual cb::engine_errc replace(
+            Item& item,
+            CookieIface* cookie,
+            const std::optional<uint64_t>& requiredVbucketUuid = {},
+            cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Retrieve a value.
@@ -218,6 +229,10 @@ public:
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
      * @param vbucket_uuid Where to store the uuid of the vbucket (if not null)
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @return the result of the store operation
      */
     virtual cb::engine_errc setWithMeta(
@@ -231,7 +246,8 @@ public:
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
             EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes,
-            uint64_t* vbucket_uuid = nullptr) = 0;
+            uint64_t* vbucket_uuid = nullptr,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) = 0;
 
     /**
      * Add a prepare to the store
@@ -291,6 +307,10 @@ public:
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
      * @param durability Optional durability requirements for this delete.
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param[out] itemMeta the pointer to the metadata memory.
      * @param[out] mutInfo mutation information
      *
@@ -302,6 +322,7 @@ public:
             Vbid vbucket,
             CookieIface* cookie,
             std::optional<cb::durability::Requirements> durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) = 0;
 
@@ -327,6 +348,10 @@ public:
      * @param enforceMemCheck Whether we want to enforce mem conditions on this
      *  processing
      * @param vbucket_uuid Where to store the uuid of the vbucket (if not null)
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @return the result of the delete operation
      */
     virtual cb::engine_errc deleteWithMeta(
@@ -343,7 +368,8 @@ public:
             uint64_t bySeqno,
             DeleteSource deleteSource,
             EnforceMemCheck enforceMemCheck,
-            uint64_t* vbucket_uuid = nullptr) = 0;
+            uint64_t* vbucket_uuid = nullptr,
+            const std::optional<uint64_t>& requiredVbucketUuid = {}) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &

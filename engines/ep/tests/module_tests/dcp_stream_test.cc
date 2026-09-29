@@ -4308,6 +4308,7 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
                             cas,
                             StoreSemantics::Set,
                             durReqs,
+                            {},
                             DocumentState::Deleted,
                             false));
 
@@ -4470,6 +4471,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
                             cas,
                             StoreSemantics::Set,
                             durReqs,
+                            {},
                             DocumentState::Deleted,
                             false));
 

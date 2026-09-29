@@ -339,7 +339,7 @@ public:
         using namespace cb::durability;
         mutation_descr_t delInfo;
         return store->deleteItem(
-                docKey, cas, vbid, cookie, {}, nullptr, delInfo);
+                docKey, cas, vbid, cookie, {}, {}, nullptr, delInfo);
     }
 
     /**

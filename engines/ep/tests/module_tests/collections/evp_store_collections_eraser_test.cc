@@ -1184,6 +1184,7 @@ TEST_P(CollectionsEraserTest, DeleteExpiryResurrectionTest) {
                                 vbid,
                                 cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
     EXPECT_EQ(expectedHighSeqno, vb->getHighSeqno());
@@ -1448,6 +1449,7 @@ protected:
                                         vbid,
                                         cookie,
                                         Requirements(Level::Majority, {}),
+                                        {},
                                         nullptr,
                                         delInfo));
         } else {

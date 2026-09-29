@@ -89,6 +89,7 @@ cb::engine_errc bucket_store(
                                          cas,
                                          operation,
                                          durability,
+                                         cookie.getRequest().getVBucketUuid(),
                                          document_state,
                                          preserveTtl);
 
@@ -120,14 +121,16 @@ cb::EngineErrorCasPair bucket_store_if(
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
-    auto [rstatus, rcas] = c.getBucketEngine().store_if(cookie,
-                                                        item_,
-                                                        cas,
-                                                        operation,
-                                                        predicate,
-                                                        durability,
-                                                        document_state,
-                                                        preserveTtl);
+    auto [rstatus, rcas] =
+            c.getBucketEngine().store_if(cookie,
+                                         item_,
+                                         cas,
+                                         operation,
+                                         predicate,
+                                         durability,
+                                         cookie.getRequest().getVBucketUuid(),
+                                         document_state,
+                                         preserveTtl);
     if (rstatus == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
@@ -162,20 +165,22 @@ cb::EngineErrorCasPair bucket_store_if(
         GenerateCas generate_cas,
         ForceAcceptWithMetaOperation force) {
     auto& c = cookie.getConnection();
-    auto status = c.getBucketEngine().set_with_meta(cookie,
-                                                    vbucket,
-                                                    key,
-                                                    value,
-                                                    item_meta,
-                                                    delete_source,
-                                                    datatype,
-                                                    cas,
-                                                    mut_info,
-                                                    check_conflicts,
-                                                    allow_existing,
-                                                    generate_by_seqno,
-                                                    generate_cas,
-                                                    force);
+    auto status = c.getBucketEngine().set_with_meta(
+            cookie,
+            vbucket,
+            key,
+            value,
+            item_meta,
+            delete_source,
+            datatype,
+            cas,
+            mut_info,
+            check_conflicts,
+            allow_existing,
+            generate_by_seqno,
+            generate_cas,
+            cookie.getRequest().getVBucketUuid(),
+            force);
     if (status == cb::engine_errc::success) {
         using namespace cb::audit::document;
         cookie.addDocumentWriteBytes(value.size() + key.size());
@@ -203,17 +208,19 @@ cb::EngineErrorCasPair bucket_store_if(
         DeleteSource delete_source,
         ForceAcceptWithMetaOperation force) {
     auto& c = cookie.getConnection();
-    auto status = c.getBucketEngine().delete_with_meta(cookie,
-                                                       vbucket,
-                                                       key,
-                                                       item_meta,
-                                                       cas,
-                                                       mut_info,
-                                                       check_conflicts,
-                                                       gen_by_seqno,
-                                                       gen_cas,
-                                                       delete_source,
-                                                       force);
+    auto status = c.getBucketEngine().delete_with_meta(
+            cookie,
+            vbucket,
+            key,
+            item_meta,
+            cas,
+            mut_info,
+            check_conflicts,
+            gen_by_seqno,
+            gen_cas,
+            delete_source,
+            cookie.getRequest().getVBucketUuid(),
+            force);
     if (status == cb::engine_errc::success) {
         using namespace cb::audit::document;
         cookie.addDocumentWriteBytes(key.size());
@@ -236,8 +243,13 @@ cb::engine_errc bucket_remove(
         const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().remove(
-            cookie, key, cas, vbucket, durability, mut_info);
+    auto ret = c.getBucketEngine().remove(cookie,
+                                          key,
+                                          cas,
+                                          vbucket,
+                                          durability,
+                                          cookie.getRequest().getVBucketUuid(),
+                                          mut_info);
     if (ret == cb::engine_errc::success) {
         cb::audit::document::add(
                 cookie, cb::audit::document::Operation::Delete, key);

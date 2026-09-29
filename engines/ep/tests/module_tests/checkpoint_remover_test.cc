@@ -812,7 +812,7 @@ TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
     // Queue a prepare
     auto prepare = makePendingItem(prepareKey, "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
-              store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
+              store->set(*prepare, cookie, {}, nullptr /*StoreIfPredicate*/));
 
     {
         std::shared_lock rlh(vb->getStateLock());
@@ -843,7 +843,7 @@ TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
     const auto prepareCkptId = cm->getOpenCheckpointId();
     auto prepare2 = makePendingItem(prepareKey, "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
-              store->set(*prepare2, cookie, nullptr /*StoreIfPredicate*/));
+              store->set(*prepare2, cookie, {}, nullptr /*StoreIfPredicate*/));
 
     // Queueing second prepare into the same checkpoint must fail as it would
     // dedupe the existing prepare. The old prepare was expelled but we know it

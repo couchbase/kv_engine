@@ -457,6 +457,7 @@ void KVBucketTest::delete_item(Vbid vbid,
                                 vbid,
                                 cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 }
@@ -1060,6 +1061,7 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
                                 vbid,
                                 cookie,
                                 {},
+                                {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
@@ -1432,8 +1434,14 @@ TEST_P(KVBucketParamTest, mb22824) {
     ItemMetaData itemMeta2;
     mutation_descr_t mutation_descr;
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->deleteItem(
-                      key, cas, vbid, cookie, {}, &itemMeta2, mutation_descr));
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                                {},
+                                {},
+                                &itemMeta2,
+                                mutation_descr));
 
     // Should be getting the same CAS from the failed delete as getMetaData
     EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);
@@ -2110,7 +2118,7 @@ TEST_P(KVBucketParamTest, AccessExpiryDeletePreservesSystemXattrs) {
         uint64_t cas = 0;
         mutation_descr_t mutInfo;
         return store->deleteItem(
-                key, cas, vbid, cookie, {}, /*itemMeta*/ nullptr, mutInfo);
+                key, cas, vbid, cookie, {}, {}, /*itemMeta*/ nullptr, mutInfo);
     };
     auto rv = doDelete();
     // Full-eviction requires two BGFetches: deleteItem first fetches just the
@@ -3136,13 +3144,13 @@ TEST_F(StoreIfTest, store_if_basic) {
     auto item = make_item(
             vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0, 0);
     auto rv = engine->storeIfInner(
-            *cookie, item, 0, StoreSemantics::Add, pred, false);
+            *cookie, item, 0, StoreSemantics::Add, pred, {}, false);
     EXPECT_EQ(cb::engine_errc::success, rv.first);
     rv = engine->storeIfInner(
-            *cookie, item, 0, StoreSemantics::Replace, pred, false);
+            *cookie, item, 0, StoreSemantics::Replace, pred, {}, false);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.first);
     rv = engine->storeIfInner(
-            *cookie, item, 0, StoreSemantics::Set, pred, false);
+            *cookie, item, 0, StoreSemantics::Set, pred, {}, false);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.first);
 }
 

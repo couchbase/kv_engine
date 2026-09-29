@@ -318,6 +318,10 @@ struct EngineIface {
      * @param cas The cas to value to use for delete (or 0 as wildcard)
      * @param vbucket the virtual bucket id
      * @param durability the durability specifier for the command
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param mut_info On a successful remove write the mutation details to
      *                 this address.
      *
@@ -329,6 +333,7 @@ struct EngineIface {
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             mutation_descr_t& mut_info) = 0;
 
     /**
@@ -498,6 +503,10 @@ struct EngineIface {
      * @param cas the CAS value for conditional sets
      * @param semantics the semantics of the store operation
      * @param durability An optional durability requirement
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param document_state The state the document should have after
      *                       the update
      * @param preserveTtl if set to true the existing documents TTL should
@@ -511,6 +520,7 @@ struct EngineIface {
             uint64_t& cas,
             StoreSemantics semantics,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) = 0;
 
@@ -540,6 +550,10 @@ struct EngineIface {
      *                  the store_if will execute (and possibly fail for other
      *                  reasons).
      * @param durability An optional durability requirement
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param document_state The state the document should have after
      *                       the update
      * @param preserveTtl if set to true the existing documents TTL should
@@ -554,6 +568,7 @@ struct EngineIface {
             StoreSemantics semantics,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) {
         return {cb::engine_errc::not_supported, 0};
@@ -576,6 +591,10 @@ struct EngineIface {
      * @param allow_existing true if the set can overwrite existing key
      * @param generate_by_seqno generate a new seqno? (yes/no)
      * @param generate_cas generate a new CAS? (yes/no)
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
@@ -593,6 +612,7 @@ struct EngineIface {
             bool allow_existing,
             GenerateBySeqno generate_by_seqno,
             GenerateCas generate_cas,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ForceAcceptWithMetaOperation force);
 
     /**
@@ -610,6 +630,10 @@ struct EngineIface {
      * @param generate_by_seqno generate a new seqno? (yes/no)
      * @param generate_cas generate a new CAS? (yes/no)
      * @param delete_source whether it should delete or expire
+     * @param requiredVbucketUuid if set, the operation must be rejected
+     *                            with cb::engine_errc::vbuuid_not_equal
+     *                            unless it matches the vbucket's current
+     *                            failover UUID
      * @param force whether to force the operation or not
      * @returns state of the operation as an cb::engine_errc
      */
@@ -624,6 +648,7 @@ struct EngineIface {
             GenerateBySeqno generate_by_seqno,
             GenerateCas generate_cas,
             DeleteSource delete_source,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ForceAcceptWithMetaOperation force);
 
     /**

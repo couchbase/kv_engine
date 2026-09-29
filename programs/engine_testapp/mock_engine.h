@@ -42,6 +42,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             mutation_descr_t& mut_info) override;
 
     void release(ItemIface& item) override;
@@ -99,6 +100,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t& cas,
             StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
 
@@ -109,23 +111,26 @@ struct MockEngine : public EngineIface, public DcpIface {
             StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             DocumentState document_state,
             bool preserveTtl) override;
 
-    cb::engine_errc set_with_meta(CookieIface& cookie,
-                                  Vbid vbucket,
-                                  DocKeyView key,
-                                  cb::const_byte_buffer value,
-                                  ItemMetaData item_meta,
-                                  std::optional<DeleteSource> delete_source,
-                                  protocol_binary_datatype_t datatype,
-                                  uint64_t& cas,
-                                  mutation_descr_t& mut_info,
-                                  CheckConflicts check_conflicts,
-                                  bool allow_existing,
-                                  GenerateBySeqno generate_by_seqno,
-                                  GenerateCas generate_cas,
-                                  ForceAcceptWithMetaOperation force) override;
+    cb::engine_errc set_with_meta(
+            CookieIface& cookie,
+            Vbid vbucket,
+            DocKeyView key,
+            cb::const_byte_buffer value,
+            ItemMetaData item_meta,
+            std::optional<DeleteSource> delete_source,
+            protocol_binary_datatype_t datatype,
+            uint64_t& cas,
+            mutation_descr_t& mut_info,
+            CheckConflicts check_conflicts,
+            bool allow_existing,
+            GenerateBySeqno generate_by_seqno,
+            GenerateCas generate_cas,
+            const std::optional<uint64_t>& requiredVbucketUuid,
+            ForceAcceptWithMetaOperation force) override;
 
     cb::engine_errc delete_with_meta(
             CookieIface& cookie,
@@ -138,6 +143,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             GenerateBySeqno gen_by_seqno,
             GenerateCas gen_cas,
             DeleteSource delete_source,
+            const std::optional<uint64_t>& requiredVbucketUuid,
             ForceAcceptWithMetaOperation force) override;
 
     cb::engine_errc flush(CookieIface& cookie) override;

@@ -868,6 +868,129 @@ TEST_P(GetSetTest, TestPrependCasMismatch) {
     EXPECT_EQ(std::string("a"), stored.value);
 }
 
+TEST_P(GetSetTest, TestSetVBucketUuidCorrect) {
+    const auto uuid = getVbucketUuid();
+    userConnection->mutate(
+            document, Vbid(0), MutationType::Set, vbucketUuidFrameInfo(uuid));
+}
+
+TEST_P(GetSetTest, TestSetVBucketUuidMismatch) {
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutate(document,
+                               Vbid(0),
+                               MutationType::Set,
+                               vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Set with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+}
+
+TEST_P(GetSetTest, TestAddVBucketUuidCorrect) {
+    const auto uuid = getVbucketUuid();
+    userConnection->mutate(
+            document, Vbid(0), MutationType::Add, vbucketUuidFrameInfo(uuid));
+}
+
+TEST_P(GetSetTest, TestAddVBucketUuidMismatch) {
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutate(document,
+                               Vbid(0),
+                               MutationType::Add,
+                               vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Add with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+}
+
+TEST_P(GetSetTest, TestReplaceVBucketUuidCorrect) {
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
+    const auto uuid = getVbucketUuid();
+    userConnection->mutate(document,
+                           Vbid(0),
+                           MutationType::Replace,
+                           vbucketUuidFrameInfo(uuid));
+}
+
+TEST_P(GetSetTest, TestReplaceVBucketUuidMismatch) {
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutate(document,
+                               Vbid(0),
+                               MutationType::Replace,
+                               vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Replace with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+}
+
+TEST_P(GetSetTest, TestAppendVBucketUuidCorrect) {
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value = "a";
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
+    document.value = "b";
+    const auto uuid = getVbucketUuid();
+    userConnection->mutate(document,
+                           Vbid(0),
+                           MutationType::Append,
+                           vbucketUuidFrameInfo(uuid));
+    EXPECT_EQ(std::string("ab"), userConnection->get(name, Vbid(0)).value);
+}
+
+TEST_P(GetSetTest, TestAppendVBucketUuidMismatch) {
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value = "a";
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
+    document.value = "b";
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutate(document,
+                               Vbid(0),
+                               MutationType::Append,
+                               vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Append with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+    EXPECT_EQ(std::string("a"), userConnection->get(name, Vbid(0)).value);
+}
+
+TEST_P(GetSetTest, TestPrependVBucketUuidCorrect) {
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value = "a";
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
+    document.value = "b";
+    const auto uuid = getVbucketUuid();
+    userConnection->mutate(document,
+                           Vbid(0),
+                           MutationType::Prepend,
+                           vbucketUuidFrameInfo(uuid));
+    EXPECT_EQ(std::string("ba"), userConnection->get(name, Vbid(0)).value);
+}
+
+TEST_P(GetSetTest, TestPrependVBucketUuidMismatch) {
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    document.value = "a";
+    userConnection->mutate(document, Vbid(0), MutationType::Set);
+    document.value = "b";
+    const auto uuid = getVbucketUuid();
+    try {
+        userConnection->mutate(document,
+                               Vbid(0),
+                               MutationType::Prepend,
+                               vbucketUuidFrameInfo(uuid + 1));
+        FAIL() << "Prepend with incorrect vbucket uuid should fail";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::VbUuidNotEqual, error.getReason());
+    }
+    EXPECT_EQ(std::string("a"), userConnection->get(name, Vbid(0)).value);
+}
+
 TEST_P(GetSetTest, TestIllegalVbucket) {
     auto& conn = getConnection();
     conn.authenticate("@admin");

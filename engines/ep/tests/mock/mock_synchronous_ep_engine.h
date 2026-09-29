@@ -125,6 +125,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
+            const std::optional<uint64_t>& requiredVbucketUuid = {},
             ForceAcceptWithMetaOperation force =
                     ForceAcceptWithMetaOperation::No);
 

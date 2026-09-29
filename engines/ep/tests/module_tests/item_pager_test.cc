@@ -124,7 +124,7 @@ protected:
     cb::engine_errc storeItem(Item& item) {
         uint64_t cas = 0;
         return engine->storeInner(
-                *cookie, item, cas, StoreSemantics::Set, false);
+                *cookie, item, cas, StoreSemantics::Set, {}, false);
     }
 
     /**
@@ -3218,6 +3218,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
                                     vbid,
                                     cookie,
                                     {},
+                                    {},
                                     /*itemMeta*/ nullptr,
                                     mutation_descr));
 
@@ -3488,9 +3489,9 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
             0,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     uint64_t cas = 0;
-    ASSERT_EQ(
-            cb::engine_errc::success,
-            engine->storeInner(*cookie, item, cas, StoreSemantics::Set, false));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->storeInner(
+                      *cookie, item, cas, StoreSemantics::Set, {}, false));
 
     auto& bucket = dynamic_cast<EPBucket&>(*store);
     EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);

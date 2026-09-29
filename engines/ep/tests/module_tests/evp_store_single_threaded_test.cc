@@ -3525,6 +3525,42 @@ TEST_P(STParameterizedBucketTest, GetUpdatesGetOpsStat) {
     EXPECT_EQ(1, engine->getEpStats().numOpsGet);
 }
 
+// MB-68694: a store/delete pinned to a vbucket's current failover UUID
+// should succeed; one pinned to a stale/mismatched UUID should be rejected
+// with vbuuid_not_equal rather than being applied.
+TEST_P(STParameterizedBucketTest, SetWithVBucketUuidPrecondition) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    const auto uuid = vb->failovers->getLatestUUID();
+
+    auto item = makeCommittedItem(makeStoredDocKey("key1"), "value");
+    EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie, uuid));
+
+    auto item2 = makeCommittedItem(makeStoredDocKey("key2"), "value");
+    EXPECT_EQ(cb::engine_errc::vbuuid_not_equal,
+              store->set(*item2, cookie, uuid + 1));
+}
+
+TEST_P(STParameterizedBucketTest, DeleteWithVBucketUuidPrecondition) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    const auto uuid = vb->failovers->getLatestUUID();
+
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    ASSERT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+
+    mutation_descr_t delInfo;
+    uint64_t cas = 0;
+    EXPECT_EQ(cb::engine_errc::vbuuid_not_equal,
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, uuid + 1, nullptr, delInfo));
+
+    EXPECT_EQ(cb::engine_errc::success,
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, uuid, nullptr, delInfo));
+}
+
 TEST_P(STParameterizedBucketTest, DeleteExpiredItem) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto key = makeStoredDocKey("key");
@@ -3536,7 +3572,8 @@ TEST_P(STParameterizedBucketTest, DeleteExpiredItem) {
     uint64_t cas = item->getCas();
     using namespace cb::durability;
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 
     auto vb = store->getVBucket(vbid);
     EXPECT_EQ(1, vb->numExpiredItems);
@@ -5098,6 +5135,7 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
                           cas,
                           StoreSemantics::Set,
                           {},
+                          {},
                           DocumentState::Alive,
                           false);
             break;
@@ -5112,6 +5150,7 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
                              0 /*cas*/,
                              StoreSemantics::Set,
                              predicate,
+                             {},
                              {},
                              DocumentState::Alive,
                              false);
@@ -6179,7 +6218,8 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     mutation_descr_t delInfo;
     uint64_t cas = 0;
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
     ASSERT_EQ(0, stats.numOpsDelete);
 
     // CM memory recovery
@@ -6199,7 +6239,8 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
 
     // Now we can delete docs
     EXPECT_EQ(cb::engine_errc::success,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 }
 
 /// Checks the failover table entry on replica -> active promotion.

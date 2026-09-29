@@ -827,6 +827,7 @@ static enum test_result test_expiry(EngineIface* h) {
                        cas,
                        StoreSemantics::Set,
                        {},
+                       {},
                        DocumentState::Alive,
                        false);
     checkeq(cb::engine_errc::success, rv, "Set failed.");
@@ -890,6 +891,7 @@ static enum test_result test_expiry_loader(EngineIface* h) {
                        *ret.second,
                        cas,
                        StoreSemantics::Set,
+                       {},
                        {},
                        DocumentState::Alive,
                        false);
@@ -1054,6 +1056,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
                        cas,
                        StoreSemantics::Set,
                        {},
+                       {},
                        DocumentState::Alive,
                        false);
     checkeq(cb::engine_errc::success, rv, "Set failed.");
@@ -1135,6 +1138,7 @@ static enum test_result test_bug3454(EngineIface* h) {
                        cas,
                        StoreSemantics::Set,
                        {},
+                       {},
                        DocumentState::Alive,
                        false);
     checkeq(cb::engine_errc::success, rv, "Set failed.");
@@ -1167,6 +1171,7 @@ static enum test_result test_bug3454(EngineIface* h) {
                   *ret.second,
                   cas,
                   StoreSemantics::Add,
+                  {},
                   {},
                   DocumentState::Alive,
                   false);
@@ -1225,6 +1230,7 @@ static enum test_result test_bug3522(EngineIface* h) {
                        cas,
                        StoreSemantics::Set,
                        {},
+                       {},
                        DocumentState::Alive,
                        false);
     checkeq(cb::engine_errc::success, rv, "Set failed.");
@@ -1254,6 +1260,7 @@ static enum test_result test_bug3522(EngineIface* h) {
                   *ret.second,
                   cas,
                   StoreSemantics::Set,
+                  {},
                   {},
                   DocumentState::Alive,
                   false);

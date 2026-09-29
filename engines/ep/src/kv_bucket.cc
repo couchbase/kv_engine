@@ -797,15 +797,18 @@ void KVBucket::logRunTime(const GlobalTask& task,
     stats.taskRuntimeHisto[static_cast<int>(task.getTaskId())].add(us);
 }
 
-cb::engine_errc KVBucket::set(Item& itm,
-                              CookieIface* cookie,
-                              cb::StoreIfPredicate predicate) {
+cb::engine_errc KVBucket::set(
+        Item& itm,
+        CookieIface* cookie,
+        const std::optional<uint64_t>& requiredVbucketUuid,
+        cb::StoreIfPredicate predicate) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
                                 *cookie,
                                 {vbucket_state_active},
                                 IsMutationOp::Yes,
-                                __func__);
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }
@@ -836,13 +839,17 @@ cb::engine_errc KVBucket::set(Item& itm,
     return result;
 }
 
-cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
+cb::engine_errc KVBucket::add(
+        Item& itm,
+        CookieIface* cookie,
+        const std::optional<uint64_t>& requiredVbucketUuid) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
                                 *cookie,
                                 {vbucket_state_active},
                                 IsMutationOp::Yes,
-                                __func__);
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }
@@ -877,15 +884,18 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
     return result;
 }
 
-cb::engine_errc KVBucket::replace(Item& itm,
-                                  CookieIface* cookie,
-                                  cb::StoreIfPredicate predicate) {
+cb::engine_errc KVBucket::replace(
+        Item& itm,
+        CookieIface* cookie,
+        const std::optional<uint64_t>& requiredVbucketUuid,
+        cb::StoreIfPredicate predicate) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
                                 *cookie,
                                 {vbucket_state_active},
                                 IsMutationOp::Yes,
-                                __func__);
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }
@@ -1650,11 +1660,13 @@ cb::engine_errc KVBucket::maybeAllowMutation(VBucket& vb,
 }
 
 KVBucketResult<std::tuple<VBucketPtr, std::shared_lock<folly::SharedMutex>>>
-KVBucket::operationPrologue(Vbid vbid,
-                            CookieIface& cookie,
-                            PermittedVBStates permittedVBStates,
-                            IsMutationOp isMutationOp,
-                            std::string_view debugOpcode) {
+KVBucket::operationPrologue(
+        Vbid vbid,
+        CookieIface& cookie,
+        PermittedVBStates permittedVBStates,
+        IsMutationOp isMutationOp,
+        std::string_view debugOpcode,
+        const std::optional<uint64_t>& requiredVbucketUuid) {
     auto lr = lookupVBucket(vbid);
     if (!lr) {
         return folly::Unexpected(lr.error());
@@ -1670,6 +1682,10 @@ KVBucket::operationPrologue(Vbid vbid,
     if (rv = maybeAllowMutation(*vb, debugOpcode);
         rv != cb::engine_errc::success) {
         return folly::Unexpected(rv);
+    }
+    if (requiredVbucketUuid &&
+        vb->failovers->getLatestUUID() != *requiredVbucketUuid) {
+        return folly::Unexpected(cb::engine_errc::vbuuid_not_equal);
     }
 
     return std::make_tuple(std::move(vb), std::move(rlh));
@@ -1769,23 +1785,26 @@ cb::engine_errc KVBucket::getMetaData(const DocKeyView& key,
     }
 }
 
-cb::engine_errc KVBucket::setWithMeta(Item& itm,
-                                      uint64_t cas,
-                                      uint64_t* seqno,
-                                      CookieIface* cookie,
-                                      PermittedVBStates permittedVBStates,
-                                      CheckConflicts checkConflicts,
-                                      bool allowExisting,
-                                      GenerateBySeqno genBySeqno,
-                                      GenerateCas genCas,
-                                      EnforceMemCheck enforceMemCheck,
-                                      uint64_t* vbucket_uuid) {
+cb::engine_errc KVBucket::setWithMeta(
+        Item& itm,
+        uint64_t cas,
+        uint64_t* seqno,
+        CookieIface* cookie,
+        PermittedVBStates permittedVBStates,
+        CheckConflicts checkConflicts,
+        bool allowExisting,
+        GenerateBySeqno genBySeqno,
+        GenerateCas genCas,
+        EnforceMemCheck enforceMemCheck,
+        uint64_t* vbucket_uuid,
+        const std::optional<uint64_t>& requiredVbucketUuid) {
     Expects(cookie);
     auto lr = operationPrologue(itm.getVBucketId(),
                                 *cookie,
                                 permittedVBStates,
                                 IsMutationOp::Yes,
-                                __func__);
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }
@@ -2187,6 +2206,7 @@ cb::engine_errc KVBucket::deleteItem(
         Vbid vbucket,
         CookieIface* cookie,
         std::optional<cb::durability::Requirements> durability,
+        const std::optional<uint64_t>& requiredVbucketUuid,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
     Expects(cookie);
@@ -2194,7 +2214,8 @@ cb::engine_errc KVBucket::deleteItem(
                                 *cookie,
                                 {vbucket_state_active},
                                 IsMutationOp::Yes,
-                                __func__);
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }
@@ -2234,23 +2255,29 @@ cb::engine_errc KVBucket::deleteItem(
     return result;
 }
 
-cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
-                                         uint64_t& cas,
-                                         uint64_t* seqno,
-                                         Vbid vbucket,
-                                         CookieIface* cookie,
-                                         PermittedVBStates permittedVBStates,
-                                         CheckConflicts checkConflicts,
-                                         const ItemMetaData& itemMeta,
-                                         GenerateBySeqno genBySeqno,
-                                         GenerateCas generateCas,
-                                         uint64_t bySeqno,
-                                         DeleteSource deleteSource,
-                                         EnforceMemCheck enforceMemCheck,
-                                         uint64_t* vbucket_uuid) {
+cb::engine_errc KVBucket::deleteWithMeta(
+        const DocKeyView& key,
+        uint64_t& cas,
+        uint64_t* seqno,
+        Vbid vbucket,
+        CookieIface* cookie,
+        PermittedVBStates permittedVBStates,
+        CheckConflicts checkConflicts,
+        const ItemMetaData& itemMeta,
+        GenerateBySeqno genBySeqno,
+        GenerateCas generateCas,
+        uint64_t bySeqno,
+        DeleteSource deleteSource,
+        EnforceMemCheck enforceMemCheck,
+        uint64_t* vbucket_uuid,
+        const std::optional<uint64_t>& requiredVbucketUuid) {
     Expects(cookie);
-    auto lr = operationPrologue(
-            vbucket, *cookie, permittedVBStates, IsMutationOp::Yes, __func__);
+    auto lr = operationPrologue(vbucket,
+                                *cookie,
+                                permittedVBStates,
+                                IsMutationOp::Yes,
+                                __func__,
+                                requiredVbucketUuid);
     if (!lr) {
         return lr.error();
     }

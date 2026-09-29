@@ -361,7 +361,7 @@ protected:
         mutation_descr_t delInfo;
         ASSERT_EQ(cb::engine_errc::sync_write_pending,
                   store->deleteItem(
-                          key, cas, vbid, cookie, reqs, nullptr, delInfo));
+                          key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
         auto& vb = *store->getVBucket(vbid);
         std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
@@ -934,9 +934,9 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     using namespace cb::durability;
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(2, ckptList.back()->getNumItems());
@@ -1014,9 +1014,9 @@ TEST_P(DurabilityEPBucketTest, SyncDeleteZeroesFlags) {
     using namespace cb::durability;
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
     {
         std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
@@ -1107,9 +1107,9 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     } else {
         EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites());
     }
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
 
     checkForSyncWriteInProgess(*pending);
 
@@ -1174,9 +1174,9 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     using namespace cb::durability;
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
 
     validateHighAndVisibleSeqno(vb, 2, 1);
     // Setup: Persist SyncDelete prepare.
@@ -1274,7 +1274,8 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     auto expectedNumPrepares = persistent() ? 0 : 1;
     EXPECT_EQ(expectedNumPrepares, vb.ht.getNumPreparedSyncWrites());
     ASSERT_EQ(cb::engine_errc::success,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1445,7 +1446,8 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectSVExists) {
     mutation_descr_t delInfo;
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 
     // now do a SyncReplace. Should FAIL as the item was deleted
     pending = makePendingItem(key, "new_value");
@@ -1593,9 +1595,9 @@ void DurabilityEPBucketTest::performPrepareSyncDelete(
     uint64_t cas = 0;
     auto reqs =
             cb::durability::Requirements(cb::durability::Level::Majority, {});
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
 
     verifyOnDiskItemCount(vb, expectedDiskCount);
     verifyCollectionItemCount(
@@ -2165,6 +2167,7 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityImpossible) {
                                 vbid,
                                 cookie,
                                 durabilityRequirements,
+                                {},
                                 nullptr,
                                 mutation_descr));
 
@@ -2175,6 +2178,7 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityImpossible) {
                                 vbid,
                                 cookie,
                                 durabilityRequirements,
+                                {},
                                 nullptr,
                                 mutation_descr));
 }
@@ -2292,8 +2296,14 @@ TEST_P(DurabilityBucketTest, DeleteDurabilityInvalidLevel) {
         auto key = makeStoredDocKey("key");
         uint64_t cas = 0;
         mutation_descr_t mutation_descr;
-        return store->deleteItem(
-                key, cas, vbid, cookie, requirements, nullptr, mutation_descr);
+        return store->deleteItem(key,
+                                 cas,
+                                 vbid,
+                                 cookie,
+                                 requirements,
+                                 {},
+                                 nullptr,
+                                 mutation_descr);
     };
     EXPECT_NE(cb::engine_errc::durability_invalid_level,
               del(durabilityRequirements));
@@ -2352,17 +2362,18 @@ TEST_P(DurabilityBucketTest, DeleteIfDeleteInProgressSyncWriteInProgress) {
     uint64_t cas = 0;
     mutation_descr_t mutInfo;
     cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, mutInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, mutInfo));
 
     // Test: Attempt to perform a second SyncDelete (different cookie i.e.
     // client).
     MockCookie secondClient(engine.get());
     cas = 0;
-    EXPECT_EQ(cb::engine_errc::sync_write_in_progress,
-              store->deleteItem(
-                      key, cas, vbid, &secondClient, reqs, nullptr, mutInfo));
+    EXPECT_EQ(
+            cb::engine_errc::sync_write_in_progress,
+            store->deleteItem(
+                    key, cas, vbid, &secondClient, reqs, {}, nullptr, mutInfo));
 }
 
 /// MB-35042: Test that SyncDelete returns SYNC_WRITE_IN_PROGRESS if there's
@@ -2384,9 +2395,10 @@ TEST_P(DurabilityBucketTest, DeleteIfSyncWriteInProgressSyncWriteInProgress) {
     uint64_t cas = 0;
     mutation_descr_t mutInfo;
     cb::durability::Requirements reqs{cb::durability::Level::Majority, {}};
-    EXPECT_EQ(cb::engine_errc::sync_write_in_progress,
-              store->deleteItem(
-                      key, cas, vbid, &secondClient, reqs, nullptr, mutInfo));
+    EXPECT_EQ(
+            cb::engine_errc::sync_write_in_progress,
+            store->deleteItem(
+                    key, cas, vbid, &secondClient, reqs, {}, nullptr, mutInfo));
 }
 
 /// MB-35303: Test that after a SyncWrite Prepare is Aborted, a subsequent
@@ -2481,9 +2493,9 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
     using namespace cb::durability;
     auto reqs = Requirements(Level::Majority, {});
     mutation_descr_t delInfo;
-    ASSERT_EQ(
-            cb::engine_errc::sync_write_pending,
-            store->deleteItem(key, cas, vbid, cookie, reqs, nullptr, delInfo));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->deleteItem(
+                      key, cas, vbid, cookie, reqs, {}, nullptr, delInfo));
 
     // Test: Should be able to Commit also.
     auto& vb = *store->getVBucket(vbid);
@@ -2925,6 +2937,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
+                            {},
                             DocumentState::Alive,
                             false));
     ASSERT_TRUE(engine->getEngineSpecific<SyncWriteCookieState>(*cookie))
@@ -2950,6 +2963,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             cas,
                             StoreSemantics::Replace,
                             pending->getDurabilityReqs(),
+                            {},
                             DocumentState::Alive,
                             false);
 
@@ -2960,6 +2974,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                            cas,
                            StoreSemantics::Replace,
                            pending->getDurabilityReqs(),
+                           {},
                            DocumentState::Alive,
                            false);
     }
@@ -2988,6 +3003,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             StoreSemantics::Set,
                             {},
+                            {},
                             DocumentState::Alive,
                             false));
 
@@ -3006,6 +3022,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
+                            {},
                             DocumentState::Alive,
                             false));
 
@@ -3020,6 +3037,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
+                            {},
                             DocumentState::Alive,
                             false));
 }
@@ -4402,7 +4420,8 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, Deletion) {
     mutation_descr_t delInfo;
 
     ASSERT_EQ(cb::engine_errc::success,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -5037,6 +5056,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                                 cas,
                                 StoreSemantics::Set,
                                 {} /*durReqs*/,
+                                {},
                                 DocumentState::Alive,
                                 false /*preserveTtl*/));
     }
@@ -5071,6 +5091,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                                 cas,
                                 StoreSemantics::Set,
                                 reqs,
+                                {},
                                 DocumentState::Alive,
                                 false));
         break;
@@ -5086,6 +5107,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                                                     StoreSemantics::Set,
                                                     predicate,
                                                     reqs,
+                                                    {},
                                                     DocumentState::Alive,
                                                     false);
         ASSERT_EQ(cb::engine_errc::would_block, status);
@@ -5095,7 +5117,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
         uint64_t cas = 0;
         mutation_descr_t info;
         ASSERT_EQ(cb::engine_errc::would_block,
-                  engine->remove(*cookie, key, cas, vbid, reqs, info));
+                  engine->remove(*cookie, key, cas, vbid, reqs, {}, info));
         break;
     }
     }
@@ -5250,6 +5272,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
                             cas,
                             StoreSemantics::Set,
                             item->getDurabilityReqs(),
+                            {},
                             DocumentState::Alive,
                             false /*preserveTTL*/));
 
@@ -5448,7 +5471,8 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
     mutation_descr_t delInfo;
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+              store->deleteItem(
+                      key, cas, vbid, cookie, {}, {}, nullptr, delInfo));
 
     struct MyGetRandomKeyObserver : GetRandomKeyObserver {
         void start() override {
