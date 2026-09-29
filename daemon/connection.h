@@ -1346,6 +1346,9 @@ protected:
     /// Is this DCP Stream throttled or not
     bool dcpStreamThrottled = false;
 
+    /// Record time while dcpStreamThorttled is true.
+    std::chrono::steady_clock::time_point dcpThrottleStart;
+
     /// The size of the current Dcp flow control buffer (0 = unlimited)
     std::size_t dcpFlowControlBufferSize = 0;
 
@@ -1434,6 +1437,9 @@ protected:
 
     /// Try to make any progress on a DCP stream by calling step()
     void tryToProgressDcpStream();
+
+    /// Update the throttled-state of the DCP stream.
+    void setDcpStreamThrottled(bool val);
 
     /**
      * bufferevents calls rw_callback if there is a read or write event

@@ -74,6 +74,21 @@ public:
     auto getState() const {
         return state;
     }
+
+    /// Mark the DCP stream as throttled (this is normally done from
+    /// tryToProgressDcpStream() when the engine returns throttled)
+    void throttleDcpStream() {
+        setDcpStreamThrottled(true);
+    }
+
+    bool isDcpStreamThrottled() const {
+        return dcpStreamThrottled;
+    }
+
+    /// Rewind DCP stream throttle to provided duration ago
+    void rewindDcpThrottleStart(std::chrono::milliseconds duration) {
+        dcpThrottleStart -= duration;
+    }
 };
 
 class MockFrontEndThread : public FrontEndThread {
@@ -443,6 +458,38 @@ TEST_F(ConnectionUnitTests, MB74226_TotalThrottleTimeExcludesPreThrottleTime) {
     EXPECT_LT(totalThrottleTime.count(), totalElapsed.count() / 2);
 
     cookie.reset();
+}
+
+/**
+ * Verify that resuming a throttled DCP stream records the wait in the
+ * buckets throttle histogram.
+ */
+TEST_F(ConnectionUnitTests, MB74217_DcpThrottleTimeIsRecorded) {
+    using namespace std::chrono_literals;
+
+    auto& threadStats =
+            connection->getBucket()
+                    .low_resolution_stats[connection->getThread().index];
+    auto& histogram = threadStats.throttle_times;
+    const auto initialCount = histogram.getValueCount();
+
+    connection->throttleDcpStream();
+    ASSERT_TRUE(connection->isDcpStreamThrottled());
+    // Pretend the stream has been throttled for 100ms
+    connection->rewindDcpThrottleStart(100ms);
+
+    connection->resumeThrottledDcpStream();
+    EXPECT_FALSE(connection->isDcpStreamThrottled());
+
+    // Verify count added to historgram
+    ASSERT_EQ(initialCount + 1, histogram.getValueCount());
+    EXPECT_LE(50ms, std::chrono::microseconds(histogram.getMaxValue()));
+
+    // BucketManager::tick() calls resumeThrottledDcpStream() for _all_
+    // throttleable DCP connections; one which isn't throttled should not
+    // add a sample.
+    connection->resumeThrottledDcpStream();
+    EXPECT_EQ(initialCount + 1, histogram.getValueCount());
 }
 
 /**
