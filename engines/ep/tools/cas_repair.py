@@ -45,7 +45,7 @@ class RepairStats:
         self.deleted_skipped = 0
         # Documents above the threshold which are deleted, but could not be
         # checked for a value (key contains a NUL byte, or the couch_dbdump
-        # lookup failed), so were not repaired
+        # lookup failed), so cannot be checked for a value with couch_dbdump
         self.deleted_unchecked = 0
         # Documents above the threshold with a non UTF-8 key, so cannot be
         # repaired
@@ -479,6 +479,25 @@ def wait_for_persistence(memcache, vbucket, seqno, timeout, verbose):
         time.sleep(1)
 
 
+def print_drop_deletes_advice(args, stats):
+    """
+    Deleted documents which could not be repaired keep their CAS. They can be
+    removed by compacting the vbucket with drop deletes, so tell the user how.
+    """
+    unrepaired = stats.deleted_skipped + stats.deleted_unchecked
+    if not unrepaired:
+        return
+
+    print("{} deleted documents above threshold could not be repaired. To "
+          "remove them, compact vbucket {} with drop deletes:".format(
+              unrepaired, args.vbucket))
+    print("  cbcompact {}:{} compact -u {} -p <password> -b {} --dropdeletes "
+          "{}".format(HOST, PORT, args.username, args.bucket, args.vbucket))
+    print("Note: this removes every deleted document in the vbucket, not only "
+          "those above threshold, and does not remove a deleted document "
+          "which is the highest seqno of the vbucket or its collection")
+
+
 def print_summary(args, stats, high_seqno, persisted):
     if stats.above_threshold:
         if args.fix:
@@ -486,17 +505,23 @@ def print_summary(args, stats, high_seqno, persisted):
                      stats.deleted_unchecked - stats.non_utf_skipped -
                      stats.mc_client_errors)
             print("Complete with {} of {} documents above threshold now "
-                  "fixed, Skipped {} deleted documents with a value, {} "
-                  "deleted documents which could not be checked and {} "
-                  "documents with non UTF-8 keys".format(
-                      fixed, stats.above_threshold, stats.deleted_skipped,
-                      stats.deleted_unchecked, stats.non_utf_skipped))
+                  "fixed".format(fixed, stats.above_threshold))
+            # Only report the reasons documents were skipped which occurred
+            skipped = [
+                ("Deleted documents with a value", stats.deleted_skipped),
+                ("Deleted documents with a NUL byte in the key",
+                 stats.deleted_unchecked),
+                ("Documents with non UTF-8 keys", stats.non_utf_skipped)]
+            for reason, count in skipped:
+                if count:
+                    print("  Skipped: {}: {}".format(reason, count))
             if high_seqno is not None:
                 print("vbucket {} high seqno after all repairs is {}, "
                       "{}".format(
                           args.vbucket, high_seqno,
                           "persisted" if persisted else
                           "NOT confirmed as persisted"))
+            print_drop_deletes_advice(args, stats)
         else:
             print("Complete with {} documents found above threshold".format(
                 stats.above_threshold))
