@@ -738,6 +738,9 @@ public:
     void setMagmaFusionMaxNumLogFiles(size_t value);
     size_t getMagmaFusionMaxNumLogFiles() const;
 
+    void setMagmaFusionOrphanLogsJanitorInterval(std::chrono::seconds value);
+    std::chrono::seconds getMagmaFusionOrphanLogsJanitorInterval() const;
+
     std::expected<cb::snapshot::Manifest, cb::engine_errc> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,

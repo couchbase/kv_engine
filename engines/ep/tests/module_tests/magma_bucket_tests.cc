@@ -1369,6 +1369,8 @@ public:
                          std::to_string(fusionMaxLogSize);
         config_string += ";magma_fusion_max_num_log_files=" +
                          std::to_string(fusionMaxNumLogFiles);
+        config_string += ";magma_fusion_orphan_logs_janitor_interval=" +
+                         std::to_string(fusionOrphanLogsJanitorInterval);
         STParameterizedBucketTest::SetUp();
         if (!isFusionSupportEnabled()) {
             GTEST_SKIP() << "Fusion support is not enabled";
@@ -1430,6 +1432,7 @@ protected:
     const float fusionMaxLogCleaningSizeRation = 0.2f;
     const size_t fusionMaxLogSize = 5_GiB;
     const size_t fusionMaxNumLogFiles = 10;
+    const size_t fusionOrphanLogsJanitorInterval = 4321;
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1454,6 +1457,8 @@ TEST_P(STMagmaFusionTest, Config) {
               kvstore.getMagmaFusionMaxLogCleaningSizeRatio());
     EXPECT_EQ(fusionMaxLogSize, kvstore.getMagmaFusionMaxLogSize());
     EXPECT_EQ(fusionMaxNumLogFiles, kvstore.getMagmaFusionMaxNumLogFiles());
+    EXPECT_EQ(fusionOrphanLogsJanitorInterval,
+              kvstore.getMagmaFusionOrphanLogsJanitorInterval().count());
 }
 
 TEST_P(STMagmaFusionTest, MagmaFusionMaxLogCleaningSizeRation) {
@@ -1519,6 +1524,32 @@ TEST_P(STMagmaFusionTest, MagmaFusionMaxNumLogFiles) {
             engine->setFlushParam("magma_fusion_max_num_log_files", "0", msg));
     EXPECT_EQ(0, config.getFusionMaxNumLogFiles()) << "config not updated";
     EXPECT_EQ(0, kvstore.getMagmaFusionMaxNumLogFiles())
+            << "value not passed down to Magma";
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionOrphanLogsJanitorInterval) {
+    std::string msg;
+    const std::chrono::seconds interval{3600};
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam("magma_fusion_orphan_logs_janitor_interval",
+                                    std::to_string(interval.count()),
+                                    msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(interval, config.getFusionOrphanLogsJanitorInterval())
+            << "config not updated";
+    EXPECT_EQ(interval, kvstore.getMagmaFusionOrphanLogsJanitorInterval())
+            << "value not passed down to Magma";
+
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_orphan_logs_janitor_interval", "0", msg));
+    EXPECT_EQ(std::chrono::seconds(0),
+              config.getFusionOrphanLogsJanitorInterval())
+            << "config not updated";
+    EXPECT_EQ(std::chrono::seconds(0),
+              kvstore.getMagmaFusionOrphanLogsJanitorInterval())
             << "value not passed down to Magma";
 }
 

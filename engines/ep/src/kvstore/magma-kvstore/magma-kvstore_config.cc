@@ -67,6 +67,9 @@ public:
             config.setFusionMaxLogSize(value);
         } else if (key == "magma_fusion_max_num_log_files") {
             config.setFusionMaxNumLogFiles(value);
+        } else if (key == "magma_fusion_orphan_logs_janitor_interval") {
+            config.setFusionOrphanLogsJanitorInterval(
+                    std::chrono::seconds(value));
         }
     }
 
@@ -361,6 +364,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_fusion_max_num_log_files",
             std::make_unique<ConfigChangeListener>(*this));
+
+    fusionOrphanLogsJanitorInterval = std::chrono::seconds(
+            config.getMagmaFusionOrphanLogsJanitorInterval());
+    config.addValueChangedListener(
+            "magma_fusion_orphan_logs_janitor_interval",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
@@ -383,6 +392,13 @@ void MagmaKVStoreConfig::setFusionMaxNumLogFiles(size_t value) {
     Expects(store);
     fusionMaxNumLogFiles.store(value);
     store->setMagmaFusionMaxNumLogFiles(value);
+}
+
+void MagmaKVStoreConfig::setFusionOrphanLogsJanitorInterval(
+        std::chrono::seconds value) {
+    Expects(store);
+    fusionOrphanLogsJanitorInterval.store(value);
+    store->setMagmaFusionOrphanLogsJanitorInterval(value);
 }
 
 void MagmaKVStoreConfig::setFusionLogstoreFragmentationThreshold(float value) {

@@ -982,6 +982,8 @@ void MagmaKVStore::initialize(EncryptionKeyProvider* encryptionKeyProvider,
             configuration.getFusionMaxLogCleaningSizeRatio());
     magma->SetFusionMaxLogSize(configuration.getFusionMaxLogSize());
     magma->SetFusionMaxNumLogFiles(configuration.getFusionMaxNumLogFiles());
+    magma->SetFusionOrphanLogsJanitorInterval(
+            configuration.getFusionOrphanLogsJanitorInterval());
 }
 
 MagmaKVStore::~MagmaKVStore() {
@@ -5029,6 +5031,16 @@ void MagmaKVStore::setMagmaFusionMaxNumLogFiles(size_t value) {
 
 size_t MagmaKVStore::getMagmaFusionMaxNumLogFiles() const {
     return magma->GetFusionMaxNumLogFiles();
+}
+
+void MagmaKVStore::setMagmaFusionOrphanLogsJanitorInterval(
+        std::chrono::seconds value) {
+    magma->SetFusionOrphanLogsJanitorInterval(value);
+}
+
+std::chrono::seconds MagmaKVStore::getMagmaFusionOrphanLogsJanitorInterval()
+        const {
+    return magma->GetFusionOrphanLogsJanitorInterval();
 }
 
 void MagmaKVStore::setMagmaFusionLogstoreFragmentationThreshold(float value) {

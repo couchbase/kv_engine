@@ -363,6 +363,12 @@ public:
         return fusionMaxNumLogFiles;
     }
 
+    void setFusionOrphanLogsJanitorInterval(std::chrono::seconds value);
+
+    std::chrono::seconds getFusionOrphanLogsJanitorInterval() const {
+        return fusionOrphanLogsJanitorInterval;
+    }
+
     float getFusionLogstoreFragmentationThreshold() const {
         return fusionLogstoreFragmentationThreshold;
     }
@@ -664,6 +670,9 @@ private:
     std::atomic<size_t> fusionMaxLogSize;
     // Base cap for maximum number of log files
     std::atomic<size_t> fusionMaxNumLogFiles;
+    // The interval at which the fusion uploader lists the log store to find
+    // and delete orphan logs uploaded by previous uploaders
+    std::atomic<std::chrono::seconds> fusionOrphanLogsJanitorInterval;
 
     void updateCompressionConfig();
 };

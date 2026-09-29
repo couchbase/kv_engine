@@ -878,6 +878,18 @@ size_t MagmaMemoryTrackingProxy::GetFusionMaxNumLogFiles() const {
     return magma->GetFusionMaxNumLogFiles();
 }
 
+void MagmaMemoryTrackingProxy::SetFusionOrphanLogsJanitorInterval(
+        std::chrono::seconds interval) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionOrphanLogsJanitorInterval(interval);
+}
+
+std::chrono::seconds
+MagmaMemoryTrackingProxy::GetFusionOrphanLogsJanitorInterval() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionOrphanLogsJanitorInterval();
+}
+
 void MagmaMemoryTrackingProxy::SetFusionLogstoreFragmentationThreshold(
         float threshold) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

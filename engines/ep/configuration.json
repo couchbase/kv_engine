@@ -2171,6 +2171,13 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "magma_fusion_orphan_logs_janitor_interval": {
+            "added": "8.5.0",
+            "default": "(60 * 60 * 24)",
+            "descr": "The interval at which the fusion uploader lists the log store to find and delete orphan logs uploaded by previous uploaders, in seconds.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "continuous_backup_enabled": {
             "added": "8.0.0",
             "default": "false",
