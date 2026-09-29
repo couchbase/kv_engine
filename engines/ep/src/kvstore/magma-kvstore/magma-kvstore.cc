@@ -1219,18 +1219,6 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
     return rv;
 }
 
-std::string MagmaKVStore::getMaxFormatVersionsJson() const {
-    // use ordered_json to order the resulting Json {magma,fusion}
-    // instead of {fusion, magma} which is the default with plain
-    // nlohmann::json
-    nlohmann::ordered_json versions = magma::GetStorageFormatVersionJSON();
-    if (configuration.getFusionState() !=
-        cb::config::MagmaFusionState::Disabled) {
-        versions.update(magma::GetFusionStorageFormatVersionJSON());
-    }
-    return versions.dump();
-}
-
 void MagmaKVStore::setMaxDataSize(size_t size) {
     configuration.setBucketQuota(size);
     const size_t memoryQuota = (size / configuration.getMaxShards()) *

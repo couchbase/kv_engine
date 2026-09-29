@@ -648,11 +648,6 @@ const StorageProperties KVBucket::getStorageProperties() const {
     return store->getStorageProperties();
 }
 
-std::string KVBucket::getMaxFormatVersionsJson() const {
-    const auto* store = vbMap.shards[0]->getROUnderlying();
-    return store->getMaxFormatVersionsJson();
-}
-
 void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     it.decompressValue(); // A no-op for already decompressed items
     auto result = document_pre_expiry(it.getValueView(), it.getDataType());
