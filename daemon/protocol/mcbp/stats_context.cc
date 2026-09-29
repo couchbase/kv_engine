@@ -24,6 +24,7 @@
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <executor/executorpool.h>
+#include <libcouchstore/couch_db.h>
 #include <mcbp/codec/stats_codec.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/stat_group.h>
@@ -508,6 +509,33 @@ static cb::engine_errc stat_allocator_executor(const StatGroup&,
     return cb::engine_errc::success;
 }
 
+/**
+ * Report the storage format versions supported by this node, for instance
+ * {"couchstore":14,"magma":1,"fusion":1}.
+ *
+ * This is a node level stat group (it does not require a bucket) as
+ * ns_server needs the information before it creates a bucket on the node,
+ * for instance to determine if a file based rebalance is possible. It
+ * reports what the node is capable of, not what any bucket is using.
+ */
+static cb::engine_errc stat_storage_format_versions_executor(const StatGroup&,
+                                                             const std::string&,
+                                                             Cookie& cookie) {
+    // Use ordered_json so that the output is ordered
+    // {couchstore,magma,fusion} instead of the alphabetical ordering plain
+    // nlohmann::json would give.
+    nlohmann::ordered_json versions;
+    versions["couchstore"] = cb::couchstore::getFileFormatVersion();
+    if (isMagmaSupportEnabled()) {
+        versions.update(magma::GetStorageFormatVersionJSON());
+        if (isFusionSupportEnabled()) {
+            versions.update(magma::GetFusionStorageFormatVersionJSON());
+        }
+    }
+    append_stats("storage-format-versions", versions.dump(), cookie);
+    return cb::engine_errc::success;
+}
+
 static cb::engine_errc stat_timings_executor(const StatGroup&,
                                              const std::string&,
                                              Cookie& cookie) {
@@ -782,7 +810,9 @@ static std::unordered_map<StatGroupId, command_stat_handler> stat_handlers = {
          {true, stat_encryption_key_ids_executor}},
         {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
         {StatGroupId::Scheduler, {true, stat_scheduler_executor}},
-        {StatGroupId::Fusion, {true, stat_fusion_executor}}};
+        {StatGroupId::Fusion, {true, stat_fusion_executor}},
+        {StatGroupId::StorageFormatVersions,
+         {true, stat_storage_format_versions_executor}}};
 
 /**
  * For a given key, try and return the handler for it
