@@ -120,8 +120,6 @@ public:
 
     StorageProperties getStorageProperties() const override;
 
-    std::string getMaxFormatVersionsJson() const override;
-
     void setMaxDataSize(size_t size) override;
 
     std::variant<cb::engine_errc, std::unordered_set<std::string>>
