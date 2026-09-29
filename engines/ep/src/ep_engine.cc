@@ -5217,11 +5217,6 @@ cb::engine_errc EventuallyPersistentEngine::doDiskinfoStats(
         bucketC.addStat(
                 cb::stats::Key::ep_db_max_format_version,
                 kvBucket->getStorageProperties().getMaxDiskFormatVersion());
-        const auto versions = kvBucket->getMaxFormatVersionsJson();
-        if (!versions.empty()) {
-            bucketC.addStat(cb::stats::Key::ep_db_max_format_versions_json,
-                            versions);
-        }
         return cb::engine_errc::success;
     }
 

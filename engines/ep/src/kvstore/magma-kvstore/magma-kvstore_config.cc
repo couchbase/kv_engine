@@ -88,10 +88,6 @@ public:
             config.setFusionLogstoreURI(value);
         } else if (key == "magma_fusion_metadatastore_uri") {
             config.setFusionMetadatastoreURI(value);
-        } else if (key == "magma_fusion_state") {
-            cb::config::MagmaFusionState state;
-            cb::config::from_string(state, value);
-            config.setFusionState(state);
         } else if (key == "magma_index_compression_algo") {
             config.setMagmaIndexCompressionAlgo(value);
         } else if (key == "magma_data_compression_algo") {
@@ -324,11 +320,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     fusionMetadatastoreURI = config.getMagmaFusionMetadatastoreUri();
     config.addValueChangedListener(
             "magma_fusion_metadatastore_uri",
-            std::make_unique<ConfigChangeListener>(*this));
-
-    fusionState = config.getMagmaFusionState();
-    config.addValueChangedListener(
-            "magma_fusion_state",
             std::make_unique<ConfigChangeListener>(*this));
 
     fusionNamespace = generateFusionNamespace(config.getUuid());

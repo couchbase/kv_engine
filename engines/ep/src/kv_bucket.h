@@ -538,8 +538,6 @@ public:
 
     const StorageProperties getStorageProperties() const override;
 
-    std::string getMaxFormatVersionsJson() const;
-
     const VBucketMap& getVBuckets() const override {
         return vbMap;
     }

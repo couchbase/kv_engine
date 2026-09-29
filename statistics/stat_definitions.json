@@ -2375,12 +2375,6 @@
         "description": "Maximum disk format version supported by the bucket's storage engine",
         "added": "8.5.0"
     },
-    {
-        "key": "ep_db_max_format_versions_json",
-        "unit": "none",
-        "description": "Maximum storage format versions supported by the bucket's storage engine, as a json object keyed by component (eg {\"magma\":1,\"fusion\":1})",
-        "added": "8.5.0"
-    },
     /* EPBucket::getFileStats */
     {
         "key": "ep_db_data_size",

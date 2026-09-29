@@ -585,12 +585,6 @@ StorageProperties NexusKVStore::getStorageProperties() const {
             primaryProperties.getMaxDiskFormatVersion()};
 }
 
-std::string NexusKVStore::getMaxFormatVersionsJson() const {
-    // As with getStorageProperties(), report the primary's versions as that
-    // is the store which owns the data on disk.
-    return primary->getMaxFormatVersionsJson();
-}
-
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {
     auto& nexusTxnCtx = dynamic_cast<NexusKVStoreTransactionContext&>(txnCtx);
     primary->set(*nexusTxnCtx.primaryContext, item);
