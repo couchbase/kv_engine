@@ -46,11 +46,15 @@ SubdocExecutionContext::OperationSpec::OperationSpec(
     }
 }
 
-SubdocExecutionContext::OperationSpec::OperationSpec(OperationSpec&& other)
+SubdocExecutionContext::OperationSpec::OperationSpec(
+        OperationSpec&& other) noexcept
     : traits(other.traits),
       flags(other.flags),
-      path(other.path),
-      value(other.value) {
+      path(std::move(other.path)),
+      value(std::move(other.value)),
+      status(other.status) {
+    // Note: result is intentionally not moved - Subdoc::Result is
+    // neither copyable nor movable, so it is left default-constructed.
 }
 
 uint64_t SubdocExecutionContext::getOperationValueBytesTotal() const {

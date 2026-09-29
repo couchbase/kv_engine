@@ -224,7 +224,7 @@ public:
                       std::string value_ = {});
 
         // Move constructor.
-        OperationSpec(OperationSpec&& other);
+        OperationSpec(OperationSpec&& other) noexcept;
 
         // The traits of this individual Operation.
         SubdocCmdTraits traits;
@@ -233,10 +233,10 @@ public:
         cb::mcbp::subdoc::PathFlag flags;
 
         // Path to operate on.
-        const std::string path;
+        std::string path;
 
         // [For mutations only] Value to apply to document.
-        const std::string value;
+        std::string value;
 
         // Status code of the operation.
         cb::mcbp::Status status;
