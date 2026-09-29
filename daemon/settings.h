@@ -1549,7 +1549,7 @@ protected:
 
     // The maximum number of pending upload bytes to be synced across all
     // volumes
-    std::atomic<size_t> fusion_max_pending_upload_bytes{45_GiB};
+    std::atomic<size_t> fusion_max_pending_upload_bytes{0};
 
     // The proportion of max_pending_upload_bytes beyond which syncs for volumes
     // with the highest pending bytes are only allowed.
