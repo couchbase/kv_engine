@@ -91,7 +91,7 @@ Manifest::Manifest(const Manifest& other)
     buildCollectionIdToEntryMap();
 }
 
-Manifest::Manifest(Manifest&& other)
+Manifest::Manifest(Manifest&& other) noexcept
     : defaultCollectionExists(other.defaultCollectionExists),
       scopes(std::move(other.scopes)),
       collections(std::move(other.collections)),
@@ -300,7 +300,7 @@ Manifest::Manifest(std::string_view json)
     }
 }
 
-Manifest& Manifest::operator=(Manifest&& other) {
+Manifest& Manifest::operator=(Manifest&& other) noexcept {
     if (this != &other) {
         defaultCollectionExists = other.defaultCollectionExists;
         scopes = std::move(other.scopes);
