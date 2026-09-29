@@ -538,7 +538,7 @@ public:
             : position(position), htLock(mutex) {
         }
 
-        HashBucketLock(HashBucketLock&& other)
+        HashBucketLock(HashBucketLock&& other) noexcept
             : position(std::move(other.position)),
               htLock(std::move(other.htLock)) {
         }
@@ -547,7 +547,7 @@ public:
         HashBucketLock(const HashBucketLock& other) = delete;
         HashBucketLock& operator=(const HashBucketLock& other) = delete;
 
-        HashBucketLock& operator=(HashBucketLock&& other) {
+        HashBucketLock& operator=(HashBucketLock&& other) noexcept {
             position = other.position;
             htLock = std::move(other.htLock);
             return *this;
