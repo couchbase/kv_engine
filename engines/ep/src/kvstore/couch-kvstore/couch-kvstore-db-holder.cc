@@ -13,12 +13,12 @@
 
 #include "couch-kvstore.h"
 
-DbHolder::DbHolder(DbHolder&& other) : DbHolder(other.kvstore) {
+DbHolder::DbHolder(DbHolder&& other) noexcept : DbHolder(other.kvstore) {
     db = other.releaseDb();
     fileRev = other.fileRev;
 }
 
-DbHolder& DbHolder::operator=(DbHolder&& other) {
+DbHolder& DbHolder::operator=(DbHolder&& other) noexcept {
     db = other.releaseDb();
     fileRev = other.fileRev;
     return *this;

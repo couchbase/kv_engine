@@ -29,11 +29,11 @@ public:
     DbHolder& operator=(const DbHolder&) = delete;
 
     // Move-construction is allowed.
-    DbHolder(DbHolder&& other);
+    DbHolder(DbHolder&& other) noexcept;
 
     // Move-assignment is required for folly::EvictingCacheMap::set in the
     // CouchKVStoreFileCache
-    DbHolder& operator=(DbHolder&& other);
+    DbHolder& operator=(DbHolder&& other) noexcept;
 
     Db** getDbAddress() {
         return &db;
