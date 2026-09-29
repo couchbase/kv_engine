@@ -74,8 +74,8 @@ public:
     GetValue& operator=(const GetValue&&) = delete;
 
     /// Can move GetValues
-    GetValue(GetValue&& other);
-    GetValue& operator=(GetValue&& other);
+    GetValue(GetValue&& other) noexcept;
+    GetValue& operator=(GetValue&& other) noexcept;
 
     ~GetValue();
 

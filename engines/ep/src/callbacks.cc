@@ -19,8 +19,8 @@ GetValue::GetValue()
       status(cb::engine_errc::no_such_key),
       partial(false) {
 }
-GetValue::GetValue(GetValue&& other) = default;
-GetValue& GetValue::operator=(GetValue&& other) = default;
+GetValue::GetValue(GetValue&& other) noexcept = default;
+GetValue& GetValue::operator=(GetValue&& other) noexcept = default;
 
 GetValue::GetValue(cb::engine_errc s, bool incomplete)
     : id(std::numeric_limits<uint64_t>::max()),
