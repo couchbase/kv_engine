@@ -1186,11 +1186,17 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
 TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
     VBucketPtr vb = store->getVBucket(vbid);
 
+    // Store an item so the default collection is non-empty, an empty
+    // collection is not recorded in the dropped collections list.
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+
     CollectionsManifest cm;
     cm.remove(CollectionEntry::defaultC);
     setCollections(cookie, cm);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
     EXPECT_EQ(mcbp::systemevent::id::EndCollection,
@@ -1201,8 +1207,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
     EXPECT_FALSE(store->getVBucket(replicaVB)->lockCollections().exists(
             CollectionID::Default));
 
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    flushVBucketToDiskIfPersistent(replicaVB, 1);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1 x mutation, 1 x system */);
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
 
     if (persistent()) {
         auto [statusA, manifestA] =

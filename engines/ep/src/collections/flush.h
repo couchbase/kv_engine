@@ -326,16 +326,16 @@ public:
 private:
     /**
      * After all flushed items and system events have been processed this
-     * function counts how many non-empty collections were dropped.
+     * function determines which of the dropped collections are empty.
      *
-     * non-empty is defined as a collection with 1 or more *committed* items.
-     * Detection of non-empty requires comparing the start-seqno with the
-     * collection's high-seqno.
+     * Empty is defined as a collection which never had an item persisted.
+     * Detection of empty requires comparing the start-seqno with the
+     * collection's high-seqno (a prepare or abort also moves the high-seqno,
+     * so a collection holding only prepares is not empty).
      *
-     * @return the number of non-empty collections that were dropped.
+     * @return the set of dropped collections which are empty.
      */
-    uint32_t countNonEmptyDroppedCollections() const;
-
+    std::unordered_set<CollectionID> findEmptyDroppedCollections() const;
 
     /**
      * Iterate through the 'droppedCollections' container and call a function
@@ -420,6 +420,13 @@ private:
      * this for triggering (or not) a purge.
      */
     uint32_t nonEmptyDroppedCollections{0};
+
+    /**
+     * The dropped collections which were found to be empty (see
+     * findEmptyDroppedCollections). These are not written to the dropped
+     * collections list as there is nothing for compaction to erase.
+     */
+    std::unordered_set<CollectionID> emptyDroppedCollections;
 
     /**
      * Set to true when any of the fields in this structure have data which

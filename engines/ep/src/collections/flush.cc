@@ -74,11 +74,12 @@ void Flush::saveCollectionStats(
     }
 }
 
-uint32_t Flush::countNonEmptyDroppedCollections() const {
-    uint32_t nonEmpty = 0;
-    // For a flush batch that was dropping collections detect and count
-    // non-empty collections so we can schedule a purge only if needed (avoids
-    // a compaction if the collection is empty)
+std::unordered_set<CollectionID> Flush::findEmptyDroppedCollections() const {
+    std::unordered_set<CollectionID> empty;
+    // For a flush batch that was dropping collections detect which of the
+    // dropped collections are empty. An empty collection has nothing on disk
+    // for compaction to erase, so it is omitted from the persisted dropped
+    // list and does not require that a purge be scheduled.
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
         // An empty collection never had items added to it. From the meta
         // data we have regarding the collection this is evident by having the
@@ -86,9 +87,6 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // flusher one corner case exists and that is when the collection was
         // created and dropped in the same flush-batch, then the high-seqno is
         // 0.
-        //
-        // In the flusher we count how many dropped collections had items and
-        // will need a purge.
         //
         // Two scenarios must be considered here:
         // 1) If the collection previously existed on disk and was dropped in
@@ -109,22 +107,21 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // in this flush batch.
         auto sItr = flushAccounting.getStats().find(cid);
 
-        if (sItr == flushAccounting.getStats().end() ||
-            !sItr->second.isAnEraseableItemInFlushBatch()) {
-            // Have to check with the manifest to confirm if collection is empty
-            const auto highSeqno =
-                    manifest.get()
-                            .lock()
-                            .getStatsForFlush(cid, dropped.endSeqno)
-                            .highSeqno;
-            if (highSeqno != 0 && highSeqno != dropped.startSeqno) {
-                nonEmpty++; // 1)
-            }
-        } else {
-            nonEmpty++; // 2)
+        if (sItr != flushAccounting.getStats().end() &&
+            sItr->second.isAnEraseableItemInFlushBatch()) {
+            continue; // 2) an item was persisted in this batch
+        }
+
+        // Have to check with the manifest to confirm if collection is empty
+        const auto highSeqno = manifest.get()
+                                       .lock()
+                                       .getStatsForFlush(cid, dropped.endSeqno)
+                                       .highSeqno;
+        if (highSeqno == 0 || highSeqno == dropped.startSeqno) {
+            empty.insert(cid); // 1)
         }
     }
-    return nonEmpty;
+    return empty;
 }
 
 void Flush::forEachDroppedCollection(
@@ -162,7 +159,12 @@ void Flush::flushSuccess(Vbid vbid, EPBucket& bucket) {
 void Flush::notifyManifestOfAnyDroppedCollections() {
     for (const auto& [cid, droppedData] :
          flushAccounting.getDroppedCollections()) {
-        manifest.get().collectionDropPersisted(cid, droppedData.endSeqno);
+        // An empty collection is not recorded in the on-disk dropped
+        // collections list, so does not leave a drop "in progress".
+        manifest.get().collectionDropPersisted(
+                cid,
+                droppedData.endSeqno,
+                !emptyDroppedCollections.contains(cid));
     }
 }
 
@@ -525,7 +527,14 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
 flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
         std::vector<Collections::KVStore::DroppedCollection>& existingDropped) {
-    nonEmptyDroppedCollections = countNonEmptyDroppedCollections();
+    // Empty collections are never written to the dropped list. There is
+    // nothing on disk for compaction to erase and (as compaction is not
+    // scheduled for an empty collection) an entry would otherwise remain in
+    // the dropped list until some unrelated compaction ran.
+    emptyDroppedCollections = findEmptyDroppedCollections();
+    nonEmptyDroppedCollections = gsl::narrow_cast<uint32_t>(
+            flushAccounting.getDroppedCollections().size() -
+            emptyDroppedCollections.size());
 
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
@@ -560,8 +569,8 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
-        if (skip.contains(cid)) {
-            // This collection is already in output
+        if (skip.contains(cid) || emptyDroppedCollections.contains(cid)) {
+            // This collection is already in output, or is empty (so don't emit)
             continue;
         }
         // update skip so the flushes of dropped collections get ignored.
@@ -586,6 +595,12 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
                                                     seqno,
                                                     uint32_t(cid));
         output.push_back(newEntry);
+    }
+
+    // If the output vector is empty (e.g. only empty collections were dropped)
+    // return an empty buffer so the caller knows there is nothing to store.
+    if (output.empty()) {
+        return {};
     }
 
     auto vector = builder.CreateVector(output);

@@ -226,8 +226,14 @@ public:
      * as a separate lock manages the dropped collection structures
      * @param cid Collection ID of the collection event
      * @param seqno The seqno of the event that was successfully stored
+     * @param droppedDataExists true if the collection was recorded in the
+     *        on-disk dropped collections list (i.e. it has data which requires
+     *        erasing by compaction). An empty collection is not recorded and
+     *        does not leave a drop "in progress".
      */
-    void collectionDropPersisted(CollectionID cid, uint64_t seqno);
+    void collectionDropPersisted(CollectionID cid,
+                                 uint64_t seqno,
+                                 bool droppedDataExists = true);
 
     /**
      * @return true if a collection drop is in-progress, at least 1 collection

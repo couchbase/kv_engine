@@ -31,6 +31,8 @@
 #include "vbucket_state.h"
 #include <utilities/test_manifest.h>
 
+#include <algorithm>
+
 class CollectionsEraserTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
@@ -63,6 +65,29 @@ public:
             EXPECT_EQ(cb::engine_errc::success,
                       store->setVBucketState(vbid, vbucket_state_active));
         }
+    }
+
+    /**
+     * Check that the persisted dropped collections list holds exactly the
+     * given collections and that the persisted manifest and in-memory manifest
+     * agree on whether any dropped data exists on disk.
+     */
+    void verifyDroppedCollectionsOnDisk(
+            const std::vector<CollectionID>& expected) {
+        ASSERT_TRUE(persistent());
+        auto* kvstore = store->getRWUnderlying(vbid);
+        auto [droppedStatus, dropped] = kvstore->getDroppedCollections(vbid);
+        ASSERT_TRUE(droppedStatus);
+        ASSERT_EQ(expected.size(), dropped.size());
+        for (const auto& entry : dropped) {
+            EXPECT_TRUE(std::ranges::find(expected, entry.collectionId) !=
+                        expected.end())
+                    << entry.collectionId;
+        }
+        auto [manifestStatus, manifest] = kvstore->getCollectionsManifest(vbid);
+        ASSERT_TRUE(manifestStatus);
+        EXPECT_EQ(!expected.empty(), manifest.droppedCollectionsExist);
+        EXPECT_EQ(!expected.empty(), vb->getManifest().isDropInProgress());
     }
 
     /**
@@ -940,9 +965,65 @@ TEST_P(CollectionsEraserTest, DropEmptyCollection) {
         // Empty collection will not schedule compaction
         EXPECT_EQ(0, getFutureQueueSize(TaskType::AuxIO));
         EXPECT_EQ(0, getReadyQueueSize(TaskType::AuxIO));
+        // and as nothing will erase it, the empty collection must not be
+        // recorded in the dropped collections list.
+        verifyDroppedCollectionsOnDisk({});
     } else {
         runCollectionsEraser(vbid);
     }
+}
+
+// As DropEmptyCollection but the create and drop are in the same flush batch.
+// couchstore de-duplicates the create, magma persists both events.
+TEST_P(CollectionsEraserTest, DropEmptyCollectionSameFlushBatch) {
+    CollectionsManifest cm(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
+
+    if (persistent()) {
+        const auto expected = store->getOneROUnderlying()
+                                              ->getStorageProperties()
+                                              .hasAutomaticDeduplication()
+                                      ? 2
+                                      : 1;
+        flushVBucketToDiskIfPersistent(vbid, expected);
+        EXPECT_EQ(0, getFutureQueueSize(TaskType::AuxIO));
+        EXPECT_EQ(0, getReadyQueueSize(TaskType::AuxIO));
+        verifyDroppedCollectionsOnDisk({});
+    } else {
+        runCollectionsEraser(vbid);
+    }
+}
+
+// Drop an empty and a non-empty collection in the same flush batch. Only the
+// non-empty collection is recorded in the dropped collections list, and the
+// eraser leaves the list empty.
+TEST_P(CollectionsEraserTest, DropEmptyAndNonEmptyCollections) {
+    CollectionsManifest cm(CollectionEntry::dairy);
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(
+            cookie,
+            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+
+    if (persistent()) {
+        verifyDroppedCollectionsOnDisk({CollectionEntry::fruit.getId()});
+    }
+
+    // Fails for persistent buckets if compaction was not scheduled
+    runCollectionsEraser(vbid);
+
+    if (persistent()) {
+        verifyDroppedCollectionsOnDisk({});
+    }
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
 void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(

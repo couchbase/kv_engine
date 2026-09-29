@@ -756,11 +756,15 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
             optionalSeqno.has_value() ? ", replica" : "");
 }
 
-void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
+void Manifest::collectionDropPersisted(CollectionID cid,
+                                       uint64_t seqno,
+                                       bool droppedDataExists) {
     // As soon as we get notification that a dropped collection was flushed
     // successfully, mark this flag so subsequent flushes can maintain stats
     // correctly.
-    dropInProgress.store(true);
+    if (droppedDataExists) {
+        dropInProgress.store(true);
+    }
 
     droppedCollections.wlock()->remove(cid, seqno);
 }

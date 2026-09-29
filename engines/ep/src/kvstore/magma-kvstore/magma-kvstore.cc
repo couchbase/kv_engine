@@ -3992,9 +3992,13 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         }
     }
 
+    // encodeDroppedCollections returns an empty buffer when there is nothing
+    // to store (e.g. only empty collections were dropped), in which case the
+    // dropped collections document is left as is.
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
-    localDbReqs.emplace_back(
-            MagmaLocalReq(LocalDocKey::droppedCollections, buf));
+    if (buf.data()) {
+        localDbReqs.emplace_back(LocalDocKey::droppedCollections, buf);
+    }
 
     return Status::OK();
 }

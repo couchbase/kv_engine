@@ -24,6 +24,7 @@
 #include "stats.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/kvstore_test.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
@@ -138,6 +139,41 @@ public:
     void applyEvents(TransactionContext& txnCtx,
                      const CollectionsManifest& cm) {
         applyEvents(txnCtx, flush, cm);
+    }
+
+    /**
+     * Store an item into the given collection as part of the given
+     * transaction. The item is queued to the vbucket's CheckpointManager so
+     * that it is assigned a seqno consistent with the system events, and the
+     * collection's high-seqno is moved (as VBucket::doCollectionsStats would).
+     * A collection with an item is non-empty and is therefore included in the
+     * persisted dropped collections list when it is dropped.
+     */
+    void storeItem(TransactionContext& txnCtx, CollectionID cid) {
+        StoredDocKey key{"key_" + std::to_string(++itemCounter), cid};
+        auto item = makeCommittedItem(key, "value");
+        vbucket->checkpointManager->queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr);
+        manifest.lock(key).setHighSeqno(
+                item->getBySeqno(), Collections::VB::HighSeqnoType::Committed);
+        kvstore->set(txnCtx, item);
+    }
+
+    /**
+     * Store (and commit) one item into each of the given collections.
+     */
+    void storeItems(const std::vector<CollectionID>& cids) {
+        VB::Commit commitData(manifest);
+        auto ctx = kvstore->begin(vbucket->getId(),
+                                  std::make_unique<PersistenceCallback>());
+        for (auto cid : cids) {
+            storeItem(*ctx, cid);
+        }
+        kvstore->commit(std::move(ctx), commitData);
+        // Drain the mutations from the checkpoint so the next call to
+        // getEventsFromCheckpoint only sees the system events.
+        std::vector<queued_item> items;
+        vbucket->checkpointManager->getNextItemsForPersistence(items);
     }
 
     void checkUid(const Collections::KVStore::Manifest& md,
@@ -301,6 +337,7 @@ protected:
     VBucketPtr vbucket;
     WriteCallback wc;
     DeleteCallback dc;
+    int itemCounter{0};
 };
 
 class CollectionsKVStoreTest
@@ -489,6 +526,11 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
     applyAndCheck(cm);
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
     applyAndCheck(cm);
+    // Only non-empty collections are recorded in the dropped list
+    storeItems({CollectionUid::fruit,
+                CollectionUid::meat,
+                CollectionUid::vegetable,
+                CollectionUid::defaultC});
     cm.remove(CollectionEntry::fruit, ScopeEntry::shop2);
     applyAndCheck(cm, {CollectionUid::fruit});
     cm.remove(CollectionEntry::meat, ScopeEntry::shop2);
@@ -879,6 +921,9 @@ public:
         cm.remove(target);
         auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
+        // Store an item so that the dropped collection is non-empty, an empty
+        // collection is not recorded in the dropped list.
+        storeItem(*ctx, target.uid);
         applyEvents(*ctx, cm);
         kvstore->commit(std::move(ctx), flush);
     }
@@ -900,6 +945,9 @@ public:
         cm.remove(targetScope);
         auto ctx = kvstore->begin(vbucket->getId(),
                                   std::make_unique<PersistenceCallback>());
+        // Store an item so that the dropped collection is non-empty, an empty
+        // collection is not recorded in the dropped list.
+        storeItem(*ctx, target.uid);
         applyEvents(*ctx, cm);
         kvstore->commit(std::move(ctx), flush);
     }
@@ -935,8 +983,11 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
 
     CollectionEntry::Entry collection = target;
 
-    // iterate cycles of remove/add
+    // iterate cycles of remove/add. Each generation of the collection stores
+    // an item before being dropped, an empty collection is not recorded in the
+    // dropped list.
     for (int ii = 0; ii < getCycles(); ii++) {
+        storeItem(*ctx, target.uid);
         cm.remove(collection);
         applyEvents(*ctx, cm);
 
@@ -949,6 +1000,7 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     }
 
     if (dropCollectionAtEnd()) {
+        storeItem(*ctx, target.uid);
         cm.remove(collection);
         applyEvents(*ctx, cm);
     }
@@ -1022,8 +1074,11 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     std::string expectedName = target.name;
     ScopeEntry::Entry scope = targetScope;
 
-    // iterate cycles of remove/add
+    // iterate cycles of remove/add. Each generation of the collection stores
+    // an item before being dropped, an empty collection is not recorded in the
+    // dropped list.
     for (int ii = 0; ii < getCycles(); ii++) {
+        storeItem(*ctx, target.uid);
         cm.remove(scope);
         applyEvents(*ctx, cm);
 
@@ -1038,6 +1093,7 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     }
 
     if (dropCollectionAtEnd()) {
+        storeItem(*ctx, target.uid);
         cm.remove(scope);
         applyEvents(*ctx, cm);
     }
