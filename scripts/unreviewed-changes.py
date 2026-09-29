@@ -121,12 +121,13 @@ def parse_gerrit_datetime(timestamp: str) -> datetime:
 
 def count_weekend_days(start: datetime, end: datetime) -> int:
     """
-    Naive way to count the number of weekend days (Sat/Sun) between two dates
+    Count the number of weekend days (Sat/Sun) between two dates
     """
-    days = (end - start).days
     weekend_days = 0
-    for i in range(1, days):
-        day = start + timedelta(days=i)
+    day = start.date()
+    end_date = end.date()
+    while day < end_date:
+        day += timedelta(days=1)
         if day.weekday() >= 5:
             weekend_days += 1
     return weekend_days
