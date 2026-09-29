@@ -514,7 +514,7 @@ struct ESTestDestructor {
     ESTestDestructor(const ESTestDestructor&) {
         ++instances;
     }
-    ESTestDestructor(ESTestDestructor&&) {
+    ESTestDestructor(ESTestDestructor&&) noexcept {
         ++instances;
     }
     ~ESTestDestructor() {
