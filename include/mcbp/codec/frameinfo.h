@@ -66,6 +66,22 @@ protected:
     const uint16_t id;
 };
 
+/**
+ * Pin an operation to a vbucket's current failover (VBUUID) value; the
+ * server rejects the command with vbuuid_not_equal if the vbucket's
+ * current UUID no longer matches.
+ */
+class VBucketUuidFrameInfo : public FrameInfo {
+public:
+    explicit VBucketUuidFrameInfo(uint64_t uuid) : uuid(uuid) {
+    }
+    ~VBucketUuidFrameInfo() override;
+    std::vector<uint8_t> encode() const override;
+
+protected:
+    const uint64_t uuid;
+};
+
 class ImpersonateUserFrameInfo : public FrameInfo {
 public:
     explicit ImpersonateUserFrameInfo(std::string user)

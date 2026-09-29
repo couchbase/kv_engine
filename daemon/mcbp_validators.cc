@@ -260,6 +260,20 @@ static Status parseFrameExtras(Cookie& cookie,
                     return false;
                 }
                 return true;
+            case cb::mcbp::request::FrameInfoId::VBucketUuid:
+                if (data.size() != sizeof(uint64_t)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext("VBucketUuid invalid size:" +
+                                           std::to_string(data.size()));
+                    return false;
+                }
+                if (!cb::mcbp::is_vbucket_uuid_supported(opcode)) {
+                    status = Status::NotSupported;
+                    cookie.setErrorContext(
+                            "This command does not support VBucketUuid");
+                    return false;
+                }
+                return true;
             case cb::mcbp::request::FrameInfoId::Impersonate:
                 if (!checkSingleImpersonation()) {
                     return false;

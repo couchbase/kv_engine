@@ -17,6 +17,7 @@ FrameInfo::~FrameInfo() = default;
 BarrierFrameInfo::~BarrierFrameInfo() = default;
 DurabilityFrameInfo::~DurabilityFrameInfo() = default;
 DcpStreamIdFrameInfo::~DcpStreamIdFrameInfo() = default;
+VBucketUuidFrameInfo::~VBucketUuidFrameInfo() = default;
 ImpersonateUserFrameInfo::~ImpersonateUserFrameInfo() = default;
 ImpersonateUserExtraPrivilegeFrameInfo::
         ~ImpersonateUserExtraPrivilegeFrameInfo() = default;
@@ -97,6 +98,13 @@ std::vector<uint8_t> DcpStreamIdFrameInfo::encode() const {
     auto value = htons(id);
     return FrameInfo::encode(
             FrameInfoId::DcpStreamId,
+            {reinterpret_cast<const uint8_t*>(&value), sizeof(value)});
+}
+
+std::vector<uint8_t> VBucketUuidFrameInfo::encode() const {
+    auto value = htonll(uuid);
+    return FrameInfo::encode(
+            FrameInfoId::VBucketUuid,
             {reinterpret_cast<const uint8_t*>(&value), sizeof(value)});
 }
 

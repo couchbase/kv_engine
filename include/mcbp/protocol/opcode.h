@@ -515,6 +515,9 @@ bool is_collection_command(ClientOpcode opcode);
 /// Does the provided opcode support preserving TTL
 bool is_preserve_ttl_supported(ClientOpcode opcode);
 
+/// Does the provided opcode support a VBucket UUID precondition
+bool is_vbucket_uuid_supported(ClientOpcode opcode);
+
 /// Is this command subject for throttling
 bool is_subject_for_throttling(ClientOpcode opcode);
 

@@ -156,10 +156,26 @@ the stream.
 The 2nd and 3rd byte contain a network byte order (uint16) storing the stream
 ID value which was specified in the DCP stream-request that created the stream.
 
-##### ID:3 - Available (was OpenTracing which was only a prototype)
+##### ID:3 - VBucket UUID
 
-ID 3 was used for the OpenTracing prototype which never got released
-as a full feature
+Pin the operation to a vbucket's current failover (VBUUID) value. If the
+target vbucket's current UUID does not match the value provided, the
+server rejects the command with `vbuuid_not_equal` instead of executing
+it. This is intended for clients (e.g. XDCR) which need to detect that a
+vbucket has failed over before the operation is applied, rather than
+discovering the divergence afterwards.
+
+    Byte/     0       |
+       /              |
+      |0 1 2 3 4 5 6 7|
+      +---------------+
+     0|  ID:3 | Len:8 |
+     1|                                                               |
+      +                    64 bit VBucket UUID                       +
+     2|                                                               |
+
+The payload is a network byte order (uint64) containing the VBucket UUID
+the operation is pinned to.
 
 ##### ID:4 - Impersonate user
 

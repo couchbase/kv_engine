@@ -39,6 +39,9 @@ enum class Attribute {
     /// Does the command support adding a flag in frame info to instruct
     /// the operation to preserve the TTL from the existing document
     PreserveTtl,
+    /// Does the command support pinning the operation to a vbucket's
+    /// current failover (VBUUID) value via frame info
+    VBucketUuid,
     /// When throttling is enabled (serverless mode) only commands with
     /// the SubjectForThrottling set may be throttled when the user
     /// exceeds its quota
@@ -115,6 +118,10 @@ public:
         ensureValid(opcode, __func__);
         return opcodes[static_cast<int>(opcode)].check(Attribute::PreserveTtl);
     }
+    bool isVBucketUuid(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::VBucketUuid);
+    }
     bool isSubjectForThrottling(ClientOpcode opcode) const {
         ensureValid(opcode, __func__);
         return opcodes[static_cast<int>(opcode)].check(
@@ -171,7 +178,8 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Add,
               {"ADD"sv,
                {Attribute::Supported,
@@ -179,7 +187,8 @@ public:
                 Attribute::Reorder,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Replace,
               {"REPLACE"sv,
                {Attribute::Supported,
@@ -188,14 +197,16 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Delete,
               {"DELETE"sv,
                {Attribute::Supported,
                 Attribute::Durability,
                 Attribute::Reorder,
                 Attribute::Collection,
-                Attribute::SubjectForThrottling}});
+                Attribute::SubjectForThrottling,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Increment,
               {"INCREMENT"sv,
                {Attribute::Supported,
@@ -204,7 +215,8 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Decrement,
               {"DECREMENT"sv,
                {Attribute::Supported,
@@ -213,7 +225,8 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Quit, {"QUIT"sv, {Attribute::Supported}});
         setup(ClientOpcode::Flush_Unsupported, {"FLUSH"sv, {}});
         setup(ClientOpcode::Getq,
@@ -247,7 +260,8 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Prepend,
               {"PREPEND"sv,
                {Attribute::Supported,
@@ -256,7 +270,8 @@ public:
                 Attribute::Collection,
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Stat,
               {"STAT"sv,
                {Attribute::Supported, Attribute::MustPreserveBuffer}});
@@ -268,7 +283,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Addq,
               {"ADDQ"sv,
                {Attribute::Supported,
@@ -276,7 +292,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Replaceq,
               {"REPLACEQ"sv,
                {Attribute::Supported,
@@ -285,14 +302,16 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Deleteq,
               {"DELETEQ"sv,
                {Attribute::Supported,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Incrementq,
               {"INCREMENTQ"sv,
                {Attribute::Supported,
@@ -301,7 +320,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Decrementq,
               {"DECREMENTQ"sv,
                {Attribute::Supported,
@@ -310,7 +330,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Quitq,
               {"QUITQ"sv,
                {Attribute::Supported,
@@ -325,7 +346,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Prependq,
               {"PREPENDQ"sv,
                {Attribute::Supported,
@@ -334,7 +356,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::Verbosity, {"VERBOSITY"sv, {Attribute::Supported}});
         setup(ClientOpcode::Touch,
               {"TOUCH"sv,
@@ -460,7 +483,8 @@ public:
                {Attribute::Supported,
                 Attribute::Reorder,
                 Attribute::Collection,
-                Attribute::SubjectForThrottling}});
+                Attribute::SubjectForThrottling,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::DcpOpen,
               {"DCP_OPEN"sv, {Attribute::Supported, Attribute::DCP}});
         setup(ClientOpcode::DcpAddStream,
@@ -588,7 +612,8 @@ public:
                {Attribute::Supported,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::SetqWithMeta,
               {"SETQ_WITH_META"sv,
                {Attribute::Supported,
@@ -596,13 +621,15 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::AddWithMeta,
               {"ADD_WITH_META"sv,
                {Attribute::Supported,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling,
-                Attribute::ClientWritingData}});
+                Attribute::ClientWritingData,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::AddqWithMeta,
               {"ADDQ_WITH_META"sv,
                {Attribute::Supported,
@@ -610,7 +637,8 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
                 Attribute::ClientWritingData,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::SnapshotVbStates_Unsupported,
               {"SNAPSHOT_VB_STATES"sv, {}});
         setup(ClientOpcode::VbucketBatchCount_Unsupported,
@@ -619,14 +647,16 @@ public:
               {"DEL_WITH_META"sv,
                {Attribute::Supported,
                 Attribute::Collection,
-                Attribute::SubjectForThrottling}});
+                Attribute::SubjectForThrottling,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::DelqWithMeta,
               {"DELQ_WITH_META"sv,
                {Attribute::Supported,
                 Attribute::Collection,
                 Attribute::SubjectForThrottling,
                 Attribute::Deprecated,
-                Attribute::IsQuiet}});
+                Attribute::IsQuiet,
+                Attribute::VBucketUuid}});
         setup(ClientOpcode::CreateCheckpoint_Unsupported,
               {"CREATE_CHECKPOINT"sv, {}});
         setup(ClientOpcode::NotifyVbucketUpdate_Unsupported,
@@ -965,6 +995,10 @@ bool is_dcp(ClientOpcode opcode) {
 
 bool is_preserve_ttl_supported(ClientOpcode opcode) {
     return opcodeInformationServiceInstance.isPreserveTtl(opcode);
+}
+
+bool is_vbucket_uuid_supported(ClientOpcode opcode) {
+    return opcodeInformationServiceInstance.isVBucketUuid(opcode);
 }
 
 bool is_subject_for_throttling(ClientOpcode opcode) {

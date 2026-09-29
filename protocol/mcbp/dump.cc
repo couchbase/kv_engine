@@ -243,6 +243,11 @@ protected:
                        << ntohs(*reinterpret_cast<const uint16_t*>(
                                   payload.data()));
                     break;
+                case cb::mcbp::request::FrameInfoId::VBucketUuid:
+                    ss << " VBucketUuid="
+                       << ntohll(*reinterpret_cast<const uint64_t*>(
+                                  payload.data()));
+                    break;
                 case cb::mcbp::request::FrameInfoId::Impersonate:
                     ss << " euid="
                        << std::string{

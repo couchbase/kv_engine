@@ -308,6 +308,30 @@ TEST(Request_GetDurationSpec, InvalidTimeoutFFFF) {
                  std::invalid_argument);
 }
 
+TEST(Request_GetVBucketUuid, NoneSet) {
+    std::vector<uint8_t> packet(sizeof(Request));
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::ClientRequest);
+    auto& req = *builder.getFrame();
+    EXPECT_FALSE(req.getVBucketUuid());
+}
+
+TEST(Request_GetVBucketUuid, RoundTrip) {
+    using cb::mcbp::request::VBucketUuidFrameInfo;
+    const uint64_t uuid = 0xdeadbeefcafef00dULL;
+    auto frameinfo = VBucketUuidFrameInfo(uuid).encode();
+
+    std::vector<uint8_t> packet(sizeof(Request) + frameinfo.size());
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setFramingExtras({frameinfo.data(), frameinfo.size()});
+    auto& req = *builder.getFrame();
+
+    auto value = req.getVBucketUuid();
+    EXPECT_TRUE(value);
+    EXPECT_EQ(uuid, *value);
+}
+
 TEST(Request_TaggedUserData, MB56291) {
     using cb::mcbp::request::ImpersonateUserFrameInfo;
 

@@ -34,6 +34,7 @@ enum class FrameInfoId {
     Barrier = 0,
     DurabilityRequirement = 1,
     DcpStreamId = 2,
+    VBucketUuid = 3,
     Impersonate = 4,
     PreserveTtl = 5,
     ImpersonateExtraPrivilege = 6,
@@ -219,6 +220,17 @@ public:
      */
     std::optional<cb::durability::Requirements> getDurabilityRequirements()
             const;
+
+    /**
+     * Parse the Frame Extras section and pick out the optional VBucket
+     * UUID precondition associated with the command. If present, the
+     * command should only be executed if the target vbucket's current
+     * failover UUID matches this value.
+     *
+     * This method may throw exceptions iff the request object has not been
+     * inspected by the packet validators.
+     */
+    std::optional<uint64_t> getVBucketUuid() const;
 
     /**
      * Is this a quiet command or not

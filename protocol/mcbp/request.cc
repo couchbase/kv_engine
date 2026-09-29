@@ -191,6 +191,22 @@ std::optional<cb::durability::Requirements> Request::getDurabilityRequirements()
     return {};
 }
 
+std::optional<uint64_t> Request::getVBucketUuid() const {
+    std::optional<uint64_t> ret;
+
+    parseFrameExtras([&ret](cb::mcbp::request::FrameInfoId id,
+                            cb::const_byte_buffer data) -> bool {
+        if (id == cb::mcbp::request::FrameInfoId::VBucketUuid) {
+            ret = ntohll(*reinterpret_cast<const uint64_t*>(data.data()));
+            // stop parsing
+            return false;
+        }
+        // Continue parsing
+        return true;
+    });
+    return ret;
+}
+
 static std::string printableString(const std::string_view buffer) {
     std::string ret;
     ret.reserve(buffer.size() + 9);
@@ -234,6 +250,10 @@ nlohmann::json Request::to_json(bool validated) const {
                 case request::FrameInfoId::DcpStreamId:
                     frameid["dcp stream id"] = ntohs(
                             *reinterpret_cast<const uint16_t*>(buffer.data()));
+                    break;
+                case request::FrameInfoId::VBucketUuid:
+                    frameid["vbucket uuid"] = ntohll(
+                            *reinterpret_cast<const uint64_t*>(buffer.data()));
                     break;
                 case request::FrameInfoId::Impersonate:
                     if (buffer[0] == '^') {
@@ -699,6 +719,8 @@ std::string format_as(FrameInfoId id) {
         return "DurabilityRequirement";
     case FrameInfoId::DcpStreamId:
         return "DcpStreamId";
+    case FrameInfoId::VBucketUuid:
+        return "VBucketUuid";
     case FrameInfoId::Impersonate:
         return "Impersonate";
     case FrameInfoId::PreserveTtl:
