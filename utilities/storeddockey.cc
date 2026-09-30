@@ -11,6 +11,7 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/storeddockey.h>
 #include <platform/memory_tracking_allocator.h>
+#include <ostream>
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
     return os << key.to_string();
