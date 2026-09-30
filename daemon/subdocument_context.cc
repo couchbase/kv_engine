@@ -156,8 +156,22 @@ void SubdocExecutionContext::create_multi_path_context(
             headerlen = sizeof(*spec);
             binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
             flags = cb::mcbp::subdoc::PathFlag(spec->flags);
-            path = {value.data() + offset + headerlen, htons(spec->pathlen)};
-            spec_value = {nullptr, 0};
+            if (cb::mcbp::subdoc::lookupSpecHasValue(binprot_cmd)) {
+                // This lookup carries a value, and uses the mutation spec
+                // layout
+                auto* value_spec = reinterpret_cast<
+                        const protocol_binary_subdoc_multi_mutation_spec*>(
+                        value.data() + offset);
+                headerlen = sizeof(*value_spec);
+                path = {value.data() + offset + headerlen,
+                        htons(value_spec->pathlen)};
+                spec_value = {value.data() + offset + headerlen + path.size(),
+                              htonl(value_spec->valuelen)};
+            } else {
+                path = {value.data() + offset + headerlen,
+                        htons(spec->pathlen)};
+                spec_value = {nullptr, 0};
+            }
         }
 
         auto cmdTraits = get_subdoc_cmd_traits(binprot_cmd);

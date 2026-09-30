@@ -329,6 +329,60 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayRemoveFirst) {
     testMultipathArrayRemoveFirst();
 }
 
+// ArrayIndexOf is a lookup, so it may be used against a deleted document
+// with AccessDeleted (and doesn't revive it).
+void XattrNoDocTest::testArrayIndexOfDeleted() {
+    BinprotSubdocMultiMutationCommand createCmd(
+            name,
+            {{ClientOpcode::SubdocArrayPushLast,
+              PathFlag::XattrPath,
+              "array",
+              "4"}},
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
+            durReqs);
+    auto resp = subdocMultiMutation(createCmd);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    // Without AccessDeleted the document isn't found.
+    resp = subdoc(ClientOpcode::SubdocArrayIndexOf,
+                  name,
+                  "array",
+                  "4",
+                  PathFlag::XattrPath);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+
+    resp = subdoc(ClientOpcode::SubdocArrayIndexOf,
+                  name,
+                  "array",
+                  "4",
+                  PathFlag::XattrPath,
+                  DocFlag::AccessDeleted);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+    EXPECT_EQ("0", resp.getDataView());
+
+    // Also within a multi-lookup
+    auto multiResp = subdoc_multi_lookup({{ClientOpcode::SubdocArrayIndexOf,
+                                           PathFlag::XattrPath,
+                                           "array",
+                                           "4"},
+                                          {ClientOpcode::SubdocArrayIndexOf,
+                                           PathFlag::XattrPath,
+                                           "array",
+                                           "5"}},
+                                         DocFlag::AccessDeleted);
+    ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
+              multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    ASSERT_EQ(2, results.size());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ("0", results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::SubdocValueNotFound, results[1].status);
+}
+
+TEST_P(XattrNoDocTest, ArrayIndexOfDeleted) {
+    testArrayIndexOfDeleted();
+}
+
 void XattrNoDocTest::testMultipathCounter() {
     BinprotSubdocMultiMutationCommand cmd(
             name,

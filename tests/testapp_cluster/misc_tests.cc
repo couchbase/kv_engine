@@ -487,11 +487,20 @@ TEST_F(BasicClusterTest, SubdocReplicaGetCount) {
     testSingleSubdocReplicaCommand(ClientOpcode::SubdocGetCount);
 }
 
+TEST_F(BasicClusterTest, SubdocReplicaArrayIndexOf) {
+    BinprotSubdocCommand cmd{ClientOpcode::SubdocArrayIndexOf,
+                             "testSingleSubdocReplicaCommand",
+                             "array",
+                             R"("bar")"};
+    testSingleSubdocReplicaCommand<BinprotSubdocCommand>(cmd);
+}
+
 TEST_F(BasicClusterTest, SubdocReplicaMulti) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey("testMultiSubdocReplicaCommand");
     cmd.setVBucket(Vbid{0});
-    cmd.addGet("array").addExists("array").addGetCount("array");
+    cmd.addGet("array").addExists("array").addGetCount("array").addIndexOf(
+            "array", R"("bar")");
     testSingleSubdocReplicaCommand<BinprotSubdocMultiLookupCommand>(cmd);
 }
 

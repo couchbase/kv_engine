@@ -3507,6 +3507,7 @@ make_validator_table() {
           subdoc_array_remove_first_validator);
     setup(ClientOpcode::SubdocArrayRemoveAll,
           subdoc_array_remove_all_validator);
+    setup(ClientOpcode::SubdocArrayIndexOf, subdoc_array_index_of_validator);
     setup(ClientOpcode::SubdocCounter, subdoc_counter_validator);
     setup(ClientOpcode::SubdocMultiLookup, subdoc_multi_lookup_validator);
     setup(ClientOpcode::SubdocMultiMutation, subdoc_multi_mutation_validator);

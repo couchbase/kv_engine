@@ -436,6 +436,11 @@ static_assert(sizeof(protocol_binary_request_subdocument) == 27);
  *                            1 @1 : Flags
  *                            2 @2 : Path Length
  *                      pathlen @4 : Path
+ *
+ *        Lookup opcodes which take a value (see lookupSpecHasValue())
+ *        instead use the Mutation Operation Spec layout (see
+ *        SUBDOC_MULTI_MUTATION below) which carries a value length and
+ *        value after the path.
  */
 
 struct protocol_binary_subdoc_multi_lookup_spec {
@@ -475,6 +480,23 @@ struct protocol_binary_subdoc_multi_mutation_spec {
     /* uint8_t value[valuelen]  */
 };
 static_assert(sizeof(protocol_binary_subdoc_multi_mutation_spec) == 8);
+
+namespace cb::mcbp::subdoc {
+/**
+ * Check if a lookup operation spec for the given opcode within a
+ * SUBDOC_MULTI_LOOKUP carries a value, and is therefore encoded using the
+ * protocol_binary_subdoc_multi_mutation_spec layout rather than the
+ * protocol_binary_subdoc_multi_lookup_spec layout. The opcode is the first
+ * byte of both layouts, so it may be inspected before deciding which layout
+ * to use for the rest of the spec.
+ *
+ * @param opcode The opcode of the lookup operation spec
+ * @return true if the spec includes a value length and value
+ */
+constexpr bool lookupSpecHasValue(cb::mcbp::ClientOpcode opcode) {
+    return opcode == cb::mcbp::ClientOpcode::SubdocArrayIndexOf;
+}
+} // namespace cb::mcbp::subdoc
 
 /**
  * Definition of the response packets used by SUBDOCUMENT multi-path

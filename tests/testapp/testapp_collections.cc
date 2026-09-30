@@ -1838,6 +1838,26 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocGetCount_with_euid_with_access) {
     BinprotSubdocCommand command{ClientOpcode::SubdocGetCount, key, "hello"};
     execute(*admin, command, true, true, false, Status::KeyEnoent);
 }
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayIndexOf_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayIndexOf, key, "hello", "true"};
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayIndexOf_with_euid_no_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayIndexOf, key, "hello", "true"};
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayIndexOf_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayIndexOf, key, "hello", "true"};
+    execute(*admin, command, false, false, false, Status::KeyEnoent);
+}
+TEST_P(CollectionsTest, ClientOpcode_SubdocArrayIndexOf_with_euid_with_access) {
+    BinprotSubdocCommand command{
+            ClientOpcode::SubdocArrayIndexOf, key, "hello", "true"};
+    execute(*admin, command, true, true, false, Status::KeyEnoent);
+}
 TEST_P(CollectionsTest, ClientOpcode_SubdocCounter_no_access) {
     BinprotSubdocCommand command{ClientOpcode::SubdocCounter, key, "v1", "1"};
     executeInSystemCollectionWithoutAccess(*user, command, false);

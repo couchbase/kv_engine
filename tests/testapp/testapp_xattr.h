@@ -60,6 +60,7 @@ protected:
     void testMultipathArrayPushFirst();
     void testMultipathArrayAddUnique();
     void testMultipathArrayRemoveFirst();
+    void testArrayIndexOfDeleted();
     void testMultipathCounter();
     void testMultipathCombo();
     void testMultipathAccessDeletedCreateAsDeleted();

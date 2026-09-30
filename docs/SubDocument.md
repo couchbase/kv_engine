@@ -655,6 +655,50 @@ else, returns a PATH_MISMATCH error.
 
 The size is returned as an ascii integer.
 
+### CMD_ARRAY_INDEX_OF: Get the index of an element in an array
+
+Returns the zero-based index of the first element of the array whose
+value equals VALUE. The document is not modified. It is the lookup counterpart to
+`CMD_ARRAY_ADD_UNIQUE` / `CMD_ARRAY_REMOVE_FIRST`, and is useful for
+arrays maintained as sets with `CMD_ARRAY_ADD_UNIQUE`.
+
+The same restrictions, and the same **string comparison** semantics,
+that `CMD_ARRAY_ADD_UNIQUE` places on VALUE and on the existing
+contents of the array apply here too: VALUE must be a JSON Primitive,
+and comparison is a strict string comparison (so `"123"` does not equal
+`123`, `"true"` does not equal `true`, and `1.0` does not equal `1`).
+As with `CMD_ARRAY_ADD_UNIQUE` the array is scanned until the first
+match, so a non-primitive element is only reported as an error if it
+precedes the first matching element.
+
+Unlike the other lookup commands this command takes a value, and when
+used within `CMD_MULTI_LOOKUP` its *Operation Spec* therefore includes
+the value length and value (see the *Operation Spec* in the Multi-Path
+Commands section of the Wire Protocol Format).
+
+Servers supporting this command advertise the `SubdocArrayIndexOf`
+HELLO feature.
+
+- Inputs:
+    - The key of the document to lookup
+    - Path to containing array. Path may be empty to indicate a top level
+      array
+    - JSON Primitive value to search for
+
+- Outputs:
+    - The index as an ascii integer
+
+- Errors:
+    - Generic subdoc errors
+    - `STATUS_PATH_ENOENT` if the array does not exist
+    - `STATUS_VALUE_NOT_FOUND` if the array exists, but does not
+      contain an element equal to VALUE
+    - `STATUS_VALUE_CANTINSERT` if the input value is not a
+      primitive
+    - `STATUS_PATH_MISMATCH` if the path does not point to an array, or
+      if the array contains a non-primitive element before the first
+      matching element
+
 ## Arithmetic Operations
 
 These operations operate on *numerical values*. This requires
@@ -944,7 +988,9 @@ PARTIAL_FAILURE - see below).
       - GET
       - EXISTS
       - GET_COUNT
+      - ARRAY_INDEX_OF
     - Path to search
+    - Lookup value (only for ARRAY_INDEX_OF)
 
 - Outputs:
   - Normal memcached response header.
@@ -1137,6 +1183,15 @@ individual operations they contain.
 | 4 @4                             | Value length, if the specific *Opcode* requires a value (this is false for lookup operations, and true for most mutation operations) |
 | path length @[4 or 8]            | Path                                                                                                                                 |
 | [value length] @[8+path length]  | Value (if mutation operation requires a value. This is empty for DELETE, for example)                                                |
+
+Within `CMD_MULTI_MUTATION` every *Operation Spec* includes the value
+length (and is 8 bytes plus the path and value). Within
+`CMD_MULTI_LOOKUP` the *Operation Spec* only includes the value length
+if the lookup *Opcode* takes a value; currently this is only the case
+for `ARRAY_INDEX_OF` (`0xd6`). All other lookup *Operation Specs* are 4
+bytes plus the path. The *Opcode* is the first byte of every
+*Operation Spec*, so a parser can use it to determine the layout of the
+remainder of the spec.
 
 
 ### Response Format

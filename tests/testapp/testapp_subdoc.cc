@@ -1465,6 +1465,92 @@ TEST_P(SubdocTestappTest, SubdocGetCount) {
     delete_object("a");
 }
 
+TEST_P(SubdocTestappTest, SubdocArrayIndexOf_Simple) {
+    using cb::mcbp::ClientOpcode;
+
+    // a). The index of the element is returned, and the document is not
+    //     modified.
+    const std::string doc = R"({"array":[1,"two",3,"two"],"dict":{"k":"v"}})";
+    store_document("a", doc);
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    ClientOpcode::SubdocArrayIndexOf, "a", "array", "1"),
+            "0");
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    ClientOpcode::SubdocArrayIndexOf, "a", "array", "3"),
+            "2");
+
+    // b). Only the index of the *first* occurrence is returned.
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    ClientOpcode::SubdocArrayIndexOf, "a", "array", R"("two")"),
+            "1");
+
+    // c). A value not present in the array fails with ValueNotFound (the
+    //     path exists).
+    EXPECT_SD_ERR(BinprotSubdocCommand(
+                          ClientOpcode::SubdocArrayIndexOf, "a", "array", "99"),
+                  cb::mcbp::Status::SubdocValueNotFound);
+    validate_json_document("a", doc);
+
+    // d). A path which doesn't exist fails.
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(
+                    ClientOpcode::SubdocArrayIndexOf, "a", "missing", "1"),
+            cb::mcbp::Status::SubdocPathEnoent);
+
+    // e). A path which isn't an array fails.
+    EXPECT_SD_ERR(BinprotSubdocCommand(
+                          ClientOpcode::SubdocArrayIndexOf, "a", "dict", "1"),
+                  cb::mcbp::Status::SubdocPathMismatch);
+    delete_object("a");
+
+    // f). An empty path refers to the root of the document, and an empty
+    //     array never contains the value.
+    store_document("b", "[]");
+    EXPECT_SD_ERR(BinprotSubdocCommand(
+                          ClientOpcode::SubdocArrayIndexOf, "b", "", "1"),
+                  cb::mcbp::Status::SubdocValueNotFound);
+    delete_object("b");
+
+    // g). Check that all permitted types of values can be found:
+    const std::vector<std::string> valid_values(
+            {"\"string\"", "10", "1.0", "true", "false", "null"});
+    std::string array = "[";
+    for (const auto& v : valid_values) {
+        array += v + ",";
+    }
+    array.back() = ']';
+    store_document("b", array);
+    for (size_t ii = 0; ii < valid_values.size(); ++ii) {
+        EXPECT_SD_VALEQ(BinprotSubdocCommand(ClientOpcode::SubdocArrayIndexOf,
+                                             "b",
+                                             "",
+                                             valid_values[ii]),
+                        std::to_string(ii));
+    }
+
+    // h). Check it is not permitted to search for non-primitive types.
+    const std::vector<std::string> invalid_values(
+            {R"({"foo": "bar"})", "[0,1,2]"});
+    for (const auto& v : invalid_values) {
+        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(
+                                  ClientOpcode::SubdocArrayIndexOf, "b", "", v),
+                          cb::mcbp::Status::SubdocValueCantinsert,
+                          "");
+    }
+    delete_object("b");
+
+    // i). Searching an array with non-primitive values (before any match)
+    //     fails.
+    store_document("c", R"([{"a":"b"},1])");
+    EXPECT_SD_ERR(BinprotSubdocCommand(
+                          ClientOpcode::SubdocArrayIndexOf, "c", "", "1"),
+                  cb::mcbp::Status::SubdocPathMismatch);
+    delete_object("c");
+}
+
 void SubdocTestappTest::test_subdoc_counter_simple() {
     store_document("a", "{}");
 
@@ -2021,6 +2107,18 @@ TEST_P(SubdocTestappTest, SubdocStatsLookupGet) {
                               doc,
                               "[0]",
                               "",
+                              response,
+                              doc.size(),
+                              response.size());
+}
+TEST_P(SubdocTestappTest, SubdocStatsLookupArrayIndexOf) {
+    std::string doc("[10,11,12,13,14,15,16,17,18,19]");
+    std::string response("5");
+    test_subdoc_stats_command(cb::mcbp::ClientOpcode::SubdocArrayIndexOf,
+                              LOOKUP_TRAITS,
+                              doc,
+                              "",
+                              "15",
                               response,
                               doc.size(),
                               response.size());

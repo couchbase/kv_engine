@@ -96,8 +96,9 @@ size_t SubdocMultiCmd::Spec::encoded_size(bool has_value) const {
     return sizeof(protocol_binary_subdoc_multi_lookup_spec) + path.size();
 }
 
-bool SubdocMultiCmd::spec_has_value(const Spec&) const {
-    return command == cb::mcbp::ClientOpcode::SubdocMultiMutation;
+bool SubdocMultiCmd::spec_has_value(const Spec& spec) const {
+    return command == cb::mcbp::ClientOpcode::SubdocMultiMutation ||
+           cb::mcbp::subdoc::lookupSpecHasValue(spec.opcode);
 }
 
 std::vector<char> SubdocMultiCmd::encode() const {

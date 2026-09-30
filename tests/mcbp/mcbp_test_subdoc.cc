@@ -111,6 +111,42 @@ TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
               validate_error_context(cb::mcbp::ClientOpcode::SubdocExists));
 }
 
+TEST_P(SubdocSingleTest, ArrayIndexOf_InvalidValue) {
+    // Need a non-zero value.
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+    EXPECT_EQ(
+            "Request must include value",
+            validate_error_context(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+}
+
+TEST_P(SubdocSingleTest, ArrayIndexOf_Baseline) {
+    request.header.setBodylen(/*keylen*/ 10 + /*extlen*/ 3 + /*pathlen*/ 1 +
+                              /*value*/ 1);
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              validate(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+    EXPECT_EQ("",
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocArrayIndexOf,
+                                     cb::mcbp::Status::Success));
+
+    // An empty path (the root of the document) is permitted.
+    request.extras.pathlen = htons(0);
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              validate(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+}
+
+TEST_P(SubdocSingleTest, ArrayIndexOf_InvalidExtras) {
+    // This is a lookup, so the mutation extras (with expiry) are invalid.
+    request.header.setExtlen(7);
+    request.header.setBodylen(/*keylen*/ 10 + /*extlen*/ 7 + /*pathlen*/ 1 +
+                              /*value*/ 1);
+    EXPECT_EQ(cb::mcbp::Status::Einval,
+              validate(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+    EXPECT_EQ(
+            "Request extras invalid",
+            validate_error_context(cb::mcbp::ClientOpcode::SubdocArrayIndexOf));
+}
+
 class SubdocMultiLookupTest : public ::testing::WithParamInterface<bool>,
                               public ValidatorTest {
 public:
@@ -258,13 +294,81 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
         if ((cmd == cb::mcbp::ClientOpcode::Get) ||
             (cmd == cb::mcbp::ClientOpcode::SubdocGet) ||
             (cmd == cb::mcbp::ClientOpcode::SubdocExists) ||
-            (cmd == cb::mcbp::ClientOpcode::SubdocGetCount)) {
+            (cmd == cb::mcbp::ClientOpcode::SubdocGetCount) ||
+            (cmd == cb::mcbp::ClientOpcode::SubdocArrayIndexOf)) {
             continue;
         }
         request.at(0) = {cmd, cb::mcbp::subdoc::PathFlag::None, "[0]"};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
                 << "Failed for cmd:" << ::cb::mcbp::ClientOpcode(ii);
     }
+}
+
+TEST_P(SubdocMultiLookupTest, ValidArrayIndexOf) {
+    request.clearLookups();
+    request.addIndexOf("array", "1");
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+
+    // Allowed empty path.
+    request.at(0).path.clear();
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+
+    // The IndexOf spec carries a value (and hence is longer than the other
+    // lookup specs). Verify that the specs following it are located
+    // correctly by surrounding it with other lookups (and another IndexOf).
+    request.clearLookups();
+    request.addExists("[0]");
+    request.addIndexOf("array", R"("value")");
+    request.addGet("[1]");
+    request.addIndexOf("", "true");
+    request.addGetCount("array");
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
+    EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
+}
+
+TEST_P(SubdocMultiLookupTest, InvalidArrayIndexOf) {
+    // Must have value
+    request.clearLookups();
+    request.addIndexOf("array", "");
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
+
+    // Mkdir_p is not a valid flag for this command.
+    request.at(0).value = "1";
+    request.at(0).flags = cb::mcbp::subdoc::PathFlag::Mkdir_p;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
+}
+
+TEST_P(SubdocMultiLookupTest, TruncatedArrayIndexOf) {
+    // The spec starts after the header and the key (no extras).
+    const size_t spec_offset =
+            sizeof(cb::mcbp::Request) + request.getKey().size();
+
+    // A value length exceeding the remaining bytes must be rejected.
+    request.clearLookups();
+    request.addIndexOf("array", "1");
+    std::vector<uint8_t> payload;
+    request.encode(payload);
+    auto* spec = reinterpret_cast<protocol_binary_subdoc_multi_mutation_spec*>(
+            payload.data() + spec_offset);
+    spec->valuelen = htonl(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
+    EXPECT_EQ("Multi lookup path and value truncated",
+              validate_error_context(payload));
+
+    // An IndexOf spec needs the longer (8 byte) header with the value
+    // length. Encode a normal lookup spec with a 3 byte path (7 bytes in
+    // total) and change the opcode to IndexOf.
+    request.clearLookups();
+    request.addExists("[0]");
+    payload.clear();
+    request.encode(payload);
+    payload[spec_offset] = uint8_t(cb::mcbp::ClientOpcode::SubdocArrayIndexOf);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
+    EXPECT_EQ("Multi lookup spec truncated", validate_error_context(payload));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidLocationPaths) {

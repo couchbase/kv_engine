@@ -1172,6 +1172,13 @@ void subdoc_array_remove_all_executor(Cookie& cookie) {
             .drive();
 }
 
+void subdoc_array_index_of_executor(Cookie& cookie) {
+    cookie.obtainContext<SubdocCommandContext>(
+                  cookie,
+                  get_traits<cb::mcbp::ClientOpcode::SubdocArrayIndexOf>())
+            .drive();
+}
+
 void subdoc_counter_executor(Cookie& cookie) {
     cookie.obtainContext<SubdocCommandContext>(
                   cookie, get_traits<cb::mcbp::ClientOpcode::SubdocCounter>())

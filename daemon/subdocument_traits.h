@@ -396,6 +396,24 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>() {
 
 template <>
 inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayIndexOf>() {
+    return {CommandScope::SubJSON,
+            Subdoc::Command::ARRAY_INDEX_OF,
+            cb::mcbp::ClientOpcode::Invalid,
+            cb::mcbp::subdoc::PathFlag::XattrPath,
+            cb::mcbp::subdoc::PathFlag::None,
+            cb::mcbp::subdoc::DocFlag::AccessDeleted |
+                    cb::mcbp::subdoc::DocFlag::ReviveDocument |
+                    cb::mcbp::subdoc::DocFlag::ReplicaRead,
+            /*request_has_value*/ true,
+            /*allow_empty_path*/ true,
+            ResponseValue::JSON,
+            /*is_mutator*/ false,
+            SubdocPath::SINGLE};
+}
+
+template <>
+inline SubdocCmdTraits
 get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>() {
     using cb::mcbp::subdoc::DocFlag;
     return {CommandScope::AttributesAndBody,

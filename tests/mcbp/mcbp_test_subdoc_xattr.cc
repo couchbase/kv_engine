@@ -95,6 +95,7 @@ protected:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
         case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
+        case cb::mcbp::ClientOpcode::SubdocArrayIndexOf:
         case cb::mcbp::ClientOpcode::SubdocCounter:
             return true;
 
@@ -113,6 +114,7 @@ protected:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
         case cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst:
         case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
+        case cb::mcbp::ClientOpcode::SubdocArrayIndexOf:
             return false;
 
         case cb::mcbp::ClientOpcode::SubdocMultiLookup:
@@ -156,7 +158,8 @@ INSTANTIATE_TEST_SUITE_P(
                         cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
                         cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
                         cb::mcbp::ClientOpcode::SubdocCounter,
-                        cb::mcbp::ClientOpcode::SubdocGetCount),
+                        cb::mcbp::ClientOpcode::SubdocGetCount,
+                        cb::mcbp::ClientOpcode::SubdocArrayIndexOf),
                 ::testing::Bool()));
 
 TEST_P(SubdocXattrSingleTest, PathTest) {

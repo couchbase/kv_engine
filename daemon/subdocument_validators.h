@@ -42,6 +42,7 @@ cb::mcbp::Status subdoc_array_insert_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_array_add_unique_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_array_remove_first_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_array_remove_all_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_array_index_of_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_counter_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_multi_lookup_validator(Cookie& cookie);

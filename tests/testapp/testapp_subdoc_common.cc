@@ -252,6 +252,7 @@ uint64_t recv_subdoc_response(
         case cb::mcbp::ClientOpcode::SubdocGet:
         case cb::mcbp::ClientOpcode::SubdocCounter:
         case cb::mcbp::ClientOpcode::SubdocGetCount:
+        case cb::mcbp::ClientOpcode::SubdocArrayIndexOf:
             if (cb::mcbp::Datatype(resp.getDatatype()) !=
                 expectedJSONDatatype()) {
                 return AssertionFailure()

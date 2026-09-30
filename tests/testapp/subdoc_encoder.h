@@ -31,8 +31,10 @@ struct SubdocMultiCmd {
         std::string path;
         /**
          * The value for the spec. It is only encoded for specs where
-         * SubdocMultiCmd::spec_has_value() returns true, and must be empty
-         * for all other specs.
+         * SubdocMultiCmd::spec_has_value() returns true (all mutation specs,
+         * and lookup specs whose opcode takes a value, see
+         * cb::mcbp::subdoc::lookupSpecHasValue()), and must be empty for
+         * all other specs.
          */
         std::string value = {};
 
@@ -127,11 +129,8 @@ protected:
      * Check if the provided spec should be encoded with a value (and use
      * the protocol_binary_subdoc_multi_mutation_spec layout). This mirrors
      * how the server decodes the specs: all specs in a multi mutation
-     * carry a value, whereas specs in a multi lookup currently don't.
-     *
-     * The decision is made per spec (rather than per command) to allow
-     * for lookup specs which carry a value. Currently it only depends on
-     * the command.
+     * carry a value, whereas in a multi lookup only specs whose opcode
+     * takes a value (see cb::mcbp::subdoc::lookupSpecHasValue()) do.
      *
      * @param spec The spec to check
      * @return true if the value length and value should be encoded

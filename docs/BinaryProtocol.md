@@ -580,6 +580,7 @@ information about a given command.
 | 0xd3 | Subdoc replace body with xattr (see https://docs.google.com/document/d/1vaQJxIA5nhWJqji7X2R1xQDZadb5PabfKAid1kVe65o ) |
 | 0xd4 | Subdoc array remove first |
 | 0xd5 | Subdoc array remove all |
+| 0xd6 | Subdoc array index of |
 | 0xda | [Create RangeScan](range_scans/range_scan_create.md) |
 | 0xdb | [Continue RangeScan](range_scans/range_scan_continue.md) |
 | 0xdc | [Cancel RangeScan](range_scans/range_scan_cancel.md) |

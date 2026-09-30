@@ -260,6 +260,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(ClientOpcode::SubdocArrayRemoveFirst, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocArrayRemoveAll, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocGetCount, requireReadOnCurrentDocument);
+    setup(ClientOpcode::SubdocArrayIndexOf, requireReadOnCurrentDocument);
     setup(ClientOpcode::SubdocCounter, requireReadOnCurrentDocument);
     setup(ClientOpcode::SubdocCounter, requireUpsertOnCurrentDocument);
     setup(ClientOpcode::SubdocMultiLookup, requireReadOnCurrentDocument);

@@ -1073,8 +1073,26 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
     // 1 @1         : Flags
     // 2 @2         : Path Length
     // $pathlen @4  : Path
+    //
+    // or, for lookups which carry a value (see lookupSpecHasValue()):
+    // 1 @0         : Opcode
+    // 1 @1         : Flags
+    // 2 @2         : Path Length
+    // 4 @4         : Value Length
+    // $pathlen @8  : Path
+    // $vallen @8+$pathlen : Value
     for (const auto& spec : specs) {
-        total += 1 + 1 + 2 + spec.path.size();
+        if (cb::mcbp::subdoc::lookupSpecHasValue(spec.opcode)) {
+            total += 1 + 1 + 2 + 4 + spec.path.size() + spec.value.size();
+        } else {
+            if (!spec.value.empty()) {
+                throw std::invalid_argument(fmt::format(
+                        "BinprotSubdocMultiLookupCommand::encode: {} does not "
+                        "take a value",
+                        spec.opcode));
+            }
+            total += 1 + 1 + 2 + spec.path.size();
+        }
     }
 
     const uint8_t extlen =
@@ -1101,7 +1119,16 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         uint16_t pathlen = ntohs(gsl::narrow<uint16_t>(spec.path.size()));
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
+        const bool hasValue = cb::mcbp::subdoc::lookupSpecHasValue(spec.opcode);
+        if (hasValue) {
+            uint32_t valuelen = ntohl(gsl::narrow<uint32_t>(spec.value.size()));
+            p = reinterpret_cast<const char*>(&valuelen);
+            buf.insert(buf.end(), p, p + 4);
+        }
         buf.insert(buf.end(), spec.path.begin(), spec.path.end());
+        if (hasValue) {
+            buf.insert(buf.end(), spec.value.begin(), spec.value.end());
+        }
     }
 }
 BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand()
@@ -1140,6 +1167,13 @@ BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addExists(
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetCount(
         const std::string& path, cb::mcbp::subdoc::PathFlag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocGetCount, flags);
+}
+BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addIndexOf(
+        const std::string& path,
+        const std::string& value,
+        cb::mcbp::subdoc::PathFlag flags) {
+    return addLookup(
+            {cb::mcbp::ClientOpcode::SubdocArrayIndexOf, flags, path, value});
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlags(
         cb::mcbp::subdoc::DocFlag docFlag) {

@@ -93,6 +93,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "DcpSkipDeletesInInitialBackfill";
     case Feature::SubdocArrayRemoveValue:
         return "SubdocArrayRemoveValue";
+    case Feature::SubdocArrayIndexOf:
+        return "SubdocArrayIndexOf";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

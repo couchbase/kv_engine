@@ -279,6 +279,46 @@ protected:
         ASSERT_EQ(cb::mcbp::Status::SubdocValueNotFound, resp.getStatus());
     }
 
+    void doArrayIndexOfTest(const std::string& path) {
+        for (const auto& value : {"\"Smith\"", "\"Jones\"", "\"Smith\""}) {
+            auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                               name,
+                               path,
+                               value,
+                               PathFlag::XattrPath | PathFlag::Mkdir_p);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        }
+
+        // The index of the first matching element is returned.
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayIndexOf,
+                           name,
+                           path,
+                           "\"Smith\"",
+                           PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ("0", resp.getDataView());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayIndexOf,
+                      name,
+                      path,
+                      "\"Jones\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ("1", resp.getDataView());
+
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayIndexOf,
+                      name,
+                      path,
+                      "\"NotThere\"",
+                      PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::SubdocValueNotFound, resp.getStatus());
+
+        // The xattr is unchanged.
+        resp = subdoc_get(path, PathFlag::XattrPath);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ(R"(["Smith","Jones","Smith"])", resp.getDataView());
+    }
+
     void doCounterTest(const std::string& path) {
         auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
                            name,
@@ -1259,6 +1299,20 @@ TEST_P(XattrTest, ArrayRemoveAll_FullXattrSpec) {
  */
 TEST_P(XattrTest, ArrayRemoveAll_PartialXattrSpec) {
     doArrayRemoveAllTest("doc.authors");
+}
+
+/**
+ * Looks up the index of an array element at the root of the given X-Key.
+ */
+TEST_P(XattrTest, ArrayIndexOf_FullXattrSpec) {
+    doArrayIndexOfTest("doc");
+}
+
+/**
+ * Looks up the index of an array element by X-Path.
+ */
+TEST_P(XattrTest, ArrayIndexOf_PartialXattrSpec) {
+    doArrayIndexOfTest("doc.authors");
 }
 
 /**

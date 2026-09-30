@@ -59,6 +59,52 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
     delete_object("dict");
 }
 
+// Test multi-path lookup command - SUBDOC_ARRAY_INDEX_OF mixed with other
+// lookups. The IndexOf lookup spec is larger than the other lookup specs (it
+// carries a value), so place it first, in the middle and last to verify the
+// specs are decoded correctly.
+TEST_P(SubdocTestappTest, SubdocMultiLookup_ArrayIndexOf) {
+    using cb::mcbp::ClientOpcode;
+    const std::string doc = R"({"array":[1,"two",3],"key":"value"})";
+    store_document("dict", doc);
+
+    SubdocMultiLookupCmd lookup;
+    lookup.key = "dict";
+    lookup.specs.push_back(
+            {ClientOpcode::SubdocArrayIndexOf, {}, "array", R"("two")"});
+    lookup.specs.push_back({ClientOpcode::SubdocGet, {}, "key"});
+    lookup.specs.push_back(
+            {ClientOpcode::SubdocArrayIndexOf, {}, "array", "3"});
+    lookup.specs.push_back({ClientOpcode::SubdocExists, {}, "array"});
+    lookup.specs.push_back({ClientOpcode::SubdocGetCount, {}, "array"});
+    std::vector<SubdocMultiLookupResult> expected{
+            {cb::mcbp::Status::Success, "1"},
+            {cb::mcbp::Status::Success, R"("value")"},
+            {cb::mcbp::Status::Success, "2"},
+            {cb::mcbp::Status::Success, ""},
+            {cb::mcbp::Status::Success, "3"}};
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
+
+    // Failures are reported per path.
+    lookup.specs.clear();
+    lookup.specs.push_back(
+            {ClientOpcode::SubdocArrayIndexOf, {}, "missing", "1"});
+    lookup.specs.push_back({ClientOpcode::SubdocArrayIndexOf, {}, "key", "1"});
+    lookup.specs.push_back(
+            {ClientOpcode::SubdocArrayIndexOf, {}, "array", "99"});
+    lookup.specs.push_back({ClientOpcode::SubdocGet, {}, "array[0]"});
+    expected = {{cb::mcbp::Status::SubdocPathEnoent, ""},
+                {cb::mcbp::Status::SubdocPathMismatch, ""},
+                {cb::mcbp::Status::SubdocValueNotFound, ""},
+                {cb::mcbp::Status::Success, "1"}};
+    expect_subdoc_cmd(
+            lookup, cb::mcbp::Status::SubdocMultiPathFailure, expected);
+
+    // The document is not modified.
+    validate_json_document("dict", doc);
+    delete_object("dict");
+}
+
 /* Creates a flat dictionary with the specified number of key/value pairs
  *   Keys are named "key_0", "key_1"...
  *   Values are strings of the form "value_0", value_1"...

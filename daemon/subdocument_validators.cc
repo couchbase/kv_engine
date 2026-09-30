@@ -335,6 +335,11 @@ cb::mcbp::Status subdoc_array_remove_all_validator(Cookie& cookie) {
             cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveAll>());
 }
 
+cb::mcbp::Status subdoc_array_index_of_validator(Cookie& cookie) {
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayIndexOf>());
+}
+
 cb::mcbp::Status subdoc_counter_validator(Cookie& cookie) {
     return subdoc_validator(
             cookie, get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());
@@ -409,6 +414,22 @@ static cb::mcbp::Status is_valid_multipath_spec(
         flags = cb::mcbp::subdoc::PathFlag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = 0;
+        if (cb::mcbp::subdoc::lookupSpecHasValue(opcode)) {
+            // This lookup carries a value, and uses the mutation spec layout
+            auto* value_spec = reinterpret_cast<
+                    const protocol_binary_subdoc_multi_mutation_spec*>(
+                    blob.data());
+            headerlen = sizeof(*value_spec);
+            if (headerlen > blob.size()) {
+                cookie.setErrorContext("Multi lookup spec truncated");
+                return cb::mcbp::Status::Einval;
+            }
+            valuelen = ntohl(value_spec->valuelen);
+            if (headerlen + pathlen + valuelen > blob.size()) {
+                cookie.setErrorContext("Multi lookup path and value truncated");
+                return cb::mcbp::Status::Einval;
+            }
+        }
         if (headerlen + pathlen > blob.size()) {
             cookie.setErrorContext("Multi lookup path truncated");
             return cb::mcbp::Status::Einval;

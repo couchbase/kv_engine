@@ -61,6 +61,8 @@ SubdocCmdTraits get_subdoc_cmd_traits(cb::mcbp::ClientOpcode cmd) {
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst>();
     case cb::mcbp::ClientOpcode::SubdocArrayRemoveAll:
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayRemoveAll>();
+    case cb::mcbp::ClientOpcode::SubdocArrayIndexOf:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocArrayIndexOf>();
     case cb::mcbp::ClientOpcode::SubdocCounter:
         return get_traits<cb::mcbp::ClientOpcode::SubdocCounter>();
     case cb::mcbp::ClientOpcode::SubdocGetCount:

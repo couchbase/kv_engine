@@ -181,6 +181,12 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// supports the subdoc commands ArrayRemoveFirst and ArrayRemoveAll
     /// (removing the first, or all, array element(s) equal to a given value).
     SubdocArrayRemoveValue = 0x27,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports the subdoc command ArrayIndexOf (returning the index of the
+    /// first array element equal to a given value), both as a single-path
+    /// command and within a multi-path lookup.
+    SubdocArrayIndexOf = 0x28,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);

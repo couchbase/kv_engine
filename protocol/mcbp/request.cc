@@ -637,6 +637,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::SubdocArrayAddUnique:
         case ClientOpcode::SubdocArrayRemoveFirst:
         case ClientOpcode::SubdocArrayRemoveAll:
+        case ClientOpcode::SubdocArrayIndexOf:
         case ClientOpcode::SubdocCounter:
         case ClientOpcode::SubdocMultiLookup:
         case ClientOpcode::SubdocMultiMutation:

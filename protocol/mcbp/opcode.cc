@@ -779,6 +779,12 @@ public:
                 Attribute::PreserveTtl,
                 Attribute::SubjectForThrottling,
                 Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocArrayIndexOf,
+              {"SUBDOC_ARRAY_INDEX_OF"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
         setup(ClientOpcode::SubdocCounter,
               {"SUBDOC_COUNTER"sv,
                {Attribute::Supported,

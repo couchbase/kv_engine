@@ -360,6 +360,11 @@ enum class ClientOpcode : uint8_t {
     SubdocArrayRemoveFirst = 0xd4,
     SubdocArrayRemoveAll = 0xd5,
 
+    /* Returns the zero-based index of the first array element whose raw
+     * JSON text equals the supplied value, or fails with
+     * SubdocValueNotFound if not present. */
+    SubdocArrayIndexOf = 0xd6,
+
     /* Create a "key-index" RangeScan */
     RangeScanCreate = 0xda,
     /* Continue a "key-index" RangeScan */

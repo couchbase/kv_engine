@@ -399,6 +399,12 @@ public:
         cb::mcbp::ClientOpcode opcode;
         cb::mcbp::subdoc::PathFlag flags;
         std::string path;
+        /**
+         * The value for lookup opcodes which take one (see
+         * cb::mcbp::subdoc::lookupSpecHasValue()). Must be empty for all
+         * other opcodes.
+         */
+        std::string value = {};
     };
 
     BinprotSubdocMultiLookupCommand(std::string key,
@@ -420,6 +426,10 @@ public:
             const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addGetCount(
             const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
+    BinprotSubdocMultiLookupCommand& addIndexOf(
+            const std::string& path,
+            const std::string& value,
+            cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addDocFlags(
             cb::mcbp::subdoc::DocFlag docFlag);
 

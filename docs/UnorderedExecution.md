@@ -94,6 +94,7 @@ limitations etc.
 * SubdocMultiLookup
 * SubdocMultiMutation
 * SubdocGetCount
+* SubdocArrayIndexOf
 * SubdocReplaceBodyWithXattr
 * GetAllVbSeqnos
 
