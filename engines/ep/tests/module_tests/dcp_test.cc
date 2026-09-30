@@ -314,6 +314,8 @@ public:
         return ::testing::get<1>(GetParam());
     }
 
+    void testNoWithUnderlyingDatatypeSnappyConsistent(bool forceCompression);
+
     size_t getItemSize(const Item& item) {
         size_t base = MutationResponse::mutationBaseMsgBytes +
                       item.getKey().makeDocKeyWithoutCollectionID().size();
@@ -794,6 +796,86 @@ TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
     // We did compress but discarded the final value as it is larger than the
     // input, we stream no value as expected.
     EXPECT_EQ(0, mut->getItem()->getNBytes());
+}
+
+/**
+ * CBSE-23696: Stream a Snappy-compressed item over a
+ * NoWithUnderlyingDatatype + IncludeXattrs stream and verify that the
+ * datatype sent is consistent with the payload: the Snappy bit is set if and
+ * only if the payload is Snappy-compressed, and the (inflated) payload is
+ * exactly the xattrs of the original document (or empty if no xattrs).
+ *
+ * @param forceCompression whether to enable ForceValueCompression
+ */
+void CompressionStreamTest::testNoWithUnderlyingDatatypeSnappyConsistent(
+        bool forceCompression) {
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    std::vector<std::pair<std::string, std::string>> controls;
+    if (forceCompression) {
+        controls.emplace_back("force_value_compression", "true");
+    }
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::Yes,
+                     controls);
+    ASSERT_TRUE(stream->isSnappyEnabled());
+    ASSERT_EQ(forceCompression, stream->isForceValueCompressionEnabled());
+
+    const auto key = makeStoredDocKey("key");
+    const auto underlyingDatatype = isXattr() ? PROTOCOL_BINARY_DATATYPE_JSON
+                                              : PROTOCOL_BINARY_RAW_BYTES;
+    auto item = makeCompressibleItem(vbid,
+                                     key,
+                                     "body000000000000000000000000000000000000",
+                                     underlyingDatatype,
+                                     true, // compressed
+                                     isXattr());
+    ASSERT_TRUE(cb::mcbp::datatype::is_snappy(item->getDataType()));
+
+    // Expected payload once inflated: the uncompressed xattrs only.
+    std::string expectedPayload;
+    if (isXattr()) {
+        auto xattrsOnly = makeCompressibleItem(vbid,
+                                               key,
+                                               "" /*body*/,
+                                               PROTOCOL_BINARY_DATATYPE_JSON,
+                                               false, // compressed
+                                               true /*xattrs*/);
+        expectedPayload = std::string(xattrsOnly->getValueView());
+    }
+
+    queued_item originalItem(std::move(item));
+    const auto resp = stream->public_makeResponseFromItem(
+            originalItem, SendCommitSyncWriteAs::Commit);
+    const auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(mut);
+    const auto& finalItem = *mut->getItem();
+    const auto datatype = finalItem.getDataType();
+    const std::string payload(finalItem.getValueView());
+
+    // Underlying (non-Snappy) datatype must be preserved.
+    EXPECT_EQ(originalItem->getDataType() & ~PROTOCOL_BINARY_DATATYPE_SNAPPY,
+              datatype & ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    if (cb::mcbp::datatype::is_snappy(datatype)) {
+        ASSERT_FALSE(payload.empty());
+        cb::compression::Buffer inflated;
+        ASSERT_TRUE(cb::compression::inflateSnappy(
+                payload, inflated, std::numeric_limits<size_t>::max()));
+        EXPECT_EQ(expectedPayload, std::string_view(inflated));
+    } else {
+        EXPECT_EQ(expectedPayload, payload);
+    }
+}
+
+TEST_P(CompressionStreamTest,
+       NoWithUnderlyingDatatype_Snappy_ItemCompressed_DatatypeConsistent) {
+    testNoWithUnderlyingDatatypeSnappyConsistent(false);
+}
+
+TEST_P(CompressionStreamTest,
+       NoWithUnderlyingDatatype_ForceCompression_ItemCompressed_DatatypeConsistent) {
+    testNoWithUnderlyingDatatypeSnappyConsistent(true);
 }
 
 class ConnectionTest : public DCPTest,
