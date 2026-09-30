@@ -332,6 +332,9 @@ public:
     void SetFusionMaxNumLogFiles(size_t value);
     size_t GetFusionMaxNumLogFiles() const;
 
+    void SetFusionOrphanLogsJanitorInterval(std::chrono::seconds interval);
+    std::chrono::seconds GetFusionOrphanLogsJanitorInterval() const;
+
     // The threshold at which the fusion log store will perform garbage
     // collection. This is a ratio between 0.0 and 1.0.
     void SetFusionLogstoreFragmentationThreshold(float threshold);
