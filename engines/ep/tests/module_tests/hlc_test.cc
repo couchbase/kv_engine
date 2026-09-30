@@ -11,6 +11,7 @@
 
 #include "hlc.h"
 
+#include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "kv_bucket.h"
@@ -40,8 +41,13 @@ public:
     MockHLC(uint64_t initHLC,
             int64_t epochSeqno,
             std::chrono::microseconds aheadThreshold,
-            std::chrono::microseconds behindThreshold)
-        : HLCT<Clock>(initHLC, epochSeqno, aheadThreshold, behindThreshold) {
+            std::chrono::microseconds behindThreshold,
+            std::chrono::microseconds maxHlcFutureThreshold)
+        : HLCT<Clock>(initHLC,
+                      epochSeqno,
+                      aheadThreshold,
+                      behindThreshold,
+                      maxHlcFutureThreshold) {
     }
 
     void setNonLogicalClockGetNextCasHook(std::function<void()> hook) {
@@ -61,7 +67,7 @@ protected:
         // Currently don't care what threshold we have for ours tests,
         std::chrono::microseconds threshold;
         testHLC = std::make_unique<MockHLC<MockClock>>(
-                0, 0, threshold, threshold);
+                0, 0, threshold, threshold, std::chrono::microseconds{1000});
     }
 
     std::unique_ptr<MockHLC<MockClock>> testHLC;
@@ -96,6 +102,26 @@ TEST_F(HLCTest, RaceSameClockTime) {
 
     EXPECT_NE(threadCas, thisCas);
     EXPECT_EQ(1, testHLC->getLogicalClockTicks());
+}
+
+TEST_F(HLCTest, IsValidCas) {
+    // cas is ns
+    auto ts = testHLC->nextHLC();
+
+    auto thresholdNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::microseconds{1000})
+                               .count();
+
+    // CAS of now and past is valid
+    EXPECT_TRUE(testHLC->isValidHLC(ts));
+    EXPECT_TRUE(testHLC->isValidHLC(ts - 1));
+
+    // CAS in slight future is tolerated
+    EXPECT_TRUE(testHLC->isValidHLC(ts + 1));
+
+    // But threshold cannot be exceeded
+    EXPECT_FALSE(testHLC->isValidHLC(ts + thresholdNs));
+    EXPECT_FALSE(testHLC->isValidHLC(std::numeric_limits<uint64_t>::max()));
 }
 
 class HLCBucketTest : public STParameterizedBucketTest {
@@ -365,7 +391,125 @@ TEST_P(HLCBucketTest, setVbState) {
     EXPECT_EQ(poisonedMaxCas + 5, vb->getMaxCas());
 }
 
+class HLCInvalidStraegyTest : public STParameterizedBucketTest {
+public:
+    void SetUp() override {
+        config_string += "hlc_invalid_strategy=error;";
+        SingleThreadedKVBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+};
+
+// This test validates the behaviour of a setWithMeta commands with invalid CAS
+// values when hlc_invalid_strategy is set to error and replace
+TEST_P(HLCInvalidStraegyTest, setWithMetaHLCInvalidStrategyTest) {
+    auto key = makeStoredDocKey("setWithMeta");
+    auto item = make_item(vbid, key, "value");
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+    item.setCas(poisonedCas);
+
+    uint64_t seqno;
+    // setWithMeta will fail due to an invalid CAS value
+    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
+              store->setWithMeta(std::ref(item),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::No,
+                                 true,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
+
+    // set hlc_invalid_strategy to replace
+    config_string += ";hlc_invalid_strategy=replace";
+    // reinitialising will set CAS stats back to 0
+    reinitialise(config_string);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // setWithMeta succeeds by generating a new valid CAS
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setWithMeta(std::ref(item),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::No,
+                                 true,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
+
+    auto rv = engine->get(*cookie, key, vbid, DocStateFilter::Alive);
+    EXPECT_EQ(cb::engine_errc::success, rv.first);
+    EXPECT_LT(rv.second->getCas(), poisonedCas);
+}
+
+// This test validates the behaviour of a deleteWithMeta commands with an
+// invalid CAS value when hlc_invalid_strategy is set to error and replace
+TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
+    // store item to delete
+    auto key = makeStoredDocKey("delete");
+    store_item(vbid, key, "value");
+
+    ItemMetaData meta;
+    uint64_t cas = 0;
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+    meta.cas = poisonedCas;
+    // deleteWithMeta fails with an invalid CAS value
+    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
+              store->deleteWithMeta(key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    meta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr /* extended metadata */,
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
+
+    // set hlc_invalid_strategy to replace
+    config_string += ";hlc_invalid_strategy=replace";
+    // reinitialising will set CAS stats back to 0
+    reinitialise(config_string);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // deleteWithMeta succeeds by generating a new valid CAS
+    EXPECT_EQ(cb::engine_errc::success,
+              store->deleteWithMeta(key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    meta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr /* extended metadata */,
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
+}
+
 INSTANTIATE_TEST_SUITE_P(HLCBucketTests,
                          HLCBucketTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(HLCInvalidStraegyTest,
+                         HLCInvalidStraegyTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

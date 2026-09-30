@@ -237,7 +237,7 @@ public:
             }
         } else if (key == "retain_erroneous_tombstones") {
             bucket.setRetainErroneousTombstones(value);
-        } else  {
+        } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }

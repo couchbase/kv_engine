@@ -206,6 +206,13 @@ public:
                         "Failed to set durability_min_level: " +
                         to_string(res));
             }
+        } else if (key == "hlc_invalid_strategy") {
+            store.setHlcInvalidStrategy(store.parseHlcInvalidStrategy(value));
+        } else if (key == "dcp_hlc_invalid_strategy") {
+            store.setDcpHlcInvalidStrategy(
+                    store.parseHlcInvalidStrategy(value));
+        } else {
+            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
 
@@ -408,6 +415,17 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             cb::durability::to_level(config.getDurabilityMinLevel());
     config.addValueChangedListener(
             "durability_min_level",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setHlcInvalidStrategy(
+            parseHlcInvalidStrategy(config.getHlcInvalidStrategy()));
+    config.addValueChangedListener(
+            "hlc_invalid_strategy",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+    setDcpHlcInvalidStrategy(
+            parseHlcInvalidStrategy(config.getDcpHlcInvalidStrategy()));
+    config.addValueChangedListener(
+            "dcp_hlc_invalid_strategy",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     setMinimumHashTableSize(config.getHtSize());
@@ -1709,7 +1727,22 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
+    }
+
+    // To differentiate between a Replication and a non-replication setWithMeta,
+    // we know that genBySeqno will always be set to no for a replication
+    // stream and yes otherwise.
+    const bool isReplication = genBySeqno == GenerateBySeqno::No;
+    InvalidCasStrategy strategy = getHlcInvalidStrategy(isReplication);
+    if (!vb->isValidCas(itm.getCas())) {
+        ++stats.numInvalidCas;
+        if (strategy == InvalidCasStrategy::Error) {
+            return cb::engine_errc::cas_value_invalid;
+        } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
+            genCas = GenerateCas::Yes;
+        }
     }
 
     {
@@ -1761,7 +1794,22 @@ cb::engine_errc KVBucket::prepare(Item& itm,
 
     // check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
+    }
+
+    // In contrast to setWithMeta/deleteWithMeta, prepare is only called via
+    // DCP and will always be a replication stream.
+    const bool isReplication = true;
+    auto generateCas = GenerateCas::No;
+    InvalidCasStrategy strategy = getHlcInvalidStrategy(isReplication);
+    if (!vb->isValidCas(itm.getCas())) {
+        ++stats.numInvalidCas;
+        if (strategy == InvalidCasStrategy::Error) {
+            return cb::engine_errc::cas_value_invalid;
+        } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
+            generateCas = GenerateCas::Yes;
+        }
     }
 
     cb::engine_errc rv = cb::engine_errc::success;
@@ -1780,7 +1828,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
                              CheckConflicts::No,
                              true /*allowExisting*/,
                              GenerateBySeqno::No,
-                             GenerateCas::No,
+                             generateCas,
                              cHandle,
                              enforceMemCheck);
         }
@@ -2133,7 +2181,22 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itemMeta.cas)) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
+    }
+
+    // To differentiate between a Replication and a non-replication setWithMeta,
+    // we know that genBySeqno will always be set to no for a replication
+    // stream and yes otherwise.
+    const bool isReplication = genBySeqno == GenerateBySeqno::No;
+    InvalidCasStrategy strategy = getHlcInvalidStrategy(isReplication);
+    if (!vb->isValidCas(itemMeta.cas)) {
+        ++stats.numInvalidCas;
+        if (strategy == InvalidCasStrategy::Error) {
+            return cb::engine_errc::cas_value_invalid;
+        } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
+            generateCas = GenerateCas::Yes;
+        }
     }
 
     {
@@ -2827,6 +2890,19 @@ bool KVBucket::isXattrEnabled() const {
 
 void KVBucket::setXattrEnabled(bool value) {
     xattrEnabled = value;
+}
+
+InvalidCasStrategy KVBucket::parseHlcInvalidStrategy(std::string_view strat) {
+    if (strat == "error") {
+        return InvalidCasStrategy::Error;
+    } else if (strat == "ignore") {
+        return InvalidCasStrategy::Ignore;
+    } else if (strat == "replace") {
+        return InvalidCasStrategy::Replace;
+    } else {
+        throw std::invalid_argument(
+                "parseHlcInvalidStrategy: invalid mode specified");
+    }
 }
 
 bool KVBucket::isCrossBucketHtQuotaSharing() const {

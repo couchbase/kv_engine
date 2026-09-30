@@ -307,6 +307,8 @@ void EPStats::reset() {
     numOpsSetRetMeta.reset();
     numOpsDelRetMeta.reset();
     numOpsGetMetaOnSetWithMeta.reset();
+    numInvalidCas.reset();
+    numCasRegenerated.reset();
     alogNumItems.reset();
     alogRuntime.store(0);
     rollbackCount.reset();

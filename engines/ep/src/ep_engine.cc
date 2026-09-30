@@ -1052,6 +1052,14 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
             getConfiguration().setHlcDriftBehindThresholdUs(v);
+        } else if (key == "hlc_max_future_threshold_us") {
+            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
+            checkNumeric(val.c_str());
+            configuration.setHlcMaxFutureThresholdUs(v);
+        } else if (key == "hlc_invalid_strategy") {
+            configuration.setHlcInvalidStrategy(val);
+        } else if (key == "dcp_hlc_invalid_strategy") {
+            configuration.setDcpHlcInvalidStrategy(val);
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
@@ -3489,6 +3497,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       epstats.numOpsGetMetaOnSetWithMeta);
     collector.addStat(Key::ep_workload_pattern,
                       workload->stringOfWorkLoadPattern());
+    collector.addStat(Key::ep_num_invalid_cas, epstats.numInvalidCas);
+    collector.addStat(Key::ep_num_cas_regenerated, epstats.numCasRegenerated);
 
     // these metrics do expose some duplicated information - for the sake
     // of supportability and understandability this is deemed acceptable
