@@ -154,10 +154,8 @@ void PrometheusStatCollector::addClientMetric(
 
     auto [itr, inserted] = metricFamilies.emplace(
             name,
-            prometheus::MetricFamily{name,
-                                     "" /* no help text */,
-                                     metricType,
-                                     {} /* empty client metrics */});
+            prometheus::MetricFamily{
+                    name, key.help, metricType, {} /* empty client metrics */});
     auto& metricFamily = itr->second;
 
     metric.label.reserve(key.labels.size() + additionalLabels.size());

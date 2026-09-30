@@ -188,6 +188,14 @@ TEST_F(PrometheusStatTest, metricType) {
     EXPECT_EQ(::prometheus::MetricType::Counter,
               metrics.low.at("kv_audit_dropped_events").type);
 
+    EXPECT_EQ("Boolean value to indicate if audit is enabled or not",
+              metrics.low.at("kv_audit_enabled").help);
+
+    EXPECT_EQ(
+            "The number of audit events dropped due to errors while trying "
+            "to insert them to the audit trail",
+            metrics.low.at("kv_audit_dropped_events").help);
+
     // and are serialised as expected
 
     ::prometheus::TextSerializer serialiser;
@@ -198,8 +206,11 @@ TEST_F(PrometheusStatTest, metricType) {
 
     // it's a little brittle to expect an exact string value
     // but it's a simple test and will show up any unexpected changes
-    std::string expected = R"(# TYPE kv_audit_enabled gauge
+    std::string expected =
+            R"(# HELP kv_audit_enabled Boolean value to indicate if audit is enabled or not
+# TYPE kv_audit_enabled gauge
 kv_audit_enabled 0
+# HELP kv_audit_dropped_events The number of audit events dropped due to errors while trying to insert them to the audit trail
 # TYPE kv_audit_dropped_events counter
 kv_audit_dropped_events 0
 )";
@@ -218,6 +229,7 @@ TEST_F(PrometheusStatTest, counterGaugeValuesExposed) {
     collector.addStat(StatDef("some_counter",
                               units::none,
                               prometheus::MetricType::Counter,
+                              "stat description.",
                               {/* no labels*/},
                               StatDef::PrometheusOnlyTag{}),
                       12345);
@@ -225,9 +237,15 @@ TEST_F(PrometheusStatTest, counterGaugeValuesExposed) {
     collector.addStat(StatDef("some_gauge",
                               units::none,
                               prometheus::MetricType::Gauge,
+                              "stat description.",
                               {/* no labels */},
                               StatDef::PrometheusOnlyTag{}),
                       54321);
+
+    // check the help text from the stat definition reaches the metric family
+
+    EXPECT_EQ("stat description.", stats.at("some_counter").help);
+    EXPECT_EQ("stat description.", stats.at("some_gauge").help);
 
     // check that each is serialised as expected
 
@@ -237,7 +255,8 @@ TEST_F(PrometheusStatTest, counterGaugeValuesExposed) {
         std::string metricStr =
                 serialiser.Serialize({stats.at("some_counter")});
 
-        std::string expected = R"(# TYPE some_counter counter
+        std::string expected = R"(# HELP some_counter stat description.
+# TYPE some_counter counter
 some_counter 12345
 )";
 
@@ -250,7 +269,8 @@ some_counter 12345
     {
         std::string metricStr = serialiser.Serialize({stats.at("some_gauge")});
 
-        std::string expected = R"(# TYPE some_gauge gauge
+        std::string expected = R"(# HELP some_gauge stat description.
+# TYPE some_gauge gauge
 some_gauge 54321
 )";
 
@@ -354,6 +374,7 @@ static cb::stats::StatDef makeHistogramStatDef(std::string_view name) {
     return {name,
             cb::stats::units::none,
             prometheus::MetricType::Histogram,
+            "",
             {},
             cb::stats::StatDef::PrometheusOnlyTag{}};
 }
