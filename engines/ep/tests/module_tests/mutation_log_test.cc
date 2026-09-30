@@ -212,7 +212,7 @@ TEST_P(MutationLogTest, LoggingBadCRC) {
     uint8_t b;
     EXPECT_EQ(1, read(file, &b, sizeof(b)));
     EXPECT_EQ(5000, lseek(file, 5000, SEEK_SET));
-    b = ~b;
+    b = static_cast<uint8_t>(~b);
     EXPECT_EQ(1, write(file, &b, sizeof(b)));
     close(file);
 
