@@ -107,7 +107,8 @@ FileOpsTracker::ThreadSlot::ThreadSlot()
 
 FileOpsTracker::ThreadSlot::~ThreadSlot() {
     cb::NoArenaGuard guard;
-    std::exchange(threadName, {});
+    // Release the buffer while NoArena is still active
+    std::string().swap(threadName);
 }
 
 FileOpsTracker& FileOpsTracker::instance() {
