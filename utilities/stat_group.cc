@@ -482,6 +482,14 @@ StatsGroupManager::StatsGroupManager()
                .privileged = true,
                .bucket = false,
                .task_id = TaskId::Core_StatsBucketTask},
+              {.id = StatGroupId::StorageFormatVersions,
+               .key = "storage-format-versions",
+               .description =
+                       "Get the disk format versions supported by this node "
+                       "as JSON. Does not require a bucket",
+               .privileged = true,
+               .bucket = false,
+               .task_id = TaskId::Core_StatsBucketTask},
       }) {
 }
 

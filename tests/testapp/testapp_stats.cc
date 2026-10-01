@@ -17,6 +17,7 @@
 #include <platform/timeutils.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <serverless/config.h>
+#include <utilities/magma_support.h>
 #include <utilities/timing_histogram_printer.h>
 #include <algorithm>
 #include <set>
@@ -804,6 +805,46 @@ TEST_P(StatsTest, TestAllocatorStats) {
     EXPECT_NE(std::string::npos, stats.find("--- End jemalloc statistics ---"));
 }
 #endif
+
+/// "storage-format-versions" is a privileged stat group, so an unprivileged
+/// user should not be able to read it.
+TEST_P(StatsTest, UnprivilegedUserCantGetStorageFormatVersions) {
+    const auto rsp = userConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Stat, "storage-format-versions"});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+}
+
+/// Verify that a privileged user may fetch "storage-format-versions", that it
+/// returns parseable JSON containing at least the couchstore entry, and that
+/// the server is still usable afterwards. The stat group is node level, so no
+/// bucket is selected for the request.
+TEST_P(StatsTest, TestStorageFormatVersions) {
+    // The daemon emits this stat with append_stats() rather than via a
+    // cb::stats::Key, so there is no entry for it in stat_definitions.json
+    // and the fixtures stat validator would fail the test.
+    adminConnection->setUserValidateReceivedFrameCallback({});
+
+    auto stats = adminConnection->stats("storage-format-versions");
+    ASSERT_EQ(1, stats.size());
+
+    // the value is a JSON object, already parsed by stats()
+    auto versions = stats["storage-format-versions"];
+    ASSERT_TRUE(versions.is_object()) << versions.dump();
+
+    // couchstore is always built, so its version is always reported
+    ASSERT_TRUE(versions.contains("couchstore")) << versions.dump();
+    EXPECT_GT(versions["couchstore"].get<int>(), 0) << versions.dump();
+
+    if (isMagmaSupportEnabled()) {
+        ASSERT_TRUE(versions.contains("magma")) << versions.dump();
+        EXPECT_GT(versions["magma"].get<int>(), 0) << versions.dump();
+    } else {
+        EXPECT_FALSE(versions.contains("magma")) << versions.dump();
+    }
+
+    // The server should still be alive and serving stats
+    EXPECT_FALSE(adminConnection->stats("").empty());
+}
 
 /**
  * Check the format of the "frequency-counters" histograms.
