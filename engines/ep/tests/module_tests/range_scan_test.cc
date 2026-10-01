@@ -25,6 +25,7 @@
 #include "vbucket.h"
 
 #include <boost/uuid/name_generator.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <folly/portability/GTest.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <programs/engine_testapp/mock_cookie.h>
@@ -44,10 +45,12 @@ public:
     // containers/status needed for validation
     TestRangeScanHandler(std::vector<std::unique_ptr<Item>>& items,
                          std::vector<StoredDocKey>& keys,
-                         std::function<Status(size_t)>& hook)
+                         std::function<Status(size_t)>& hook,
+                         bool frontendThrottle = false)
         : scannedItems(items),
           scannedKeys(keys),
-          testHook(hook) {
+          testHook(hook),
+          frontendThrottle(frontendThrottle) {
     }
 
     Status handleKey(DocKeyView key) override {
@@ -66,6 +69,10 @@ public:
             override {
         // no-op
         return {};
+    }
+
+    bool isThrottledOnFrontendThread(CookieIface&) override {
+        return frontendThrottle;
     }
 
     std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
@@ -102,6 +109,8 @@ public:
     std::vector<StoredDocKey>& scannedKeys;
     std::unordered_set<StoredDocKey> allKeys;
     std::function<Status(size_t)>& testHook;
+    // Return value of isThrottledOnFrontendThread
+    bool frontendThrottle;
 };
 
 class RangeScanTest
@@ -700,6 +709,68 @@ TEST_P(RangeScanCreateAndContinueTest, scan_is_throttled) {
                   0ms,
                   0,
                   expectedKeys.size());
+}
+
+// A continue which yields because the buffer is full and is then found to be
+// throttled on the frontend must end with range_scan_more and be counted in
+// the scan's "throttled" stat.
+TEST_P(RangeScanCreateAndContinueTest, scan_throttled_stat) {
+    // Yield for a full buffer after the first key only, the throttle decision
+    // is then made on the frontend, which always throttles. Only the first
+    // continue reaches that decision.
+    testHook = [](size_t count) {
+        return count == 1 ? TestRangeScanHandler::Status::ExceededBufferLimit
+                          : TestRangeScanHandler::Status::OK;
+    };
+    handler = std::make_unique<TestRangeScanHandler>(
+            scannedItems, scannedKeys, testHook, true /* frontendThrottle */);
+
+    auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
+    auto vb = store->getVBucket(vbid);
+
+    const auto getThrottledStat = [this, uuid]() {
+        std::unordered_map<std::string, std::string> stats;
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->getStats(*cookie,
+                                   "range-scans",
+                                   {},
+                                   [&stats](std::string_view key,
+                                            std::string_view value,
+                                            CookieIface&) {
+                                       stats.emplace(key, value);
+                                   }));
+        const auto key = fmt::format("vb_{}:{}:throttled", vbid.get(), uuid);
+        auto itr = stats.find(key);
+        EXPECT_NE(stats.end(), itr) << "Missing stat " << key;
+        return itr == stats.end() ? std::string{} : itr->second;
+    };
+    EXPECT_EQ("0", getThrottledStat());
+
+    // Continue with no limits, the I/O task yields with success as the
+    // buffer is full
+    cb::rangescan::ContinueParameters params{
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(*cookie, params));
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "RangeScanContinueTask");
+    params.currentStatus = mock_waitfor_cookie(cookie);
+    ASSERT_EQ(cb::engine_errc::success, params.currentStatus);
+
+    // The frontend finds the connection throttled, so the continue ends
+    EXPECT_EQ(cb::engine_errc::range_scan_more,
+              vb->continueRangeScan(*cookie, params));
+    EXPECT_EQ("1", getThrottledStat());
+
+    // The next continue does not fill the buffer, so runs the scan to the end
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_complete);
+
+    auto expectedKeys = getUserKeys();
+    if (isKeyOnly()) {
+        validateKeyScan(expectedKeys);
+    } else {
+        validateItemScan(expectedKeys);
+    }
 }
 
 // Run a >= user scan by setting the keys to user and the end (255)
@@ -1647,6 +1718,10 @@ public:
         return {};
     }
 
+    bool isThrottledOnFrontendThread(CookieIface&) override {
+        return false;
+    }
+
     std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
             override {
         // no-op
@@ -2356,6 +2431,10 @@ public:
             override {
         // no-op
         return {};
+    }
+
+    bool isThrottledOnFrontendThread(CookieIface&) override {
+        return false;
     }
 
     std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()

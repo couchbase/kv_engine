@@ -266,13 +266,14 @@ public:
      * @param addConnectionToThrottleList  If set to true the connection should
      *         be added to the list of connections containing a throttled
      *         command
-     * @param pendingBytes The throttle check will include this value in the
-     *        check, it is not yet added to all metering/throttling variables.
+     * @param pendingUnits The throttle check will include this many units in
+     *        the check, they are not yet added to all metering/throttling
+     *        variables.
      * @return True if the cookie should be throttled
      */
     bool shouldThrottle(Cookie& cookie,
                         bool addConnectionToThrottleList,
-                        size_t pendingBytes);
+                        size_t pendingUnits);
 
     /**
      * Check to see if this DCP connection should be throttled or not

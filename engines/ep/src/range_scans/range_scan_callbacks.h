@@ -79,6 +79,17 @@ public:
 
     /**
      * Frontend executor thread will invoke this method after an IO complete
+     * wakeup for when the I/O task yielded due to the internal buffer being
+     * full. This is the point at which a continue is checked for throttling.
+     *
+     * @param cookie The cookie which is waiting for the range-scan-continue
+     * @return true if the connection is now throttled and the continue must
+     *         stop (range_scan_more) instead of running the I/O task again.
+     */
+    virtual bool isThrottledOnFrontendThread(CookieIface& cookie) = 0;
+
+    /**
+     * Frontend executor thread will invoke this method after an IO complete
      * wakeup. This is for when the I/O task yielded due to a limit being
      * reached. The continue request is now finalised.
      * @return RangeScanContinueResult which will own the buffer of data that
@@ -136,6 +147,8 @@ public:
 
     std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread()
             override;
+
+    bool isThrottledOnFrontendThread(CookieIface& cookie) override;
 
     std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
             override;

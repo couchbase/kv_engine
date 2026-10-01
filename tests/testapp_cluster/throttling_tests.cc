@@ -15,8 +15,15 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/node.h>
+#include <mcbp/codec/range_scan_continue_codec.h>
+#include <memcached/range_scan_id.h>
+#include <platform/base64.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+
+#include <cstring>
+#include <random>
+#include <unordered_set>
 
 class ThrottlingTests : public cb::test::ClusterTest {
 public:
@@ -236,4 +243,108 @@ TEST_F(ThrottlingTests, ThrottleDisabled) {
     // Restore throttle_enabled so subsequent tests are not affected
     cluster->changeConfig(
             [](nlohmann::json& config) { config["throttle_enabled"] = true; });
+}
+// A range-scan-continue with no limits must still be subject to throttling.
+// The scan reads far more than the bucket's hard limit, so the continue must
+// yield (RangeScanMore) once the limit is reached rather than returning the
+// whole range in one go, and the throttle must be visible in num_throttled.
+TEST_F(ThrottlingTests, RangeScanContinueIsThrottled) {
+    const std::string bucketName = "bucket0";
+    auto bucket = cluster->getBucket(bucketName);
+    auto conn = getConnection(bucketName);
+    auto statsConn = getConnection(bucketName);
+    // Mutations must return seqno/vb_uuid for the snapshot requirements
+    conn->setFeature(cb::mcbp::Feature::MUTATION_SEQNO, true);
+
+    // 64 incompressible ~4KiB documents, each costs 1 RU to read, the full
+    // scan costs ~64 RU. Loading costs 256 WU which is below the fixture's
+    // limit of 1000.
+    constexpr size_t numDocs = 64;
+    std::mt19937 gen(0);
+    std::uniform_int_distribution<int> dist('a', 'z');
+    std::unordered_set<std::string> expectedKeys;
+    MutationInfo lastMutation;
+    for (size_t i = 0; i < numDocs; ++i) {
+        Document doc{};
+        doc.info.id = DocKeyView::makeWireEncodedString(
+                CollectionEntry::vegetable, fmt::format("rs{:03}", i));
+        doc.value.resize(4000);
+        for (auto& c : doc.value) {
+            c = char(dist(gen));
+        }
+        lastMutation = conn->mutate(doc, Vbid{0}, MutationType::Set);
+        expectedKeys.emplace(fmt::format("rs{:03}", i));
+    }
+
+    // Let a tick pass so the load's write units are not carried over, then
+    // drop the limits far below the cost of the scan.
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500});
+    bucket->setThrottleLimits(10, 10);
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500});
+    const auto throttledBefore =
+            getThrottlingStats(statsConn, bucketName)["num_throttled"]
+                    .get<size_t>();
+
+    nlohmann::json config = {
+            {"range",
+             {{"start", cb::base64::encode("rs")},
+              {"end", cb::base64::encode("rs\xFF")}}},
+            {"collection",
+             fmt::format("{0:x}", uint32_t(CollectionEntry::vegetable.uid))},
+            {"snapshot_requirements",
+             {{"seqno", lastMutation.seqno},
+              {"vb_uuid", std::to_string(lastMutation.vbucketuuid)},
+              {"timeout_ms", 120000}}}};
+    auto createResp = conn->execute(BinprotRangeScanCreate(Vbid(0), config));
+    ASSERT_EQ(cb::mcbp::Status::Success, createResp.getStatus());
+    cb::rangescan::Id id;
+    ASSERT_EQ(sizeof(id.data), createResp.getDataView().size());
+    std::memcpy(id.data,
+                createResp.getDataView().data(),
+                createResp.getDataView().size());
+
+    std::unordered_set<std::string> seenKeys;
+    // Issue a single continue with no limits and drain all of its frames.
+    // @return the status of the final frame
+    auto continueOnce = [&conn, &id, &seenKeys]() {
+        conn->sendCommand(BinprotRangeScanContinue(Vbid(0), id, 0, 0, 0));
+        BinprotResponse resp;
+        do {
+            conn->recvResponse(resp);
+            if (resp.getDataView().empty() ||
+                !(resp.getStatus() == cb::mcbp::Status::Success ||
+                  resp.getStatus() == cb::mcbp::Status::RangeScanMore ||
+                  resp.getStatus() == cb::mcbp::Status::RangeScanComplete)) {
+                continue;
+            }
+            cb::mcbp::response::RangeScanContinueValuePayload payload(
+                    resp.getDataView());
+            for (auto record = payload.next(); record.key.data();
+                 record = payload.next()) {
+                EXPECT_TRUE(seenKeys.emplace(record.key).second)
+                        << "Duplicate key " << record.key;
+            }
+        } while (resp.getStatus() == cb::mcbp::Status::Success);
+        return resp.getStatus();
+    };
+
+    // The first continue must be cut short by throttling
+    auto status = continueOnce();
+    EXPECT_EQ(cb::mcbp::Status::RangeScanMore, status)
+            << "range-scan-continue read " << seenKeys.size() << " documents (~"
+            << seenKeys.size()
+            << " RU) in a single request with a hard limit of 10 RU/s";
+    EXPECT_LT(seenKeys.size(), numDocs);
+
+    const auto stats = getThrottlingStats(statsConn, bucketName);
+    EXPECT_LT(throttledBefore, stats["num_throttled"].get<size_t>())
+            << "range-scan-continue was never throttled";
+
+    // Drain the rest of the scan, it must still complete with every key
+    for (int ii = 0; ii < 100 && status == cb::mcbp::Status::RangeScanMore;
+         ++ii) {
+        status = continueOnce();
+    }
+    EXPECT_EQ(cb::mcbp::Status::RangeScanComplete, status);
+    EXPECT_EQ(expectedKeys, seenKeys);
 }

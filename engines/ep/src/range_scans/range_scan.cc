@@ -436,6 +436,19 @@ RangeScan::continuePartialOnFrontendThread(CookieIface& client) {
     return handler->continuePartialOnFrontendThread();
 }
 
+bool RangeScan::isThrottledOnFrontendThread(CookieIface& cookie) {
+    if (!handler->isThrottledOnFrontendThread(cookie)) {
+        return false;
+    }
+    ++throttledCount;
+    // The I/O task yielded with success so it retained the item/byte counts
+    // and deadline of this continue. The continue is now ending, so reset
+    // (as getYieldStatusCodeAndReset does for range_scan_more). The I/O task
+    // cannot be running this scan as it is not in the ready queue.
+    continueRunState = {};
+    return true;
+}
+
 std::unique_ptr<RangeScanContinueResult>
 RangeScan::continueMoreOnFrontendThread() {
     return handler->continueMoreOnFrontendThread();
@@ -704,6 +717,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("total_items_from_memory", totalValuesFromMemory);
     addStat("total_items_from_disk", totalValuesFromDisk);
     addStat("continues", continueCount);
+    addStat("throttled", throttledCount);
 
     continueRunState.addStats(std::string_view{prefix.data(), prefix.size()},
                               collector);
