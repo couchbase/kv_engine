@@ -619,14 +619,13 @@ void verify_all_vb_seqnos(EngineIface* h,
             // Get high seqno for the collection in the vBucket
             std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
                                       ":" + cid->to_string() + ":high_seqno");
-            high_seqno_vb = get_ull_stat(
-                    h, vb_stat_seqno.c_str(), "collections-details");
+            high_seqno_vb =
+                    get_ull_stat(h, vb_stat_seqno, "collections-details");
         } else {
             // Get high seqno for the vBucket
             std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
                                       ":high_seqno");
-            high_seqno_vb =
-                    get_ull_stat(h, vb_stat_seqno.c_str(), "vbucket-seqno");
+            high_seqno_vb = get_ull_stat(h, vb_stat_seqno, "vbucket-seqno");
         }
 
         checkeq(high_seqno_vb,

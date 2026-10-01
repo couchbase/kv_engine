@@ -32,5 +32,5 @@ void ConnHandler::addStat(std::string_view nm,
     std::stringstream tap;
     tap << name << ":" << nm;
     std::string n = tap.str();
-    add_casted_stat(n.data(), val, add_stat, c);
+    add_casted_stat(n, val, add_stat, c);
 }

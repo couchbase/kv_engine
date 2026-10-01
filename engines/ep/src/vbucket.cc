@@ -988,7 +988,7 @@ void VBucket::addStat(const char* nm,
     if (nm != nullptr) {
         add_prefixed_stat(statPrefix, nm, val, add_stat, c);
     } else {
-        add_casted_stat(statPrefix.data(), val, add_stat, c);
+        add_casted_stat(statPrefix, val, add_stat, c);
     }
 }
 
