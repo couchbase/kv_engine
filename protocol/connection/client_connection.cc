@@ -2627,11 +2627,12 @@ vbucket_state_t MemcachedConnection::getVbucket(
     return static_cast<vbucket_state_t>(ntohl(ret));
 }
 
-void MemcachedConnection::waitForSeqnoToPersist(Vbid vbid, uint64_t seqno) {
+void MemcachedConnection::waitForSeqnoToPersist(
+        Vbid vbid, uint64_t seqno, std::chrono::milliseconds readTimeout) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::SeqnoPersistence);
     command.setVBucket(vbid);
     command.setExtrasValue(htonll(seqno));
-    auto rsp = execute(command);
+    auto rsp = execute(command, readTimeout);
 
     if (!rsp.isSuccess()) {
         throw ConnectionError(fmt::format("waitForSeqnoToPersist: Faled to "
