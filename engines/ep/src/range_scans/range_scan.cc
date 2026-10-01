@@ -608,9 +608,6 @@ void RangeScan::handleKey(DocKeyView key) {
     case RangeScanDataHandler::Status::ExceededBufferLimit:
         continueRunState.setExceededBufferLimit();
         break;
-    case RangeScanDataHandler::Status::Throttle:
-        continueRunState.setThrottled();
-        break;
     }
 }
 
@@ -635,9 +632,6 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
         break;
     case RangeScanDataHandler::Status::ExceededBufferLimit:
         continueRunState.setExceededBufferLimit();
-        break;
-    case RangeScanDataHandler::Status::Throttle:
-        continueRunState.setThrottled();
         break;
     }
 }
@@ -896,7 +890,7 @@ void RangeScan::ContinueRunState::setup(const ContinueState& cs) {
 
 cb::engine_errc RangeScan::ContinueRunState::getYieldStatusCodeAndReset() {
     if (isItemLimitExceeded() || isTimeLimitExceeded() ||
-        isByteLimitExceeded() || isThrottled()) {
+        isByteLimitExceeded()) {
         // This first case is for yield which must not automatically continue.
         // Only the client can continue this scan. Signal this case using
         // range_scan_more. The worker thread will send any remaining scanned
@@ -929,14 +923,6 @@ void RangeScan::ContinueRunState::setExceededBufferLimit() {
     exceededBufferLimit = true;
 }
 
-bool RangeScan::ContinueRunState::isThrottled() const {
-    return limitByThrottle;
-}
-
-void RangeScan::ContinueRunState::setThrottled() {
-    limitByThrottle = true;
-}
-
 void RangeScan::ContinueRunState::accountForItem(size_t size) {
     ++itemCount;
     byteCount += size;
@@ -944,7 +930,7 @@ void RangeScan::ContinueRunState::accountForItem(size_t size) {
 
 bool RangeScan::ContinueRunState::shouldScanYield() const {
     return isItemLimitExceeded() || isTimeLimitExceeded() ||
-           isByteLimitExceeded() || isThrottled() || hasExceededBufferLimit();
+           isByteLimitExceeded() || hasExceededBufferLimit();
 }
 
 bool RangeScan::ContinueRunState::isItemLimitExceeded() const {
@@ -995,18 +981,16 @@ void RangeScan::ContinueRunState::addStats(
     addStat("crs_deadline",
             fmt::format("{}", limits.scanContinueDeadline.time_since_epoch()));
     addStat("crs_exceeded_buffer", exceededBufferLimit);
-    addStat("crs_throttled", limitByThrottle);
 }
 
 std::string RangeScan::ContinueRunState::to_string() const {
     return fmt::format(
-            "{}, itemCount:{}, byteCount:{}, snappy:{}, limitByThrottle:{}, "
+            "{}, itemCount:{}, byteCount:{}, snappy:{}, "
             "exceededBufferLimit:{}, cancelStatus:{}, manifestUid:{}",
             limits,
             itemCount,
             byteCount,
             snappyEnabled,
-            limitByThrottle,
             exceededBufferLimit,
             cancelledStatus,
             manifestUid);

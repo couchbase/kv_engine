@@ -610,12 +610,6 @@ protected:
         /// set exceeded buffer limit flag to true
         void setExceededBufferLimit();
 
-        /// @return the value of the throttle flag
-        bool isThrottled() const;
-
-        /// set the limitByThrottle flag to true
-        void setThrottled();
-
         /// Update counters for an "item" of the given size
         void accountForItem(size_t size);
 
@@ -688,8 +682,6 @@ protected:
         size_t itemCount{0};
         /// byte count for the continuation of this scan
         size_t byteCount{0};
-        /// Set when the data handler returns Status::Throttle
-        bool limitByThrottle{false};
         /// The continue must just yield (must allow frontend to send)
         bool exceededBufferLimit{false};
         /// If the continue is cancelled the reason is set here.

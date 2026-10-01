@@ -696,21 +696,6 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_evicted) {
                   expectedKeys.size() / 2);
 }
 
-TEST_P(RangeScanCreateAndContinueTest, scan_is_throttled) {
-    testHook = [](size_t) { return TestRangeScanHandler::Status::Throttle; };
-    // Scan with no continue limits, but the scan will yield for every key
-    // as the testHook returns true meaning "throttle"
-    auto expectedKeys = getUserKeys();
-    testRangeScan(expectedKeys,
-                  scanCollection,
-                  {"user"},
-                  {"user\xFF"},
-                  0,
-                  0ms,
-                  0,
-                  expectedKeys.size());
-}
-
 // A continue which yields because the buffer is full and is then found to be
 // throttled on the frontend must end with range_scan_more and be counted in
 // the scan's "throttled" stat.
