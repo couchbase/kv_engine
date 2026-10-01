@@ -17,6 +17,7 @@
 #include "collections/events_generated.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
@@ -47,11 +48,13 @@
 #include "tests/module_tests/dcp_utils.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "tests/module_tests/thread_gate.h"
 #include "tests/module_tests/vbucket_utils.h"
 #include <engines/ep/src/collections/collections_types.h>
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
 #include <platform/compress.h>
 #include <utilities/test_manifest.h>
+#include <atomic>
 #include <functional>
 #include <thread>
 
@@ -5907,6 +5910,56 @@ TEST_P(CollectionsDcpParameterizedTest, MB_66959) {
                        collection.size()},
                       {reinterpret_cast<const uint8_t*>(&createEventDcpData),
                        Collections::CreateEventDcpData::size}));
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       FilterStatsConsistentWithCollectionDrop) {
+    CollectionsManifest cm;
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
+    producer->closeAllStreams();
+    auto stream =
+            producer->mockActiveStreamRequest(0 /*flags*/,
+                                              1 /*opaque*/,
+                                              *store->getVBucket(vbid),
+                                              0 /*st_seqno*/,
+                                              ~0ull /*en_seqno*/,
+                                              0 /*vb_uuid*/,
+                                              0 /*snap_start_seqno*/,
+                                              ~0ull /*snap_end_seqno*/,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeletedUserXattrs::No,
+                                              R"({"collections":["8","c"]})");
+    ASSERT_TRUE(stream);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.remove(CollectionEntry::meat)));
+
+    // queue the stream in the checkpoint processor task, which erases meat from
+    // the filter when it processes the DeleteCollection event
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
+
+    ThreadGate gate(2);
+    std::atomic<bool> dropped{false};
+    std::thread statsThread([&] {
+        gate.threadUp();
+        do {
+            stream->addStats([](std::string_view, std::string_view, auto&) {},
+                             *cookieP);
+        } while (!dropped);
+    });
+    std::thread checkpointThread([&] {
+        gate.threadUp();
+        producer->getCheckpointSnapshotTask()->run();
+        dropped = true;
+    });
+    statsThread.join();
+    checkpointThread.join();
+
+    EXPECT_EQ(1, stream->getFilter().size());
 }
 
 // Test cases which run for persistent and ephemeral buckets
