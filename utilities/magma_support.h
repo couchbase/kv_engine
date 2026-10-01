@@ -18,6 +18,7 @@
  */
 #ifdef HAVE_MAGMA_SUPPORT
 #include <libmagma/magma.h>
+#include <libmagma/storage_format_version.h>
 #else
 #include <nlohmann/json.hpp>
 #include <spdlog/logger.h>
@@ -129,6 +130,14 @@ public:
         return false;
     }
 };
+
+inline nlohmann::json GetStorageFormatVersionJSON() {
+    return nlohmann::json::object();
+}
+
+inline nlohmann::json GetFusionStorageFormatVersionJSON() {
+    return nlohmann::json::object();
+}
 } // namespace magma
 #endif
 

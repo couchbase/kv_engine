@@ -146,6 +146,7 @@ target_link_libraries(memcached_daemon_mcbp
         PRIVATE
         memcached_daemon_protocol_utils
         Folly::folly
+        couchstore_static
         magma_support
         hdrhistogram
         cblogger

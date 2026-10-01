@@ -982,6 +982,11 @@ def stats_diskfailures(mc):
     stats_formatter(stats_perform(mc, "disk-failures"))
 
 
+@cmd(needs_bucket=False)
+def stats_storage_format_versions(mc):
+    stats_formatter(stats_perform(mc, 'storage-format-versions'))
+
+
 @cmd
 def stats_eviction(mc):
     if output_json:
@@ -1163,6 +1168,10 @@ def main():
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
     c.addCommand('fusion', stats_fusion, 'fusion subcmd [detail | vbid]')
     c.addCommand('disk-failures', stats_diskfailures, 'disk-failures')
+    c.addCommand(
+        'storage-format-versions',
+        stats_storage_format_versions,
+        'storage-format-versions')
     c.addCommand(
         'durability-monitor',
         stats_durability_monitor,

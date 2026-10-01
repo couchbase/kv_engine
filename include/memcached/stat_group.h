@@ -98,6 +98,10 @@ enum class StatGroupId {
     // Daemon settings
     Settings,
 
+    // Disk format versions supported by this node. Node level (no bucket
+    // required) so that ns_server may query it before creating a bucket.
+    StorageFormatVersions,
+
     enum_max
 };
 
