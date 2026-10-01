@@ -1040,6 +1040,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
     if (rejectResp) {
         resp = std::move(rejectResp);
     } else {
+        processPendingSetVBucketStateAcks();
         resp = getNextItem();
         if (!resp) {
             return cb::engine_errc::would_block;
@@ -1736,12 +1737,13 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         auto stream = find_if2(streamFindFn);
         if (stream) {
             // But only expect these responses for ActiveStream
-            auto* as = dynamic_cast<ActiveStream*>(stream.get());
+            auto as = std::dynamic_pointer_cast<ActiveStream>(stream);
             if (!as) {
                 return errorMessageHandler();
             }
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
-                as->setVBucketStateAckRecieved(*this);
+                // MB-74034: processed in step()
+                pendingSetVBucketStateAcks.lock()->push_back(std::move(as));
             } else {
                 as->snapshotMarkerAckReceived();
             }
@@ -2247,6 +2249,7 @@ void DcpProducer::closeAllStreams() {
     closeAllStreamsPostLockHook();
 
     lastReceiveTime = ep_uptime_now();
+    pendingSetVBucketStateAcks.lock()->clear();
     std::vector<Vbid> vbvector;
     {
         std::ranges::for_each(
@@ -2295,6 +2298,18 @@ void DcpProducer::closeAllStreams() {
 
 const char* DcpProducer::getType() const {
     return "producer";
+}
+
+void DcpProducer::processPendingSetVBucketStateAcks() {
+    std::vector<std::shared_ptr<ActiveStream>> acks;
+    pendingSetVBucketStateAcks.swap(acks);
+    for (const auto& stream : acks) {
+        // We are in step() and getNextItem() follows. Queue the vbucket now so
+        // that the notifications made whilst processing the ack find it
+        // already queued and do not schedule a pointless notifyIOComplete.
+        ready.pushUnique(stream->getVBucket());
+        stream->setVBucketStateAckRecieved(*this);
+    }
 }
 
 std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {

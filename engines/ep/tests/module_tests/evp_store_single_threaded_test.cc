@@ -4353,15 +4353,19 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     message.setOpaque(1);
     EXPECT_TRUE(producer->handleResponse(message));
 
-    // Producer has received a SetVBStateAck and it has queued a
-    // SetVBState(dead) in checkpoint. We need another StreamTask run to unblock
-    // the connection.
+    // MB-74034: The ack is processed at the next step(), which sets the
+    // vbucket dead and so queues a SetVBState(dead) in checkpoint. We need a
+    // StreamTask run to unblock the connection.
     runCheckpointProcessor(*producer, producers);
 
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
+    // Again the ack is processed at the next step(), which ends the stream
     EXPECT_TRUE(producer->handleResponse(message));
+    EXPECT_TRUE(vb0Stream->isActive());
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
     EXPECT_FALSE(vb0Stream->isActive());
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();

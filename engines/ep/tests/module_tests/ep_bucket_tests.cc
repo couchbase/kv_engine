@@ -614,6 +614,86 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     EXPECT_FALSE(vb->isTakeoverBackedUp());
 }
 
+// MB-74034: A takeover SetVBucketState ack is processed in step(), right
+// before the stream is drained, rather than when received. Processing the ack
+// sets the active vbucket dead, any mutation accepted in between must be sent
+// before SetVBucketState(active).
+TEST_F(SingleThreadedEPBucketTest, MB_74034_TakeoverAckProcessedAtStep) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    store_item(vbid, makeStoredDocKey("k1"), "v1");
+
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-74034", cb::mcbp::DcpOpenFlag::None);
+    producer->createCheckpointProcessorTask();
+    MockDcpMessageProducers producers;
+
+    // In-memory takeover from the current high-seqno
+    const uint32_t opaque = 1;
+    auto stream =
+            producer->addMockActiveStream(cb::mcbp::DcpAddStreamFlag::TakeOver,
+                                          opaque,
+                                          *vb,
+                                          vb->getHighSeqno(), // start_seqno
+                                          ~0ULL, // end_seqno
+                                          vb->failovers->getLatestUUID(),
+                                          vb->getHighSeqno(), // snap_start
+                                          vb->getHighSeqno()); // snap_end
+    ASSERT_TRUE(stream->isTakeoverSend());
+
+    // Nothing to send, the stream tells the peer to go pending
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
+    EXPECT_EQ(vbucket_state_pending, producers.last_vbucket_state);
+    ASSERT_TRUE(stream->isTakeoverWait());
+
+    cb::mcbp::Response ack{};
+    ack.setMagic(cb::mcbp::Magic::ClientResponse);
+    ack.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    ack.setOpaque(opaque);
+
+    // The peer acks, nothing changes until step()
+    EXPECT_TRUE(producer->handleResponse(ack));
+    EXPECT_TRUE(stream->isTakeoverWait());
+    EXPECT_EQ(vbucket_state_active, vb->getState());
+
+    // Still active, so a mutation is accepted
+    store_item(vbid, makeStoredDocKey("k2"), "v2");
+
+    // step() processes the ack (vbucket dead) then steps the stream, which
+    // has items in the checkpoint to process so nothing is sent yet
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+    EXPECT_TRUE(stream->isTakeoverSend());
+    EXPECT_EQ(vbucket_state_dead, vb->getState());
+    store_item(vbid,
+               makeStoredDocKey("k3"),
+               "v3",
+               0,
+               {cb::engine_errc::not_my_vbucket});
+
+    // k2 is sent before the peer is told to go active
+    producer->getCheckpointSnapshotTask()->run();
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ("k2", producers.last_key);
+    stream->snapshotMarkerAckReceived();
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
+    EXPECT_EQ(vbucket_state_active, producers.last_vbucket_state);
+    ASSERT_TRUE(stream->isTakeoverWait());
+
+    // Final ack, again processed at step() which then sends the stream end
+    EXPECT_TRUE(producer->handleResponse(ack));
+    EXPECT_TRUE(stream->isTakeoverWait());
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    EXPECT_FALSE(stream->isActive());
+}
+
 // Verify that handleResponse against an unknown stream returns true, MB-32724
 // demonstrated a case where false will cause a failure.
 TEST_F(SingleThreadedEPBucketTest, MB_32724) {

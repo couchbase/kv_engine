@@ -30,6 +30,7 @@ class BackfillManager;
 class CheckpointCursor;
 class DcpResponse;
 class MutationResponse;
+class ActiveStream;
 class ProducerStream;
 class VBucket;
 namespace Collections::VB {
@@ -781,6 +782,19 @@ protected:
     std::unique_ptr<BackfillManager> backfillManager;
 
     VBReadyQueue ready;
+
+    /// Process the acks in pendingSetVBucketStateAcks
+    void processPendingSetVBucketStateAcks();
+
+    /**
+     * MB-74034: Takeover SetVBucketState acks are not processed when received
+     * (handleResponse) but in step(), immediately before the streams are
+     * stepped. Processing the ack sets the active vbucket dead, so delaying it
+     * until we are about to drain the stream minimises the time the vbucket
+     * is dead before the peer is set active.
+     */
+    folly::Synchronized<std::vector<std::shared_ptr<ActiveStream>>, std::mutex>
+            pendingSetVBucketStateAcks;
 
     /**
      * folly::AtomicHashArray of uint16_t (Vbid underlying type) to
