@@ -338,8 +338,7 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
             }
 
             bool canSetViaConfigurationParameter =
-                    engine->setConfigurationParameter(
-                            std::string(key), value, msg) ==
+                    engine->setConfigurationParameter(key, value, msg) ==
                     cb::engine_errc::success;
             if (!canSetViaConfigurationParameter) {
                 // Any parameter settable via the above param methods

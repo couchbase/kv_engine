@@ -229,7 +229,7 @@ void StatsTaskClientConnectionDetails::getStats(
             FrontEndThread::getClientConnectionDetails();
     const auto now = std::chrono::steady_clock::now();
     for (const auto& [ip, entry] : clientConnectionMap) {
-        add_stat_callback(std::string(ip), entry.to_json(now).dump(), cookie);
+        add_stat_callback(ip, entry.to_json(now).dump(), cookie);
     }
 }
 

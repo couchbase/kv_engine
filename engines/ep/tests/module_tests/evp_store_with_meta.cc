@@ -803,7 +803,7 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
                                 0 /*opaque*/,
                                 0 /*cas*/,
                                 itemMeta,
-                                std::string("key"),
+                                "key",
                                 std::string(item->getData(), item->getNBytes()),
                                 {},
                                 SKIP_CONFLICT_RESOLUTION_FLAG);
