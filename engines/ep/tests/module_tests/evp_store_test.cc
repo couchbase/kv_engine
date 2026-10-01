@@ -4052,6 +4052,56 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     EXPECT_EQ(1, stats.totalDeduplicatedFlusher);
 }
 
+// Create and drop of the same collection (same key) received by a replica in
+// two snapshots and flushed in one batch must both be persisted.
+TEST_P(EPBucketCDCTest, ReplicaSystemEventsNotFlusherDeduped) {
+    const Vbid replicaVbid{1};
+    setVBucketStateAndRunPersistTask(replicaVbid, vbucket_state_replica);
+    auto replica = store->getVBucket(replicaVbid);
+    ASSERT_TRUE(replica);
+    auto& manager = *replica->checkpointManager;
+
+    const auto collection = CollectionEntry::historical;
+
+    // Snapshot {1,1}: create the collection. The snapshots are historical, as
+    // an active with history retention enabled would send them.
+    manager.createSnapshot(
+            1, 1, 0, {}, CheckpointType::Memory, 1, CheckpointHistorical::Yes);
+    replica->replicaBeginCollection(Collections::ManifestUid(1),
+                                    {ScopeID::Default, collection},
+                                    collection.name,
+                                    {},
+                                    Collections::Metered::No,
+                                    CanDeduplicate::No,
+                                    Collections::ManifestUid{},
+                                    1);
+
+    // Snapshot {2,2}: drop the collection
+    manager.createSnapshot(
+            2, 2, 0, {}, CheckpointType::Memory, 2, CheckpointHistorical::Yes);
+    replica->replicaDropCollection(
+            Collections::ManifestUid(2), collection, false, 2);
+
+    EXPECT_EQ(2, replica->getHighSeqno());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+
+    // Preconditions before flushing
+    constexpr auto statName = "magma_NSets";
+    size_t nSetsBefore = 0;
+    const auto& underlying = *store->getRWUnderlying(replicaVbid);
+    ASSERT_TRUE(underlying.getStat(statName, nSetsBefore));
+    const auto& stats = engine->getEpStats();
+    const auto dedupedBefore = stats.totalDeduplicatedFlusher.load();
+
+    // Test: both system events persisted, nothing deduplicated
+    flush_vbucket_to_disk(replicaVbid, 2);
+    size_t nSetsAfter = 0;
+    ASSERT_TRUE(underlying.getStat(statName, nSetsAfter));
+    EXPECT_EQ(nSetsBefore + 2, nSetsAfter);
+    EXPECT_EQ(dedupedBefore, stats.totalDeduplicatedFlusher);
+    EXPECT_FALSE(replica->lockCollections().exists(collection));
+}
+
 TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;

@@ -344,20 +344,48 @@ public:
         return lastSeqno;
     }
 
+    /**
+     * Collect the system events from the vbucket's checkpoint(s). The
+     * checkpoint_start items are also collected so that the replica can be
+     * given a snapshot per checkpoint, as replication would.
+     */
     static void getEventsFromCheckpoint(VBucket& vb,
                                         std::vector<queued_item>& events) {
         std::vector<queued_item> items;
         vb.checkpointManager->getNextItemsForPersistence(items);
+        size_t systemEvents = 0;
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {
+                events.push_back(qi);
+                ++systemEvents;
+            } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 events.push_back(qi);
             }
         }
 
-        if (events.empty()) {
+        if (systemEvents == 0) {
             throw std::logic_error("getEventsFromCheckpoint: no events in " +
                                    vb.getId().to_string());
         }
+    }
+
+    /**
+     * Each active checkpoint is replicated as its own snapshot. Create that
+     * snapshot on the replica, spanning the events from index until the next
+     * checkpoint_start (or the end of events).
+     */
+    void createReplicaSnapshot(const std::vector<queued_item>& events,
+                               size_t index) {
+        const auto start = uint64_t(events[index]->getBySeqno());
+        auto end = start;
+        for (auto ii = index;
+             ii < events.size() &&
+             events[ii]->getOperation() != queue_op::checkpoint_start;
+             ++ii) {
+            end = uint64_t(events[ii]->getBySeqno());
+        }
+        vbR->checkpointManager->createSnapshot(
+                start, end, 0, {}, CheckpointType::Memory, end);
     }
 
     /**
@@ -373,7 +401,17 @@ public:
      */
     void applyCheckpointEventsToReplica(
             const std::vector<queued_item>& events) {
-        for (const auto& qi : events) {
+        bool newCheckpoint = true;
+        for (size_t index = 0; index < events.size(); ++index) {
+            const auto& qi = events[index];
+            if (qi->getOperation() == queue_op::checkpoint_start) {
+                newCheckpoint = true;
+                continue;
+            }
+            if (newCheckpoint) {
+                createReplicaSnapshot(events, index);
+                newCheckpoint = false;
+            }
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
                 switch (SystemEvent(qi->getFlags())) {
@@ -443,7 +481,17 @@ public:
     // Read back the value using FlatBuffers data
     void applyCheckpointFlatBuffersEventsToReplica(
             const std::vector<queued_item>& events) {
-        for (const auto& qi : events) {
+        bool newCheckpoint = true;
+        for (size_t index = 0; index < events.size(); ++index) {
+            const auto& qi = events[index];
+            if (qi->getOperation() == queue_op::checkpoint_start) {
+                newCheckpoint = true;
+                continue;
+            }
+            if (newCheckpoint) {
+                createReplicaSnapshot(events, index);
+                newCheckpoint = false;
+            }
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
                 switch (SystemEvent(qi->getFlags())) {

@@ -92,7 +92,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
               consumer->snapshotMarker(/*opaque*/ 2,
                                        vbid,
                                        /*start_seqno*/ 0,
-                                       /*end_seqno*/ 100,
+                                       /*end_seqno*/ 3,
                                        /*flags*/ {},
                                        /*HCS*/ {},
                                        /*HPS*/ {},
@@ -155,7 +155,20 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     EXPECT_EQ(3, vb->lockCollections().getHighSeqno(CollectionEntry::meat));
 
     // Call the consumer function for handling DCP events
-    // delete the meat collection
+    // delete the meat collection. An active never queues the create and drop
+    // of a collection in one checkpoint (the events share a key and are not
+    // deduplicated), and each checkpoint is replicated as its own snapshot,
+    // so the drop arrives in a new snapshot.
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(/*opaque*/ 2,
+                                       vbid,
+                                       /*start_seqno*/ 4,
+                                       /*end_seqno*/ 4,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
+                                       /*HCS*/ {},
+                                       /*HPS*/ {},
+                                       /*maxVisibleSeqno*/ {},
+                                       /*purgeSeqno*/ {}));
     EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(
                       /*opaque*/ 2,

@@ -1119,14 +1119,8 @@ uint64_t EPVBucket::addSystemEventItem(
     // Additionally using CanDeduplicate::No allows for more efficient
     // checkpoint usage. Instead of force creating a new checkpoint for
     // every system event, we now would create a new checkpoint when a
-    // create/modify/delete occur in the same CP.
-    //
-    // Note: Only do this for active vbuckets (otherwise an assert can occur).
-    // A replica vbucket will have checkpoints correctly separated by
-    // replication of snapshot markers.
-    if (getState() == vbucket_state_active) {
-        qi->setCanDeduplicate(CanDeduplicate::No);
-    }
+    // create/modify/delete occur in the same CP (and state is active).
+    qi->setCanDeduplicate(CanDeduplicate::No);
 
     checkpointManager->queueDirty(
             qi,

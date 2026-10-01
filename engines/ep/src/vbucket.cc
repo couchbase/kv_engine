@@ -1348,7 +1348,7 @@ void VBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
 }
 
 VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
-    if (item->isSystemEvent() && state == vbucket_state_active) {
+    if (item->isSystemEvent()) {
         // MB-65281; Disable deduplication for all system events.
         // This check and set is required here for ephemeral vbuckets which
         // end up here for queueing system events, unlike EP buckets that
