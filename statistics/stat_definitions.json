@@ -2947,7 +2947,7 @@
     {
         "family": "subdoc_ops",
         "unit": "none",
-        "description": "The number of subdoc operations"
+        "description": "The number of subdoc operations which executed their path specs. Includes operations which failed with a path-level error (e.g. SubdocPathEnoent, SubdocPathE2big, SubdocMultiPathFailure). Excludes operations which failed before execution (e.g. KeyEnoent, Locked, NotMyVbucket) and mutations which failed to store the result (e.g. E2big when the resulting document exceeds the maximum item size, CAS mismatch, durability failures)"
     },
     {
         "key": "cmd_subdoc_lookup",
