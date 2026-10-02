@@ -244,6 +244,7 @@ TEST_F(ThrottlingTests, ThrottleDisabled) {
     cluster->changeConfig(
             [](nlohmann::json& config) { config["throttle_enabled"] = true; });
 }
+
 // A range-scan-continue with no limits must still be subject to throttling.
 // The scan reads far more than the bucket's hard limit, so the continue must
 // yield (RangeScanMore) once the limit is reached rather than returning the
@@ -347,4 +348,31 @@ TEST_F(ThrottlingTests, RangeScanContinueIsThrottled) {
     }
     EXPECT_EQ(cb::mcbp::Status::RangeScanComplete, status);
     EXPECT_EQ(expectedKeys, seenKeys);
+}
+
+TEST_F(ThrottlingTests, SetParamRejectsInvalidThrottleValue) {
+    using cb::mcbp::request::SetParamPayload;
+    auto bucket = cluster->getBucket("bucket0");
+    bucket->setThrottleLimits(1000, 2000);
+
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket0");
+
+    auto getLimits = [&conn]() {
+        auto stats = conn->stats("config");
+        return std::make_pair(stats["ep_throttle_reserved"].get<size_t>(),
+                              stats["ep_throttle_hard_limit"].get<size_t>());
+    };
+
+    for (const auto& key : {"throttle_reserved", "throttle_hard_limit"}) {
+        for (const auto& value : {"abc", "unlimited", "12abc"}) {
+            auto rsp = conn->execute(BinprotSetParamCommand(
+                    SetParamPayload::Type::Config, key, value));
+            EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
+                    << key << "=" << value << ": " << rsp.getDataView();
+            EXPECT_EQ(std::make_pair(size_t{1000}, size_t{2000}), getLimits())
+                    << key << "=" << value << " must not change the limits";
+        }
+    }
 }
