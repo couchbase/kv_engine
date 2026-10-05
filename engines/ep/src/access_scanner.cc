@@ -189,6 +189,17 @@ void ItemAccessVisitor::complete() {
         remove(next.c_str());
         return;
     }
+
+    // The content of the new access log was synced as part of closing the
+    // file, but the rename needs a sync of the directory to be durable.
+    try {
+        cb::io::fsyncDirectory(std::filesystem::path(name).parent_path());
+    } catch (const std::exception& e) {
+        EP_LOG_WARN("Failed to sync access log directory for '{}': {}",
+                    name,
+                    e.what());
+    }
+
     EP_LOG_INFO(
             "New access log file '{}' created with "
             "{} keys",

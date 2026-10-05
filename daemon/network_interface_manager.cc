@@ -191,34 +191,19 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
             }
         }
 
-        std::string tempname;
-        tempname.assign(filename);
-        tempname.append(".lck");
-
-        FILE* file = fopen(tempname.c_str(), "a");
-        if (file == nullptr) {
-            LOG_CRITICAL(R"(Failed to open "{}": {})", tempname, cb_strerror());
+        try {
+            cb::io::saveFileAtomic(filename, json.dump() + "\n");
+        } catch (const std::exception& e) {
+            LOG_CRITICAL(R"(Failed to save port number file "{}": {})",
+                         filename,
+                         e.what());
             if (terminate) {
                 exit(EXIT_FAILURE);
             }
             return;
         }
 
-        fprintf(file, "%s\n", json.dump().c_str());
-        fclose(file);
-        std::filesystem::remove(filename);
-
         LOG_INFO("Port numbers available in {}", filename);
-        if (rename(tempname.c_str(), filename.c_str()) == -1) {
-            LOG_CRITICAL(R"(Failed to rename "{}" to "{}": {})",
-                         tempname,
-                         filename,
-                         cb_strerror());
-            if (terminate) {
-                exit(EXIT_FAILURE);
-            }
-            std::filesystem::remove(tempname);
-        }
     }
 }
 

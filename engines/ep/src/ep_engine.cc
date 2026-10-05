@@ -2122,36 +2122,14 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
             return;
         }
 
-        auto* file = fopen(shardFilePath.string().c_str(), "w");
-        if (!file) {
-            throw std::runtime_error(
-                    "EventuallyPersistentEngine::maybeSaveShardCount: Could "
-                    "not load magma shard file");
-        }
-
         auto shardStr = std::to_string(workloadPolicy.getNumShards());
-
-        auto count = fwrite(shardStr.data(), shardStr.size(), 1, file);
-        if (!count) {
+        try {
+            cb::io::saveFileAtomic(shardFilePath, shardStr);
+        } catch (const std::exception& e) {
             throw std::runtime_error(
-                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
-                    "writing shard count to file");
-        }
-
-        auto ret = fflush(file);
-        if (ret != 0) {
-            throw std::runtime_error(
-                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
-                    "flushing shard file: " +
-                    std::to_string(ret));
-        }
-
-        ret = fclose(file);
-        if (ret != 0) {
-            throw std::runtime_error(
-                    "EventuallyPersistentEngine::maybeSaveShardCount: Error "
-                    "closing shard file: " +
-                    std::to_string(ret));
+                    "EventuallyPersistentEngine::maybeSaveShardCount: Failed "
+                    "to save shard file: " +
+                    std::string(e.what()));
         }
 
         Ensures(std::filesystem::exists(shardFilePath));

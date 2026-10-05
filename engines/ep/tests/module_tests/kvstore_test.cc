@@ -319,6 +319,30 @@ TEST_P(KVStoreParamTest, BasicTest) {
     checkGetValue(gv, cb::engine_errc::success);
 }
 
+// Test that snapshotStats replaces stats.json without leaving any temporary
+// files behind, that the content may be read back and that the
+// stats.json.old file created by older versions is removed.
+TEST_P(KVStoreParamTest, SnapshotStats) {
+    const auto dataDir =
+            std::filesystem::current_path() / kvstore->getConfig().getDBName();
+    std::ofstream(dataDir / "stats.json.old").close();
+    ASSERT_TRUE(std::filesystem::exists(dataDir / "stats.json.old"));
+    for (const auto& value : {"first", "second"}) {
+        nlohmann::json stats = {{"ep_force_shutdown", value}};
+        ASSERT_TRUE(kvstore->snapshotStats(stats));
+        EXPECT_EQ(stats, kvstore->getPersistedStats());
+
+        std::vector<std::string> files;
+        for (const auto& entry : std::filesystem::directory_iterator(dataDir)) {
+            const auto name = entry.path().filename().string();
+            if (name.find("stats.json") != std::string::npos) {
+                files.push_back(name);
+            }
+        }
+        EXPECT_EQ(std::vector<std::string>{"stats.json"}, files);
+    }
+}
+
 // Test different modes of get()
 TEST_P(KVStoreParamTest, GetModes) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
