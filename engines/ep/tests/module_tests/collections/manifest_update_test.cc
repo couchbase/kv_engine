@@ -14,6 +14,7 @@
  */
 
 #include "collections/manager.h"
+#include "collections/persist_manifest_task.h"
 #include "collections/shared_metadata_table.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -64,6 +65,31 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
 
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
               mock_waitfor_cookie(cookie));
+}
+
+// The manifest should be stored under its final name with no temporary files
+// left behind, and it should be possible to load it back.
+TEST_P(CollectionsManifestUpdatePersistent, persist_manifest) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+
+    const std::filesystem::path dbname = engine->getConfiguration().getDbname();
+    std::vector<std::string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(dbname)) {
+        const auto name = entry.path().filename().string();
+        if (name.find(Collections::ManifestFileName) != std::string::npos) {
+            files.push_back(name);
+        }
+    }
+    EXPECT_EQ(std::vector<std::string>{std::string(
+                      Collections::ManifestFileName)},
+              files);
+
+    auto manifest =
+            Collections::PersistManifestTask::tryAndLoad(dbname.string());
+    ASSERT_TRUE(manifest.has_value());
+    EXPECT_EQ(cm.getUid(), manifest->getUid());
 }
 
 TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {

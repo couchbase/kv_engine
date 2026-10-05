@@ -23,8 +23,6 @@
 #include <platform/crc32c.h>
 #include <platform/dirutils.h>
 
-#include <fstream>
-
 namespace Collections {
 
 PersistManifestTask::PersistManifestTask(EPBucket& bucket,
@@ -38,8 +36,6 @@ PersistManifestTask::PersistManifestTask(EPBucket& bucket,
 std::string PersistManifestTask::getDescription() const {
     return "PersistManifestTask for " + engine->getName();
 }
-
-static bool renameFile(const std::string& src, const std::string& dst);
 
 bool PersistManifestTask::run() {
     auto status = doTaskCore();
@@ -59,7 +55,6 @@ cb::engine_errc PersistManifestTask::doTaskCore() {
     }
 
     finalFile += cb::io::DirectorySeparator + std::string(ManifestFileName);
-    auto tmpFile = cb::io::mktemp(finalFile);
 
     auto fbData = manifest.toFlatbuffer();
 
@@ -70,41 +65,22 @@ cb::engine_errc PersistManifestTask::doTaskCore() {
             builder, crc32c(fbData.data(), fbData.size(), 0), fbManifest);
     builder.Finish(toWrite);
 
-    std::ofstream writer(tmpFile, std::ofstream::trunc | std::ofstream::binary);
-    writer.write(reinterpret_cast<const char*>(builder.GetBufferPointer()),
-                 builder.GetSize());
-    writer.close();
-
-    cb::engine_errc status = cb::engine_errc::success;
-    if (!writer.good()) {
+    // The data must be synced to disk before it is renamed into place, or a
+    // crash could leave an empty manifest behind (which prevents warmup).
+    std::error_code ec;
+    if (!cb::io::saveFileAtomic(
+                finalFile,
+                {reinterpret_cast<const char*>(builder.GetBufferPointer()),
+                 builder.GetSize()},
+                ec)) {
         // failure, when this task goes away the manifest will be destroyed
-        status = cb::engine_errc::cannot_apply_collections_manifest;
-        // log the bad, the fail and the eof.
-        EP_LOG_WARN(
-                "PersistManifestTask::run writer error bad:{} fail:{} eof:{}",
-                writer.bad(),
-                writer.fail(),
-                writer.eof());
-    } else {
-        if (!renameFile(tmpFile, finalFile)) {
-            // failure, when this task goes away the manifest will be destroyed
-            status = cb::engine_errc::cannot_apply_collections_manifest;
-            EP_LOG_WARN(
-                    "PersistManifestTask::run failed renameFile {} to {}, "
-                    "errno:{}",
-                    tmpFile,
+        EP_LOG_WARN("PersistManifestTask::run failed to save {}: {}",
                     finalFile,
-                    errno);
-        }
+                    ec.message());
+        return cb::engine_errc::cannot_apply_collections_manifest;
     }
 
-    if (remove(tmpFile.c_str()) == 0) {
-        EP_LOG_WARN("PersistManifestTask::run failed to remove {} errno:{}",
-                    tmpFile,
-                    errno);
-    }
-
-    return status;
+    return cb::engine_errc::success;
 }
 
 std::optional<Manifest> PersistManifestTask::tryAndLoad(
@@ -155,32 +131,5 @@ std::optional<Manifest> PersistManifestTask::tryAndLoad(
     }
     return std::nullopt;
 }
-
-#ifdef WIN32
-// Windows cannot 'move' over the dst file, the dst file must not exist
-// @todo: Improvement, use a unique filename for every run of the task, like
-// couchstore revisions.
-static bool renameFile(const std::string& src, const std::string& dst) {
-    if (cb::io::isFile(dst) && remove(dst.c_str()) != 0) {
-        EP_LOG_WARN(
-                "PersistManifestTask::renameFile failed to remove {} errno:{}",
-                dst,
-                errno);
-        return false;
-    }
-    if (rename(src.c_str(), dst.c_str()) != 0) {
-        return false;
-    }
-    return true;
-}
-#else
-// Other plaforms can rename over the destination
-static bool renameFile(const std::string& src, const std::string& dst) {
-    if (rename(src.c_str(), dst.c_str()) != 0) {
-        return false;
-    }
-    return true;
-}
-#endif
 
 } // namespace Collections
