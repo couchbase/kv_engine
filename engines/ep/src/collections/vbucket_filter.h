@@ -158,6 +158,19 @@ public:
                                     const EventuallyPersistentEngine& engine);
 
     /**
+     * @return true if checkPrivileges() already ran for revision rev, so it
+     * would return success without checking
+     */
+    bool isPrivilegeRevisionChecked(uint32_t rev) const {
+        return lastCheckedPrivilegeRevision == rev;
+    }
+
+    // Record that the privileges were checked for revision rev
+    void setLastCheckedPrivilegeRevision(uint32_t rev) {
+        lastCheckedPrivilegeRevision = rev;
+    }
+
+    /**
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;

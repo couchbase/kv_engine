@@ -5962,6 +5962,58 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(1, stream->getFilter().size());
 }
 
+TEST_P(CollectionsDcpParameterizedTest,
+       PrivilegeCheckConsistentWithCollectionDrop) {
+    CollectionsManifest cm;
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
+    producer->closeAllStreams();
+    auto stream =
+            producer->mockActiveStreamRequest(0 /*flags*/,
+                                              1 /*opaque*/,
+                                              *store->getVBucket(vbid),
+                                              0 /*st_seqno*/,
+                                              ~0ull /*en_seqno*/,
+                                              0 /*vb_uuid*/,
+                                              0 /*snap_start_seqno*/,
+                                              ~0ull /*snap_end_seqno*/,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeletedUserXattrs::No,
+                                              R"({"collections":["8","c"]})");
+    ASSERT_TRUE(stream);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.remove(CollectionEntry::meat)));
+
+    // queue the stream in the checkpoint processor task, which erases meat from
+    // the filter when it processes the DeleteCollection event
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
+
+    ThreadGate gate(2);
+    std::atomic<bool> dropped{false};
+    std::thread privilegeThread([&] {
+        gate.threadUp();
+        uint32_t rev = 0;
+        do {
+            mock_set_privilege_context_revision(++rev);
+            EXPECT_FALSE(stream->endIfRequiredPrivilegesLost(*producer));
+        } while (!dropped);
+    });
+    std::thread checkpointThread([&] {
+        gate.threadUp();
+        producer->getCheckpointSnapshotTask()->run();
+        dropped = true;
+    });
+    privilegeThread.join();
+    checkpointThread.join();
+    mock_set_privilege_context_revision(0);
+
+    EXPECT_EQ(1, stream->getFilter().size());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
