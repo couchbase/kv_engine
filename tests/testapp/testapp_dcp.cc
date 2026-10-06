@@ -257,6 +257,28 @@ TEST_P(DcpTest, CantDcpOpenTwice) {
               json["error"]["context"]);
 }
 
+/**
+ * Verify that a DCP consumer responds to a DcpNoop sent by the producer.
+ * The producer won't send another noop until it gets the response, and
+ * will eventually disconnect the consumer as idle without it.
+ */
+TEST_P(DcpTest, ConsumerRespondsToDcpNoop) {
+    auto conn = getAdminConnection().clone(true, {}, getTestName());
+    conn->authenticate("@admin");
+    conn->selectBucket(bucketName);
+    auto rsp = conn->execute(
+            BinprotDcpOpenCommand{getTestName(), DcpOpenFlag::None});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                 << rsp.getDataView();
+
+    BinprotGenericCommand noop{ClientOpcode::DcpNoop};
+    noop.setOpaque(0xcafebabe);
+    rsp = conn->execute(noop);
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_EQ(ClientOpcode::DcpNoop, rsp.getOp());
+    EXPECT_EQ(0xcafebabe, rsp.getResponse().getOpaque());
+}
+
 // Basic smoke test for "dcp" and "dcpagg" stat group - check they can be
 // retrieved (regression tests for MB-48816).
 TEST_P(DcpTest, DcpStats) {

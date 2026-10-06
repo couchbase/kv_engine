@@ -9,16 +9,13 @@
  */
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "single_state_steppable_context.h"
 #include <daemon/cookie.h>
 #include <mcbp/protocol/header.h>
 
 void dcp_noop_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        const auto& header = cookie.getHeader();
-        ret = dcpNoop(cookie, header.getOpaque());
-    }
-
-    handle_executor_status(cookie, ret);
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return SingleStateCommandContext::noPayload(
+                      dcpNoop(c, c.getHeader().getOpaque()));
+          }).drive();
 }
