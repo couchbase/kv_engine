@@ -1186,7 +1186,7 @@ bool Cookie::checkThrottle(size_t pendingRBytes, size_t pendingWBytes) {
     const size_t pendingUnits =
             (settings.toReadUnits(pendingRBytes) * getReadThottlingFactor()) +
             (settings.toWriteUnits(pendingWBytes) * getWriteThottlingFactor());
-    return connection.getBucket().shouldThrottle(*this, true, pendingUnits);
+    return connection.getBucket().shouldThrottle(*this, false, pendingUnits);
 }
 
 bool Cookie::sendResponse(cb::engine_errc status,
