@@ -375,6 +375,23 @@ public:
             uint64_t defaultCollectionMaxLegacyDCPSeqno = 0);
 
     /**
+     * @return an Item that represents a scope create
+     */
+    static std::unique_ptr<Item> makeCreateScopeSystemEvent(
+            ManifestUid uid,
+            ScopeID sid,
+            std::string_view scopeName,
+            OptionalSeqno seq);
+
+    /**
+     * @return an Item that represents a scope drop
+     */
+    static std::unique_ptr<Item> makeDropScopeSystemEvent(ManifestUid uid,
+                                                          ScopeID sid,
+                                                          bool isSystemScope,
+                                                          OptionalSeqno seq);
+
+    /**
      * Store "seqno" into the item using an xattr. This function only exists for
      * use by tests checking that KV can warm-up when a 7.2 modify default
      * collection system event is on-disk. See MB-59452

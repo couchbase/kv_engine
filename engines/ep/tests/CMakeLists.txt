@@ -45,6 +45,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/pdm_utils.h
         module_tests/collections/collections_dcp_test.cc
         module_tests/collections/collections_dcp_producers.cc
+        module_tests/collections/collections_flush_test.cc
         module_tests/collections/collections_kvstore_test.cc
         module_tests/collections/collections_oso_dcp_test.cc
         module_tests/collections/collections_seqno_advance_test.cc

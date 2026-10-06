@@ -801,18 +801,8 @@ void Manifest::createScope(VBucketStateLockRef vbStateLock,
     // record the uid of the manifest which added the scope
     updateUid(newManUid, optionalSeqno.has_value());
 
-    flatbuffers::FlatBufferBuilder builder;
-    auto scope = CreateScope(
-            builder,
-            getManifestUid(),
-            uint32_t(sid),
-            builder.CreateString(scopeName.data(), scopeName.size()));
-    builder.Finish(scope);
-
-    auto item = SystemEventFactory::makeScopeEvent(
-            sid,
-            {builder.GetBufferPointer(), builder.GetSize()},
-            optionalSeqno);
+    auto item = makeCreateScopeSystemEvent(
+            getManifestUid(), sid, scopeName, optionalSeqno);
 
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
@@ -861,17 +851,8 @@ void Manifest::dropScope(VBucketStateLockRef vbStateLock,
     // record the uid of the manifest which removed the scope
     updateUid(newManUid, optionalSeqno.has_value());
 
-    flatbuffers::FlatBufferBuilder builder;
-    auto scope = CreateDroppedScope(
-            builder, getManifestUid(), uint32_t(sid), *isSystemScope);
-    builder.Finish(scope);
-
-    auto item = SystemEventFactory::makeScopeEvent(
-            sid,
-            {builder.GetBufferPointer(), builder.GetSize()},
-            optionalSeqno);
-
-    item->setDeleted();
+    auto item = makeDropScopeSystemEvent(
+            getManifestUid(), sid, *isSystemScope, optionalSeqno);
 
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
@@ -1115,6 +1096,37 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     if (type == SystemEventType::End) {
         item->setDeleted();
     }
+    return item;
+}
+
+std::unique_ptr<Item> Manifest::makeCreateScopeSystemEvent(
+        ManifestUid uid,
+        ScopeID sid,
+        std::string_view scopeName,
+        OptionalSeqno seq) {
+    flatbuffers::FlatBufferBuilder builder;
+    auto scope = CreateScope(
+            builder,
+            uid,
+            uint32_t(sid),
+            builder.CreateString(scopeName.data(), scopeName.size()));
+    builder.Finish(scope);
+
+    return SystemEventFactory::makeScopeEvent(
+            sid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
+}
+
+std::unique_ptr<Item> Manifest::makeDropScopeSystemEvent(ManifestUid uid,
+                                                         ScopeID sid,
+                                                         bool isSystemScope,
+                                                         OptionalSeqno seq) {
+    flatbuffers::FlatBufferBuilder builder;
+    auto scope = CreateDroppedScope(builder, uid, uint32_t(sid), isSystemScope);
+    builder.Finish(scope);
+
+    auto item = SystemEventFactory::makeScopeEvent(
+            sid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
+    item->setDeleted();
     return item;
 }
 
