@@ -1193,8 +1193,13 @@ void Cookie::notifyIoComplete(cb::engine_errc status) {
 }
 
 bool Cookie::checkThrottle(size_t pendingRBytes, size_t pendingWBytes) {
-    return connection.getBucket().shouldThrottle(
-            *this, true, pendingRBytes + pendingWBytes);
+    // The gauge counts units, convert the pending bytes the same way that
+    // Bucket::commandExecuted will once the command completes.
+    auto& settings = Settings::instance();
+    const size_t pendingUnits =
+            (settings.toReadUnits(pendingRBytes) * getReadThottlingFactor()) +
+            (settings.toWriteUnits(pendingWBytes) * getWriteThottlingFactor());
+    return connection.getBucket().shouldThrottle(*this, false, pendingUnits);
 }
 
 bool Cookie::sendResponse(cb::engine_errc status,

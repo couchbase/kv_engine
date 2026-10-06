@@ -137,6 +137,18 @@ public:
      */
     std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread(
             CookieIface& cookie);
+
+    /**
+     * Frontend executor invokes this method after an IO complete notification
+     * for a continue which yielded because the buffer is full. If the
+     * connection is throttled the continue must now end as if a limit was
+     * reached, the caller must follow with continueMoreOnFrontendThread and
+     * setStateIdle.
+     *
+     * @param cookie The cookie which is waiting for the range-scan-continue
+     * @return true if the continue is throttled
+     */
+    bool isThrottledOnFrontendThread(CookieIface& cookie);
     /**
      * Frontend executor invokes this method after an IO complete notification.
      * This method only calls through to the RangeScanDataHandler function of
@@ -423,6 +435,8 @@ protected:
     cb::RelaxedAtomic<size_t> totalValuesFromDisk{0};
     /// how many continues were issued, this is useful in analysing performance
     cb::RelaxedAtomic<size_t> continueCount{0};
+    /// how many continues were ended early because of throttling
+    cb::RelaxedAtomic<size_t> throttledCount{0};
     /// Time the scan was created
     cb::time::steady_clock::time_point createTime;
 
@@ -596,12 +610,6 @@ protected:
         /// set exceeded buffer limit flag to true
         void setExceededBufferLimit();
 
-        /// @return the value of the throttle flag
-        bool isThrottled() const;
-
-        /// set the limitByThrottle flag to true
-        void setThrottled();
-
         /// Update counters for an "item" of the given size
         void accountForItem(size_t size);
 
@@ -674,8 +682,6 @@ protected:
         size_t itemCount{0};
         /// byte count for the continuation of this scan
         size_t byteCount{0};
-        /// Written after each key/doc is read from cookie->checkThrottle
-        bool limitByThrottle{false};
         /// The continue must just yield (must allow frontend to send)
         bool exceededBufferLimit{false};
         /// If the continue is cancelled the reason is set here.

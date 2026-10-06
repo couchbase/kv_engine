@@ -451,7 +451,7 @@ std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottleDcp(
 
 bool Bucket::shouldThrottle(Cookie& cookie,
                             bool addConnectionToThrottleList,
-                            size_t pendingBytes) {
+                            size_t pendingUnits) {
     const auto& header = cookie.getHeader();
     if (header.isResponse() ||
         cb::mcbp::is_server_magic(cb::mcbp::Magic(header.getMagic())) ||
@@ -461,7 +461,7 @@ bool Bucket::shouldThrottle(Cookie& cookie,
     }
 
     auto [throttle, domain] =
-            shouldThrottle(cookie.getConnection(), pendingBytes);
+            shouldThrottle(cookie.getConnection(), pendingUnits);
     if (throttle) {
         Expects(domain == ResourceAllocationDomain::None);
         if (cookie.getConnection().isNonBlockingThrottlingMode()) {

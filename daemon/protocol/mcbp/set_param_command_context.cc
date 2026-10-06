@@ -14,6 +14,7 @@
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/sendbuffer.h>
+#include <memcached/config_parser.h>
 
 EngineParamCategory SetParamCommandContext::getParamCategory(Cookie& cookie) {
     const auto& req = cookie.getRequest();
@@ -53,12 +54,12 @@ cb::engine_errc SetParamCommandContext::step() {
         // Extract throttling configuration before setting at engine level
         if (key == "throttle_reserved") {
             auto& bucket = cookie.getConnection().getBucket();
-            ret = bucket.setThrottleLimits(std::stoul(value),
+            ret = bucket.setThrottleLimits(cb::config::value_as_size_t(value),
                                            bucket.getThrottleHardLimit());
         } else if (key == "throttle_hard_limit") {
             auto& bucket = cookie.getConnection().getBucket();
             ret = bucket.setThrottleLimits(bucket.getThrottleReservedLimit(),
-                                           std::stoul(value));
+                                           cb::config::value_as_size_t(value));
         } else {
             // For all other parameters, set at engine level
             ret = bucket_set_parameter(cookie, category, key, value, vbid);
@@ -67,6 +68,8 @@ cb::engine_errc SetParamCommandContext::step() {
         LOG_WARNING_CTX("SetParamCommandContext: ",
                         {"conn_id", cookie.getConnectionId()},
                         {"error", e.what()});
+        cookie.setErrorContext(e.what());
+        ret = cb::engine_errc::invalid_arguments;
     }
     if (ret == cb::engine_errc::success) {
         cookie.sendResponse(ret);

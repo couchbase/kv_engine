@@ -50,6 +50,14 @@ RangeScanDataHandler::continuePartialOnFrontendThread() {
     });
 }
 
+bool RangeScanDataHandler::isThrottledOnFrontendThread(CookieIface& cookie) {
+    // pendingReadBytes covers everything this continue has read so far, it is
+    // only accounted to the cookie once the continue ends.
+    const auto readBytes = scannedData.lock()->pendingReadBytes;
+    NonBucketAllocationGuard guard;
+    return cookie.checkThrottle(readBytes, 0);
+}
+
 std::unique_ptr<RangeScanContinueResult>
 RangeScanDataHandler::continueMoreOnFrontendThread() {
     // lock and move the current buffered data and readBytes

@@ -253,10 +253,20 @@ VB::RangeScanOwner::continueScan(
         switch (status) {
         case cb::engine_errc::success:
             // success on the I/O complete phase means the I/O task finished
-            // because the send buffer is full. The buffered data can now be
-            // shipped off to the connection and then the I/O task runs again.
-            result = scan->continuePartialOnFrontendThread(cookie);
-            status = cb::engine_errc::would_block;
+            // because the send buffer is full.
+            if (scan->isThrottledOnFrontendThread(cookie)) {
+                // The connection is throttled, end the continue as if a limit
+                // was reached. The client must issue a new continue, which is
+                // itself subject to throttling.
+                result = scan->continueMoreOnFrontendThread();
+                scan->setStateIdle();
+                status = cb::engine_errc::range_scan_more;
+            } else {
+                // The buffered data can now be shipped off to the connection
+                // and then the I/O task runs again.
+                result = scan->continuePartialOnFrontendThread(cookie);
+                status = cb::engine_errc::would_block;
+            }
             break;
         case cb::engine_errc::range_scan_more:
             // range_scan_more on the I/O complete phase means the I/O task
