@@ -975,7 +975,12 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     auto addFilterStat = [&add_stat](auto k, auto v, auto& c) {
         add_stat(fmt::format("filter_{}", k), v, c);
     };
-    filter.addStats(addFilterStat, c, vb_);
+
+    const auto filterCopy = [this] {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        return filter;
+    }();
+    filterCopy.addStats(addFilterStat, c, vb_);
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
