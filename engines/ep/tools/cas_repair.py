@@ -129,6 +129,8 @@ if args.fix:
 cmd = ["couch_dbdump", "--no-body", "--json", datafile]
 count = 0
 mcClientErrors = 0
+nonUTFSkipped = 0
+deletedSkipped = 0
 
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 for line in proc.stdout:
@@ -147,8 +149,9 @@ for line in proc.stdout:
     cas = json_entry['cas']
 
     # Skip deleted documents
-    # if "deleted" in json_entry:
-    #    continue
+    if "deleted" in json_entry:
+        deletedSkipped += 1
+        continue
 
     # Is CAS above our limit?
     if int(cas) > args.caslimit:
@@ -178,6 +181,20 @@ for line in proc.stdout:
                 collection_id = collection_info.split(':')[1]
 
                 if args.fix:
+                    # This is the symbol that couch_dbump replaces in its output
+                    # when it spots a non UTF-8 character in the document's key.
+                    # We cannot fix these documents because we are unable to get
+                    # the true key for the document.
+                    if "�" in logical_key:
+                        nonUTFSkipped += 1
+                        print(
+                            "Warning: skipping key {} in collection {} "
+                            "(cas {}) because it contains non-UTF-8 bytes "
+                            "and cannot be repaired via this script".format(
+                                logical_key, collection_info, cas
+                            )
+                        )
+                        continue
                     # With the -f option the script writes back to the database
                     # to change the expiry and generate a new CAS, all using
                     # touch.
@@ -230,10 +247,13 @@ for line in proc.stdout:
                     e, logical_key))
             mcClientErrors = mcClientErrors + 1
 
-
+totalSkipped = nonUTFSkipped + deletedSkipped
 if count:
     if args.fix:
-        print("Complete with {} documents now fixed".format(count))
+        print("Complete with {} documents now fixed, "
+              "Skipped {} deleted documents and "
+              "{} documents with non UTF-8 keys".format(
+                  (count - totalSkipped), deletedSkipped, nonUTFSkipped))
     else:
         print("Complete with {} documents found above threshold".format(count))
 else:
