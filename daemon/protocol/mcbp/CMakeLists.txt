@@ -19,28 +19,17 @@ add_library(memcached_daemon_mcbp OBJECT
         command_context.h
         create_fusion_namespace_command_context.cc
         create_fusion_namespace_command_context.h
-        dcp_abort_executor.cc
         dcp_add_failover_log.cc
         dcp_add_failover_log.h
-        dcp_add_stream_executor.cc
-        dcp_buffer_acknowledgement_executor.cc
         dcp_close_stream_executor.cc
-        dcp_commit_executor.cc
         dcp_control_executor.cc
         dcp_deletion.cc
         dcp_deletion.h
         dcp_expiration.cc
         dcp_expiration.h
-        dcp_get_failover_log_executor.cc
         dcp_mutation.cc
         dcp_mutation.h
-        dcp_noop_executor.cc
         dcp_open_executor.cc
-        dcp_prepare_executor.cc
-        dcp_seqno_acknowledged_executor.cc
-        dcp_set_vbucket_state_executor.cc
-        dcp_snapshot_marker_executor.cc
-        dcp_stream_end_executor.cc
         dcp_stream_req_executor.cc
         dcp_system_event_executor.cc
         dcp_system_event_executor.h

@@ -27,21 +27,10 @@ void get_cmd_timer_executor(Cookie& cookie);
 void process_hello_packet_executor(Cookie& cookie);
 
 // DCP executor
-void dcp_add_stream_executor(Cookie& cookie);
-void dcp_buffer_acknowledgement_executor(Cookie& cookie);
 void dcp_close_stream_executor(Cookie& cookie);
 void dcp_control_executor(Cookie& cookie);
-void dcp_get_failover_log_executor(Cookie& cookie);
-void dcp_noop_executor(Cookie& cookie);
 void dcp_open_executor(Cookie& cookie);
-void dcp_set_vbucket_state_executor(Cookie& cookie);
-void dcp_snapshot_marker_executor(Cookie& cookie);
-void dcp_stream_end_executor(Cookie& cookie);
 void dcp_stream_req_executor(Cookie& cookie);
-void dcp_abort_executor(Cookie& cookie);
-void dcp_commit_executor(Cookie& cookie);
-void dcp_prepare_executor(Cookie& cookie);
-void dcp_seqno_acknowledged_executor(Cookie& cookie);
 
 // Collections
 void collections_get_manifest_executor(Cookie& cookie);

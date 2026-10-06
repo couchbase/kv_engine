@@ -23,6 +23,7 @@
 #include "protocol/mcbp/bucket_config_command_context.h"
 #include "protocol/mcbp/bucket_management_command_context.h"
 #include "protocol/mcbp/create_fusion_namespace_command_context.h"
+#include "protocol/mcbp/dcp_add_failover_log.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
@@ -74,11 +75,15 @@
 #include "subdocument.h"
 
 #include <cblogger/logger.h>
+#include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/durability_spec.h>
+#include <memcached/limits.h>
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/magma_support.h>
+#include <xattr/blob.h>
 
 /**
  * The handler function is used to handle and incomming packet (command or
@@ -753,6 +758,206 @@ static void process_bin_dcp_response(Cookie& cookie) {
         }
         c.shutdown();
     }
+}
+
+static cb::engine_errc do_dcp_abort(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpAbortPayload;
+    const auto& extras = req.getCommandSpecifics<DcpAbortPayload>();
+    return dcpAbort(cookie,
+                    req.getOpaque(),
+                    req.getVBucket(),
+                    cookie.getConnection().makeDocKey(req.getKey()),
+                    extras.getPreparedSeqno(),
+                    extras.getAbortSeqno());
+}
+
+static void dcp_abort_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_abort(c); })
+            .drive();
+}
+
+static cb::engine_errc do_dcp_add_stream(Cookie& cookie) {
+    auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpAddStreamPayload;
+    const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
+    return dcpAddStream(
+            cookie, req.getOpaque(), req.getVBucket(), payload.getFlags());
+}
+
+static void dcp_add_stream_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_add_stream(c); })
+            .drive();
+}
+
+static void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      auto& req = c.getRequest();
+                      using cb::mcbp::request::DcpBufferAckPayload;
+                      const auto& payload =
+                              req.getCommandSpecifics<DcpBufferAckPayload>();
+                      return dcpBufferAcknowledgement(
+                              c, req.getOpaque(), payload.getBufferBytes());
+                  })
+            .drive();
+}
+
+static cb::engine_errc do_dcp_commit(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpCommitPayload;
+    const auto& extras = req.getCommandSpecifics<DcpCommitPayload>();
+    return dcpCommit(cookie,
+                     req.getOpaque(),
+                     req.getVBucket(),
+                     cookie.getConnection().makeDocKey(req.getKey()),
+                     extras.getPreparedSeqno(),
+                     extras.getCommitSeqno());
+}
+
+static void dcp_commit_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_commit(c); })
+            .drive();
+}
+
+static cb::engine_errc do_dcp_get_failover_log(Cookie& cookie) {
+    auto& req = cookie.getRequest();
+    return dcpGetFailoverLog(
+            cookie,
+            req.getOpaque(),
+            req.getVBucket(),
+            [cookieRef = std::ref(cookie)](
+                    const std::vector<vbucket_failover_t>& vec) {
+                return add_failover_log(vec, cookieRef);
+            });
+}
+
+static void dcp_get_failover_log_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_get_failover_log(c); })
+            .drive();
+}
+
+static void dcp_noop_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return SingleStateCommandContext::noPayload(
+                      dcpNoop(c, c.getHeader().getOpaque()));
+          }).drive();
+}
+
+static cb::engine_errc do_dcp_prepare(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    const auto& extras =
+            req.getCommandSpecifics<cb::mcbp::request::DcpPreparePayload>();
+    const auto datatype = uint8_t(req.getDatatype());
+    const auto value = req.getValue();
+
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
+        const char* payload = reinterpret_cast<const char*>(value.data());
+        cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
+                             cb::mcbp::datatype::is_snappy(datatype));
+        if (blob.get_system_size() > cb::limits::PrivilegedBytes) {
+            return cb::engine_errc::too_big;
+        }
+    }
+
+    return dcpPrepare(
+            cookie,
+            req.getOpaque(),
+            cookie.getConnection().makeDocKey(req.getKey()),
+            value,
+            datatype,
+            req.getCas(),
+            req.getVBucket(),
+            extras.getFlags(),
+            extras.getBySeqno(),
+            extras.getRevSeqno(),
+            extras.getExpiration(),
+            extras.getLockTime(),
+            extras.getNru(),
+            extras.getDeleted() ? DocumentState::Deleted : DocumentState::Alive,
+            extras.getDurabilityLevel());
+}
+
+static void dcp_prepare_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_prepare(c); })
+            .drive();
+}
+
+static cb::engine_errc do_dcp_seqno_acknowledged(Cookie& cookie) {
+    const auto& req = cookie.getRequest();
+    using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
+    const auto& extras = req.getCommandSpecifics<DcpSeqnoAcknowledgedPayload>();
+    return dcpSeqnoAcknowledged(cookie,
+                                req.getOpaque(),
+                                req.getVBucket(),
+                                extras.getPreparedSeqno());
+}
+
+static void dcp_seqno_acknowledged_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) { return do_dcp_seqno_acknowledged(c); })
+            .drive();
+}
+
+static void dcp_set_vbucket_state_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      using cb::mcbp::request::DcpSetVBucketState;
+                      auto& request = c.getRequest();
+                      const auto& payload =
+                              request.getCommandSpecifics<DcpSetVBucketState>();
+                      return dcpSetVbucketState(
+                              c,
+                              request.getOpaque(),
+                              request.getVBucket(),
+                              vbucket_state_t(payload.getState()));
+                  })
+            .drive();
+}
+
+static void dcp_snapshot_marker_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie,
+                  [](Cookie& c) {
+                      auto& req = c.getRequest();
+                      const auto snapshot =
+                              cb::mcbp::DcpSnapshotMarker::decode(req);
+                      return dcpSnapshotMarker(c,
+                                               req.getOpaque(),
+                                               req.getVBucket(),
+                                               snapshot.getStartSeqno(),
+                                               snapshot.getEndSeqno(),
+                                               snapshot.getFlags(),
+                                               snapshot.getHighCompletedSeqno(),
+                                               snapshot.getHighPreparedSeqno(),
+                                               snapshot.getMaxVisibleSeqno(),
+                                               snapshot.getPurgeSeqno());
+                  })
+            .drive();
+}
+
+static cb::engine_errc do_dcp_stream_end(Cookie& cookie) {
+    auto& request = cookie.getRequest();
+    using cb::mcbp::request::DcpStreamEndPayload;
+    const auto& payload = request.getCommandSpecifics<DcpStreamEndPayload>();
+    return dcpStreamEnd(cookie,
+                        request.getOpaque(),
+                        request.getVBucket(),
+                        payload.getStatus());
+}
+
+static void dcp_stream_end_executor(Cookie& cookie) {
+    cookie.obtainContext<NoSuccessResponseCommandContext>(
+                  cookie, [](Cookie& c) { return do_dcp_stream_end(c); })
+            .drive();
 }
 
 static void dcp_cache_transfer_executor(Cookie& cookie) {
