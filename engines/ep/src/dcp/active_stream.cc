@@ -2839,8 +2839,21 @@ bool ActiveStream::collectionAllowed(DocKeyView key) const {
 }
 
 bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
+    auto& cookie = *producer.getCookie();
+    const auto rev = cookie.getPrivilegeContextRevision();
+
+    if (filter.isPrivilegeRevisionChecked(rev)) {
+        return false;
+    }
+
+    auto filterCopy = [this] {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        return filter;
+    }();
+    filter.setLastCheckedPrivilegeRevision(rev);
+
     // Does this stream still have the appropriate privileges to operate?
-    if (filter.checkPrivileges(*producer.getCookie(), *engine) !=
+    if (filterCopy.checkPrivileges(cookie, *engine) !=
         cb::engine_errc::success) {
         std::unique_lock lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
