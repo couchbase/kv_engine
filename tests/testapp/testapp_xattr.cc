@@ -2930,3 +2930,154 @@ TEST_P(XattrNoDocTest, TestSubdocOffloadToNonIoThread_big_doc) {
         EXPECT_EQ("false", r.value);
     }
 }
+
+/**
+ * The value passed to a subdoc mutation of a user XATTR must not be able to
+ * inject other XATTRs into the document. In particular it must not be
+ * possible to create or modify system XATTRs (which require the
+ * SystemXattrWrite privilege) that way.
+ */
+TEST_P(XattrTest, ValueCantInjectSystemXattr) {
+    ASSERT_EQ(cb::mcbp::Status::Success, xattr_upsert("user_x", "1"));
+    ASSERT_EQ(cb::mcbp::Status::Success, xattr_upsert("_sys", R"("original")"));
+    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrWrite);
+    // The connection is shared between the tests; restore the privilege
+    SCOPE_EXIT {
+        rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
+    };
+
+    // Writing a system XATTR directly is denied
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                       name,
+                       "_sys",
+                       R"("direct")",
+                       PathFlag::XattrPath);
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
+
+    // ... and so must be injecting it through the value of a user XATTR
+    for (const auto opcode : {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                              cb::mcbp::ClientOpcode::SubdocReplace}) {
+        resp = subdoc(opcode,
+                      name,
+                      "user_x",
+                      R"(1,"_sys":"injected","_new":"injected")",
+                      PathFlag::XattrPath);
+        EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert, resp.getStatus())
+                << "opcode: " << opcode;
+    }
+    resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                  name,
+                  "user_y",
+                  R"(1,"_sys":"injected","_new":"injected")",
+                  PathFlag::XattrPath);
+    EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert, resp.getStatus());
+
+    // The same through a multi-mutation
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    PathFlag::XattrPath,
+                    "user_x",
+                    R"(1,"_sys":"injected","_new":"injected")");
+    BinprotSubdocMultiMutationResponse multiResp(userConnection->execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
+
+    // The system XATTRs must be unchanged
+    resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                  name,
+                  "_sys",
+                  {},
+                  PathFlag::XattrPath);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    EXPECT_EQ(R"("original")", resp.getDataView());
+    resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                  name,
+                  "_new",
+                  {},
+                  PathFlag::XattrPath);
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus())
+            << "_new: " << resp.getDataView();
+}
+
+/**
+ * Values which are only valid in some contexts must be rejected rather than
+ * producing a document (or XATTR) which isn't valid JSON, or injecting
+ * additional entries next to the one named by the path:
+ *
+ *  - A value consisting of only whitespace contains no JSON value (and
+ *    would be inserted as an empty array element, e.g. [1, ]).
+ *  - DICT_ADD / DICT_UPSERT / REPLACE take exactly one JSON value (only the
+ *    array commands accept a list of values).
+ */
+TEST_P(XattrTest, ValueMustBeValidJsonForThePath) {
+    ASSERT_EQ(
+            cb::mcbp::Status::Success,
+            subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert, name, "arr", "[1]")
+                    .getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, xattr_upsert("xarr", "[1]"));
+
+    for (const auto flag : {PathFlag::None, PathFlag::XattrPath}) {
+        const std::string array = flag == PathFlag::XattrPath ? "xarr" : "arr";
+        for (const auto* value : {" ", "\n\t"}) {
+            for (const auto opcode :
+                 {cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                  cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                  cb::mcbp::ClientOpcode::SubdocArrayAddUnique}) {
+                EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert,
+                          subdoc(opcode, name, array, value, flag).getStatus())
+                        << "opcode: " << opcode << " path: " << array;
+            }
+            EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert,
+                      subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                             name,
+                             array + "[0]",
+                             value,
+                             flag)
+                              .getStatus());
+        }
+        for (const auto opcode : {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                  cb::mcbp::ClientOpcode::SubdocReplace}) {
+            EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert,
+                      subdoc(opcode, name, array + "[0]", "1,2", flag)
+                              .getStatus())
+                    << "opcode: " << opcode << " path: " << array;
+        }
+        EXPECT_EQ(cb::mcbp::Status::SubdocValueCantinsert,
+                  subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                         name,
+                         array,
+                         R"([2],"injected":1)",
+                         flag)
+                          .getStatus());
+
+        // The array is unchanged (and the document still valid JSON)
+        auto resp = subdoc(
+                cb::mcbp::ClientOpcode::SubdocGet, name, array, {}, flag);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        EXPECT_EQ("[1]", resp.getDataView());
+        EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
+                  subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                         name,
+                         "injected",
+                         {},
+                         flag)
+                          .getStatus());
+    }
+
+    // Single values (and lists of values for the array commands) are fine
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                     name,
+                     "arr",
+                     " 2 , 3 ")
+                      .getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              subdoc(cb::mcbp::ClientOpcode::SubdocReplace,
+                     name,
+                     "arr[0]",
+                     R"({"a":1,"b":2})")
+                      .getStatus());
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet, name, "arr");
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    EXPECT_EQ(R"([{"a":1,"b":2}, 2 , 3 ])", resp.getDataView());
+}

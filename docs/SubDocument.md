@@ -370,7 +370,10 @@ example
     { "dummyKey": [VALUE] }
 
 As such, the VALUE may be a primitive, JSON array, or JSON dictionary
-itself.
+itself. The VALUE must be exactly *one* JSON value: text which is only
+valid as part of the dummy dictionary above because it contains more
+than one key-value pair (for example `1,"other":2`) is rejected with
+`STATUS_VALUE_CANT_INSERT`.
 
 ### CMD_DICT_ADD: Add a new dictionary entry
 
@@ -438,7 +441,8 @@ not exist
 - Inputs:
     - The key of the document to modify
     - Path to entry. Must not be empty
-    - JSON to be used as new value
+    - JSON to be used as new value. This must be a single JSON value (also
+      when the entry is an array element)
 
 - Errors:
     - Generic subdoc errors
@@ -464,6 +468,10 @@ Thus, VALUE may also be
 - "primitive"
 - ["sub","array"]
 - "multiple","elements", 1, 2, false
+
+VALUE must contain at least one JSON value; a VALUE consisting of only
+whitespace is rejected with `STATUS_VALUE_CANT_INSERT` (even though
+`[ ]` is valid JSON).
 
 Note that any array command will *fail* with
 `STATUS_PATH_MISMATCH` if the final component of the path is not
