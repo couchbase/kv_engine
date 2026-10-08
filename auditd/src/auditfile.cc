@@ -387,6 +387,11 @@ void AuditFile::rewrite_compressed() const {
         dest_filename.replace_extension(destination_extension);
         rename(next, dest_filename);
         guard.dismiss();
+        // The content of the new file was synced as part of closing the
+        // writer, but the directory must be synced for the rename to be
+        // durable. Sync before removing the original file so that a crash
+        // can't leave us with neither of them.
+        cb::io::fsyncDirectory(dest_filename.parent_path());
         if (dest_filename != open_file_name) {
             remove(open_file_name);
         }

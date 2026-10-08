@@ -9,6 +9,7 @@
  */
 #include "auditfile.h"
 
+#include <cbcrypto/file_reader.h>
 #include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/FileUtil.h>
@@ -21,6 +22,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 
 using cb::io::findFilesWithPrefix;
 
@@ -40,6 +42,8 @@ protected:
     }
 
     void TearDown() override {
+        cb::dek::Manager::instance().setActive(
+                cb::dek::Entity::Audit, cb::crypto::SharedKeyDerivationKey{});
         cb::io::remove_with_retry(testdir);
     }
 
@@ -338,6 +342,78 @@ TEST_F(AuditFileTest, TestDekRotation) {
 
     files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(10, files.size());
+}
+
+/**
+ * Write a number of events to a compressed audit file and close it. Verify
+ * that the rotated file is the only file left in the directory (the
+ * original uncompressed file and the temporary file used while compressing
+ * must be removed), that it has the expected extension and that all of the
+ * events may be read back.
+ *
+ * @param key the key to use for encryption (nullptr for no encryption)
+ * @param extension the expected extension of the rotated file
+ */
+static void testRewriteCompressed(const std::string& testdir,
+                                  AuditConfig& config,
+                                  nlohmann::json event,
+                                  cb::crypto::SharedKeyDerivationKey key,
+                                  std::string_view extension) {
+    cb::dek::Manager::instance().setActive(cb::dek::Entity::Audit, key);
+    config.set_compression_enabled(true);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    constexpr int NumEvents = 10;
+    for (int ii = 0; ii < NumEvents; ++ii) {
+        event["id"] = ii;
+        auditfile.ensure_open();
+        auditfile.write_event_to_disk(event);
+    }
+    auditfile.close();
+
+    std::vector<std::filesystem::path> files;
+    for (const auto& entry : std::filesystem::directory_iterator(testdir)) {
+        files.emplace_back(entry.path());
+    }
+    ASSERT_EQ(1, files.size()) << "Expected only the rotated file";
+    const auto& file = files.front();
+    EXPECT_TRUE(file.filename().string().starts_with("testing"))
+            << file.filename().string();
+    EXPECT_TRUE(file.filename().string().ends_with(extension))
+            << file.filename().string();
+
+    auto reader = cb::crypto::FileReader::create(file, [](auto id) {
+        return cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit, id);
+    });
+    EXPECT_EQ(key != nullptr, reader->is_encrypted());
+    const auto content = reader->read();
+    int count = 0;
+    std::istringstream lines(content);
+    for (std::string line; std::getline(lines, line);) {
+        if (!line.empty()) {
+            EXPECT_EQ(count, nlohmann::json::parse(line)["id"].get<int>());
+            ++count;
+        }
+    }
+    EXPECT_EQ(NumEvents, count);
+}
+
+TEST_F(AuditFileTest, RewriteCompressed) {
+    testRewriteCompressed(testdir,
+                          config,
+                          event,
+                          cb::crypto::SharedKeyDerivationKey{},
+                          ".log.gz");
+}
+
+TEST_F(AuditFileTest, RewriteCompressedEncrypted) {
+    testRewriteCompressed(testdir,
+                          config,
+                          event,
+                          cb::crypto::KeyDerivationKey::generate(),
+                          ".cef");
 }
 
 /**
