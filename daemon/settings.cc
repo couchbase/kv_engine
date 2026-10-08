@@ -679,7 +679,9 @@ nlohmann::json Settings::to_json() const {
     json["ssl_sasl_mechanisms"] = getSslSaslMechanisms();
     json["scramsha_fallback_iteration_count"] =
             getScramshaFallbackIterationCount();
-    json["scramsha_fallback_salt"] = getScramshaFallbackSalt();
+    // scramsha_fallback_salt is deliberately not reported: it is the
+    // secret the salts for non-existing users are derived from, and
+    // disclosing it would allow an attacker to enumerate valid users.
     json["client_cert_auth"] =
             nlohmann::json::parse(client_cert_mapper.to_string());
 
