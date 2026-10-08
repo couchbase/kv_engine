@@ -110,26 +110,24 @@ struct CompactionConfig {
                      uint64_t purge_before_seq,
                      bool drop_deletes,
                      bool retain_erroneous_tombstones,
-                     std::vector<std::string> obsolete_keys)
+                     std::vector<std::string> obsolete_keys,
+                     bool internally_requested = false)
         : purge_before_ts(purge_before_ts),
           purge_before_seq(purge_before_seq),
           obsolete_keys(std::move(obsolete_keys)),
           drop_deletes(drop_deletes),
-          retain_erroneous_tombstones(retain_erroneous_tombstones) {
+          retain_erroneous_tombstones(retain_erroneous_tombstones),
+          internally_requested(internally_requested) {
     }
 
-    CompactionConfig(const CompactionConfig&) = default;
-    CompactionConfig& operator=(const CompactionConfig& other) = default;
+    bool operator==(const CompactionConfig& c) const = default;
 
-    /// Move will value copy from 'other' and leave 'other' default constructed
-    CompactionConfig(CompactionConfig&& other);
-    /// Move will value copy from 'other' and leave 'other' default constructed
-    CompactionConfig& operator=(CompactionConfig&& other);
-
-    bool operator==(const CompactionConfig& c) const;
-    bool operator!=(const CompactionConfig& c) const {
-        return !(*this == c);
-    }
+    /**
+     * Copy the current state into a new CompactionConfig and clear
+     * the state of this (back to the values of default construction)
+     * @return copy of current object.
+     */
+    CompactionConfig copyAndClear();
 
     /**
      * Merge 'other' into this instance. Merge results in this object being

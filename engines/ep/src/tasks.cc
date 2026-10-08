@@ -165,7 +165,7 @@ std::optional<CompactTask::CompactTaskData> CompactTask::preDoCompact() {
     // subsequent schedule now operates on the 'empty' objects whilst run
     // gets on with compacting using the returned values.
     return CompactTaskData{lockedState->vbucket.lock(),
-                           std::move(lockedState->config),
+                           lockedState->config.copyAndClear(),
                            std::move(lockedState->cookiesWaiting)};
 }
 

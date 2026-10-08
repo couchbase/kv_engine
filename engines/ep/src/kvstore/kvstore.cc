@@ -610,34 +610,8 @@ bool IORequest::isDelete() const {
     return item->isDeleted() && !item->isPending();
 }
 
-CompactionConfig::CompactionConfig(CompactionConfig&& other) {
-    *this = std::move(other);
-}
-
-CompactionConfig& CompactionConfig::operator=(CompactionConfig&& other) {
-    if (this != &other) {
-        purge_before_ts = other.purge_before_ts;
-        purge_before_seq = other.purge_before_seq;
-        drop_deletes = other.drop_deletes;
-        obsolete_keys = other.obsolete_keys;
-        retain_erroneous_tombstones = other.retain_erroneous_tombstones;
-        internally_requested = other.internally_requested;
-        other.purge_before_ts = 0;
-        other.purge_before_seq = 0;
-        other.drop_deletes = false;
-        other.retain_erroneous_tombstones = false;
-        other.internally_requested = false;
-    }
-    return *this;
-}
-
-bool CompactionConfig::operator==(const CompactionConfig& other) const {
-    return purge_before_ts == other.purge_before_ts &&
-           purge_before_seq == other.purge_before_seq &&
-           drop_deletes == other.drop_deletes &&
-           retain_erroneous_tombstones == other.retain_erroneous_tombstones &&
-           internally_requested == other.internally_requested &&
-           obsolete_keys == other.obsolete_keys;
+CompactionConfig CompactionConfig::copyAndClear() {
+    return std::exchange(*this, CompactionConfig{});
 }
 
 // Merge other into this.
