@@ -2217,7 +2217,7 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
 
         auto shardStr = std::to_string(workloadPolicy.getNumShards());
         try {
-            cb::io::saveFile(shardFilePath, shardStr);
+            cb::io::saveFileAtomic(shardFilePath, shardStr);
         } catch (const std::exception& e) {
             throw std::runtime_error(fmt::format(
                     "EventuallyPersistentEngine::maybeSaveShardCount: Failed "
