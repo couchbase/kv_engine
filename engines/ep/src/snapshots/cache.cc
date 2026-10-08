@@ -163,7 +163,8 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
             folly::makeGuard([this, &manifest]() { remove(manifest.uuid); });
 
     const auto manifestPath = path / manifest.uuid / "manifest.json";
-    if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
+    if (!cb::io::saveFileAtomic(
+                manifestPath, nlohmann::json(manifest).dump(), ec)) {
         EP_LOG_WARN_CTX("Cache::lookupOrFetch Failed to store manifest",
                         {"vbid", vbid},
                         {"error", ec.message()},

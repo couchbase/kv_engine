@@ -780,7 +780,8 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
 
     const auto manifestPath = snapshotPath / "manifest.json";
     std::error_code ec;
-    if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
+    if (!cb::io::saveFileAtomic(
+                manifestPath, nlohmann::json(manifest).dump(), ec)) {
         EP_LOG_WARN_CTX("prepareSnapshot Failed to save manifest.json",
                         {"vb", vbid},
                         {"error", ec.message()},
