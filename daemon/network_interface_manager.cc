@@ -198,36 +198,14 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
             }
         }
 
-        std::filesystem::path tempname = filename + ".lck";
         try {
-            cb::io::saveFile(tempname, json.dump());
+            cb::io::saveFileAtomic(filename, json.dump());
         } catch (const std::exception& e) {
             LOG_CRITICAL_CTX("Failed to save port number file",
-                             {"path", tempname},
+                             {"path", filename},
                              {"error", e.what()});
             if (terminate) {
                 exit(EXIT_FAILURE);
-            }
-            return;
-        }
-
-        try {
-            std::filesystem::remove(filename);
-            std::filesystem::rename(tempname, filename);
-        } catch (const std::exception& e) {
-            LOG_CRITICAL_CTX("Failed to rename port number file",
-                             {"from", tempname},
-                             {"to", filename},
-                             {"error", e.what()});
-            if (terminate) {
-                exit(EXIT_FAILURE);
-            }
-            std::error_code ec;
-            remove(tempname, ec);
-            if (ec) {
-                LOG_WARNING_CTX("Failed to remove temporary file",
-                                {"path", tempname},
-                                {"error", ec.message()});
             }
             return;
         }

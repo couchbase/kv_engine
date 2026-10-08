@@ -585,6 +585,26 @@ TEST_P(EPEnginePersistentTest, ShardCountsOnSecondBucketInit) {
     }
 }
 
+// The magma shard count file should contain the number of shards and no
+// temporary file should be left behind after creating it.
+TEST_P(EPEnginePersistentTest, ShardCountFile) {
+    if (bucketType != "persistent_magma") {
+        GTEST_SKIP();
+    }
+    std::vector<std::string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(test_dbname)) {
+        const auto name = entry.path().filename().string();
+        if (name.find("magmaShardCount") != std::string::npos) {
+            files.push_back(name);
+        }
+    }
+    EXPECT_EQ(std::vector<std::string>{"magmaShardCount"}, files);
+    EXPECT_EQ(std::to_string(engine->getWorkLoadPolicy().getNumShards()),
+              cb::io::loadFile(
+                      (std::filesystem::path(test_dbname) / "magmaShardCount")
+                              .string()));
+}
+
 TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
     store_item(vbid, "key", "value");
 
