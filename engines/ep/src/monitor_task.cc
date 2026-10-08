@@ -29,23 +29,18 @@ bool MonitorTask::run() {
             engine->getArenaMallocClient());
     *stats.fragStats.wlock() = fragStats;
 
-    // While the RSS/fragmentation back-pressure is critical the defragmenter
-    // must run at its aggressive cadence (min sleep, age thresholds 0).
-    // calculateSleepTimeAndRunState() checks isFragmentationCritical() before
-    // the mode switch, so every mode -- static included -- collapses its sleep
-    // to defragmenter_auto_min_sleep while it holds, not the configured
-    // interval. So we only need to kick it out of a longer sleep once: at the
-    // min it self-sustains that cadence, and re-waking it every tick would just
-    // fight it, so skip the wake when it already sleeps at (or below) the min.
-    // A disabled defragmenter never runs defrag(), so skip that too.
+    // Fragmentation is critical, so the defragmenter must run often.
+    // If it sleeps longer than defragmenter_critical_sleep, wake it now.
+    // A disabled defragmenter does nothing, so do not wake it.
     auto& config = engine->getConfiguration();
     if (config.isDefragmenterEnabled() &&
         engine->getMemoryTracker().isFragmentationCritical(fragStats)) {
-        const auto minSleep =
+        const auto criticalSleep =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::duration<double>{
-                                config.getDefragmenterAutoMinSleep()});
-        if (engine->getKVBucket()->getDefragmenterTaskSleepTime() > minSleep) {
+                                config.getDefragmenterCriticalSleep()});
+        if (engine->getKVBucket()->getDefragmenterTaskSleepTime() >
+            criticalSleep) {
             engine->getKVBucket()->wakeUpDefragmenter();
         }
     }

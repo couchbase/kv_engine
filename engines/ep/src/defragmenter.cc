@@ -200,12 +200,14 @@ std::chrono::milliseconds DefragmenterTask::getCurrentSleepTime() const {
 DefragmenterTask::SleepTimeAndRunState
 DefragmenterTask::calculateSleepTimeAndRunState() {
     // While the RSS/fragmentation back-pressure is critical, override the
-    // configured mode: run now at the minimum sleep so RSS is compacted back
-    // under quota as fast as possible.
+    // configured mode with defragmenter_critical_sleep: the bucket is
+    // rejecting mutations, so we run often to bring RSS back under quota as
+    // fast as possible. The task still yields every
+    // defragmenter_chunk_duration.
     if (engine->getMemoryTracker().isFragmentationCritical()) {
         return {std::chrono::duration<double>{
                         engine->getConfiguration()
-                                .getDefragmenterAutoMinSleep()},
+                                .getDefragmenterCriticalSleep()},
                 true};
     }
     if (engine->getConfiguration().getDefragmenterModeString() ==
