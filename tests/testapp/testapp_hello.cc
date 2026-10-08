@@ -136,6 +136,17 @@ TEST_F(HelloTest, AltRequestSupport) {
     ASSERT_EQ(cb::mcbp::Feature::AltRequestSupport, features[0]);
 }
 
+/// Verify that the server gives me VBucketUuid
+TEST_F(HelloTest, VBucketUuid) {
+    BinprotHelloCommand cmd("VBucketUuid");
+    cmd.enableFeature(cb::mcbp::Feature::VBucketUuid);
+    const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto features = rsp.getFeatures();
+    ASSERT_EQ(1, features.size());
+    ASSERT_EQ(cb::mcbp::Feature::VBucketUuid, features[0]);
+}
+
 /// Verify that the server gives me SyncReplication
 TEST_F(HelloTest, SyncReplication) {
     BinprotHelloCommand cmd("SyncReplication");

@@ -61,6 +61,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::DcpSkipDeletesInInitialBackfill:
     case cb::mcbp::Feature::SubdocArrayRemoveValue:
     case cb::mcbp::Feature::SubdocArrayIndexOf:
+    case cb::mcbp::Feature::VBucketUuid:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

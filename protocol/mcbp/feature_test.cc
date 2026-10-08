@@ -63,7 +63,8 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::DcpSkipDeletesInInitialBackfill,
           "DcpSkipDeletesInInitialBackfill"},
          {cb::mcbp::Feature::SubdocArrayRemoveValue, "SubdocArrayRemoveValue"},
-         {cb::mcbp::Feature::SubdocArrayIndexOf, "SubdocArrayIndexOf"}}};
+         {cb::mcbp::Feature::SubdocArrayIndexOf, "SubdocArrayIndexOf"},
+         {cb::mcbp::Feature::VBucketUuid, "VBucketUuid"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& [feature, name] : featureBlueprint) {

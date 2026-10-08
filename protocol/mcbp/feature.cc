@@ -95,6 +95,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "SubdocArrayRemoveValue";
     case Feature::SubdocArrayIndexOf:
         return "SubdocArrayIndexOf";
+    case Feature::VBucketUuid:
+        return "VBucketUuid";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

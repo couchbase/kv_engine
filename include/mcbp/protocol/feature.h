@@ -187,6 +187,11 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// first array element equal to a given value), both as a single-path
     /// command and within a multi-path lookup.
     SubdocArrayIndexOf = 0x28,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports pinning an operation to a vbucket's current failover UUID
+    /// via the VBucketUuid frame info (FrameInfoId::VBucketUuid).
+    VBucketUuid = 0x29,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);

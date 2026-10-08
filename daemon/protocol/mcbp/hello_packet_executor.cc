@@ -86,6 +86,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::DcpSkipDeletesInInitialBackfill:
         case Feature::SubdocArrayRemoveValue:
         case Feature::SubdocArrayIndexOf:
+        case Feature::VBucketUuid:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -135,6 +136,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::DcpSkipDeletesInInitialBackfill:
         case Feature::SubdocArrayRemoveValue:
         case Feature::SubdocArrayIndexOf:
+        case Feature::VBucketUuid:
             // No other dependency
             break;
 
@@ -373,6 +375,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::DcpSkipDeletesInInitialBackfill:
         case Feature::SubdocArrayRemoveValue:
         case Feature::SubdocArrayIndexOf:
+        case Feature::VBucketUuid:
             // Informative features don't need special handling
             added = true;
             break;
