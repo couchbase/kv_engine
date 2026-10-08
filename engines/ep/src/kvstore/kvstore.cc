@@ -878,6 +878,20 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
         return std::unexpected(cb::engine_errc::failed);
     }
 
+    // The content of the snapshot directory is now durable, but the snapshot
+    // directory itself (and the snapshots directory if it was created by
+    // create_directories) must be synced in its parent to survive a crash.
+    try {
+        cb::io::fsyncDirectory(path);
+        cb::io::fsyncDirectory(path.parent_path());
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("prepareSnapshot Failed to sync snapshot directory",
+                        {"vb", vbid},
+                        {"error", e.what()},
+                        {"path", snapshotPath});
+        return std::unexpected(cb::engine_errc::failed);
+    }
+
     // Success - remove the clean-up guard and return the manifest
     removePath.dismiss();
     return manifest;

@@ -191,6 +191,21 @@ std::expected<Manifest, cb::engine_errc> Cache::lookupOrFetch(
         return std::unexpected(cb::engine_errc::failed);
     }
 
+    // The snapshot directory itself (and the snapshots directory if it was
+    // created by create_directories) must be synced in its parent to survive
+    // a crash.
+    try {
+        cb::io::fsyncDirectory(path);
+        cb::io::fsyncDirectory(path.parent_path());
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX(
+                "Cache::lookupOrFetch Failed to sync snapshot directory",
+                {"vb", vbid},
+                {"error", e.what()},
+                {"path", path / manifest.uuid});
+        return std::unexpected(cb::engine_errc::failed);
+    }
+
     // At this point we have a snapshot dir and manifest.json, we can
     // consider this a "valid" snapshot. Crash here and we would re-add
     // to the Cache but with the files marked Present/Absent/Truncated
