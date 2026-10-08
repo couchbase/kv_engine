@@ -1009,6 +1009,8 @@ cb::engine_errc EventuallyPersistentEngine::setDefragmenterFlushParam(
         configuration.setDefragmenterAutoMaxSleep(std::stof(val));
     } else if (key == "defragmenter_auto_min_sleep") {
         configuration.setDefragmenterAutoMinSleep(std::stof(val));
+    } else if (key == "defragmenter_critical_sleep") {
+        configuration.setDefragmenterCriticalSleep(std::stof(val));
     } else if (key == "defragmenter_auto_pid_p") {
         configuration.setDefragmenterAutoPidP(std::stof(val));
     } else if (key == "defragmenter_auto_pid_i") {

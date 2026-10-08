@@ -124,7 +124,9 @@ protected:
 
     /**
      * Calculate the current defragmenter sleep time and run state. Uses the
-     * fragmentation the MonitorTask cached in EPStats.
+     * fragmentation the MonitorTask cached in EPStats. While the
+     * RSS/fragmentation back-pressure is critical, returns a sleep of
+     * defragmenter_critical_sleep and run=true, whatever the mode.
      * @return SleepTimeAndRunState based on mode and current fragmentation
      */
     SleepTimeAndRunState calculateSleepTimeAndRunState();
