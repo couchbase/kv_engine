@@ -461,10 +461,15 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     const auto defragMovedBefore = getStat<uint64_t>(
             *adminConnection, "", "ep_defragmenter_num_moved");
 
-    // The configured min sleep. Recovery collapses the defragmenter's sleep to
-    // this, which we assert below as the direct "aggressive scheduling" signal.
-    const auto minSleep = getStat<float>(
-            *adminConnection, "", "ep_defragmenter_auto_min_sleep");
+    // Recovery must use defragmenter_critical_sleep, not
+    // defragmenter_auto_min_sleep. Check that the two differ, so the sleep
+    // check below tells which one recovery uses.
+    ASSERT_EQ(0.0f,
+              getStat<float>(
+                      *adminConnection, "", "ep_defragmenter_critical_sleep"));
+    ASSERT_GT(getStat<float>(
+                      *adminConnection, "", "ep_defragmenter_auto_min_sleep"),
+              0.0f);
 
     // Phase 1: back-pressure. Enable the feature; the defragmenter is still
     // disabled, so recovery cannot run and RSS stays put. The gate reads the
@@ -488,7 +493,7 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     cb::waitForPredicate(probeRejected);
 
     // Phase 2: recovery. Enable the defragmenter. The MonitorTask, still seeing
-    // critical fragmentation, wakes it and it runs in aggressive mode (min
+    // critical fragmentation, wakes it and it runs in aggressive mode (critical
     // sleep, age thresholds 0). First assert it is in that mode: its moved
     // counter rises -- it only runs because it was woken, and only moves the
     // age-0 survivors because the age threshold dropped to 0.
@@ -499,15 +504,15 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                defragMovedBefore;
     });
 
-    // Assert the aggressive scheduling directly: recovery collapses the sleep
-    // to the configured min. It is transient -- it reverts once recovery
+    // Assert the aggressive scheduling directly: recovery sets the sleep to
+    // defragmenter_critical_sleep. It is transient -- it reverts once recovery
     // completes and RSS is back under quota. (The age-0 override is not yet
-    // observable; exposing the effective age thresholds as a stat and asserting
-    // them is a follow-up patch.)
-    cb::waitForPredicate([minSleep] {
+    // observable; exposing the effective age thresholds as a stat and
+    // asserting them is a follow-up patch.)
+    cb::waitForPredicate([] {
         return getStat<float>(*adminConnection,
                               "",
-                              "ep_defragmenter_sleep_time") <= minSleep;
+                              "ep_defragmenter_sleep_time") == 0.0f;
     });
 
     // The aggressive defrag compacts the scattered survivors and frees the

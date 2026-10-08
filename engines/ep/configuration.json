@@ -478,7 +478,7 @@
         "defragmenter_mode" : {
             "added": "7.0.2",
             "default": "auto_pid",
-            "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger. In any mode, including static, the sleep is reduced to defragmenter_auto_min_sleep while RSS/fragmentation back-pressure is critical, so fragmentation is recovered quickly.",
+            "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger. In any mode, including static, the sleep is replaced by defragmenter_critical_sleep while RSS/fragmentation back-pressure is critical, so fragmentation is recovered quickly.",
             "dynamic": true,
             "type": "std::string",
             "validator": {
@@ -696,6 +696,18 @@
             "descr": "If true, memory back-pressure (temp-OOM of mutations, DCP backfill pause) also engages when RSS is over the bucket quota and scored fragmentation is at/above defragmenter_auto_upper_threshold. See EPStats::getScoredFragmentation.",
             "dynamic": true,
             "type": "bool"
+        },
+        "defragmenter_critical_sleep": {
+            "added": "8.5.0",
+            "default": "0.0",
+            "descr": "Sleep time (in seconds) of the defragmenter between two runs while RSS/fragmentation back-pressure is critical (see fragmentation_backpressure_enabled). It replaces the sleep set by defragmenter_mode, in every mode. 0 means no sleep: the defragmenter runs back-to-back to bring RSS back under quota as fast as possible.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0
+                }
+            }
         },
         "freq_counter_increment_factor": {
             "added": "7.6.0",
