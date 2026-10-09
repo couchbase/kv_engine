@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "authn_authz_service_task.h"
 #include "connection_libevent.h"
 #include "daemon/external_auth_manager_thread.h"
 #include "enginemap.h"
@@ -16,10 +17,12 @@
 #include "memcached.h"
 
 #include <daemon/cookie.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/socket.h>
 
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
+#include <future>
 
 /// A mock connection
 class MockConnection : public LibeventConnection {
@@ -270,4 +273,68 @@ TEST_F(ConnectionUnitTests, MB_67796_emptySendQueue) {
 
 TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
     resetConnectionTest(false);
+}
+
+/** A task which only records that it received a response */
+class MockAuthnAuthzServiceTask : public AuthnAuthzServiceTask {
+public:
+    void externalResponse(cb::mcbp::Status, const std::string&) override {
+        baton.post();
+    }
+    folly::Baton<> baton;
+};
+
+/**
+ * Exposes the internals of ExternalAuthManagerThread so that the test
+ * may put it in the state where the cap of pending requests is reached.
+ */
+class MockExternalAuthManagerThread : public ExternalAuthManagerThread {
+public:
+    void fillRequestMap(Connection& provider,
+                        AuthnAuthzServiceTask& pending,
+                        AuthnAuthzServiceTask& queued) {
+        std::lock_guard<std::mutex> guard(mutex);
+        connections.push_back(&provider);
+        while (requestMap.size() < maxPendingRequests) {
+            requestMap[next++] = std::make_pair(&provider, &pending);
+        }
+        incomingRequests.push(&queued);
+    }
+};
+
+/**
+ * MB-74514: When the cap of pending requests was reached and there were
+ * more requests queued, the thread would spin while holding the mutex,
+ * blocking responseReceived() forever (and the front end thread calling
+ * it). Verify that a response is still delivered in that state.
+ */
+TEST_F(ConnectionUnitTests, MB74514_ResponseDeliveredWhenRequestCapReached) {
+    MockAuthnAuthzServiceTask pending;
+    MockAuthnAuthzServiceTask queued;
+    MockExternalAuthManagerThread manager;
+    // Avoid trying to push the active users to our mock provider
+    manager.setPushActiveUsersInterval(std::chrono::hours(1));
+    manager.fillRequestMap(*connection, pending, queued);
+    manager.start();
+
+    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Response));
+    cb::mcbp::ResponseBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(cb::mcbp::Magic::ServerResponse);
+    builder.setOpcode(cb::mcbp::ServerOpcode::Authenticate);
+    builder.setStatus(cb::mcbp::Status::Etmpfail);
+    builder.setOpaque(0);
+
+    auto future = std::async(std::launch::async, [&manager, &builder]() {
+        manager.responseReceived(*builder.getFrame());
+    });
+    if (future.wait_for(std::chrono::seconds(30)) !=
+        std::future_status::ready) {
+        // The thread holds the mutex forever so we can't shut it down
+        fmt::print(stderr, "MB74514: responseReceived() blocked\n");
+        std::abort();
+    }
+    EXPECT_TRUE(pending.baton.try_wait_for(std::chrono::seconds(30)));
+
+    manager.shutdown();
+    manager.waitForState(Couchbase::ThreadState::Zombie);
 }
