@@ -344,42 +344,18 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
 }
 
 bool KVStore::snapshotStats(const nlohmann::json& stats) {
-    std::filesystem::path dbname = getConfig().getDBName();
-    const auto next_fname = dbname / "stats.json.new";
-    const auto old_fname = dbname / "stats.json.old";
-    const auto stats_fname = dbname / "stats.json";
-    const auto content = stats.dump();
-
+    const auto stats_fname =
+            std::filesystem::path(getConfig().getDBName()) / "stats.json";
     std::error_code ec;
-    if (!cb::io::saveFile(next_fname, content, ec)) {
+    if (!cb::io::saveFileAtomic(stats_fname, stats.dump(), ec)) {
         EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to save stats snapshot",
-                        {"path", next_fname},
+                        {"path", stats_fname},
                         {"error", ec.message()});
         return false;
     }
-
-    if (exists(stats_fname, ec)) {
-        rename(stats_fname, old_fname, ec);
-        if (ec) {
-            EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to rename",
-                            {"from", stats_fname.string()},
-                            {"to", old_fname.string()},
-                            {"error", ec.message()});
-            remove(next_fname, ec);
-            return false;
-        }
-    }
-
-    rename(next_fname, stats_fname, ec);
-    if (ec) {
-        EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to rename",
-                        {"from", next_fname.string()},
-                        {"to", stats_fname.string()},
-                        {"error", ec.message()});
-        remove(next_fname, ec);
-        return false;
-    }
-
+    // Older versions rotated the previous snapshot to stats.json.old.
+    // Nothing reads it, so remove it (best effort).
+    std::filesystem::remove(stats_fname.parent_path() / "stats.json.old", ec);
     return true;
 }
 
@@ -893,7 +869,8 @@ std::expected<cb::snapshot::Manifest, cb::engine_errc> KVStore::prepareSnapshot(
 
     const auto manifestPath = snapshotPath / "manifest.json";
     std::error_code ec;
-    if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
+    if (!cb::io::saveFileAtomic(
+                manifestPath, nlohmann::json(manifest).dump(), ec)) {
         EP_LOG_WARN_CTX("prepareSnapshot Failed to save manifest.json",
                         {"vb", vbid},
                         {"error", ec.message()},
