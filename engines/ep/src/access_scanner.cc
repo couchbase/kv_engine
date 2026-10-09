@@ -258,6 +258,16 @@ void ItemAccessVisitor::complete() {
         return;
     }
 
+    // The content of the new access log was synced as part of closing the
+    // file, but the rename needs a sync of the directory to be durable.
+    try {
+        cb::io::fsyncDirectory(std::filesystem::path(name).parent_path());
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("Failed to sync access log directory",
+                        {"name", name},
+                        {"error", e.what()});
+    }
+
     // MB-69120: Successfully replaced the access log file, there is no
     //           reason to keep the "old" files around anymore as we've
     //           got a newer set.
