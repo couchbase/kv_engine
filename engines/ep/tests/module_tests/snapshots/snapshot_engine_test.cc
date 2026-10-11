@@ -16,7 +16,9 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Unistd.h>
 #include <platform/dirutils.h>
 
 class SnapshotEngineTest
@@ -104,6 +106,39 @@ TEST_P(SnapshotEngineTest, prepare_snapshot) {
                                    EXPECT_EQ(k, "vb_0:status");
                                    EXPECT_EQ(v, "available");
                                }));
+}
+
+/**
+ * The snapshot directory must be synced in its parent directory once the
+ * manifest is written. Verify that if that fails prepare_snapshot fails and
+ * the snapshot is removed (rather than reporting a snapshot which may not
+ * survive a crash). The sync is forced to fail by removing read permission
+ * from the snapshots directory (it may still be written to).
+ */
+TEST_P(SnapshotEngineTest, prepare_snapshot_fails_if_directory_cant_be_synced) {
+#ifdef WIN32
+    GTEST_SKIP() << "Directories can't be synced on Windows";
+#else
+    if (geteuid() == 0) {
+        GTEST_SKIP() << "Permissions are not enforced for root";
+    }
+#endif
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto snapshotsDir = std::filesystem::path{test_dbname} / "snapshots";
+    create_directories(snapshotsDir);
+    using std::filesystem::perms;
+    permissions(snapshotsDir, perms::owner_write | perms::owner_exec);
+    auto restore = folly::makeGuard(
+            [&snapshotsDir] { permissions(snapshotsDir, perms::owner_all); });
+
+    EXPECT_EQ(cb::engine_errc::failed,
+              engine->prepare_snapshot(*cookie, vbid, {}, [](auto) {
+                  throw std::runtime_error("should not be called");
+              }));
+    restore.dismiss();
+    permissions(snapshotsDir, perms::owner_all);
+
+    EXPECT_TRUE(std::filesystem::is_empty(snapshotsDir));
 }
 
 // doSnapshotStatus must tmp-fail while a warmup is validating the snapshot

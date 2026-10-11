@@ -10,7 +10,9 @@
 
 #include "snapshots/cache.h"
 #include <boost/filesystem/operations.hpp>
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Unistd.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/uuid.h>
@@ -145,4 +147,60 @@ TEST_F(CacheTest, RemoveFromDisk) {
     // the existing Cache::remove contract.
     EXPECT_EQ(cb::engine_errc::failed,
               cache.removeFromDisk(::to_string(cb::uuid::random())));
+}
+
+TEST_F(CacheTest, Download) {
+    auto rv = cache.download(
+            Vbid{0},
+            [] {
+                return cb::snapshot::Manifest{Vbid{0},
+                                              ::to_string(cb::uuid::random())};
+            },
+            [](const auto&, const auto&) { return cb::engine_errc::success; });
+    ASSERT_TRUE(rv.has_value());
+    EXPECT_TRUE(exists(test_dir / "snapshots" / rv->uuid / "manifest.json"));
+    EXPECT_EQ(*rv, cache.lookup(rv->uuid));
+}
+
+/**
+ * The snapshot directory must be synced in its parent directory once the
+ * manifest is written. Verify that if that fails the download fails and the
+ * snapshot is removed (rather than reporting a snapshot which may not
+ * survive a crash). The sync is forced to fail by removing read permission
+ * from the snapshots directory (it may still be written to).
+ */
+TEST_F(CacheTest, DownloadFailsIfSnapshotDirectoryCantBeSynced) {
+#ifdef WIN32
+    GTEST_SKIP() << "Directories can't be synced on Windows";
+#else
+    if (geteuid() == 0) {
+        GTEST_SKIP() << "Permissions are not enforced for root";
+    }
+#endif
+    const auto snapshots = test_dir / "snapshots";
+    create_directories(snapshots);
+    using std::filesystem::perms;
+    permissions(snapshots, perms::owner_write | perms::owner_exec);
+    auto restore = folly::makeGuard(
+            [&snapshots] { permissions(snapshots, perms::owner_all); });
+
+    bool downloaded = false;
+    auto rv = cache.download(
+            Vbid{0},
+            [] {
+                return cb::snapshot::Manifest{Vbid{0},
+                                              ::to_string(cb::uuid::random())};
+            },
+            [&downloaded](const auto&, const auto&) {
+                downloaded = true;
+                return cb::engine_errc::success;
+            });
+    restore.dismiss();
+    permissions(snapshots, perms::owner_all);
+
+    ASSERT_FALSE(rv.has_value());
+    EXPECT_EQ(cb::engine_errc::failed, rv.error());
+    EXPECT_FALSE(downloaded);
+    EXPECT_TRUE(std::filesystem::is_empty(snapshots));
+    EXPECT_EQ(std::nullopt, cache.lookup(Vbid{0}));
 }
