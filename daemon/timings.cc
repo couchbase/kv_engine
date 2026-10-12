@@ -10,6 +10,8 @@
  */
 #include "timings.h"
 
+#include <algorithm>
+
 Timings::Timings() {
     reset();
 }
@@ -52,7 +54,7 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
     interval.duration_ns += nsec.count();
 }
 
-static constexpr std::array<cb::mcbp::ClientOpcode, 32> timings_mutations = {
+static constexpr std::array<cb::mcbp::ClientOpcode, 31> timings_mutations = {
         cb::mcbp::ClientOpcode::Add,
         cb::mcbp::ClientOpcode::Addq,
         cb::mcbp::ClientOpcode::Append,
@@ -76,7 +78,6 @@ static constexpr std::array<cb::mcbp::ClientOpcode, 32> timings_mutations = {
         cb::mcbp::ClientOpcode::SubdocArrayInsert,
         cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
         cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-        cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
         cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst,
         cb::mcbp::ClientOpcode::SubdocArrayRemoveAll,
         cb::mcbp::ClientOpcode::SubdocCounter,
@@ -99,6 +100,20 @@ static constexpr std::array<cb::mcbp::ClientOpcode, 12> timings_retrievals = {
         cb::mcbp::ClientOpcode::SubdocMultiLookup,
         cb::mcbp::ClientOpcode::SubdocGet,
         cb::mcbp::ClientOpcode::SubdocExists};
+
+/**
+ * Check that the given opcodes contain no duplicates. A duplicated opcode
+ * would be counted multiple times by the aggregated stats (e.g. cmd_mutation).
+ */
+template <size_t N>
+static consteval bool isUnique(std::array<cb::mcbp::ClientOpcode, N> opcodes) {
+    std::ranges::sort(opcodes);
+    return std::ranges::adjacent_find(opcodes) == opcodes.end();
+}
+static_assert(isUnique(timings_mutations),
+              "timings_mutations contains a duplicate opcode");
+static_assert(isUnique(timings_retrievals),
+              "timings_retrievals contains a duplicate opcode");
 
 uint64_t Timings::get_aggregated_mutation_stats() const {
     uint64_t ret = 0;

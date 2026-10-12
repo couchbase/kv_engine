@@ -56,3 +56,11 @@ TEST_F(TimingsTest, Overflow) {
     ASSERT_TRUE(maxTrackable->is_number());
     EXPECT_EQ(maxTracked.count(), maxTrackable->get<int64_t>());
 }
+
+// Test that each mutation opcode is only counted once by the aggregated
+// mutation stats used for cmd_mutation (SubdocArrayAddUnique was previously
+// listed twice, so each op was counted twice).
+TEST_F(TimingsTest, SubdocArrayAddUniqueCountedOnce) {
+    timings.collect(cb::mcbp::ClientOpcode::SubdocArrayAddUnique, 1ms);
+    EXPECT_EQ(1, timings.get_aggregated_mutation_stats());
+}
