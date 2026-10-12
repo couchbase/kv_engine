@@ -42,14 +42,14 @@
           "iss": "",
           "alg": "",
           "sub": "",
-          "aud": "",
+          "aud": [],
           "exp": 0,
           "kid": "",
           "nbf": 0,
           "iat": 0,
           "jti": "",
-          "groups": "",
-          "roles": ""
+          "groups": [],
+          "token_roles": []
         }
       }
     },
@@ -129,14 +129,17 @@
           "iss": "",
           "alg": "",
           "sub": "",
-          "aud": "",
+          "aud": [],
           "exp": 0,
           "kid": "",
           "nbf": 0,
           "iat": 0,
           "jti": "",
-          "groups": "",
-          "roles": ""
+          "groups": [],
+          "token_roles": [],
+          "mapped_groups": "",
+          "mapped_roles": "",
+          "expiry_with_leeway": ""
         }
       }
     },
