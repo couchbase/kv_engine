@@ -3052,7 +3052,7 @@
 /* aggregates over multiple operations for a single bucket */
     {
         "key": "cmd_mutation",
-        "description": "The number of mutation operations. This includes operations such as Add, Append, Decrement, Delete, Gat, Increment, Prepend, Replace, Set, Touch, and various Sub-Document mutations (e.g., SubdocArrayAddUnique, SubdocCounter, SubdocDelete, etc.)",
+        "description": "The number of mutation operations. This includes operations such as Add, Append, Decrement, Delete, Gat, Increment, Prepend, Replace, Set, Touch, the *WithMeta operations (AddWithMeta, DelWithMeta, MutateWithMeta, SetWithMeta and their quiet variants), and various Sub-Document mutations (e.g., SubdocArrayAddUnique, SubdocCounter, SubdocDelete, etc.)",
         "unit": "none",
         "type": "counter",
         "added": "7.0.0"

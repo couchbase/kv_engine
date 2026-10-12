@@ -64,3 +64,21 @@ TEST_F(TimingsTest, SubdocArrayAddUniqueCountedOnce) {
     timings.collect(cb::mcbp::ClientOpcode::SubdocArrayAddUnique, 1ms);
     EXPECT_EQ(1, timings.get_aggregated_mutation_stats());
 }
+
+// Test that the *WithMeta mutation opcodes are counted as mutations (and not
+// as retrievals) by the aggregated stats used for cmd_mutation / cmd_lookup.
+TEST_F(TimingsTest, WithMetaOpsCountedAsMutations) {
+    const std::array withMetaOpcodes{cb::mcbp::ClientOpcode::AddWithMeta,
+                                     cb::mcbp::ClientOpcode::AddqWithMeta,
+                                     cb::mcbp::ClientOpcode::DelWithMeta,
+                                     cb::mcbp::ClientOpcode::DelqWithMeta,
+                                     cb::mcbp::ClientOpcode::MutateWithMeta,
+                                     cb::mcbp::ClientOpcode::SetWithMeta,
+                                     cb::mcbp::ClientOpcode::SetqWithMeta};
+    for (const auto opcode : withMetaOpcodes) {
+        timings.collect(opcode, 1ms);
+    }
+
+    EXPECT_EQ(withMetaOpcodes.size(), timings.get_aggregated_mutation_stats());
+    EXPECT_EQ(0, timings.get_aggregated_retrieval_stats());
+}
