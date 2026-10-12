@@ -70,6 +70,24 @@ TEST(X509, ParseValidMultipleEntryFormat) {
     }
 }
 
+/**
+ * An empty prefixes array must survive a round-trip through to_string()
+ * (MB-74485). Previously to_string() emitted "prefixes": null which
+ * create() rejected.
+ */
+TEST(X509, EmptyPrefixesRoundTrip) {
+    auto config = ClientCertConfig::create(R"({"prefixes": []})"_json);
+    ASSERT_TRUE(config);
+    EXPECT_EQ(0, config->getNumMappings());
+
+    const auto json = nlohmann::json::parse(config->to_string());
+    EXPECT_EQ(R"({"prefixes": []})"_json, json);
+
+    auto reparsed = ClientCertConfig::create(json);
+    ASSERT_TRUE(reparsed);
+    EXPECT_EQ(0, reparsed->getNumMappings());
+}
+
 class SslParseCertTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {

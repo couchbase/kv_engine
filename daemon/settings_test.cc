@@ -820,6 +820,17 @@ TEST(SettingsUpdateTest, RootIsNotDynamic) {
                  std::invalid_argument);
 }
 
+/**
+ * Applying a client_cert_auth config with an empty prefixes array must
+ * succeed (MB-74485).
+ */
+TEST(SettingsUpdateTest, ClientCertAuthEmptyPrefixes) {
+    Settings settings;
+    Settings updated(
+            nlohmann::json{{"client_cert_auth", R"({"prefixes": []})"_json}});
+    EXPECT_NO_THROW(settings.updateSettings(updated, true));
+}
+
 TEST(SettingsUpdateTest, PrometheusIsDynamic) {
     // setting the same value should work
     Settings settings;
