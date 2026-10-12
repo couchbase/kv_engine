@@ -211,7 +211,7 @@ std::string ClientCertConfig::to_string() const {
                 {"suffix", mappings[0]->suffix},
                 {"delimiter", mappings[0]->delimiter}};
     } else {
-        nlohmann::json array;
+        auto array = nlohmann::json::array();
         for (const auto& m : mappings) {
             array.emplace_back(nlohmann::json{{"path", m->path},
                                               {"prefix", m->prefix},
