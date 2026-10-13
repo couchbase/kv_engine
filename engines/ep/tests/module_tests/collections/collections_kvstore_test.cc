@@ -463,6 +463,44 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     EXPECT_NE(m1, m2);
 }
 
+// CollectionMetaData is a value, assignment replaces the flushUid even with a
+// lower value. Containers which move or copy their elements depend on this.
+TEST(CollectionMetaDataTest, assignmentReplacesLowerFlushUid) {
+    auto meta = [](CollectionID cid, uint64_t flushUid) {
+        return Collections::CollectionMetaData{
+                ScopeID::Default,
+                cid,
+                "c",
+                cb::NoExpiryLimit,
+                CanDeduplicate::Yes,
+                Collections::Metered::No,
+                Collections::ManifestUid{flushUid}};
+    };
+    std::vector<Collections::CollectionMetaData> collections{
+            meta(CollectionID{8}, 3), meta(CollectionID{9}, 0)};
+
+    // erase moves the second element over the first
+    EXPECT_NO_THROW(std::erase_if(collections, [](const auto& md) {
+        return md.cid == CollectionID{8};
+    }));
+    ASSERT_EQ(1, collections.size());
+    EXPECT_EQ(meta(CollectionID{9}, 0), collections[0]);
+
+    // sort moves the element with flushUid 3 out and back over flushUid 0
+    collections.push_back(meta(CollectionID{8}, 3));
+    EXPECT_NO_THROW(std::ranges::sort(collections,
+                                      [](const auto& lhs, const auto& rhs) {
+                                          return lhs.cid < rhs.cid;
+                                      }));
+    EXPECT_EQ(meta(CollectionID{8}, 3), collections[0]);
+    EXPECT_EQ(meta(CollectionID{9}, 0), collections[1]);
+
+    // copy assignment
+    auto copy = collections[0];
+    copy = collections[1];
+    EXPECT_EQ(collections[1], copy);
+}
+
 TEST_P(CollectionsKVStoreTest, initial_meta) {
     // Ask the kvstore for the initial meta
     auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));

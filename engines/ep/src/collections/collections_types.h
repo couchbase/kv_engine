@@ -134,6 +134,37 @@ struct CollectionMetaData {
           flushUid(flushUid) {
     }
 
+    CollectionMetaData(const CollectionMetaData&) = default;
+    CollectionMetaData(CollectionMetaData&&) = default;
+
+    /**
+     * Assignment replaces all of the metadata, flushUid included even if it is
+     * lower (e.g. a container moving its elements). The metadata is a value
+     * describing a collection, VB::ManifestEntry keeps the live flushUid
+     * monotonic.
+     */
+    CollectionMetaData& operator=(const CollectionMetaData& other) {
+        sid = other.sid;
+        cid = other.cid;
+        name = other.name;
+        maxTtl = other.maxTtl;
+        canDeduplicate = other.canDeduplicate;
+        metered = other.metered;
+        flushUid.reset(other.flushUid);
+        return *this;
+    }
+
+    CollectionMetaData& operator=(CollectionMetaData&& other) noexcept {
+        sid = other.sid;
+        cid = other.cid;
+        name = std::move(other.name);
+        maxTtl = other.maxTtl;
+        canDeduplicate = other.canDeduplicate;
+        metered = other.metered;
+        flushUid.reset(other.flushUid);
+        return *this;
+    }
+
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
