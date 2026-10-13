@@ -628,7 +628,8 @@ class MemcachedClient(object):
             remote_cas,
             collection=None,
             dtype=DTYPE_RAW,
-            options=None):
+            options=None,
+            cas=0):
         """Delete a value with its meta data in the memcached server.
 
         The behaviour of the command may be changed by specifying any of the
@@ -639,12 +640,15 @@ class MemcachedClient(object):
         * `REGENERATE_CAS`
         * `SKIP_CONFLICT_RESOLUTION_FLAG`
         * `IS_EXPIRATION`
+
+        If cas is non-zero the delete is only performed if it matches the CAS
+        of the existing document, otherwise KEY_EEXISTS is returned.
         """
         return self._doMetaCmd(
             memcacheConstants.CMD_DELETE_WITH_META,
             key,
             value,
-            0,
+            cas,
             exp,
             flags,
             seqno,

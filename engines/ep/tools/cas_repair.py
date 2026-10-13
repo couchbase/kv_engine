@@ -5,8 +5,10 @@ This script's purpose is to look for documents stored in a couchbase vbucket
 (when the storage engine is couchstore) that have a CAS above a threshold.
 The script can be executed in a way so that those keys which are above
 threshold are "mutated" using the touch command so that they can be given a
-new CAS. The script will only really have an affect if the vbucket max_cas
-has already been "repaired" using cbepctl
+new CAS. Deleted documents without a value are deleted again using
+DeleteWithMeta so that the server generates a new CAS for them. The script
+will only really have an affect if the vbucket max_cas has already been
+"repaired" using cbepctl
 
 To ship this as a standalone requires a mc_bin_client with this patch
 
@@ -38,15 +40,20 @@ class RepairStats:
     def __init__(self):
         # Documents (excluding system events) with a CAS above the threshold
         self.above_threshold = 0
-        # Documents above the threshold which are deleted, so cannot be touched
+        # Documents above the threshold which are deleted but still have a
+        # value (e.g. system xattrs, transactions), so cannot be repaired
         self.deleted_skipped = 0
+        # Documents above the threshold which are deleted, but could not be
+        # checked for a value (key contains a NUL byte, or the couch_dbdump
+        # lookup failed), so were not repaired
+        self.deleted_unchecked = 0
         # Documents above the threshold with a non UTF-8 key, so cannot be
-        # touched
+        # repaired
         self.non_utf_skipped = 0
-        # Documents where a touch failed with a MemcachedError
+        # Documents where a repair failed with a MemcachedError
         self.mc_client_errors = 0
-        # Set once the first touch has been attempted
-        self.touch_attempted = False
+        # Set once the first repair (touch or DeleteWithMeta) has been attempted
+        self.repair_attempted = False
 
 
 def parse_args():
@@ -92,8 +99,14 @@ def parse_args():
              "otherwise just inspect and print affected documents",
         action='store_true')
     parser.add_argument(
+        "--repair-deleted-with-value",
+        help="Optional: When using --fix, also repair deleted documents which "
+             "still have a value, instead of skipping them. The server keeps "
+             "their system xattrs, but any user xattrs and body are removed",
+        action='store_true')
+    parser.add_argument(
         "--persist-timeout",
-        help="Optional: Seconds to wait for the touched documents to be "
+        help="Optional: Seconds to wait for the repaired documents to be "
              "persisted when using --fix, defaults to 300",
         default=300,
         type=int)
@@ -198,10 +211,72 @@ def touch_document(memcache, json_entry, logical_key, collection_id, verbose):
     memcache.touch(logical_key, new_expiry, collection=collection)
 
 
-def process_document(json_entry, args, memcache, stats):
+def delete_document(memcache, json_entry, logical_key, collection_id, verbose):
+    """
+    Delete the (already deleted) document again using DeleteWithMeta, so that
+    the server generates a new CAS for the tombstone. No value is sent. If the
+    tombstone has a value (only with --repair-deleted-with-value), the server
+    keeps its system xattrs but removes any user xattrs and body.
+
+    The CAS from couch_dbdump is sent as the request CAS, so the server
+    rejects the delete with KEY_EEXISTS if the document has changed since it
+    was scanned (e.g. it has been recreated).
+    """
+    # couch_dbdump outputs the CAS as a string, it must be an int to be sent
+    cas = int(json_entry['cas'])
+
+    # Convert the collection to an int, mc_bin_client will skip trying (and
+    # failing) to map to an ID when the input is an int.
+    collection = int(collection_id, 16)
+
+    # Keep the existing flags and delete time, and increment the rev seqno as
+    # touch does. Regenerating the CAS requires skipping conflict resolution.
+    rev_seqno = json_entry['rev'] + 1
+    # The server rejects a meta CAS of 0 (or one too far in the future), even
+    # with REGENERATE_CAS, so send the current time (cas is nanoseconds,
+    # time.time is seconds). With REGENERATE_CAS the server replaces it with a
+    # generated CAS, and it is not used to advance the vbucket max_cas.
+    meta_cas = int(time.time() * 1000000000)
+    options = (mc_bin_client_ns.memcacheConstants.REGENERATE_CAS |
+               mc_bin_client_ns.memcacheConstants.SKIP_CONFLICT_RESOLUTION_FLAG)
+    # Keep the delete source, couch_dbdump reports it as "TTL" or "explicit"
+    if json_entry['deleted'] == "TTL":
+        options |= mc_bin_client_ns.memcacheConstants.IS_EXPIRATION
+    if verbose:
+        print(
+            "Fixing deleted key {} in collection {} which has cas of {}, "
+            "deleting again with a server generated cas".format(
+                logical_key, collection_id, cas))
+    memcache.delWithMeta(key=logical_key,
+                         value='',
+                         exp=json_entry['delete_time'],
+                         flags=json_entry['flags'],
+                         seqno=rev_seqno,
+                         remote_cas=meta_cas,
+                         collection=collection,
+                         options=options,
+                         cas=cas)
+
+
+def deleted_document_has_value(datafile, logical_key, collection_id):
+    """
+    The main couch_dbdump uses --no-body, so look up the deleted document on
+    its own to check if it has a value. A deleted document without a value has
+    a null body. Raises subprocess.CalledProcessError if the lookup fails (e.g.
+    the file was replaced by compaction or the tombstone was purged), or
+    ValueError / KeyError if the output cannot be parsed.
+    """
+    # couch_dbdump expects the collection ID in decimal
+    cmd = ["couch_dbdump", "--json", "--key", logical_key, "--collection",
+           str(int(collection_id, 16)), datafile]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, check=True)
+    return json.loads(result.stdout)['body'] is not None
+
+
+def process_document(json_entry, args, memcache, stats, datafile):
     """
     Check the CAS of a document from couch_dbdump. If it is above the threshold
-    either report it, or with --fix touch it so that it is given a new CAS.
+    either report it, or with --fix repair it so that it is given a new CAS.
     """
     cas = json_entry['cas']
 
@@ -227,15 +302,7 @@ def process_document(json_entry, args, memcache, stats):
 
     stats.above_threshold += 1
 
-    # Deleted documents are counted but cannot be touched, so skip them
-    if "deleted" in json_entry:
-        stats.deleted_skipped += 1
-        if args.verbose:
-            print(
-                "Warning deleted key {} has a cas of {} which is above the "
-                "threshold of {}, skipping".format(
-                    logical_key, cas, args.caslimit))
-        return
+    deleted = "deleted" in json_entry
 
     # Now we will need to separate out the collection ID, a number which
     # uniquely identifies the collection for this document.
@@ -244,9 +311,10 @@ def process_document(json_entry, args, memcache, stats):
     if not args.fix:
         if args.verbose:
             print(
-                "Warning key {} in collection {} has a cas of {} which is "
+                "Warning {}key {} in collection {} has a cas of {} which is "
                 "above the threshold of {}".format(
-                    logical_key, collection_id, cas, args.caslimit))
+                    "deleted " if deleted else "", logical_key,
+                    collection_id, cas, args.caslimit))
         return
 
     # This is the symbol that couch_dbump replaces in its output
@@ -261,12 +329,49 @@ def process_document(json_entry, args, memcache, stats):
             "script".format(logical_key, collection_info, cas))
         return
 
-    # With the -f option the script writes back to the database to change the
-    # expiry and generate a new CAS, all using touch.
-    stats.touch_attempted = True
+    # Deleted documents without a value are repaired using DeleteWithMeta.
+    # Deleted documents which still have a value (e.g. system xattrs) are
+    # counted but skipped, unless --repair-deleted-with-value is used, in which
+    # case they are repaired without checking for a value
+    if deleted and not args.repair_deleted_with_value:
+        if "\x00" in logical_key:
+            # A NUL byte cannot be passed as an argument to couch_dbdump
+            stats.deleted_unchecked += 1
+            print(
+                "Warning: skipping deleted key {} in collection {} (cas {}) "
+                "because it contains a NUL byte so cannot be checked for a "
+                "value".format(logical_key, collection_id, cas))
+            return
+        try:
+            has_value = deleted_document_has_value(datafile, logical_key,
+                                                   collection_id)
+        except (subprocess.CalledProcessError, ValueError, KeyError) as e:
+            stats.deleted_unchecked += 1
+            print(
+                "Warning: skipping deleted key {} in collection {} (cas {}) "
+                "because it could not be checked for a value: {}".format(
+                    logical_key, collection_id, cas, e))
+            return
+        if has_value:
+            stats.deleted_skipped += 1
+            if args.verbose:
+                print(
+                    "Warning deleted key {} has a cas of {} which is above "
+                    "the threshold of {} and has a value, skipping".format(
+                        logical_key, cas, args.caslimit))
+            return
+
+    # With the -f option the script writes back to the database to generate a
+    # new CAS, using DeleteWithMeta for deleted documents and otherwise touch
+    # to change the expiry.
+    stats.repair_attempted = True
     try:
-        touch_document(memcache, json_entry, logical_key, collection_id,
-                       args.verbose)
+        if deleted:
+            delete_document(memcache, json_entry, logical_key, collection_id,
+                            args.verbose)
+        else:
+            touch_document(memcache, json_entry, logical_key, collection_id,
+                           args.verbose)
     except mc_bin_client_ns.MemcachedError as e:
         print(
             "Warning: Caught a MemcachedError {} whilst processing key "
@@ -296,7 +401,7 @@ def process_datafile(args, datafile, memcache):
                   "line {}".format(e, line))
             sys.exit(1)
 
-        process_document(json_entry, args, memcache, stats)
+        process_document(json_entry, args, memcache, stats, datafile)
 
     proc.wait()
     if proc.returncode != 0:
@@ -310,21 +415,22 @@ def process_datafile(args, datafile, memcache):
 def get_high_seqno(memcache, vbucket):
     """
     Touch does not return the seqno of the mutation, so read the vbucket high
-    seqno instead. Returns None if the high seqno cannot be read.
+    seqno once all repairs are done instead. Returns None if the high seqno
+    cannot be read.
     """
     stat_key = "vb_{}:high_seqno".format(vbucket)
     try:
         seqno_stats = memcache.stats("vbucket-seqno {}".format(vbucket))
         return int(seqno_stats[stat_key])
     except (mc_bin_client_ns.MemcachedError, KeyError, ValueError) as e:
-        print("Warning: Unable to read {} after touching documents: "
+        print("Warning: Unable to read {} after repairing documents: "
               "{}".format(stat_key, e))
         return None
 
 
 def wait_for_persistence(memcache, vbucket, seqno, timeout, verbose):
     """
-    Wait for the seqno to be persisted, so that all touched documents (and
+    Wait for the seqno to be persisted, so that all repaired documents (and
     their new CAS) are on disk. Returns True if seqno was persisted within
     timeout seconds.
     """
@@ -354,14 +460,16 @@ def print_summary(args, stats, high_seqno, persisted):
     if stats.above_threshold:
         if args.fix:
             fixed = (stats.above_threshold - stats.deleted_skipped -
-                     stats.non_utf_skipped - stats.mc_client_errors)
+                     stats.deleted_unchecked - stats.non_utf_skipped -
+                     stats.mc_client_errors)
             print("Complete with {} of {} documents above threshold now "
-                  "fixed, Skipped {} deleted documents and {} documents with "
-                  "non UTF-8 keys".format(
+                  "fixed, Skipped {} deleted documents with a value, {} "
+                  "deleted documents which could not be checked and {} "
+                  "documents with non UTF-8 keys".format(
                       fixed, stats.above_threshold, stats.deleted_skipped,
-                      stats.non_utf_skipped))
+                      stats.deleted_unchecked, stats.non_utf_skipped))
             if high_seqno is not None:
-                print("vbucket {} high seqno after all touches is {}, "
+                print("vbucket {} high seqno after all repairs is {}, "
                       "{}".format(
                           args.vbucket, high_seqno,
                           "persisted" if persisted else
@@ -396,7 +504,7 @@ def main():
     # fixed version from memory. This will cause cas poisoning to re-occur.
     high_seqno = None
     persisted = False
-    if stats.touch_attempted:
+    if stats.repair_attempted:
         high_seqno = get_high_seqno(memcache, args.vbucket)
         if high_seqno is not None:
             persisted = wait_for_persistence(memcache, args.vbucket,
@@ -405,8 +513,9 @@ def main():
 
     print_summary(args, stats, high_seqno, persisted)
 
-    if stats.touch_attempted and not persisted:
-        print("Error: Unable to confirm the touched documents were persisted")
+    if stats.repair_attempted and not persisted:
+        print("Error: Unable to confirm the repaired documents were "
+              "persisted")
         return 1
     return 0
 
