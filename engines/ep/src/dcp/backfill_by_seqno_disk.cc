@@ -280,15 +280,14 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
     std::optional<uint64_t> collHigh;
 
     const auto& handle = *seqnoScanCtx.handle;
-    for (auto cid : filter) {
-        auto [status, collStats] =
-                kvStore.getCollectionStats(handle, cid.first);
+    for (auto cid : filter.getCollectionIDs()) {
+        auto [status, collStats] = kvStore.getCollectionStats(handle, cid);
         if (status == KVStore::GetCollectionStatsStatus::Failed) {
             EP_LOG_WARN_CTX(
                     "DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(): "
                     "getCollectionStats failed",
                     {"vb", seqnoScanCtx.vbid},
-                    {"cid", cid.first});
+                    {"cid", cid});
             return {false, std::nullopt};
         }
         collHigh = std::max(collHigh.value_or(0), collStats.highSeqno.load());

@@ -15,14 +15,17 @@
 #include "item.h"
 
 #include <fmt/ostream.h>
+#include <folly/Synchronized.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class CookieIface;
 class EventuallyPersistentEngine;
@@ -69,6 +72,12 @@ class ReadHandle;
  * drop of a collection, they will modify the Filter to remove the collection
  * if the filter was targeting the collection.
  *
+ * Thread safety: A Filter is used concurrently by the threads driving the
+ * owning stream (e.g. backfill, checkpoint processing, front-end and stats).
+ * The configuration of the filter is fixed at construction (Config) and is
+ * read without locking, whilst the parts which checkAndUpdate may change
+ * (State) are guarded by a reader/writer lock. Only system events take the
+ * write lock.
  */
 
 class Filter {
@@ -113,11 +122,6 @@ public:
         if (isPassThroughFilter()) {
             return true;
         }
-
-        // The presence of _default is a simple check against defaultAllowed
-        if (item.getKey().isInDefaultCollection() && defaultAllowed) {
-            return true;
-        }
         // More complex checks needed...
         return checkAndUpdateSlow(item);
     }
@@ -134,11 +138,6 @@ public:
     bool check(DocKeyView key) const {
         // passthrough, everything is allowed.
         if (isPassThroughFilter()) {
-            return true;
-        }
-
-        // The presence of _default is a simple check against defaultAllowed
-        if (key.isInDefaultCollection() && defaultAllowed) {
             return true;
         }
         // More complex checks needed...
@@ -159,34 +158,15 @@ public:
                                     const EventuallyPersistentEngine& engine);
 
     /**
-     * @return true if checkPrivileges() already ran for revision rev, so it
-     * would return success without checking
-     */
-    bool isPrivilegeRevisionChecked(uint32_t rev) const {
-        return lastCheckedPrivilegeRevision == rev;
-    }
-
-    // Record that the privileges were checked for revision rev
-    void setLastCheckedPrivilegeRevision(uint32_t rev) {
-        lastCheckedPrivilegeRevision = rev;
-    }
-
-    /**
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;
 
     /// @return the size of the filter
-    size_t size() const {
-        return filter.size();
-    }
-
-    CollectionID front() const {
-        return filter.begin()->first;
-    }
+    size_t size() const;
 
     cb::mcbp::DcpStreamId getStreamId() const {
-        return streamId;
+        return config.streamId;
     }
 
     // The filter maps from CollectionID to meta-data that is needed for future
@@ -194,24 +174,25 @@ public:
     // VB::Manifest from a running DCP stream, which incurs a lock inversion
     // with the stream container lock.
     using Container = ::std::unordered_map<CollectionID, DcpFilterMeta>;
-    Container::const_iterator begin() const {
-        return filter.begin();
-    }
 
-    Container::const_iterator end() const {
-        return filter.end();
-    }
+    /**
+     * @return a copy of the collection-IDs currently in the filter. A copy is
+     *         returned as the filter may concurrently change.
+     */
+    std::vector<CollectionID> getCollectionIDs() const;
 
-    Container::const_iterator find(CollectionID cid) const {
-        return filter.find(cid);
-    }
+    /**
+     * @return a copy of the meta-data for the collection, or std::nullopt if
+     *         the collection is not in the filter
+     */
+    std::optional<DcpFilterMeta> find(CollectionID cid) const;
 
     /**
      * Method to check if the filter does not filter collections
      * @return true if the filter is a pass-through filter
      */
     bool isPassThroughFilter() const {
-        return filterType == FilterType::Passthrough;
+        return config.type == FilterType::Passthrough;
     }
 
     /**
@@ -219,7 +200,7 @@ public:
      * @return true if this filter constructed for a non-collection aware client
      */
     bool isLegacyFilter() const {
-        return filterType == FilterType::Legacy;
+        return config.type == FilterType::Legacy;
     }
 
     /**
@@ -230,14 +211,14 @@ public:
      * events.
      */
     bool isCollectionFilter() const {
-        return filterType == FilterType::Collection;
+        return config.type == FilterType::Collection;
     }
 
     /**
      * @return true if this filter constructed a single scope
      */
     bool isScopeFilter() const {
-        return filterType == FilterType::Scope;
+        return config.type == FilterType::Scope;
     }
 
     /**
@@ -246,7 +227,7 @@ public:
      * @return true if the filter is a pass-through filter
      */
     bool isUserVisibleFilter() const {
-        return filterType == FilterType::UserVisible;
+        return config.type == FilterType::UserVisible;
     }
 
     /**
@@ -279,7 +260,7 @@ public:
      * @return the purgeSeqno which may of been set in the JSON object
      */
     uint64_t getRemotePurgeSeqno() const {
-        return remotePurgeSeqno;
+        return config.remotePurgeSeqno;
     }
 
     /**
@@ -287,7 +268,7 @@ public:
      * peer)
      */
     std::optional<size_t> getCacheTransferFreeMemory() const {
-        return cacheTransferFreeMemory;
+        return config.cacheTransferFreeMemory;
     }
 
     /**
@@ -296,7 +277,7 @@ public:
      * @return true if the stream is configured for a key-only cache transfer
      */
     bool isCacheTransferAllKeys() const {
-        return cacheTransferAllKeys;
+        return config.cacheTransferAllKeys;
     }
 
     /**
@@ -310,30 +291,114 @@ public:
     std::string summary() const;
 
 protected:
-    /**
-     * Constructor helper method for parsing the JSON
-     * @return first:success or unknown_collection/unknown_scope, second
-     *         manifest-ID when first is != success.
-     */
-    [[nodiscard]] std::pair<cb::engine_errc, uint64_t> constructFromJson(
-            const nlohmann::json& json,
-            const Collections::VB::Manifest& manifest);
+    enum class FilterType {
+        // "bucket stream" where everything is allowed
+        Passthrough,
+
+        // only the default collection is visible for clients without collection
+        // support
+        Legacy,
+
+        // "bucket stream" for clients that don't have access to system
+        // collections
+        UserVisible,
+
+        // A collection stream; user requested a set of collections and only
+        // those collections are allowed to pass the filter
+        Collection,
+
+        // scope stream; this is dynamic as new collections in the scope will
+        // grow the filter set
+        Scope
+    };
+
+    /// The configuration of the filter, which is fixed at construction
+    struct Config {
+        FilterType type{FilterType::Passthrough};
+        ScopeID scopeID;
+        Visibility filteredScopeVisibility{Visibility::User};
+        cb::mcbp::DcpStreamId streamId = {};
+        uint64_t remotePurgeSeqno{0};
+        std::optional<size_t> cacheTransferFreeMemory;
+        bool cacheTransferAllKeys = false;
+    };
+
+    /// The parts of the filter which can change after construction
+    struct State {
+        /**
+         * Enable the default collection at construction time
+         */
+        void enableDefaultCollection();
+
+        /**
+         * Disable the default collection
+         */
+        void disableDefaultCollection();
+
+        /**
+         * Insert the collection, will toggle defaultAllowed if found
+         */
+        void insertCollection(CollectionID cid, DcpFilterMeta filterData);
+
+        /**
+         * Remove the collection, will toggle defaultAllowed if found
+         */
+        bool removeCollection(CollectionID cid);
+
+        Container filter;
+        bool scopeIsDropped = false;
+        bool defaultAllowed = false;
+    };
+
+    /// Everything the constructor builds before the Filter is initialised
+    struct Init {
+        /**
+         * @return first:success or unknown_collection/unknown_scope
+         *         second: manifest-ID when first is != success
+         */
+        [[nodiscard]] std::pair<cb::engine_errc, uint64_t> constructFromJson(
+                const nlohmann::json& json,
+                const Collections::VB::Manifest& manifest);
+
+        /**
+         * @return true if collection is known and added
+         */
+        [[nodiscard]] bool addCollection(
+                const nlohmann::json& object,
+                const ::Collections::VB::ReadHandle& rh);
+
+        /**
+         * @return true if scope is known and added
+         */
+        [[nodiscard]] bool addScope(const nlohmann::json& object,
+                                    const ::Collections::VB::ReadHandle& rh);
+
+        Config config;
+        State state;
+        std::optional<uint32_t> lastCheckedPrivilegeRevision;
+    };
+
+    explicit Filter(Init&& init);
 
     /**
-     * Private helper to examine the given collection object against the
-     * manifest and add to internal container or throw an exception
-     * @return true if collection is known and added
+     * Constructor helper which does all of the work of the public constructor
+     * @throws cb::engine_error
      */
-    [[nodiscard]] bool addCollection(const nlohmann::json& object,
-                                     const ::Collections::VB::ReadHandle& rh);
+    static Init create(std::optional<std::string_view> jsonFilter,
+                       const ::Collections::VB::Manifest& manifest,
+                       CookieIface& cookie,
+                       const EventuallyPersistentEngine& engine);
 
     /**
-     * Private helper to examine the given scope object against the manifest and
-     * add the associated collections to the internal container
-     * @return true if scope is known and added
+     * Evaluate the privileges required by the given filter, without any
+     * consideration of the privilege revision
+     * @return engine status - success/no_access/unknown_scope|collection
      */
-    [[nodiscard]] bool addScope(const nlohmann::json& object,
-                                const ::Collections::VB::ReadHandle& rh);
+    static cb::engine_errc checkPrivileges(
+            const Config& config,
+            const State& state,
+            CookieIface& cookie,
+            const EventuallyPersistentEngine& engine);
 
     /**
      * Does the filter allow the system event? I.e. a "meat,dairy" filter
@@ -354,14 +419,6 @@ protected:
     bool checkSlow(DocKeyView key) const;
 
     /**
-     * Remove the collection of the item from the filter
-     *
-     * @param item a SystemEventMessage to check
-     * @return true if a collection was removed from this filter
-     */
-    bool remove(const Item& item);
-
-    /**
      * Called Item represents a collection system event
      */
     bool processCollectionEvent(const Item& item);
@@ -371,58 +428,12 @@ protected:
      */
     bool processScopeEvent(const Item& item);
 
-    /**
-     * Enable the default collection at construction time
-     */
-    void enableDefaultCollection();
+    const Config config;
 
-    /**
-     * Disable the default collection
-     */
-    void disableDefaultCollection();
-
-    /**
-     * Insert the collection, will toggle defaultAllowed if found
-     */
-    void insertCollection(CollectionID cid, DcpFilterMeta filterData);
-
-    Container filter;
-    // For FilterType::Scope - the scope
-    ScopeID scopeID;
-    Visibility filteredScopeVisibility{Visibility::User};
+    folly::Synchronized<State, std::shared_mutex> state;
 
     // use an optional so we don't use any special values to mean unset
     std::optional<uint32_t> lastCheckedPrivilegeRevision;
-    cb::mcbp::DcpStreamId streamId = {};
-    bool scopeIsDropped = false;
-    bool defaultAllowed = false;
-    uint64_t remotePurgeSeqno{0};
-    std::optional<size_t> cacheTransferFreeMemory;
-    bool cacheTransferAllKeys = false;
-
-    enum class FilterType {
-        // The "bucket stream" - everything is allowed
-        Passthrough,
-
-        // The "bucket stream" for clients that don't understand collections.
-        // Only the default collection is visible
-        Legacy,
-
-        // The "bucket stream" for clients that don't have access to system
-        // collections. This is a mix of Collection and Scope behaviour - it
-        // filters for all non-system collections and also is dynamic in that
-        // new user visible collections are added.
-        UserVisible,
-
-        // A collection stream - user requested a set of collections and only
-        // those collections are allowed to pass the filter
-        Collection,
-
-        // A scope stream - user requested a single scope and only that scope is
-        // allowed to pass the filter (this is dynamic as new collections in the
-        // scope will grow the filter set)
-        Scope
-    } filterType;
 
     static std::string to_string(FilterType);
 

@@ -1006,12 +1006,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     auto addFilterStat = [&add_stat](auto k, auto v, auto& c) {
         add_stat(fmt::format("filter_{}", k), v, c);
     };
-
-    const auto filterCopy = [this] {
-        std::lock_guard<std::mutex> lh(streamMutex);
-        return filter;
-    }();
-    filterCopy.addStats(addFilterStat, c, vb_);
+    filter.addStats(addFilterStat, c, vb_);
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
@@ -2222,7 +2217,7 @@ std::optional<uint64_t> ActiveStream::getCollectionStreamStart(
 
     // else find a better start seqno for filtered streams.
     std::optional<uint64_t> lowestStartSeqno;
-    for (const auto& [cid, entry] : filter) {
+    for (auto cid : filter.getCollectionIDs()) {
         auto handle = vb.getManifest().lock(cid);
         if (!handle.valid()) {
             // Collection in the filter is no-longer in VB::Manifest (dropped).
@@ -2988,21 +2983,8 @@ bool ActiveStream::collectionAllowed(DocKeyView key) const {
 }
 
 bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
-    auto& cookie = *producer.getCookie();
-    const auto rev = cookie.getPrivilegeContextRevision();
-
-    if (filter.isPrivilegeRevisionChecked(rev)) {
-        return false;
-    }
-
-    auto filterCopy = [this] {
-        std::lock_guard<std::mutex> lh(streamMutex);
-        return filter;
-    }();
-    filter.setLastCheckedPrivilegeRevision(rev);
-
     // Does this stream still have the appropriate privileges to operate?
-    if (filterCopy.checkPrivileges(cookie, *engine) !=
+    if (filter.checkPrivileges(*producer.getCookie(), *engine) !=
         cb::engine_errc::success) {
         std::unique_lock lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);

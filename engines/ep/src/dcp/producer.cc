@@ -384,11 +384,11 @@ cb::engine_errc DcpProducer::streamRequest(
         return ret;
     }
 
-    const auto maybeFilter = constructFilterForStreamRequest(*vb, json);
+    auto maybeFilter = constructFilterForStreamRequest(*vb, json);
     if (std::holds_alternative<cb::engine_errc>(maybeFilter)) {
         return std::get<cb::engine_errc>(maybeFilter);
     }
-    const auto& filter = std::get<Collections::VB::Filter>(maybeFilter);
+    auto& filter = std::get<Collections::VB::Filter>(maybeFilter);
 
     bool callAddVBConnByVBId = false;
     std::tie(ret, callAddVBConnByVBId) =

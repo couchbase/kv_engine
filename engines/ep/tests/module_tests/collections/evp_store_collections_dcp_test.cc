@@ -6817,6 +6817,53 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(1, stream->getFilter().size());
 }
 
+TEST_P(CollectionsDcpParameterizedTest,
+       FilterReadConsistentWithBackfillCollectionDrop) {
+    CollectionsManifest cm;
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    createDcpObjects({{R"({"collections":["8","c"]})"}});
+    auto stream =
+            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(vbid));
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isInMemory());
+
+    ASSERT_TRUE(stream->handleSlowStream());
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    store->getVBucket(vbid)->checkpointManager->clear();
+    EXPECT_FALSE(stream->next(*producer));
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_EQ(2, stream->getFilter().size());
+
+    std::barrier gate{2};
+    std::atomic<bool> backfilled{false};
+    std::thread readThread([&] {
+        gate.arrive_and_wait();
+        uint32_t rev = 0;
+        do {
+            stream->addStats([](std::string_view, std::string_view, auto&) {},
+                             *cookieP);
+            mock_set_privilege_context_revision(++rev);
+            EXPECT_FALSE(stream->endIfRequiredPrivilegesLost(*producer));
+        } while (!backfilled);
+    });
+    std::thread backfillThread([&] {
+        gate.arrive_and_wait();
+        auto& bfm = producer->getBFM();
+        while (bfm.backfill() != backfill_finished) {
+        }
+        backfilled = true;
+    });
+    readThread.join();
+    backfillThread.join();
+    mock_set_privilege_context_revision(0);
+
+    EXPECT_EQ(1, stream->getFilter().size());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

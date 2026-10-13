@@ -26,7 +26,10 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
+#include <atomic>
+#include <barrier>
 #include <limits>
+#include <thread>
 
 class CollectionsVBFilterTest : public CollectionsTest {
 public:
@@ -384,7 +387,7 @@ public:
      * aren't checking !passthrough when querying this flag
      */
     bool allowDefaultCollection() const {
-        return defaultAllowed;
+        return state.rlock()->defaultAllowed;
     }
 
     /// @return if system-events are allowed (e.g. create collection)
@@ -393,11 +396,11 @@ public:
     }
 
     ScopeID getFilteredScopeID() const {
-        return scopeID;
+        return config.scopeID;
     }
 
     Collections::Visibility getFilteredScopeVisibility() const {
-        return filteredScopeVisibility;
+        return config.filteredScopeVisibility;
     }
 };
 
@@ -1173,10 +1176,9 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
 
     EXPECT_EQ(vbf.size(), 3);
-    auto itr = vbf.find(CollectionUid::systemCollection);
-    EXPECT_NE(itr, vbf.end());
-    EXPECT_EQ(Collections::Visibility::System,
-              itr->second.collectionVisibility);
+    auto meta = vbf.find(CollectionUid::systemCollection);
+    ASSERT_TRUE(meta);
+    EXPECT_EQ(Collections::Visibility::System, meta->collectionVisibility);
 }
 
 /**
@@ -1663,4 +1665,55 @@ TEST_F(CollectionsVBFilterAccessControlTest, system_filter) {
     }
     EXPECT_TRUE(f.check(StoredDocKey{"no", CollectionEntry::vegetable}));
     EXPECT_TRUE(f.checkAndUpdate(vegetableMutation));
+}
+
+TEST_F(CollectionsVBFilterTest, ConcurrentCollectionDropAndRead) {
+    cm.add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable)
+            .add(CollectionEntry::dairy);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
+
+    std::string jsonFilter = R"({"collections":["8", "9", "a", "c"]})";
+    std::optional<std::string_view> json(jsonFilter);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
+    ASSERT_EQ(4, vbf.size());
+
+    std::barrier gate{2};
+    std::atomic<bool> dropped{false};
+    std::thread readThread([&] {
+        gate.arrive_and_wait();
+        uint32_t rev = 0;
+        do {
+            vbf.addStats([](std::string_view, std::string_view, auto&) {},
+                         *cookie,
+                         vbid);
+            mock_set_privilege_context_revision(++rev);
+            EXPECT_EQ(cb::engine_errc::success,
+                      vbf.checkPrivileges(*cookie, *engine));
+        } while (!dropped);
+    });
+    std::thread dropThread([&] {
+        gate.arrive_and_wait();
+        for (const auto& [cid, name] :
+             {std::pair{CollectionUid::meat, CollectionName::meat},
+              std::pair{CollectionUid::fruit, CollectionName::fruit},
+              std::pair{CollectionUid::vegetable, CollectionName::vegetable},
+              std::pair{CollectionUid::dairy, CollectionName::dairy}}) {
+            auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+                    Collections::ManifestUid(0),
+                    cid,
+                    name,
+                    *entryInDefaultScope,
+                    Collections::VB::Manifest::SystemEventType::End,
+                    {});
+            EXPECT_TRUE(checkAndUpdate(vbf, *ev));
+        }
+        dropped = true;
+    });
+    readThread.join();
+    dropThread.join();
+    mock_set_privilege_context_revision(0);
+
+    EXPECT_TRUE(vbf.empty());
 }

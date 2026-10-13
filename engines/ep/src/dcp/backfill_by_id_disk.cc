@@ -69,8 +69,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     // assumption is that if we are executing here, the ActiveStream's filter
     // is suitable for the ByID scan.
     std::vector<ByIdRange> ranges;
-    for (auto [cid, sid] : stream->getFilter()) {
-        (void)sid; // No use for the mapped scope in building the scan
+    for (auto cid : stream->getFilter().getCollectionIDs()) {
         // Create the ByIdRange objects required to scan the given collection.
         // Two ranges required for a collection scan, first is the system
         // namespace but looking for events relating to the collection.

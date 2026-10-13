@@ -27,23 +27,36 @@
 #include <memory>
 
 namespace Collections::VB {
-
 Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest,
                CookieIface& cookie,
-               const EventuallyPersistentEngine& engine) {
+               const EventuallyPersistentEngine& engine)
+    : Filter(create(jsonFilter, manifest, cookie, engine)) {
+}
+
+Filter::Filter(Init&& init)
+    : config(init.config),
+      state(std::move(init.state)),
+      lastCheckedPrivilegeRevision(init.lastCheckedPrivilegeRevision) {
+}
+
+Filter::Init Filter::create(std::optional<std::string_view> jsonFilter,
+                            const Collections::VB::Manifest& manifest,
+                            CookieIface& cookie,
+                            const EventuallyPersistentEngine& engine) {
     using cb::tracing::Code;
     ScopeTimer1<TracerStopwatch<Code>> timer(cookie, Code::StreamFilterCreate);
+    Init init;
     cb::engine_errc status = cb::engine_errc::success;
     uint64_t manifestUid{0};
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
     if (!jsonFilter.has_value()) {
-        filterType = FilterType::Legacy;
+        init.config.type = FilterType::Legacy;
         // Ask the manifest object if the default collection exists?
         auto rh = manifest.lock();
         if (rh.doesDefaultCollectionExist()) {
-            enableDefaultCollection();
+            init.state.enableDefaultCollection();
         } else {
             status = cb::engine_errc::unknown_collection;
             manifestUid = rh.getManifestUid();
@@ -52,11 +65,11 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
         auto jsonString = jsonFilter.value();
 
         // Assume passthrough constructFromJson will correct if we reach it
-        filterType = FilterType::Passthrough;
+        init.config.type = FilterType::Passthrough;
 
         if (!jsonString.empty()) {
             // assume default, constructFromJson will correct based on the JSON
-            enableDefaultCollection();
+            init.state.enableDefaultCollection();
             nlohmann::json json;
             try {
                 json = nlohmann::json::parse(jsonString);
@@ -71,7 +84,7 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
 
             try {
                 std::tie(status, manifestUid) =
-                        constructFromJson(json, manifest);
+                        init.constructFromJson(json, manifest);
             } catch (const std::invalid_argument& e) {
                 // json utilities may throw invalid_argument, catch and change
                 // to cb::engine_error so we return 'EINVAL'
@@ -82,7 +95,7 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
 
         // Passthrough must have bucket level SystemCollectionLookup, else it
         // has to become a UserVisible filter
-        if (isPassThroughFilter() &&
+        if (init.config.type == FilterType::Passthrough &&
             engine.testPrivilege(cookie,
                                  cb::rbac::Privilege::SystemCollectionLookup,
                                  {},
@@ -92,8 +105,8 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
 
             // Firstly, enable the default collection if it exists and wasn't
             // already done by the earlier code blocks
-            if (rh.doesDefaultCollectionExist() && !defaultAllowed) {
-                enableDefaultCollection();
+            if (rh.doesDefaultCollectionExist() && !init.state.defaultAllowed) {
+                init.state.enableDefaultCollection();
             }
 
             for (const auto& [cid, entry] : rh) {
@@ -103,17 +116,19 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
                 auto filterData = rh.getMetaForDcpFilter(cid);
                 Expects(filterData);
                 if (filterData->collectionVisibility == Visibility::User) {
-                    insertCollection(cid, *filterData);
+                    init.state.insertCollection(cid, *filterData);
                 }
             }
 
-            filterType = FilterType::UserVisible;
+            init.config.type = FilterType::UserVisible;
         }
     }
 
     if (status == cb::engine_errc::success) {
-        // Now use checkPrivileges to check if the user has the required access
-        status = checkPrivileges(cookie, engine);
+        // Now check if the user has the required access
+        init.lastCheckedPrivilegeRevision =
+                cookie.getPrivilegeContextRevision();
+        status = checkPrivileges(init.config, init.state, cookie, engine);
     }
 
     switch (status) {
@@ -128,17 +143,18 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
                 status,
                 "Filter::Filter failed status:" + cb::to_string(status));
     }
+    return init;
 }
 
-std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
+std::pair<cb::engine_errc, uint64_t> Filter::Init::constructFromJson(
         const nlohmann::json& json, const Collections::VB::Manifest& manifest) {
     auto rh = manifest.lock();
     const auto streamIdObject = json.find(StreamIdKey);
     if (streamIdObject != json.end()) {
         auto sid = cb::getJsonObject(
                 json, StreamIdKey, StreamIdType, "Filter::constructFromJson");
-        streamId = cb::mcbp::DcpStreamId(sid.get<uint16_t>());
-        if (streamId == cb::mcbp::DcpStreamId(0)) {
+        config.streamId = cb::mcbp::DcpStreamId(sid.get<uint16_t>());
+        if (config.streamId == cb::mcbp::DcpStreamId(0)) {
             throw cb::engine_error(cb::engine_errc::dcp_streamid_invalid,
                                    "Filter::constructFromJson illegal sid:0");
         }
@@ -155,8 +171,8 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
                                    "Filter::constructFromJson cannot specify "
                                    "both scope and collections");
         }
-        filterType = FilterType::Scope;
-        disableDefaultCollection();
+        config.type = FilterType::Scope;
+        state.disableDefaultCollection();
         auto scope = cb::getJsonObject(
                 json, ScopeKey, ScopeType, "Filter::constructFromJson");
         if (!addScope(scope, rh)) {
@@ -170,8 +186,8 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
                                    "Filter::constructFromJson cannot specify "
                                    "both scope and collections");
         }
-        filterType = FilterType::Collection;
-        disableDefaultCollection();
+        config.type = FilterType::Collection;
+        state.disableDefaultCollection();
         auto jsonCollections = cb::getJsonObject(json,
                                                  CollectionsKey,
                                                  CollectionsType,
@@ -195,7 +211,7 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
                                              nlohmann::json::value_t::string,
                                              "Filter::constructFromJson");
 
-        remotePurgeSeqno = std::stoull(purgeString.get<std::string>());
+        config.remotePurgeSeqno = std::stoull(purgeString.get<std::string>());
     }
 
     // Look for any CacheTransferStream customisation.
@@ -210,14 +226,14 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
                                  *entry,
                                  nlohmann::json::value_t::number_unsigned,
                                  "Filter::constructFromJson");
-            cacheTransferFreeMemory = entry->get<size_t>();
+            config.cacheTransferFreeMemory = entry->get<size_t>();
         }
         if (const auto entry = cts.find("all_keys"); entry != cts.end()) {
             cb::throwIfWrongType("all_keys",
                                  *entry,
                                  nlohmann::json::value_t::boolean,
                                  "Filter::constructFromJson");
-            cacheTransferAllKeys = entry->get<bool>();
+            config.cacheTransferAllKeys = entry->get<bool>();
         }
     }
 
@@ -234,8 +250,8 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
     return {cb::engine_errc::success, rh.getManifestUid()};
 }
 
-bool Filter::addCollection(const nlohmann::json& object,
-                           const Collections::VB::ReadHandle& rh) {
+bool Filter::Init::addCollection(const nlohmann::json& object,
+                                 const Collections::VB::ReadHandle& rh) {
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
     CollectionID cid{object.get<std::string>()};
@@ -245,12 +261,12 @@ bool Filter::addCollection(const nlohmann::json& object,
         return false;
     }
 
-    insertCollection(cid, *filterData);
+    state.insertCollection(cid, *filterData);
     return true;
 }
 
-bool Filter::addScope(const nlohmann::json& object,
-                      const Collections::VB::ReadHandle& rh) {
+bool Filter::Init::addScope(const nlohmann::json& object,
+                            const Collections::VB::ReadHandle& rh) {
     // Require that the requested scope exists in the manifest.
     // DCP cannot filter an unknown scope.
     ScopeID sid{object.get<std::string>()};
@@ -264,65 +280,55 @@ bool Filter::addScope(const nlohmann::json& object,
 
     // set the scopeID member so we know we're tracking a complete scope (which
     // means the collection set can change as we see new collections pass-by)
-    scopeID = sid;
+    config.scopeID = sid;
     // set the scope visibility so we know if we're tracking a system scope
-    filteredScopeVisibility = rh.getScopeVisibility(sid);
+    config.filteredScopeVisibility = rh.getScopeVisibility(sid);
     for (CollectionID cid : collectionVector.value()) {
         auto filterData = rh.getMetaForDcpFilter(cid);
         if (!filterData) {
             // Error time
             return false;
         }
-        insertCollection(cid, *filterData);
+        state.insertCollection(cid, *filterData);
     }
     return true;
 }
 
-void Filter::insertCollection(CollectionID cid, DcpFilterMeta filterData) {
-    auto [itr, emplaced] = this->filter.try_emplace(cid, filterData);
+void Filter::State::insertCollection(CollectionID cid,
+                                     DcpFilterMeta filterData) {
+    auto [itr, emplaced] = filter.try_emplace(cid, filterData);
     Expects(emplaced);
     if (cid.isDefaultCollection()) {
         defaultAllowed = true;
     }
 }
 
+bool Filter::State::removeCollection(CollectionID cid) {
+    if (cid == CollectionID::Default && defaultAllowed) {
+        disableDefaultCollection();
+        return true;
+    }
+    return filter.erase(cid);
+}
+
 bool Filter::checkAndUpdateSlow(Item& item) {
-    bool allowed = false;
     if (item.getKey().isInSystemEventCollection()) {
         item.decompressValue();
-        allowed = checkAndUpdateSystemEvent(item);
-    } else {
-        allowed = filter.contains(item.getKey().getCollectionID());
+        return checkAndUpdateSystemEvent(item);
     }
 
-    return allowed;
+    return state.rlock()->filter.contains(item.getKey().getCollectionID());
 }
 
 bool Filter::checkSlow(DocKeyView key) const {
-    bool allowed = false;
     if (key.isInSystemEventCollection() && !isLegacyFilter()) {
         // For a collection filter, we could figure out from the entire DocKey
         // however we will just defer the decision to the more comprehensive
         // checkAndUpdate
-        allowed = true;
-    } else {
-        allowed = filter.contains(key.getCollectionID());
-    }
-
-    return allowed;
-}
-
-bool Filter::remove(const Item& item) {
-    if (isPassThroughFilter()) {
-        return false;
-    }
-
-    CollectionID collection = getCollectionIDFromKey(item.getKey());
-    if (collection == CollectionID::Default && defaultAllowed) {
-        disableDefaultCollection();
         return true;
     }
-    return filter.erase(collection);
+
+    return state.rlock()->filter.contains(key.getCollectionID());
 }
 
 bool Filter::empty() const {
@@ -333,11 +339,37 @@ bool Filter::empty() const {
         return false;
     }
 
+    auto locked = state.rlock();
     if (isScopeFilter()) {
-        return scopeIsDropped;
+        return locked->scopeIsDropped;
     }
 
-    return (filter.empty() && !defaultAllowed);
+    return (locked->filter.empty() && !locked->defaultAllowed);
+}
+
+size_t Filter::size() const {
+    return state.rlock()->filter.size();
+}
+
+std::vector<CollectionID> Filter::getCollectionIDs() const {
+    return state.withRLock([](const auto& s) {
+        std::vector<CollectionID> rv;
+        rv.reserve(s.filter.size());
+        for (const auto& [cid, meta] : s.filter) {
+            rv.push_back(cid);
+        }
+        return rv;
+    });
+}
+
+std::optional<DcpFilterMeta> Filter::find(CollectionID cid) const {
+    return state.withRLock(
+            [cid](const auto& s) -> std::optional<DcpFilterMeta> {
+                if (auto itr = s.filter.find(cid); itr != s.filter.end()) {
+                    return itr->second;
+                }
+                return std::nullopt;
+            });
 }
 
 bool Filter::checkAndUpdateSystemEvent(const Item& item) {
@@ -355,20 +387,20 @@ bool Filter::checkAndUpdateSystemEvent(const Item& item) {
 }
 
 bool Filter::processCollectionEvent(const Item& item) {
-    bool deleted = false;
-    if (item.isDeleted()) {
-        // Save the return value (indicating if something has actually been
-        // deleted) so that we can return it if we want to send this event
-        deleted = remove(item);
+    if (isPassThroughFilter()) {
+        return true;
     }
+
+    const auto droppedCid = item.isDeleted()
+                                    ? getCollectionIDFromKey(item.getKey())
+                                    : std::optional<CollectionID>{};
 
     if (isLegacyFilter()) {
         // Legacy filters do not support system events
+        if (droppedCid) {
+            state.wlock()->removeCollection(*droppedCid);
+        }
         return false;
-    }
-
-    if (isPassThroughFilter()) {
-        return true;
     }
 
     CollectionID cid;
@@ -389,11 +421,13 @@ bool Filter::processCollectionEvent(const Item& item) {
                                                           : Visibility::User;
     }
 
-    if (deleted || (cid.isDefaultCollection() && defaultAllowed)) {
+    auto locked = state.wlock();
+    const bool deleted = droppedCid && locked->removeCollection(*droppedCid);
+    if (deleted || (cid.isDefaultCollection() && locked->defaultAllowed)) {
         return true;
     }
 
-    if ((isScopeFilter() && sid == scopeID) ||
+    if ((isScopeFilter() && sid == config.scopeID) ||
         (isUserVisibleFilter() && collectionVisibility == Visibility::User)) {
         if (item.isDeleted()) {
             // The item is a drop collection from the filtered scope. The
@@ -406,15 +440,15 @@ bool Filter::processCollectionEvent(const Item& item) {
         // update the filter set as this collection is in our scope or
         // this is a system filter and the filter set stores all user
         // collections
-        filter.insert({cid, DcpFilterMeta{collectionVisibility, sid}});
+        locked->filter.insert({cid, DcpFilterMeta{collectionVisibility, sid}});
     }
 
     // When filtered allow only if there is a match
-    return filter.contains(cid);
+    return locked->filter.contains(cid);
 }
 
 bool Filter::processScopeEvent(const Item& item) {
-    switch (filterType) {
+    switch (config.type) {
     case FilterType::Passthrough:
         return true;
     case FilterType::Legacy:
@@ -444,20 +478,20 @@ bool Filter::processScopeEvent(const Item& item) {
         scopeVisibility =
                 dcpData.isSystemScope ? Visibility::System : Visibility::User;
 
-        if (sid == scopeID) {
+        if (sid == config.scopeID) {
             // Scope dropped - ::empty must now return true
-            scopeIsDropped = true;
+            state.wlock()->scopeIsDropped = true;
         }
     }
 
     if (isScopeFilter()) {
-        return sid == scopeID;
+        return sid == config.scopeID;
     }
 
     return scopeVisibility == Visibility::User;
 }
 
-void Filter::enableDefaultCollection() {
+void Filter::State::enableDefaultCollection() {
     defaultAllowed = true;
     // For simpler client usage, insert the default collection into the set.
     // This collection is not system, resides in the default scope (and that
@@ -466,7 +500,7 @@ void Filter::enableDefaultCollection() {
                    DcpFilterMeta{Visibility::User, ScopeID::Default}});
 }
 
-void Filter::disableDefaultCollection() {
+void Filter::State::disableDefaultCollection() {
     defaultAllowed = false;
     filter.erase(CollectionID::Default);
 }
@@ -475,25 +509,27 @@ void Filter::addStats(const AddStatFn& add_stat,
                       CookieIface& c,
                       Vbid vb) const {
     try {
-        add_casted_stat("type", to_string(filterType), add_stat, c);
+        add_casted_stat("type", to_string(config.type), add_stat, c);
 
         // Skip adding the rest of the state as they only apply for !passthrough
         if (isPassThroughFilter()) {
             return;
         }
 
-        add_casted_stat("default_allowed", defaultAllowed, add_stat, c);
+        const auto copy = state.copy();
+        add_casted_stat("default_allowed", copy.defaultAllowed, add_stat, c);
 
         if (isScopeFilter()) {
-            add_casted_stat("scope_id", scopeID.to_string(), add_stat, c);
-            add_casted_stat("scope_dropped", scopeIsDropped, add_stat, c);
+            add_casted_stat(
+                    "scope_id", config.scopeID.to_string(), add_stat, c);
+            add_casted_stat("scope_dropped", copy.scopeIsDropped, add_stat, c);
         }
 
-        add_casted_stat("sid", streamId.to_string(), add_stat, c);
-        add_casted_stat("size", filter.size(), add_stat, c);
+        add_casted_stat("sid", config.streamId.to_string(), add_stat, c);
+        add_casted_stat("size", copy.filter.size(), add_stat, c);
 
         std::string cids;
-        for (const auto& pair : filter) {
+        for (const auto& pair : copy.filter) {
             cids += pair.first.to_string() + ",";
         }
         if (!cids.empty()) {
@@ -513,13 +549,25 @@ cb::engine_errc Filter::checkPrivileges(
         CookieIface& cookie, const EventuallyPersistentEngine& engine) {
     const auto rev = cookie.getPrivilegeContextRevision();
 
-    if (lastCheckedPrivilegeRevision && *lastCheckedPrivilegeRevision == rev) {
+    if (lastCheckedPrivilegeRevision == rev) {
         // Nothing changed since last check
         return cb::engine_errc::success;
     }
 
-    lastCheckedPrivilegeRevision = rev;
-    if (isPassThroughFilter()) {
+    const auto status = checkPrivileges(config, state.copy(), cookie, engine);
+    if (status == cb::engine_errc::success) {
+        lastCheckedPrivilegeRevision = rev;
+    }
+    return status;
+}
+
+cb::engine_errc Filter::checkPrivileges(
+        const Config& config,
+        const State& state,
+        CookieIface& cookie,
+        const EventuallyPersistentEngine& engine) {
+    switch (config.type) {
+    case FilterType::Passthrough:
         // Passthrough require access to the system collections
         if (cookie.testPrivilege(
                           cb::rbac::Privilege::SystemCollectionLookup, {}, {})
@@ -529,22 +577,21 @@ cb::engine_errc Filter::checkPrivileges(
         // Must have access to the bucket
         return engine.testPrivilege(
                 cookie, cb::rbac::Privilege::DcpStream, {}, {});
-    }
-
-    if (isUserVisibleFilter()) {
+    case FilterType::UserVisible:
         // Must have access to the bucket
         return engine.testPrivilege(
                 cookie, cb::rbac::Privilege::DcpStream, {}, {});
-    }
-
-    if (isScopeFilter()) {
+    case FilterType::Scope:
         // Must have access to at least the scope
         return engine.testScopeAccess(
                 cookie,
                 cb::rbac::Privilege::SystemCollectionLookup,
                 cb::rbac::Privilege::DcpStream,
-                scopeID,
-                filteredScopeVisibility);
+                config.scopeID,
+                config.filteredScopeVisibility);
+    case FilterType::Legacy:
+    case FilterType::Collection:
+        break;
     }
 
     // Must have access to the collections
@@ -552,7 +599,7 @@ cb::engine_errc Filter::checkPrivileges(
     bool accessError = false;
 
     // Check all collections
-    for (const auto& [cid, meta] : filter) {
+    for (const auto& [cid, meta] : state.filter) {
         const auto status = engine.testCollectionAccess(
                 cookie,
                 cb::rbac::Privilege::SystemCollectionLookup,
@@ -591,9 +638,10 @@ cb::engine_errc Filter::checkPrivileges(
 Filter::CollectionSizeStats Filter::getSizeStats(
         const Manifest& manifest) const {
     size_t colItemCount = 0, colDiskSize = 0;
-    // For each collection, obtain the item count and disk size
-    for (auto [cid, sid] : filter) {
-        (void)sid;
+    // For each collection, obtain the item count and disk size. Note the
+    // lock order: filter state then the manifest.
+    auto locked = state.rlock();
+    for (const auto& [cid, meta] : locked->filter) {
         const auto stats = manifest.lock(cid);
         if (!stats.valid()) {
             // The collection has been dropped, so we don't increment the stats.
@@ -612,7 +660,7 @@ bool Filter::isOsoSuitable(size_t limit) const {
     // explicitly filtered case and when the filter size is acceptable for the
     // given limit.
     return (isCollectionFilter() || isScopeFilter() || isLegacyFilter()) &&
-           filter.size() <= limit;
+           size() <= limit;
 }
 
 void Filter::dump() const {
@@ -621,7 +669,7 @@ void Filter::dump() const {
 
 std::string Filter::summary() const {
     return fmt::format(
-            "filter:{{{}, size:{}}}", to_string(filterType), filter.size());
+            "filter:{{{}, size:{}}}", to_string(config.type), size());
 }
 
 std::string Filter::to_string(FilterType type) {
@@ -648,23 +696,23 @@ const char* Filter::StreamIdKey = "sid";
 const char* Filter::PurgeSeqnoKey = "purge_seqno";
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter) {
+    const auto copy = filter.state.copy();
     os << "VBucket::Filter"
-       << ": defaultAllowed:" << filter.defaultAllowed
-       << ", type:" << Filter::to_string(filter.filterType)
-       << ", scopeIsDropped:" << filter.scopeIsDropped
+       << ": defaultAllowed:" << copy.defaultAllowed
+       << ", type:" << Filter::to_string(filter.config.type)
+       << ", scopeIsDropped:" << copy.scopeIsDropped
        << ", remotePurgeSeqno:" << filter.getRemotePurgeSeqno();
 
     if (filter.isScopeFilter()) {
-        os << ", scopeID:" << filter.scopeID;
+        os << ", scopeID:" << filter.config.scopeID;
     }
-    if (filter.lastCheckedPrivilegeRevision) {
-        os << ", lastCheckedPrivilegeRevision: "
-           << filter.lastCheckedPrivilegeRevision.value();
+    if (const auto rev = filter.lastCheckedPrivilegeRevision) {
+        os << ", lastCheckedPrivilegeRevision: " << rev.value();
     }
 
-    os << ", sid:" << filter.streamId;
-    os << ", filter.size:" << filter.filter.size() << std::endl;
-    for (const auto& c : filter.filter) {
+    os << ", sid:" << filter.config.streamId;
+    os << ", filter.size:" << copy.filter.size() << std::endl;
+    for (const auto& c : copy.filter) {
         os << "filter:entry:0x" << std::hex << c.first << std::dec << std::endl;
     }
     return os;
