@@ -101,6 +101,28 @@ TEST_F(DekFileUtilTest, copyKeyFile) {
     EXPECT_TRUE(std::filesystem::exists(path));
 }
 
+/**
+ * Verify that the content of the key file is copied unchanged (including
+ * binary data) and that no temporary file is left behind in the destination
+ * directory.
+ */
+TEST_F(DekFileUtilTest, copyKeyFileContent) {
+    std::string content("binary\0key\xff data", 16);
+    cb::io::saveFile(root / "foo.key.1", content);
+
+    std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
+    auto guard =
+            folly::makeGuard([&target] { cb::io::remove_with_retry(target); });
+    auto path = cb::dek::util::copyKeyFile("foo", root, target);
+
+    EXPECT_EQ(content, cb::io::loadFile(path));
+    std::vector<std::string> files;
+    for (const auto& entry : std::filesystem::directory_iterator(target)) {
+        files.emplace_back(entry.path().filename().string());
+    }
+    EXPECT_EQ(std::vector<std::string>{"foo.key.1"}, files);
+}
+
 TEST_F(DekFileUtilTest, copyKeyFileNoSuchFile) {
     std::filesystem::path target = cb::io::mkdtemp("DekFileUtilTestDest");
     auto guard =

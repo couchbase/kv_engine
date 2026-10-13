@@ -11,6 +11,7 @@
 #include "dek_file_utilities.h"
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 
 #include <charconv>
 #include <chrono>
@@ -91,11 +92,13 @@ std::filesystem::path copyKeyFile(std::string_view id,
             if (source.has_value()) {
                 auto target = dest / source->filename();
                 try {
-                    if (copy_file(*source, target)) {
-                        return target;
-                    }
+                    // Use saveFileAtomic rather than copy_file so that the
+                    // content of the copy and its directory entry are synced
+                    // to disk (copy_file doesn't fsync anything).
+                    cb::io::saveFileAtomic(target, cb::io::loadFile(*source));
+                    return target;
                 } catch (const std::exception& exception) {
-                    errors.emplace_back(fmt::format("copy_file '{}': {}",
+                    errors.emplace_back(fmt::format("copy '{}': {}",
                                                     source->string(),
                                                     exception.what()));
                 }
