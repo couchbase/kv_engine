@@ -88,7 +88,14 @@ void ExternalAuthManagerThread::run() {
     std::unique_lock<std::mutex> lock(mutex);
     activeUsersLastSent = std::chrono::steady_clock::now();
     while (running) {
-        if (incomingRequests.empty() && incommingResponse.empty()) {
+        // Requests may be stuck in the incoming queue when we've reached
+        // the cap of pending requests. Spinning would hold the mutex and
+        // block responseReceived() which is needed to free up a slot
+        // (MB-74514), so only skip the wait if we can make progress.
+        const bool canProcessRequests =
+                !incomingRequests.empty() &&
+                (connections.empty() || requestMap.size() < maxPendingRequests);
+        if (!canProcessRequests && incommingResponse.empty()) {
             const auto now = std::chrono::steady_clock::now();
 
             // Calculate time required to sleep until the next active users list
