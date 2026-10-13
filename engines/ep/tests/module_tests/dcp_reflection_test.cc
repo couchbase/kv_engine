@@ -2140,6 +2140,124 @@ TEST_P(DCPLoopbackStreamTest,
     ASSERT_NO_THROW(route1_2.transferPrepare(k6, 6));
 }
 
+// MB-74563: The SeqList HPS of an ephemeral replica must track the seqno of the
+// last Prepare received in a Memory snapshot, not the snapshot end. When the
+// replica reconnects mid-snapshot its snap_start is below the snapshot end, so
+// the active's backfill marker can carry an HPS (the real one) lower than the
+// end of the last complete Memory snapshot.
+TEST_P(DCPLoopbackStreamTest, MB_74563_SeqListHpsAfterPartialMemorySnapshot) {
+    if (!ephemeral()) {
+        GTEST_SKIP() << "SeqList HPS is ephemeral only";
+    }
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+
+    route0_1.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+    route0_1.transferPrepare(k1, 1);
+    route0_1.transferMutation(k2, 2);
+
+    auto replicaVB = engines[Node1]->getVBucket(vbid);
+    EXPECT_EQ(1, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
+    EXPECT_EQ(1, replicaVB->getPersistedHighPreparedSeqno());
+
+    // The next snapshot comes from the same checkpoint on the active, so it
+    // has no Checkpoint flag and extends the open checkpoint on the replica.
+    // Only the marker is received before the connection drops.
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+    route0_1.transferSnapshotMarker(3, 3, DcpSnapshotMarkerFlag::Memory);
+
+    const auto info = replicaVB->checkpointManager->getSnapshotInfo();
+    EXPECT_EQ(2, info.start);
+    EXPECT_EQ(0, info.range.getStart());
+    EXPECT_EQ(3, info.range.getEnd());
+
+    route0_1.destroy();
+
+    // Force a backfill. The marker starts at the replica's snap_start, below
+    // the HPS it carries.
+    engines[Node0]->getVBucket(vbid)->checkpointManager->clear();
+    auto route0_1_new = createDcpRoute(Node0,
+                                       Node1,
+                                       EnableExpiryOutput::Yes,
+                                       SyncReplication::SyncReplication,
+                                       MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1_new.doStreamRequest().first);
+    route0_1_new.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            1);
+    route0_1_new.transferMutation(k3, 3);
+
+    EXPECT_EQ(1, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
+    EXPECT_EQ(1, replicaVB->getPersistedHighPreparedSeqno());
+}
+
+// MB-74563: An ephemeral replica promoted after receiving a Memory snapshot
+// must send the seqno of the last Prepare as the HPS, not the snapshot end.
+TEST_P(DCPLoopbackStreamTest, MB_74563_PromotedReplicaSendsPrepareSeqnoAsHps) {
+    if (!ephemeral()) {
+        GTEST_SKIP() << "SeqList HPS is ephemeral only";
+    }
+    auto route0_1 = createDcpRoute(Node0,
+                                   Node1,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, storePrepare(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+
+    route0_1.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
+    route0_1.transferPrepare(k1, 1);
+    route0_1.transferMutation(k2, 2);
+
+    route0_1.destroy();
+    engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    createNode(Node2, vbucket_state_replica);
+
+    // Force a backfill from the new active
+    auto newActiveVB = engines[Node1]->getVBucket(vbid);
+    newActiveVB->checkpointManager->clear();
+
+    auto route1_2 = createDcpRoute(Node1,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    EXPECT_EQ(cb::engine_errc::success, route1_2.doStreamRequest().first);
+    route1_2.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            1);
+    route1_2.transferPrepare(k1, 1);
+    route1_2.transferMutation(k2, 2);
+
+    auto replicaVB = engines[Node2]->getVBucket(vbid);
+    EXPECT_EQ(1, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
+    EXPECT_EQ(1, replicaVB->getPersistedHighPreparedSeqno());
+}
+
 // MB-67710
 TEST_P(DCPLoopbackStreamTest, VBucketBecomesActiveWhileSnapEndReceived) {
     // Add a couple of keys
