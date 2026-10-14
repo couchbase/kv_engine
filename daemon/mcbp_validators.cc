@@ -1214,7 +1214,7 @@ static Status dcp_commit_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1229,7 +1229,7 @@ static Status dcp_abort_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;

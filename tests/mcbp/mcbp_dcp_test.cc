@@ -1287,4 +1287,92 @@ INSTANTIATE_TEST_SUITE_P(
                                   cb::mcbp::ClientOpcode::DcpExpiration),
                 ::testing::Bool()),
         DcpXattrValidatorTest::PrintToStringParamName);
+
+/**
+ * Test class for DcpCommit and DcpAbort validation. The parameter is the
+ * opcode to test and if collections is enabled or not (as that changes the
+ * encoding of the key)
+ */
+class DcpCommitAbortValidatorTest
+    : public ::testing::WithParamInterface<
+              std::tuple<cb::mcbp::ClientOpcode, bool>>,
+      public ValidatorTest {
+public:
+    DcpCommitAbortValidatorTest() : ValidatorTest(std::get<1>(GetParam())) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(getOpcode());
+        if (getOpcode() == cb::mcbp::ClientOpcode::DcpCommit) {
+            cb::mcbp::request::DcpCommitPayload extras(1, 2);
+            builder.setExtras(extras.getBuffer());
+        } else {
+            cb::mcbp::request::DcpAbortPayload extras(1, 2);
+            builder.setExtras(extras.getBuffer());
+        }
+        std::array<uint8_t, 2> key = {};
+        const size_t keysize = isCollectionsEnabled() ? 2 : 1;
+        builder.setKey({key.data(), keysize});
+    }
+
+    cb::mcbp::ClientOpcode getOpcode() const {
+        return std::get<0>(GetParam());
+    }
+
+    bool isCollectionsEnabled() const {
+        return std::get<1>(GetParam());
+    }
+
+protected:
+    std::string validate_error_context(
+            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
+        return ValidatorTest::validate_error_context(
+                getOpcode(), blob, expectedStatus);
+    }
+};
+
+TEST_P(DcpCommitAbortValidatorTest, CorrectMessage) {
+    EXPECT_EQ("The command can only be sent on a DCP connection",
+              validate_error_context(cb::mcbp::Status::Einval));
+}
+
+// A key which has no leb128 stop-byte
+TEST_P(DcpCommitAbortValidatorTest, InvalidKeyNoStopByte) {
+    if (!isCollectionsEnabled()) {
+        GTEST_SKIP() << "The key is only leb128 encoded with collections";
+    }
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    std::array<uint8_t, 10> key{};
+    std::ranges::fill(key, 0x81);
+    builder.setKey({key.data(), key.size()});
+    EXPECT_EQ("No stop-byte found", validate_error_context());
+}
+
+// A key which has a stop-byte, but no data after that
+TEST_P(DcpCommitAbortValidatorTest, InvalidKeyNoLogicalKey) {
+    if (!isCollectionsEnabled()) {
+        GTEST_SKIP() << "The key is only leb128 encoded with collections";
+    }
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::unsigned_leb128<uint32_t> leb128(0xdaf7);
+    builder.setKey({leb128.data(), leb128.size()});
+    EXPECT_EQ("No logical key found", validate_error_context());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        CommitAbort,
+        DcpCommitAbortValidatorTest,
+        ::testing::Combine(::testing::Values(cb::mcbp::ClientOpcode::DcpCommit,
+                                             cb::mcbp::ClientOpcode::DcpAbort),
+                           ::testing::Bool()),
+        [](const auto& info) {
+            return fmt::format(
+                    "{}_{}",
+                    to_string(std::get<0>(info.param)),
+                    std::get<1>(info.param) ? "Collections" : "NoCollections");
+        });
+
 } // namespace mcbp::test
