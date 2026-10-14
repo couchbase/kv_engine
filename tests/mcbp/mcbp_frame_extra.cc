@@ -148,6 +148,45 @@ TEST_F(FrameExtrasValidatorTests, PreserveTtlInvalidSize) {
               validate_error_context(ClientOpcode::Set, blob, Status::Einval));
 }
 
+TEST_F(FrameExtrasValidatorTests, Impersonate) {
+    std::string_view user = "user";
+    auto fe = encodeFrameInfo(
+            FrameInfoId::Impersonate,
+            {reinterpret_cast<const uint8_t*>(user.data()), user.size()});
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
+}
+
+/// Multiple impersonate frames must be rejected
+TEST_F(FrameExtrasValidatorTests, ImpersonateMultipleFrames) {
+    std::string_view user = "user";
+    auto fe = encodeFrameInfo(
+            FrameInfoId::Impersonate,
+            {reinterpret_cast<const uint8_t*>(user.data()), user.size()});
+    auto second = encodeFrameInfo(
+            FrameInfoId::Impersonate,
+            {reinterpret_cast<const uint8_t*>(user.data()), user.size()});
+    std::ranges::copy(second, std::back_inserter(fe));
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ("Only one impersonate frame may be present",
+              validate_error_context(ClientOpcode::Set, blob, Status::Einval));
+}
+
+/// Impersonate may not be combined with ImpersonateWithTokenAuthDataId
+TEST_F(FrameExtrasValidatorTests, ImpersonateAndImpersonateWithToken) {
+    std::string_view user = "user";
+    auto fe = encodeFrameInfo(
+            FrameInfoId::Impersonate,
+            {reinterpret_cast<const uint8_t*>(user.data()), user.size()});
+    const std::array<uint8_t, sizeof(uint16_t)> id{};
+    auto second = encodeFrameInfo(FrameInfoId::ImpersonateWithTokenAuthDataId,
+                                  {id.data(), id.size()});
+    std::ranges::copy(second, std::back_inserter(fe));
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ("Only one impersonate frame may be present",
+              validate_error_context(ClientOpcode::Set, blob, Status::Einval));
+}
+
 TEST_F(FrameExtrasValidatorTests, UnknownFrameId) {
     auto fe = encodeFrameInfo(FrameInfoId(0xff), {});
     builder.setFramingExtras({fe.data(), fe.size()});

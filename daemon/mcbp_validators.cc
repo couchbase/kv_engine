@@ -191,8 +191,24 @@ static Status parseFrameExtras(Cookie& cookie,
                                const cb::mcbp::Request& request) {
     Status status = Status::Success;
     auto opcode = request.getClientOpcode();
+    // Only one of the impersonate frames may be present (otherwise the
+    // effective user and the privilege context could belong to different
+    // users)
+    bool impersonated = false;
+    auto checkSingleImpersonation = [&impersonated, &status, &cookie]() {
+        if (impersonated) {
+            cookie.setErrorContext("Only one impersonate frame may be present");
+            status = Status::Einval;
+            return false;
+        }
+        impersonated = true;
+        return true;
+    };
     try {
-        request.parseFrameExtras([&status, &cookie, &opcode](
+        request.parseFrameExtras([&status,
+                                  &cookie,
+                                  &opcode,
+                                  &checkSingleImpersonation](
                                          cb::mcbp::request::FrameInfoId id,
                                          cb::const_byte_buffer data) -> bool {
             switch (id) {
@@ -249,6 +265,9 @@ static Status parseFrameExtras(Cookie& cookie,
                 }
                 return true;
             case cb::mcbp::request::FrameInfoId::Impersonate:
+                if (!checkSingleImpersonation()) {
+                    return false;
+                }
                 if (data.empty()) {
                     cookie.setErrorContext("Impersonated user must be set");
                     status = Status::Einval;
@@ -305,6 +324,9 @@ static Status parseFrameExtras(Cookie& cookie,
                 return true; // continue parsing
 
             case cb::mcbp::request::FrameInfoId::ImpersonateWithTokenAuthDataId:
+                if (!checkSingleImpersonation()) {
+                    return false;
+                }
                 if (data.size() != sizeof(uint16_t)) {
                     status = Status::Einval;
                     cookie.setErrorContext(
