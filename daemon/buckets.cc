@@ -310,8 +310,8 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
     auto& settings = Settings::instance();
     const auto ru = settings.toReadUnits(nread);
     consumedUnits(ru, domain);
+    read_units_used += ru;
     if (conn.isSubjectToMetering()) {
-        read_units_used += ru;
         ++num_metered_dcp_messages;
     }
 }

@@ -15,6 +15,7 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/node.h>
+#include <engines/ep/src/dcp/dcp-types.h>
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <memcached/range_scan_id.h>
 #include <platform/base64.h>
@@ -375,4 +376,76 @@ TEST_F(ThrottlingTests, SetParamRejectsInvalidThrottleValue) {
                     << key << "=" << value << " must not change the limits";
         }
     }
+}
+
+// MB-74480: DCP reads consume units from the bucket's throttle gauge. However,
+// those units were not counted in the ru_total stat, making it appear that we
+// throttle without hitting any limits. Use an Unmetered user (like @projector)
+// as only those DCP reads were missing from ru_total.
+TEST_F(ThrottlingTests, DcpIsCountedInRuTotal) {
+    const std::string bucketName = "bucket0";
+    auto bucket = cluster->getBucket(bucketName);
+    // This test fails when unmetered - a feature that will be removed.
+    cluster->getAuthProviderService().upsertUser({"unmetered_dcp",
+                                                  "unmetered_dcp",
+                                                  R"({
+"buckets": {
+  "bucket0": {
+    "privileges": ["DcpProducer", "DcpStream"]
+  }
+},
+"privileges": ["Unmetered"],
+"domain": "external"
+})"_json});
+
+    auto conn = getConnection(bucketName);
+    conn->setFeature(cb::mcbp::Feature::MUTATION_SEQNO, true);
+    constexpr size_t numDocs = 64;
+    MutationInfo lastMutation;
+    for (size_t i = 0; i < numDocs; ++i) {
+        Document doc{};
+        doc.info.id = DocKeyView::makeWireEncodedString(
+                CollectionEntry::vegetable, fmt::format("dcp{:03}", i));
+        doc.value = "value";
+        lastMutation = conn->mutate(doc, Vbid{0}, MutationType::Set);
+    }
+
+    auto statsConn = getConnection(bucketName);
+    const auto ruBefore =
+            getThrottlingStats(statsConn, bucketName)["ru_total"].get<size_t>();
+
+    auto dcp = bucket->getConnection(Vbid(0));
+    dcp->authenticate("unmetered_dcp", "unmetered_dcp");
+    dcp->selectBucket(bucketName);
+    dcp->setFeatures({cb::mcbp::Feature::Collections});
+    dcp->dcpOpenProducer("DcpIsCountedInRuTotal");
+    dcp->dcpControl(DcpControlKeys::EnableNoop, "true");
+    dcp->dcpStreamRequest(Vbid(0), {}, 0, lastMutation.seqno, 0, 0, 0);
+
+    size_t mutations = 0;
+    Frame frame;
+    bool streamEnd = false;
+    while (!streamEnd) {
+        frame.reset();
+        dcp->recvFrame(frame);
+        ASSERT_EQ(cb::mcbp::Magic::ClientRequest, frame.getMagic());
+        switch (frame.getRequest()->getClientOpcode()) {
+        case cb::mcbp::ClientOpcode::DcpMutation:
+            ++mutations;
+            break;
+        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+            streamEnd = true;
+            break;
+        default:
+            break;
+        }
+    }
+    EXPECT_EQ(numDocs, mutations);
+
+    // Each mutation is < 4k so costs 1 RU
+    const auto ruAfter =
+            getThrottlingStats(statsConn, bucketName)["ru_total"].get<size_t>();
+    EXPECT_LE(ruBefore + numDocs, ruAfter) << "DCP is not counted in ru_total";
+
+    cluster->getAuthProviderService().removeUser("unmetered_dcp");
 }
