@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -289,13 +290,37 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     };
     const auto originalCheckpointMemRatio =
             getStat<float>(*adminConnection, "", "ep_checkpoint_memory_ratio");
-    const auto restoreCheckpointMemRatio =
-            folly::makeGuard([originalCheckpointMemRatio] {
-                adminConnection->execute(BinprotSetParamCommand{
-                        cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-                        "checkpoint_memory_ratio",
-                        std::to_string(originalCheckpointMemRatio)});
-            });
+    // Phase 2 changes this setting; saved here to put it back at the end.
+    const auto originalDefragAgeThreshold = getStat<uint64_t>(
+            *adminConnection, "", "ep_defragmenter_age_threshold");
+
+    // Put back what the test changes, also when it fails early. A throw from
+    // a guard kills the process with a core dump and hides the real error, so
+    // only report a failure here.
+    const auto restoreOnExit = folly::makeGuard([&] {
+        try {
+            adminConnection->setAutoRetryTmpfail(true);
+            adminConnection->execute(BinprotSetParamCommand{
+                    cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+                    "checkpoint_memory_ratio",
+                    std::to_string(originalCheckpointMemRatio)});
+            setParam("defragmenter_age_threshold",
+                     std::to_string(originalDefragAgeThreshold));
+        } catch (const std::exception& e) {
+            ADD_FAILURE() << "failed to restore the bucket/connection "
+                             "settings changed by the test: "
+                          << e.what();
+        }
+    });
+
+    // The server can take up to seqno_persistence_timeout to answer.
+    // The client must wait longer, or it gives up and leaves the connection
+    // stuck. The margin is arbitrary.
+    constexpr std::chrono::seconds persistResponseMargin{10};
+    const auto persistReadTimeout =
+            std::chrono::seconds{getStat<uint64_t>(
+                    *adminConnection, "", "ep_seqno_persistence_timeout")} +
+            persistResponseMargin;
 
     // Disable the defragmenter while we build fragmentation and assert the
     // back-pressure gate (phase 1). This does two things: it does not compact
@@ -405,7 +430,8 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                             .seqno;
         }
     }
-    adminConnection->waitForSeqnoToPersist(Vbid(0), lastSeqno);
+    adminConnection->waitForSeqnoToPersist(
+            Vbid(0), lastSeqno, persistReadTimeout);
     lowerCheckpointMemRatio();
     logDebugState("after delete A");
 
@@ -441,7 +467,8 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
                             .seqno;
         }
     }
-    adminConnection->waitForSeqnoToPersist(Vbid(0), lastSeqno);
+    adminConnection->waitForSeqnoToPersist(
+            Vbid(0), lastSeqno, persistReadTimeout);
     lowerCheckpointMemRatio();
     logDebugState("after delete B");
 
@@ -454,10 +481,7 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
             << " alloc=" << alloc << " quota=" << quota;
 
     // Baseline the defragmenter's moved counter before recovery runs. The
-    // defragmenter is disabled and our survivors are freshly stored (age 0), so
-    // nothing has moved them. During recovery this counter rises: the task is
-    // woken and, running in aggressive mode (age thresholds 0), relocates even
-    // the age-0 survivors that the default age threshold (1) would skip.
+    // defragmenter is disabled, so nothing has moved our survivors.
     const auto defragMovedBefore = getStat<uint64_t>(
             *adminConnection, "", "ep_defragmenter_num_moved");
 
@@ -493,37 +517,57 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     cb::waitForPredicate(probeRejected);
 
     // Phase 2: recovery. Enable the defragmenter. The MonitorTask, still seeing
-    // critical fragmentation, wakes it and it runs in aggressive mode (critical
-    // sleep, age thresholds 0). First assert it is in that mode: its moved
-    // counter rises -- it only runs because it was woken, and only moves the
-    // age-0 survivors because the age threshold dropped to 0.
+    // critical fragmentation, wakes it and it runs in aggressive mode: age
+    // thresholds 0 and critical sleep.
+    //
+    // Age threshold 255 (the max): normal mode can't move anything during the
+    // test, so "moved counter went up" proves recovery mode ran.
+    constexpr auto maxDefragAgeThreshold = std::numeric_limits<uint8_t>::max();
+    setParam("defragmenter_age_threshold",
+             std::to_string(maxDefragAgeThreshold));
     setParam("defragmenter_enabled", "true");
-    cb::waitForPredicate([defragMovedBefore] {
-        return getStat<uint64_t>(
-                       *adminConnection, "", "ep_defragmenter_num_moved") >
-               defragMovedBefore;
-    });
 
-    // Assert the aggressive scheduling directly: recovery sets the sleep to
-    // defragmenter_critical_sleep. It is transient -- it reverts once recovery
-    // completes and RSS is back under quota. (The age-0 override is not yet
-    // observable; exposing the effective age thresholds as a stat and
-    // asserting them is a follow-up patch.)
-    cb::waitForPredicate([] {
-        return getStat<float>(*adminConnection,
-                              "",
-                              "ep_defragmenter_sleep_time") == 0.0f;
-    });
+    // Recovery mode is short: it ends once RSS is back under quota.
+    // cb::waitForPredicate polls about once a second and can miss it, so poll
+    // more often, and read "moved" and "sleep" from one stats call so both are
+    // from the same moment.
+    constexpr std::chrono::milliseconds recoveryPollInterval{60};
+    // Same timeout as cb::waitForPredicate.
+    constexpr std::chrono::seconds recoveryTimeout{60};
+    uint64_t lastMoved = 0;
+    float lastSleepTime = 0;
+    const auto inAggressiveMode = [&] {
+        const auto stats = adminConnection->stats("");
+        lastMoved = stats.at("ep_defragmenter_num_moved").get<uint64_t>();
+        lastSleepTime = stats.at("ep_defragmenter_sleep_time").get<float>();
+        // Recovery uses defragmenter_critical_sleep, checked to be 0 above.
+        return lastMoved > defragMovedBefore && lastSleepTime == 0.0f;
+    };
+    ASSERT_TRUE(cb::waitForPredicateUntil(
+            inAggressiveMode, recoveryTimeout, recoveryPollInterval))
+            << "defragmenter not seen in aggressive mode: num_moved="
+            << lastMoved << " (before recovery " << defragMovedBefore
+            << "), sleep_time=" << lastSleepTime
+            << " (expected defragmenter_critical_sleep)";
 
     // The aggressive defrag compacts the scattered survivors and frees the
     // sparse slabs, so RSS returns under quota.
-    cb::waitForPredicate([&] { return resident() <= quota; });
+    uint64_t lastResident = 0;
+    ASSERT_TRUE(cb::waitForPredicateUntil(
+            [&] {
+                lastResident = resident();
+                return lastResident <= quota;
+            },
+            recoveryTimeout))
+            << "RSS did not return under quota: resident=" << lastResident
+            << " quota=" << quota;
 
     // Once the MonitorTask republishes the recovered RSS, the gate lifts and
     // mutations are accepted again.
-    cb::waitForPredicate([&] { return !probeRejected(); });
+    ASSERT_TRUE(cb::waitForPredicateUntil([&] { return !probeRejected(); },
+                                          recoveryTimeout))
+            << "the gate did not lift after RSS returned under quota";
     logDebugState("after recovery");
-    adminConnection->setAutoRetryTmpfail(true);
 }
 
 #endif // HAVE_JEMALLOC

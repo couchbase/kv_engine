@@ -1106,8 +1106,12 @@ public:
      *
      * @param vbid The vbucketId of the seqno to wait for
      * @param seqno The seqno number to wait for
+     * @param readTimeout How long to wait for the answer; 0 (default) keeps
+     *        the connection's read timeout
      */
-    void waitForSeqnoToPersist(Vbid vbid, uint64_t seqno);
+    void waitForSeqnoToPersist(Vbid vbid,
+                               uint64_t seqno,
+                               std::chrono::milliseconds readTimeout = {});
 
     /// should the client automatically retry operations which fail
     /// with a tmpfail or not (note that this is only possible when
