@@ -1697,6 +1697,18 @@ TEST_P(AdjustTimeofdayValidatorTest, InvalidCas) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+TEST_P(AdjustTimeofdayValidatorTest, InvalidTimeType) {
+    cb::mcbp::request::AdjustTimePayload payload;
+    payload.setTimeType(
+            static_cast<cb::mcbp::request::AdjustTimePayload::TimeType>(0xff));
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
+    builder.setExtras(payload.getBuffer());
+    EXPECT_EQ("Unexpected value for TimeType",
+              validate_error_context(cb::mcbp::ClientOpcode::AdjustTimeofday));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DropPrivilegeValidatorTest,
                          ::testing::Bool(),

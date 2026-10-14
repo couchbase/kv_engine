@@ -2261,6 +2261,7 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
                 cookie.getRequest().getCommandSpecifics<AdjustTimePayload>();
         if (!payload.isValid()) {
             cookie.setErrorContext("Unexpected value for TimeType");
+            return Status::Einval;
         }
 
         return Status::Success;
