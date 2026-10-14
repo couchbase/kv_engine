@@ -821,6 +821,10 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
     // Validate our extras length is correct
     if (!(header.getExtlen() == sizeof(DcpSnapshotMarkerV1Payload) ||
           header.getExtlen() == sizeof(DcpSnapshotMarkerV2xPayload))) {
+        cookie.setErrorContext(
+                fmt::format("Request must include extras of length {} or {}",
+                            sizeof(DcpSnapshotMarkerV1Payload),
+                            sizeof(DcpSnapshotMarkerV2xPayload)));
         return Status::Einval;
     }
 

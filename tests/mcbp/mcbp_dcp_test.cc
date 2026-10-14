@@ -447,7 +447,9 @@ TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
     request.setExtlen(22);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    request.setBodylen(22);
+    EXPECT_EQ("Request must include extras of length 20 or 1",
+              validate_error_context());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidKeylen) {
