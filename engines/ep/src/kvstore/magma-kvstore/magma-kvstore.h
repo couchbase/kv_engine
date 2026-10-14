@@ -1104,6 +1104,12 @@ protected:
     TestingHook<magma::Status&> fileHandleSyncStatusHook;
 
     /**
+     * Testing hook called with the key and the result of reading a local doc
+     * from a snapshot
+     */
+    TestingHook<std::string_view, magma::Status&> readLocalDocStatusHook;
+
+    /**
      * Testing hook called after collection stats are updated in the commit
      * data.
      * Hook is provided the request and the old item size.

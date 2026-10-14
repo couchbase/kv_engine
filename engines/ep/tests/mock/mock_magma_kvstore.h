@@ -103,6 +103,11 @@ public:
         return getMagmaDbStats(vbid);
     }
 
+    void setReadLocalDocStatusHook(
+            std::function<void(std::string_view, magma::Status&)> hook) {
+        readLocalDocStatusHook = hook;
+    }
+
     void setSyncFileHandleStatusHook(std::function<void(magma::Status&)> hook) {
         fileHandleSyncStatusHook = hook;
     }

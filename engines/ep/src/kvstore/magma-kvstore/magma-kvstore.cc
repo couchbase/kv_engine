@@ -2217,6 +2217,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                 {{"vb", vbid},
                  {"error", getDroppedStatus.String()},
                  {"duration", std::chrono::steady_clock::now() - startTime}});
+        return nullptr;
     }
 
     std::vector<Collections::KVStore::OpenCollection> openCollections;
@@ -2234,6 +2235,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                      {"error", status.String()},
                      {"duration",
                       std::chrono::steady_clock::now() - startTime}});
+            return nullptr;
         }
     }
 
@@ -3045,6 +3047,7 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         magma::Magma::Snapshot& snapshot,
         const Slice& keySlice) const {
     auto [status, value] = magma->GetLocal(snapshot, keySlice);
+    readLocalDocStatusHook({keySlice.Data(), keySlice.Len()}, status);
     return processReadLocalDocResult(status, vbid, keySlice, *value);
 }
 

@@ -919,6 +919,39 @@ TEST_F(MagmaKVStoreTest, makeFileHandleSyncFailed) {
     EXPECT_FALSE(fileHandle);
 }
 
+// A by-seqno scan fails if the collections metadata of the snapshot cannot be
+// read, rather than scanning without it (which could expose or hide items).
+TEST_F(MagmaKVStoreTest, initBySeqnoScanContextCollectionsReadFailure) {
+    initialize_kv_store(kvstore.get(), vbid);
+    auto scan = [this](SnapshotSource source) {
+        return kvstore->initBySeqnoScanContext(
+                std::make_unique<MockGetValueCallback>(),
+                std::make_unique<KVStoreTestCacheCallback>(1, 1, vbid),
+                vbid,
+                1,
+                DocumentFilter::ALL_ITEMS,
+                ValueFilter::VALUES_COMPRESSED,
+                source);
+    };
+    ASSERT_TRUE(scan(SnapshotSource::Head));
+
+    auto failRead = [this](std::string_view key) {
+        kvstore->setReadLocalDocStatusHook([key](std::string_view docKey,
+                                                 magma::Status& status) {
+            if (docKey == key) {
+                status = magma::Status(magma::Status::Internal, "Internal");
+            }
+        });
+    };
+    failRead(LocalDocKey::droppedCollections);
+    EXPECT_FALSE(scan(SnapshotSource::Head));
+
+    // The open collections are read for a scan of all versions
+    failRead(LocalDocKey::openCollections);
+    EXPECT_TRUE(scan(SnapshotSource::Head));
+    EXPECT_FALSE(scan(SnapshotSource::HeadAllVersions));
+}
+
 TEST_F(MagmaKVStoreTest, diskSizeUpdateTracking) {
     // verify that MagmaRequests correctly track whether a new item's size is
     // included in the current disk size
