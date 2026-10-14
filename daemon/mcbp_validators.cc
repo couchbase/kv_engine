@@ -36,6 +36,7 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/json_utilities.h>
+#include <cstring>
 #include <string_view>
 
 using cb::mcbp::Status;
@@ -322,8 +323,10 @@ static Status parseFrameExtras(Cookie& cookie,
                 }
 
                 try {
-                    cookie.setImpersonateWithTokenAuthDataId(ntohs(
-                            *reinterpret_cast<const uint16_t*>(data.data())));
+                    // The frame data isn't necessarily aligned
+                    uint16_t tokenId;
+                    std::memcpy(&tokenId, data.data(), sizeof(tokenId));
+                    cookie.setImpersonateWithTokenAuthDataId(ntohs(tokenId));
                     return true;
                 } catch (const cb::engine_error& error) {
                     cookie.setErrorContext(error.what());
