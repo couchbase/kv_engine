@@ -1788,6 +1788,77 @@ TEST_P(AdjustTimeofdayValidatorTest, InvalidTimeType) {
               validate_error_context(cb::mcbp::ClientOpcode::AdjustTimeofday));
 }
 
+// -----------------------------------------------------------------------------
+// Validation order in verify_header
+// -----------------------------------------------------------------------------
+
+/**
+ * Inflating a Snappy compressed value is the most expensive part of
+ * verify_header. Verify that the cheaper checks (framing extras, key and
+ * collection) are performed first so that we don't decompress the value of
+ * a request which is rejected anyway.
+ */
+class InflateOrderingValidatorTest : public ValidatorTest {
+public:
+    InflateOrderingValidatorTest() : ValidatorTest(true) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+    }
+
+protected:
+    /**
+     * Build a Set request with a value which isn't valid Snappy
+     *
+     * @param key The key to use
+     * @param framingExtras The framing extras to use (if any)
+     */
+    void buildRequest(cb::const_byte_buffer key,
+                      cb::const_byte_buffer framingExtras = {}) {
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(framingExtras.empty()
+                                 ? cb::mcbp::Magic::ClientRequest
+                                 : cb::mcbp::Magic::AltClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::Set);
+        if (!framingExtras.empty()) {
+            builder.setFramingExtras(framingExtras);
+        }
+        cb::mcbp::request::MutationPayload extras;
+        builder.setExtras(extras.getBuffer());
+        builder.setKey(key);
+        builder.setValue("This is not snappy compressed");
+        builder.setDatatype(cb::mcbp::Datatype::Snappy);
+    }
+};
+
+TEST_F(InflateOrderingValidatorTest, InvalidValueIsDetected) {
+    // Default collection (0) followed by the logical key "a"
+    const std::array<uint8_t, 2> key{{0, 'a'}};
+    buildRequest({key.data(), key.size()});
+    EXPECT_EQ("Failed to inflate payload",
+              validate_error_context(cb::mcbp::ClientOpcode::Set));
+}
+
+TEST_F(InflateOrderingValidatorTest, KeyValidatedBeforeInflate) {
+    // A leb128 encoded collection id without a stop byte
+    const std::array<uint8_t, 4> key{{0x81, 0x81, 0x81, 0x81}};
+    buildRequest({key.data(), key.size()});
+    EXPECT_EQ("No stop-byte found",
+              validate_error_context(cb::mcbp::ClientOpcode::Set));
+}
+
+TEST_F(InflateOrderingValidatorTest, FramingExtrasValidatedBeforeInflate) {
+    const std::array<uint8_t, 2> key{{0, 'a'}};
+    // Frame id 1 with a length of 1, but the data is missing
+    const std::array<uint8_t, 1> framingExtras{{0x11}};
+    buildRequest({key.data(), key.size()},
+                 {framingExtras.data(), framingExtras.size()});
+    EXPECT_EQ("Invalid encoding in FrameExtras",
+              validate_error_context(cb::mcbp::ClientOpcode::Set));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DropPrivilegeValidatorTest,
                          ::testing::Bool(),

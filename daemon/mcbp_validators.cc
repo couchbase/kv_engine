@@ -482,16 +482,6 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return Status::Einval;
     }
 
-    if (!cookie.inflateInputPayload(header)) {
-        // Error reason already set
-        return Status::Einval;
-    }
-
-    if (!is_valid_xattr_blob(cookie, request)) {
-        cookie.setErrorContext("The provided xattr segment is not valid");
-        return Status::XattrEinval;
-    }
-
     // Validate the frame id's?
     if (!request.getFramingExtras().empty()) {
         auto status = parseFrameExtras(cookie, request);
@@ -540,6 +530,20 @@ Status McbpValidator::verify_header(Cookie& cookie,
         if (ingress_status != Status::Success) {
             return ingress_status;
         }
+    }
+
+    // Inflating and validating the value is the most expensive part of the
+    // validation so do it after all of the other checks (to avoid spending
+    // CPU and memory on decompressing the value of a request we would
+    // reject anyway)
+    if (!cookie.inflateInputPayload(header)) {
+        // Error reason already set
+        return Status::Einval;
+    }
+
+    if (!is_valid_xattr_blob(cookie, request)) {
+        cookie.setErrorContext("The provided xattr segment is not valid");
+        return Status::XattrEinval;
     }
 
     return Status::Success;
