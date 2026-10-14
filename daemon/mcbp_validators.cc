@@ -1674,13 +1674,12 @@ static Status create_bucket_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    std::string value(req.getValueString());
-    auto marker = value.find('\0');
-    if (marker != std::string::npos) {
-        value.resize(marker);
-    }
+    // The value contains the module name followed by '\0' and the (possibly
+    // large) configuration; only look at the module name
+    auto module = req.getValueString();
+    module = module.substr(0, module.find('\0'));
 
-    switch (module_to_bucket_type(value)) {
+    switch (module_to_bucket_type(module)) {
     case BucketType::Unknown:
         cookie.setErrorContext("Unknown bucket type");
         return Status::Einval;
