@@ -5827,8 +5827,12 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
         const AddResponseFn& response) {
     Vbid vb_id = request.getVBucket();
     auto value = request.getValue();
-    auto vb_uuid = static_cast<uint64_t>(
-            ntohll(*reinterpret_cast<const uint64_t*>(value.data())));
+    if (value.size() != sizeof(uint64_t)) {
+        return cb::engine_errc::invalid_arguments;
+    }
+    uint64_t vb_uuid;
+    memcpy(&vb_uuid, value.data(), sizeof(vb_uuid));
+    vb_uuid = ntohll(vb_uuid);
 
     EP_LOG_DEBUG("Observing {} with uuid: {}", vb_id, vb_uuid);
 
