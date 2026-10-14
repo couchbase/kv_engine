@@ -1871,7 +1871,7 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
         // ns_server has been updated to use the new format. This chunk
         // should be removed once they've merged their code
         if (json.contains("active") || json.contains("keys")) {
-            cb::crypto::KeyStore ks = nlohmann::json::parse(payload);
+            cb::crypto::KeyStore ks = json;
             return Status::Success;
         }
 

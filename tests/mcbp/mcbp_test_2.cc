@@ -1105,6 +1105,21 @@ TEST_P(SetActiveEncryptionKeysValidatorTest, MissingKeystore) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+/// The legacy format where the keystore is the top level object
+TEST_P(SetActiveEncryptionKeysValidatorTest, LegacyFormat) {
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@audit");
+    builder.setValue(R"({"keys": []})");
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+
+    // The active key must exist in the keystore
+    builder.setValue(R"({"keys": [], "active": "foo"})");
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 TEST_P(SetActiveEncryptionKeysValidatorTest, UnavailableUnencryptedKeyId) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
