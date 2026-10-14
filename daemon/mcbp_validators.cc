@@ -424,17 +424,15 @@ Status McbpValidator::verify_header(Cookie& cookie,
     }
 
     if (!connection.isDatatypeEnabled(header.getDatatype())) {
+        // Build up the set of the requested datatypes which isn't enabled
+        // (the datatype was validated above so all bits are known)
         uint8_t result = 0;
         const auto datatypes = header.getDatatype();
         for (int ii = 0; ii < 8; ++ii) {
             const auto bit = uint8_t(1 << ii);
-            if ((bit & datatypes) != bit) {
-                continue;
-            }
-            if (cb::mcbp::datatype::is_valid(protocol_binary_datatype_t(ii))) {
-                if (!connection.isDatatypeEnabled(bit)) {
-                    result |= bit;
-                }
+            if ((bit & datatypes) == bit &&
+                !connection.isDatatypeEnabled(bit)) {
+                result |= bit;
             }
         }
 

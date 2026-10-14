@@ -2336,6 +2336,20 @@ TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
               validate_error_context(cb::mcbp::ClientOpcode::DcpSystemEvent));
 }
 
+/// Only the datatypes which isn't enabled should be reported
+TEST_P(CommandSpecificErrorContextTest, DatatypeNotEnabled) {
+    constexpr auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
+    header.setExtlen(gsl::narrow<uint8_t>(extlen));
+    header.setKeylen(10);
+    header.setBodylen(extlen + 10);
+    header.setDatatype(cb::mcbp::Datatype(PROTOCOL_BINARY_DATATYPE_JSON |
+                                          PROTOCOL_BINARY_DATATYPE_XATTR));
+    connection.disableAllDatatypes();
+    connection.enableDatatype(cb::mcbp::Feature::JSON);
+    EXPECT_EQ("Datatype (xattr) not enabled for the connection",
+              validate_error_context(cb::mcbp::ClientOpcode::DcpMutation));
+}
+
 TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     // Connection must be Xattr enabled if datatype is Xattr
     constexpr auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
