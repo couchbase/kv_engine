@@ -40,6 +40,24 @@
 
 using cb::mcbp::Status;
 
+/**
+ * Build an error context for a JSON parse error. The error context gets
+ * logged, so it must not include any part of the payload (it may contain
+ * secrets such as auth tokens or key material). Note that the message
+ * returned from parse_error::what() includes a snippet of the input, so
+ * only the byte offset of the error is reported.
+ *
+ * @param prefix A prefix to put in front of the message
+ * @param error The parse error
+ * @return The error context to use
+ */
+static std::string getJsonParseErrorContext(
+        std::string_view prefix, const nlohmann::json::parse_error& error) {
+    return fmt::format("{}Invalid json format (parse error at byte {})",
+                       prefix,
+                       error.byte);
+}
+
 static bool is_valid_xattr_blob(Cookie& cookie,
                                 const cb::mcbp::Request& request) {
     if (!cb::mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
@@ -1871,6 +1889,10 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
         }
 
         cb::crypto::KeyStore ks = json["keystore"];
+    } catch (const nlohmann::json::parse_error& error) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "Failed to decode active encryption key info: ", error));
+        return Status::Einval;
     } catch (const std::exception& exception) {
         cookie.setErrorContext(
                 fmt::format("Failed to decode active encryption key info: {}",
