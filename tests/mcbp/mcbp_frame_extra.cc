@@ -135,6 +135,32 @@ TEST_F(FrameExtrasValidatorTests, DcpStreamIdInvalidSize) {
               validate_error_context(ClientOpcode::Set, blob, Status::Einval));
 }
 
+/// Internal (consumer) DCP connections don't support stream-id for DCP
+/// commands, but it is ignored for other commands
+TEST_F(FrameExtrasValidatorTests, DcpStreamIdOnConsumer) {
+    connection.setType(Connection::Type::Consumer);
+    uint16_t id = 0;
+    auto fe = encodeFrameInfo(
+            FrameInfoId::DcpStreamId,
+            {reinterpret_cast<const uint8_t*>(&id), sizeof(id)});
+
+    builder.setFramingExtras({fe.data(), fe.size()});
+    EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
+
+    // validate() enables unordered execution, which isn't allowed for DCP
+    connection.setAllowUnorderedExecution(false);
+    for (const auto opcode :
+         {ClientOpcode::DcpNoop, ClientOpcode::GetFailoverLog}) {
+        cb::mcbp::RequestBuilder dcp({blob, sizeof(blob)});
+        dcp.setMagic(cb::mcbp::Magic::AltClientRequest);
+        dcp.setOpcode(opcode);
+        dcp.setFramingExtras({fe.data(), fe.size()});
+        EXPECT_EQ("Internal consumer does not support stream-id",
+                  validate_error_context(opcode, blob, Status::Einval))
+                << opcode;
+    }
+}
+
 TEST_F(FrameExtrasValidatorTests, PreserveTtl) {
     auto fe = encodeFrameInfo(FrameInfoId::PreserveTtl, {});
     builder.setFramingExtras({fe.data(), fe.size()});

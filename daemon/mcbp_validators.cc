@@ -40,21 +40,6 @@
 
 using cb::mcbp::Status;
 
-static bool contains_stream_id(const cb::mcbp::Request& request) {
-    bool stream_id_found = false;
-    request.parseFrameExtras(
-            [&stream_id_found](cb::mcbp::request::FrameInfoId id,
-                               cb::const_byte_buffer) -> bool {
-                if (id == cb::mcbp::request::FrameInfoId::DcpStreamId) {
-                    stream_id_found = true;
-                    return false;
-                }
-                return true;
-            });
-
-    return stream_id_found;
-}
-
 static bool is_valid_xattr_blob(Cookie& cookie,
                                 const cb::mcbp::Request& request) {
     if (!cb::mcbp::datatype::is_xattr(uint8_t(request.getDatatype()))) {
@@ -226,6 +211,17 @@ static Status parseFrameExtras(Cookie& cookie,
                     status = Status::Einval;
                     cookie.setErrorContext("DcpStreamId invalid size:" +
                                            std::to_string(data.size()));
+                    return false;
+                }
+                // Checked here (and not in verify_common_dcp_restrictions)
+                // to avoid parsing the framing extras twice
+                if (cookie.getConnection().getType() ==
+                            Connection::Type::Consumer &&
+                    (cb::mcbp::is_dcp(opcode) ||
+                     opcode == cb::mcbp::ClientOpcode::GetFailoverLog)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext(
+                            "Internal consumer does not support stream-id");
                     return false;
                 }
                 return true;
@@ -530,12 +526,6 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
         cookie.setErrorContext(
                 "DCP on connections with unordered execution is not supported");
         return Status::NotSupported;
-    }
-
-    if (cookie.getConnection().getType() == Connection::Type::Consumer &&
-        contains_stream_id(cookie.getRequest())) {
-        cookie.setErrorContext("Internal consumer does not support stream-id");
-        return Status::Einval;
     }
 
     using cb::mcbp::ClientOpcode;
