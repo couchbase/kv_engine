@@ -1019,6 +1019,8 @@ cb::engine_errc EventuallyPersistentEngine::setDefragmenterFlushParam(
         configuration.setDefragmenterAutoPidD(std::stof(val));
     } else if (key == "defragmenter_auto_pid_dt") {
         configuration.setDefragmenterAutoPidDt(std::stof(val));
+    } else if (key == "defragmenter_tasks") {
+        configuration.setDefragmenterTasks(std::stoull(val));
     } else {
         EP_LOG_WARN_CTX("Rejecting setDefragmenterFlushParam request",
                         {"key", key},

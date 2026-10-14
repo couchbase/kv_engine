@@ -435,6 +435,11 @@ public:
      */
     KVBucket::CheckpointDestroyer getCkptDestroyerTask(Vbid vbid) const;
 
+    /**
+     * Get the defragmenter tasks.
+     */
+    std::vector<KVBucket::Defragmenter> getDefragmenterTasks() const;
+
     std::shared_ptr<InitialMFUTask> getInitialMfuUpdaterTask() const;
 
     /**

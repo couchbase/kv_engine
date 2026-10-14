@@ -30,7 +30,8 @@ bool MonitorTask::run() {
     *stats.fragStats.wlock() = fragStats;
 
     // Fragmentation is critical, so the defragmenter must run often.
-    // If it sleeps longer than defragmenter_critical_sleep, wake it now.
+    // If any defragmenter task sleeps longer than defragmenter_critical_sleep,
+    // wake the tasks now.
     // A disabled defragmenter does nothing, so do not wake it.
     auto& config = engine->getConfiguration();
     if (config.isDefragmenterEnabled() &&
