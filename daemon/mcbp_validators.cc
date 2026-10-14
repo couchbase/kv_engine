@@ -492,11 +492,15 @@ Status McbpValidator::verify_header(Cookie& cookie,
         }
     }
 
-    const auto ingress_status =
-            connection.getBucket().data_ingress_status.load();
-    if (ingress_status != Status::Success &&
-        cb::mcbp::is_client_writing_data(request.getClientOpcode())) {
-        return ingress_status;
+    // Only commands writing data are subject to the ingress control so
+    // check that first to avoid reading the shared atomic for all other
+    // commands
+    if (cb::mcbp::is_client_writing_data(request.getClientOpcode())) {
+        const auto ingress_status =
+                connection.getBucket().data_ingress_status.load();
+        if (ingress_status != Status::Success) {
+            return ingress_status;
+        }
     }
 
     return Status::Success;
