@@ -1536,6 +1536,28 @@ TEST_P(ObserveSeqnoValidatorTest, InvalidBody) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+/**
+ * The body length includes framing extras. Verify that we don't accept a
+ * packet where the framing extras makes up the expected 8 bytes of body (as
+ * the executor would then read the vbucket uuid past the end of the packet).
+ */
+TEST_P(ObserveSeqnoValidatorTest, FramingExtrasNotCountedAsValue) {
+    // 8 barrier frames (id 0, length 0) encoded as a single byte each
+    const std::array<uint8_t, sizeof(uint64_t)> barriers{};
+    const std::array<uint8_t, sizeof(uint64_t)> uuid{};
+
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::ObserveSeqno);
+    builder.setFramingExtras({barriers.data(), barriers.size()});
+    EXPECT_EQ("Request value must be of length 8",
+              validate_error_context(cb::mcbp::ClientOpcode::ObserveSeqno));
+
+    // But framing extras combined with a correct value is fine
+    builder.setValue({uuid.data(), uuid.size()});
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
 enum class RefreshOpcodes : uint8_t {
     Isasl = uint8_t(cb::mcbp::ClientOpcode::IsaslRefresh),
     Rbac = uint8_t(cb::mcbp::ClientOpcode::RbacRefresh)

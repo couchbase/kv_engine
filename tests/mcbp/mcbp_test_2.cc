@@ -692,6 +692,63 @@ TEST_P(CompactDbValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+// -----------------------------------------------------------------------------
+// SetActiveEncryptionKeys
+// -----------------------------------------------------------------------------
+
+class SetActiveEncryptionKeysValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    SetActiveEncryptionKeysValidatorTest() : ValidatorTest(GetParam()) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        connection.enableDatatype(cb::mcbp::Feature::JSON);
+    }
+
+protected:
+    void buildRequest(std::string_view value) {
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+        builder.setKey("@audit");
+        builder.setValue(value);
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+};
+
+TEST_P(SetActiveEncryptionKeysValidatorTest, CorrectMessage) {
+    buildRequest(R"({"keystore": {}})");
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              validate(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys, blob));
+}
+
+/**
+ * The error context gets logged when validation fails, and must not
+ * include any part of the payload as it may contain key material (note
+ * that the message from nlohmann::json::parse_error includes a snippet of
+ * the input).
+ */
+TEST_P(SetActiveEncryptionKeysValidatorTest, ParseErrorDoesNotLeakPayload) {
+    const std::string secret = "ThisIsMySecretKey";
+    // Unterminated string so that the parse error happens while reading
+    // the secret
+    buildRequest(fmt::format(R"({{"keystore": {{"key": "{})", secret));
+    const auto context = validate_error_context(
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    EXPECT_NE(std::string::npos, context.find("Invalid json format"))
+            << context;
+    EXPECT_EQ(std::string::npos, context.find(secret)) << context;
+    EXPECT_EQ(std::string::npos, context.find("Secret")) << context;
+}
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
+                         SetActiveEncryptionKeysValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DropPrivilegeValidatorTest,
                          ::testing::Bool(),
