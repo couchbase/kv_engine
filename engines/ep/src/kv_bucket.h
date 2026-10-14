@@ -33,6 +33,7 @@
 
 class CheckpointDestroyerTask;
 class CheckpointMemRecoveryTask;
+class DefragmenterTask;
 class BucketQuotaChangeTask;
 class ItemCompressorTask;
 class DurabilityCompletionTask;
@@ -731,15 +732,14 @@ public:
     void runDefragmenterTask() override;
 
     /**
-     * Wake the defragmenter task so it runs promptly, rather than waiting out
-     * its current sleep. Used by the MonitorTask to enter fragmentation
+     * Wake the defragmenter tasks so they run promptly, rather than waiting
+     * out their current sleep. Used by the MonitorTask to enter fragmentation
      * RECOVERY at once.
      */
     void wakeUpDefragmenter();
 
     /**
-     * Gets the duration of time the defragmenter task was snoozed for during
-     * the last run.
+     * Gets the longest sleep of the defragmenter tasks during their last run.
      */
     std::chrono::milliseconds getDefragmenterTaskSleepTime() const;
 
@@ -1124,6 +1124,7 @@ public:
 
     void createAndScheduleCheckpointDestroyerTasks();
     void createAndScheduleCheckpointRemoverTasks();
+    void createAndScheduleDefragmenterTasks();
     void createAndScheduleBucketQuotaChangeTask();
 
     /**
@@ -1268,6 +1269,11 @@ public:
      * @return The number of checkpoint destroyer tasks enabled in this KVBucket
      */
     size_t getNumCheckpointDestroyers() const;
+
+    /**
+     * @return The number of defragmenter tasks in this KVBucket
+     */
+    size_t getNumDefragmenterTasks() const;
 
     enum class ReplicationThrottleStatus : uint8_t {
         Process,
@@ -1588,9 +1594,21 @@ protected:
             folly::Synchronized<std::vector<CheckpointDestroyer>>;
     CheckpointDestroyers ckptDestroyerTasks;
 
+    /**
+     * Tasks responsible for defragmenting memory. The number is controlled by
+     * the config param "defragmenter_tasks".
+     * vBuckets are distributed across the tasks based on vbid
+     * (i.e., taskIndex = vbid % numTasks).
+     *
+     * Note: Thread-safe type as the number of tasks is controlled by the
+     *  related dynamic parameter in EP configuration.
+     */
+    using Defragmenter = std::shared_ptr<DefragmenterTask>;
+    using Defragmenters = folly::Synchronized<std::vector<Defragmenter>>;
+    Defragmenters defragmenterTasks;
+
     float                           bfilterResidencyThreshold;
     ExTask workloadMonitorTask;
-    ExTask                          defragmenterTask;
     std::shared_ptr<ItemCompressorTask> itemCompressorTask;
     // The itemFreqDecayerTask is used to decay the frequency count of items
     // stored in the hash table.  This is required to ensure that all the

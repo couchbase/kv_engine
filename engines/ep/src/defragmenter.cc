@@ -24,9 +24,11 @@
 #include <cinttypes>
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine& e,
-                                   EPStats& stats_)
+                                   EPStats& stats_,
+                                   VBucketFilter vbFilter)
     : EpTask(e, TaskId::DefragmenterTask, 0, false),
       stats(stats_),
+      vbFilter(std::move(vbFilter)),
       epstore_position(engine->getKVBucket()->startPosition()),
       pid(engine->getConfiguration().getDefragmenterAutoLowerThreshold(),
           engine->getConfiguration().getDefragmenterAutoPidP(),
@@ -128,7 +130,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
 
     // Do it - set off the visitor.
     epstore_position = engine->getKVBucket()->pauseResumeVisit(
-            *prAdapter, epstore_position);
+            *prAdapter, epstore_position, &vbFilter);
     const auto end = cb::time::steady_clock::now();
 
     // Defrag complete. Restore thread caching.

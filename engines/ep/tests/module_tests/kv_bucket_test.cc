@@ -752,6 +752,10 @@ KVBucket::CheckpointDestroyer KVBucketTest::getCkptDestroyerTask(
     return store->getCkptDestroyerTask(vbid);
 }
 
+std::vector<KVBucket::Defragmenter> KVBucketTest::getDefragmenterTasks() const {
+    return *store->defragmenterTasks.rlock();
+}
+
 std::shared_ptr<InitialMFUTask> KVBucketTest::getInitialMfuUpdaterTask() const {
     return store->initialMfuUpdaterTask;
 }

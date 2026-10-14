@@ -19,6 +19,7 @@
 #include "test_helpers.h"
 #include "vbucket.h"
 
+#include <folly/portability/GMock.h>
 #include <chrono>
 #include <thread>
 
@@ -370,7 +371,7 @@ public:
 class MockDefragmenterTask : public DefragmenterTask {
 public:
     MockDefragmenterTask(EventuallyPersistentEngine& engine, EPStats& stats)
-        : DefragmenterTask(engine, stats),
+        : DefragmenterTask(engine, stats, VBucketFilter::createMatchAll()),
           testPid(engine.getConfiguration().getDefragmenterAutoLowerThreshold(),
                   engine.getConfiguration().getDefragmenterAutoPidP(),
                   engine.getConfiguration().getDefragmenterAutoPidI(),
@@ -539,6 +540,80 @@ TEST_F(DefragmenterTaskTest, CriticalSleepInEveryMode) {
                 << mode;
         EXPECT_TRUE(state.runDefragger) << mode;
     }
+}
+
+// The defragmenter tasks exist only with jemalloc.
+#if defined(HAVE_JEMALLOC)
+TEST_F(DefragmenterTaskTest, UpdateNumTasks) {
+#else
+TEST_F(DefragmenterTaskTest, DISABLED_UpdateNumTasks) {
+#endif
+    // Unit tests don't call KVBucket::initialize(), so the pool is created only
+    // when the param is set.
+    auto& config = engine->getConfiguration();
+    config.setDefragmenterTasks(3);
+    EXPECT_EQ(3, store->getNumDefragmenterTasks());
+
+    config.setDefragmenterTasks(1);
+    EXPECT_EQ(1, store->getNumDefragmenterTasks());
+}
+
+// At most 1 task per vBucket.
+#if defined(HAVE_JEMALLOC)
+TEST_F(DefragmenterTaskTest, UpdateNumTasks_HigherThanNumVBuckets) {
+#else
+TEST_F(DefragmenterTaskTest, DISABLED_UpdateNumTasks_HigherThanNumVBuckets) {
+#endif
+    const auto numVBuckets = store->getVBMapSize();
+    engine->getConfiguration().setDefragmenterTasks(numVBuckets + 1);
+    EXPECT_EQ(numVBuckets, store->getNumDefragmenterTasks());
+}
+
+TEST_F(DefragmenterTaskTest, UpdateNumTasks_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setDefragmenterTasks(0);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr("Validation Error, defragmenter_tasks "
+                                       "takes values between 1"));
+        return;
+    }
+    FAIL();
+}
+
+// Task i must visit only the vBuckets where vbid % numTasks == i.
+#if defined(HAVE_JEMALLOC)
+TEST_F(DefragmenterTaskTest, TasksSplitVBuckets) {
+#else
+TEST_F(DefragmenterTaskTest, DISABLED_TasksSplitVBuckets) {
+#endif
+    auto& config = engine->getConfiguration();
+    config.setDefragmenterTasks(2);
+    // Static mode always runs, whatever the fragmentation.
+    config.setDefragmenterMode("static");
+
+    // vb:N stores N+1 items: task 0 (vb:0, vb:2) must visit 1+3 items, task 1
+    // (vb:1, vb:3) must visit 2+4 items.
+    for (uint16_t vb = 0; vb < 4; ++vb) {
+        const Vbid vbid(vb);
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        for (uint16_t i = 0; i <= vb; ++i) {
+            store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "v");
+        }
+    }
+
+    const auto tasks = getDefragmenterTasks();
+    ASSERT_EQ(2, tasks.size());
+    auto& numVisited = engine->getEpStats().defragNumVisited;
+
+    numVisited = 0;
+    tasks[0]->run();
+    EXPECT_EQ(4, numVisited.load());
+
+    numVisited = 0;
+    tasks[1]->run();
+    EXPECT_EQ(6, numVisited.load());
 }
 
 // Test the default configuration for the defragmenter to make sure it is sane
