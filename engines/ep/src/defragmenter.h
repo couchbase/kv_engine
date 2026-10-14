@@ -13,6 +13,7 @@
 #include "ep_task.h"
 #include "kv_bucket_iface.h"
 #include "pid_controller.h"
+#include "vb_filter.h"
 
 namespace cb {
 class FragmentationStats;
@@ -96,7 +97,12 @@ class PauseResumeVBAdapter;
  */
 class DefragmenterTask : public EpTask {
 public:
-    DefragmenterTask(EventuallyPersistentEngine& e, EPStats& stats_);
+    /**
+     * @param vbFilter The vBuckets visited by this task
+     */
+    DefragmenterTask(EventuallyPersistentEngine& e,
+                     EPStats& stats_,
+                     VBucketFilter vbFilter);
 
     bool run() override;
 
@@ -172,6 +178,9 @@ protected:
 
     /// Reference to EP stats, used to check on mem_used.
     EPStats &stats;
+
+    /** The vBuckets visited by this task */
+    VBucketFilter vbFilter;
 
     // Opaque marker indicating how far through the epStore we have visited.
     KVBucketIface::Position epstore_position;
