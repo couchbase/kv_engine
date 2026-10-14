@@ -2860,12 +2860,9 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "get_fusion_storage_snapshot_validator: Invalid json '{}' {}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "get_fusion_storage_snapshot_validator: ", e));
         return Status::Einval;
     }
 
@@ -2986,13 +2983,9 @@ static Status release_fusion_storage_snapshot_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "release_fusion_storage_snapshot_validator: Invalid json '{}' "
-                "{}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "release_fusion_storage_snapshot_validator: ", e));
         return Status::Einval;
     }
 
@@ -3103,9 +3096,8 @@ static Status mount_vbucket_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        cookie.setErrorContext(
-                fmt::format("Invalid json '{}' {}", value, e.what()));
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext({}, e));
         return Status::Einval;
     }
 
@@ -3154,7 +3146,7 @@ static Status mount_vbucket_validator(Cookie& cookie) {
             std::vector<std::string> paths = json[fusion_json_key_mount_paths];
         } catch (const std::exception& ex) {
             cookie.setErrorContext(
-                    fmt::format("Invalid json '{}' {}", value, ex.what()));
+                    fmt::format("Invalid mountPaths: {}", ex.what()));
             return Status::Einval;
         }
     } else if (source == VBucketSnapshotSource::FusionLogStore) {
@@ -3199,13 +3191,9 @@ static Status sync_fusion_logstore_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "sync_fusion_logstore_validator: Invalid json '{}' "
-                "{}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "sync_fusion_logstore_validator: ", e));
         return Status::Einval;
     }
 
@@ -3237,12 +3225,9 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "start_fusion_uploader_validator: Invalid json '{}' {}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "start_fusion_uploader_validator: ", e));
         return Status::Einval;
     }
 
@@ -3293,12 +3278,9 @@ static Status set_chronicle_auth_token_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "set_chronicle_auth_token_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "set_chronicle_auth_token_validator: ", e));
         return Status::Einval;
     }
 
@@ -3332,12 +3314,9 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "delete_fusion_namespace_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "delete_fusion_namespace_validator: ", e));
         return Status::Einval;
     }
 
@@ -3416,12 +3395,9 @@ Status get_fusion_namespaces_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "get_fusion_namespaces_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "get_fusion_namespaces_validator: ", e));
         return Status::Einval;
     }
 
