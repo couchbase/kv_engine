@@ -45,7 +45,8 @@ All changes must be submitted via:
 
        `repo start name-of-topic-branch`
 
-3. Make code changes and run `git clang-format` to fix any formatting errors before committing
+3. Make code changes and run `git clang-format` to fix any formatting errors before committing.
+   Verify that the changes don't introduce any new `clang-tidy` warnings.
 4. Make atomic, focused commits
 5. Always create suitable unit tests
 6. Run local build and tests
