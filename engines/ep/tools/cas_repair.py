@@ -86,6 +86,11 @@ def parse_args():
         required=True,
         type=int)
     parser.add_argument(
+        "--couch-dbdump",
+        dest="couch_dbdump",
+        help="Optional: Path to the couch_dbdump binary. When omitted "
+             "couch_dbdump is found using $PATH")
+    parser.add_argument(
         "-c",
         "--caslimit",
         help="Optional: Repair documents when CAS exceeds this value. When "
@@ -138,11 +143,28 @@ def parse_args():
     return args
 
 
-def check_required_tools():
-    for tool in ["couch_dbdump"]:
-        if shutil.which(tool) is None:
+def find_couch_dbdump(path):
+    """
+    Returns the couch_dbdump binary to use, either the given path or, if path
+    is None, couch_dbdump found using $PATH
+    """
+    if path is None:
+        couch_dbdump_bin = shutil.which("couch_dbdump")
+        if couch_dbdump_bin is None:
             raise Exception(
-                "cannot find {}. Check $PATH for required tools".format(tool))
+                "cannot find couch_dbdump. Check $PATH for required tools")
+        return couch_dbdump_bin
+
+    couch_dbdump_bin = os.path.abspath(path)
+    if not os.path.isfile(couch_dbdump_bin):
+        raise Exception(
+            "Cannot find couch_dbdump executable at path: {}".format(
+                couch_dbdump_bin))
+    if not os.access(couch_dbdump_bin, os.X_OK):
+        raise Exception(
+            "couch_dbdump file at path is not executable: {}".format(
+                couch_dbdump_bin))
+    return couch_dbdump_bin
 
 
 def find_datafile(data_dir, vbucket):
@@ -258,7 +280,8 @@ def delete_document(memcache, json_entry, logical_key, collection_id, verbose):
                          cas=cas)
 
 
-def deleted_document_has_value(datafile, logical_key, collection_id):
+def deleted_document_has_value(couch_dbdump_bin, datafile, logical_key,
+                               collection_id):
     """
     The main couch_dbdump uses --no-body, so look up the deleted document on
     its own to check if it has a value. A deleted document without a value has
@@ -267,7 +290,7 @@ def deleted_document_has_value(datafile, logical_key, collection_id):
     ValueError / KeyError if the output cannot be parsed.
     """
     # couch_dbdump expects the collection ID in decimal
-    cmd = ["couch_dbdump", "--json", "--key", logical_key, "--collection",
+    cmd = [couch_dbdump_bin, "--json", "--key", logical_key, "--collection",
            str(int(collection_id, 16)), datafile]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, check=True)
     return json.loads(result.stdout)['body'] is not None
@@ -343,8 +366,8 @@ def process_document(json_entry, args, memcache, stats, datafile):
                 "value".format(logical_key, collection_id, cas))
             return
         try:
-            has_value = deleted_document_has_value(datafile, logical_key,
-                                                   collection_id)
+            has_value = deleted_document_has_value(args.couch_dbdump, datafile,
+                                                   logical_key, collection_id)
         except (subprocess.CalledProcessError, ValueError, KeyError) as e:
             stats.deleted_unchecked += 1
             print(
@@ -384,7 +407,7 @@ def process_datafile(args, datafile, memcache):
     Using couch_dbdump, obtain the metadata of every key and process each one.
     Exits if the output of couch_dbdump cannot be parsed, or if it fails.
     """
-    cmd = ["couch_dbdump", "--no-body", "--json", datafile]
+    cmd = [args.couch_dbdump, "--no-body", "--json", datafile]
     stats = RepairStats()
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -487,7 +510,7 @@ def print_summary(args, stats, high_seqno, persisted):
 
 def main():
     args = parse_args()
-    check_required_tools()
+    args.couch_dbdump = find_couch_dbdump(args.couch_dbdump)
 
     datafile = find_datafile(args.datafile, args.vbucket)
     print("Processing with {}".format(datafile))
