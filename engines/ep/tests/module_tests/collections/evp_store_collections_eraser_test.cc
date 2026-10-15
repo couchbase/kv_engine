@@ -1253,9 +1253,47 @@ TEST_P(CollectionsEraserTest, flush_basic) {
     // Collection item count was reset when flush was persisted
     checkStats(0, diskSize, std::less<size_t>{});
 
+    // The flushed collection is recorded as dropped, so a drop is in progress
+    verifyDroppedCollectionsOnDisk({CollectionEntry::fruit.getId()});
+
     runCollectionsEraser(vbid);
 
     EXPECT_EQ(2, vb->getNumItems());
+    verifyDroppedCollectionsOnDisk({});
+}
+
+// After a flush is persisted (and before the eraser runs) a store of a key from
+// before the flush must be accounted as an insert into the collection, the old
+// revision on disk belongs to the flushed (dropped) items.
+TEST_P(CollectionsEraserTest, flush_then_store_pre_flush_key) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+        // @todo: fix magma/ephemeral.
+    }
+
+    CollectionsManifest cm;
+    auto key = StoredDocKey{"apple", CollectionEntry::fruit};
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    store_item(vbid, key, "1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // Flush the collection and persist the flush
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // Store the key again in a new flush batch. The key's old revision on disk
+    // was flushed, so this is an insert
+    store_item(vbid, key, "2");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_EQ(1, vb->getNumItems());
 }
 
 TEST_P(CollectionsEraserTest, flush_with_more_items) {

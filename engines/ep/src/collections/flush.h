@@ -339,8 +339,9 @@ private:
 
     /**
      * Iterate through the 'droppedCollections' container and call a function
-     * on the VB:Manifest to let it know the drop/seqno was persisted. This is
-     * only done from flushSuccess.
+     * on the VB:Manifest to let it know the drop/seqno was persisted. Any
+     * flushed collections also mark the VB::Manifest as having a drop in
+     * progress. This is only done from flushSuccess.
      */
     void notifyManifestOfAnyDroppedCollections();
 

@@ -166,6 +166,13 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
                 droppedData.endSeqno,
                 !emptyDroppedCollections.contains(cid));
     }
+
+    // A flushed collection is recorded in the on-disk dropped collections
+    // list (the items before the flush must be erased by compaction), so a
+    // flush leaves a drop "in progress" just as a drop does.
+    if (!flushAccounting.getFlushedCollections().empty()) {
+        manifest.get().setDropInProgress(true);
+    }
 }
 
 void Flush::checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const {
