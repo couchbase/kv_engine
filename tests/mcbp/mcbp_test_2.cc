@@ -1055,6 +1055,7 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
+        connection.enableDatatype(cb::mcbp::Feature::JSON);
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
         builder.setMagic(cb::mcbp::Magic::ClientRequest);
         builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
@@ -1135,6 +1136,84 @@ TEST_P(SetActiveEncryptionKeysValidatorTest, InvalidExtlen) {
     req.setBodylen(req.getBodylen() + 2);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
+
+/**
+ * The error context gets logged when validation fails, and must not
+ * include any part of the payload as it may contain key material (note
+ * that the message from nlohmann::json::parse_error includes a snippet of
+ * the input).
+ */
+TEST_P(SetActiveEncryptionKeysValidatorTest, ParseErrorDoesNotLeakPayload) {
+    const std::string secret = "ThisIsMySecretKey";
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    builder.setKey("@audit");
+    // Unterminated string so that the parse error happens while reading
+    // the secret
+    builder.setValue(fmt::format(R"({{"keystore": {{"key": "{})", secret));
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+    const auto context = validate_error_context(
+            cb::mcbp::ClientOpcode::SetActiveEncryptionKeys);
+    EXPECT_NE(std::string::npos, context.find("Invalid json format"))
+            << context;
+    EXPECT_EQ(std::string::npos, context.find(secret)) << context;
+    EXPECT_EQ(std::string::npos, context.find("Secret")) << context;
+}
+
+// -----------------------------------------------------------------------------
+// JSON parse errors must not leak the payload into the error context
+// -----------------------------------------------------------------------------
+
+/**
+ * The error context gets logged when validation fails. Commands which carry
+ * secrets (auth tokens, key material etc) must not include any part of the
+ * payload in the error context when they fail to parse the JSON (note that
+ * the message from nlohmann::json::parse_error includes a snippet of the
+ * input).
+ */
+class JsonParseErrorContextTest
+    : public ::testing::WithParamInterface<cb::mcbp::ClientOpcode>,
+      public ValidatorTest {
+public:
+    JsonParseErrorContextTest() : ValidatorTest(false) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        connection.enableDatatype(cb::mcbp::Feature::JSON);
+    }
+};
+
+TEST_P(JsonParseErrorContextTest, PayloadNotIncluded) {
+    const std::string secret = "ThisIsMySecretToken";
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(GetParam());
+    // Unterminated string so that the parse error happens while reading
+    // the secret
+    builder.setValue(fmt::format(R"({{"token": "{})", secret));
+    builder.setDatatype(cb::mcbp::Datatype::JSON);
+
+    const auto context = validate_error_context(GetParam());
+    EXPECT_NE(std::string::npos, context.find("Invalid json format"))
+            << context;
+    EXPECT_EQ(std::string::npos, context.find(secret)) << context;
+    EXPECT_EQ(std::string::npos, context.find("Secret")) << context;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        AllOpcodes,
+        JsonParseErrorContextTest,
+        ::testing::Values(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
+                          cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
+                          cb::mcbp::ClientOpcode::MountFusionVbucket,
+                          cb::mcbp::ClientOpcode::SyncFusionLogstore,
+                          cb::mcbp::ClientOpcode::StartFusionUploader,
+                          cb::mcbp::ClientOpcode::SetChronicleAuthToken,
+                          cb::mcbp::ClientOpcode::DeleteFusionNamespace,
+                          cb::mcbp::ClientOpcode::GetFusionNamespaces),
+        [](const auto& info) { return format_as(info.param); });
 
 class PruneEncryptionKeysValidatorTest
     : public ::testing::WithParamInterface<bool>,
