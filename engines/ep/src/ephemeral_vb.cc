@@ -307,14 +307,26 @@ void EphemeralVBucket::notifyAllPendingConnsFailed(
 void EphemeralVBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd,
                                                         OptionalSeqno hps,
                                                         OptionalSeqno hcs) {
+    // Read before notifying the PDM: the vbucket may be promoted once the PDM
+    // drops the state lock, and promotion opens a new Memory checkpoint.
+    const bool diskSnapshot = isReceivingDiskSnapshot();
+
     VBucket::notifyPassiveDMOfSnapEndReceived(snapEnd, hps, hcs);
 
-    // When we finish processing a snapshot, we update the HPS with the value
-    // received from the active, or the snapEnd if no prepare was received.
-    // This logic is equivalent to what the PDM does and what persistent buckets
-    // do, and it ensures that if this replica is promoted, it can correctly
-    // send the HPS to a replica (since we use the value from the seqlist not
-    // the PDM in replication).
+    // A Memory snapshot delivers every Prepare, and each one has already
+    // updated the SeqList HPS as it was appended. Moving the HPS to the
+    // snapEnd here would overstate it, and a later backfill marker carrying
+    // the active's real HPS would then move it backwards (MB-74563).
+    if (!diskSnapshot) {
+        return;
+    }
+
+    // Prepares in a Disk snapshot may have been deduplicated, or their Aborts
+    // purged, so at its end we take the HPS received from the active, or the
+    // snapEnd if the marker carried none. This is what the PDM and the
+    // CheckpointManager of persistent buckets do, and it ensures that if this
+    // replica is promoted, it can correctly send the HPS to a replica (since we
+    // use the value from the seqlist not the PDM in replication).
     std::lock_guard<std::mutex> lh(sequenceLock);
     std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
     seqList->updateHighPreparedSeqno(lh, listWriteLg, hps.value_or(snapEnd));

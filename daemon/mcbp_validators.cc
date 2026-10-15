@@ -36,9 +36,28 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/fusion_utilities.h>
 #include <utilities/json_utilities.h>
+#include <cstring>
 #include <string_view>
 
 using cb::mcbp::Status;
+
+/**
+ * Build an error context for a JSON parse error. The error context gets
+ * logged, so it must not include any part of the payload (it may contain
+ * secrets such as auth tokens or key material). Note that the message
+ * returned from parse_error::what() includes a snippet of the input, so
+ * only the byte offset of the error is reported.
+ *
+ * @param prefix A prefix to put in front of the message
+ * @param error The parse error
+ * @return The error context to use
+ */
+static std::string getJsonParseErrorContext(
+        std::string_view prefix, const nlohmann::json::parse_error& error) {
+    return fmt::format("{}Invalid json format (parse error at byte {})",
+                       prefix,
+                       error.byte);
+}
 
 static bool is_valid_xattr_blob(Cookie& cookie,
                                 const cb::mcbp::Request& request) {
@@ -157,8 +176,24 @@ static Status parseFrameExtras(Cookie& cookie,
                                const cb::mcbp::Request& request) {
     Status status = Status::Success;
     auto opcode = request.getClientOpcode();
+    // Only one of the impersonate frames may be present (otherwise the
+    // effective user and the privilege context could belong to different
+    // users)
+    bool impersonated = false;
+    auto checkSingleImpersonation = [&impersonated, &status, &cookie]() {
+        if (impersonated) {
+            cookie.setErrorContext("Only one impersonate frame may be present");
+            status = Status::Einval;
+            return false;
+        }
+        impersonated = true;
+        return true;
+    };
     try {
-        request.parseFrameExtras([&status, &cookie, &opcode](
+        request.parseFrameExtras([&status,
+                                  &cookie,
+                                  &opcode,
+                                  &checkSingleImpersonation](
                                          cb::mcbp::request::FrameInfoId id,
                                          cb::const_byte_buffer data) -> bool {
             switch (id) {
@@ -226,6 +261,9 @@ static Status parseFrameExtras(Cookie& cookie,
                 }
                 return true;
             case cb::mcbp::request::FrameInfoId::Impersonate:
+                if (!checkSingleImpersonation()) {
+                    return false;
+                }
                 if (data.empty()) {
                     cookie.setErrorContext("Impersonated user must be set");
                     status = Status::Einval;
@@ -282,6 +320,9 @@ static Status parseFrameExtras(Cookie& cookie,
                 return true; // continue parsing
 
             case cb::mcbp::request::FrameInfoId::ImpersonateWithTokenAuthDataId:
+                if (!checkSingleImpersonation()) {
+                    return false;
+                }
                 if (data.size() != sizeof(uint16_t)) {
                     status = Status::Einval;
                     cookie.setErrorContext(
@@ -300,8 +341,10 @@ static Status parseFrameExtras(Cookie& cookie,
                 }
 
                 try {
-                    cookie.setImpersonateWithTokenAuthDataId(ntohs(
-                            *reinterpret_cast<const uint16_t*>(data.data())));
+                    // The frame data isn't necessarily aligned
+                    uint16_t tokenId;
+                    std::memcpy(&tokenId, data.data(), sizeof(tokenId));
+                    cookie.setImpersonateWithTokenAuthDataId(ntohs(tokenId));
                     return true;
                 } catch (const cb::engine_error& error) {
                     cookie.setErrorContext(error.what());
@@ -1639,7 +1682,9 @@ static Status observe_seqno_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getBodylen() != 8) {
+    // Note: The body length includes framing extras so we must check the
+    // size of the value (and not the body)
+    if (cookie.getRequest().getValue().size() != sizeof(uint64_t)) {
         cookie.setErrorContext("Request value must be of length 8");
         return Status::Einval;
     }
@@ -1901,6 +1946,10 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
         }
 
         cb::crypto::KeyStore ks = json["keystore"];
+    } catch (const nlohmann::json::parse_error& error) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "Failed to decode active encryption key info: ", error));
+        return Status::Einval;
     } catch (const std::exception& exception) {
         cookie.setErrorContext(
                 fmt::format("Failed to decode active encryption key info: {}",
@@ -2807,12 +2856,9 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "get_fusion_storage_snapshot_validator: Invalid json '{}' {}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "get_fusion_storage_snapshot_validator: ", e));
         return Status::Einval;
     }
 
@@ -2933,13 +2979,9 @@ static Status release_fusion_storage_snapshot_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "release_fusion_storage_snapshot_validator: Invalid json '{}' "
-                "{}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "release_fusion_storage_snapshot_validator: ", e));
         return Status::Einval;
     }
 
@@ -3050,9 +3092,8 @@ static Status mount_vbucket_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        cookie.setErrorContext(
-                fmt::format("Invalid json '{}' {}", value, e.what()));
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext({}, e));
         return Status::Einval;
     }
 
@@ -3101,7 +3142,7 @@ static Status mount_vbucket_validator(Cookie& cookie) {
             std::vector<std::string> paths = json[fusion_json_key_mount_paths];
         } catch (const std::exception& ex) {
             cookie.setErrorContext(
-                    fmt::format("Invalid json '{}' {}", value, ex.what()));
+                    fmt::format("Invalid mountPaths: {}", ex.what()));
             return Status::Einval;
         }
     } else if (source == VBucketSnapshotSource::FusionLogStore) {
@@ -3146,13 +3187,9 @@ static Status sync_fusion_logstore_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "sync_fusion_logstore_validator: Invalid json '{}' "
-                "{}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "sync_fusion_logstore_validator: ", e));
         return Status::Einval;
     }
 
@@ -3184,12 +3221,9 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        const auto msg = fmt::format(
-                "start_fusion_uploader_validator: Invalid json '{}' {}",
-                value,
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "start_fusion_uploader_validator: ", e));
         return Status::Einval;
     }
 
@@ -3240,12 +3274,9 @@ static Status set_chronicle_auth_token_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "set_chronicle_auth_token_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "set_chronicle_auth_token_validator: ", e));
         return Status::Einval;
     }
 
@@ -3279,12 +3310,9 @@ Status delete_fusion_namespace_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "delete_fusion_namespace_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "delete_fusion_namespace_validator: ", e));
         return Status::Einval;
     }
 
@@ -3363,12 +3391,9 @@ Status get_fusion_namespaces_validator(Cookie& cookie) {
     nlohmann::json json;
     try {
         json = nlohmann::json::parse(value);
-    } catch (const nlohmann::json::exception& e) {
-        // Note: Don't log the full payload
-        const auto msg = fmt::format(
-                "get_fusion_namespaces_validator: Invalid json format {}",
-                e.what());
-        cookie.setErrorContext(msg);
+    } catch (const nlohmann::json::parse_error& e) {
+        cookie.setErrorContext(getJsonParseErrorContext(
+                "get_fusion_namespaces_validator: ", e));
         return Status::Einval;
     }
 
