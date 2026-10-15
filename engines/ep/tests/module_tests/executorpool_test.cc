@@ -1301,7 +1301,6 @@ TYPED_TEST(ExecutorPoolTest, TaskStats) {
                                "this"s,
                                "bucket"s,
                                "description"s,
-                               "priority"s,
                                "waketime_ns"s,
                                "total_runtime_ns"s,
                                "last_starttime_ns"s,

@@ -133,6 +133,28 @@ public:
         storeTestKeys();
     }
 
+    /**
+     * Wake all AuxIO tasks with the given id. Tasks run in the order they
+     * became ready, so this moves them behind any task which is already
+     * scheduled to run.
+     *
+     * @param id The TaskId of the task(s) to wake
+     */
+    void wakeAuxIOTasks(TaskId id) {
+        auto& auxQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+        std::vector<ExTask> tasks;
+        auxQ.forEachFutureTask([&tasks, id](const ExTask& task) {
+            if (task->getTaskId() == id) {
+                tasks.push_back(task);
+            }
+        });
+        ASSERT_FALSE(tasks.empty())
+                << "No AuxIO task found for " << GlobalTask::getTaskName(id);
+        for (auto& task : tasks) {
+            auxQ.wake(task);
+        }
+    }
+
     void TearDown() override {
         MockCookie::setCheckPrivilegeFunction({});
         mock_set_privilege_context_revision(0);
@@ -1467,6 +1489,10 @@ TEST_P(RangeScanCreateTest, scan_detects_vbucket_change) {
     // destroy and create the vbucket - a new uuid will be created
     EXPECT_TRUE(store->resetVBucket(vbid));
 
+    // Move the create task behind the vbucket deletion task so that the
+    // vbucket change happens before the create task runs.
+    wakeAuxIOTasks(TaskId::RangeScanCreateTask);
+
     // Need to poke a few functions to get the create ready to run.
     runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "Removing (dead) vb:0 from memory and disk");
@@ -1526,6 +1552,10 @@ TEST_P(RangeScanCreateAndContinueTest,
 
     // destroy and create the vbucket - a new uuid will be created
     EXPECT_TRUE(store->resetVBucket(vbid));
+
+    // Move the continue task behind the vbucket deletion task so that the
+    // vbucket change happens before the continue task runs.
+    wakeAuxIOTasks(TaskId::RangeScanContinueTask);
 
     // Need to poke a few functions to get the create ready to run.
     runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),

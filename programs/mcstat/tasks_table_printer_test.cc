@@ -28,7 +28,6 @@ TEST(TasksTablePrinterTest, PrintTasksTable) {
     const uint64_t curTime = 1000'000'000'000ULL; // 1000s in ns
     const nlohmann::json tasksArray = {
             {{"tid", 10},
-             {"priority", 5},
              {"state", "running"},
              {"bucket", "default"},
              {"waketime_ns", curTime + 5'000'000'000ULL},
@@ -42,7 +41,6 @@ TEST(TasksTablePrinterTest, PrintTasksTable) {
              {"this", "0x1234"},
              {"description", "Flushing data"}},
             {{"tid", 11},
-             {"priority", 0},
              {"state", "snoozed"},
              {"bucket", "default"},
              {"waketime_ns", curTime + 10'000'000'000ULL},
@@ -77,7 +75,6 @@ TEST(TasksTablePrinterTest, SortTasksTable) {
     const uint64_t curTime = 1000'000'000'000ULL;
     const nlohmann::json tasksArray = {
             {{"tid", 2},
-             {"priority", 1},
              {"state", "idle"},
              {"bucket", "b"},
              {"waketime_ns", curTime + 1'000'000'000ULL},
@@ -90,7 +87,6 @@ TEST(TasksTablePrinterTest, SortTasksTable) {
              {"this", "0x2"},
              {"description", "Z"}},
             {{"tid", 1},
-             {"priority", 0},
              {"state", "idle"},
              {"bucket", "a"},
              {"waketime_ns", curTime + 2'000'000'000ULL},
@@ -122,7 +118,6 @@ TEST(TasksTablePrinterTest, SortTasksTableByNumericColumnIndex) {
     const uint64_t curTime = 1000'000'000'000ULL;
     const nlohmann::json tasksArray = {
             {{"tid", 1},
-             {"priority", 0},
              {"state", "idle"},
              {"bucket", "a"},
              {"waketime_ns", curTime + 1'000'000'000ULL},
@@ -135,7 +130,6 @@ TEST(TasksTablePrinterTest, SortTasksTableByNumericColumnIndex) {
              {"this", "0x1"},
              {"description", "A"}},
             {{"tid", 2},
-             {"priority", 0},
              {"state", "idle"},
              {"bucket", "b"},
              {"waketime_ns", curTime + 1'000'000'000ULL},
@@ -152,9 +146,9 @@ TEST(TasksTablePrinterTest, SortTasksTableByNumericColumnIndex) {
             {"ep_tasks:cur_time:default", std::to_string(curTime)},
             {"ep_tasks:tasks:default", tasksArray.dump()}};
 
-    // Column index 6 is TotalRun, which defaults to descending (invertSort).
+    // Column index 5 is TotalRun, which defaults to descending (invertSort).
     std::stringstream ss;
-    printTasksTable(stats, "6", ss);
+    printTasksTable(stats, "5", ss);
     const auto output = ss.str();
 
     auto posBig = output.find("BigTotalRun");
@@ -167,7 +161,6 @@ TEST(TasksTablePrinterTest, SortTasksTableByNumericColumnIndex) {
 TEST(TasksTablePrinterTest, SortTasksTableOutOfRangeNumberIsIgnored) {
     const uint64_t curTime = 1000'000'000'000ULL;
     const nlohmann::json tasksArray = {{{"tid", 1},
-                                        {"priority", 0},
                                         {"state", "idle"},
                                         {"bucket", "a"},
                                         {"waketime_ns", curTime},
@@ -202,7 +195,6 @@ TEST(TasksTablePrinterTest,
     // happens to come first/last in the column list.
     const nlohmann::json tasksArray = {
             {{"tid", 1},
-             {"priority", 0},
              {"state", "idle"}, // 'i', sorts first ascending
              {"bucket", "a"},
              {"waketime_ns", curTime + 1'000'000'000ULL}, // sleeps 1s
@@ -215,7 +207,6 @@ TEST(TasksTablePrinterTest,
              {"this", "0x1"},
              {"description", "A"}},
             {{"tid", 2},
-             {"priority", 0},
              {"state", "running"}, // 'r', sorts second ascending
              {"bucket", "b"},
              {"waketime_ns", curTime + 5'000'000'000ULL}, // sleeps 5s
@@ -257,7 +248,6 @@ TEST(TasksTablePrinterTest,
     for (int i = 0; i < 100; ++i) {
         tasksArray.push_back(
                 {{"tid", i},
-                 {"priority", 0},
                  {"state", "idle"},
                  {"bucket", "default"},
                  {"waketime_ns", std::numeric_limits<uint64_t>::max()},
@@ -275,10 +265,10 @@ TEST(TasksTablePrinterTest,
             {"ep_tasks:cur_time:default", std::to_string(curTime)},
             {"ep_tasks:tasks:default", tasksArray.dump()}};
 
-    // Column index 4 is SleepFor and defaults to descending (invertSort);
+    // Column index 3 is SleepFor and defaults to descending (invertSort);
     // every row has the same wake time, so all keys compare equal.
     std::stringstream ss;
-    printTasksTable(stats, "4", ss);
+    printTasksTable(stats, "3", ss);
     const auto output = ss.str();
 
     for (int i = 0; i < 100; ++i) {
@@ -295,7 +285,6 @@ TEST(TasksTablePrinterTest, PrintTasksTableMultipleBucketsUseOwnCurTime) {
 
     const nlohmann::json tasksA = {
             {{"tid", 1},
-             {"priority", 0},
              {"state", "running"},
              {"bucket", "bucketA"},
              {"waketime_ns", 0},
@@ -309,7 +298,6 @@ TEST(TasksTablePrinterTest, PrintTasksTableMultipleBucketsUseOwnCurTime) {
              {"description", "A"}}};
     const nlohmann::json tasksB = {
             {{"tid", 2},
-             {"priority", 0},
              {"state", "running"},
              {"bucket", "bucketB"},
              {"waketime_ns", 0},

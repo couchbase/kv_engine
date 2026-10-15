@@ -205,9 +205,8 @@ public:
      * taskId be executed by its thread-type now'. The tasks wakeTime is
      * modified so that it has a wakeTime of now and a thread of the correct
      * type is signaled to wake-up and perform fetching. The woken task will
-     * have to wait for any current tasks to be executed first, but it will
-     * jump ahead of other tasks as tasks that are ready to run are ordered
-     * by their priority.
+     * have to wait for any tasks which are already ready to run to be
+     * executed first.
      */
     virtual void wake(size_t taskId) {
         wakeAndWait(taskId);

@@ -797,7 +797,6 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         obj["this"] = cb::to_hex(reinterpret_cast<uint64_t>(task.get()));
         obj["bucket"] = task->getTaskable().getName();
         obj["description"] = task->getDescription();
-        obj["priority"] = task->getQueuePriority();
         obj["waketime_ns"] = task->getWaketime().time_since_epoch().count();
         obj["total_runtime_ns"] = task->getTotalRuntime().count();
         obj["last_starttime_ns"] =

@@ -266,7 +266,6 @@ def tasks_stats_formatter_one_bucket(tasks, cur_time, sort_by=None,
         (key, Column(*options)) for key, options in (
             # Stat            Display Name, Invert Sort, Right Align
             ('tid', ('TID', False, True)),
-            ('priority', ('Pri', False, True)),
             ('state', ('St', False, False)),
             ('bucket', ('Bucket', False, False)),
             ('waketime_ns', ('SleepFor', True, True)),

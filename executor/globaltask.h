@@ -34,26 +34,16 @@ std::string to_string(task_state_t state);
 std::ostream& operator<<(std::ostream& os, const task_state_t& state);
 
 enum class TaskId : int {
-#define TASK(name, type, prio) name,
+#define TASK(name, type) name,
 #include "tasks.def.h"
 #undef TASK
     TASK_COUNT
-};
-
-using queue_priority_t = int;
-
-enum class TaskPriority : int {
-#define TASK(name, type, prio) name = prio,
-#include "tasks.def.h"
-#undef TASK
-    PRIORITY_COUNT
 };
 
 class Taskable;
 
 class GlobalTask {
     friend class CompareByDueDate;
-    friend class CompareByPriority;
     friend class CB3ExecutorPool;
 
 public:
@@ -222,10 +212,6 @@ public:
         runCount++;
     }
 
-    queue_priority_t getQueuePriority() const {
-        return static_cast<queue_priority_t>(priority);
-    }
-
     /**
      * Returns the latest runtime profile.
      * @returns pointer to the latest profile or nullptr if none is available.
@@ -248,12 +234,6 @@ public:
      * The data used is generated from tasks.def.h
      */
     static const char* getTaskName(TaskId id);
-
-    /*
-     * Lookup the task priority for TaskId id.
-     * The data used is generated from tasks.def.h
-     */
-    static TaskPriority getTaskPriority(TaskId id);
 
     /*
      * Lookup the task type for TaskId id.
@@ -319,7 +299,6 @@ protected:
     const size_t uid;
     const TaskId taskId;
     const TaskType taskType;
-    TaskPriority priority;
     Taskable& taskable;
 
     static thread_local TaskType currentTaskType;
@@ -344,23 +323,6 @@ private:
 };
 
 typedef std::shared_ptr<GlobalTask> ExTask;
-
-/**
- * Order tasks by their priority. If priority is the same, order by waketime to
- * ensure that we keep the ordering the tasks had when we moved them from the
- * futureQueue. This sort may not be stable, but if a task has the same priority
- * and wakeTime then we don't really care if they are re-ordered as wakeTime has
- * a nano second granularity.
- * @return true if t2 should have priority over t1
- */
-class CompareByPriority {
-public:
-    bool operator()(ExTask& t1, ExTask& t2) {
-        return (t1->priority == t2->priority)
-                       ? (t1->waketime > t2->waketime)
-                       : (t1->getQueuePriority() > t2->getQueuePriority());
-    }
-};
 
 /**
  * Order tasks by their ready date.

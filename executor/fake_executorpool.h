@@ -232,6 +232,10 @@ public:
         auto min_waketime = cb::time::steady_clock::time_point::min();
         manager->doneWork(taskType);
         if (rescheduled && !currentTask->isdead()) {
+            // Match CB3ExecutorThread / FollyExecutorPool: if a task has not
+            // set snooze, update its waketime to now before rescheduling.
+            currentTask->updateWaketimeIfLessThan(
+                    cb::time::steady_clock::now());
             min_waketime = queue.reschedule(currentTask);
         } else {
             manager->cancel(currentTask->getId(), true);

@@ -49,7 +49,6 @@ std::string formatPsTime(int64_t nanoseconds) {
 
 struct TaskRow {
     uint64_t tid = 0;
-    int priority = 0;
     std::string state;
     std::string bucket;
     int64_t wakeSort = 0;
@@ -69,26 +68,24 @@ struct TaskRow {
         case 0:
             return std::to_string(tid);
         case 1:
-            return std::to_string(priority);
-        case 2:
             return state;
-        case 3:
+        case 2:
             return bucket;
-        case 4:
+        case 3:
             return wakeDisplay;
-        case 5:
+        case 4:
             return runDisplay;
-        case 6:
+        case 5:
             return totalRunDisplay;
-        case 7:
+        case 6:
             return std::to_string(numRuns);
-        case 8:
+        case 7:
             return type;
-        case 9:
+        case 8:
             return name;
-        case 10:
+        case 9:
             return addr;
-        case 11:
+        case 10:
             return descr;
         default:
             return {};
@@ -103,7 +100,6 @@ struct ColDef {
 };
 
 static const std::vector<ColDef> columns = {{"TID", true, false},
-                                            {"Pri", true, false},
                                             {"St", false, false},
                                             {"Bucket", false, false},
                                             {"SleepFor", true, true},
@@ -140,7 +136,6 @@ static void printOneBucketTasks(const nlohmann::json& tasksJson,
         }
         TaskRow row;
         row.tid = item.value("tid", 0ULL);
-        row.priority = item.value("priority", 0);
         std::string st = item.value("state", "");
         row.state = st.empty() ? "" : std::string(1, st.front());
         row.bucket = item.value("bucket", "");
@@ -292,26 +287,24 @@ static void printOneBucketTasks(const nlohmann::json& tasksJson,
                         case 0:
                             return x.tid < y.tid;
                         case 1:
-                            return x.priority < y.priority;
-                        case 2:
                             return x.state < y.state;
-                        case 3:
+                        case 2:
                             return x.bucket < y.bucket;
-                        case 4:
+                        case 3:
                             return x.wakeSort < y.wakeSort;
-                        case 5:
+                        case 4:
                             return x.runSort < y.runSort;
-                        case 6:
+                        case 5:
                             return x.totalRunSort < y.totalRunSort;
-                        case 7:
+                        case 6:
                             return x.numRuns < y.numRuns;
-                        case 8:
+                        case 7:
                             return x.type < y.type;
-                        case 9:
+                        case 8:
                             return x.name < y.name;
-                        case 10:
+                        case 9:
                             return x.addr < y.addr;
-                        case 11:
+                        case 10:
                             return x.descr < y.descr;
                         default:
                             return x.tid < y.tid;

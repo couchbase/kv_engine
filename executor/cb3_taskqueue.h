@@ -102,8 +102,8 @@ private:
     CB3ExecutorPool* manager;
     size_t sleepers; // number of threads sleeping in this taskQueue
 
-    // sorted by task priority.
-    std::priority_queue<ExTask, std::deque<ExTask>, CompareByPriority>
+    // sorted by waketime.
+    std::priority_queue<ExTask, std::deque<ExTask>, CompareByDueDate>
             readyQueue;
 
     // sorted by waketime. Guarded by `mutex`.

@@ -485,12 +485,45 @@ protected:
                 ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
                 runPagingAdapterTask();
             } else {
-                // fail_new_data bucket schedules the expiry pager as well
-                runNextTask(lpNonioQ, "Paging expired items.");
-                runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
-                runNextTask(lpNonioQ,
-                            "Expired item remover no vbucket assigned");
-                runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+                // fail_new_data bucket schedules the expiry pager as well.
+                // The expiry pager and the checkpoint remover are woken
+                // independently, and the checkpoint remover may already
+                // have been woken while populating (if checkpoint memory
+                // needed recovery). The ready queue is ordered by waketime
+                // so the order they run in isn't fixed. Run the tasks in
+                // the order they are scheduled, and verify that each task
+                // runs after the task it depends on.
+                bool expiryPagerRun = false;
+                bool expiryRemoverRun = false;
+                bool chkRemoverRun = false;
+                bool memRecoveryCompleted = false;
+                for (int ii = 0;
+                     ii < 10 && !(expiryRemoverRun && memRecoveryCompleted);
+                     ++ii) {
+                    CheckedExecutor executor(task_executor, lpNonioQ);
+                    const auto name = executor.getTaskName();
+                    executor.runCurrentTask();
+                    executor.completeCurrentTask();
+                    if (name == "Paging expired items.") {
+                        expiryPagerRun = true;
+                    } else if (name ==
+                               "Expired item remover no vbucket assigned") {
+                        ASSERT_TRUE(expiryPagerRun)
+                                << "Expiry remover ran before expiry pager";
+                        expiryRemoverRun = true;
+                    } else if (name == "CheckpointMemRecoveryTask:0") {
+                        chkRemoverRun = true;
+                    } else if (name == "Ephemeral Memory Recovery") {
+                        ASSERT_TRUE(chkRemoverRun)
+                                << "Ephemeral Memory Recovery completed "
+                                   "before the checkpoint remover ran";
+                        memRecoveryCompleted = true;
+                    } else {
+                        FAIL() << "Unexpected task: " << name;
+                    }
+                }
+                ASSERT_TRUE(expiryRemoverRun);
+                ASSERT_TRUE(memRecoveryCompleted);
             }
         } else if (itemPagerScheduled) {
             // Item pager consists of two Tasks - the parent ItemPager task,

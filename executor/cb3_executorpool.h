@@ -28,12 +28,11 @@
  * a task, it will service the high-priority queue more frequently than the
  * low-priority queue.
  *
- * Within a single queue itself there is also a task priority. The task priority
- * is a value where lower is better. When many tasks are ready for execution
- * they are moved to a ready queue and sorted by their priority. Thus tasks
- * with priority 0 get to go before tasks with priority 1. Only once the ready
- * queue of tasks is empty will we consider looking for more eligible tasks.
- * In this context, an eligible task is one that has a wakeTime <= now.
+ * Within a single queue, when many tasks are ready for execution they are
+ * moved to a ready queue and sorted by their wakeTime, so tasks run in the
+ * order they became ready. Only once the ready queue of tasks is empty will
+ * we consider looking for more eligible tasks. In this context, an eligible
+ * task is one that has a wakeTime <= now.
  *
  * === Important methods of the ExecutorPool ===
  *

@@ -16,13 +16,6 @@
 #include <utilities/debug_variable.h>
 #include <climits>
 
-// These static_asserts previously were in priority_test.cc
-static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
-              "VKeyStatBGFetchTask not less than FlusherTask");
-
-static_assert(TaskPriority::ItemPager < TaskPriority::BackfillManagerTask,
-              "ItemPager not less than BackfillManagerTask");
-
 thread_local TaskType GlobalTask::currentTaskType{TaskType::None};
 
 std::atomic<size_t> GlobalTask::task_id_counter(1);
@@ -36,7 +29,6 @@ GlobalTask::GlobalTask(Taskable& taskable_,
       taskId(taskId_),
       taskType(getTaskType(taskId_)),
       taskable(taskable_) {
-    priority = getTaskPriority(taskId_);
     snooze(initialSleepTime_);
 }
 
@@ -50,7 +42,6 @@ GlobalTask::GlobalTask(
       taskId(taskId_),
       taskType(getTaskType(taskId_)),
       taskable(taskable_) {
-    priority = getTaskPriority(taskId_);
     snooze(initialSleepTime_);
 }
 
@@ -63,7 +54,6 @@ GlobalTask::GlobalTask(Taskable& taskable_,
       taskId(taskId_),
       taskType(getTaskType(taskId_)),
       taskable(taskable_) {
-    priority = getTaskPriority(taskId_);
     snooze(wakeTime_);
 }
 
@@ -159,9 +149,9 @@ void GlobalTask::wakeUp() {
  */
 const char* GlobalTask::getTaskName(TaskId id) {
     switch (id) {
-#define TASK(name, type, prio) \
-    case TaskId::name: {       \
-        return #name;          \
+#define TASK(name, type) \
+    case TaskId::name: { \
+        return #name;    \
     }
 #include "tasks.def.h"
 #undef TASK
@@ -175,33 +165,13 @@ const char* GlobalTask::getTaskName(TaskId id) {
 }
 
 /*
- * Generate a switch statement from tasks.def.h that maps TaskId to priority
- */
-TaskPriority GlobalTask::getTaskPriority(TaskId id) {
-    switch (id) {
-#define TASK(name, type, prio)     \
-    case TaskId::name: {           \
-        return TaskPriority::name; \
-    }
-#include "tasks.def.h"
-#undef TASK
-    case TaskId::TASK_COUNT: {
-        throw std::invalid_argument(
-                "GlobalTask::getTaskPriority(TaskId::TASK_COUNT) called.");
-    }
-    }
-    throw std::logic_error("GlobalTask::getTaskPriority() unknown id " +
-                           std::to_string(static_cast<int>(id)));
-}
-
-/*
  * Generate a switch statement from tasks.def.h that maps TaskId to task type
  */
 TaskType GlobalTask::getTaskType(TaskId id) {
     switch (id) {
-#define TASK(name, type, prio) \
-    case TaskId::name: {       \
-        return type;           \
+#define TASK(name, type) \
+    case TaskId::name: { \
+        return type;     \
     }
 #include "tasks.def.h"
 #undef TASK
@@ -224,7 +194,7 @@ TaskType GlobalTask::getCurrentTaskType() {
 
 std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)>
         GlobalTask::allTaskIds = {{
-#define TASK(name, type, prio) TaskId::name,
+#define TASK(name, type) TaskId::name,
 #include "tasks.def.h"
 #undef TASK
         }};
