@@ -394,6 +394,12 @@ public:
         return calculateSleepLinear();
     }
 
+    DefragmenterTask::SleepTimeAndRunState public_calculateSleepTimeAndRunState(
+            const cb::FragmentationStats& fragStats) {
+        *stats.fragStats.wlock() = fragStats;
+        return calculateSleepTimeAndRunState();
+    }
+
     struct MockDefragmenterTaskClock {
         static cb::time::steady_clock::time_point now() {
             static std::chrono::milliseconds currentTime{0};
@@ -512,6 +518,27 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
             cb::FragmentationStats{100, 50000});
     EXPECT_EQ(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
     EXPECT_TRUE(state.runDefragger);
+}
+
+// While the RSS/fragmentation back-pressure is critical, every
+// defragmenter_mode must run and sleep defragmenter_critical_sleep.
+TEST_F(DefragmenterTaskTest, CriticalSleepInEveryMode) {
+    auto& conf = engine->getConfiguration();
+    conf.setFragmentationBackpressureEnabled(true);
+    auto task = std::make_unique<MockDefragmenterTask>(*engine,
+                                                       engine->getEpStats());
+
+    // RSS over quota and high fragmentation: critical.
+    const auto quota = engine->getEpStats().getMaxDataSize();
+    const cb::FragmentationStats critical{quota / 2, quota * 2};
+
+    for (const auto* mode : {"static", "auto_linear", "auto_pid"}) {
+        conf.setDefragmenterMode(mode);
+        const auto state = task->public_calculateSleepTimeAndRunState(critical);
+        EXPECT_EQ(conf.getDefragmenterCriticalSleep(), state.sleepTime.count())
+                << mode;
+        EXPECT_TRUE(state.runDefragger) << mode;
+    }
 }
 
 // Test the default configuration for the defragmenter to make sure it is sane
