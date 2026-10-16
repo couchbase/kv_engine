@@ -154,6 +154,14 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
     return rv;
 }
 
+uint64_t decodeEraseSeqno(cb::const_byte_buffer data) {
+    if (data.empty()) {
+        return 0;
+    }
+    verifyFlatbuffersData<EraseSeqno>(data, "decodeEraseSeqno()");
+    return flatbuffers::GetRoot<EraseSeqno>(data.data())->seqno();
+}
+
 bool OpenCollection::operator==(const OpenCollection& other) const {
     return startSeqno == other.startSeqno && metaData == other.metaData;
 }

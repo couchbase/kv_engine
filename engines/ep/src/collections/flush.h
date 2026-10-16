@@ -310,6 +310,16 @@ public:
             uint64_t endSeqno);
 
     /**
+     * Encode the collections erase seqno (EraseSeqno in kvstore.fbs). Named
+     * "erase" to be distinct from the vbucket purge seqno.
+     * @param seqno the greatest seqno of a drop/flush with data to erase,
+     *        must be non-zero (no document is stored when nothing is to be
+     *        erased)
+     * @return the EraseSeqno (as a flatbuffer type)
+     */
+    static flatbuffers::DetachedBuffer encodeEraseSeqno(uint64_t seqno);
+
+    /**
      * Encode open scopes list into flat buffer format.
      * @param scopes open scopes list
      */

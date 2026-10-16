@@ -112,6 +112,10 @@ std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
                 Collections::KVStore::DroppedCollections>(
                 key.data(), "DroppedCollections", value);
     }
+    if (key == LocalDocKey::collectionsEraseSeqno) {
+        return decode_kvstore_flatbuffer<Collections::KVStore::EraseSeqno>(
+                std::string{key}, "EraseSeqno", value);
+    }
     if (key == LocalDocKey::openScopes) {
         return decode_kvstore_flatbuffer<Collections::KVStore::Scopes>(
                 key.data(), "Scopes", value);

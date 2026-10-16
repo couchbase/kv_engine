@@ -13,6 +13,7 @@
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
 #include "collections/events_generated.h"
+#include "collections/flush.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "ep_vb.h"
@@ -21,11 +22,15 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
+#include "kvstore/storage_common/storage_common/local_doc_parser.h"
 #include "stats.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/kvstore_test.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <gsl/gsl-lite.hpp>
+#include <nlohmann/json.hpp>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
@@ -1197,6 +1202,37 @@ TEST_P(CollectionRessurectionKVStoreTest, resurection) {
 
 TEST_P(CollectionRessurectionKVStoreTest, resurectionScopes) {
     resurectionScopesTest();
+}
+
+TEST(CollectionsEraseSeqnoTest, encodeDecode) {
+    using Collections::KVStore::decodeEraseSeqno;
+    // No document means nothing to erase
+    EXPECT_EQ(0u, decodeEraseSeqno({}));
+
+    for (uint64_t seqno : {uint64_t{1}, uint64_t{1000}, ~uint64_t{0}}) {
+        auto buffer = Collections::VB::Flush::encodeEraseSeqno(seqno);
+        EXPECT_EQ(seqno, decodeEraseSeqno({buffer.data(), buffer.size()}));
+    }
+
+    // 0 is never stored, it would be the same as no document
+    EXPECT_THROW(Collections::VB::Flush::encodeEraseSeqno(0), gsl::fail_fast);
+}
+
+// The dump tools decode the stored document as JSON
+TEST(CollectionsEraseSeqnoTest, decodeLocalDoc) {
+    auto buffer = Collections::VB::Flush::encodeEraseSeqno(10);
+    auto [success, json] = maybe_decode_local_doc(
+            LocalDocKey::collectionsEraseSeqno,
+            {reinterpret_cast<const char*>(buffer.data()), buffer.size()});
+    EXPECT_TRUE(success);
+    EXPECT_EQ(10, nlohmann::json::parse(json)["seqno"]) << json;
+}
+
+TEST(CollectionsEraseSeqnoTest, decodeInvalid) {
+    std::array<uint8_t, 3> junk{1, 2, 3};
+    EXPECT_THROW((void)Collections::KVStore::decodeEraseSeqno(
+                         {junk.data(), junk.size()}),
+                 std::runtime_error);
 }
 
 class TestScanContext : public Collections::VB::ScanContext {

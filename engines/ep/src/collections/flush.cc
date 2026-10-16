@@ -20,6 +20,8 @@
 #include "item.h"
 #include "kvstore/kvstore.h"
 
+#include <gsl/gsl-lite.hpp>
+
 namespace Collections::VB {
 
 // Called from KVStore during the flush process and before we consider the
@@ -659,6 +661,14 @@ flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
             Collections::KVStore::CreateDroppedCollections(builder, vector);
     builder.Finish(final);
 
+    return builder.Release();
+}
+
+flatbuffers::DetachedBuffer Flush::encodeEraseSeqno(uint64_t seqno) {
+    // 0 is the default (omitted) value, the same as no document
+    Expects(seqno != 0);
+    flatbuffers::FlatBufferBuilder builder;
+    builder.Finish(Collections::KVStore::CreateEraseSeqno(builder, seqno));
     return builder.Release();
 }
 

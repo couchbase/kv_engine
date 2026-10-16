@@ -20,4 +20,6 @@ static constexpr std::string_view openCollections = "_local/collections/open";
 static constexpr std::string_view openScopes = "_local/scope/open";
 static constexpr std::string_view droppedCollections =
         "_local/collections/dropped";
+static constexpr std::string_view collectionsEraseSeqno =
+        "_local/collections/erase";
 } // namespace LocalDocKey

@@ -190,6 +190,13 @@ std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
 std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
         cb::const_byte_buffer dc);
 
+/**
+ * Decode the local doc buffer into the collections erase seqno.
+ * @param data buffer containing EraseSeqno (FlatBuffers)
+ * @return the erase seqno, 0 when data is empty (nothing to erase)
+ */
+[[nodiscard]] uint64_t decodeEraseSeqno(cb::const_byte_buffer data);
+
 template <class T>
 void verifyFlatbuffersData(cb::const_byte_buffer buf,
                            const std::string& caller);
