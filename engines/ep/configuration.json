@@ -761,6 +761,18 @@
                 }
             }
         },
+        "defragmenter_tasks": {
+            "added": "8.5.0",
+            "default": "2",
+            "descr": "Number of tasks responsible for defragmenting memory. Capped at the number of vBuckets.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "freq_counter_increment_factor": {
             "added": "7.6.0",
             "default": "0.012",

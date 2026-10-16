@@ -126,6 +126,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "defragmenter_auto_pid_i",
         "defragmenter_auto_pid_d",
         "defragmenter_auto_pid_dt",
+        "defragmenter_tasks",
         /* magma_fusion */
         "magma_fusion_logstore_uri",
         "magma_fusion_metadatastore_uri",

@@ -139,6 +139,8 @@ public:
             store.setCheckpointMaxSize(value);
         } else if (key == "checkpoint_destruction_tasks") {
             store.createAndScheduleCheckpointDestroyerTasks();
+        } else if (key == "defragmenter_tasks") {
+            store.createAndScheduleDefragmenterTasks();
         } else if (key == "seqno_persistence_timeout") {
             store.setSeqnoPersistenceTimeout(std::chrono::seconds(value));
         } else if (key == "history_retention_seconds") {
@@ -308,7 +310,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       stats(engine.getEpStats()),
       vbMap(*this),
       initialMfuValue(Item::initialFreqCount),
-      defragmenterTask(nullptr),
       itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
@@ -481,6 +482,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "checkpoint_destruction_tasks",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
+    config.addValueChangedListener(
+            "defragmenter_tasks",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
     // Just initialise the value from the config, do not call the method, since
     // that will trigger an unnecessary vbstate flush.
     continuousBackupEnabled = config.isContinuousBackupEnabled();
@@ -524,13 +529,7 @@ bool KVBucket::initialize() {
     workloadMonitorTask = std::make_shared<WorkLoadMonitor>(engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask);
 
-#if HAVE_JEMALLOC
-    /* Only create the defragmenter task if we have an underlying memory
-     * allocator which can facilitate defragmenting memory.
-     */
-    defragmenterTask = std::make_shared<DefragmenterTask>(engine, stats);
-    ExecutorPool::get()->schedule(defragmenterTask);
-#endif
+    createAndScheduleDefragmenterTasks();
 
     enableItemCompressor();
 
@@ -566,8 +565,8 @@ void KVBucket::deinitialize() {
 
 KVBucket::~KVBucket() {
     EP_LOG_INFO_RAW("Deleting vb_mutexes");
-    EP_LOG_INFO_RAW("Deleting defragmenterTask");
-    defragmenterTask.reset();
+    EP_LOG_INFO_RAW("Deleting defragmenterTasks");
+    defragmenterTasks.wlock()->clear();
     EP_LOG_INFO_RAW("Deleting itemCompressorTask");
     itemCompressorTask.reset();
     EP_LOG_INFO_RAW("Deleting itemFreqDecayerTask");
@@ -2831,21 +2830,28 @@ void KVBucket::runWorkloadMonitor() {
 }
 
 void KVBucket::runDefragmenterTask() {
-    defragmenterTask->execute("");
+    const auto locked = defragmenterTasks.rlock();
+    for (const auto& task : *locked) {
+        task->execute("");
+    }
 }
 
 void KVBucket::wakeUpDefragmenter() {
-    if (defragmenterTask) {
-        ExecutorPool::get()->wake(defragmenterTask->getId());
+    const auto locked = defragmenterTasks.rlock();
+    for (const auto& task : *locked) {
+        ExecutorPool::get()->wake(task->getId());
     }
 }
 
 std::chrono::milliseconds KVBucket::getDefragmenterTaskSleepTime() const {
-    if (!defragmenterTask) {
-        return {};
+    // Longest sleep, so the MonitorTask wakes the tasks if any task sleeps
+    // too long.
+    std::chrono::milliseconds sleepTime{0};
+    const auto locked = defragmenterTasks.rlock();
+    for (const auto& task : *locked) {
+        sleepTime = std::max(sleepTime, task->getCurrentSleepTime());
     }
-
-    return std::static_pointer_cast<DefragmenterTask>(defragmenterTask)->getCurrentSleepTime();
+    return sleepTime;
 }
 
 void KVBucket::runItemFreqDecayerTask() {
@@ -3511,6 +3517,45 @@ void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
     }
 }
 
+void KVBucket::createAndScheduleDefragmenterTasks() {
+#if HAVE_JEMALLOC
+    /* Only create the defragmenter tasks if we have an underlying memory
+     * allocator which can facilitate defragmenting memory.
+     */
+
+    // Cancel all the existing tasks.
+    // Note: Running tasks will complete their execution before being destroyed.
+    auto locked = defragmenterTasks.wlock();
+    for (const auto& task : *locked) {
+        ExecutorPool::get()->cancel(task->getId(), true /*remove*/);
+    }
+    locked->clear();
+
+    // Then recreate the pool.
+    // Task i visits the vBuckets where vbid % num == i.
+    // At most 1 task per vBucket: an extra task would have no vBucket.
+    auto num = engine.getConfiguration().getDefragmenterTasks();
+    if (num > vbMap.getSize()) {
+        EP_LOG_WARN_CTX(
+                "KVBucket::createAndScheduleDefragmenterTasks: "
+                "defragmenter_tasks is higher than the number of vBuckets, "
+                "using the number of vBuckets",
+                {"defragmenter_tasks", num},
+                {"num_vbuckets", vbMap.getSize()});
+        num = vbMap.getSize();
+    }
+    for (size_t i = 0; i < num; ++i) {
+        std::vector<Vbid> vbids;
+        for (size_t vbid = i; vbid < vbMap.getSize(); vbid += num) {
+            vbids.emplace_back(gsl::narrow_cast<Vbid::id_type>(vbid));
+        }
+        locked->push_back(std::make_shared<DefragmenterTask>(
+                engine, stats, VBucketFilter::create(vbids)));
+        ExecutorPool::get()->schedule(locked->back());
+    }
+#endif
+}
+
 void KVBucket::createAndScheduleCheckpointRemoverTasks() {
     const auto numChkRemovers =
             engine.getConfiguration().getCheckpointRemoverTaskCount();
@@ -3726,6 +3771,10 @@ bool KVBucket::isContinuousBackupEnabled() const {
 
 size_t KVBucket::getNumCheckpointDestroyers() const {
     return ckptDestroyerTasks.rlock()->size();
+}
+
+size_t KVBucket::getNumDefragmenterTasks() const {
+    return defragmenterTasks.rlock()->size();
 }
 
 KVBucket::ReplicationThrottleStatus KVBucket::getReplicationThrottleStatus() {
