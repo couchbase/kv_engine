@@ -645,9 +645,88 @@ protected:
 
     /**
      * Should the given item be sent out across this stream?
+     *
+     * filterItems skips this check when sendsEveryItem() is true
+     *
      * @returns true if the item should be sent, false if it should be ignored.
      */
     bool shouldProcessItem(const Item& it);
+
+    enum class ItemAction {
+        /// Send the item
+        Send,
+        /// Not sent, but counts as read by the stream (lastReadSeqno)
+        DropRead,
+        /// Not sent, but SeqnoAdvanced can replace it (highNonVisibleSeqno)
+        DropAdvance,
+        /// Not sent
+        Drop
+    };
+
+    /**
+     * Decide what the stream does with one non-meta item
+     *
+     * shouldProcessItem decides if the stream can send this kind of item and
+     * the filter decides if the item is for this stream; filterItems and
+     * backfillReceived both call this
+     *
+     * The filter updates itself on a collection drop event, so call this
+     * exactly once for each item; backfillReceived calls this without
+     * streamMutex
+     */
+    ItemAction filterItem(Item& item);
+
+    /**
+     * @return true if shouldProcessItem and filter.checkAndUpdate accept every
+     * non-meta item which would be a passthrough filter, sync writes and
+     * FlatBuffers system events
+     */
+    bool sendsEveryItem() const {
+        return filter.isPassThroughFilter() && supportSyncWrites() &&
+               flatBuffersSystemEventsEnabled;
+    }
+
+    /**
+     * The stream seqnos that the items of one segment of a batch move,
+     * including the items that the stream does not send
+     *
+     * The checkpoint_start items split a batch into segments; first segment
+     * holds the items before the first checkpoint_start
+     *
+     *     a b chk_start c d chk_start e  ->  {a b} {c d} {e}
+     *     chk_start a b                  ->  {}    {a b}
+     *
+     * A field of 0 (or no value) means that no item in the segment set it
+     */
+    struct FilteredSeqnos {
+        /** Last non-meta item (curChkSeqno) */
+        uint64_t lastSeqno{0};
+        /** Last item accepted by shouldProcessItem (lastReadSeqno) */
+        uint64_t lastReadSeqno{0};
+        /** Last visible item sent on the stream */
+        uint64_t visibleSeqno{0};
+        /** Last item for the stream which SeqnoAdvanced can replace */
+        std::optional<uint64_t> highNonVisibleSeqno;
+    };
+
+    /**
+     * From a batch, remove the items that the stream does not send, before
+     * processItemsInner builds the snapshots
+     *
+     * Calls filterItem for each non-meta item and removes the item unless it is
+     * a Send Removes the meta items too, except checkpoint_start and
+     * checkpoint_end, which processItemsInner needs
+     *
+     * @param lg lock on streamMutex
+     * @param items the items from CheckpointManager::getNextItemsForDcp, which
+     *              can span many checkpoints
+     *
+     * @return one FilteredSeqnos for each segment of items, in order ; empty
+     *         and items remain unchanged if sendsEveryItem() is true
+     */
+    std::vector<FilteredSeqnos> filterItems(
+            const std::lock_guard<std::mutex>& lg,
+            std::vector<queued_item>& items);
 
     /**
      * Schedules the checkpointProcessorTask of the DcpProducer if there are
@@ -1037,10 +1116,29 @@ private:
      * See processItems() for details.
      *
      * @param lg Lock on streamMutex
-     * @param outstandingItemsResult Items to process
+     * @param outstandingItemsResult Items to process, output of filterItems
+     * @param seqnos The seqnos returned by filterItems
      */
     void processItemsInner(const std::lock_guard<std::mutex>& lg,
-                           OutstandingItemsResult& outstandingItemsResult);
+                           OutstandingItemsResult& outstandingItemsResult,
+                           const std::vector<FilteredSeqnos>& seqnos);
+
+    /**
+     * sets curChkSeqno and the processItemsInner seqnos to the values that the
+     * items of one segment left them at; a value which the segment did not set
+     * does not change
+     *
+     * @param filtered seqnos of one segment from filterItems
+     * @param lastReplicateableSeqno set to filtered.lastSeqno, if set
+     * @param newLastReadSeqno set to filtered.lastReadSeqno, if set
+     * @param visibleSeqno set to filtered.visibleSeqno, if set
+     * @param highNonVisibleSeqno set to filtered.highNonVisibleSeqno, if set
+     */
+    void applyFilteredSeqnos(const FilteredSeqnos& filtered,
+                             uint64_t& lastReplicateableSeqno,
+                             uint64_t& newLastReadSeqno,
+                             uint64_t& visibleSeqno,
+                             std::optional<uint64_t>& highNonVisibleSeqno);
 
     /**
      * Handle exceptions thrown during item processing. The exception is logged

@@ -71,6 +71,17 @@ public:
         processItems(lg, result);
     }
 
+    auto public_filterItems(std::vector<queued_item>& items) {
+        std::lock_guard<std::mutex> lg(streamMutex);
+        return filterItems(lg, items);
+    }
+
+    using ActiveStream::ItemAction;
+
+    ItemAction public_filterItem(Item& item) {
+        return filterItem(item);
+    }
+
     bool public_nextCheckpointItem(DcpProducer& producer) {
         return nextCheckpointItem(producer);
     }

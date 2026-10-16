@@ -619,9 +619,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
 
     try {
         backfillReceivedHook();
-        // Should the item replicate?
-        // Is the item accepted by the stream filter (e.g matching collection) ?
-        if (!shouldProcessItem(*item) || !filter.checkAndUpdate(*item)) {
+        if (filterItem(*item) != ItemAction::Send) {
             backfillFilteredItem(static_cast<uint64_t>(item->getBySeqno()));
             // Skip this item, but continue backfill at next item.
             return true;
@@ -1497,11 +1495,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
 
 void ActiveStream::processItemsInner(
         const std::lock_guard<std::mutex>& lg,
-        OutstandingItemsResult& outstandingItemsResult) {
-    if (outstandingItemsResult.items.empty()) {
-        return;
-    }
-
+        OutstandingItemsResult& outstandingItemsResult,
+        const std::vector<FilteredSeqnos>& seqnos) {
     // Transform the sequence of items from the CheckpointManager into
     // a sequence of DCP messages which this stream should receive. There
     // are a couple of sublties to watch out for here:
@@ -1551,7 +1546,31 @@ void ActiveStream::processItemsInner(
     // initialised as 0 so nothing happens if no replicate-able items are seen.
     uint64_t lastReplicateableSeqno = 0;
 
+    // filterItems removed the items which this stream does not send
+    // Set the seqnos to the values the items of each segment left them at
+    // empty seqnos means filterItems kept every item so set the seqnos from
+    // each item here
+    const bool sendEveryItem = seqnos.empty();
+    auto segment = seqnos.begin();
+
     for (auto& qi : outstandingItemsResult.items) {
+        // most items are not meta items so check them first
+        if (!qi->isCheckPointMetaItem()) {
+            if (sendEveryItem) {
+#if CB_DEVELOPMENT_ASSERTS
+                Expects(shouldProcessItem(*qi));
+#endif
+                const auto seqno = static_cast<uint64_t>(qi->getBySeqno());
+                curChkSeqno = lastReplicateableSeqno = newLastReadSeqno = seqno;
+                if (qi->isVisible()) {
+                    visibleSeqno = seqno;
+                }
+            }
+            mutations.push_back(
+                    makeResponseFromItem(qi, SendCommitSyncWriteAs::Commit));
+            continue;
+        }
+
         if (qi->getOperation() == queue_op::checkpoint_end) {
             // At the end of each checkpoint remove its snapshot range, so
             // we don't use it to set nextSnapStart for the next checkpoint.
@@ -1561,9 +1580,18 @@ void ActiveStream::processItemsInner(
             // queue_op::checkpoint_end in the items it returns.
             auto rangeItr = outstandingItemsResult.ranges.begin();
             outstandingItemsResult.ranges.erase(rangeItr);
+            continue;
         }
 
         if (qi->getOperation() == queue_op::checkpoint_start) {
+            if (!sendEveryItem) {
+                Expects(segment != seqnos.end());
+                applyFilteredSeqnos(*segment++,
+                                    lastReplicateableSeqno,
+                                    newLastReadSeqno,
+                                    visibleSeqno,
+                                    highNonVisibleSeqno);
+            }
             /* if there are already other mutations, then they belong to the
                previous checkpoint and hence we must create a snapshot and
                put them onto readyQ */
@@ -1596,32 +1624,16 @@ void ActiveStream::processItemsInner(
 
             continue;
         }
-
-        if (!qi->isCheckPointMetaItem()) {
-            // Set curChkSeqno to the seqno we have visited and record the
-            // seqno of this item for use in seqno-advance decision
-            curChkSeqno = lastReplicateableSeqno = qi->getBySeqno();
-        }
-
-        if (shouldProcessItem(*qi)) {
-            newLastReadSeqno = qi->getBySeqno();
-
-            // Check if the item is allowed on the stream, note the filter
-            // updates itself for collection deletion events
-            if (filter.checkAndUpdate(*qi)) {
-                if (qi->isVisible()) {
-                    visibleSeqno = qi->getBySeqno();
-                }
-                mutations.push_back(makeResponseFromItem(
-                        qi, SendCommitSyncWriteAs::Commit));
-            }
-
-        } else if (isSeqnoAdvancedEnabled() && !qi->isCheckPointMetaItem() &&
-                   filter.checkAndUpdate(*qi)) {
-            // Can replace with SeqnoAdvance and the item is for this stream
-            highNonVisibleSeqno = qi->getBySeqno();
-        }
     }
+    if (!sendEveryItem) {
+        Expects(segment != seqnos.end());
+        applyFilteredSeqnos(*segment++,
+                            lastReplicateableSeqno,
+                            newLastReadSeqno,
+                            visibleSeqno,
+                            highNonVisibleSeqno);
+    }
+    Expects(segment == seqnos.end());
 
     if (!mutations.empty()) {
         // We have a snapshot with mutations to send. Push it into the ready
@@ -1725,11 +1737,36 @@ void ActiveStream::processItemsInner(
     }
 }
 
+void ActiveStream::applyFilteredSeqnos(
+        const FilteredSeqnos& filtered,
+        uint64_t& lastReplicateableSeqno,
+        uint64_t& newLastReadSeqno,
+        uint64_t& visibleSeqno,
+        std::optional<uint64_t>& highNonVisibleSeqno) {
+    if (filtered.lastSeqno) {
+        // set curChkSeqno to the seqno we have visited and record the seqno of
+        // this item for use in seqno-advance decision
+        curChkSeqno = lastReplicateableSeqno = filtered.lastSeqno;
+    }
+    if (filtered.lastReadSeqno) {
+        newLastReadSeqno = filtered.lastReadSeqno;
+    }
+    if (filtered.visibleSeqno) {
+        visibleSeqno = filtered.visibleSeqno;
+    }
+    if (filtered.highNonVisibleSeqno) {
+        highNonVisibleSeqno = filtered.highNonVisibleSeqno;
+    }
+}
+
 void ActiveStream::processItems(
         const std::lock_guard<std::mutex>& lg,
         OutstandingItemsResult& outstandingItemsResult) {
     processItemsHook();
-    processItemsInner(lg, outstandingItemsResult);
+    if (!outstandingItemsResult.items.empty()) {
+        const auto seqnos = filterItems(lg, outstandingItemsResult.items);
+        processItemsInner(lg, outstandingItemsResult, seqnos);
+    }
 
     // If we've processed past the stream's end seqno then transition to the
     // stream to the dead state and add a stream end to the ready queue
@@ -1746,6 +1783,68 @@ void ActiveStream::processItems(
     // Completed item processing - clear guard flag and notify producer.
     chkptItemsExtractionInProgress.store(false);
     notifyStreamReady(true);
+}
+
+ActiveStream::ItemAction ActiveStream::filterItem(Item& item) {
+    if (!shouldProcessItem(item)) {
+        // can replace with SeqnoAdvance if the item is for this stream
+        if (isSeqnoAdvancedEnabled() && filter.checkAndUpdate(item)) {
+            return ItemAction::DropAdvance;
+        }
+        return ItemAction::Drop;
+    }
+    // check if the item is allowed on the stream
+    return filter.checkAndUpdate(item) ? ItemAction::Send
+                                       : ItemAction::DropRead;
+}
+
+std::vector<ActiveStream::FilteredSeqnos> ActiveStream::filterItems(
+        const std::lock_guard<std::mutex>& lg,
+        std::vector<queued_item>& items) {
+    if (sendsEveryItem()) {
+        return {};
+    }
+
+    std::vector<FilteredSeqnos> seqnos(1);
+    auto kept = items.begin();
+    for (auto& qi : items) {
+        if (qi->isCheckPointMetaItem()) {
+            // processItemsInner needs the checkpoint boundaries, the other meta
+            // items are never sent
+            if (qi->getOperation() == queue_op::checkpoint_start) {
+                seqnos.emplace_back();
+            } else if (qi->getOperation() != queue_op::checkpoint_end) {
+                continue;
+            }
+            kept->swap(qi);
+            ++kept;
+            continue;
+        }
+
+        auto& segment = seqnos.back();
+        const auto seqno = static_cast<uint64_t>(qi->getBySeqno());
+        segment.lastSeqno = seqno;
+        switch (filterItem(*qi)) {
+        case ItemAction::Send:
+            segment.lastReadSeqno = seqno;
+            if (qi->isVisible()) {
+                segment.visibleSeqno = seqno;
+            }
+            kept->swap(qi);
+            ++kept;
+            break;
+        case ItemAction::DropRead:
+            segment.lastReadSeqno = seqno;
+            break;
+        case ItemAction::DropAdvance:
+            segment.highNonVisibleSeqno = seqno;
+            break;
+        case ItemAction::Drop:
+            break;
+        }
+    }
+    items.erase(kept, items.end());
+    return seqnos;
 }
 
 bool ActiveStream::shouldProcessItem(const Item& item) {

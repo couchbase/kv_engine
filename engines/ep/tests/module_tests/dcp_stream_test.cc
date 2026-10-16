@@ -7888,6 +7888,177 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(cb::engine_errc::disconnect, producer->step(false, producers));
 }
 
+TEST_P(SingleThreadedActiveStreamTest, FilterItemsRemovesItemsNotSent) {
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::fruit);
+    auto& vb = *store->getVBucket(vbid);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+
+    recreateStream(vb,
+                   true,
+                   fmt::format(R"({{"collections":["{:x}"]}})",
+                               uint32_t(CollectionEntry::fruit.getId())));
+    ASSERT_TRUE(stream);
+
+    const auto mutation = [](CollectionID cid, int64_t seqno) {
+        auto item = makeCommittedItem(
+                makeStoredDocKey(std::to_string(seqno), cid), "value");
+        item->setBySeqno(seqno);
+        return item;
+    };
+    const auto prepare = [](CollectionID cid, int64_t seqno) {
+        auto item = makePendingItem(
+                makeStoredDocKey(std::to_string(seqno), cid), "value");
+        item->setBySeqno(seqno);
+        return item;
+    };
+    const auto meta = [this](queue_op op, int64_t seqno) {
+        return queued_item(
+                new Item(makeStoredDocKey(to_string(op)), vbid, op, 1, seqno));
+    };
+    const auto fruit = CollectionEntry::fruit.getId();
+    const auto defaultC = CollectionEntry::defaultC.getId();
+
+    // clang-format off
+    std::vector<queued_item> items{
+            mutation(fruit, 2),                   // sent
+            prepare(fruit, 3),                    // dropped, SeqnoAdvanced
+            mutation(defaultC, 4),                // dropped by the filter
+            meta(queue_op::checkpoint_end, 5),    // kept
+            meta(queue_op::checkpoint_start, 5),  // kept
+            meta(queue_op::set_vbucket_state, 5), // dropped
+            mutation(defaultC, 5),                // dropped by the filter
+            meta(queue_op::checkpoint_end, 6),    // kept
+            meta(queue_op::checkpoint_start, 6),  // kept
+            prepare(defaultC, 6)};                // dropped, not for stream
+    // clang-format on
+    const std::vector<const Item*> expectedItems{items[0].get(),
+                                                 items[3].get(),
+                                                 items[4].get(),
+                                                 items[7].get(),
+                                                 items[8].get()};
+    const auto* buffer = items.data();
+
+    const auto seqnos = stream->public_filterItems(items);
+
+    // kept items are the same items, in the same buffer
+    EXPECT_EQ(buffer, items.data());
+    ASSERT_EQ(expectedItems.size(), items.size());
+    for (size_t i = 0; i < items.size(); ++i) {
+        EXPECT_EQ(expectedItems[i], items[i].get()) << "index:" << i;
+    }
+
+    ASSERT_EQ(3, seqnos.size());
+    EXPECT_EQ(4, seqnos[0].lastSeqno);
+    EXPECT_EQ(4, seqnos[0].lastReadSeqno);
+    EXPECT_EQ(2, seqnos[0].visibleSeqno);
+    EXPECT_EQ(3, seqnos[0].highNonVisibleSeqno);
+
+    EXPECT_EQ(5, seqnos[1].lastSeqno);
+    EXPECT_EQ(5, seqnos[1].lastReadSeqno);
+    EXPECT_EQ(0, seqnos[1].visibleSeqno);
+    EXPECT_FALSE(seqnos[1].highNonVisibleSeqno);
+
+    EXPECT_EQ(6, seqnos[2].lastSeqno);
+    EXPECT_EQ(0, seqnos[2].lastReadSeqno);
+    EXPECT_EQ(0, seqnos[2].visibleSeqno);
+    EXPECT_FALSE(seqnos[2].highNonVisibleSeqno);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, FilterItemsSkipsReplicationStream) {
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->control(
+                      0, DcpControlKeys::FlatBuffersSystemEvents, "true"));
+    auto& vb = *store->getVBucket(vbid);
+    recreateStream(vb, true, ""); // passthrough filter
+    ASSERT_TRUE(stream);
+
+    const auto meta = [this](queue_op op, int64_t seqno) {
+        return queued_item(
+                new Item(makeStoredDocKey(to_string(op)), vbid, op, 1, seqno));
+    };
+    auto mutation = makeCommittedItem(makeStoredDocKey("1"), "value");
+    mutation->setBySeqno(1);
+    auto mutation2 = makeCommittedItem(makeStoredDocKey("2"), "value");
+    mutation2->setBySeqno(2);
+    auto prepare = makePendingItem(makeStoredDocKey("3"), "value");
+    prepare->setBySeqno(3);
+
+    ActiveStream::OutstandingItemsResult result;
+    result.items = {meta(queue_op::checkpoint_start, 1),
+                    mutation,
+                    meta(queue_op::set_vbucket_state, 2),
+                    mutation2,
+                    prepare};
+    result.ranges.push_back({{0, 3}, {}, {}});
+
+    // filterItems returns no seqnos and does not change the batch
+    auto items = result.items;
+    EXPECT_TRUE(stream->public_filterItems(items).empty());
+    EXPECT_EQ(result.items, items);
+
+    // the set_vbucket_state is not sent, the prepare is the last item but it is
+    // not visible
+    stream->public_processItems(result);
+    ASSERT_EQ(4, stream->public_readyQSize());
+
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(3, marker.getEndSeqno());
+    EXPECT_EQ(2, marker.getMaxVisibleSeqno());
+
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(1, *resp->getBySeqno());
+
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, *resp->getBySeqno());
+
+    resp = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(3, *resp->getBySeqno());
+
+    EXPECT_EQ(3, stream->getLastReadSeqno());
+    EXPECT_EQ(3, stream->getCurChkSeqno());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, FilterItemDecidesEachItem) {
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::fruit);
+    auto& vb = *store->getVBucket(vbid);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+
+    // collection filter without sync writes, so SeqnoAdvanced is enabled
+    recreateStream(vb,
+                   true,
+                   fmt::format(R"({{"collections":["{:x}"]}})",
+                               uint32_t(CollectionEntry::fruit.getId())));
+    ASSERT_TRUE(stream);
+
+    using ItemAction = MockActiveStream::ItemAction;
+    const auto fruit = CollectionEntry::fruit.getId();
+    const auto defaultC = CollectionEntry::defaultC.getId();
+
+    auto item = makeCommittedItem(makeStoredDocKey("key", fruit), "value");
+    EXPECT_EQ(ItemAction::Send, stream->public_filterItem(*item));
+
+    item = makeCommittedItem(makeStoredDocKey("key", defaultC), "value");
+    EXPECT_EQ(ItemAction::DropRead, stream->public_filterItem(*item));
+
+    item = makePendingItem(makeStoredDocKey("key", fruit), "value");
+    EXPECT_EQ(ItemAction::DropAdvance, stream->public_filterItem(*item));
+
+    item = makePendingItem(makeStoredDocKey("key", defaultC), "value");
+    EXPECT_EQ(ItemAction::Drop, stream->public_filterItem(*item));
+}
+
 TEST_P(SingleThreadedActiveStreamTest, ProcessStreamsExceptionCrashes) {
     // Set the producer to crash on failure - old behaviour
     engine->getConfiguration().setDcpProducerCatchExceptions(false);
