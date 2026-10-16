@@ -511,16 +511,6 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     const auto defragMovedBefore = getStat<uint64_t>(
             *adminConnection, "", "ep_defragmenter_num_moved");
 
-    // Recovery must use defragmenter_critical_sleep, not
-    // defragmenter_auto_min_sleep. Check that the two differ, so the sleep
-    // check below tells which one recovery uses.
-    ASSERT_EQ(0.0f,
-              getStat<float>(
-                      *adminConnection, "", "ep_defragmenter_critical_sleep"));
-    ASSERT_GT(getStat<float>(
-                      *adminConnection, "", "ep_defragmenter_auto_min_sleep"),
-              0.0f);
-
     EXPECT_EQ(tmpOomsAtStart.fragmentation, tmpOomCounters().fragmentation)
             << "ep_fragmentation_tmp_ooms moved while "
                "fragmentation_backpressure_enabled was false";
@@ -574,29 +564,21 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
              std::to_string(maxDefragAgeThreshold));
     setParam("defragmenter_enabled", "true");
 
-    // Recovery mode is short: it ends once RSS is back under quota.
-    // cb::waitForPredicate polls about once a second and can miss it, so poll
-    // every 60ms (the old min sleep 0.6s / 10), and read "moved" and "sleep"
-    // from one stats call so both are from the same moment.
-    // Was min sleep / 10; critical sleep is 0 and 0 / 10 would poll non-stop.
-    constexpr std::chrono::milliseconds recoveryPollInterval{60};
-    // Same 60s budget as before.
+    // Check "moved" only: it never goes down, so a slow poll can't miss it.
+    // The recovery sleep may show for only a few ms, so a unit test checks
+    // it (DefragmenterTaskTest.CriticalSleepInEveryMode).
+    // Same timeout as cb::waitForPredicate.
     constexpr std::chrono::seconds recoveryTimeout{60};
     uint64_t lastMoved = 0;
-    float lastSleepTime = 0;
-    const auto inAggressiveMode = [&] {
-        const auto stats = statSnapshot();
-        lastMoved = pick(stats, "ep_defragmenter_num_moved");
-        lastSleepTime = stats.at("ep_defragmenter_sleep_time").get<float>();
-        // Was "<= min sleep"; "== 0" proves recovery uses the critical sleep.
-        return lastMoved > defragMovedBefore && lastSleepTime == 0.0f;
-    };
     ASSERT_TRUE(cb::waitForPredicateUntil(
-            inAggressiveMode, recoveryTimeout, recoveryPollInterval))
+            [&] {
+                lastMoved = getStat<uint64_t>(
+                        *adminConnection, "", "ep_defragmenter_num_moved");
+                return lastMoved > defragMovedBefore;
+            },
+            recoveryTimeout))
             << "defragmenter not seen in aggressive mode: num_moved="
-            << lastMoved << " (before recovery " << defragMovedBefore
-            << "), sleep_time=" << lastSleepTime
-            << " (expected 0, the critical sleep)";
+            << lastMoved << " (before recovery " << defragMovedBefore << ")";
 
     // The aggressive defrag compacts the scattered survivors and frees the
     // sparse slabs, so RSS returns under quota.
