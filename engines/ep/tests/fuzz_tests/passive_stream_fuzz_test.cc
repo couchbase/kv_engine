@@ -95,6 +95,12 @@ static void validatePurgeSeqno(uint64_t purgeSeqno,
                                bool isDiskSnapshot,
                                uint64_t highSeqno,
                                std::optional<uint64_t> markerPurgeSeqno) {
+    if (!isPersistent) {
+        // TODO: MB-74678
+        // An ephemeral replica does not apply the replicated purge seqno,
+        // which is only picked up by the flusher.
+        return;
+    }
     if (isComplete) {
         if (isFlushed) {
             if (isDiskSnapshot) {
@@ -222,6 +228,16 @@ void PassiveStreamFuzzTest::receiveSnapshot(
                               isDiskSnapshot,
                               marker.getHighPreparedSeqno(),
                               marker.getEndSeqno());
+    // An ephemeral vbucket keeps a second HPS in the SeqList, which is what a
+    // promoted replica sends in its backfill markers (MB-74563).
+    if (!persistent()) {
+        validateHighPreparedSeqno(vb.getPersistedHighPreparedSeqno(),
+                                  isComplete,
+                                  isFlushed,
+                                  isDiskSnapshot,
+                                  marker.getHighPreparedSeqno(),
+                                  marker.getEndSeqno());
+    }
 
     EXPECT_EQ(vb.getMaxVisibleSeqno(), maxVisibleSeqno);
 
@@ -239,6 +255,14 @@ public:
     }
 };
 
+class EphemeralPassiveStreamFuzzTest : public PassiveStreamFuzzTest {
+public:
+    void SetUp() override {
+        config_string += "bucket_type=ephemeral";
+        PassiveStreamFuzzTest::SetUp();
+    }
+};
+
 static auto receiveSnapshotDomains() {
     return fuzztest::TupleOf(
             cb::fuzzing::snapshotMarker(),
@@ -250,6 +274,9 @@ static auto receiveSnapshotDomains() {
 }
 
 FUZZ_TEST_F(PersistentPassiveStreamFuzzTest, receiveSnapshot)
+        .WithDomains(receiveSnapshotDomains());
+
+FUZZ_TEST_F(EphemeralPassiveStreamFuzzTest, receiveSnapshot)
         .WithDomains(receiveSnapshotDomains());
 
 class PersistentPassiveStreamFuzzTest_Counterexamples
