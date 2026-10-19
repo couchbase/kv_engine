@@ -649,6 +649,9 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMutationMemRatio(std::stof(val));
         } else if (key == "fragmentation_backpressure_enabled") {
             configuration.setFragmentationBackpressureEnabled(cb_stob(val));
+        } else if (key == "fragmentation_backpressure_min_quota") {
+            configuration.setFragmentationBackpressureMinQuota(
+                    std::stoull(val));
         } else if (key == "timing_log") {
             EPStats& epStats = getEpStats();
             epStats.timingLog = nullptr;
