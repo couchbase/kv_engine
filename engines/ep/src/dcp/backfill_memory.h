@@ -14,6 +14,7 @@
 #include "dcp/backfill_by_seqno.h"
 #include "dcp/backfill_to_stream.h"
 #include "ephemeral_vb.h"
+#include "utilities/testing_hook.h"
 
 /**
  * Concrete class that does backfill from in-memory ordered data structure and
@@ -38,6 +39,9 @@ public:
     ~DCPBackfillMemoryBuffered() override;
 
     bool isSlow(const ActiveStream&) override;
+
+    // Called in create() once the range iterator has been created
+    TestingHook<> rangeIteratorCreatedHook;
 
 private:
     /**

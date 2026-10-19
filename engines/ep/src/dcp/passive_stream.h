@@ -397,6 +397,11 @@ protected:
     // not v2.2
     OptionalSeqno cur_snapshot_hps;
 
+    // The purge seqno received in the current Disk snapshot marker, if it is
+    // inside the snapshot range. It is applied to the vbucket as the items
+    // of the snapshot are received (capped at the last received seqno).
+    OptionalSeqno cur_snapshot_purge_seqno;
+
     // To keep the collections manifest for the Replica consistent we cannot
     // allow it to stream from an Active that is behind in terms of the
     // collections manifest. Send the collections manifest uid to the Active

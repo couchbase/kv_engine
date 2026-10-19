@@ -133,6 +133,8 @@ public:
 
     seqno_t getHighestPurgedDeletedSeqno() const override;
 
+    void maybeUpdateHighestPurgedDeletedSeqno(seqno_t seqno) override;
+
     uint64_t getMaxVisibleSeqno() const override;
 
     uint64_t getHighCompletedSeqno() const override;
@@ -366,7 +368,7 @@ private:
         }
 
         uint64_t getHighestPurgedDeletedSeqno() const override {
-            return list.getHighestPurgedDeletedSeqno();
+            return highestPurgedDeletedSeqno;
         }
 
     private:
@@ -432,6 +434,11 @@ private:
         const uint64_t highCompletedSeqno;
 
         const uint64_t highPreparedSeqno;
+
+        /* Read under the list write lock, so it is never above back(). A
+           replica may move the list's value forward while the iterator is
+           in use (see maybeUpdateHighestPurgedDeletedSeqno()). */
+        const uint64_t highestPurgedDeletedSeqno;
 
         /* Indicates if the range iterator is for DCP backfill
            (for debug) */

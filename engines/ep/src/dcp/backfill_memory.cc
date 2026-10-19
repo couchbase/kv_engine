@@ -105,6 +105,8 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         return backfill_snooze;
     }
 
+    rangeIteratorCreatedHook();
+
     const auto purgeSeqno = rangeItr.getHighestPurgedDeletedSeqno();
 
     bool allowNonRollBackStream = false;
@@ -178,7 +180,9 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                     // HPS == PPS for ephemeral vbuckets
                     rangeItr.getHighPreparedSeqno(),
                     rangeItr.getMaxVisibleSeqno(),
-                    evb->getPurgeSeqno(),
+                    // Not the vbucket's, which a replica may have moved
+                    // beyond the end of the range since it was created
+                    purgeSeqno,
                     SnapshotType::NoHistory);
 
             if (markerSent) {

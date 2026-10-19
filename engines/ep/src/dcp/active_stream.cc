@@ -336,6 +336,14 @@ bool ActiveStream::markDiskSnapshot(
                  * using a SeqnoAdvanced op.
                  */
                 diskEndSeqno = maxVisibleSeqno;
+
+                // A replica applies the purge seqno of a Disk snapshot up to
+                // the last item received, which may be a Prepare or an Abort
+                // above the MVS (and the purged tombstones may be above it
+                // too). The snapshot ends at the MVS, so cap the purge seqno
+                // there. The vbucket keeps the full value, so a client
+                // resuming below it is still rolled back.
+                purgeSeqno = std::min(purgeSeqno, diskEndSeqno);
             }
             if (diskEndSeqno < diskStartSeqno) {
                 // no visible items in backfill, should not send
@@ -410,8 +418,8 @@ bool ActiveStream::markDiskSnapshot(
         }
 
         // The diskEndSeqno & purgeSeqno are derived from the same
-        // BySeqnoScanContext and therefore purge seqno will always be <= end
-        // seqno. Expect the same to true.
+        // BySeqnoScanContext (or SeqList RangeIterator) and therefore purge
+        // seqno will always be <= end seqno. Expect the same to true.
         Expects(purgeSeqno <= diskEndSeqno);
 
         auto psToSend = supportPurgeSeqnoInSnapshot()
