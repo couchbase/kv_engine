@@ -47,7 +47,7 @@ public:
      * As a special note if StoreNewItem returns that the key exists (or
      * StoreItem returns EEXISTS) there is a race condition. In that
      * case we restart the operation. To avoid a potential race to run
-     * forever we give up after a 10 times.
+     * forever we give up after a 100 times matching subdoc operations.
      */
     enum class State {
         GetItem,
@@ -110,6 +110,19 @@ protected:
 
     cb::engine_errc reset();
 
+    /**
+     * Decide whether to retry the operation after a race with another
+     * writer. The caller must set the state to Reset before calling.
+     *
+     * Every call is counted in the arithmetic_update_races stat.
+     *
+     * @return success if the retry should run immediately,
+     *         would_block if the timeslice is used up (the cookie is
+     *         notified so the retry runs on a later turn), or
+     *         temporary_failure once ArithmeticMaxAutoRetries is reached
+     */
+    cb::engine_errc maybeRetry();
+
 private:
 
     const cb::mcbp::request::ArithmeticPayload extras;
@@ -122,4 +135,10 @@ private:
     cb::unique_item_ptr newitem;
     uint64_t result = 0;
     State state = State::GetItem;
+
+    /// Current retry count
+    size_t retries = 0;
+
+    /// If operations should be retried or not
+    const bool auto_retry_mode;
 };

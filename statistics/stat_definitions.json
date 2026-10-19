@@ -3019,6 +3019,12 @@
         "added": "7.6.0"
     },
     {
+        "key": "arithmetic_update_races",
+        "description": "The number of times an arithmetic operation (increment/decrement) had to be retried as the document was changed by a different actor while performing the operation",
+        "unit": "none",
+        "added": "ponyo"
+    },
+    {
         "key": "stat_timings_mem_usage",
         "description": "The memory footprint for tracing times spent processing stat requests",
         "unit": "bytes",

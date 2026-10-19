@@ -9,6 +9,7 @@
  */
 #include "testapp_client_test.h"
 #include "testapp_environment.h"
+#include <memcached/limits.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <cctype>
 #include <limits>
@@ -377,6 +378,93 @@ TEST_P(ArithmeticTest, MB52067) {
     EXPECT_EQ(1, counterVal);
 
     userConnection->disableEwouldBlockEngine();
+}
+
+/**
+ * Test handling of the internal auto-retry when a CAS mismatch occurs due
+ * to the underlying document changing between the arithmetic operation
+ * reading the initial value and trying to store the new value.
+ */
+TEST_P(ArithmeticTest, ArithmeticCASAutoRetry) {
+    // Create the counter so the following operations use the CAS store path
+    ASSERT_EQ(0, userConnection->increment(name, 1, 0));
+
+    // Use a separate connection which doesn't retry tmpfail automatically
+    auto conn = userConnection->clone();
+    conn->authenticate("Luke");
+    conn->selectBucket(bucketName);
+    conn->setAutoRetryTmpfail(false);
+
+    // 1. Make the first three CAS stores return EXISTS. We should have an
+    // auto-retry occur (and the command succeed).
+    conn->configureEwouldBlockEngine(
+            EWBEngineMode::CasMismatch, cb::engine_errc::success, 3);
+    EXPECT_EQ(1, conn->increment(name, 1));
+
+    // 2. Now retry with MAXIMUM_ATTEMPTS-1 CAS mismatches - this should still
+    // succeed.
+    conn->configureEwouldBlockEngine(EWBEngineMode::CasMismatch,
+                                     cb::engine_errc::success,
+                                     cb::limits::ArithmeticMaxAutoRetries - 1);
+    EXPECT_EQ(2, conn->increment(name, 1));
+
+    // 3. Now with MAXIMUM_ATTEMPTS CAS mismatches - this should return TMPFAIL.
+    conn->configureEwouldBlockEngine(EWBEngineMode::CasMismatch,
+                                     cb::engine_errc::success,
+                                     cb::limits::ArithmeticMaxAutoRetries);
+    try {
+        conn->increment(name, 1);
+        FAIL() << "Expected the increment to fail with TMPFAIL";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isTemporaryFailure()) << error.getReason();
+    }
+
+    conn->disableEwouldBlockEngine();
+
+    // The failed increment should not have modified the counter
+    EXPECT_EQ(2, conn->increment(name, 0));
+}
+
+/**
+ * Test that an arithmetic operation which keeps hitting CAS mismatches gives
+ * up with TMPFAIL after the maximum number of retries, and that every race
+ * is counted in the arithmetic_update_races stat.
+ */
+TEST_P(ArithmeticTest, ArithmeticMaxAutoRetriesStat) {
+    // Create the counter so the following operation uses the CAS store path
+    ASSERT_EQ(0, userConnection->increment(name, 1, 0));
+
+    std::size_t num_races_before = 0;
+    userConnection->stats([&num_races_before](auto k, auto v) {
+        if (k == "arithmetic_update_races") {
+            num_races_before = std::stoul(v);
+        }
+    });
+
+    // Return key_already_exists "forever" to make sure we give up
+    auto conn = userConnection->clone();
+    conn->authenticate("Luke");
+    conn->selectBucket(bucketName);
+    conn->setAutoRetryTmpfail(false);
+    conn->configureEwouldBlockEngine(
+            EWBEngineMode::SlowCasMismatch, cb::engine_errc::success, 1000);
+    try {
+        conn->increment(name, 1);
+        FAIL() << "Expected the increment to fail with TMPFAIL";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isTemporaryFailure()) << error.getReason();
+    }
+    conn->disableEwouldBlockEngine();
+
+    std::size_t num_races_after = 0;
+    userConnection->stats([&num_races_after](auto k, auto v) {
+        if (k == "arithmetic_update_races") {
+            num_races_after = std::stoul(v);
+        }
+    });
+
+    EXPECT_EQ(cb::limits::ArithmeticMaxAutoRetries,
+              num_races_after - num_races_before);
 }
 
 static void test_stored_doc(MemcachedConnection& conn,

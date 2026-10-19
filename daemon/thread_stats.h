@@ -45,6 +45,7 @@ struct HighResolutionThreadStats {
         cmd_lock = 0;
         lock_errors = 0;
         subdoc_update_races = 0;
+        arithmetic_update_races = 0;
 
         bytes_subdoc_lookup_total = 0;
         bytes_subdoc_lookup_extracted = 0;
@@ -84,6 +85,7 @@ struct HighResolutionThreadStats {
         bytes_subdoc_mutation_total += other.bytes_subdoc_mutation_total;
         bytes_subdoc_mutation_inserted += other.bytes_subdoc_mutation_inserted;
         subdoc_update_races += other.subdoc_update_races;
+        arithmetic_update_races += other.arithmetic_update_races;
 
         return *this;
     }
@@ -143,6 +145,10 @@ struct HighResolutionThreadStats {
     /// The number of races updating subdoc documents (document changed
     /// between fetching and storing the document)
     cb::RelaxedAtomic<uint64_t> subdoc_update_races;
+
+    /// The number of races updating arithmetic counters (document changed
+    /// between fetching and storing the document)
+    cb::RelaxedAtomic<uint64_t> arithmetic_update_races;
 };
 
 class Connection;

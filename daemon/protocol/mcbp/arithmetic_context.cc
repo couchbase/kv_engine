@@ -11,11 +11,13 @@
 
 #include "engine_wrapper.h"
 #include "item_dissector.h"
+#include <cblogger/logger.h>
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/sendbuffer.h>
 #include <daemon/thread_stats.h>
 #include <memcached/durability_spec.h>
+#include <memcached/limits.h>
 #include <memcached/util.h>
 #include <xattr/blob.h>
 
@@ -28,7 +30,8 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
       cas(req.getCas()),
       vbucket(req.getVBucket()),
       increment(req.getClientOpcode() == cb::mcbp::ClientOpcode::Increment ||
-                req.getClientOpcode() == cb::mcbp::ClientOpcode::Incrementq) {
+                req.getClientOpcode() == cb::mcbp::ClientOpcode::Incrementq),
+      auto_retry_mode(req.getCas() == cb::mcbp::cas::Wildcard) {
 }
 
 cb::engine_errc ArithmeticCommandContext::getItem() {
@@ -89,16 +92,16 @@ cb::engine_errc ArithmeticCommandContext::storeNewItem() {
     if (ret == cb::engine_errc::success) {
         cookie.setCas(ncas);
         state = State::SendResult;
-    } else if (ret == cb::engine_errc::key_already_exists && cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && auto_retry_mode) {
         state = State::Reset;
-        ret = cb::engine_errc::success;
+        ret = maybeRetry();
     } else if (ret == cb::engine_errc::not_stored) {
         // hit race condition, item with our key was created between our call
         // to bucket_store() and when we checked to see if it existed, by
         // calling bucket_get() so just re-try by resetting our state to the
         // start again.
         state = State::Reset;
-        ret = cb::engine_errc::success;
+        ret = maybeRetry();
     }
 
     return ret;
@@ -172,12 +175,12 @@ cb::engine_errc ArithmeticCommandContext::storeItem() {
     if (ret == cb::engine_errc::success) {
         cookie.setCas(ncas);
         state = State::SendResult;
-    } else if (cas == 0 && (ret == cb::engine_errc::key_already_exists ||
-                            ret == cb::engine_errc::no_such_key)) {
+    } else if (auto_retry_mode && (ret == cb::engine_errc::key_already_exists ||
+                                   ret == cb::engine_errc::no_such_key)) {
         // CAS mismatch case (either doc exists with different cas or no longer
         // exists).
         state = State::Reset;
-        ret = cb::engine_errc::success;
+        ret = maybeRetry();
     }
 
     return ret;
@@ -235,4 +238,27 @@ cb::engine_errc ArithmeticCommandContext::reset() {
     newitem.reset();
     state = State::GetItem;
     return cb::engine_errc::success;
+}
+
+cb::engine_errc ArithmeticCommandContext::maybeRetry() {
+    get_high_resolution_thread_stats(connection).arithmetic_update_races++;
+
+    if (++retries >= cb::limits::ArithmeticMaxAutoRetries) {
+        LOG_WARNING_CTX(
+                "Arithmetic: Hit maximum number of auto-retry attempts when "
+                "attempting to perform op on doc - returning TMPFAIL",
+                {"conn_id", cookie.getConnectionId()},
+                {"arithmetic_max_auto_retries",
+                 cb::limits::ArithmeticMaxAutoRetries},
+                {"opcode", cookie.getRequest().getClientOpcode()},
+                {"key",
+                 cb::UserDataView(cookie.getRequestKey().toPrintableString())});
+        return cb::engine_errc::temporary_failure;
+    }
+    if (std::chrono::steady_clock::now() <
+        connection.getCurrentTimesliceEnd()) {
+        return cb::engine_errc::success;
+    }
+    cookie.notifyIoComplete(cb::engine_errc::success);
+    return cb::engine_errc::would_block;
 }

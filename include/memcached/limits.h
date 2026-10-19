@@ -37,4 +37,8 @@ constexpr std::size_t MaxKeyLength = 250;
 /// code ;)
 constexpr std::size_t SubdocMaxAutoRetries = 100;
 
+/// Maximum number of automatic retries for arithmetic (incr/decr) operations
+/// when racing with other writers
+constexpr std::size_t ArithmeticMaxAutoRetries = 100;
+
 } // namespace cb::limits

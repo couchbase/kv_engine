@@ -166,6 +166,8 @@ void Bucket::addHighResolutionStats(
                       aggregatedStats.conn_timeslice_yields);
     collector.addStat(Key::subdoc_update_races,
                       aggregatedStats.subdoc_update_races);
+    collector.addStat(Key::arithmetic_update_races,
+                      aggregatedStats.arithmetic_update_races);
 
     collector.addStat(Key::cmd_lock, aggregatedStats.cmd_lock);
     collector.addStat(Key::lock_errors, aggregatedStats.lock_errors);
