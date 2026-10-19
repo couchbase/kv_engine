@@ -526,6 +526,10 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
 TEST_F(DefragmenterTaskTest, CriticalSleepInEveryMode) {
     auto& conf = engine->getConfiguration();
     conf.setFragmentationBackpressureEnabled(true);
+    // The test quota is under the default fragmentation_backpressure_min_quota,
+    // which would keep fragmentation from ever being critical. Remove the
+    // minimum so this test can exercise the critical sleep.
+    conf.setFragmentationBackpressureMinQuota(0);
     auto task = std::make_unique<MockDefragmenterTask>(*engine,
                                                        engine->getEpStats());
 
@@ -689,6 +693,49 @@ TEST(EPStatsScoredFragmentationTest, WeightingAndGuards) {
     stats.setHighWaterMark(600);
     *stats.fragStats.wlock() = cb::FragmentationStats{500, 650};
     EXPECT_FLOAT_EQ(150.0f / 650.0f, stats.getScoredFragmentation());
+}
+
+class FragmentationBackpressureTest : public SingleThreadedKVBucketTest {};
+
+// MB-74565: RSS/fragmentation back-pressure must not engage when the bucket
+// quota is below fragmentation_backpressure_min_quota. On small quotas the
+// jemalloc thread caches (not counted in mem_used) can push RSS over quota on
+// their own.
+TEST_F(FragmentationBackpressureTest, MinQuota) {
+    auto& config = engine->getConfiguration();
+    auto& stats = engine->getEpStats();
+    auto& tracker = engine->getMemoryTracker();
+
+    // The state of node02 in MB-74342: 200 MiB quota, RSS 207.8 MiB and
+    // allocated 121 MiB, i.e. RSS over quota with fragmentation ratio ~0.42.
+    constexpr size_t quota = 200 * 1024 * 1024;
+    stats.setMaxDataSize(quota);
+    stats.setHighWaterMark(quota * 85 / 100);
+    const cb::FragmentationStats fragStats{121 * 1024 * 1024,
+                                           size_t(207.8 * 1024 * 1024)};
+    *stats.fragStats.wlock() = fragStats;
+    config.setFragmentationBackpressureEnabled(true);
+
+    const auto expectCritical = [&](bool expected) {
+        EXPECT_EQ(expected, tracker.isFragmentationCritical());
+        EXPECT_EQ(expected, tracker.isFragmentationCritical(fragStats));
+    };
+
+    // Default minimum (7 GiB) is above the quota: never critical.
+    ASSERT_LT(quota, config.getFragmentationBackpressureMinQuota());
+    expectCritical(false);
+
+    // Minimum equal to the quota: critical.
+    config.setFragmentationBackpressureMinQuota(quota);
+    expectCritical(true);
+
+    // No minimum: critical.
+    config.setFragmentationBackpressureMinQuota(0);
+    expectCritical(true);
+
+    // Feature disabled: not critical, whatever the minimum.
+    config.setFragmentationBackpressureEnabled(false);
+    expectCritical(false);
 }
 
 INSTANTIATE_TEST_SUITE_P(

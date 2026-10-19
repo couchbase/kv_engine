@@ -149,6 +149,8 @@ public:
             store.getKVStoreScanTracker().updateMaxRunningDcpBackfills(value);
         } else if (key == "monitor_task_interval") {
             store.setMonitorTaskInterval(std::chrono::seconds(value));
+        } else if (key == "fragmentation_backpressure_min_quota") {
+            store.setFragmentationBackpressureMinQuota(value);
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -368,6 +370,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             config.isFragmentationBackpressureEnabled());
     config.addValueChangedListener(
             "fragmentation_backpressure_enabled",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setFragmentationBackpressureMinQuota(
+            config.getFragmentationBackpressureMinQuota());
+    config.addValueChangedListener(
+            "fragmentation_backpressure_min_quota",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     double backfill_threshold = static_cast<double>
@@ -3593,6 +3601,14 @@ bool KVBucket::isFragmentationBackpressureEnabled() const {
 
 void KVBucket::setFragmentationBackpressureEnabled(bool enabled) {
     fragmentationBackpressureEnabled = enabled;
+}
+
+size_t KVBucket::getFragmentationBackpressureMinQuota() const {
+    return fragmentationBackpressureMinQuota;
+}
+
+void KVBucket::setFragmentationBackpressureMinQuota(size_t quota) {
+    fragmentationBackpressureMinQuota = quota;
 }
 
 void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
