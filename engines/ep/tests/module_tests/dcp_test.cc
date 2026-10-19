@@ -1024,6 +1024,99 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
 }
 
 /**
+ * Verify that a DCP Producer records how often and for how long it
+ * is throttled, without changing its paused state.
+ */
+TEST_P(ConnectionTest, ProducerThrottledStats) {
+    // Use the static clock so that the durations are exact. Time only moves
+    // forward on calls to steady_clock::advance().
+    cb::time::StaticClockGuard clockGuard;
+    auto* cookie = create_mock_cookie(engine);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
+    MockDcpMessageProducers producers;
+
+    // Collect the producer's stats as they would be seen by "stats dcp". The
+    // keys are prefixed with the connection name.
+    auto getStats = [&producer, cookie]() {
+        std::map<std::string, std::string> stats;
+        producer->addStats(
+                [&stats](std::string_view key, std::string_view value, auto&) {
+                    stats[std::string{key}] = std::string{value};
+                },
+                *cookie);
+        return stats;
+    };
+
+    // A new producer starts paused (Initializing). Record the paused details
+    // so we can check at the end that throttling didn't change them.
+    ASSERT_TRUE(producer->isPaused());
+    const auto pausedBefore = producer->getPausedDetails();
+
+    // Initially the producer has never been throttled
+    auto details = producer->getThrottledDetails();
+    EXPECT_FALSE(details.throttled);
+    EXPECT_EQ(0, details.count);
+    EXPECT_EQ(std::chrono::nanoseconds{0}, details.duration);
+    auto stats = getStats();
+    EXPECT_EQ("false", stats["test_producer:throttled"]);
+    EXPECT_EQ("0", stats["test_producer:throttled_count"]);
+
+    // First throttle: step twice while throttled, 500ms apart. Repeated
+    // throttled steps are part of the same throttle so the count is 1.
+    EXPECT_EQ(cb::engine_errc::throttled, producer->step(true, producers));
+    cb::time::steady_clock::advance(std::chrono::milliseconds{500});
+    EXPECT_EQ(cb::engine_errc::throttled, producer->step(true, producers));
+    details = producer->getThrottledDetails();
+    EXPECT_TRUE(details.throttled);
+    EXPECT_EQ(1, details.count);
+    // The throttle is still in progress, so nothing has been added to the
+    // stored duration yet
+    EXPECT_EQ(std::chrono::nanoseconds{0}, details.duration);
+    // However, the stat includes the 500ms of the current throttle so that a
+    // connection which is throttled for a long time is visible
+    stats = getStats();
+    EXPECT_EQ("true", stats["test_producer:throttled"]);
+    EXPECT_EQ("1", stats["test_producer:throttled_count"]);
+    EXPECT_EQ(cb::time2text(std::chrono::milliseconds{500}),
+              stats["test_producer:throttled_duration"]);
+
+    // A step which isn't throttled ends the first throttle. It lasted 1s
+    // (500ms + 500ms) from the first throttled step to this step.
+    cb::time::steady_clock::advance(std::chrono::milliseconds{500});
+    producer->step(false, producers);
+    details = producer->getThrottledDetails();
+    EXPECT_FALSE(details.throttled);
+    EXPECT_EQ(1, details.count);
+    EXPECT_EQ(std::chrono::seconds{1}, details.duration);
+
+    // Second throttle lasting 1s. The count goes up by one and its duration
+    // is added to the total (1s + 1s).
+    EXPECT_EQ(cb::engine_errc::throttled, producer->step(true, producers));
+    cb::time::steady_clock::advance(std::chrono::seconds{1});
+    producer->step(false, producers);
+    details = producer->getThrottledDetails();
+    EXPECT_EQ(2, details.count);
+    EXPECT_EQ(std::chrono::seconds{2}, details.duration);
+    // The producer is no longer throttled, so the stats match the stored
+    // totals
+    stats = getStats();
+    EXPECT_EQ("false", stats["test_producer:throttled"]);
+    EXPECT_EQ("2", stats["test_producer:throttled_count"]);
+    EXPECT_EQ(cb::time2text(std::chrono::seconds{2}),
+              stats["test_producer:throttled_duration"]);
+
+    // Throttling must not have touched the paused state: the producer is still
+    // paused for the same reason and its pause history is unchanged
+    EXPECT_EQ(pausedBefore.reason, producer->getPausedDetails().reason);
+    EXPECT_EQ(pausedBefore.reasonCounts,
+              producer->getPausedDetails().reasonCounts);
+
+    producer->cancelCheckpointCreatorTask();
+    destroy_mock_cookie(cookie);
+}
+
+/**
  * Test that a DCP Producer correctly sends a noop after the specified interval
  * has elapsed.
  */

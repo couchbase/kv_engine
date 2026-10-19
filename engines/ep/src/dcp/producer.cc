@@ -950,6 +950,7 @@ cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
 
 cb::engine_errc DcpProducer::step(bool throttled,
                                   DcpMessageProducersIface& producers) {
+    setThrottled(throttled);
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
