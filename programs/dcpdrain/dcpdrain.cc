@@ -227,7 +227,23 @@ protected:
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point stop;
 
+    /**
+     * Close the connection once all streams have ended. Frames which were
+     * already read into the input buffer may still be dispatched after
+     * this, so the handlers must check `closed` and not try to write to
+     * the (now closed) socket.
+     */
+    void closeConnection() {
+        closed = true;
+        connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
+        connection->getUnderlyingAsyncSocket().close();
+        stop = std::chrono::steady_clock::now();
+    }
+
     void handleRequest(const cb::mcbp::Request& req) {
+        if (closed) {
+            return;
+        }
         bool dcpmsg = false;
 
         switch (req.getClientOpcode()) {
@@ -235,9 +251,8 @@ protected:
             ++stream_end;
             if (stream_end == vbuckets.size()) {
                 // we got all we wanted
-                connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
-                connection->getUnderlyingAsyncSocket().close();
-                stop = std::chrono::steady_clock::now();
+                closeConnection();
+                return;
             }
             dcpmsg = true;
             break;
@@ -296,7 +311,7 @@ protected:
     }
 
     void handleResponse(const cb::mcbp::Response& response) {
-        if (cb::mcbp::isStatusSuccess(response.getStatus())) {
+        if (closed || cb::mcbp::isStatusSuccess(response.getStatus())) {
             return;
         }
 
@@ -307,9 +322,7 @@ protected:
             stream_end++;
             if (stream_end == vbuckets.size()) {
                 // we got all we wanted
-                connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
-                connection->getUnderlyingAsyncSocket().close();
-                stop = std::chrono::steady_clock::now();
+                closeConnection();
             }
         }
     }
@@ -352,6 +365,8 @@ protected:
     size_t oso_snapshots = 0;
     uint32_t current_buffer_window = 0;
     size_t totalStreams = 0;
+    /// Set when all streams have ended and the socket is closed
+    bool closed = false;
 };
 
 void DcpConnection::queryServerAndSetupStreamRequestInsideSnapshot() {
