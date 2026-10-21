@@ -137,7 +137,9 @@ void ActiveStreamFuzzTest::backfillAndMemoryStream(
     auto& vb = *store->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
 
-    auto backupCursor = processCheckpointActions(cm, preActions);
+    InFlightPrepares inFlightPrepares;
+    auto backupCursor =
+            processCheckpointActions(cm, preActions, inFlightPrepares);
     if (persistent()) {
         flushVBucket(vbid);
     }
@@ -185,7 +187,8 @@ void ActiveStreamFuzzTest::backfillAndMemoryStream(
     // Process the first set of mutations and drain the readyQ.
     driveActiveStream(producer, stream);
 
-    auto postCursor = processCheckpointActions(cm, postActions);
+    auto postCursor =
+            processCheckpointActions(cm, postActions, inFlightPrepares);
     EXPECT_TRUE(cm.removeCursor(*postCursor));
 
     // Process the second set of mutations and drain the readyQ.

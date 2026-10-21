@@ -16,7 +16,9 @@
 
 #include <fuzztest/domain.h>
 #include <memcached/storeddockey.h>
+#include <platform/define_yes_no_enum.h>
 #include <utilities/test_manifest.h>
+#include <unordered_map>
 
 namespace cb::fuzzing {
 
@@ -30,7 +32,9 @@ namespace cb::fuzzing {
 enum class CheckpointActionType {
     CreateCheckpoint,
     Mutation,
-    // TODO(MB-66315): Add SyncWrite support
+    Prepare,
+    Commit,
+    Abort,
 };
 
 std::string_view format_as(CheckpointActionType item);
@@ -43,7 +47,8 @@ struct CheckpointAction {
     StoredDocKey key;
     /// The type of action to perform.
     CheckpointActionType type;
-    /// Sequence number of the queued_item (set when queued in the CM).
+    /// Sequence number of the queued_item (set when queued in the CM). Remains
+    /// 0 if the action was skipped, as an active could not have queued it.
     mutable uint64_t bySeqno{0};
 };
 
@@ -57,6 +62,36 @@ std::string format_as(const CheckpointAction& action);
  * the choice of fmt::formatter specialization ambiguous as of fmt 12.
  */
 std::string formatActions(const std::vector<CheckpointAction>& actions);
+
+/**
+ * The Prepares which have not been committed or aborted yet, used to only
+ * generate the sequences of SyncWrites an active could have generated.
+ */
+class InFlightPrepares {
+public:
+    /**
+     * Whether an active could queue the action. It rejects a Mutation or a
+     * Prepare of a key with a Prepare in flight, and completes the Prepares
+     * in the order they were queued.
+     */
+    bool canQueue(const StoredDocKey& key, CheckpointActionType type) const;
+
+    /**
+     * Records a Prepare of the key queued at the seqno.
+     */
+    void prepare(const StoredDocKey& key, uint64_t seqno);
+
+    /**
+     * Records the completion of the Prepare of the key.
+     *
+     * @return The seqno of the Prepare.
+     */
+    uint64_t complete(const StoredDocKey& key);
+
+private:
+    /// The seqno of each Prepare in flight, by key.
+    std::unordered_map<StoredDocKey, uint64_t> prepares;
+};
 
 /**
  * Creates a test manifest which contains the collections used in the fuzz
@@ -84,12 +119,17 @@ std::string createJsonFilter(std::optional<CollectionID> collectionFilter);
  * Processes a list of checkpoint actions and returns a cursor to a saved
  * position before processing the actions.
  *
+ * Actions an active could not queue are skipped (see InFlightPrepares).
+ *
  * @param cm The checkpoint manager.
  * @param actions The actions to perform.
+ * @param inFlightPrepares The Prepares in flight, updated by the actions.
  * @return A cursor to a saved position before processing the actions.
  */
 std::shared_ptr<CheckpointCursor> processCheckpointActions(
-        CheckpointManager& cm, const std::vector<CheckpointAction>& actions);
+        CheckpointManager& cm,
+        const std::vector<CheckpointAction>& actions,
+        InFlightPrepares& inFlightPrepares);
 
 /**
  * Creates a DcpSnapshotMarkerFlag.
@@ -138,11 +178,20 @@ using ElementOfDomain =
  */
 ElementOfDomain<CollectionEntry::Entry> collectionEntry();
 
+/** Whether to generate CreateCheckpoint actions as well. */
+DEFINE_YES_NO_ENUM(CreateCheckpoints)
+
+/** Whether to generate Prepare, Commit and Abort actions as well. */
+DEFINE_YES_NO_ENUM(SyncWrites)
+
 /**
  * Domain for generating CheckpointActionTypes.
+ *
+ * @param createCheckpoints Whether to generate CreateCheckpoint.
+ * @param syncWrites Whether to generate Prepare, Commit and Abort.
  */
 ElementOfDomain<CheckpointActionType> checkpointActionType(
-        bool createCheckpoint = true);
+        CreateCheckpoints createCheckpoints, SyncWrites syncWrites);
 
 /**
  * Domain for generating datatypes.
@@ -167,7 +216,9 @@ inline auto docKey(bool defaultCollectionOnly = false) {
 /** Domain for generating CheckpointActions */
 inline auto checkpointAction() {
     return fuzztest::StructOf<CheckpointAction>(
-            docKey(), checkpointActionType(), fuzztest::Just(uint64_t(0)));
+            docKey(),
+            checkpointActionType(CreateCheckpoints::Yes, SyncWrites::Yes),
+            fuzztest::Just(uint64_t{0}));
 }
 
 inline auto snapshotMarkerFlag() {
@@ -195,9 +246,10 @@ inline auto snapshotMarker() {
 }
 
 inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {
-    return fuzztest::Map(createMutationResponse,
-                         docKey(defaultCollectionOnly),
-                         checkpointActionType(false));
+    return fuzztest::Map(
+            createMutationResponse,
+            docKey(defaultCollectionOnly),
+            checkpointActionType(CreateCheckpoints::No, SyncWrites::No));
 }
 
 } // namespace cb::fuzzing

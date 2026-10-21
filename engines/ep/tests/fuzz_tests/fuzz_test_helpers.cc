@@ -20,6 +20,12 @@ std::string_view format_as(CheckpointActionType item) {
     switch (item) {
     case CheckpointActionType::Mutation:
         return "Mutation";
+    case CheckpointActionType::Prepare:
+        return "Prepare";
+    case CheckpointActionType::Commit:
+        return "Commit";
+    case CheckpointActionType::Abort:
+        return "Abort";
     case CheckpointActionType::CreateCheckpoint:
         return "Checkpoint";
     }
@@ -74,6 +80,16 @@ queued_item createItem(DocKeyView key, CheckpointActionType type) {
     switch (type) {
     case CheckpointActionType::Mutation:
         break;
+    case CheckpointActionType::Prepare:
+        item->setPendingSyncWrite({cb::durability::Level::Majority,
+                                   cb::durability::Timeout::Infinity()});
+        break;
+    case CheckpointActionType::Commit:
+        item->setCommittedviaPrepareSyncWrite();
+        break;
+    case CheckpointActionType::Abort:
+        item->setAbortSyncWrite();
+        break;
     case CheckpointActionType::CreateCheckpoint:
         throw std::runtime_error("not supported");
     }
@@ -99,8 +115,39 @@ std::string createJsonFilter(std::optional<CollectionID> collectionFilter) {
     return {};
 }
 
+static bool completesPrepare(CheckpointActionType type) {
+    return type == CheckpointActionType::Commit ||
+           type == CheckpointActionType::Abort;
+}
+
+bool InFlightPrepares::canQueue(const StoredDocKey& key,
+                                CheckpointActionType type) const {
+    const auto inFlight = prepares.find(key);
+    if (!completesPrepare(type)) {
+        return inFlight == prepares.end();
+    }
+    if (inFlight == prepares.end()) {
+        return false;
+    }
+    return std::ranges::none_of(prepares, [&inFlight](const auto& prepare) {
+        return prepare.second < inFlight->second;
+    });
+}
+
+void InFlightPrepares::prepare(const StoredDocKey& key, uint64_t seqno) {
+    prepares.emplace(key, seqno);
+}
+
+uint64_t InFlightPrepares::complete(const StoredDocKey& key) {
+    auto prepare = prepares.extract(key);
+    Expects(prepare);
+    return prepare.mapped();
+}
+
 std::shared_ptr<CheckpointCursor> processCheckpointActions(
-        CheckpointManager& cm, const std::vector<CheckpointAction>& actions) {
+        CheckpointManager& cm,
+        const std::vector<CheckpointAction>& actions,
+        InFlightPrepares& inFlightPrepares) {
     // Register cursor with randomly generated name.
     auto cursor = cm.registerCursorBySeqno(
                             fmt::format("backup_cursor_{}", fmt::ptr(&actions)),
@@ -116,9 +163,19 @@ std::shared_ptr<CheckpointCursor> processCheckpointActions(
             continue;
         }
 
+        if (!inFlightPrepares.canQueue(action.key, action.type)) {
+            continue;
+        }
+
         auto item = createItem(action.key, action.type);
+        if (completesPrepare(action.type)) {
+            item->setPrepareSeqno(inFlightPrepares.complete(action.key));
+        }
         cm.queueDirty(item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr);
         action.bySeqno = item->getBySeqno();
+        if (action.type == CheckpointActionType::Prepare) {
+            inFlightPrepares.prepare(action.key, action.bySeqno);
+        }
     }
 
     return cursor;
@@ -198,12 +255,18 @@ ElementOfDomain<CollectionEntry::Entry> collectionEntry() {
 }
 
 ElementOfDomain<CheckpointActionType> checkpointActionType(
-        bool createCheckpoint) {
+        CreateCheckpoints createCheckpoints, SyncWrites syncWrites) {
     std::vector<CheckpointActionType> types = {
             CheckpointActionType::Mutation,
     };
 
-    if (createCheckpoint) {
+    if (syncWrites == SyncWrites::Yes) {
+        types.push_back(CheckpointActionType::Prepare);
+        types.push_back(CheckpointActionType::Commit);
+        types.push_back(CheckpointActionType::Abort);
+    }
+
+    if (createCheckpoints == CreateCheckpoints::Yes) {
         types.push_back(CheckpointActionType::CreateCheckpoint);
     }
 
