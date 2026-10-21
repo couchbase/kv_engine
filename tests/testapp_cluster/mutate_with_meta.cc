@@ -144,6 +144,44 @@ TEST_F(MutateWithMetaTest, StoreItemWithExistingProperties) {
     validateDocument(*conn, false, doc.info.cas, rev_seqno);
 }
 
+/**
+ * Regression test for an unsigned integer overflow in the offset bounds check
+ * in MutateWithMetaCommandContext::validateOffsetRequirements. An offset close
+ * to SIZE_MAX made "offset + pattern_size" wrap around and pass the bounds
+ * check, which then performed an out-of-bounds write before the xattr buffer.
+ * The server must reject such an offset and stay alive.
+ */
+TEST_F(MutateWithMetaTest, OffsetOverflowIsRejected) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    conn->authenticate("@admin");
+    conn->selectBucket("default");
+
+    // An offset of (SIZE_MAX - 17) makes offset + 18 (the pattern size) wrap
+    // around to 0, which must not be treated as "in bounds".
+    const std::vector<std::size_t> cas_offsets{
+            std::numeric_limits<std::size_t>::max() - 17};
+
+    BinprotMutateWithMetaCommand cmd(
+            doc,
+            Vbid{0},
+            cb::mcbp::request::MutateWithMetaCommand::Set,
+            cb::mcbp::cas::Wildcard,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            /*rev_seqno*/ 1,
+            cas_offsets,
+            /*seqno_offsets*/ {});
+    const auto response = conn->execute(cmd);
+    EXPECT_EQ(Status::Einval, response.getStatus());
+
+    // The connection must still be alive (i.e. the server did not crash or
+    // drop the connection as a result of the malformed request).
+    conn->reconnect();
+    conn->authenticate("@admin");
+    conn->selectBucket("default");
+    EXPECT_NO_THROW(conn->getSaslMechanisms());
+}
+
 TEST_F(MutateWithMetaTest, StoreItemWithMacroExpansion) {
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
