@@ -45,9 +45,18 @@ else ()
 endif ()
 
 MACRO (Generate_kv_engine_X509_Certificate)
-    cmake_parse_arguments(Cert "" "NAME;CONFIG;ROOT;EXTFILE;CA_TARGET;BITS" "" ${ARGN})
+    cmake_parse_arguments(Cert "" "NAME;CONFIG;ROOT;EXTFILE;CA_TARGET;BITS;CURVE;DIGEST" "" ${ARGN})
     if (NOT Cert_BITS)
         set(Cert_BITS ${OPENSSL_NUMBER_OF_BITS})
+    endif ()
+    # Generate an ECDSA key if a curve is specified, otherwise an RSA key
+    if (Cert_CURVE)
+        set(Cert_NEWKEY -newkey ec -pkeyopt ec_paramgen_curve:${Cert_CURVE})
+    else ()
+        set(Cert_NEWKEY -newkey rsa:${Cert_BITS})
+    endif ()
+    if (NOT Cert_DIGEST)
+        set(Cert_DIGEST ${OPENSSL_SIGNING_ALGORITHM})
     endif ()
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr
                        ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key
@@ -61,8 +70,8 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        COMMAND ${QUIET_OPENSSL_BINARY}
                        req
                        -new
-                       -newkey rsa:${Cert_BITS}
-                       -${OPENSSL_SIGNING_ALGORITHM}
+                       ${Cert_NEWKEY}
+                       -${Cert_DIGEST}
                        -keyout ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.key.tmp
                        -config ${CMAKE_CURRENT_SOURCE_DIR}/${Cert_CONFIG}
                        -out ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.csr.tmp
@@ -91,6 +100,7 @@ MACRO (Generate_kv_engine_X509_Certificate)
                        -CA ${CMAKE_CURRENT_BINARY_DIR}/${Cert_ROOT}.cert
                        -CAkey ${CMAKE_CURRENT_BINARY_DIR}/${Cert_ROOT}.key
                        -set_serial 1
+                       -${Cert_DIGEST}
                        -extfile ${CMAKE_CURRENT_SOURCE_DIR}/${Cert_EXTFILE}
                        -out ${CMAKE_CURRENT_BINARY_DIR}/${Cert_NAME}.cert.tmp
                        -days 365
@@ -112,9 +122,11 @@ add_subdirectory(clients)
 add_subdirectory(parse-test)
 add_subdirectory(servers)
 add_subdirectory(crl)
+add_subdirectory(ecdsa)
 
 add_custom_target(Generate_kv_engine_X509_Test_Certificates
                   DEPENDS
+                  Generate_kv_engine_X509_Test_ECDSA_Certificates
                   Generate_kv_engine_X509_Test_Root_Certificate
                   Generate_kv_engine_X509_Test_Intermediate_Certificate
                   Generate_kv_engine_X509_Test_Client_Certificate

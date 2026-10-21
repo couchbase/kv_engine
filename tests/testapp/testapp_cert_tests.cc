@@ -9,6 +9,7 @@
  */
 
 #include "testapp.h"
+#include <folly/ScopeGuard.h>
 #include <folly/io/async/AsyncSocketException.h>
 #include <folly/portability/GTest.h>
 #include <filesystem>
@@ -368,21 +369,99 @@ TEST_F(SslCertTest, TestSecurityLevel2) {
     const auto cafile = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert" /
                         "intermediate" / "client_intermediate_ca.pem";
     setClientCertData(*connection, "jane", {}, {}, cafile);
+    // Use TLS 1.2 so that the server verifies the client certificate as
+    // part of the handshake. With TLS 1.3 the client completes its side of
+    // the handshake before the server verifies the certificate, and the
+    // alert may be lost to a connection reset.
+    connection->setTlsProtocol(TlsVersion::V1_2);
     connection->connect();
     connection->setXerrorSupport(true);
 
+    // jane's certificate uses a 1024 bit key, which is too small for
+    // security level 2 so the server should reject it during the handshake
     reconfigure_security_level(2);
     try {
         connection->reconnect();
-        connection->setXerrorSupport(true);
         FAIL() << "Should not be able to connect this certificate with "
                   "security level 2";
-    } catch (const std::exception&) {
+    } catch (const std::runtime_error& ex) {
+        EXPECT_TRUE(std::string_view(ex.what()).starts_with(
+                "SSL handshake failed: "))
+                << ex.what();
+        EXPECT_TRUE(std::string_view(ex.what()).contains(
+                "ssl/tls alert bad certificate"))
+                << ex.what();
     }
 
     // But we should be able to connect with a user which a certificate meeting
     // the security level 2 requirements
+    connection->setTlsProtocol(TlsVersion::Any);
     setClientCertData(*connection, "trond");
     connection->connect();
     connection->setXerrorSupport(true);
+}
+
+/// Verify that the server may be configured with all of the security levels
+/// supported by OpenSSL, and that clients may connect and authenticate with
+/// a client certificate over both TLS 1.2 and TLS 1.3. The ECDSA certificates
+/// use P-521 keys signed with SHA-512 which meets the requirements for all
+/// of the levels.
+TEST_F(SslCertTest, AllSecurityLevelsWithEcdsaCertificates) {
+    auto restoreTlsProperties =
+            folly::makeGuard([this, original = tls_properties]() {
+                tls_properties = original;
+                reconfigure();
+            });
+
+    const auto directory =
+            std::filesystem::path(OBJECT_ROOT) / "tests" / "cert" / "ecdsa";
+    tls_properties["private key"] = (directory / "node1.key").generic_string();
+    tls_properties["certificate chain"] =
+            (directory / "node1.cert").generic_string();
+    tls_properties["CA file"] = (directory / "ca_root.cert").generic_string();
+
+    const auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection,
+                      "trond",
+                      directory / "trond.cert",
+                      directory / "trond.key",
+                      directory / "ca_root.cert");
+
+    for (int level = TlsConfiguration::OpenSSL_MinimumSecurityLevel;
+         level <= TlsConfiguration::OpenSSL_MaximumSecurityLevel;
+         ++level) {
+        reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ", level);
+        for (const auto version : {TlsVersion::V1_2, TlsVersion::V1_3}) {
+            try {
+                connection->setTlsProtocol(version);
+                connection->reconnect();
+                // Selecting the bucket requires the connection to be
+                // authenticated as the user in the client certificate
+                connection->selectBucket(bucketName);
+            } catch (const std::exception& e) {
+                ADD_FAILURE() << "Failed with security level " << level
+                              << " and " << version << ": " << e.what();
+            }
+        }
+    }
+}
+
+/// Verify that the server refuse a TLS configuration where the certificate
+/// don't meet the requirements of the security level. The RSA certificates
+/// use 2048 bit keys which only meets the requirements up to level 2.
+TEST_F(SslCertTest, SecurityLevelTooHighForCertificate) {
+    auto restoreTlsProperties =
+            folly::makeGuard([this, original = tls_properties]() {
+                tls_properties = original;
+                reconfigure();
+            });
+
+    auto properties = tls_properties;
+    properties["security level"] = 3;
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Ifconfig, "tls", properties.dump()});
+    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_TRUE(rsp.getDataView().contains("ee key too small"))
+            << rsp.getStatus() << ": " << rsp.getDataView();
 }
