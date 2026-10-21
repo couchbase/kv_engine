@@ -299,6 +299,14 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // below to assert recovery (phase 2).
     setParam("defragmenter_enabled", "false");
 
+    // Also disable the back-pressure gate while we build the fragmented state.
+    // It now defaults to enabled, but if it is live during the phase-3 load it
+    // temp-OOMs the store as soon as RSS crosses the quota -- before we reach
+    // the deep fragmentation this test needs -- and the still-auto-retrying
+    // client hangs on the temp-OOM. The gate is enabled explicitly below (phase
+    // 1) to assert it, once the fragmented state is in place.
+    setParam("fragmentation_backpressure_enabled", "false");
+
     const auto tmpOomsAtStart = tmpOomCounters();
 
     // The 100 MB quota set below is under the default
