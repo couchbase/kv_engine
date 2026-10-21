@@ -359,6 +359,11 @@ TEST_P(MemTrackingBucketTest, HighFragmentation) {
     // 1) to assert it, once the fragmented state is in place.
     setParam("fragmentation_backpressure_enabled", "false");
 
+    // The 100 MB quota set below is under the default
+    // fragmentation_backpressure_min_quota, which would keep the gate from
+    // ever engaging. Remove the minimum so this test can exercise the gate.
+    setParam("fragmentation_backpressure_min_quota", "0");
+
     const auto tmpOomsAtStart = tmpOomCounters();
 
     // Use a fixed 100 MB quota so the test does not depend on any -c max_size

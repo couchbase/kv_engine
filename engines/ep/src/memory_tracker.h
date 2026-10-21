@@ -62,7 +62,8 @@ public:
      * @return true if RSS is over the bucket quota AND scored fragmentation is
      * at/above defragmenter_auto_upper_threshold, i.e. RSS/fragmentation
      * memory back-pressure should engage.
-     * Always false when fragmentation_backpressure_enabled is false.
+     * Always false when fragmentation_backpressure_enabled is false, or when
+     * the bucket quota is below fragmentation_backpressure_min_quota.
      */
     virtual bool isFragmentationCritical() const = 0;
 
@@ -94,5 +95,12 @@ public:
             const cb::FragmentationStats& fragStats) const override;
 
 private:
+    /**
+     * @return true if RSS/fragmentation back-pressure may engage for this
+     * bucket: fragmentation_backpressure_enabled is true and the bucket quota
+     * is at/above fragmentation_backpressure_min_quota.
+     */
+    bool isFragmentationBackpressureApplicable() const;
+
     EventuallyPersistentEngine& engine;
 };

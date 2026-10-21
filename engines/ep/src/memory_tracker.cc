@@ -15,9 +15,23 @@
 #include "kv_bucket.h"
 #include <utilities/math_utilities.h>
 
-bool StrictQuotaMemoryTracker::isFragmentationCritical() const {
-    if (!engine.getKVBucket()->isFragmentationBackpressureEnabled()) {
+bool StrictQuotaMemoryTracker::isFragmentationBackpressureApplicable() const {
+    const auto& bucket = *engine.getKVBucket();
+    if (!bucket.isFragmentationBackpressureEnabled()) {
         return false; // feature disabled
+    }
+    // MB-74565: RSS includes the memory held in the jemalloc thread caches
+    // (one per thread per bucket), which mem_used does not count. That is a
+    // fixed overhead, so on a small quota it alone can push RSS over quota and
+    // trigger back-pressure that the defragmenter cannot recover from. Only
+    // engage for quotas large enough for that overhead to be negligible.
+    return engine.getEpStats().getMaxDataSize() >=
+           bucket.getFragmentationBackpressureMinQuota();
+}
+
+bool StrictQuotaMemoryTracker::isFragmentationCritical() const {
+    if (!isFragmentationBackpressureApplicable()) {
+        return false;
     }
     // RSS over the bucket quota because of fragmentation. High fragmentation
     // while RSS is under quota is not a survival case, so require both. Reuse
@@ -29,8 +43,8 @@ bool StrictQuotaMemoryTracker::isFragmentationCritical() const {
 
 bool StrictQuotaMemoryTracker::isFragmentationCritical(
         const cb::FragmentationStats& fragStats) const {
-    if (!engine.getKVBucket()->isFragmentationBackpressureEnabled()) {
-        return false; // feature disabled
+    if (!isFragmentationBackpressureApplicable()) {
+        return false;
     }
     // Evaluate the caller-supplied snapshot, avoiding a re-read of the cached
     // fragStats under rlock.

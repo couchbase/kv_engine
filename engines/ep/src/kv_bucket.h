@@ -1221,6 +1221,14 @@ public:
     /// Enable/disable RSS/fragmentation memory back-pressure.
     void setFragmentationBackpressureEnabled(bool enabled);
 
+    /// @return the minimum bucket quota for RSS/fragmentation memory
+    ///         back-pressure to engage (0 means no minimum).
+    size_t getFragmentationBackpressureMinQuota() const;
+
+    /// Set the minimum bucket quota for RSS/fragmentation memory back-pressure
+    /// to engage (0 means no minimum).
+    void setFragmentationBackpressureMinQuota(size_t quota);
+
     /**
      * Notify frontend of a new item added to the replication queue for the
      * given vbucket.
@@ -1800,6 +1808,12 @@ protected:
     /// defragmenter_auto_upper_threshold, mutations temp-OOM and backfill
     /// pauses.
     std::atomic<bool> fragmentationBackpressureEnabled{false};
+
+    /// Minimum bucket quota (max_size) for RSS/fragmentation memory
+    /// back-pressure to engage; 0 means no minimum. On small quotas the
+    /// jemalloc thread caches (not counted in mem_used) can push RSS over
+    /// quota on their own, so fragmentation is not treated as critical there.
+    std::atomic<size_t> fragmentationBackpressureMinQuota{0};
 
     /**
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.

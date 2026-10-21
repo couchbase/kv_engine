@@ -749,6 +749,13 @@
             "dynamic": true,
             "type": "bool"
         },
+        "fragmentation_backpressure_min_quota": {
+            "added": "8.5.0",
+            "default": "7516192768",
+            "descr": "Minimum bucket quota (max_size, in bytes) for RSS/fragmentation back-pressure to engage. Below this quota fragmentation is never treated as critical: the jemalloc thread caches, a fixed overhead not counted in mem_used, can then be a large share of the quota and push RSS over it on their own. 0 means no minimum. Has no effect when fragmentation_backpressure_enabled is false.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "defragmenter_critical_sleep": {
             "added": "8.5.0",
             "default": "0.0",
